@@ -3,6 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { nanoid } from 'nanoid';
 import type { Task, TaskInput } from '@/types';
 import { localStorageRepo } from '@/services/storage';
+import { useGroupStore } from './useGroupStore';
 
 interface TaskState {
   tasks: Task[];
@@ -48,12 +49,14 @@ export const useTaskStore = create<TaskState>()(
     },
 
     addTask: (input) => {
+      const activeGroupId = useGroupStore.getState().activeGroupId || 'inbox';
       const newTask: Task = {
         id: nanoid(),
         content: input.content,
         isDone: false,
         createdAt: Date.now(),
         tags: input.tags,
+        groupId: activeGroupId,
       };
       set((state) => ({ 
         tasks: [...state.tasks, newTask] 

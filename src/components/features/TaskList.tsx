@@ -16,9 +16,16 @@ import {
 } from '@dnd-kit/sortable';
 import { TaskItem } from './TaskItem';
 import { useTaskStore } from '@/stores/useTaskStore';
+import { useGroupStore } from '@/stores/useGroupStore';
 
 export function TaskList() {
   const { tasks, toggleTask, updateTaskContent, updateTaskTime, deleteTask, reorderTasks } = useTaskStore();
+  const activeGroupId = useGroupStore((s) => s.activeGroupId);
+
+  // Filter tasks by current group
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => (t.groupId || 'default') === activeGroupId);
+  }, [tasks, activeGroupId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -31,7 +38,7 @@ export function TaskList() {
     })
   );
 
-  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  const taskIds = useMemo(() => filteredTasks.map((t) => t.id), [filteredTasks]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -41,11 +48,11 @@ export function TaskList() {
     }
   };
 
-  if (tasks.length === 0) {
+  if (filteredTasks.length === 0) {
     return (
       <div className="py-12 text-center">
         <p className="text-muted-foreground text-sm">
-          No tasks yet. Add one above.
+          暂无任务
         </p>
       </div>
     );
@@ -60,7 +67,7 @@ export function TaskList() {
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-0.5">
           <AnimatePresence mode="popLayout">
-            {tasks.map((task) => (
+            {filteredTasks.map((task) => (
               <TaskItem
                 key={task.id}
                 task={task}

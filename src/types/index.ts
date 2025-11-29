@@ -8,6 +8,7 @@ export interface Task {
   isDone: boolean;
   createdAt: number;  // Unix timestamp
   tags?: string[];
+  groupId?: string;   // Group ID, defaults to 'inbox'
   
   // Time Auditing
   estimatedMinutes?: number;  // Estimated duration in minutes

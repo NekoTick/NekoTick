@@ -17,16 +17,14 @@ import {
   Trash2,
   Settings,
   Keyboard,
-  BarChart3,
 } from 'lucide-react';
 import { useTaskStore } from '@/stores/useTaskStore';
 
 interface CommandMenuProps {
   onFocusInput?: () => void;
-  onOpenStats?: () => void;
 }
 
-export function CommandMenu({ onFocusInput, onOpenStats }: CommandMenuProps) {
+export function CommandMenu({ onFocusInput }: CommandMenuProps) {
   const [open, setOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const { tasks, deleteTask } = useTaskStore();
@@ -130,16 +128,6 @@ export function CommandMenu({ onFocusInput, onOpenStats }: CommandMenuProps) {
 
         {/* General Commands */}
         <CommandGroup heading="General">
-          <CommandItem
-            onSelect={() => runCommand(() => onOpenStats?.())}
-            className="gap-2"
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span>View Statistics</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              Heatmap
-            </span>
-          </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => {
               // Placeholder - will be implemented later
