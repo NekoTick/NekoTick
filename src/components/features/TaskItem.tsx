@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,9 +12,12 @@ interface TaskItemProps {
   onUpdate: (id: string, content: string) => void;
   onUpdateTime?: (id: string, est?: number, act?: number) => void;
   onDelete: (id: string) => void;
+  isBeingDragged?: boolean;
+  isDropTarget?: boolean;
+  insertAfter?: boolean;
 }
 
-export function TaskItem({ task, onToggle, onUpdate, onDelete }: TaskItemProps) {
+export function TaskItem({ task, onToggle, onUpdate, onDelete, isBeingDragged, isDropTarget, insertAfter }: TaskItemProps) {
   const itemRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [content, setContent] = useState(task.content);
@@ -27,7 +29,6 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete }: TaskItemProps) 
     setNodeRef,
     transform,
     transition,
-    isDragging,
   } = useSortable({ id: task.id });
 
   const style = {
@@ -71,25 +72,38 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete }: TaskItemProps) 
     (itemRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
   };
 
+  // Drop target indicator
+  const dropIndicator = isDropTarget && (
+    <div className="h-10 rounded-md border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50" />
+  );
+
+  // When being dragged, hide the original item (content shown in native window)
+  if (isBeingDragged) {
+    return (
+      <>
+        {dropIndicator}
+        <div
+          ref={combinedRef}
+          data-task-id={task.id}
+          className="h-0 overflow-hidden"
+        />
+      </>
+    );
+  }
+
   return (
-    <motion.div
-      ref={combinedRef}
-      style={style}
-      layout
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
-      transition={{ duration: 0.2 }}
-      data-task-id={task.id}
-      className={cn(
-        'group flex items-center gap-2 px-2 py-2 rounded-md',
-        'hover:bg-muted/50 transition-colors duration-150',
-        'border transition-all duration-150',
-        isDragging 
-          ? 'border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50 [&>*]:invisible' 
-          : 'border-transparent hover:border-border/50'
-      )}
-    >
+    <>
+      {!insertAfter && dropIndicator}
+      <div
+        ref={combinedRef}
+        style={style}
+        data-task-id={task.id}
+        className={cn(
+          'group flex items-center gap-2 px-2 py-2 rounded-md',
+          'hover:bg-muted/50 transition-colors duration-150',
+          'border border-transparent hover:border-border/50'
+        )}
+      >
       {/* Drag Handle */}
       <button
         {...attributes}
@@ -155,6 +169,8 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete }: TaskItemProps) 
       >
         <Trash2 className="h-4 w-4" />
       </button>
-    </motion.div>
+    </div>
+    {insertAfter && dropIndicator}
+    </>
   );
 }

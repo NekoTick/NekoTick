@@ -3,11 +3,23 @@ use tauri::window::Color;
 
 // Create drag overlay window
 #[tauri::command]
-async fn create_drag_window(app: AppHandle, content: String, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
+async fn create_drag_window(app: AppHandle, content: String, x: f64, y: f64, width: f64, height: f64, is_done: bool) -> Result<(), String> {
     // Close existing drag window if any
     if let Some(existing) = app.get_webview_window("drag-overlay") {
         let _ = existing.destroy();
     }
+
+    // Style for completed tasks
+    let content_style = if is_done {
+        "text-decoration:line-through;color:#a1a1aa"
+    } else {
+        ""
+    };
+    let checkbox_html = if is_done {
+        "<svg class=\"checkbox\" viewBox=\"0 0 16 16\"><rect x=\"0.5\" y=\"0.5\" width=\"15\" height=\"15\" rx=\"2\" fill=\"#18181b\" stroke=\"#18181b\"/><path d=\"M4 8l3 3 5-6\" stroke=\"white\" stroke-width=\"2\" fill=\"none\"/></svg>"
+    } else {
+        "<div class=\"checkbox\"></div>"
+    };
 
     // HTML content - transparent background, card fills window
     let html = format!(r#"<!DOCTYPE html>
@@ -38,11 +50,11 @@ body{{font-family:system-ui,-apple-system,sans-serif;display:flex}}
 <body style="background:transparent!important">
 <div class="card">
 <div class="grip">⋮⋮</div>
-<div class="checkbox"></div>
-<span class="content">{}</span>
+{}
+<span class="content" style="{}">{}</span>
 </div>
 </body>
-</html>"#, content);
+</html>"#, checkbox_html, content_style, content);
 
     // Create transparent window - hidden first, show after setup
     let window = WebviewWindowBuilder::new(

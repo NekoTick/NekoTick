@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import {
   DndContext,
   closestCenter,
@@ -10,6 +9,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
   type DragMoveEvent,
+  type DragOverEvent,
 } from '@dnd-kit/core';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -28,7 +28,8 @@ const updatePositionFast = (x: number, y: number) => {
 
 export function TaskList() {
   const { tasks, toggleTask, updateTask, deleteTask, reorderTasks, activeGroupId } = useGroupStore();
-  const [, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   // Filter tasks by current group
   const filteredTasks = useMemo(() => {
@@ -69,6 +70,7 @@ export function TaskList() {
           y: pointer.screenY,
           width: width,
           height: height,
+          isDone: task.completed,
         });
       } catch (e) {
         console.error('Failed to create drag window:', e);
@@ -84,9 +86,14 @@ export function TaskList() {
     updatePositionFast(x, y);
   }, []);
 
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    setOverId(event.over?.id as string | null);
+  }, []);
+
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
+    setOverId(null);
     
     // Destroy drag window
     try {
@@ -123,12 +130,19 @@ export function TaskList() {
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragMove={handleDragMove}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
         <div className="space-y-0.5">
-          <AnimatePresence mode="popLayout">
-            {filteredTasks.map((task) => (
+          {filteredTasks.map((task) => {
+            const activeIndex = activeId ? filteredTasks.findIndex(t => t.id === activeId) : -1;
+            const overIndex = overId ? filteredTasks.findIndex(t => t.id === overId) : -1;
+            const isDropTarget = task.id === overId && overId !== activeId;
+            // Show indicator below if dragging downward
+            const insertAfter = isDropTarget && activeIndex !== -1 && overIndex > activeIndex;
+            
+            return (
               <TaskItem
                 key={task.id}
                 task={{
@@ -143,9 +157,12 @@ export function TaskList() {
                 onUpdate={updateTask}
                 onUpdateTime={() => {}}
                 onDelete={deleteTask}
+                isBeingDragged={task.id === activeId}
+                isDropTarget={isDropTarget}
+                insertAfter={insertAfter}
               />
-            ))}
-          </AnimatePresence>
+            );
+          })}
         </div>
       </SortableContext>
     </DndContext>
