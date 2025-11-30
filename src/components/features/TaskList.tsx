@@ -27,7 +27,7 @@ const updatePositionFast = (x: number, y: number) => {
 };
 
 export function TaskList() {
-  const { tasks, toggleTask, updateTask, deleteTask, reorderTasks, activeGroupId } = useGroupStore();
+  const { tasks, toggleTask, updateTask, deleteTask, reorderTasks, activeGroupId, setDraggingTaskId } = useGroupStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
 
@@ -52,6 +52,7 @@ export function TaskList() {
   const handleDragStart = useCallback(async (event: DragStartEvent) => {
     const id = event.active.id as string;
     setActiveId(id);
+    setDraggingTaskId(id);
     
     const task = filteredTasks.find(t => t.id === id);
     if (task) {
@@ -76,7 +77,7 @@ export function TaskList() {
         console.error('Failed to create drag window:', e);
       }
     }
-  }, [filteredTasks]);
+  }, [filteredTasks, setDraggingTaskId]);
 
   const handleDragMove = useCallback((event: DragMoveEvent) => {
     const rect = (event.activatorEvent as PointerEvent);
@@ -105,7 +106,12 @@ export function TaskList() {
     if (over && active.id !== over.id) {
       reorderTasks(active.id as string, over.id as string);
     }
-  }, [reorderTasks]);
+    
+    // Delay clearing draggingTaskId to allow cross-group drop handlers to execute
+    setTimeout(() => {
+      setDraggingTaskId(null);
+    }, 50);
+  }, [reorderTasks, setDraggingTaskId]);
 
   // Cleanup: destroy drag window on unmount
   useEffect(() => {

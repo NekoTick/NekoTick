@@ -25,12 +25,14 @@ interface SortableGroupItemProps {
   isActive: boolean;
   isEditing: boolean;
   editingName: string;
+  isDragTarget?: boolean;
   onSelect: () => void;
   onStartEdit: () => void;
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   onEditNameChange: (name: string) => void;
   onTogglePin: () => void;
+  onTaskDrop?: () => void;
 }
 
 function SortableGroupItem({
@@ -38,12 +40,14 @@ function SortableGroupItem({
   isActive,
   isEditing,
   editingName,
+  isDragTarget,
   onSelect,
   onStartEdit,
   onSaveEdit,
   onCancelEdit,
   onEditNameChange,
   onTogglePin,
+  onTaskDrop,
 }: SortableGroupItemProps) {
   const {
     attributes,
@@ -65,10 +69,13 @@ function SortableGroupItem({
       ref={setNodeRef}
       style={style}
       onClick={onSelect}
+      onMouseUp={onTaskDrop}
       className={`group flex items-center gap-1 px-2 py-1.5 mx-2 rounded-md cursor-pointer transition-colors ${
-        isActive
-          ? 'bg-zinc-100 text-zinc-900'
-          : 'text-zinc-600 hover:bg-zinc-50'
+        isDragTarget
+          ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400'
+          : isActive
+            ? 'bg-zinc-100 text-zinc-900'
+            : 'text-zinc-600 hover:bg-zinc-50'
       }`}
     >
       <div
@@ -233,7 +240,46 @@ export function GroupSidebar() {
     updateGroup,
     togglePin,
     reorderGroups,
+    draggingTaskId,
+    moveTaskToGroup,
   } = useGroupStore();
+  
+  const [hoveringGroupId, setHoveringGroupId] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cachedDraggingTaskIdRef = useRef<string | null>(null);
+  const originalGroupIdRef = useRef<string | null>(null);
+
+  // Cache draggingTaskId and original groupId when drag starts
+  useEffect(() => {
+    if (draggingTaskId && !cachedDraggingTaskIdRef.current) {
+      cachedDraggingTaskIdRef.current = draggingTaskId;
+      originalGroupIdRef.current = activeGroupId;
+    }
+  }, [draggingTaskId, activeGroupId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Clear hover state when drag ends
+  useEffect(() => {
+    if (!draggingTaskId) {
+      setHoveringGroupId(null);
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      // Clear cached refs after a short delay
+      setTimeout(() => {
+        cachedDraggingTaskIdRef.current = null;
+        originalGroupIdRef.current = null;
+      }, 100);
+    }
+  }, [draggingTaskId]);
 
   const groupIds = useMemo(() => groups.map(g => g.id), [groups]);
 
@@ -435,19 +481,51 @@ export function GroupSidebar() {
           >
             <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
               {groups.map((group) => (
-                <SortableGroupItem
+                <div
                   key={group.id}
-                  group={group}
-                  isActive={activeGroupId === group.id}
-                  isEditing={editingId === group.id}
-                  editingName={editingName}
-                  onSelect={() => setActiveGroup(group.id)}
-                  onStartEdit={() => handleStartEdit(group.id, group.name)}
-                  onSaveEdit={handleSaveEdit}
-                  onCancelEdit={() => setEditingId(null)}
-                  onEditNameChange={setEditingName}
-                  onTogglePin={() => togglePin(group.id)}
-                />
+                  onMouseEnter={() => {
+                    if (draggingTaskId && group.id !== activeGroupId) {
+                      // Clear previous timeout
+                      if (hoverTimeoutRef.current) {
+                        clearTimeout(hoverTimeoutRef.current);
+                      }
+                      setHoveringGroupId(group.id);
+                      // Auto switch after 500ms hover
+                      hoverTimeoutRef.current = setTimeout(() => {
+                        if (draggingTaskId) {
+                          setActiveGroup(group.id);
+                        }
+                      }, 500);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (hoverTimeoutRef.current) {
+                      clearTimeout(hoverTimeoutRef.current);
+                    }
+                    setHoveringGroupId(null);
+                  }}
+                >
+                  <SortableGroupItem
+                    group={group}
+                    isActive={activeGroupId === group.id}
+                    isEditing={editingId === group.id}
+                    editingName={editingName}
+                    isDragTarget={draggingTaskId !== null && hoveringGroupId === group.id}
+                    onSelect={() => setActiveGroup(group.id)}
+                    onStartEdit={() => handleStartEdit(group.id, group.name)}
+                    onSaveEdit={handleSaveEdit}
+                    onCancelEdit={() => setEditingId(null)}
+                    onEditNameChange={setEditingName}
+                    onTogglePin={() => togglePin(group.id)}
+                    onTaskDrop={() => {
+                      const taskId = draggingTaskId || cachedDraggingTaskIdRef.current;
+                      const originalGroupId = originalGroupIdRef.current;
+                      if (taskId && originalGroupId && group.id !== originalGroupId) {
+                        moveTaskToGroup(taskId, group.id);
+                      }
+                    }}
+                  />
+                </div>
               ))}
             </SortableContext>
           </DndContext>

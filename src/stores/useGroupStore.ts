@@ -28,6 +28,10 @@ interface GroupStore {
   drawerOpen: boolean;
   loaded: boolean;
   
+  // Drag state for cross-group drag
+  draggingTaskId: string | null;
+  setDraggingTaskId: (id: string | null) => void;
+  
   loadData: () => Promise<void>;
   setDrawerOpen: (open: boolean) => void;
   toggleDrawer: () => void;
@@ -38,12 +42,13 @@ interface GroupStore {
   togglePin: (id: string) => void;
   reorderGroups: (activeId: string, overId: string) => void;
   
-  // 任务操作
+  // Task operations
   addTask: (content: string, groupId: string) => void;
   updateTask: (id: string, content: string) => void;
   toggleTask: (id: string) => void;
   deleteTask: (id: string) => void;
   reorderTasks: (activeId: string, overId: string) => void;
+  moveTaskToGroup: (taskId: string, targetGroupId: string) => void;
 }
 
 // 保存分组到文件
@@ -78,6 +83,9 @@ export const useGroupStore = create<GroupStore>((set, get) => ({
   activeGroupId: 'default',
   drawerOpen: false,
   loaded: false,
+  draggingTaskId: null,
+  
+  setDraggingTaskId: (id) => set({ draggingTaskId: id }),
 
   loadData: async () => {
     if (get().loaded) return;
@@ -255,7 +263,7 @@ export const useGroupStore = create<GroupStore>((set, get) => ({
     const [removed] = reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, removed);
     
-    // 更新 order
+    // Update order
     reordered.forEach((t, i) => t.order = i);
     
     const otherTasks = state.tasks.filter(t => t.groupId !== activeTask.groupId);
@@ -263,5 +271,26 @@ export const useGroupStore = create<GroupStore>((set, get) => ({
     
     persistGroup(state.groups, newTasks, activeTask.groupId);
     return { tasks: newTasks };
+  }),
+  
+  moveTaskToGroup: (taskId, targetGroupId) => set((state) => {
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task || task.groupId === targetGroupId) return state;
+    
+    const oldGroupId = task.groupId;
+    const targetGroupTasks = state.tasks.filter(t => t.groupId === targetGroupId);
+    
+    // Move task to new group at the end
+    const newTasks = state.tasks.map(t => 
+      t.id === taskId 
+        ? { ...t, groupId: targetGroupId, order: targetGroupTasks.length }
+        : t
+    );
+    
+    // Persist both groups
+    persistGroup(state.groups, newTasks, oldGroupId);
+    persistGroup(state.groups, newTasks, targetGroupId);
+    
+    return { tasks: newTasks, activeGroupId: targetGroupId };
   }),
 }));
