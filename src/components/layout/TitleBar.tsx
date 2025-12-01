@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Minus, Square, X, Menu, Pin } from 'lucide-react';
+import { Minus, Square, X, Menu, Pin, Settings, Keyboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useViewStore } from '@/stores/useViewStore';
 
@@ -10,9 +10,11 @@ const appWindow = getCurrentWindow();
 export function TitleBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const { currentView, setView } = useViewStore();
   const aboutRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   const togglePin = async () => {
     const newPinned = !isPinned;
@@ -35,6 +37,9 @@ export function TitleBar() {
     const handleClickOutside = (e: MouseEvent) => {
       if (aboutRef.current && !aboutRef.current.contains(e.target as Node)) {
         setAboutOpen(false);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -107,6 +112,35 @@ export function TitleBar() {
               >
                 时间管理
               </button>
+
+              {/* 设置 */}
+              <div ref={settingsRef} className="relative h-full">
+                <button
+                  onClick={() => setSettingsOpen(!settingsOpen)}
+                  className="h-full px-3 text-sm text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors whitespace-nowrap flex items-center gap-1"
+                >
+                  <Settings className="size-3.5" />
+                  设置
+                </button>
+                
+                {/* Settings Dropdown */}
+                {settingsOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50">
+                    <button
+                      onClick={() => {
+                        // TODO: 打开快捷键设置对话框
+                        console.log('Open shortcuts settings');
+                        setSettingsOpen(false);
+                        setMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 text-left flex items-center gap-2"
+                    >
+                      <Keyboard className="size-4" />
+                      快捷键
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* 关于 */}
               <div ref={aboutRef} className="relative h-full">

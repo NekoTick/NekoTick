@@ -63,7 +63,9 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
-      inputRef.current.select();
+      // Move cursor to end instead of selecting all
+      const length = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(length, length);
     }
   }, [isEditing]);
 
@@ -200,7 +202,7 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
         ) : (
           <div
             data-editable
-            onClick={() => !task.isDone && setIsEditing(true)}
+            onClick={() => setIsEditing(true)}
             className={cn(
               'w-full text-sm cursor-text select-none whitespace-pre-wrap break-all',
               task.isDone
