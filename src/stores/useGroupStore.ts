@@ -63,6 +63,7 @@ interface GroupStore {
   addTask: (content: string, groupId: string, priority?: Priority) => void;
   addSubTask: (parentId: string, content: string) => void;
   updateTask: (id: string, content: string) => void;
+  updateTaskPriority: (id: string, priority: Priority) => void;
   toggleTask: (id: string, skipReorder?: boolean) => void;
   toggleCollapse: (id: string) => void;
   deleteTask: (id: string) => void;
@@ -136,6 +137,7 @@ async function persistGroup(groups: Group[], tasks: StoreTask[], groupId: string
       order: t.order,
       parentId: t.parentId,
       collapsed: t.collapsed,
+      priority: t.priority,
     })),
     createdAt: group.createdAt,
     updatedAt: Date.now(),
@@ -199,6 +201,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
           groupId: gd.id,
           parentId: td.parentId,
           collapsed: td.collapsed,
+          priority: td.priority,
         });
       }
     }
@@ -331,11 +334,18 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
-    const newTasks = state.tasks.map(t =>
-      t.id === id ? { ...t, content } : t
-    );
-    persistGroup(state.groups, newTasks, task.groupId);
-    return { tasks: newTasks };
+    task.content = content;
+    persistGroup(state.groups, state.tasks, task.groupId);
+    return { tasks: [...state.tasks] };
+  }),
+  
+  updateTaskPriority: (id, priority) => set((state) => {
+    const task = state.tasks.find(t => t.id === id);
+    if (!task) return state;
+    
+    task.priority = priority;
+    persistGroup(state.groups, state.tasks, task.groupId);
+    return { tasks: [...state.tasks] };
   }),
   
   toggleTask: (id, skipReorder = false) => set((state) => {

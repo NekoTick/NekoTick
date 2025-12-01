@@ -29,7 +29,22 @@ const updatePositionFast = (x: number, y: number) => {
 };
 
 export function TaskList() {
-  const { tasks, toggleTask, updateTask, deleteTask, reorderTasks, crossStatusReorder, activeGroupId, setDraggingTaskId, hideCompleted, moveTaskToGroup, toggleCollapse, addSubTask, searchQuery } = useGroupStore();
+  const {
+    tasks,
+    toggleTask,
+    updateTask,
+    deleteTask,
+    reorderTasks,
+    crossStatusReorder,
+    activeGroupId,
+    updateTaskPriority,
+    moveTaskToGroup,
+    addSubTask,
+    toggleCollapse,
+    hideCompleted,
+    searchQuery,
+    setDraggingTaskId,
+  } = useGroupStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [completedExpanded, setCompletedExpanded] = useState(true);
@@ -89,13 +104,13 @@ export function TaskList() {
     const topLevelTasks = tasks
       .filter((t) => t.groupId === activeGroupId && !t.parentId)
       .sort((a, b) => {
-        // First sort by priority
+        // Sort by priority first (creates color groups)
         const aPriority = priorityOrder[a.priority || 'default'];
         const bPriority = priorityOrder[b.priority || 'default'];
         if (aPriority !== bPriority) {
           return aPriority - bPriority;
         }
-        // Then by order
+        // Then by order within same priority
         return a.order - b.order;
       });
     
@@ -190,6 +205,7 @@ export function TaskList() {
           height: height,
           isDone: task.completed,
           isDark: isDarkMode,
+          priority: task.priority || 'default',
         });
       } catch (e) {
         console.error('Failed to create drag window:', e);
@@ -223,13 +239,54 @@ export function TaskList() {
       const draggedTask = tasks.find(t => t.id === taskId);
       const targetTask = tasks.find(t => t.id === over.id);
       
+      // First handle reordering
       if (draggedTask && targetTask && draggedTask.completed !== targetTask.completed) {
         // Cross-status drag: use special handler that changes status and reorders atomically
         crossStatusReorder(taskId, over.id as string);
       } else {
-        // Same status reorder - update task order BEFORE clearing activeId
-        // Otherwise the dragged task will briefly appear at its old position (flicker)
+        // Same status reorder
         reorderTasks(taskId, over.id as string);
+      }
+      
+      // Then auto-adapt priority based on drop position
+      if (draggedTask && targetTask) {
+        // Find the sorted task list to determine context
+        // IMPORTANT: Exclude the dragged task itself to avoid incorrect detection
+        const groupTasks = tasks
+          .filter(t => t.groupId === activeGroupId && !t.parentId && t.completed === targetTask.completed && t.id !== taskId)
+          .sort((a, b) => {
+            const aPriority = priorityOrder[a.priority || 'default'];
+            const bPriority = priorityOrder[b.priority || 'default'];
+            if (aPriority !== bPriority) return aPriority - bPriority;
+            return a.order - b.order;
+          });
+        
+        const targetIndex = groupTasks.findIndex(t => t.id === over.id);
+        const taskAbove = targetIndex > 0 ? groupTasks[targetIndex - 1] : null;
+        
+        const abovePriority = (taskAbove?.priority || 'default') as string;
+        const targetPriority = (targetTask.priority || 'default') as string;
+        const draggedPriority = (draggedTask.priority || 'default') as string;
+        
+        let priorityToInherit: string | null = null;
+        
+        // Inherit priority from the drop position
+        // Check both above and target task to determine the priority zone
+        if (abovePriority !== 'default') {
+          // Has priority task above, inherit from it
+          priorityToInherit = abovePriority;
+        } else if (targetPriority !== 'default') {
+          // No priority above, but target has priority, inherit from target
+          priorityToInherit = targetPriority;
+        } else {
+          // Surrounded by default tasks, downgrade to default
+          priorityToInherit = 'default';
+        }
+        
+        // Update priority if it changed
+        if (priorityToInherit && priorityToInherit !== draggedPriority) {
+          updateTaskPriority(taskId, priorityToInherit as any);
+        }
       }
     }
     

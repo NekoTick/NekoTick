@@ -44,6 +44,7 @@ export interface TaskData {
   order: number;
   parentId: string | null;   // Parent task ID for hierarchical structure
   collapsed: boolean;        // Whether children are hidden
+  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'default';  // Task priority
 }
 
 export interface GroupData {
@@ -104,6 +105,7 @@ function parseTasksMd(content: string, _groupId: string): { name: string; pinned
       let completedAt: number | undefined;
       let parentId: string | null = null;
       let collapsed = false;
+      let priority: 'red' | 'yellow' | 'purple' | 'green' | 'default' | undefined;
       
       if (metaMatch) {
         content = metaMatch[1].trim();
@@ -115,6 +117,7 @@ function parseTasksMd(content: string, _groupId: string): { name: string; pinned
         const completedAtMatch = meta.match(/completedAt:([^,]+)/);
         const parentMatch = meta.match(/parent:([^,]+)/);
         const collapsedMatch = meta.match(/collapsed:true/);
+        const priorityMatch = meta.match(/priority:([^,]+)/);
         
         if (idMatch) id = idMatch[1];
         if (createdMatch) taskCreatedAt = parseInt(createdMatch[1]) || Date.now();
@@ -123,6 +126,7 @@ function parseTasksMd(content: string, _groupId: string): { name: string; pinned
         if (completedAtMatch) completedAt = parseInt(completedAtMatch[1]);
         if (parentMatch) parentId = parentMatch[1];
         if (collapsedMatch) collapsed = true;
+        if (priorityMatch) priority = priorityMatch[1] as any;
       }
       
       tasks.push({
@@ -135,7 +139,8 @@ function parseTasksMd(content: string, _groupId: string): { name: string; pinned
         order,
         parentId,
         collapsed,
-      } as any);
+        priority,
+      });
     }
   }
   
@@ -161,8 +166,10 @@ function generateTasksMd(group: GroupData): string {
     if (task.completedAt) meta += `,completedAt:${task.completedAt}`;
     if (task.parentId) meta += `,parent:${task.parentId}`;
     if (task.collapsed) meta += `,collapsed:true`;
+    if (task.priority && task.priority !== 'default') meta += `,priority:${task.priority}`;
     
     lines.push(`${indent}- ${checkbox} ${task.content} <!--${meta}-->`);
+
     
     // 递归渲染子任务
     const children = group.tasks

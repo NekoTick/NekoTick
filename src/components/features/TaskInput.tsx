@@ -26,8 +26,7 @@ export function TaskInput() {
     if (content.trim() && activeGroupId) {
       addTask(content.trim(), activeGroupId, priority);
       setContent('');
-      setPriority('default'); // Reset to default after adding
-      // Keep focus for rapid entry
+      // Keep the selected priority for next task (don't reset to default)
       inputRef.current?.focus();
     }
   };
@@ -117,7 +116,8 @@ export function TaskInput() {
         {showPriorityMenu && (
           <div className="absolute left-0 top-full mt-1 w-fit bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-2 px-2 z-50">
             <div className="flex flex-col gap-1">
-              {(Object.keys(priorityColors) as Priority[]).map((p) => (
+              {/* Reverse order: default (lowest) to red (highest) */}
+              {(['default', 'green', 'purple', 'yellow', 'red'] as Priority[]).map((p) => (
                 <button
                   key={p}
                   onClick={() => {
