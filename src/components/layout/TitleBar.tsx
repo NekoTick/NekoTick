@@ -4,6 +4,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { Minus, Square, X, Menu, Pin, Settings, Keyboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useViewStore } from '@/stores/useViewStore';
+import { ShortcutsDialog } from '@/components/features/ShortcutsDialog';
 
 const appWindow = getCurrentWindow();
 
@@ -11,6 +12,7 @@ export function TitleBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const { currentView, setView } = useViewStore();
   const aboutRef = useRef<HTMLDivElement>(null);
@@ -128,8 +130,7 @@ export function TitleBar() {
                   <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50">
                     <button
                       onClick={() => {
-                        // TODO: 打开快捷键设置对话框
-                        console.log('Open shortcuts settings');
+                        setShortcutsDialogOpen(true);
                         setSettingsOpen(false);
                         setMenuOpen(false);
                       }}
@@ -205,6 +206,12 @@ export function TitleBar() {
           <X className="size-4 text-zinc-200 hover:text-zinc-400 group-hover:text-white dark:text-zinc-700 dark:hover:text-zinc-500" />
         </button>
       </div>
+
+      {/* Shortcuts Dialog */}
+      <ShortcutsDialog 
+        open={shortcutsDialogOpen} 
+        onClose={() => setShortcutsDialogOpen(false)} 
+      />
     </div>
   );
 }

@@ -12,8 +12,11 @@ import { ToastContainer } from '@/components/ui/Toast';
 import { useViewStore } from '@/stores/useViewStore';
 import { useGroupStore } from '@/stores/useGroupStore';
 import { useVimShortcuts } from '@/hooks/useVimShortcuts';
+import { useShortcuts } from '@/hooks/useShortcuts';
 
 function AppContent() {
+  // Enable shortcuts
+  useShortcuts();
   const { currentView } = useViewStore();
   const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded, hideCompleted, setHideCompleted } = useGroupStore();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
