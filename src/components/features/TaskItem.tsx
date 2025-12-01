@@ -273,6 +273,35 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
             className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Priority Selector */}
+            <div className="px-3 py-2">
+              <div className="flex items-center justify-between gap-1.5">
+                {(['default', 'green', 'purple', 'yellow', 'red'] as const).map((priority) => (
+                  <button
+                    key={priority}
+                    onClick={() => {
+                      useGroupStore.getState().updateTaskPriority(task.id, priority);
+                      setShowMenu(false);
+                    }}
+                    className={cn(
+                      "w-6 h-6 rounded-sm border-2 transition-all hover:scale-110",
+                      task.priority === priority || (!task.priority && priority === 'default')
+                        ? "ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1"
+                        : ""
+                    )}
+                    style={{
+                      borderColor: priority === 'red' ? '#ef4444' :
+                                   priority === 'yellow' ? '#eab308' :
+                                   priority === 'purple' ? '#a855f7' :
+                                   priority === 'green' ? '#22c55e' :
+                                   '#d4d4d8', // zinc-300 for default
+                      backgroundColor: priority === 'default' ? 'transparent' : undefined
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
             {/* Add Subtask option */}
             <button
               onClick={() => {
