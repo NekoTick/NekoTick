@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Minus, Square, X, Menu, Pin, Settings, Keyboard } from 'lucide-react';
+import { Minus, Square, X, Menu, Pin, Settings, Keyboard, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useViewStore } from '@/stores/useViewStore';
 import { ShortcutsDialog } from '@/components/features/ShortcutsDialog';
@@ -137,6 +137,25 @@ export function TitleBar() {
                 }`}
               >
                 进度
+              </button>
+
+              {/* 日历 */}
+              <button
+                onClick={() => {
+                  setView('calendar');
+                  if (menuPinned) {
+                    setMenuOpen(false);
+                    setMenuPinned(false);
+                  }
+                }}
+                className={`h-full px-3 text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  currentView === 'calendar'
+                    ? 'text-zinc-400 dark:text-zinc-500'
+                    : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                }`}
+              >
+                <Calendar className="size-3.5" />
+                日历
               </button>
 
               {/* 时间管理 */}

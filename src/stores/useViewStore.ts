@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-type ViewType = 'tasks' | 'time-tracker' | 'progress';
+type ViewType = 'tasks' | 'time-tracker' | 'progress' | 'calendar';
 
 interface ViewStore {
   currentView: ViewType;

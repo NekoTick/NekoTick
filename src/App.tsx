@@ -6,6 +6,7 @@ import { CommandMenu } from '@/components/features/CommandMenu';
 import { GroupSidebar } from '@/components/features/GroupDrawer';
 import { TimeTrackerPage } from '@/components/TimeTracker';
 import { ProgressPage } from '@/components/Progress';
+import { CalendarPage } from '@/components/Calendar/CalendarPage';
 import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -75,6 +76,15 @@ function AppContent() {
     return (
       <Layout>
         <ProgressPage />
+      </Layout>
+    );
+  }
+
+  // 日历页面
+  if (currentView === 'calendar') {
+    return (
+      <Layout>
+        <CalendarPage />
       </Layout>
     );
   }
