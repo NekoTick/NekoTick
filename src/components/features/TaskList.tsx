@@ -12,7 +12,7 @@ import {
   type DragOverEvent,
 } from '@dnd-kit/core';
 import { invoke } from '@tauri-apps/api/core';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, MoreHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import {
@@ -53,6 +53,35 @@ export function TaskList() {
   const originalGroupIdRef = useRef<string | null>(null);
   const subTaskInputRef = useRef<HTMLTextAreaElement>(null);
   const prevActiveGroupIdRef = useRef<string | null>(null);
+  const [showCompletedMenu, setShowCompletedMenu] = useState(false);
+  const completedMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close completed menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (completedMenuRef.current && !completedMenuRef.current.contains(event.target as Node)) {
+        setShowCompletedMenu(false);
+      }
+    };
+
+    if (showCompletedMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showCompletedMenu]);
+
+  // Delete all completed tasks
+  const handleDeleteAllCompleted = useCallback(() => {
+    const completedTasksInGroup = tasks.filter(
+      t => t.groupId === activeGroupId && t.completed && !t.parentId
+    );
+    
+    completedTasksInGroup.forEach(task => {
+      deleteTask(task.id);
+    });
+    
+    setShowCompletedMenu(false);
+  }, [tasks, activeGroupId, deleteTask]);
 
   // Get children for a task
   const getChildren = useCallback((parentId: string) => {
@@ -402,20 +431,48 @@ export function TaskList() {
 
         {/* 分割线 - 在两个 SortableContext 之间 */}
         {completedTasks.length > 0 && (
-          <button
-            onClick={() => setCompletedExpanded(!completedExpanded)}
-            className="flex items-center gap-2 w-full group hover:opacity-80 transition-all duration-300 mt-6 mb-6"
-          >
-            {completedExpanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
-            <span className="text-xs font-medium text-muted-foreground">
-              Completed ({completedTasks.length})
-            </span>
+          <div className="flex items-center gap-2 w-full mt-6 mb-6">
+            <button
+              onClick={() => setCompletedExpanded(!completedExpanded)}
+              className="flex items-center gap-2 group hover:opacity-80 transition-all duration-300"
+            >
+              {completedExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="text-xs font-medium text-muted-foreground">
+                Completed ({completedTasks.length})
+              </span>
+            </button>
             <div className="flex-1 h-px bg-border" />
-          </button>
+            <div className="relative" ref={completedMenuRef}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCompletedMenu(!showCompletedMenu);
+                }}
+                className={`p-1.5 rounded-md transition-colors ${
+                  showCompletedMenu 
+                    ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
+                    : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                }`}
+                aria-label="More options"
+              >
+                <MoreHorizontal className="size-4" />
+              </button>
+              {showCompletedMenu && (
+                <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                  <button
+                    onClick={handleDeleteAllCompleted}
+                    className="w-full px-3 py-1.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                  >
+                    删除全部
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* 已完成任务区域 - 独立的 SortableContext */}
