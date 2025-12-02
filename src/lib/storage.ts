@@ -173,8 +173,8 @@ function generateTasksMd(group: GroupData): string {
     
     // 递归渲染子任务
     const children = group.tasks
-      .filter((t: any) => t.parentId === task.id)
-      .sort((a: any, b: any) => a.order - b.order);
+      .filter((t) => t.parentId === task.id)
+      .sort((a, b) => a.order - b.order);
     
     for (const child of children) {
       renderTask(child, indent + '  ');
@@ -183,8 +183,8 @@ function generateTasksMd(group: GroupData): string {
   
   // 只渲染顶层任务（没有 parentId 的）
   const topLevelTasks = group.tasks
-    .filter((t: any) => !t.parentId)
-    .sort((a: any, b: any) => a.order - b.order);
+    .filter((t) => !t.parentId)
+    .sort((a, b) => a.order - b.order);
   
   for (const task of topLevelTasks) {
     renderTask(task);

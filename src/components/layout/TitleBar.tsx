@@ -54,6 +54,11 @@ export function TitleBar() {
   const handleMenuMouseLeave = () => {
     if (!menuPinned) {
       setMenuOpen(false);
+      // 当主菜单悬浮关闭时，重置子菜单的所有状态
+      setSettingsPinned(false);
+      setAboutPinned(false);
+      setSettingsOpen(false);
+      setAboutOpen(false);
     }
   };
 
@@ -61,6 +66,14 @@ export function TitleBar() {
     const newPinned = !menuPinned;
     setMenuPinned(newPinned);
     setMenuOpen(newPinned);
+    
+    // 当主菜单被点击关闭时，重置子菜单的固定状态
+    if (!newPinned) {
+      setSettingsPinned(false);
+      setAboutPinned(false);
+      setSettingsOpen(false);
+      setAboutOpen(false);
+    }
   };
 
   return (
@@ -156,6 +169,7 @@ export function TitleBar() {
                 onMouseLeave={() => {
                   if (!settingsPinned) {
                     setSettingsOpen(false);
+                    setSettingsPinned(false);
                   }
                 }}
               >
@@ -173,7 +187,13 @@ export function TitleBar() {
                 
                 {/* Settings Dropdown */}
                 {settingsOpen && (
-                  <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50">
+                  <div 
+                    className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50"
+                    onMouseLeave={(e) => {
+                      // 防止鼠标在下拉框内移动时触发关闭
+                      e.stopPropagation();
+                    }}
+                  >
                     <button
                       onClick={() => {
                         setShortcutsDialogOpen(true);
@@ -205,6 +225,7 @@ export function TitleBar() {
                 onMouseLeave={() => {
                   if (!aboutPinned) {
                     setAboutOpen(false);
+                    setAboutPinned(false);
                   }
                 }}
               >
@@ -221,7 +242,13 @@ export function TitleBar() {
                 
                 {/* Dropdown */}
                 {aboutOpen && (
-                  <div className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50">
+                  <div 
+                    className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50"
+                    onMouseLeave={(e) => {
+                      // 防止鼠标在下拉框内移动时触发关闭
+                      e.stopPropagation();
+                    }}
+                  >
                     <button
                       onClick={openGitHub}
                       className="w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 text-left"
