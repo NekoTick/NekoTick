@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-type SortOption = 'name-asc' | 'name-desc' | 'edited-desc' | 'edited-asc' | 'created-desc' | 'created-asc';
+type SortOption = 'none' | 'name-asc' | 'name-desc' | 'edited-desc' | 'edited-asc' | 'created-desc' | 'created-asc';
 
 interface SortableGroupItemProps {
   group: { id: string; name: string; pinned?: boolean };
@@ -332,7 +332,7 @@ export function GroupSidebar() {
   const [showSearchOptions, setShowSearchOptions] = useState(false);
   const [searchGroupName, setSearchGroupName] = useState(true);
   const [searchTaskContent, setSearchTaskContent] = useState(true);
-  const [sortBy, setSortBy] = useState<SortOption>('created-desc');
+  const [sortBy, setSortBy] = useState<SortOption>('none');
   const sidebarRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const sortMenuRef = useRef<HTMLDivElement>(null);
@@ -542,6 +542,11 @@ export function GroupSidebar() {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
       
+      // 如果选择不排序，保持原有顺序（按 order 或索引）
+      if (sortBy === 'none') {
+        return 0;
+      }
+      
       // 对于非置顶的分组，按照选择的排序方式
       switch (sortBy) {
         case 'name-asc':
@@ -618,12 +623,14 @@ export function GroupSidebar() {
                 left: sortMenuRef.current?.getBoundingClientRect().left + 'px',
                 top: (sortMenuRef.current?.getBoundingClientRect().bottom ?? 0) + 4 + 'px'
               }}>
+                <SortMenuItem label="不排序" value="none" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
+                <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
                 <SortMenuItem label="名称 (A-Z)" value="name-asc" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
                 <SortMenuItem label="名称 (Z-A)" value="name-desc" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
-                <div className="h-px bg-zinc-200 my-1" />
+                <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
                 <SortMenuItem label="编辑时间 (从新到旧)" value="edited-desc" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
                 <SortMenuItem label="编辑时间 (从旧到新)" value="edited-asc" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
-                <div className="h-px bg-zinc-200 my-1" />
+                <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
                 <SortMenuItem label="创建时间 (从新到旧)" value="created-desc" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
                 <SortMenuItem label="创建时间 (从旧到新)" value="created-asc" current={sortBy} onSelect={setSortBy} onClose={() => setShowSortMenu(false)} />
               </div>
