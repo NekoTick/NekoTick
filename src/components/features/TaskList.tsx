@@ -249,7 +249,8 @@ export function TaskList() {
       }
       
       // Then auto-adapt priority based on drop position
-      if (draggedTask && targetTask) {
+      // Only inherit priority when dragging within the same status (incomplete or completed)
+      if (draggedTask && targetTask && draggedTask.completed === targetTask.completed) {
         // Find the sorted task list to determine context
         // IMPORTANT: Exclude the dragged task itself to avoid incorrect detection
         const groupTasks = tasks
