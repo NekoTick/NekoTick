@@ -44,6 +44,7 @@ interface ProgressStore {
   updateCurrent: (id: string, delta: number) => void;
   deleteItem: (id: string) => void;
   updateItem: (id: string, data: Partial<ProgressOrCounter>) => void;
+  reorderItems: (activeId: string, overId: string) => void;
 }
 
 // 转换存储格式到 store 格式
@@ -201,6 +202,20 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
       if (item.id !== id) return item;
       return { ...item, ...data } as ProgressOrCounter;
     });
+    persistItems(newItems);
+    return { items: newItems };
+  }),
+  
+  reorderItems: (activeId, overId) => set((state) => {
+    const oldIndex = state.items.findIndex((item) => item.id === activeId);
+    const newIndex = state.items.findIndex((item) => item.id === overId);
+    
+    if (oldIndex === -1 || newIndex === -1) return state;
+    
+    const newItems = [...state.items];
+    const [removed] = newItems.splice(oldIndex, 1);
+    newItems.splice(newIndex, 0, removed);
+    
     persistItems(newItems);
     return { items: newItems };
   }),

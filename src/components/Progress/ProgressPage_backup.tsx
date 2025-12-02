@@ -1,62 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragOverlay,
-  type DragEndEvent,
-  type DragStartEvent,
-  type DragMoveEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  defaultAnimateLayoutChanges,
-  type AnimateLayoutChanges,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { invoke } from '@tauri-apps/api/core';
-import { ChevronLeft, Plus, Minus, GripVertical } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronLeft, Plus, Minus } from 'lucide-react';
 import { useProgressStore, type ProgressItem, type CounterItem } from '@/stores/useProgressStore';
 
 type ViewMode = 'list' | 'create-progress' | 'create-counter';
 
-// Disable drop animation to prevent "snap back" effect
-const animateLayoutChanges: AnimateLayoutChanges = (args) => {
-  const { isSorting, wasDragging } = args;
-  if (isSorting || wasDragging) {
-    return false;
-  }
-  return defaultAnimateLayoutChanges(args);
-};
-
-// Update position without awaiting result for smoother animation
-const updatePositionFast = (x: number, y: number) => {
-  invoke('update_drag_window_position', { x, y }).catch(() => {});
-};
-
 export function ProgressPage() {
-  const { items, addProgress, addCounter, updateCurrent, deleteItem, loadItems, reorderItems } = useProgressStore();
+  const { items, addProgress, addCounter, updateCurrent, deleteItem, loadItems } = useProgressStore();
   
   useEffect(() => {
     loadItems();
   }, [loadItems]);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [showFabMenu, setShowFabMenu] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [overId, setOverId] = useState<string | null>(null);
-  
-  // Drag and drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    })
-  );
   
   // Progress form state
   const [progressForm, setProgressForm] = useState({
@@ -101,82 +56,6 @@ export function ProgressPage() {
     setCounterForm({ title: '', step: 1, unit: '次', frequency: 'daily' });
     setViewMode('list');
   };
-
-  const handleDragStart = useCallback(async (event: DragStartEvent) => {
-    const id = event.active.id as string;
-    setActiveId(id);
-    
-    const item = items.find(i => i.id === id);
-    if (item) {
-      const itemElement = document.querySelector(`[data-item-id="${id}"]`);
-      const rect = itemElement?.getBoundingClientRect();
-      const width = rect?.width || 350;
-      const height = rect?.height || 80;
-      
-      const pointer = (event.activatorEvent as PointerEvent);
-      const isDarkMode = document.documentElement.classList.contains('dark');
-      
-      // 构建更详细的显示内容
-      let displayContent = item.title;
-      if (item.type === 'progress') {
-        const percentage = Math.round((item.current / item.total) * 100);
-        displayContent += `\n${item.current}/${item.total}${item.unit} (${percentage}%) • 今天${item.todayCount}${item.unit}`;
-      } else {
-        displayContent += `\n总计${item.current}${item.unit} • 今天${item.todayCount}${item.unit}`;
-      }
-      
-      try {
-        await invoke('create_drag_window', {
-          content: displayContent,
-          x: pointer.screenX,
-          y: pointer.screenY,
-          width: width,
-          height: height,
-          isDone: false,
-          isDark: isDarkMode,
-          priority: 'default',
-        });
-      } catch (e) {
-        console.error('Failed to create drag window:', e);
-      }
-    }
-  }, [items]);
-
-  const handleDragMove = useCallback((event: DragMoveEvent) => {
-    if (!event.activatorEvent) return;
-    const rect = event.activatorEvent as PointerEvent;
-    // Calculate current position with delta
-    const x = rect.screenX + (event.delta?.x || 0);
-    const y = rect.screenY + (event.delta?.y || 0);
-    updatePositionFast(x, y);
-  }, []);
-
-  const handleDragOver = useCallback((event: DragMoveEvent) => {
-    setOverId(event.over?.id as string | null);
-  }, []);
-
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    setActiveId(null);
-    setOverId(null);
-    
-    try {
-      await invoke('destroy_drag_window');
-    } catch (e) {
-      // ignore
-    }
-    
-    if (over && active.id !== over.id) {
-      reorderItems(active.id as string, over.id as string);
-    }
-  }, [reorderItems]);
-  
-  useEffect(() => {
-    return () => {
-      invoke('destroy_drag_window').catch(() => {});
-    };
-  }, []);
 
   // 创建进度页面
   if (viewMode === 'create-progress') {
@@ -366,57 +245,13 @@ export function ProgressPage() {
         {items.length === 0 && (
           <p className="text-sm text-zinc-300 text-center py-12">暂无进度</p>
         )}
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragMove={handleDragMove}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={items.map(i => i.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-3">
-              {items.map((item) => {
-                const isDropTarget = item.id === overId && overId !== activeId;
-                const activeIndex = activeId ? items.findIndex(i => i.id === activeId) : -1;
-                const overIndex = overId ? items.findIndex(i => i.id === overId) : -1;
-                const insertAfter = isDropTarget && activeIndex !== -1 && overIndex > activeIndex;
-                
-                return (
-                  <div key={item.id}>
-                    {!insertAfter && isDropTarget && (
-                      <div className="h-20 rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 mb-3" />
-                    )}
-                    {item.type === 'progress' 
-                      ? <ProgressCard 
-                          item={item} 
-                          onUpdate={updateCurrent} 
-                          onDelete={deleteItem}
-                          isDragging={activeId === item.id}
-                        />
-                      : <CounterCard 
-                          item={item} 
-                          onUpdate={updateCurrent} 
-                          onDelete={deleteItem}
-                          isDragging={activeId === item.id}
-                        />
-                    }
-                    {insertAfter && isDropTarget && (
-                      <div className="h-20 rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 mt-3" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </SortableContext>
-          <DragOverlay>
-            {/* 空的 DragOverlay 阻止默认预览，只显示 Rust 窗口 */}
-            {null}
-          </DragOverlay>
-        </DndContext>
+        <div className="space-y-3">
+          {items.map((item) => (
+            item.type === 'progress' 
+              ? <ProgressCard key={item.id} item={item} onUpdate={updateCurrent} onDelete={deleteItem} />
+              : <CounterCard key={item.id} item={item} onUpdate={updateCurrent} onDelete={deleteItem} />
+          ))}
+        </div>
       </div>
 
       {/* FAB */}
@@ -428,7 +263,7 @@ export function ProgressPage() {
                 setViewMode('create-counter');
                 setShowFabMenu(false);
               }}
-              className="px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 text-sm rounded-full shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              className="px-4 py-2 bg-zinc-700 dark:bg-zinc-600 text-white text-sm rounded-full shadow-lg hover:bg-zinc-600 dark:hover:bg-zinc-500 transition-colors"
             >
               + 计数
             </button>
@@ -437,7 +272,7 @@ export function ProgressPage() {
                 setViewMode('create-progress');
                 setShowFabMenu(false);
               }}
-              className="px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 text-sm rounded-full shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              className="px-4 py-2 bg-zinc-700 dark:bg-zinc-600 text-white text-sm rounded-full shadow-lg hover:bg-zinc-600 dark:hover:bg-zinc-500 transition-colors"
             >
               + 进度
             </button>
@@ -445,7 +280,7 @@ export function ProgressPage() {
         )}
         <button
           onClick={() => setShowFabMenu(!showFabMenu)}
-          className={`w-14 h-14 rounded-full bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-800 shadow-lg hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-all flex items-center justify-center ${
+          className={`w-14 h-14 rounded-full bg-zinc-700 dark:bg-zinc-600 text-white shadow-lg hover:bg-zinc-600 dark:hover:bg-zinc-500 transition-all flex items-center justify-center ${
             showFabMenu ? 'rotate-45' : ''
           }`}
         >
@@ -459,54 +294,19 @@ export function ProgressPage() {
 function ProgressCard({ 
   item, 
   onUpdate, 
-  onDelete,
-  isDragging
+  onDelete 
 }: { 
   item: ProgressItem; 
   onUpdate: (id: string, delta: number) => void;
   onDelete: (id: string) => void;
-  isDragging?: boolean;
 }) {
   const percentage = Math.round((item.current / item.total) * 100);
   const step = item.direction === 'increment' ? item.step : -item.step;
-  
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-  } = useSortable({ 
-    id: item.id,
-    animateLayoutChanges,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: undefined,
-  };
 
   return (
-    <div 
-      ref={setNodeRef}
-      style={style}
-      data-item-id={item.id}
-      className={`group p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl ${
-        isDragging ? 'h-0 overflow-hidden opacity-0 !p-0 !m-0' : ''
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        {/* Drag Handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-1 p-1 -ml-1 rounded cursor-grab active:cursor-grabbing hover:bg-zinc-200 dark:hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity touch-none"
-          aria-label="Drag to reorder"
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </button>
-        
-        <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
+    <div className="group p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <h3 className="text-base font-medium text-zinc-800 dark:text-zinc-200 mb-2">{item.title}</h3>
           <div className="flex items-center gap-3 text-sm mb-2">
             <span className="px-2 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded text-xs">进度</span>
@@ -522,21 +322,20 @@ function ProgressCard({
             </div>
             <span className="text-sm text-zinc-500">{percentage}%</span>
           </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onUpdate(item.id, -step)}
-              className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
-            >
-              <Minus className="size-5" />
-            </button>
-            <button
-              onClick={() => onUpdate(item.id, step)}
-              className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
-            >
-              <Plus className="size-5" />
-            </button>
-          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onUpdate(item.id, -step)}
+            className="w-10 h-10 rounded-full bg-zinc-700 hover:bg-zinc-600 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white flex items-center justify-center transition-colors"
+          >
+            <Minus className="size-5" />
+          </button>
+          <button
+            onClick={() => onUpdate(item.id, step)}
+            className="w-10 h-10 rounded-full bg-zinc-700 hover:bg-zinc-600 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white flex items-center justify-center transition-colors"
+          >
+            <Plus className="size-5" />
+          </button>
         </div>
       </div>
       <button
@@ -552,72 +351,36 @@ function ProgressCard({
 function CounterCard({ 
   item, 
   onUpdate, 
-  onDelete,
-  isDragging
+  onDelete 
 }: { 
   item: CounterItem; 
   onUpdate: (id: string, delta: number) => void;
   onDelete: (id: string) => void;
-  isDragging?: boolean;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-  } = useSortable({ 
-    id: item.id,
-    animateLayoutChanges,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition: undefined,
-  };
-
   return (
-    <div 
-      ref={setNodeRef}
-      style={style}
-      data-item-id={item.id}
-      className={`group p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl ${
-        isDragging ? 'h-0 overflow-hidden opacity-0 !p-0 !m-0' : ''
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        {/* Drag Handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-1 p-1 -ml-1 rounded cursor-grab active:cursor-grabbing hover:bg-zinc-200 dark:hover:bg-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity touch-none"
-          aria-label="Drag to reorder"
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </button>
-        
-        <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-base font-medium text-zinc-800 dark:text-zinc-200 mb-2">{item.title}</h3>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="px-2 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded text-xs">计数</span>
-              <span className="text-zinc-500">总计{item.current}{item.unit}</span>
-              <span className="text-zinc-400">今天{item.todayCount}{item.unit}</span>
-            </div>
+    <div className="group p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-medium text-zinc-800 dark:text-zinc-200 mb-2">{item.title}</h3>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="px-2 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 rounded text-xs">计数</span>
+            <span className="text-zinc-500">总计{item.current}{item.unit}</span>
+            <span className="text-zinc-400">今天{item.todayCount}{item.unit}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onUpdate(item.id, -item.step)}
-              className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
-            >
-              <Minus className="size-5" />
-            </button>
-            <button
-              onClick={() => onUpdate(item.id, item.step)}
-              className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors"
-            >
-              <Plus className="size-5" />
-            </button>
-          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onUpdate(item.id, -item.step)}
+            className="w-10 h-10 rounded-full bg-zinc-700 hover:bg-zinc-600 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white flex items-center justify-center transition-colors"
+          >
+            <Minus className="size-5" />
+          </button>
+          <button
+            onClick={() => onUpdate(item.id, item.step)}
+            className="w-10 h-10 rounded-full bg-zinc-700 hover:bg-zinc-600 dark:bg-zinc-600 dark:hover:bg-zinc-500 text-white flex items-center justify-center transition-colors"
+          >
+            <Plus className="size-5" />
+          </button>
         </div>
       </div>
       <button
