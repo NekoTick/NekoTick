@@ -33,6 +33,7 @@ interface SortableGroupItemProps {
   onEditNameChange: (name: string) => void;
   onTogglePin: () => void;
   onTaskDrop?: () => void;
+  editInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 function SortableGroupItem({
@@ -48,6 +49,7 @@ function SortableGroupItem({
   onEditNameChange,
   onTogglePin,
   onTaskDrop,
+  editInputRef,
 }: SortableGroupItemProps) {
   const {
     attributes,
@@ -57,6 +59,8 @@ function SortableGroupItem({
     transition,
     isDragging,
   } = useSortable({ id: group.id });
+  
+  const [shouldCancelOnBlur, setShouldCancelOnBlur] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -86,18 +90,31 @@ function SortableGroupItem({
         <GripVertical className="size-3" />
       </div>
       {isEditing ? (
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
           <input
+            ref={editInputRef}
             type="text"
             value={editingName}
             onChange={(e) => onEditNameChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onSaveEdit();
-              if (e.key === 'Escape') onCancelEdit();
+              if (e.key === 'Enter') {
+                setShouldCancelOnBlur(false);
+                onSaveEdit();
+              }
+              if (e.key === 'Escape') {
+                setShouldCancelOnBlur(true);
+                onCancelEdit();
+              }
+            }}
+            onBlur={() => {
+              if (!shouldCancelOnBlur) {
+                onSaveEdit();
+              }
+              setShouldCancelOnBlur(false);
             }}
             onClick={(e) => e.stopPropagation()}
             autoFocus
-            className="flex-1 text-sm bg-white border border-zinc-300 rounded px-2 py-0.5 outline-none focus:border-zinc-400"
+            className="flex-1 min-w-0 text-sm bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-md px-2 py-1 outline-none focus:border-zinc-400 dark:focus:border-zinc-500"
           />
           <button
             onClick={(e) => {
@@ -320,6 +337,7 @@ export function GroupSidebar() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const searchOptionsRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // 关闭菜单
   useEffect(() => {
@@ -341,11 +359,41 @@ export function GroupSidebar() {
     setIsResizing(true);
   }, []);
 
+  // Calculate minimum width based on longest group name
+  const minSidebarWidth = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return 150;
+    
+    context.font = '14px sans-serif'; // text-sm
+    let maxWidth = 150; // default minimum
+    
+    // Check all group names
+    groups.forEach(group => {
+      const textWidth = context.measureText(group.name).width;
+      const totalWidth = textWidth + 100; // padding + icons
+      if (totalWidth > maxWidth) {
+        maxWidth = totalWidth;
+      }
+    });
+    
+    // Check editing name
+    if (editingName) {
+      const textWidth = context.measureText(editingName).width;
+      const totalWidth = textWidth + 100;
+      if (totalWidth > maxWidth) {
+        maxWidth = totalWidth;
+      }
+    }
+    
+    return Math.min(maxWidth, 400); // cap at 400
+  }, [groups, editingName]);
+
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing) return;
-    const newWidth = Math.min(Math.max(e.clientX, 150), 400);
+    const newWidth = Math.min(Math.max(e.clientX, minSidebarWidth), 400);
     setSidebarWidth(newWidth);
-  }, [isResizing]);
+  }, [isResizing, minSidebarWidth]);
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false);
@@ -386,6 +434,81 @@ export function GroupSidebar() {
     setEditingId(null);
     setEditingName('');
   };
+
+  // Auto-adjust sidebar when editing name
+  useEffect(() => {
+    if (editingName && editInputRef.current) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      
+      context.font = '14px sans-serif';
+      
+      // Calculate required width for editing name
+      const textWidth = context.measureText(editingName).width;
+      const editingRequiredWidth = textWidth + 100; // padding + icons
+      
+      // Calculate minimum width based on other groups (excluding the one being edited)
+      let minWidthFromOtherGroups = 150;
+      groups.forEach(group => {
+        if (group.id !== editingId) {
+          const groupTextWidth = context.measureText(group.name).width;
+          const groupRequiredWidth = groupTextWidth + 100;
+          if (groupRequiredWidth > minWidthFromOtherGroups) {
+            minWidthFromOtherGroups = groupRequiredWidth;
+          }
+        }
+      });
+      
+      // Target width is the max of editing width and other groups' minimum width
+      const targetWidth = Math.max(editingRequiredWidth, minWidthFromOtherGroups);
+      const newWidth = Math.min(targetWidth, 400);
+      
+      // Update width (both expand and shrink)
+      if (Math.abs(newWidth - sidebarWidth) > 1) { // Add threshold to prevent micro-adjustments
+        setSidebarWidth(newWidth);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingName, editingId, groups]); // Remove sidebarWidth from deps to prevent infinite loop
+
+  // Reset sidebar width when editing is cancelled or saved
+  useEffect(() => {
+    // When editingId becomes null (editing finished), recalculate width based on all groups
+    if (editingId === null) {
+      // Use setTimeout to ensure this runs after state updates
+      const timeoutId = setTimeout(() => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        
+        context.font = '14px sans-serif';
+        
+        // Calculate minimum width based on all groups
+        let minRequiredWidth = 150;
+        groups.forEach(group => {
+          const groupTextWidth = context.measureText(group.name).width;
+          const groupRequiredWidth = groupTextWidth + 100;
+          if (groupRequiredWidth > minRequiredWidth) {
+            minRequiredWidth = groupRequiredWidth;
+          }
+        });
+        
+        const newWidth = Math.min(minRequiredWidth, 400);
+        
+        // Only update if significantly different to avoid unnecessary renders
+        setSidebarWidth(prev => {
+          if (Math.abs(newWidth - prev) > 1) {
+            return newWidth;
+          }
+          return prev;
+        });
+      }, 0);
+      
+      return () => clearTimeout(timeoutId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, groups]); // Remove sidebarWidth from deps to prevent infinite loop
 
   // 搜索过滤和排序
   const filteredGroups = useMemo(() => {
@@ -627,6 +750,7 @@ export function GroupSidebar() {
                     onCancelEdit={() => setEditingId(null)}
                     onEditNameChange={setEditingName}
                     onTogglePin={() => togglePin(group.id)}
+                    editInputRef={editingId === group.id ? editInputRef : undefined}
                     onTaskDrop={() => {
                       const taskId = draggingTaskId || cachedDraggingTaskIdRef.current;
                       const originalGroupId = originalGroupIdRef.current;
