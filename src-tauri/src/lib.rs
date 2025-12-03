@@ -132,6 +132,23 @@ async fn destroy_drag_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// Toggle fullscreen with smooth animation
+#[tauri::command]
+async fn toggle_fullscreen(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        let is_maximized = window.is_maximized().map_err(|e| e.to_string())?;
+        
+        if is_maximized {
+            // Exit fullscreen - keep decorations hidden (app has custom titlebar)
+            window.unmaximize().map_err(|e| e.to_string())?;
+        } else {
+            // Enter fullscreen - hide decorations and maximize
+            window.maximize().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -140,7 +157,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             create_drag_window,
             update_drag_window_position,
-            destroy_drag_window
+            destroy_drag_window,
+            toggle_fullscreen
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
