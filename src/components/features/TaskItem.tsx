@@ -75,9 +75,10 @@ interface TaskItemProps {
   hasChildren?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  dragIndent?: number;
 }
 
-export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isBeingDragged, isDropTarget, insertAfter, level = 0, hasChildren = false, collapsed = false, onToggleCollapse }: TaskItemProps) {
+export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isBeingDragged, isDropTarget, insertAfter, level = 0, hasChildren = false, collapsed = false, onToggleCollapse, dragIndent = 0 }: TaskItemProps) {
   const MAX_LEVEL = 3; // 0, 1, 2, 3 = 4 层
   const canAddSubTask = level < MAX_LEVEL;
   const itemRef = useRef<HTMLDivElement>(null);
@@ -207,9 +208,16 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
     (itemRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
   };
 
-  // Drop target indicator
+  // Drop target indicator with indent based on drag offset
+  const INDENT_THRESHOLD = 28;
+  const shouldShowIndent = dragIndent > INDENT_THRESHOLD;
+  const indentAmount = shouldShowIndent ? 24 : 0; // 24px indent when threshold exceeded
+  
   const dropIndicator = isDropTarget && (
-    <div className="h-10 rounded-md border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50" />
+    <div 
+      className="h-10 rounded-md border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 transition-all duration-150"
+      style={{ marginLeft: `${indentAmount}px` }}
+    />
   );
 
   return (

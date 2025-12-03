@@ -140,7 +140,7 @@ function AppContent() {
           <GroupSidebar />
           
           {/* Main Content */}
-          <div className="flex-1 overflow-y-auto relative">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
             {/* More Menu - Top Right (隐藏在归档视图中) */}
             {activeGroupId !== '__archive__' && (
               <div className="absolute top-4 right-6" ref={moreMenuRef}>
