@@ -340,6 +340,13 @@ export function GroupSidebar() {
   const sortMenuRef = useRef<HTMLDivElement>(null);
   const searchOptionsRef = useRef<HTMLDivElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const currentWidthRef = useRef<number>(200);
+
+  // 初始化 currentWidthRef
+  useEffect(() => {
+    currentWidthRef.current = sidebarWidth;
+  }, [sidebarWidth]);
 
   // 关闭菜单
   useEffect(() => {
@@ -358,8 +365,10 @@ export function GroupSidebar() {
   }, [showSortMenu, showSearchOptions]);
 
   const handleMouseDown = useCallback(() => {
+    // 开始拖动时同步当前宽度
+    currentWidthRef.current = sidebarWidth;
     setIsResizing(true);
-  }, []);
+  }, [sidebarWidth]);
 
   // Calculate minimum width based on longest group name
   const minSidebarWidth = useMemo(() => {
@@ -393,11 +402,33 @@ export function GroupSidebar() {
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing) return;
-    const newWidth = Math.min(Math.max(e.clientX, minSidebarWidth), 400);
-    setSidebarWidth(newWidth);
+    
+    // 取消之前的 animationFrame
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    
+    // 使用 requestAnimationFrame 来节流更新
+    animationFrameRef.current = requestAnimationFrame(() => {
+      const newWidth = Math.min(Math.max(e.clientX, minSidebarWidth), 400);
+      currentWidthRef.current = newWidth;
+      
+      // 直接操作 DOM，避免 React 重渲染
+      if (sidebarRef.current) {
+        sidebarRef.current.style.width = `${newWidth}px`;
+      }
+    });
   }, [isResizing, minSidebarWidth]);
 
   const handleMouseUp = useCallback(() => {
+    // 清理 animationFrame
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    // mouseup 时更新 state，确保宽度被保存
+    setSidebarWidth(currentWidthRef.current);
     setIsResizing(false);
   }, []);
 
@@ -413,6 +444,11 @@ export function GroupSidebar() {
       document.removeEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      
+      // 清理 animationFrame
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
@@ -469,6 +505,7 @@ export function GroupSidebar() {
       // Update width (both expand and shrink)
       if (Math.abs(newWidth - sidebarWidth) > 1) { // Add threshold to prevent micro-adjustments
         setSidebarWidth(newWidth);
+        currentWidthRef.current = newWidth;
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -501,6 +538,7 @@ export function GroupSidebar() {
         // Only update if significantly different to avoid unnecessary renders
         setSidebarWidth(prev => {
           if (Math.abs(newWidth - prev) > 1) {
+            currentWidthRef.current = newWidth;
             return newWidth;
           }
           return prev;
