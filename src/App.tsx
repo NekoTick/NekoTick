@@ -141,71 +141,73 @@ function AppContent() {
           
           {/* Main Content */}
           <div className="flex-1 overflow-y-auto relative">
-            {/* More Menu - Top Right */}
-            <div className="absolute top-4 right-6" ref={moreMenuRef}>
-              <button
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                className={`p-1.5 rounded-md transition-colors ${
-                  showMoreMenu 
-                    ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
-                    : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
-                }`}
-              >
-                <MoreHorizontal className="size-4" />
-              </button>
-              {showMoreMenu && (
-                <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1" style={{ zIndex: 9999 }}>
-                  <button
-                    onClick={() => {
-                      setHideCompleted(!hideCompleted);
-                      setShowMoreMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-between"
-                  >
-                    <span>Hide Completed</span>
-                    {hideCompleted && <Check className="size-4 text-blue-500" />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setHideActualTime(!hideActualTime);
-                      setShowMoreMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-between"
-                  >
-                    <span>Hide Time Info</span>
-                    {hideActualTime && <Check className="size-4 text-blue-500" />}
-                  </button>
-                  <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
-                  <button
-                    onClick={() => {
-                      setShowInfoModal(true);
-                      setShowMoreMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    Info
-                  </button>
-                  <button
-                    onClick={() => setShowMoreMenu(false)}
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    History...
-                  </button>
-                  <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
-                  <button
-                    onClick={() => {
-                      if (activeGroupId && activeGroupId !== 'default') {
-                        deleteGroup(activeGroupId);
-                      }
-                      setShowMoreMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    Move to Trash
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* More Menu - Top Right (隐藏在归档视图中) */}
+            {activeGroupId !== '__archive__' && (
+              <div className="absolute top-4 right-6" ref={moreMenuRef}>
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    showMoreMenu 
+                      ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
+                      : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                  }`}
+                >
+                  <MoreHorizontal className="size-4" />
+                </button>
+                {showMoreMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1" style={{ zIndex: 9999 }}>
+                    <button
+                      onClick={() => {
+                        setHideCompleted(!hideCompleted);
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-between"
+                    >
+                      <span>Hide Completed</span>
+                      {hideCompleted && <Check className="size-4 text-blue-500" />}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setHideActualTime(!hideActualTime);
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-between"
+                    >
+                      <span>Hide Time Info</span>
+                      {hideActualTime && <Check className="size-4 text-blue-500" />}
+                    </button>
+                    <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
+                    <button
+                      onClick={() => {
+                        setShowInfoModal(true);
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      Info
+                    </button>
+                    <button
+                      onClick={() => setShowMoreMenu(false)}
+                      className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      History...
+                    </button>
+                    <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
+                    <button
+                      onClick={() => {
+                        if (activeGroupId && activeGroupId !== 'default') {
+                          deleteGroup(activeGroupId);
+                        }
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      Move to Trash
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="max-w-3xl mx-auto px-6 py-8">
               {/* Loading State */}
