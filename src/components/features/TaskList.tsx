@@ -57,6 +57,8 @@ export function TaskList() {
   const prevActiveGroupIdRef = useRef<string | null>(null);
   const [showCompletedMenu, setShowCompletedMenu] = useState(false);
   const completedMenuRef = useRef<HTMLDivElement>(null);
+  const [showDateMenu, setShowDateMenu] = useState<string | null>(null);
+  const dateMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Close completed menu when clicking outside
   useEffect(() => {
@@ -71,6 +73,23 @@ export function TaskList() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showCompletedMenu]);
+
+  // Close date menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showDateMenu) {
+        const menuRef = dateMenuRefs.current[showDateMenu];
+        if (menuRef && !menuRef.contains(event.target as Node)) {
+          setShowDateMenu(null);
+        }
+      }
+    };
+
+    if (showDateMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showDateMenu]);
 
   // Archive all completed tasks
   const handleArchiveCompleted = useCallback(async () => {
@@ -139,6 +158,38 @@ export function TaskList() {
   const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
 
   // Filter tasks by current group - only top-level tasks
+  // 按日期分组归档任务
+  const groupedArchiveTasks = useMemo(() => {
+    if (activeGroupId !== '__archive__') return {};
+    
+    const topLevelArchiveTasks = tasks
+      .filter((t) => t.groupId === activeGroupId && !t.parentId)
+      .sort((a, b) => {
+        // 按完成时间倒序排序（最新的在前）
+        if (!a.completedAt && !b.completedAt) return 0;
+        if (!a.completedAt) return 1;
+        if (!b.completedAt) return -1;
+        return b.completedAt - a.completedAt;
+      });
+    
+    // 按日期分组
+    const groups: Record<string, typeof topLevelArchiveTasks> = {};
+    topLevelArchiveTasks.forEach(task => {
+      if (!task.completedAt) return;
+      
+      // 使用本地时区获取日期
+      const date = new Date(task.completedAt);
+      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(task);
+    });
+    
+    return groups;
+  }, [tasks, activeGroupId]);
+
   const { incompleteTasks, completedTasks } = useMemo(() => {
     const topLevelTasks = tasks
       .filter((t) => t.groupId === activeGroupId && !t.parentId)
@@ -158,6 +209,21 @@ export function TaskList() {
       completedTasks: hideCompleted ? [] : topLevelTasks.filter((t) => t.completed),
     };
   }, [tasks, activeGroupId, hideCompleted]);
+
+  // Delete all tasks for a specific date
+  const handleDeleteDate = useCallback((dateKey: string) => {
+    if (!activeGroupId || activeGroupId !== '__archive__') return;
+    
+    const tasksToDelete = groupedArchiveTasks[dateKey];
+    if (!tasksToDelete) return;
+    
+    // 删除该日期下的所有任务
+    tasksToDelete.forEach(task => {
+      deleteTask(task.id);
+    });
+    
+    setShowDateMenu(null);
+  }, [activeGroupId, groupedArchiveTasks, deleteTask]);
 
   const filteredTasks = useMemo(() => {
     return [...incompleteTasks, ...completedTasks];
@@ -426,6 +492,28 @@ export function TaskList() {
     );
   };
 
+  // 格式化日期显示
+  const formatDateDisplay = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // 重置时间部分用于比较
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    
+    if (date.getTime() === today.getTime()) {
+      return '今天';
+    } else if (date.getTime() === yesterday.getTime()) {
+      return '昨天';
+    } else {
+      return `${year}年${month}月${day}日`;
+    }
+  };
+
   return (
     <>
       <DndContext
@@ -462,47 +550,101 @@ export function TaskList() {
               </span>
             </button>
             <div className="flex-1 h-px bg-border" />
-            <div className="relative" ref={completedMenuRef}>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCompletedMenu(!showCompletedMenu);
-                }}
-                className={`p-1.5 rounded-md transition-colors ${
-                  showCompletedMenu 
-                    ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
-                    : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
-                }`}
-                aria-label="More options"
-              >
-                <MoreHorizontal className="size-4" />
-              </button>
-              {showCompletedMenu && activeGroupId !== '__archive__' && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
-                  <button
-                    onClick={handleArchiveCompleted}
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    归档全部
-                  </button>
-                  <button
-                    onClick={handleDeleteCompleted}
-                    className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  >
-                    全部删除
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* 只在非归档视图中显示三个点菜单 */}
+            {activeGroupId !== '__archive__' && (
+              <div className="relative" ref={completedMenuRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCompletedMenu(!showCompletedMenu);
+                  }}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    showCompletedMenu 
+                      ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
+                      : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                  }`}
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="size-4" />
+                </button>
+                {showCompletedMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                    <button
+                      onClick={handleArchiveCompleted}
+                      className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      归档全部
+                    </button>
+                    <button
+                      onClick={handleDeleteCompleted}
+                      className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    >
+                      全部删除
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {/* 已完成任务区域 - 独立的 SortableContext */}
         {completedTasks.length > 0 && completedExpanded && (
           <SortableContext items={completedTaskIds} strategy={verticalListSortingStrategy}>
-            <div className="space-y-0.5 opacity-60">
-              {completedTasks.map(task => renderTaskItem(task, 0))}
-            </div>
+            {/* 归档视图：按日期分组显示 */}
+            {activeGroupId === '__archive__' ? (
+              <div className="space-y-4">
+                {Object.keys(groupedArchiveTasks)
+                  .sort((a, b) => b.localeCompare(a)) // 日期倒序
+                  .map(dateKey => (
+                    <div key={dateKey}>
+                      {/* 日期分割线 */}
+                      <div className="flex items-center gap-2 w-full mb-3">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {formatDateDisplay(dateKey)}
+                        </span>
+                        <div className="flex-1 h-px bg-border" />
+                        {/* 日期菜单 */}
+                        <div className="relative" ref={el => { if (el) dateMenuRefs.current[dateKey] = el; }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowDateMenu(showDateMenu === dateKey ? null : dateKey);
+                            }}
+                            className={`p-1.5 rounded-md transition-colors ${
+                              showDateMenu === dateKey
+                                ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
+                                : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                            }`}
+                            aria-label="More options"
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </button>
+                          {showDateMenu === dateKey && (
+                            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                              <button
+                                onClick={() => handleDeleteDate(dateKey)}
+                                className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                删除全部
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {/* 该日期的任务 */}
+                      <div className="space-y-0.5 opacity-60">
+                        {groupedArchiveTasks[dateKey].map(task => renderTaskItem(task, 0))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              /* 普通视图：直接显示已完成任务 */
+              <div className="space-y-0.5 opacity-60">
+                {completedTasks.map(task => renderTaskItem(task, 0))}
+              </div>
+            )}
           </SortableContext>
         )}
       </DndContext>
