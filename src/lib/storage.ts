@@ -574,7 +574,8 @@ export async function archiveTasks(groupId: string, tasks: TaskData[]): Promise<
       const actualStr = task.actualMinutes ? ` [实际: ${task.actualMinutes}m]` : '';
       const completedStr = task.completedAt ? ` (完成于: ${new Date(task.completedAt).toLocaleString('zh-CN')})` : '';
       const createdStr = task.createdAt ? ` (创建于: ${task.createdAt})` : '';
-      archiveEntries += `- [x] ${task.content}${estimatedStr}${actualStr}${completedStr}${createdStr}\n`;
+      const priorityStr = task.priority && task.priority !== 'default' ? ` [优先级: ${task.priority}]` : '';
+      archiveEntries += `- [x] ${task.content}${estimatedStr}${actualStr}${completedStr}${createdStr}${priorityStr}\n`;
     });
     
     // 写入归档文件（追加模式）
@@ -597,6 +598,7 @@ export async function loadArchiveData(groupId: string): Promise<Array<{
     actual?: string;
     completedAt?: string;
     createdAt?: number;
+    priority?: string;
   }>;
 }>> {
   try {
@@ -663,12 +665,20 @@ export async function loadArchiveData(groupId: string): Promise<Array<{
           fullContent = fullContent.replace(createdMatch[0], '').trim();
         }
         
+        // 提取优先级
+        const priorityMatch = fullContent.match(/\[优先级: ([^\]]+)\]/);
+        const priority = priorityMatch ? priorityMatch[1] : undefined;
+        if (priorityMatch) {
+          fullContent = fullContent.replace(priorityMatch[0], '').trim();
+        }
+        
         return {
           content: fullContent,
           estimated,
           actual,
           completedAt,
           createdAt,
+          priority,
         };
       }).filter(Boolean) as Array<{
         content: string;
@@ -676,6 +686,7 @@ export async function loadArchiveData(groupId: string): Promise<Array<{
         actual?: string;
         completedAt?: string;
         createdAt?: number;
+        priority?: string;
       }>;
       
       if (tasks.length > 0) {

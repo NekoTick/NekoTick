@@ -328,7 +328,7 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
                 groupId: '__archive__',
                 parentId: null,
                 collapsed: false,
-                priority: 'default',
+                priority: (task.priority as Priority) || 'default',
                 estimatedMinutes: task.estimated ? parseFloat(task.estimated) : undefined,
                 actualMinutes: task.actual ? parseFloat(task.actual) : undefined,
                 // 使用自定义属性保存原始分组ID

@@ -228,6 +228,25 @@ export function TaskList() {
       dateGroups[dateKey][originalGroupId].push(task);
     });
     
+    // 对每个分组内的任务按优先级排序
+    Object.keys(dateGroups).forEach(dateKey => {
+      Object.keys(dateGroups[dateKey]).forEach(groupId => {
+        dateGroups[dateKey][groupId].sort((a, b) => {
+          // 先按优先级排序
+          const aPriority = priorityOrder[a.priority || 'default'];
+          const bPriority = priorityOrder[b.priority || 'default'];
+          if (aPriority !== bPriority) {
+            return aPriority - bPriority;
+          }
+          // 同优先级按完成时间倒序（最新的在前）
+          if (!a.completedAt && !b.completedAt) return 0;
+          if (!a.completedAt) return 1;
+          if (!b.completedAt) return -1;
+          return b.completedAt - a.completedAt;
+        });
+      });
+    });
+    
     return dateGroups;
   }, [tasks, activeGroupId]);
 
