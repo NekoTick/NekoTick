@@ -211,7 +211,10 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
   // Drop target indicator with indent based on drag offset
   const INDENT_THRESHOLD = 28;
   const shouldShowIndent = dragIndent > INDENT_THRESHOLD;
-  const indentAmount = shouldShowIndent ? 24 : 0; // 24px indent when threshold exceeded
+  // 基础左边距: 8px(px-2) + 20px(w-5折叠图标) + 8px(gap-2) = 36px
+  // 如果缩进，额外增加 24px
+  const baseMargin = 36;
+  const indentAmount = shouldShowIndent ? baseMargin + 24 : baseMargin;
   
   const dropIndicator = isDropTarget && (
     <div 
