@@ -46,6 +46,7 @@ export function TaskList() {
     hideCompleted,
     searchQuery,
     setDraggingTaskId,
+    groups,
   } = useGroupStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -58,7 +59,23 @@ export function TaskList() {
   const [showCompletedMenu, setShowCompletedMenu] = useState(false);
   const completedMenuRef = useRef<HTMLDivElement>(null);
   const [showDateMenu, setShowDateMenu] = useState<string | null>(null);
+  const [showGroupMenu, setShowGroupMenu] = useState<string | null>(null);
   const dateMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const groupMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  
+  // 默认展开今天和昨天
+  const getTodayKey = () => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  };
+  const getYesterdayKey = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+  };
+  
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set([getTodayKey(), getYesterdayKey()]));
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Close completed menu when clicking outside
   useEffect(() => {
@@ -90,6 +107,23 @@ export function TaskList() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showDateMenu]);
+
+  // Close group menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showGroupMenu) {
+        const menuRef = groupMenuRefs.current[showGroupMenu];
+        if (menuRef && !menuRef.contains(event.target as Node)) {
+          setShowGroupMenu(null);
+        }
+      }
+    };
+
+    if (showGroupMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showGroupMenu]);
 
   // Archive all completed tasks
   const handleArchiveCompleted = useCallback(async () => {
@@ -158,7 +192,7 @@ export function TaskList() {
   const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
 
   // Filter tasks by current group - only top-level tasks
-  // 按日期分组归档任务
+  // 按日期和分组双层分组归档任务
   const groupedArchiveTasks = useMemo(() => {
     if (activeGroupId !== '__archive__') return {};
     
@@ -172,8 +206,9 @@ export function TaskList() {
         return b.completedAt - a.completedAt;
       });
     
-    // 按日期分组
-    const groups: Record<string, typeof topLevelArchiveTasks> = {};
+    // 第一层：按日期分组
+    const dateGroups: Record<string, Record<string, typeof topLevelArchiveTasks>> = {};
+    
     topLevelArchiveTasks.forEach(task => {
       if (!task.completedAt) return;
       
@@ -181,13 +216,19 @@ export function TaskList() {
       const date = new Date(task.completedAt);
       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       
-      if (!groups[dateKey]) {
-        groups[dateKey] = [];
+      // 从任务的 originalGroupId 属性获取原始分组ID
+      const originalGroupId = (task as any).originalGroupId || 'unknown';
+      
+      if (!dateGroups[dateKey]) {
+        dateGroups[dateKey] = {};
       }
-      groups[dateKey].push(task);
+      if (!dateGroups[dateKey][originalGroupId]) {
+        dateGroups[dateKey][originalGroupId] = [];
+      }
+      dateGroups[dateKey][originalGroupId].push(task);
     });
     
-    return groups;
+    return dateGroups;
   }, [tasks, activeGroupId]);
 
   const { incompleteTasks, completedTasks } = useMemo(() => {
@@ -210,20 +251,69 @@ export function TaskList() {
     };
   }, [tasks, activeGroupId, hideCompleted]);
 
+  // 切换日期展开/折叠
+  const toggleDateExpanded = useCallback((dateKey: string) => {
+    setExpandedDates(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateKey)) {
+        newSet.delete(dateKey);
+      } else {
+        newSet.add(dateKey);
+      }
+      return newSet;
+    });
+  }, []);
+
+  // 切换分组展开/折叠
+  const toggleGroupExpanded = useCallback((dateKey: string, groupId: string) => {
+    const key = `${dateKey}-${groupId}`;
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  }, []);
+
   // Delete all tasks for a specific date
   const handleDeleteDate = useCallback((dateKey: string) => {
     if (!activeGroupId || activeGroupId !== '__archive__') return;
     
-    const tasksToDelete = groupedArchiveTasks[dateKey];
-    if (!tasksToDelete) return;
+    const groupsInDate = groupedArchiveTasks[dateKey];
+    if (!groupsInDate) return;
     
-    // 删除该日期下的所有任务
-    tasksToDelete.forEach(task => {
-      deleteTask(task.id);
+    // 删除该日期下所有分组的所有任务
+    Object.values(groupsInDate).forEach(taskList => {
+      taskList.forEach(task => {
+        deleteTask(task.id);
+      });
     });
     
     setShowDateMenu(null);
   }, [activeGroupId, groupedArchiveTasks, deleteTask]);
+
+  // Delete all tasks for a specific group within a date
+  const handleDeleteGroupInDate = useCallback((dateKey: string, groupId: string) => {
+    if (!activeGroupId || activeGroupId !== '__archive__') return;
+    
+    const tasksToDelete = groupedArchiveTasks[dateKey]?.[groupId];
+    if (!tasksToDelete) return;
+    
+    tasksToDelete.forEach(task => {
+      deleteTask(task.id);
+    });
+  }, [activeGroupId, groupedArchiveTasks, deleteTask]);
+
+  // 计算统计信息
+  const calculateStats = useCallback((taskList: typeof tasks) => {
+    const count = taskList.length;
+    const estimated = taskList.reduce((sum, t) => sum + (t.estimatedMinutes || 0), 0);
+    const actual = taskList.reduce((sum, t) => sum + (t.actualMinutes || 0), 0);
+    return { count, estimated, actual };
+  }, []);
 
   const filteredTasks = useMemo(() => {
     return [...incompleteTasks, ...completedTasks];
@@ -591,53 +681,160 @@ export function TaskList() {
         {/* 已完成任务区域 - 独立的 SortableContext */}
         {completedTasks.length > 0 && completedExpanded && (
           <SortableContext items={completedTaskIds} strategy={verticalListSortingStrategy}>
-            {/* 归档视图：按日期分组显示 */}
+            {/* 归档视图：按日期>分组双层结构显示 */}
             {activeGroupId === '__archive__' ? (
               <div className="space-y-4">
                 {Object.keys(groupedArchiveTasks)
                   .sort((a, b) => b.localeCompare(a)) // 日期倒序
-                  .map(dateKey => (
-                    <div key={dateKey}>
-                      {/* 日期分割线 */}
-                      <div className="flex items-center gap-2 w-full mb-3">
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {formatDateDisplay(dateKey)}
-                        </span>
-                        <div className="flex-1 h-px bg-border" />
-                        {/* 日期菜单 */}
-                        <div className="relative" ref={el => { if (el) dateMenuRefs.current[dateKey] = el; }}>
+                  .map(dateKey => {
+                    const groupsInDate = groupedArchiveTasks[dateKey];
+                    const dateExpanded = expandedDates.has(dateKey);
+                    
+                    // 计算该日期下所有任务的统计
+                    const allTasksInDate = Object.values(groupsInDate).flat();
+                    const dateStats = calculateStats(allTasksInDate);
+                    
+                    return (
+                      <div key={dateKey} className="space-y-2">
+                        {/* 日期分割线 - 可折叠 */}
+                        <div className="flex items-center gap-2 w-full">
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowDateMenu(showDateMenu === dateKey ? null : dateKey);
-                            }}
-                            className={`p-1.5 rounded-md transition-colors ${
-                              showDateMenu === dateKey
-                                ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
-                                : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
-                            }`}
-                            aria-label="More options"
+                            onClick={() => toggleDateExpanded(dateKey)}
+                            className="flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
                           >
-                            <MoreHorizontal className="size-4" />
+                            {dateExpanded ? (
+                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {formatDateDisplay(dateKey)}
+                            </span>
+                            <span className="text-xs text-zinc-400 dark:text-zinc-600">
+                              ({dateStats.count}个任务
+                              {dateStats.estimated > 0 && ` · 预估${Math.round(dateStats.estimated)}m`}
+                              {dateStats.actual > 0 && ` · 实际${Math.round(dateStats.actual)}m`})
+                            </span>
                           </button>
-                          {showDateMenu === dateKey && (
-                            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
-                              <button
-                                onClick={() => handleDeleteDate(dateKey)}
-                                className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                              >
-                                删除全部
-                              </button>
-                            </div>
-                          )}
+                          <div className="flex-1 h-px bg-border" />
+                          {/* 日期菜单 */}
+                          <div className="relative" ref={el => { if (el) dateMenuRefs.current[dateKey] = el; }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDateMenu(showDateMenu === dateKey ? null : dateKey);
+                              }}
+                              className={`p-1.5 rounded-md transition-colors ${
+                                showDateMenu === dateKey
+                                  ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
+                                  : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                              }`}
+                              aria-label="More options"
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </button>
+                            {showDateMenu === dateKey && (
+                              <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                                <button
+                                  onClick={() => handleDeleteDate(dateKey)}
+                                  className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                >
+                                  删除全部
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
+                        
+                        {/* 日期展开内容：按分组显示 */}
+                        {dateExpanded && (
+                          <div className="ml-4 space-y-3">
+                            {/* 遍历所有存在的分组，包括空分组 */}
+                            {groups.filter(g => g.id !== '__archive__').map(group => {
+                              const groupTasks = groupsInDate[group.id] || [];
+                              const groupKey = `${dateKey}-${group.id}`;
+                              const groupExpanded = expandedGroups.has(groupKey);
+                              const groupStats = calculateStats(groupTasks);
+                              
+                              return (
+                                <div key={group.id} className="space-y-1">
+                                  {/* 分组标题 - 可折叠 */}
+                                  <div className="flex items-center gap-2 w-full">
+                                    <button
+                                      onClick={() => toggleGroupExpanded(dateKey, group.id)}
+                                      className="flex items-center gap-1.5 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                                    >
+                                      {groupExpanded ? (
+                                        <ChevronDown className="h-3 w-3 text-zinc-400" />
+                                      ) : (
+                                        <ChevronRight className="h-3 w-3 text-zinc-400" />
+                                      )}
+                                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                                        {group.name}
+                                      </span>
+                                      <span className="text-xs text-zinc-400 dark:text-zinc-600">
+                                        ({groupStats.count}
+                                        {groupStats.estimated > 0 && ` · ${Math.round(groupStats.estimated)}m`}
+                                        {groupStats.actual > 0 && ` · ${Math.round(groupStats.actual)}m`})
+                                      </span>
+                                    </button>
+                                    <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                                    {/* 分组菜单 - 只在有任务时显示 */}
+                                    {groupTasks.length > 0 && (
+                                      <div className="relative" ref={el => { if (el) groupMenuRefs.current[groupKey] = el; }}>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowGroupMenu(showGroupMenu === groupKey ? null : groupKey);
+                                          }}
+                                          className={`p-1 rounded-md transition-colors ${
+                                            showGroupMenu === groupKey
+                                              ? 'text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800' 
+                                              : 'text-zinc-300 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
+                                          }`}
+                                          aria-label="Group options"
+                                        >
+                                          <MoreHorizontal className="size-3" />
+                                        </button>
+                                        {showGroupMenu === groupKey && (
+                                          <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                                            <button
+                                              onClick={() => {
+                                                handleDeleteGroupInDate(dateKey, group.id);
+                                                setShowGroupMenu(null);
+                                              }}
+                                              className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                                            >
+                                              删除全部
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* 分组任务列表 */}
+                                  {groupExpanded && (
+                                    <div className="ml-4 space-y-0.5">
+                                      {groupTasks.length > 0 ? (
+                                        <div className="opacity-60">
+                                          {groupTasks.map(task => renderTaskItem(task, 0))}
+                                        </div>
+                                      ) : (
+                                        <div className="text-xs text-zinc-400 dark:text-zinc-600 italic py-1">
+                                          暂无任务
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                      {/* 该日期的任务 */}
-                      <div className="space-y-0.5 opacity-60">
-                        {groupedArchiveTasks[dateKey].map(task => renderTaskItem(task, 0))}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             ) : (
               /* 普通视图：直接显示已完成任务 */

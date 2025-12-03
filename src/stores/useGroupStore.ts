@@ -299,41 +299,46 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     console.log(`[LazyLoad] Loading tasks for group: ${groupId}`);
     
     try {
-      // 特殊处理归档分组
+      // 特殊处理归档分组 - 加载所有分组的归档数据
       if (groupId === '__archive__') {
         const { loadArchiveData } = await import('@/lib/storage');
-        // 使用previousNonArchiveGroupId，如果没有则使用第一个分组
         const currentState = useGroupStore.getState();
-        const targetGroupId = currentState.previousNonArchiveGroupId || state.groups[0]?.id || 'default';
         
-        console.log(`[Archive] Loading archive for group: ${targetGroupId}`);
-        const archiveData = await loadArchiveData(targetGroupId);
-        console.log(`[Archive] Found ${archiveData.length} archive sections`);
-        
-        // 将归档数据转换为任务格式
+        // 加载所有非归档分组的归档数据
         const archiveTasks: StoreTask[] = [];
         let taskOrder = 0;
         
-        archiveData.forEach(section => {
-          section.tasks.forEach(task => {
-            archiveTasks.push({
-              id: `archive-${section.timestamp}-${taskOrder}`,
-              content: task.content,
-              completed: true,
-              createdAt: task.createdAt || Date.now(), // 使用归档中保存的创建时间
-              completedAt: task.completedAt ? new Date(task.completedAt).getTime() : undefined,
-              order: taskOrder++,
-              groupId: '__archive__',
-              parentId: null,
-              collapsed: false,
-              priority: 'default',
-              estimatedMinutes: task.estimated ? parseFloat(task.estimated) : undefined,
-              actualMinutes: task.actual ? parseFloat(task.actual) : undefined,
+        for (const group of currentState.groups) {
+          if (group.id === '__archive__') continue;
+          
+          console.log(`[Archive] Loading archive for group: ${group.id} (${group.name})`);
+          const archiveData = await loadArchiveData(group.id);
+          console.log(`[Archive] Found ${archiveData.length} archive sections for ${group.name}`);
+          
+          // 将该分组的归档数据转换为任务格式
+          archiveData.forEach(section => {
+            section.tasks.forEach(task => {
+              archiveTasks.push({
+                id: `archive-${group.id}-${section.timestamp}-${taskOrder}`,
+                content: task.content,
+                completed: true,
+                createdAt: task.createdAt || Date.now(),
+                completedAt: task.completedAt ? new Date(task.completedAt).getTime() : undefined,
+                order: taskOrder++,
+                groupId: '__archive__',
+                parentId: null,
+                collapsed: false,
+                priority: 'default',
+                estimatedMinutes: task.estimated ? parseFloat(task.estimated) : undefined,
+                actualMinutes: task.actual ? parseFloat(task.actual) : undefined,
+                // 使用自定义属性保存原始分组ID
+                originalGroupId: group.id,
+              } as StoreTask & { originalGroupId: string });
             });
           });
-        });
+        }
         
-        console.log(`[LazyLoad] Loaded ${archiveTasks.length} archived tasks`);
+        console.log(`[LazyLoad] Loaded ${archiveTasks.length} archived tasks from all groups`);
         
         set((state) => ({
           tasks: [...state.tasks, ...archiveTasks]
