@@ -141,6 +141,12 @@ interface GroupStore {
 
 // 保存分组到文件
 async function persistGroup(groups: Group[], tasks: StoreTask[], groupId: string) {
+  // 不保存归档分组（归档任务在archive文件中管理）
+  if (groupId === '__archive__') {
+    console.log('[PersistGroup] Skipping persist for __archive__ group');
+    return;
+  }
+  
   const group = groups.find(g => g.id === groupId);
   if (!group) return;
   
@@ -576,6 +582,9 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     // Parse time estimation from updated content
     const { cleanContent, estimatedMinutes } = parseTimeEstimation(content);
     
+    // 保留 originalGroupId（如果存在）
+    const originalGroupId = (task as any).originalGroupId;
+    
     // Update content
     task.content = cleanContent;
     
@@ -586,6 +595,11 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     }
     // Note: actualMinutes is preserved as it's historical data
     
+    // 恢复 originalGroupId
+    if (originalGroupId) {
+      (task as any).originalGroupId = originalGroupId;
+    }
+    
     persistGroup(state.groups, state.tasks, task.groupId);
     return { tasks: [...state.tasks] };
   }),
@@ -594,8 +608,16 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
+    // 保留 originalGroupId（如果存在）
+    const originalGroupId = (task as any).originalGroupId;
+    
     // Directly update estimation (can be undefined to clear)
     task.estimatedMinutes = estimatedMinutes;
+    
+    // 恢复 originalGroupId
+    if (originalGroupId) {
+      (task as any).originalGroupId = originalGroupId;
+    }
     
     persistGroup(state.groups, state.tasks, task.groupId);
     return { tasks: [...state.tasks] };
@@ -605,7 +627,16 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
+    // 保留 originalGroupId（如果存在）
+    const originalGroupId = (task as any).originalGroupId;
+    
     task.priority = priority;
+    
+    // 恢复 originalGroupId
+    if (originalGroupId) {
+      (task as any).originalGroupId = originalGroupId;
+    }
+    
     persistGroup(state.groups, state.tasks, task.groupId);
     return { tasks: [...state.tasks] };
   }),
@@ -635,14 +666,24 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     // When uncompleting, actualMinutes is cleared (remains undefined)
     
     // Update the task's completed status
-    let newTasks = state.tasks.map(t =>
-      t.id === id ? { 
+    let newTasks = state.tasks.map(t => {
+      if (t.id !== id) return t;
+      
+      // 保留归档任务的 originalGroupId 属性
+      const updatedTask: any = { 
         ...t, 
         completed: isCompleting,
         completedAt: isCompleting ? now : undefined,
         actualMinutes: actualMinutes, // Set when completing, undefined when uncompleting
-      } : t
-    );
+      };
+      
+      // 如果原任务有 originalGroupId，保留它
+      if ((t as any).originalGroupId) {
+        updatedTask.originalGroupId = (t as any).originalGroupId;
+      }
+      
+      return updatedTask;
+    });
     
     // Skip reorder if requested (e.g., during drag and drop)
     if (!skipReorder) {
@@ -672,9 +713,15 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
-    const newTasks = state.tasks.map(t =>
-      t.id === id ? { ...t, collapsed: !t.collapsed } : t
-    );
+    const newTasks = state.tasks.map(t => {
+      if (t.id !== id) return t;
+      const updated: any = { ...t, collapsed: !t.collapsed };
+      // 保留 originalGroupId（如果存在）
+      if ((t as any).originalGroupId) {
+        updated.originalGroupId = (t as any).originalGroupId;
+      }
+      return updated;
+    });
     persistGroup(state.groups, newTasks, task.groupId);
     return { tasks: newTasks };
   }),
@@ -918,17 +965,27 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     // Check if this is a cross-level drag (changing parent)
     if (activeTask.parentId !== overTask.parentId) {
       // Update the active task's parent to match the over task's parent
-      newTasks = newTasks.map(t => 
-        t.id === activeId ? { ...t, parentId: overTask.parentId } : t
-      );
+      newTasks = newTasks.map(t => {
+        if (t.id !== activeId) return t;
+        const updated: any = { ...t, parentId: overTask.parentId };
+        if ((t as any).originalGroupId) {
+          updated.originalGroupId = (t as any).originalGroupId;
+        }
+        return updated;
+      });
       
       // Also update all descendants to follow the parent
       const updateDescendants = (parentId: string, newGroupParentId: string | null) => {
         const children = newTasks.filter(t => t.parentId === parentId);
         children.forEach(child => {
-          newTasks = newTasks.map(t => 
-            t.id === child.id ? { ...t, parentId: newGroupParentId } : t
-          );
+          newTasks = newTasks.map(t => {
+            if (t.id !== child.id) return t;
+            const updated: any = { ...t, parentId: newGroupParentId };
+            if ((t as any).originalGroupId) {
+              updated.originalGroupId = (t as any).originalGroupId;
+            }
+            return updated;
+          });
           updateDescendants(child.id, child.id);
         });
       };
@@ -1011,12 +1068,19 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
         }
         // When uncompleting (dragging to incomplete), actualMinutes is cleared
         
-        return {
+        const updated: any = {
           ...t,
           completed: newCompleted,
           completedAt: newCompleted ? now : undefined,
           actualMinutes: actualMinutes, // Set when completing, undefined when uncompleting
         };
+        
+        // 保留 originalGroupId
+        if ((t as any).originalGroupId) {
+          updated.originalGroupId = (t as any).originalGroupId;
+        }
+        
+        return updated;
       }
       return t;
     });
@@ -1100,7 +1164,14 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     collectTaskAndDescendants(task);
     
     // Update groupId for all collected tasks
-    const movedTasks = tasksToMove.map(t => ({ ...t, groupId: targetGroupId }));
+    const movedTasks = tasksToMove.map(t => {
+      const updated: any = { ...t, groupId: targetGroupId };
+      // 保留 originalGroupId（如果存在）
+      if ((t as any).originalGroupId) {
+        updated.originalGroupId = (t as any).originalGroupId;
+      }
+      return updated;
+    });
     
     // Get target group TOP-LEVEL tasks only (excluding tasks being moved)
     const targetGroupTasks = state.tasks

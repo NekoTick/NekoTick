@@ -63,7 +63,66 @@ export function TaskList() {
   const dateMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const groupMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
   
-  // 默认展开今天和昨天
+  // 时间维度选择：天/周/月
+  type TimeView = 'day' | 'week' | 'month';
+  const [timeView, setTimeView] = useState<TimeView>('day');
+  const [showTimeViewMenu, setShowTimeViewMenu] = useState(false);
+  const timeViewMenuRef = useRef<HTMLDivElement>(null);
+  
+  // 时间范围选择（每个时间维度独立存储）
+  const [dayRange, setDayRange] = useState<number | 'all'>(7);
+  const [weekRange, setWeekRange] = useState<number | 'all'>(4);
+  const [monthRange, setMonthRange] = useState<number | 'all'>(3);
+  const [showRangeMenu, setShowRangeMenu] = useState(false);
+  const rangeMenuRef = useRef<HTMLDivElement>(null);
+  const [customRangeInput, setCustomRangeInput] = useState('');
+  const customRangeInputRef = useRef<HTMLInputElement>(null);
+  const originalRangeRef = useRef<number | 'all'>(7); // 保存原始值，用于取消时恢复
+  
+  // 获取当前时间维度下的范围值
+  const getCurrentRange = () => {
+    if (timeView === 'day') return dayRange;
+    if (timeView === 'week') return weekRange;
+    return monthRange;
+  };
+  
+  // 设置当前时间维度下的范围值
+  const setCurrentRange = (range: number | 'all') => {
+    if (timeView === 'day') setDayRange(range);
+    else if (timeView === 'week') setWeekRange(range);
+    else setMonthRange(range);
+  };
+  
+  // 获取不同时间维度的范围选项
+  const getRangeOptions = () => {
+    if (timeView === 'day') return [3, 7, 14, 30, 'all' as const];
+    if (timeView === 'week') return [2, 4, 8, 12, 'all' as const];
+    return [2, 3, 6, 12, 'all' as const];
+  };
+  
+  // 格式化范围显示文本
+  const formatRangeText = (range: number | 'all') => {
+    if (range === 'all') return '全部';
+    if (timeView === 'day') return `${range}天`;
+    if (timeView === 'week') return `${range}周`;
+    return `${range}个月`;
+  };
+  
+  // 解析自定义范围输入
+  const parseCustomRange = (input: string): number | null => {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    
+    // 直接输入数字
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num) && num > 0) {
+      return num;
+    }
+    
+    return null;
+  };
+  
+  // 获取时间键值的辅助函数
   const getTodayKey = () => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -73,23 +132,82 @@ export function TaskList() {
     yesterday.setDate(yesterday.getDate() - 1);
     return `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
   };
+  const getCurrentWeekKey = () => {
+    const today = new Date();
+    const firstDay = new Date(today);
+    const day = today.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // 周一为第一天
+    firstDay.setDate(today.getDate() + diff);
+    const yearStart = new Date(firstDay.getFullYear(), 0, 1);
+    const weekNum = Math.ceil((firstDay.getTime() - yearStart.getTime()) / 604800000) + 1;
+    return `${firstDay.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  };
+  const getCurrentMonthKey = () => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  };
   
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => new Set([getTodayKey(), getYesterdayKey()]));
+  // 根据时间视图动态设置默认展开项
+  const getDefaultExpandedDates = () => {
+    if (timeView === 'day') {
+      return new Set([getTodayKey(), getYesterdayKey()]);
+    } else if (timeView === 'week') {
+      return new Set([getCurrentWeekKey()]);
+    } else {
+      return new Set([getCurrentMonthKey()]);
+    }
+  };
+  
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(() => getDefaultExpandedDates());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  
+  // 当时间视图切换时，重置展开状态
+  useEffect(() => {
+    setExpandedDates(getDefaultExpandedDates());
+    setExpandedGroups(new Set());
+  }, [timeView]);
 
+  // 当范围菜单打开时，清空自定义输入并保存原始值（只在打开瞬间执行一次）
+  const prevShowRangeMenu = useRef(false);
+  useEffect(() => {
+    // 只在菜单从关闭变为打开时执行
+    if (showRangeMenu && !prevShowRangeMenu.current) {
+      setCustomRangeInput('');
+      // 保存当前值（使用当时的值，不依赖后续变化）
+      if (timeView === 'day') originalRangeRef.current = dayRange;
+      else if (timeView === 'week') originalRangeRef.current = weekRange;
+      else originalRangeRef.current = monthRange;
+    }
+    prevShowRangeMenu.current = showRangeMenu;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRangeMenu]); // 只依赖 showRangeMenu，避免输入时重复触发
+  
   // Close completed menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (completedMenuRef.current && !completedMenuRef.current.contains(event.target as Node)) {
         setShowCompletedMenu(false);
       }
+      if (timeViewMenuRef.current && !timeViewMenuRef.current.contains(event.target as Node)) {
+        setShowTimeViewMenu(false);
+      }
+      if (rangeMenuRef.current && !rangeMenuRef.current.contains(event.target as Node)) {
+        // 点击外部关闭时，如果有未确认的输入，恢复到原始值
+        if (customRangeInput.trim()) {
+          if (timeView === 'day') setDayRange(originalRangeRef.current);
+          else if (timeView === 'week') setWeekRange(originalRangeRef.current);
+          else setMonthRange(originalRangeRef.current);
+        }
+        setShowRangeMenu(false);
+        setCustomRangeInput('');
+      }
     };
 
-    if (showCompletedMenu) {
+    if (showCompletedMenu || showTimeViewMenu || showRangeMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showCompletedMenu]);
+  }, [showCompletedMenu, showTimeViewMenu, showRangeMenu, customRangeInput, timeView]);
 
   // Close date menu when clicking outside
   useEffect(() => {
@@ -124,6 +242,20 @@ export function TaskList() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showGroupMenu]);
+
+  // Close time view menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (timeViewMenuRef.current && !timeViewMenuRef.current.contains(event.target as Node)) {
+        setShowTimeViewMenu(false);
+      }
+    };
+
+    if (showTimeViewMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showTimeViewMenu]);
 
   // Archive all completed tasks
   const handleArchiveCompleted = useCallback(async () => {
@@ -190,9 +322,84 @@ export function TaskList() {
 
   // Priority order: red (0) > yellow (1) > purple (2) > green (3) > default (4)
   const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
+  
+  // 格式化时间范围显示
+  const formatTimeRangeDisplay = (timeKey: string) => {
+    if (timeView === 'day') {
+      const [year, month, day] = timeKey.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      today.setHours(0, 0, 0, 0);
+      yesterday.setHours(0, 0, 0, 0);
+      date.setHours(0, 0, 0, 0);
+      
+      if (date.getTime() === today.getTime()) {
+        return '今天';
+      } else if (date.getTime() === yesterday.getTime()) {
+        return '昨天';
+      } else {
+        return `${year}年${month}月${day}日`;
+      }
+    } else if (timeView === 'week') {
+      const [yearStr, weekStr] = timeKey.split('-W');
+      const year = parseInt(yearStr);
+      const week = parseInt(weekStr);
+      
+      // 计算该周的开始和结束日期
+      const yearStart = new Date(year, 0, 1);
+      const firstMonday = new Date(yearStart);
+      const dayOfWeek = yearStart.getDay();
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      firstMonday.setDate(yearStart.getDate() + diff);
+      
+      const weekStart = new Date(firstMonday);
+      weekStart.setDate(firstMonday.getDate() + (week - 1) * 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      // 检查是否是本周
+      const currentWeekKey = getCurrentWeekKey();
+      if (timeKey === currentWeekKey) {
+        return '本周';
+      }
+      
+      return `${year}年第${week}周 (${weekStart.getMonth() + 1}/${weekStart.getDate()} - ${weekEnd.getMonth() + 1}/${weekEnd.getDate()})`;
+    } else {
+      const [year, month] = timeKey.split('-');
+      const currentMonthKey = getCurrentMonthKey();
+      
+      if (timeKey === currentMonthKey) {
+        return '本月';
+      }
+      
+      return `${year}年${month}月`;
+    }
+  };
+
+  // 获取时间范围键值的辅助函数
+  const getTimeRangeKey = (timestamp: number) => {
+    const date = new Date(timestamp);
+    
+    if (timeView === 'day') {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    } else if (timeView === 'week') {
+      const firstDay = new Date(date);
+      const day = date.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      firstDay.setDate(date.getDate() + diff);
+      const yearStart = new Date(firstDay.getFullYear(), 0, 1);
+      const weekNum = Math.ceil((firstDay.getTime() - yearStart.getTime()) / 604800000) + 1;
+      return `${firstDay.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    } else {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    }
+  };
 
   // Filter tasks by current group - only top-level tasks
-  // 按日期和分组双层分组归档任务
+  // 按时间维度和分组双层分组归档任务
   const groupedArchiveTasks = useMemo(() => {
     if (activeGroupId !== '__archive__') return {};
     
@@ -206,26 +413,25 @@ export function TaskList() {
         return b.completedAt - a.completedAt;
       });
     
-    // 第一层：按日期分组
+    // 第一层：按时间范围分组（天/周/月）
     const dateGroups: Record<string, Record<string, typeof topLevelArchiveTasks>> = {};
     
     topLevelArchiveTasks.forEach(task => {
       if (!task.completedAt) return;
       
-      // 使用本地时区获取日期
-      const date = new Date(task.completedAt);
-      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      // 根据时间视图获取对应的键值
+      const timeKey = getTimeRangeKey(task.completedAt);
       
       // 从任务的 originalGroupId 属性获取原始分组ID
       const originalGroupId = (task as any).originalGroupId || 'unknown';
       
-      if (!dateGroups[dateKey]) {
-        dateGroups[dateKey] = {};
+      if (!dateGroups[timeKey]) {
+        dateGroups[timeKey] = {};
       }
-      if (!dateGroups[dateKey][originalGroupId]) {
-        dateGroups[dateKey][originalGroupId] = [];
+      if (!dateGroups[timeKey][originalGroupId]) {
+        dateGroups[timeKey][originalGroupId] = [];
       }
-      dateGroups[dateKey][originalGroupId].push(task);
+      dateGroups[timeKey][originalGroupId].push(task);
     });
     
     // 对每个分组内的任务按优先级排序
@@ -247,8 +453,27 @@ export function TaskList() {
       });
     });
     
+    // 应用时间范围筛选
+    const currentRange = getCurrentRange();
+    if (currentRange !== 'all') {
+      const sortedDateKeys = Object.keys(dateGroups).sort((a, b) => {
+        // 按日期倒序排序（最新的在前）
+        return b.localeCompare(a);
+      });
+      
+      // 只保留最近 N 个时间段
+      const limitedKeys = sortedDateKeys.slice(0, currentRange);
+      const filteredGroups: Record<string, Record<string, typeof topLevelArchiveTasks>> = {};
+      
+      limitedKeys.forEach(key => {
+        filteredGroups[key] = dateGroups[key];
+      });
+      
+      return filteredGroups;
+    }
+    
     return dateGroups;
-  }, [tasks, activeGroupId]);
+  }, [tasks, activeGroupId, timeView, getCurrentRange]);
 
   const { incompleteTasks, completedTasks } = useMemo(() => {
     const topLevelTasks = tasks
@@ -325,6 +550,19 @@ export function TaskList() {
       deleteTask(task.id);
     });
   }, [activeGroupId, groupedArchiveTasks, deleteTask]);
+
+  // 格式化时间显示：超过60分钟转换为小时+分钟
+  const formatTime = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${Math.round(minutes)}m`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (mins === 0) {
+      return `${hours}h`;
+    }
+    return `${hours}h${mins}m`;
+  };
 
   // 计算统计信息
   const calculateStats = useCallback((taskList: typeof tasks) => {
@@ -601,27 +839,6 @@ export function TaskList() {
     );
   };
 
-  // 格式化日期显示
-  const formatDateDisplay = (dateKey: string) => {
-    const [year, month, day] = dateKey.split('-');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    // 重置时间部分用于比较
-    today.setHours(0, 0, 0, 0);
-    yesterday.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    
-    if (date.getTime() === today.getTime()) {
-      return '今天';
-    } else if (date.getTime() === yesterday.getTime()) {
-      return '昨天';
-    } else {
-      return `${year}年${month}月${day}日`;
-    }
-  };
 
   return (
     <>
@@ -659,6 +876,154 @@ export function TaskList() {
               </span>
             </button>
             <div className="flex-1 h-px bg-border" />
+            
+            {/* 归档视图中显示时间维度选择器 */}
+            {activeGroupId === '__archive__' && (
+              <div className="relative" ref={timeViewMenuRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowTimeViewMenu(!showTimeViewMenu);
+                  }}
+                  className={`px-2 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1 ${
+                    showTimeViewMenu
+                      ? 'text-zinc-600 bg-zinc-100 dark:text-zinc-300 dark:bg-zinc-800'
+                      : 'text-zinc-500 hover:text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:text-zinc-300 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {timeView === 'day' ? '天' : timeView === 'week' ? '周' : '月'}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showTimeViewMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                    <button
+                      onClick={() => {
+                        setTimeView('day');
+                        setShowTimeViewMenu(false);
+                      }}
+                      className={`w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center ${
+                        timeView === 'day'
+                          ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800'
+                          : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      {timeView === 'day' && <span className="mr-1">✓</span>}
+                      天
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTimeView('week');
+                        setShowTimeViewMenu(false);
+                      }}
+                      className={`w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center ${
+                        timeView === 'week'
+                          ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800'
+                          : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      {timeView === 'week' && <span className="mr-1">✓</span>}
+                      周
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTimeView('month');
+                        setShowTimeViewMenu(false);
+                      }}
+                      className={`w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center ${
+                        timeView === 'month'
+                          ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800'
+                          : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      {timeView === 'month' && <span className="mr-1">✓</span>}
+                      月
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* 时间范围选择器（归档视图） */}
+            {activeGroupId === '__archive__' && (
+              <div className="relative" ref={rangeMenuRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRangeMenu(!showRangeMenu);
+                  }}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors flex items-center gap-1 ${
+                    showRangeMenu
+                      ? 'text-zinc-600 bg-zinc-100 dark:text-zinc-300 dark:bg-zinc-800'
+                      : 'text-zinc-500 hover:text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:text-zinc-300 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  {formatRangeText(getCurrentRange())}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+                {showRangeMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                    {getRangeOptions().map(option => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setCurrentRange(option);
+                          setShowRangeMenu(false);
+                        }}
+                        className={`w-full px-3 py-1.5 text-left text-sm transition-colors flex items-center ${
+                          getCurrentRange() === option
+                            ? 'text-zinc-900 dark:text-zinc-100 bg-zinc-100 dark:bg-zinc-800'
+                            : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        {getCurrentRange() === option && <span className="mr-1">✓</span>}
+                        {formatRangeText(option)}
+                      </button>
+                    ))}
+                    <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
+                    {/* 自定义范围输入 */}
+                    <div className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        <input
+                          ref={customRangeInputRef}
+                          type="text"
+                          value={customRangeInput}
+                          onChange={(e) => {
+                            const input = e.target.value;
+                            setCustomRangeInput(input);
+                            // 实时应用：输入时立即解析并应用
+                            const parsed = parseCustomRange(input);
+                            if (parsed !== null) {
+                              setCurrentRange(parsed);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              // Enter 确认应用当前值，关闭菜单
+                              setCustomRangeInput('');
+                              setShowRangeMenu(false);
+                            } else if (e.key === 'Escape') {
+                              // Escape 恢复原始值，关闭菜单
+                              if (timeView === 'day') setDayRange(originalRangeRef.current);
+                              else if (timeView === 'week') setWeekRange(originalRangeRef.current);
+                              else setMonthRange(originalRangeRef.current);
+                              setCustomRangeInput('');
+                              setShowRangeMenu(false);
+                            }
+                          }}
+                          placeholder="输入数字"
+                          className="flex-1 w-16 px-2 py-1 text-sm bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500"
+                        />
+                        <span className="text-xs text-zinc-400 dark:text-zinc-600 whitespace-nowrap">
+                          {timeView === 'day' ? '天' : timeView === 'week' ? '周' : '个月'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {/* 只在非归档视图中显示三个点菜单 */}
             {activeGroupId !== '__archive__' && (
               <div className="relative" ref={completedMenuRef}>
@@ -727,12 +1092,12 @@ export function TaskList() {
                               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                             )}
                             <span className="text-xs font-medium text-muted-foreground">
-                              {formatDateDisplay(dateKey)}
+                              {formatTimeRangeDisplay(dateKey)}
                             </span>
                             <span className="text-xs text-zinc-400 dark:text-zinc-600">
                               ({dateStats.count}个任务
-                              {dateStats.estimated > 0 && ` · 预估${Math.round(dateStats.estimated)}m`}
-                              {dateStats.actual > 0 && ` · 实际${Math.round(dateStats.actual)}m`})
+                              {dateStats.estimated > 0 && ` · 预估${formatTime(dateStats.estimated)}`}
+                              {dateStats.actual > 0 && ` · 实际${formatTime(dateStats.actual)}`})
                             </span>
                           </button>
                           <div className="flex-1 h-px bg-border" />
@@ -768,9 +1133,15 @@ export function TaskList() {
                         {/* 日期展开内容：按分组显示 */}
                         {dateExpanded && (
                           <div className="ml-4 space-y-3">
-                            {/* 遍历所有存在的分组，包括空分组 */}
+                            {/* 遍历分组：天视图显示空分组，周/月视图只显示有任务的分组 */}
                             {groups.filter(g => g.id !== '__archive__').map(group => {
                               const groupTasks = groupsInDate[group.id] || [];
+                              
+                              // 在周和月视图中，跳过空分组
+                              if (timeView !== 'day' && groupTasks.length === 0) {
+                                return null;
+                              }
+                              
                               const groupKey = `${dateKey}-${group.id}`;
                               const groupExpanded = expandedGroups.has(groupKey);
                               const groupStats = calculateStats(groupTasks);
@@ -793,8 +1164,8 @@ export function TaskList() {
                                       </span>
                                       <span className="text-xs text-zinc-400 dark:text-zinc-600">
                                         ({groupStats.count}
-                                        {groupStats.estimated > 0 && ` · ${Math.round(groupStats.estimated)}m`}
-                                        {groupStats.actual > 0 && ` · ${Math.round(groupStats.actual)}m`})
+                                        {groupStats.estimated > 0 && ` · ${formatTime(groupStats.estimated)}`}
+                                        {groupStats.actual > 0 && ` · ${formatTime(groupStats.actual)}`})
                                       </span>
                                     </button>
                                     <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
