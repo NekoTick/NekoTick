@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Sun, Moon, Monitor, Keyboard, Info, ExternalLink } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -94,9 +94,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
   }, [open]);
 
   const tabs = [
-    { id: 'about' as const, label: '关于', icon: Info },
-    { id: 'appearance' as const, label: '外观', icon: Sun },
-    { id: 'shortcuts' as const, label: '快捷键', icon: Keyboard },
+    { id: 'about' as const, label: '关于' },
+    { id: 'appearance' as const, label: '外观' },
+    { id: 'shortcuts' as const, label: '快捷键' },
   ];
 
   const openGitHub = async () => {
@@ -202,18 +202,16 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               <div className="w-48 border-r border-zinc-300 dark:border-zinc-700 flex flex-col bg-[#F6F6F6] dark:bg-zinc-900 rounded-l-lg">
                 <nav className="flex-1 p-3 pt-4 space-y-1">
                   {tabs.map((tab) => {
-                    const Icon = tab.icon;
                     return (
                       <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors ${
+                        className={`w-full flex items-center px-3 py-2 rounded-md text-sm transition-colors ${
                           activeTab === tab.id
                             ? 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm'
                             : 'text-zinc-700 dark:text-zinc-300 hover:bg-white/50 dark:hover:bg-zinc-800/50'
                         }`}
                       >
-                        <Icon className="size-4" />
                         <span>{tab.label}</span>
                       </button>
                     );
@@ -236,70 +234,31 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                 {/* 内容区域 */}
                 <div className="flex-1 overflow-y-auto p-4">
                   {activeTab === 'appearance' && (
-                    <div className="max-w-xl">
-                      {/* 主题选择 */}
-                      <div className="space-y-2">
-                        <div>
-                          <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5 block">
-                            主题模式
-                          </label>
-                          <div className="space-y-1">
-                            <button
-                              onClick={() => setTheme('light')}
-                              className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md border transition-all ${
-                                theme === 'light'
-                                  ? 'border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800'
-                                  : 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                              }`}
-                            >
-                              <Sun className="size-3.5 text-zinc-600 dark:text-zinc-400" />
-                              <div className="flex-1 text-left">
-                                <div className="text-xs text-zinc-700 dark:text-zinc-300">
-                                  浅色模式
-                                </div>
+                    <div className="max-w-3xl">
+                      <div className="space-y-0">
+                        {/* 基础颜色/主题模式 */}
+                        <div className="py-3 border-b border-zinc-200 dark:border-zinc-700">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-0.5">
+                                基础颜色
                               </div>
-                              {theme === 'light' && (
-                                <div className="size-1.5 rounded-full bg-zinc-500" />
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => setTheme('dark')}
-                              className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md border transition-all ${
-                                theme === 'dark'
-                                  ? 'border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800'
-                                  : 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                              }`}
-                            >
-                              <Moon className="size-3.5 text-zinc-600 dark:text-zinc-400" />
-                              <div className="flex-1 text-left">
-                                <div className="text-xs text-zinc-700 dark:text-zinc-300">
-                                  深色模式
-                                </div>
+                              <div className="text-xs text-zinc-600 dark:text-zinc-400">
+                                设置 NekoTick 的基础颜色。
                               </div>
-                              {theme === 'dark' && (
-                                <div className="size-1.5 rounded-full bg-zinc-500" />
-                              )}
-                            </button>
-
-                            <button
-                              onClick={() => setTheme('system')}
-                              className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-md border transition-all ${
-                                theme === 'system'
-                                  ? 'border-zinc-300 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-800'
-                                  : 'border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                              }`}
+                            </div>
+                            <select
+                              value={theme}
+                              onChange={(e) => setTheme(e.target.value as 'light' | 'dark' | 'system')}
+                              className="px-2 py-1 pr-6 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 min-w-[100px] cursor-pointer appearance-none bg-[length:7px_12px] bg-[right_5px_center] bg-no-repeat"
+                              style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='12' viewBox='0 0 7 12'%3E%3Cpolyline points='0.5,3.5 3.5,0.5 6.5,3.5' fill='none' stroke='%23333' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpolyline points='0.5,8.5 3.5,11.5 6.5,8.5' fill='none' stroke='%23333' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`
+                              }}
                             >
-                              <Monitor className="size-3.5 text-zinc-600 dark:text-zinc-400" />
-                              <div className="flex-1 text-left">
-                                <div className="text-xs text-zinc-700 dark:text-zinc-300">
-                                  跟随系统
-                                </div>
-                              </div>
-                              {theme === 'system' && (
-                                <div className="size-1.5 rounded-full bg-zinc-500" />
-                              )}
-                            </button>
+                              <option value="system">跟随系统</option>
+                              <option value="light">浅色模式</option>
+                              <option value="dark">深色模式</option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -382,7 +341,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                                 你的账户
                               </div>
                               <div className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                                你还没有登录。使用 NekoTick 同步服务、发布服务以及获取内部版本都需要你使用账号。
+                                登录以同步你的任务数据，在多设备间无缝切换。
                               </div>
                             </div>
                             <div className="flex gap-2 flex-shrink-0">
@@ -465,7 +424,10 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
                               </div>
                             </div>
                             <select
-                              className="px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 min-w-[120px]"
+                              className="px-2 py-1 pr-6 text-xs bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-400 min-w-[100px] cursor-pointer appearance-none bg-[length:7px_12px] bg-[right_5px_center] bg-no-repeat"
+                              style={{
+                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='12' viewBox='0 0 7 12'%3E%3Cpolyline points='0.5,3.5 3.5,0.5 6.5,3.5' fill='none' stroke='%23333' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpolyline points='0.5,8.5 3.5,11.5 6.5,8.5' fill='none' stroke='%23333' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`
+                              }}
                             >
                               <option value="zh-CN">简体中文</option>
                               <option value="en-US">English</option>
