@@ -42,6 +42,11 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     }
   }, [open]);
 
+  // 应用全局字体大小
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${fontSize}px`;
+  }, [fontSize]);
+
   // 保存自动更新设置
   const toggleAutoUpdate = () => {
     const newValue = !autoUpdate;
