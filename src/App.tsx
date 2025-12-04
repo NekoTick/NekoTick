@@ -16,15 +16,6 @@ import { useVimShortcuts } from '@/hooks/useVimShortcuts';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { getShortcutKeys } from '@/lib/shortcuts';
 
-// 颜色标签映射
-const priorityLabels: Record<Priority, { label: string; color: string }> = {
-  red: { label: '红色', color: 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' },
-  yellow: { label: '黄色', color: 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700' },
-  purple: { label: '紫色', color: 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700' },
-  green: { label: '绿色', color: 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' },
-  default: { label: '默认', color: 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600' },
-};
-
 function AppContent() {
   // Enable shortcuts
   useShortcuts();
@@ -206,7 +197,6 @@ function AppContent() {
                             borderColor: '#d4d4d8',
                             backgroundColor: 'transparent'
                           }}
-                          title="默认"
                         />
                         {/* 各颜色选项 */}
                         {(['green', 'purple', 'yellow', 'red'] as const).map(priority => (
@@ -228,7 +218,6 @@ function AppContent() {
                                            priority === 'purple' ? '#a855f7' :
                                            '#22c55e'
                             }}
-                            title={priorityLabels[priority].label}
                           />
                         ))}
                         {/* 全选按钮 - 柔和彩虹渐变 */}
@@ -246,7 +235,6 @@ function AppContent() {
                           style={{
                             background: 'linear-gradient(135deg, #22c55e, #a855f7, #eab308, #ef4444)'
                           }}
-                          title="全选"
                         >
                           <span className="block w-full h-full bg-white dark:bg-zinc-900 rounded-sm" />
                         </button>
