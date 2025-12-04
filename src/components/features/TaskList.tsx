@@ -1,7 +1,9 @@
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import {
   DndContext,
   closestCenter,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -57,6 +59,7 @@ export function TaskList() {
   const originalGroupIdRef = useRef<string | null>(null);
   const subTaskInputRef = useRef<HTMLTextAreaElement>(null);
   const prevActiveGroupIdRef = useRef<string | null>(null);
+  const currentMouseYRef = useRef<number>(0);
   const [showCompletedMenu, setShowCompletedMenu] = useState(false);
   const completedMenuRef = useRef<HTMLDivElement>(null);
   const [showDateMenu, setShowDateMenu] = useState<string | null>(null);
@@ -589,8 +592,29 @@ export function TaskList() {
     })
   );
 
-  const incompleteTaskIds = useMemo(() => incompleteTasks.map((t) => t.id), [incompleteTasks]);
-  const completedTaskIds = useMemo(() => completedTasks.map((t) => t.id), [completedTasks]);
+  // 获取所有任务ID（包括子任务），用于 SortableContext
+  const getAllTaskIds = (taskList: typeof incompleteTasks) => {
+    const ids: string[] = [];
+    const addTaskAndChildren = (task: typeof taskList[0]) => {
+      ids.push(task.id);
+      const children = tasks.filter(t => t.parentId === task.id);
+      children.forEach(addTaskAndChildren);
+    };
+    taskList.forEach(addTaskAndChildren);
+    return ids;
+  };
+  
+  const incompleteTaskIds = useMemo(() => getAllTaskIds(incompleteTasks), [incompleteTasks, tasks]);
+  const completedTaskIds = useMemo(() => getAllTaskIds(completedTasks), [completedTasks, tasks]);
+
+  // 自定义碰撞检测：优先使用 pointerWithin，如果没有结果则使用 closestCenter
+  const customCollisionDetection = useCallback((args: any) => {
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) {
+      return pointerCollisions;
+    }
+    return closestCenter(args);
+  }, []);
 
   // 自动滚动到第一个匹配搜索词的任务
   useEffect(() => {
@@ -668,20 +692,23 @@ export function TaskList() {
 
   const handleDragMove = useCallback((event: DragMoveEvent) => {
     const rect = (event.activatorEvent as PointerEvent);
-    // Calculate current position
     const x = rect.screenX + (event.delta?.x || 0);
     const y = rect.screenY + (event.delta?.y || 0);
     updatePositionFast(x, y);
     
-    // 计算横向偏移量用于判断是否要缩进成为子项
-    const deltaX = event.delta?.x || 0;
-    setDragIndent(deltaX);
+    // 保存当前鼠标Y位置（客户端坐标）
+    currentMouseYRef.current = rect.clientY + (event.delta?.y || 0);
     
-    // 调试输出
-    if (Math.abs(deltaX) > 10) {
-      console.log('[DragIndent]', deltaX);
+    const { delta, over } = event;
+    
+    if (delta && over) {
+      const horizontalOffset = delta.x;
+      setDragIndent(horizontalOffset);
+      setOverId(over.id as string);
+      
+      // DragMove logic handled by over state
     }
-  }, []);
+  }, [tasks]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     setOverId(event.over?.id as string | null);
@@ -696,70 +723,82 @@ export function TaskList() {
     const INDENT_THRESHOLD = 28; // 28px 的横向偏移阈值
     const shouldBecomeChild = dragIndent > INDENT_THRESHOLD && over;
     
-    console.log('[DragEnd]', {
-      dragIndent,
-      threshold: INDENT_THRESHOLD,
-      shouldBecomeChild,
-      overId: over?.id,
-      activeId: active.id
-    });
+    // Check indent threshold for becoming child
     
     if (shouldBecomeChild) {
       // 拖拽超过阈值，尝试成为某个任务的子项
       const draggedTask = tasks.find(t => t.id === taskId);
-      const overTask = tasks.find(t => t.id === over.id);
       
-      if (draggedTask && overTask && draggedTask.completed === overTask.completed) {
-        // 确定目标父任务：
-        // 获取排序后的任务列表（排除被拖拽的任务本身）
-        const sortedTasks = tasks
-          .filter(t => t.groupId === activeGroupId && !t.parentId && t.completed === draggedTask.completed && t.id !== taskId)
-          .sort((a, b) => {
-            const aPriority = priorityOrder[a.priority || 'default'];
-            const bPriority = priorityOrder[b.priority || 'default'];
-            if (aPriority !== bPriority) return aPriority - bPriority;
-            return a.order - b.order;
-          });
-        
-        console.log('[BecomeChild] draggedTask:', draggedTask.content);
-        console.log('[BecomeChild] overTask:', overTask.content);
-        console.log('[BecomeChild] sortedTasks:', sortedTasks.map(t => ({ id: t.id, content: t.content })));
-        console.log('[BecomeChild] over.id:', over.id, 'active.id:', active.id);
-        console.log('[BecomeChild] isOverSelf?', over.id === active.id);
-        
+      // 使用鼠标位置查找真正的目标任务，而不是依赖碰撞检测
+      const mouseY = currentMouseYRef.current;
+      
+      // 查找鼠标位置下的任务元素
+      const allTaskElements = document.querySelectorAll('[data-task-id]');
+      let targetTaskId: string | null = null;
+      let minDistance = Infinity;
+      
+      // 只在鼠标位置有效时才查找
+      if (mouseY > 0) {
+        allTaskElements.forEach(el => {
+          const taskId = el.getAttribute('data-task-id');
+          if (!taskId || taskId === active.id) return;
+          
+          const rect = el.getBoundingClientRect();
+          const taskCenterY = rect.top + rect.height / 2;
+          const distance = Math.abs(mouseY - taskCenterY);
+          
+          // 鼠标在任务区域内，且距离中心最近
+          if (mouseY >= rect.top && mouseY <= rect.bottom && distance < minDistance) {
+            minDistance = distance;
+            targetTaskId = taskId;
+          }
+        });
+      }
+      
+      const collisionTask = tasks.find(t => t.id === over.id);
+      const overTask = targetTaskId ? tasks.find(t => t.id === targetTaskId) : collisionTask;
+      
+      // 确保在同一组内且完成状态相同才能成为子任务
+      if (draggedTask && overTask && 
+          draggedTask.completed === overTask.completed &&
+          draggedTask.groupId === overTask.groupId) {
+        // 确定目标父任务
         let parentTask;
         
         if (over.id === active.id) {
-          // 拖到自己的位置：找自己在列表中的上一个任务作为父任务
-          const allTasks = tasks
-            .filter(t => t.groupId === activeGroupId && !t.parentId && t.completed === draggedTask.completed)
-            .sort((a, b) => {
-              const aPriority = priorityOrder[a.priority || 'default'];
-              const bPriority = priorityOrder[b.priority || 'default'];
-              if (aPriority !== bPriority) return aPriority - bPriority;
-              return a.order - b.order;
-            });
-          const selfIndex = allTasks.findIndex(t => t.id === taskId);
-          parentTask = selfIndex > 0 ? allTasks[selfIndex - 1] : null;
+          // 拖到自己的位置：只对顶级任务有意义，找上一个顶级任务作为父任务
+          // 子任务拖到自己位置并缩进没有意义，设为 null 跳过
+          if (!draggedTask.parentId) {
+            const topLevelTasks = tasks
+              .filter(t => 
+                t.groupId === activeGroupId && 
+                !t.parentId && 
+                t.completed === draggedTask.completed
+              )
+              .sort((a, b) => {
+                const aPriority = priorityOrder[a.priority || 'default'];
+                const bPriority = priorityOrder[b.priority || 'default'];
+                if (aPriority !== bPriority) return aPriority - bPriority;
+                return a.order - b.order;
+              });
+            const selfIndex = topLevelTasks.findIndex(t => t.id === taskId);
+            parentTask = selfIndex > 0 ? topLevelTasks[selfIndex - 1] : null;
+          } else {
+            parentTask = null;
+          }
         } else {
-          // 拖到其他任务上：直接让那个任务成为父任务
+          // 拖到其他任务上：直接让那个任务成为父任务（支持多层嵌套）
           parentTask = overTask;
         }
         
-        console.log('[BecomeChild] result:', {
-          overTask: overTask.content,
-          parentTask: parentTask?.content,
-          isOverSelf: over.id === active.id,
-          willBecomeChildOf: parentTask?.id
-        });
+        // Parent task determined
         
-        // 检查父任务的有效性
-        console.log('[BecomeChild] checking parentTask validity:', {
-          hasParentTask: !!parentTask,
-          isCollapsed: parentTask?.collapsed
-        });
-        
-        if (parentTask && !parentTask.collapsed) {
+        // Check parent task validity
+        if (parentTask) {
+          // 如果父任务是折叠的，自动展开它，让用户看到结果
+          if (parentTask.collapsed) {
+            toggleCollapse(parentTask.id);
+          }
           // 检查目标不是拖拽任务的子孙
           const isDescendant = (ancestorId: string, descendantId: string): boolean => {
             const children = tasks.filter(t => t.parentId === ancestorId);
@@ -768,61 +807,85 @@ export function TaskList() {
           };
           
           const descendantCheck = isDescendant(taskId, parentTask.id);
-          console.log('[BecomeChild] isDescendant check:', descendantCheck);
           
           if (!descendantCheck) {
-            console.log('[BecomeChild] ✅ All checks passed, updating parentId...');
-            // 更新任务的 parentId
-            useGroupStore.setState((state) => {
-              const newTasks = state.tasks.map(t =>
-                t.id === taskId ? { ...t, parentId: parentTask.id } : t
-              );
-              return { tasks: newTasks };
+            // 计算新的 order（成为父任务的最后一个子项）
+            // 注意：排除被拖拽任务本身，避免重复计数
+            const siblings = tasks.filter(t => t.parentId === parentTask.id && t.id !== taskId);
+            const newOrder = siblings.length;
+            
+            // 保存原 parentId 用于后续重排序
+            const oldParentId = draggedTask.parentId;
+            
+            // 使用 flushSync 强制同步更新 state，确保 DOM 立即更新
+            flushSync(() => {
+              useGroupStore.setState((state) => {
+                const newTasks = state.tasks.map(t =>
+                  t.id === taskId ? { ...t, parentId: parentTask.id, order: newOrder } : t
+                );
+                
+                // 重新排序原父任务下的兄弟任务（如果父任务发生了变化）
+                if (oldParentId !== parentTask.id) {
+                  const oldSiblings = newTasks
+                    .filter(t => t.parentId === oldParentId && t.id !== taskId)
+                    .sort((a, b) => a.order - b.order);
+                  
+                  oldSiblings.forEach((t, i) => {
+                    const task = newTasks.find(nt => nt.id === t.id);
+                    if (task) task.order = i;
+                  });
+                }
+                
+                return { tasks: newTasks };
+              });
             });
             
             // 手动触发持久化（只在这个分支，因为后面会 return，不会进入 reorderTasks）
-            const updatedTasks = useGroupStore.getState().tasks;
-            const { saveGroup } = await import('@/lib/storage');
-            const groupTasks = updatedTasks.filter(t => t.groupId === activeGroupId);
-            const currentGroup = groups.find(g => g.id === activeGroupId);
-            if (currentGroup) {
-              await saveGroup({
-                id: activeGroupId!,
-                name: currentGroup.name,
-                createdAt: currentGroup.createdAt,
-                pinned: currentGroup.pinned || false,
-                updatedAt: Date.now(),
-                tasks: groupTasks.map(t => ({
-                  id: t.id,
-                  content: t.content,
-                  completed: t.completed,
-                  createdAt: t.createdAt,
-                  completedAt: t.completedAt,
-                  order: t.order,
-                  parentId: t.parentId || null,
-                  collapsed: t.collapsed,
-                  priority: t.priority,
-                  estimatedMinutes: t.estimatedMinutes,
-                  actualMinutes: t.actualMinutes,
-                }))
-              });
+            try {
+              const updatedTasks = useGroupStore.getState().tasks;
+              const { saveGroup } = await import('@/lib/storage');
+              const groupTasks = updatedTasks.filter(t => t.groupId === activeGroupId);
+              const currentGroup = groups.find(g => g.id === activeGroupId);
+              
+              if (currentGroup && activeGroupId) {
+                await saveGroup({
+                  id: activeGroupId,
+                  name: currentGroup.name,
+                  createdAt: currentGroup.createdAt,
+                  pinned: currentGroup.pinned || false,
+                  updatedAt: Date.now(),
+                  tasks: groupTasks.map(t => ({
+                    id: t.id,
+                    content: t.content,
+                    completed: t.completed,
+                    createdAt: t.createdAt,
+                    completedAt: t.completedAt,
+                    order: t.order,
+                    parentId: t.parentId || null,
+                    collapsed: t.collapsed,
+                    priority: t.priority,
+                    estimatedMinutes: t.estimatedMinutes,
+                    actualMinutes: t.actualMinutes,
+                  }))
+                });
+              }
+            } catch (error) {
+              console.error('Failed to save task parent change:', error);
+              // 状态已更新，即使保存失败也继续（下次操作会触发保存）
             }
             
-            // 清理状态
+            // 保存成功后，清理所有拖拽状态
             setActiveId(null);
             setOverId(null);
             setDragIndent(0);
+            setDraggingTaskId(null);
             originalGroupIdRef.current = null;
             
             try {
               await invoke('destroy_drag_window');
             } catch (e) {
-              // ignore
+              console.error('Failed to destroy drag window:', e);
             }
-            
-            setTimeout(() => {
-              setDraggingTaskId(null);
-            }, 50);
             
             return; // 提前返回，不执行后续的重排序逻辑
           }
@@ -832,12 +895,6 @@ export function TaskList() {
     
     // 重置缩进状态
     setDragIndent(0);
-    
-    console.log('[DragEnd] Post-indent check:', {
-      hasOver: !!over,
-      isSameTask: over?.id === active.id,
-      willEnterReorder: !!(over && active.id !== over.id)
-    });
     
     // Check if this is a cross-group move (group changed during drag)
     if (originalGroupId && activeGroupId && originalGroupId !== activeGroupId) {
@@ -851,14 +908,6 @@ export function TaskList() {
       // Check if dragging across completion status boundary
       const draggedTask = tasks.find(t => t.id === taskId);
       const targetTask = tasks.find(t => t.id === over.id);
-      
-      console.log('[Reorder]', {
-        draggedTask: draggedTask?.content,
-        draggedParent: draggedTask?.parentId,
-        targetTask: targetTask?.content,
-        targetParent: targetTask?.parentId,
-        willChangeLevels: draggedTask?.parentId !== targetTask?.parentId
-      });
       
       // First handle reordering
       if (draggedTask && targetTask && draggedTask.completed !== targetTask.completed) {
@@ -915,6 +964,7 @@ export function TaskList() {
     // Now safe to show the task (it's already at the new position)
     setActiveId(null);
     setOverId(null);
+    setDragIndent(0);
     originalGroupIdRef.current = null;
     
     // Destroy drag window
@@ -1010,7 +1060,7 @@ export function TaskList() {
     <>
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={customCollisionDetection}
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}
         onDragOver={handleDragOver}

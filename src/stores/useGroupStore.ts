@@ -974,6 +974,13 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
     const overTask = state.tasks.find(t => t.id === overId);
     if (!activeTask || !overTask) return state;
     
+    console.log('[reorderTasks] Start:', {
+      active: activeTask.content,
+      activeParent: activeTask.parentId,
+      over: overTask.content,
+      overParent: overTask.parentId
+    });
+    
     let newTasks = [...state.tasks];
     
     // Check if this is a cross-level drag (changing parent)
