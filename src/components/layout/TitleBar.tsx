@@ -1,25 +1,20 @@
 import { useState, useRef } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { Minus, Square, X, Menu, Pin, Settings, Keyboard, Calendar } from 'lucide-react';
+import { Minus, Square, X, Menu, Pin, Settings, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useViewStore } from '@/stores/useViewStore';
-import { ShortcutsDialog } from '@/components/features/ShortcutsDialog';
 
 const appWindow = getCurrentWindow();
 
-export function TitleBar() {
+interface TitleBarProps {
+  onOpenSettings?: () => void;
+}
+
+export function TitleBar({ onOpenSettings }: TitleBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPinned, setMenuPinned] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
-  const [aboutPinned, setAboutPinned] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsPinned, setSettingsPinned] = useState(false);
-  const [shortcutsDialogOpen, setShortcutsDialogOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const { currentView, setView } = useViewStore();
-  const aboutRef = useRef<HTMLDivElement>(null);
-  const settingsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const togglePin = async () => {
@@ -30,16 +25,6 @@ export function TitleBar() {
 
   const startDrag = async () => {
     await appWindow.startDragging();
-  };
-
-  const openGitHub = async () => {
-    await openUrl('https://github.com/vladelaina/NekoTick');
-    setAboutOpen(false);
-    setAboutPinned(false);
-    if (menuPinned) {
-      setMenuOpen(false);
-      setMenuPinned(false);
-    }
   };
 
   // No longer need click outside handler since we use hover
@@ -54,11 +39,6 @@ export function TitleBar() {
   const handleMenuMouseLeave = () => {
     if (!menuPinned) {
       setMenuOpen(false);
-      // 当主菜单悬浮关闭时，重置子菜单的所有状态
-      setSettingsPinned(false);
-      setAboutPinned(false);
-      setSettingsOpen(false);
-      setAboutOpen(false);
     }
   };
 
@@ -66,14 +46,6 @@ export function TitleBar() {
     const newPinned = !menuPinned;
     setMenuPinned(newPinned);
     setMenuOpen(newPinned);
-    
-    // 当主菜单被点击关闭时，重置子菜单的固定状态
-    if (!newPinned) {
-      setSettingsPinned(false);
-      setAboutPinned(false);
-      setSettingsOpen(false);
-      setAboutOpen(false);
-    }
   };
 
   return (
@@ -177,106 +149,19 @@ export function TitleBar() {
               </button>
 
               {/* 设置 */}
-              <div 
-                ref={settingsRef} 
-                className="relative h-full"
-                onMouseEnter={() => {
-                  if (!settingsPinned) {
-                    setSettingsOpen(true);
+              <button
+                onClick={() => {
+                  onOpenSettings?.();
+                  if (menuPinned) {
+                    setMenuOpen(false);
+                    setMenuPinned(false);
                   }
                 }}
-                onMouseLeave={() => {
-                  if (!settingsPinned) {
-                    setSettingsOpen(false);
-                    setSettingsPinned(false);
-                  }
-                }}
+                className="h-full px-3 text-sm text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors whitespace-nowrap flex items-center gap-1"
               >
-                <button
-                  onClick={() => {
-                    const newPinned = !settingsPinned;
-                    setSettingsPinned(newPinned);
-                    setSettingsOpen(newPinned);
-                  }}
-                  className="h-full px-3 text-sm text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors whitespace-nowrap flex items-center gap-1"
-                >
-                  <Settings className="size-3.5" />
-                  设置
-                </button>
-                
-                {/* Settings Dropdown */}
-                {settingsOpen && (
-                  <div 
-                    className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50"
-                    onMouseLeave={(e) => {
-                      // 防止鼠标在下拉框内移动时触发关闭
-                      e.stopPropagation();
-                    }}
-                  >
-                    <button
-                      onClick={() => {
-                        setShortcutsDialogOpen(true);
-                        setSettingsOpen(false);
-                        setSettingsPinned(false);
-                        if (menuPinned) {
-                          setMenuOpen(false);
-                          setMenuPinned(false);
-                        }
-                      }}
-                      className="w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 text-left flex items-center gap-2"
-                    >
-                      <Keyboard className="size-4" />
-                      快捷键
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* 关于 */}
-              <div 
-                ref={aboutRef} 
-                className="relative h-full"
-                onMouseEnter={() => {
-                  if (!aboutPinned) {
-                    setAboutOpen(true);
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (!aboutPinned) {
-                    setAboutOpen(false);
-                    setAboutPinned(false);
-                  }
-                }}
-              >
-                <button
-                  onClick={() => {
-                    const newPinned = !aboutPinned;
-                    setAboutPinned(newPinned);
-                    setAboutOpen(newPinned);
-                  }}
-                  className="h-full px-3 text-sm text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors whitespace-nowrap"
-                >
-                  关于
-                </button>
-                
-                {/* Dropdown */}
-                {aboutOpen && (
-                  <div 
-                    className="absolute top-full left-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg py-1 min-w-28 z-50"
-                    onMouseLeave={(e) => {
-                      // 防止鼠标在下拉框内移动时触发关闭
-                      e.stopPropagation();
-                    }}
-                  >
-                    <button
-                      onClick={openGitHub}
-                      className="w-full px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 text-left"
-                    >
-                      GitHub
-                    </button>
-                  </div>
-                )}
-              </div>
+                <Settings className="size-3.5" />
+                设置
+              </button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -319,12 +204,6 @@ export function TitleBar() {
           <X className="size-4 text-zinc-200 hover:text-zinc-400 group-hover:text-white dark:text-zinc-700 dark:hover:text-zinc-500" />
         </button>
       </div>
-
-      {/* Shortcuts Dialog */}
-      <ShortcutsDialog 
-        open={shortcutsDialogOpen} 
-        onClose={() => setShortcutsDialogOpen(false)} 
-      />
     </div>
   );
 }

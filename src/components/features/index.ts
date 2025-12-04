@@ -1,7 +1,7 @@
 export { TaskItem } from './TaskItem';
 export { TaskList } from './TaskList';
 export { TaskInput } from './TaskInput';
-export { CommandMenu } from './CommandMenu';
+export { SettingsModal } from './SettingsModal';
 export { ActivityHeatmap } from './ActivityHeatmap';
 
 // Re-export for convenience

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { MoreHorizontal, Check } from 'lucide-react';
 import { TaskList } from '@/components/features/TaskList';
 import { TaskInput } from '@/components/features/TaskInput';
-import { CommandMenu } from '@/components/features/CommandMenu';
+import { SettingsModal } from '@/components/features/SettingsModal';
 import { GroupSidebar } from '@/components/features/GroupDrawer';
 import { TimeTrackerPage } from '@/components/TimeTracker';
 import { ProgressPage } from '@/components/Progress';
@@ -22,6 +22,7 @@ function AppContent() {
   const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded, hideCompleted, setHideCompleted, hideActualTime, setHideActualTime } = useGroupStore();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   // 获取当前分组信息
@@ -56,85 +57,85 @@ function AppContent() {
     loadData();
   }, [loadData]);
 
-  const handleFocusInput = () => {
-    // Focus the task input (now using textarea)
-    const input = document.querySelector<HTMLTextAreaElement>(
-      'textarea[placeholder*="task"]'
-    );
-    input?.focus();
-  };
+  // Ctrl+K 打开设置
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSettingsOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
-  // 时间管理页面
-  if (currentView === 'time-tracker') {
-    return (
-      <Layout>
-        <TimeTrackerPage />
-      </Layout>
-    );
-  }
-
-  // 进度页面
-  if (currentView === 'progress') {
-    return (
-      <Layout>
-        <ProgressPage />
-      </Layout>
-    );
-  }
-
-  // 日历页面
-  if (currentView === 'calendar') {
-    return (
-      <Layout>
-        <CalendarPage />
-      </Layout>
-    );
-  }
-
-  // 任务列表页面（默认）
   return (
     <>
-      {/* Command Palette (⌘K) */}
-      <CommandMenu onFocusInput={handleFocusInput} />
+      {/* Settings Modal (⌘K) - Global */}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {/* Info Modal */}
-      {showInfoModal && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-80 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
-              <h3 className="text-sm font-medium text-zinc-900">
-                {activeGroup?.name || '默认'}
-              </h3>
-              <button
-                onClick={() => setShowInfoModal(false)}
-                className="text-zinc-400 hover:text-zinc-600"
-              >
-                ×
-              </button>
-            </div>
-            <div className="px-4 py-3 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Last synced</span>
-                <span className="text-blue-500">{formatDate(now)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Modified</span>
-                <span className="text-blue-500">{formatDate(now)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Created</span>
-                <span className="text-blue-500">{formatDate(activeGroup?.createdAt || now)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Tasks</span>
-                <span className="text-zinc-700">{groupTasks.length}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* 时间管理页面 */}
+      {currentView === 'time-tracker' && (
+        <Layout onOpenSettings={() => setSettingsOpen(true)}>
+          <TimeTrackerPage />
+        </Layout>
       )}
 
-      <Layout>
+      {/* 进度页面 */}
+      {currentView === 'progress' && (
+        <Layout onOpenSettings={() => setSettingsOpen(true)}>
+          <ProgressPage />
+        </Layout>
+      )}
+
+      {/* 日历页面 */}
+      {currentView === 'calendar' && (
+        <Layout onOpenSettings={() => setSettingsOpen(true)}>
+          <CalendarPage />
+        </Layout>
+      )}
+
+      {/* 任务列表页面（默认） */}
+      {currentView === 'tasks' && (
+        <>
+          {/* Info Modal */}
+          {showInfoModal && (
+            <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-80 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
+                  <h3 className="text-sm font-medium text-zinc-900">
+                    {activeGroup?.name || '默认'}
+                  </h3>
+                  <button
+                    onClick={() => setShowInfoModal(false)}
+                    className="text-zinc-400 hover:text-zinc-600"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Last synced</span>
+                    <span className="text-blue-500">{formatDate(now)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Modified</span>
+                    <span className="text-blue-500">{formatDate(now)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Created</span>
+                    <span className="text-blue-500">{formatDate(activeGroup?.createdAt || now)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Tasks</span>
+                    <span className="text-zinc-700">{groupTasks.length}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <Layout onOpenSettings={() => setSettingsOpen(true)}>
         <div className="flex h-full">
           {/* Group Sidebar */}
           <GroupSidebar />
@@ -232,7 +233,9 @@ function AppContent() {
             </div>
           </div>
         </div>
-      </Layout>
+          </Layout>
+        </>
+      )}
     </>
   );
 }
