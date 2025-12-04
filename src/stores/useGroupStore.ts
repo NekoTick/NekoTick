@@ -104,6 +104,12 @@ interface GroupStore {
   loadedGroups: Set<string>; // 追踪哪些组已加载任务
   previousNonArchiveGroupId: string | null; // 记录切换到归档前的分组
   
+  // 颜色筛选
+  selectedPriorities: Priority[];
+  setSelectedPriorities: (priorities: Priority[]) => void;
+  togglePriority: (priority: Priority) => void;
+  toggleAllPriorities: () => void;
+  
   // Drag state for cross-group drag
   draggingTaskId: string | null;
   setDraggingTaskId: (id: string | null) => void;
@@ -243,6 +249,41 @@ export const useGroupStore = create<GroupStore>()((set, _get) => ({
   searchQuery: '',
   loadedGroups: new Set<string>(),
   previousNonArchiveGroupId: null,
+  
+  // 初始化颜色筛选（从localStorage加载或默认全选）
+  selectedPriorities: (() => {
+    try {
+      const saved = localStorage.getItem('nekotick-priority-filter');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return ['red', 'yellow', 'purple', 'green', 'default'];
+  })(),
+  
+  setSelectedPriorities: (priorities) => {
+    set({ selectedPriorities: priorities });
+    localStorage.setItem('nekotick-priority-filter', JSON.stringify(priorities));
+  },
+  
+  togglePriority: (priority) => {
+    set((state) => {
+      const newPriorities = state.selectedPriorities.includes(priority)
+        ? state.selectedPriorities.filter(p => p !== priority)
+        : [...state.selectedPriorities, priority];
+      localStorage.setItem('nekotick-priority-filter', JSON.stringify(newPriorities));
+      return { selectedPriorities: newPriorities };
+    });
+  },
+  
+  toggleAllPriorities: () => {
+    const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'default'];
+    set((state) => {
+      const newPriorities = state.selectedPriorities.length === allPriorities.length
+        ? []
+        : allPriorities;
+      localStorage.setItem('nekotick-priority-filter', JSON.stringify(newPriorities));
+      return { selectedPriorities: newPriorities };
+    });
+  },
   
   draggingTaskId: null,
   setDraggingTaskId: (id) => set({ draggingTaskId: id }),

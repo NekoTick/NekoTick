@@ -11,20 +11,32 @@ import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useViewStore } from '@/stores/useViewStore';
-import { useGroupStore } from '@/stores/useGroupStore';
+import { useGroupStore, type Priority } from '@/stores/useGroupStore';
 import { useVimShortcuts } from '@/hooks/useVimShortcuts';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { getShortcutKeys } from '@/lib/shortcuts';
+
+// 颜色标签映射
+const priorityLabels: Record<Priority, { label: string; color: string }> = {
+  red: { label: '红色', color: 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' },
+  yellow: { label: '黄色', color: 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700' },
+  purple: { label: '紫色', color: 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700' },
+  green: { label: '绿色', color: 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' },
+  default: { label: '默认', color: 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600' },
+};
 
 function AppContent() {
   // Enable shortcuts
   useShortcuts();
   const { currentView } = useViewStore();
-  const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded, hideCompleted, setHideCompleted, hideActualTime, setHideActualTime } = useGroupStore();
+  const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded, hideCompleted, setHideCompleted, hideActualTime, setHideActualTime, selectedPriorities, togglePriority, toggleAllPriorities } = useGroupStore();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+  
+  // 所有优先级选项
+  const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'default'];
 
   // 获取当前分组信息
   const activeGroup = activeGroupId === '__archive__' 
@@ -37,9 +49,14 @@ function AppContent() {
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  // 关闭菜单
+  // 关闭菜单（不在点击颜色选项时关闭）
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // 如果点击的是颜色筛选选项，不关闭菜单
+      if (target.closest('[data-priority-option]')) {
+        return;
+      }
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
         setShowMoreMenu(false);
       }
@@ -168,7 +185,75 @@ function AppContent() {
                   <MoreHorizontal className="size-4" />
                 </button>
                 {showMoreMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1" style={{ zIndex: 9999 }}>
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1" style={{ zIndex: 9999 }}>
+                    {/* 颜色筛选 */}
+                    <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+                      <div className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">颜色筛选</div>
+                      <div className="flex items-center justify-between gap-1.5">
+                        {/* 默认颜色按钮 */}
+                        <button
+                          data-priority-option
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            togglePriority('default');
+                          }}
+                          className={`w-6 h-6 rounded-sm border-2 transition-all hover:scale-110 ${
+                            selectedPriorities.includes('default')
+                              ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
+                              : ''
+                          }`}
+                          style={{
+                            borderColor: '#d4d4d8',
+                            backgroundColor: 'transparent'
+                          }}
+                          title="默认"
+                        />
+                        {/* 各颜色选项 */}
+                        {(['green', 'purple', 'yellow', 'red'] as const).map(priority => (
+                          <button
+                            key={priority}
+                            data-priority-option
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePriority(priority);
+                            }}
+                            className={`w-6 h-6 rounded-sm border-2 transition-all hover:scale-110 ${
+                              selectedPriorities.includes(priority)
+                                ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
+                                : ''
+                            }`}
+                            style={{
+                              borderColor: priority === 'red' ? '#ef4444' :
+                                           priority === 'yellow' ? '#eab308' :
+                                           priority === 'purple' ? '#a855f7' :
+                                           '#22c55e'
+                            }}
+                            title={priorityLabels[priority].label}
+                          />
+                        ))}
+                        {/* 全选按钮 - 柔和彩虹渐变 */}
+                        <button
+                          data-priority-option
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAllPriorities();
+                          }}
+                          className={`w-6 h-6 rounded-sm transition-all hover:scale-110 relative overflow-hidden p-[2px] ${
+                            selectedPriorities.length === allPriorities.length
+                              ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
+                              : ''
+                          }`}
+                          style={{
+                            background: 'linear-gradient(135deg, #22c55e, #a855f7, #eab308, #ef4444)'
+                          }}
+                          title="全选"
+                        >
+                          <span className="block w-full h-full bg-white dark:bg-zinc-900 rounded-sm" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* 原有菜单项 */}
                     <button
                       onClick={() => {
                         setHideCompleted(!hideCompleted);

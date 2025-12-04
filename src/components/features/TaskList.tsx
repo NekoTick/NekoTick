@@ -49,6 +49,9 @@ export function TaskList() {
     searchQuery,
     setDraggingTaskId,
     groups,
+    selectedPriorities,
+    togglePriority,
+    toggleAllPriorities,
   } = useGroupStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -62,6 +65,7 @@ export function TaskList() {
   const currentMouseYRef = useRef<number>(0);
   const [showCompletedMenu, setShowCompletedMenu] = useState(false);
   const completedMenuRef = useRef<HTMLDivElement>(null);
+  
   const [showDateMenu, setShowDateMenu] = useState<string | null>(null);
   const [showGroupMenu, setShowGroupMenu] = useState<string | null>(null);
   const dateMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -74,9 +78,9 @@ export function TaskList() {
   const timeViewMenuRef = useRef<HTMLDivElement>(null);
   
   // 时间范围选择（每个时间维度独立存储）
-  const [dayRange, setDayRange] = useState<number | 'all'>(7);
-  const [weekRange, setWeekRange] = useState<number | 'all'>(4);
-  const [monthRange, setMonthRange] = useState<number | 'all'>(3);
+  const [dayRange, setDayRange] = useState<number | 'all'>(1);
+  const [weekRange, setWeekRange] = useState<number | 'all'>(1);
+  const [monthRange, setMonthRange] = useState<number | 'all'>(1);
   const [showRangeMenu, setShowRangeMenu] = useState(false);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
   const [customRangeInput, setCustomRangeInput] = useState('');
@@ -99,9 +103,9 @@ export function TaskList() {
   
   // 获取不同时间维度的范围选项
   const getRangeOptions = () => {
-    if (timeView === 'day') return [3, 7, 14, 30, 'all' as const];
-    if (timeView === 'week') return [2, 4, 8, 12, 'all' as const];
-    return [2, 3, 6, 12, 'all' as const];
+    if (timeView === 'day') return [1, 3, 7, 14, 30, 'all' as const];
+    if (timeView === 'week') return [1, 2, 4, 8, 12, 'all' as const];
+    return [1, 2, 3, 6, 12, 'all' as const];
   };
   
   // 格式化范围显示文本
@@ -188,8 +192,13 @@ export function TaskList() {
   
   // Close completed menu when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (completedMenuRef.current && !completedMenuRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // 如果点击的是颜色筛选选项，不关闭菜单
+      if (target.closest('[data-priority-option]')) {
+        return;
+      }
+      if (completedMenuRef.current && !completedMenuRef.current.contains(e.target as Node)) {
         setShowCompletedMenu(false);
       }
       if (timeViewMenuRef.current && !timeViewMenuRef.current.contains(event.target as Node)) {
@@ -479,9 +488,34 @@ export function TaskList() {
     return dateGroups;
   }, [tasks, activeGroupId, timeView, getCurrentRange]);
 
+  // 在天视图下，自动展开所有日期和分组
+  useEffect(() => {
+    if (activeGroupId === '__archive__' && timeView === 'day') {
+      const allDateKeys = Object.keys(groupedArchiveTasks);
+      setExpandedDates(new Set(allDateKeys));
+      
+      // 同时展开所有分组
+      const allGroupKeys: string[] = [];
+      allDateKeys.forEach(dateKey => {
+        const groupsInDate = groupedArchiveTasks[dateKey];
+        Object.keys(groupsInDate).forEach(groupId => {
+          allGroupKeys.push(`${dateKey}-${groupId}`);
+        });
+      });
+      setExpandedGroups(new Set(allGroupKeys));
+    }
+  }, [activeGroupId, timeView, groupedArchiveTasks]);
+
   const { incompleteTasks, completedTasks } = useMemo(() => {
     const topLevelTasks = tasks
-      .filter((t) => t.groupId === activeGroupId && !t.parentId)
+      .filter((t) => {
+        if (t.groupId !== activeGroupId || t.parentId) return false;
+        // 应用颜色筛选
+        if (selectedPriorities.length > 0 && !selectedPriorities.includes(t.priority || 'default')) {
+          return false;
+        }
+        return true;
+      })
       .sort((a, b) => {
         // Sort by priority first (creates color groups)
         const aPriority = priorityOrder[a.priority || 'default'];
@@ -497,7 +531,7 @@ export function TaskList() {
       incompleteTasks: topLevelTasks.filter((t) => !t.completed),
       completedTasks: hideCompleted ? [] : topLevelTasks.filter((t) => t.completed),
     };
-  }, [tasks, activeGroupId, hideCompleted]);
+  }, [tasks, activeGroupId, hideCompleted, selectedPriorities]);
 
   // 切换日期展开/折叠
   const toggleDateExpanded = useCallback((dateKey: string) => {
