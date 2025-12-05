@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { GripVertical, MoreHorizontal, Trash2, ChevronRight, ChevronDown, Plus, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types';
-import { useGroupStore, parseTimeString } from '@/stores/useGroupStore';
+import { useGroupStore, useUIStore, parseTimeString } from '@/stores/useGroupStore';
 
 // Format minutes to human-readable string with smart display
 // Display format: "2d3h5m2s" (no spaces)
@@ -89,7 +89,7 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const timeInputRef = useRef<HTMLInputElement>(null);
-  const { searchQuery, hideActualTime } = useGroupStore();
+  const { searchQuery, hideActualTime } = useUIStore();
   
   // Format current estimated time for display in input
   const formatEstimatedTimeForInput = (minutes?: number): string => {

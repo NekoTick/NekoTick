@@ -1,135 +1,31 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
-import { loadGroups, saveGroup, deleteGroup as deleteGroupFile, type GroupData } from '@/lib/storage';
-import { useToastStore } from './useToastStore';
+import { loadGroups, deleteGroup as deleteGroupFile } from '@/lib/storage';
+import { parseTimeEstimation, parseTimeString } from './timeParser';
+import type { Group, Priority, StoreTask, ArchiveTimeView } from './types';
+import { PRIORITY_COLORS } from './types';
+import { persistGroup, collectTaskAndDescendants, calculateActualTime } from './taskUtils';
+import { archiveCompletedTasksForGroup, archiveSingleTaskWithDescendants, deleteCompletedTasksInGroup, loadArchivedTasks } from './archiveUtils';
+import { reorderTasksInGroup, crossStatusReorderTask, moveTaskBetweenGroups } from './reorderUtils';
+import { useUIStore } from './uiSlice';
 
-// Note: This store uses 'StoreTask' with 'completed' field for persistence.
-// Components using types/index.ts 'Task' interface should map 'completed' <-> 'isDone'
-
-export interface Group {
-  id: string;
-  name: string;
-  color?: string;
-  createdAt: number;
-  updatedAt?: number;
-  pinned?: boolean;
-}
-
-// Priority levels: red (highest) > yellow > purple > green > default (lowest)
-export type Priority = 'red' | 'yellow' | 'purple' | 'green' | 'default';
-
-// Parse time string to minutes (e.g., "2d", "2h", "30m", "2d3h5m2s", "45s")
-export function parseTimeString(timeStr: string): number | undefined {
-  // Match patterns like "2d3h5m2s", "1h2m34s", "2h30m", "45s"
-  const pattern = /^(?:(\d+(?:\.\d+)?)d)?(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?$/i;
-  const match = timeStr.trim().match(pattern);
-  
-  if (match && match[0].trim()) {
-    const days = match[1] ? parseFloat(match[1]) : 0;
-    const hours = match[2] ? parseFloat(match[2]) : 0;
-    const minutes = match[3] ? parseFloat(match[3]) : 0;
-    const seconds = match[4] ? parseFloat(match[4]) : 0;
-    
-    // Validate numbers are finite and positive
-    if (!isFinite(days) || !isFinite(hours) || !isFinite(minutes) || !isFinite(seconds) || 
-        days < 0 || hours < 0 || minutes < 0 || seconds < 0) {
-      return undefined;
-    }
-    
-    // Calculate total minutes (including fractional minutes from seconds)
-    const totalMinutes = days * 1440 + hours * 60 + minutes + seconds / 60;
-    
-    // Validate result is reasonable (not too large, not zero)
-    if (totalMinutes > 0 && totalMinutes < 144000) { // Max 100 days
-      return totalMinutes;
-    }
-  }
-  
-  return undefined;
-}
-
-// Parse time estimation from task content (e.g., "2d", "2h", "30m", "2d3h5m2s", "45s")
-function parseTimeEstimation(content: string): { cleanContent: string; estimatedMinutes?: number } {
-  // Match complex patterns like "2d3h5m2s", "1h2m34s", "2h30m", "45s" at the end of content
-  const complexPattern = /\s+(?:(\d+(?:\.\d+)?)d)?(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?(?:(\d+(?:\.\d+)?)s)?$/i;
-  const match = content.match(complexPattern);
-  
-  if (match && match[0].trim()) {
-    const timeStr = match[0].trim();
-    const estimatedMinutes = parseTimeString(timeStr);
-    
-    if (estimatedMinutes !== undefined) {
-      const cleanContent = content.replace(match[0], '').trim();
-      // Don't allow empty content after removing time
-      if (cleanContent.length === 0) {
-        return { cleanContent: content };
-      }
-      return { cleanContent, estimatedMinutes };
-    }
-  }
-  
-  return { cleanContent: content };
-}
-
-// Internal Task type for persistence (uses 'completed')
-export interface StoreTask {
-  id: string;
-  content: string;
-  completed: boolean;
-  createdAt: number;
-  completedAt?: number;
-  scheduledTime?: string;
-  order: number;
-  groupId: string;
-  priority?: Priority;  // Task priority
-  
-  // Time estimation and tracking
-  estimatedMinutes?: number;  // Estimated time in minutes
-  actualMinutes?: number;     // Actual time spent in minutes
-  
-  // Hierarchical structure (nested tasks)
-  parentId: string | null;  // Parent task ID, null for top-level
-  collapsed: boolean;       // Whether children are hidden
-}
+// Re-export types and functions for backward compatibility
+export type { Group, Priority, StoreTask, ArchiveTimeView };
+export { parseTimeString, PRIORITY_COLORS };
+export { useUIStore };
 
 interface GroupStore {
+  // Core state
   groups: Group[];
   tasks: StoreTask[];
   activeGroupId: string | null;
-  drawerOpen: boolean;
   loaded: boolean;
-  hideCompleted: boolean;
-  hideActualTime: boolean;
-  searchQuery: string;
-  loadedGroups: Set<string>; // 追踪哪些组已加载任务
-  previousNonArchiveGroupId: string | null; // 记录切换到归档前的分组
+  loadedGroups: Set<string>; // Track which groups have loaded tasks
+  previousNonArchiveGroupId: string | null; // Remember group before switching to archive
   
-  // 颜色筛选
-  selectedPriorities: Priority[];
-  setSelectedPriorities: (priorities: Priority[]) => void;
-  togglePriority: (priority: Priority) => void;
-  toggleAllPriorities: () => void;
-  
-  // 归档时间范围设置
-  archiveTimeView: 'day' | 'week' | 'month';
-  archiveDayRange: number | 'all';
-  archiveWeekRange: number | 'all';
-  archiveMonthRange: number | 'all';
-  setArchiveTimeView: (view: 'day' | 'week' | 'month') => void;
-  setArchiveRange: (view: 'day' | 'week' | 'month', range: number | 'all') => void;
-  getArchiveMaxDays: () => number | null; // 返回需要加载的最大天数，null表示全部
-  
-  // Drag state for cross-group drag
-  draggingTaskId: string | null;
-  setDraggingTaskId: (id: string | null) => void;
-  setHideCompleted: (hide: boolean) => void;
-  setHideActualTime: (hide: boolean) => void;
-  setSearchQuery: (query: string) => void;
-  
+  // Data operations
   loadData: () => Promise<void>;
-  loadGroupTasks: (groupId: string) => Promise<void>; // 懒加载单个组的任务
-  setDrawerOpen: (open: boolean) => void;
-  toggleDrawer: () => void;
+  loadGroupTasks: (groupId: string) => Promise<void>;
   setActiveGroup: (id: string | null) => Promise<void>;
   addGroup: (name: string) => void;
   updateGroup: (id: string, name: string) => void;
@@ -154,189 +50,21 @@ interface GroupStore {
   moveTaskToGroup: (taskId: string, targetGroupId: string, overTaskId?: string | null) => Promise<void>;
 }
 
-// 保存分组到文件
-async function persistGroup(groups: Group[], tasks: StoreTask[], groupId: string) {
-  // 不保存归档分组（归档任务在archive文件中管理）
-  if (groupId === '__archive__') {
-    console.log('[PersistGroup] Skipping persist for __archive__ group');
-    return;
-  }
-  
-  const group = groups.find(g => g.id === groupId);
-  if (!group) return;
-  
-  const groupTasks = tasks.filter(t => t.groupId === groupId);
-  
-  // Safety check: remove duplicates before saving
-  const taskIds = groupTasks.map(t => t.id);
-  const hasDuplicates = taskIds.length !== new Set(taskIds).size;
-  if (hasDuplicates) {
-    const seen = new Set<string>();
-    const deduplicated = groupTasks.filter(t => {
-      if (seen.has(t.id)) {
-        return false;
-      }
-      seen.add(t.id);
-      return true;
-    });
-    
-    const groupData: GroupData = {
-      id: group.id,
-      name: group.name,
-      pinned: group.pinned || false,
-      tasks: deduplicated.map(t => ({
-        id: t.id,
-        content: t.content,
-        completed: t.completed,
-        createdAt: t.createdAt,
-        completedAt: t.completedAt,
-        scheduledTime: t.scheduledTime,
-        order: t.order,
-        parentId: t.parentId,
-        collapsed: t.collapsed,
-        priority: t.priority,
-        estimatedMinutes: t.estimatedMinutes,
-        actualMinutes: t.actualMinutes,
-      })),
-      createdAt: group.createdAt,
-      updatedAt: Date.now(),
-    };
-    
-    try {
-      await saveGroup(groupData);
-    } catch (error) {
-      useToastStore.getState().addToast(
-        error instanceof Error ? error.message : '保存任务失败', 
-        'error', 
-        4000
-      );
-    }
-    return;
-  }
-  
-  const groupData: GroupData = {
-    id: group.id,
-    name: group.name,
-    pinned: group.pinned || false,
-    tasks: groupTasks.map(t => ({
-      id: t.id,
-      content: t.content,
-      completed: t.completed,
-      createdAt: t.createdAt,
-      completedAt: t.completedAt,
-      scheduledTime: t.scheduledTime,
-      order: t.order,
-      parentId: t.parentId,
-      collapsed: t.collapsed,
-      priority: t.priority,
-      estimatedMinutes: t.estimatedMinutes,
-      actualMinutes: t.actualMinutes,
-    })),
-    createdAt: group.createdAt,
-    updatedAt: Date.now(),
-  };
-  
-  try {
-    await saveGroup(groupData);
-  } catch (error) {
-    useToastStore.getState().addToast(
-      error instanceof Error ? error.message : '保存任务失败', 
-      'error', 
-      4000
-    );
-  }
-}
-
 export const useGroupStore = create<GroupStore>()((set, get) => ({
+  // Core state
   groups: [],
   tasks: [],
   activeGroupId: 'default',
-  drawerOpen: false,
   loaded: false,
-  hideCompleted: false,
-  hideActualTime: false,
-  searchQuery: '',
   loadedGroups: new Set<string>(),
   previousNonArchiveGroupId: null,
-  
-  // 初始化颜色筛选（从localStorage加载或默认全选）
-  selectedPriorities: (() => {
-    try {
-      const saved = localStorage.getItem('nekotick-priority-filter');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {}
-    return ['red', 'yellow', 'purple', 'green', 'default'];
-  })(),
-  
-  setSelectedPriorities: (priorities) => {
-    set({ selectedPriorities: priorities });
-    localStorage.setItem('nekotick-priority-filter', JSON.stringify(priorities));
-  },
-  
-  togglePriority: (priority) => {
-    set((state) => {
-      const newPriorities = state.selectedPriorities.includes(priority)
-        ? state.selectedPriorities.filter(p => p !== priority)
-        : [...state.selectedPriorities, priority];
-      
-      localStorage.setItem('nekotick-priority-filter', JSON.stringify(newPriorities));
-      return { selectedPriorities: newPriorities };
-    });
-  },
-  
-  toggleAllPriorities: () => {
-    const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'default'];
-    set((state) => {
-      // 在全选和空数组之间切换（空数组表示不筛选，显示所有）
-      const newPriorities = state.selectedPriorities.length === allPriorities.length
-        ? []
-        : allPriorities;
-      localStorage.setItem('nekotick-priority-filter', JSON.stringify(newPriorities));
-      return { selectedPriorities: newPriorities };
-    });
-  },
-  
-  // 归档时间范围设置
-  archiveTimeView: 'day',
-  archiveDayRange: 7,
-  archiveWeekRange: 4,
-  archiveMonthRange: 3,
-  
-  setArchiveTimeView: (view) => set({ archiveTimeView: view }),
-  
-  setArchiveRange: (view, range) => {
-    if (view === 'day') set({ archiveDayRange: range });
-    else if (view === 'week') set({ archiveWeekRange: range });
-    else set({ archiveMonthRange: range });
-  },
-  
-  getArchiveMaxDays: (): number | null => {
-    const state = get();
-    const { archiveTimeView, archiveDayRange, archiveWeekRange, archiveMonthRange } = state;
-    
-    if (archiveTimeView === 'day') {
-      return archiveDayRange === 'all' ? null : archiveDayRange as number;
-    } else if (archiveTimeView === 'week') {
-      return archiveWeekRange === 'all' ? null : (archiveWeekRange as number) * 7;
-    } else {
-      return archiveMonthRange === 'all' ? null : (archiveMonthRange as number) * 30;
-    }
-  },
-  
-  draggingTaskId: null,
-  setDraggingTaskId: (id) => set({ draggingTaskId: id }),
-  setHideCompleted: (hide) => set({ hideCompleted: hide }),
-  setHideActualTime: (hide) => set({ hideActualTime: hide }),
-  setSearchQuery: (query) => set({ searchQuery: query }),
 
   loadData: async () => {
     console.log('[LazyLoad] Loading group metadata only (not tasks)');
     const allGroups = await loadGroups();
     const groups: Group[] = [];
     
-    // 只加载组的元数据，不加载任务
+    // Only load group metadata, not tasks
     for (const gd of allGroups) {
       groups.push({
         id: gd.id,
@@ -347,7 +75,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
       });
     }
     
-    // 按置顶排序
+    // Sort by pinned status
     groups.sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
@@ -356,13 +84,13 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     
     console.log(`[LazyLoad] Loaded ${groups.length} groups without tasks`);
     
-    // 获取当前的 activeGroupId，初始化 previousNonArchiveGroupId
+    // Get current activeGroupId, initialize previousNonArchiveGroupId
     const currentActiveId = useGroupStore.getState().activeGroupId;
     const initialPreviousNonArchive = (currentActiveId && currentActiveId !== '__archive__') ? currentActiveId : null;
     
     set({ groups, tasks: [], loaded: true, loadedGroups: new Set(), previousNonArchiveGroupId: initialPreviousNonArchive });
     
-    // 自动加载初始活跃组的任务
+    // Auto-load tasks for initial active group
     const { activeGroupId, loadGroupTasks } = useGroupStore.getState();
     if (activeGroupId) {
       await loadGroupTasks(activeGroupId);
@@ -372,13 +100,13 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
   loadGroupTasks: async (groupId) => {
     const state = useGroupStore.getState();
     
-    // 如果已经加载过，跳过
+    // Skip if already loaded
     if (state.loadedGroups.has(groupId)) {
       console.log(`[LazyLoad] Group ${groupId} already loaded, skipping`);
       return;
     }
     
-    // 立即标记为加载中，防止重复加载（竞态条件保护）
+    // Mark as loading immediately to prevent duplicate loads (race condition protection)
     set((state) => ({
       loadedGroups: new Set([...state.loadedGroups, groupId])
     }));
@@ -386,50 +114,11 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     console.log(`[LazyLoad] Loading tasks for group: ${groupId}`);
     
     try {
-      // 特殊处理归档分组 - 加载所有分组的归档数据
+      // Special handling for archive group - load archive data from all groups
       if (groupId === '__archive__') {
-        const { loadArchiveData } = await import('@/lib/storage');
         const currentState = get();
-        
-        // 获取时间范围限制
-        const maxDays = currentState.getArchiveMaxDays();
-        console.log(`[Archive] Loading with maxDays limit: ${maxDays}`);
-        
-        // 加载所有非归档分组的归档数据
-        const archiveTasks: StoreTask[] = [];
-        let taskOrder = 0;
-        
-        for (const group of currentState.groups) {
-          if (group.id === '__archive__') continue;
-          
-          console.log(`[Archive] Loading archive for group: ${group.id} (${group.name})`);
-          const archiveData = await loadArchiveData(group.id, maxDays);
-          console.log(`[Archive] Found ${archiveData.length} archive sections for ${group.name}`);
-          
-          // 将该分组的归档数据转换为任务格式
-          archiveData.forEach(section => {
-            section.tasks.forEach(task => {
-              archiveTasks.push({
-                id: `archive-${group.id}-${section.timestamp}-${taskOrder}`,
-                content: task.content,
-                completed: true,
-                createdAt: task.createdAt || Date.now(),
-                completedAt: task.completedAt ? new Date(task.completedAt).getTime() : undefined,
-                order: taskOrder++,
-                groupId: '__archive__',
-                parentId: null,
-                collapsed: false,
-                priority: (task.priority as Priority) || 'default',
-                estimatedMinutes: task.estimated ? parseFloat(task.estimated) : undefined,
-                actualMinutes: task.actual ? parseFloat(task.actual) : undefined,
-                // 使用自定义属性保存原始分组ID
-                originalGroupId: group.id,
-              } as StoreTask & { originalGroupId: string });
-            });
-          });
-        }
-        
-        console.log(`[LazyLoad] Loaded ${archiveTasks.length} archived tasks from all groups`);
+        const maxDays = useUIStore.getState().getArchiveMaxDays();
+        const archiveTasks = await loadArchivedTasks(currentState.groups, maxDays);
         
         set((state) => {
           const existingIds = new Set(state.tasks.map(t => t.id));
@@ -437,11 +126,8 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
           if (tasksToAdd.length < archiveTasks.length) {
             console.warn(`[LazyLoad] Skipped ${archiveTasks.length - tasksToAdd.length} duplicate archived tasks`);
           }
-          return {
-            tasks: [...state.tasks, ...tasksToAdd]
-          };
+          return { tasks: [...state.tasks, ...tasksToAdd] };
         });
-        
         return;
       }
       
@@ -450,7 +136,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
       
       if (!groupData) {
         console.warn(`[LazyLoad] Group ${groupId} not found`);
-        // 组不存在，移除加载标记（可能被删除或文件损坏）
+        // Group not found, remove loading flag (may be deleted or corrupted)
         set((state) => {
           const newLoadedGroups = new Set(state.loadedGroups);
           newLoadedGroups.delete(groupId);
@@ -459,7 +145,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
         return;
       }
       
-      // 去重并转换任务
+      // Deduplicate and convert tasks
       const seenIds = new Set<string>();
       const newTasks: StoreTask[] = [];
       
@@ -488,7 +174,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
       
       console.log(`[LazyLoad] Loaded ${newTasks.length} tasks for group ${groupId}`);
       
-      // 合并到现有任务列表（去重：排除已存在的任务）
+      // Merge into existing task list (deduplicate: exclude existing tasks)
       set((state) => {
         const existingIds = new Set(state.tasks.map(t => t.id));
         const tasksToAdd = newTasks.filter(t => !existingIds.has(t.id));
@@ -502,7 +188,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     } catch (error) {
       console.error(`[LazyLoad] Failed to load tasks for group ${groupId}:`, error);
       
-      // 加载失败时移除标记，允许重试
+      // Remove loading flag on failure to allow retry
       set((state) => {
         const newLoadedGroups = new Set(state.loadedGroups);
         newLoadedGroups.delete(groupId);
@@ -511,25 +197,22 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     }
   },
 
-  setDrawerOpen: (open) => set({ drawerOpen: open }),
-  toggleDrawer: () => set((state) => ({ drawerOpen: !state.drawerOpen })),
-  
   setActiveGroup: async (id) => {
     const state = useGroupStore.getState();
     const previousGroupId = state.activeGroupId;
     
     console.log(`[GroupStore] Switching from ${previousGroupId} to ${id}`);
     
-    // 如果从归档切换到其他分组，清除归档任务
+    // If switching from archive to another group, clear archive tasks
     if (previousGroupId === '__archive__' && id !== '__archive__') {
       set((state) => ({
         activeGroupId: id,
-        previousNonArchiveGroupId: id, // 更新为新的活跃分组
+        previousNonArchiveGroupId: id, // Update to new active group
         tasks: state.tasks.filter(t => t.groupId !== '__archive__'),
         loadedGroups: new Set([...state.loadedGroups].filter(g => g !== '__archive__'))
       }));
     } else if (id === '__archive__' && previousGroupId !== '__archive__') {
-      // 切换到归档时，保存当前分组ID并清除归档标记以便重新加载
+      // When switching to archive, save current group ID and clear archive flag for reload
       console.log(`[GroupStore] Saving previousNonArchiveGroupId: ${previousGroupId}`);
       set((state) => ({
         activeGroupId: id,
@@ -538,13 +221,13 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
         loadedGroups: new Set([...state.loadedGroups].filter(g => g !== '__archive__'))
       }));
     } else if (id !== '__archive__') {
-      // 切换到普通分组时，更新previousNonArchiveGroupId
+      // When switching to regular group, update previousNonArchiveGroupId
       set({ activeGroupId: id, previousNonArchiveGroupId: id });
     } else {
       set({ activeGroupId: id });
     }
     
-    // 懒加载：自动加载该组的任务（如果尚未加载）
+    // Lazy load: auto-load group tasks if not yet loaded
     if (id) {
       const { loadGroupTasks } = useGroupStore.getState();
       await loadGroupTasks(id);
@@ -561,7 +244,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     set((state) => {
       const newGroups = [...state.groups, newGroup];
       persistGroup(newGroups, state.tasks, newGroup.id);
-      // 新组没有任务，标记为已加载
+      // New group has no tasks, mark as loaded
       return { 
         groups: newGroups,
         loadedGroups: new Set([...state.loadedGroups, newGroup.id])
@@ -581,7 +264,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     if (id === 'default') return state;
     deleteGroupFile(id);
     
-    // 清理loadedGroups
+    // Clean up loadedGroups
     const newLoadedGroups = new Set(state.loadedGroups);
     newLoadedGroups.delete(id);
     
@@ -627,7 +310,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     return { groups: newGroups };
   }),
   
-  // 任务操作
+  // Task operations
   addTask: (content, groupId, priority = 'default') => set((state) => {
     const groupTasks = state.tasks.filter(t => t.groupId === groupId && !t.parentId);
     const { cleanContent, estimatedMinutes } = parseTimeEstimation(content);
@@ -681,22 +364,12 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     // Parse time estimation from updated content
     const { cleanContent, estimatedMinutes } = parseTimeEstimation(content);
     
-    // 保留 originalGroupId（如果存在）
-    const originalGroupId = (task as any).originalGroupId;
-    
-    // Update content
+    // Update content (originalGroupId is preserved automatically)
     task.content = cleanContent;
     
     // Only update estimatedMinutes if a new value was parsed
-    // This preserves existing estimation when user just edits task content
     if (estimatedMinutes !== undefined) {
       task.estimatedMinutes = estimatedMinutes;
-    }
-    // Note: actualMinutes is preserved as it's historical data
-    
-    // 恢复 originalGroupId
-    if (originalGroupId) {
-      (task as any).originalGroupId = originalGroupId;
     }
     
     persistGroup(state.groups, state.tasks, task.groupId);
@@ -707,16 +380,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
-    // 保留 originalGroupId（如果存在）
-    const originalGroupId = (task as any).originalGroupId;
-    
-    // Directly update estimation (can be undefined to clear)
     task.estimatedMinutes = estimatedMinutes;
-    
-    // 恢复 originalGroupId
-    if (originalGroupId) {
-      (task as any).originalGroupId = originalGroupId;
-    }
     
     persistGroup(state.groups, state.tasks, task.groupId);
     return { tasks: [...state.tasks] };
@@ -726,15 +390,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
-    // 保留 originalGroupId（如果存在）
-    const originalGroupId = (task as any).originalGroupId;
-    
     task.priority = priority;
-    
-    // 恢复 originalGroupId
-    if (originalGroupId) {
-      (task as any).originalGroupId = originalGroupId;
-    }
     
     persistGroup(state.groups, state.tasks, task.groupId);
     return { tasks: [...state.tasks] };
@@ -746,42 +402,17 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     
     const isCompleting = !task.completed;
     const now = Date.now();
+    const actualMinutes = calculateActualTime(task.createdAt, isCompleting);
     
-    // Calculate actual time spent from creation to completion
-    // Always recalculate when completing, clear when uncompleting
-    let actualMinutes: number | undefined = undefined;
-    if (isCompleting) {
-      const elapsedMs = now - task.createdAt;
-      // Validate elapsed time is reasonable (positive and not too large)
-      if (elapsedMs > 0 && elapsedMs < 8640000000) { // Max ~100 days in ms
-        // Keep seconds precision: convert ms to minutes without rounding
-        actualMinutes = elapsedMs / 60000;
-        // Ensure at least 1 second precision (0.0166... minutes)
-        if (actualMinutes < 1/60 && elapsedMs > 0) {
-          actualMinutes = 1 / 60;
-        }
-      }
-    }
-    // When uncompleting, actualMinutes is cleared (remains undefined)
-    
-    // Update the task's completed status
+    // Update the task's completed status (spread preserves originalGroupId)
     let newTasks = state.tasks.map(t => {
       if (t.id !== id) return t;
-      
-      // 保留归档任务的 originalGroupId 属性
-      const updatedTask: any = { 
+      return { 
         ...t, 
         completed: isCompleting,
         completedAt: isCompleting ? now : undefined,
-        actualMinutes: actualMinutes, // Set when completing, undefined when uncompleting
+        actualMinutes,
       };
-      
-      // 如果原任务有 originalGroupId，保留它
-      if ((t as any).originalGroupId) {
-        updatedTask.originalGroupId = (t as any).originalGroupId;
-      }
-      
-      return updatedTask;
     });
     
     // Skip reorder if requested (e.g., during drag and drop)
@@ -814,12 +445,7 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     
     const newTasks = state.tasks.map(t => {
       if (t.id !== id) return t;
-      const updated: any = { ...t, collapsed: !t.collapsed };
-      // 保留 originalGroupId（如果存在）
-      if ((t as any).originalGroupId) {
-        updated.originalGroupId = (t as any).originalGroupId;
-      }
-      return updated;
+      return { ...t, collapsed: !t.collapsed };
     });
     persistGroup(state.groups, newTasks, task.groupId);
     return { tasks: newTasks };
@@ -829,16 +455,9 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     const task = state.tasks.find(t => t.id === id);
     if (!task) return state;
     
-    // Recursively collect all task IDs to delete (task + all descendants)
-    const idsToDelete = new Set<string>([id]);
-    const collectDescendants = (parentId: string) => {
-      const children = state.tasks.filter(t => t.parentId === parentId);
-      children.forEach(child => {
-        idsToDelete.add(child.id);
-        collectDescendants(child.id);
-      });
-    };
-    collectDescendants(id);
+    // Collect task and all its descendants
+    const tasksToDelete = collectTaskAndDescendants(task, state.tasks);
+    const idsToDelete = new Set(tasksToDelete.map(t => t.id));
     
     // Remove the task and all its descendants
     const tasksWithoutDeleted = state.tasks.filter(t => !idsToDelete.has(t.id));
@@ -871,383 +490,46 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
   }),
   
   archiveCompletedTasks: async (groupId) => {
-    const state = useGroupStore.getState();
-    const { tasks, groups } = state;
-    
-    // 防止并发归档（使用简单的标记）
-    const archivingKey = `archiving_${groupId}`;
-    if ((window as any)[archivingKey]) {
-      console.warn(`[Archive] Already archiving group ${groupId}, skipping`);
-      return;
-    }
-    (window as any)[archivingKey] = true;
-    
-    // 找到该组的所有已完成的顶层任务
-    const completedTopLevelTasks = tasks.filter(
-      t => t.groupId === groupId && t.completed && !t.parentId
-    );
-    
-    if (completedTopLevelTasks.length === 0) {
-      delete (window as any)[archivingKey]; // 清理标记
-      return;
-    }
-    
-    // 递归收集任务及其所有子任务
-    const allTasksToArchive: StoreTask[] = [];
-    const collectTaskAndDescendants = (task: StoreTask) => {
-      allTasksToArchive.push(task);
-      const children = tasks.filter(t => t.parentId === task.id);
-      children.forEach(child => collectTaskAndDescendants(child));
-    };
-    
-    completedTopLevelTasks.forEach(task => collectTaskAndDescendants(task));
-    
-    // 转换为TaskData格式
-    const tasksToArchive = allTasksToArchive.map(t => ({
-      id: t.id,
-      content: t.content,
-      completed: t.completed,
-      createdAt: t.createdAt,
-      completedAt: t.completedAt,
-      scheduledTime: t.scheduledTime,
-      order: t.order,
-      parentId: t.parentId,
-      collapsed: t.collapsed,
-      priority: t.priority,
-      estimatedMinutes: t.estimatedMinutes,
-      actualMinutes: t.actualMinutes,
-    }));
-    
     try {
-      // === 原子性保证：三阶段提交 ===
-      
-      // 阶段1：写入归档文件（不修改原文件）
-      const { archiveTasks, verifyArchive } = await import('@/lib/storage');
-      await archiveTasks(groupId, tasksToArchive);
-      
-      // 阶段2：验证归档文件写入成功
-      const verified = await verifyArchive(groupId, tasksToArchive.length);
-      if (!verified) {
-        throw new Error('Archive verification failed - data integrity check did not pass');
+      const { tasks, groups } = useGroupStore.getState();
+      const result = await archiveCompletedTasksForGroup(groupId, tasks, groups);
+      if (result.success && result.archivedCount > 0) {
+        useGroupStore.setState({ tasks: result.newTasks });
       }
-      
-      // 阶段3：验证通过后才删除原任务并保存
-      const idsToDelete = new Set(allTasksToArchive.map(t => t.id));
-      const newTasks = tasks.filter(t => !idsToDelete.has(t.id));
-      
-      // 先更新内存状态
-      useGroupStore.setState({ tasks: newTasks });
-      
-      // 再持久化到文件
-      await persistGroup(groups, newTasks, groupId);
-      
-      console.log(`[Archive] Successfully archived ${allTasksToArchive.length} tasks with atomic guarantee`);
     } catch (error) {
-      console.error('[Archive] Failed - no data was deleted:', error);
-      // 归档失败时不删除任务，确保数据安全
-      throw error;
-    } finally {
-      // 清理归档标记
-      delete (window as any)[`archiving_${groupId}`];
+      console.error('[Store] Archive completed tasks failed:', error);
     }
   },
   
   archiveSingleTask: async (taskId) => {
-    const state = useGroupStore.getState();
-    const { tasks, groups } = state;
-    
-    // 找到任务
-    const task = tasks.find(t => t.id === taskId);
-    if (!task || !task.completed) {
-      console.warn(`[Archive] Task ${taskId} not found or not completed`);
-      return;
-    }
-    
-    const groupId = task.groupId;
-    
-    // 不能归档已经在归档分组中的任务
-    if (groupId === '__archive__') {
-      console.warn(`[Archive] Cannot archive task from archive group`);
-      return;
-    }
-    
-    // 递归收集任务及其所有子任务
-    const allTasksToArchive: StoreTask[] = [];
-    const collectTaskAndDescendants = (task: StoreTask) => {
-      allTasksToArchive.push(task);
-      const children = tasks.filter(t => t.parentId === task.id);
-      children.forEach(child => collectTaskAndDescendants(child));
-    };
-    
-    collectTaskAndDescendants(task);
-    
-    // 转换为TaskData格式
-    const tasksToArchive = allTasksToArchive.map(t => ({
-      id: t.id,
-      content: t.content,
-      completed: t.completed,
-      createdAt: t.createdAt,
-      completedAt: t.completedAt,
-      scheduledTime: t.scheduledTime,
-      order: t.order,
-      parentId: t.parentId,
-      collapsed: t.collapsed,
-      priority: t.priority,
-      estimatedMinutes: t.estimatedMinutes,
-      actualMinutes: t.actualMinutes,
-    }));
-    
     try {
-      // 写入归档文件
-      const { archiveTasks, verifyArchive } = await import('@/lib/storage');
-      await archiveTasks(groupId, tasksToArchive);
-      
-      // 验证归档文件
-      const verified = await verifyArchive(groupId, tasksToArchive.length);
-      if (!verified) {
-        throw new Error('Archive verification failed');
+      const { tasks, groups } = useGroupStore.getState();
+      const result = await archiveSingleTaskWithDescendants(taskId, tasks, groups);
+      if (result.success) {
+        useGroupStore.setState({ tasks: result.newTasks });
       }
-      
-      // 验证通过后删除任务
-      const idsToDelete = new Set(allTasksToArchive.map(t => t.id));
-      const newTasks = tasks.filter(t => !idsToDelete.has(t.id));
-      
-      useGroupStore.setState({ tasks: newTasks });
-      await persistGroup(groups, newTasks, groupId);
-      
-      console.log(`[Archive] Successfully archived single task and ${allTasksToArchive.length - 1} descendants`);
     } catch (error) {
-      console.error('[Archive] Failed to archive single task:', error);
-      throw error;
+      console.error('[Store] Archive single task failed:', error);
     }
   },
   
   deleteCompletedTasks: (groupId) => set((state) => {
-    // 找到该组的所有已完成的顶层任务
-    const completedTopLevelTasks = state.tasks.filter(
-      t => t.groupId === groupId && t.completed && !t.parentId
-    );
-    
-    if (completedTopLevelTasks.length === 0) {
-      return state;
-    }
-    
-    // 递归收集任务及其所有子任务
-    const allTasksToDelete: StoreTask[] = [];
-    const collectTaskAndDescendants = (task: StoreTask) => {
-      allTasksToDelete.push(task);
-      const children = state.tasks.filter(t => t.parentId === task.id);
-      children.forEach(child => collectTaskAndDescendants(child));
-    };
-    
-    completedTopLevelTasks.forEach(task => collectTaskAndDescendants(task));
-    
-    // 删除这些任务
-    const idsToDelete = new Set(allTasksToDelete.map(t => t.id));
-    const newTasks = state.tasks.filter(t => !idsToDelete.has(t.id));
-    
-    console.log(`[Delete] Deleted ${allTasksToDelete.length} completed tasks`);
-    
-    // 持久化
-    persistGroup(state.groups, newTasks, groupId);
-    
-    return { tasks: newTasks };
+    const result = deleteCompletedTasksInGroup(groupId, state.tasks, state.groups);
+    return { tasks: result.newTasks };
   }),
   
   reorderTasks: (activeId, overId) => set((state) => {
-    const activeTask = state.tasks.find(t => t.id === activeId);
-    const overTask = state.tasks.find(t => t.id === overId);
-    if (!activeTask || !overTask) return state;
-    
-    console.log('[reorderTasks] Start:', {
-      active: activeTask.content,
-      activeParent: activeTask.parentId,
-      over: overTask.content,
-      overParent: overTask.parentId
-    });
-    
-    let newTasks = [...state.tasks];
-    
-    // Check if this is a cross-level drag (changing parent)
-    if (activeTask.parentId !== overTask.parentId) {
-      // Update the active task's parent to match the over task's parent
-      newTasks = newTasks.map(t => {
-        if (t.id !== activeId) return t;
-        const updated: any = { ...t, parentId: overTask.parentId };
-        if ((t as any).originalGroupId) {
-          updated.originalGroupId = (t as any).originalGroupId;
-        }
-        return updated;
-      });
-      
-      // Also update all descendants to follow the parent
-      const updateDescendants = (parentId: string, newGroupParentId: string | null) => {
-        const children = newTasks.filter(t => t.parentId === parentId);
-        children.forEach(child => {
-          newTasks = newTasks.map(t => {
-            if (t.id !== child.id) return t;
-            const updated: any = { ...t, parentId: newGroupParentId };
-            if ((t as any).originalGroupId) {
-              updated.originalGroupId = (t as any).originalGroupId;
-            }
-            return updated;
-          });
-          updateDescendants(child.id, child.id);
-        });
-      };
-      updateDescendants(activeId, activeId);
-    }
-    
-    // Get updated activeTask after potential parent change
-    const updatedActiveTask = newTasks.find(t => t.id === activeId)!;
-    
-    // Reorder within the target level
-    const sameLevelTasks = newTasks
-      .filter(t => t.groupId === updatedActiveTask.groupId && t.parentId === updatedActiveTask.parentId)
-      .sort((a, b) => a.order - b.order);
-    
-    const oldIndex = sameLevelTasks.findIndex(t => t.id === activeId);
-    const newIndex = sameLevelTasks.findIndex(t => t.id === overId);
-    
-    if (oldIndex === -1 || newIndex === -1) return state;
-    
-    const reordered = [...sameLevelTasks];
-    const [removed] = reordered.splice(oldIndex, 1);
-    reordered.splice(newIndex, 0, removed);
-    
-    // Update order for this level
-    reordered.forEach((t, i) => {
-      const task = newTasks.find(nt => nt.id === t.id);
-      if (task) task.order = i;
-    });
-    
-    // Reorder old level if it changed
-    if (activeTask.parentId !== updatedActiveTask.parentId) {
-      const oldLevelTasks = newTasks
-        .filter(t => t.groupId === activeTask.groupId && t.parentId === activeTask.parentId && t.id !== activeId)
-        .sort((a, b) => a.order - b.order);
-      oldLevelTasks.forEach((t, i) => {
-        const task = newTasks.find(nt => nt.id === t.id);
-        if (task) task.order = i;
-      });
-    }
-    
-    // Combine all tasks: other groups + current group (all levels)
-    const currentGroupTasks = newTasks.filter(t => t.groupId === updatedActiveTask.groupId);
-    const otherGroupTasks = newTasks.filter(t => t.groupId !== updatedActiveTask.groupId);
-    const finalTasks = [...otherGroupTasks, ...currentGroupTasks];
-    
-    persistGroup(state.groups, finalTasks, activeTask.groupId);
-    return { tasks: finalTasks };
+    const result = reorderTasksInGroup(activeId, overId, state.tasks, state.groups);
+    return result.success ? { tasks: result.newTasks } : state;
   }),
   
   crossStatusReorder: (activeId, overId) => set((state) => {
-    const activeTask = state.tasks.find(t => t.id === activeId);
-    const overTask = state.tasks.find(t => t.id === overId);
-    if (!activeTask || !overTask) {
-      return state;
-    }
-    if (activeTask.parentId !== overTask.parentId) {
-      return state;
-    }
-    
-    const newCompleted = overTask.completed;
-    const now = Date.now();
-    
-    // Create new tasks array with updated status
-    const newTasks = state.tasks.map(t => {
-      if (t.id === activeId) {
-        // Calculate actual time spent from creation to completion
-        // Always recalculate when completing, clear when uncompleting
-        let actualMinutes: number | undefined = undefined;
-        if (newCompleted) {
-          const elapsedMs = now - t.createdAt;
-          // Validate elapsed time is reasonable (positive and not too large)
-          if (elapsedMs > 0 && elapsedMs < 8640000000) { // Max ~100 days in ms
-            // Keep seconds precision: convert ms to minutes without rounding
-            actualMinutes = elapsedMs / 60000;
-            // Ensure at least 1 second precision (0.0166... minutes)
-            if (actualMinutes < 1/60 && elapsedMs > 0) {
-              actualMinutes = 1 / 60;
-            }
-          }
-        }
-        // When uncompleting (dragging to incomplete), actualMinutes is cleared
-        
-        const updated: any = {
-          ...t,
-          completed: newCompleted,
-          completedAt: newCompleted ? now : undefined,
-          actualMinutes: actualMinutes, // Set when completing, undefined when uncompleting
-        };
-        
-        // 保留 originalGroupId
-        if ((t as any).originalGroupId) {
-          updated.originalGroupId = (t as any).originalGroupId;
-        }
-        
-        return updated;
-      }
-      return t;
-    });
-    
-    // Get same-level tasks
-    const sameLevelTasks = newTasks.filter(
-      t => t.groupId === activeTask.groupId && t.parentId === activeTask.parentId
-    );
-    
-    // Separate by status
-    const incomplete = sameLevelTasks.filter(t => !t.completed);
-    const completed = sameLevelTasks.filter(t => t.completed);
-    
-    // Reorder the target list
-    const targetList = newCompleted ? completed : incomplete;
-    const sortedTarget = targetList.sort((a, b) => a.order - b.order);
-    
-    // Find over task position BEFORE removing active
-    const overIndexInFull = sortedTarget.findIndex(t => t.id === overId);
-    
-    // Remove active from target list
-    const withoutActive = sortedTarget.filter(t => t.id !== activeId);
-    
-    // Calculate insert position
-    let insertIndex = overIndexInFull;
-    if (overIndexInFull === -1) {
-      // Over task not found, append to end
-      insertIndex = withoutActive.length;
-    } else {
-      const activeIndexInTarget = sortedTarget.findIndex(t => t.id === activeId);
-      if (activeIndexInTarget !== -1 && activeIndexInTarget < overIndexInFull) {
-        // Active was in target list and before over, so index shifts down by 1 after removal
-        insertIndex = overIndexInFull - 1;
-      } else {
-        // Active was after over, or not in target list, index stays same
-        insertIndex = overIndexInFull;
-      }
-    }
-    
-    // Insert active task at calculated position
-    withoutActive.splice(insertIndex, 0, newTasks.find(t => t.id === activeId)!);
-    
-    // Update order values
-    withoutActive.forEach((t, i) => {
-      const task = newTasks.find(nt => nt.id === t.id);
-      if (task) task.order = i;
-    });
-    
-    // Update other list order
-    const otherList = newCompleted ? incomplete : completed;
-    otherList.sort((a, b) => a.order - b.order).forEach((t, i) => {
-      const task = newTasks.find(nt => nt.id === t.id);
-      if (task) task.order = i;
-    });
-    
-    persistGroup(state.groups, newTasks, activeTask.groupId);
-    return { tasks: newTasks };
+    const result = crossStatusReorderTask(activeId, overId, state.tasks, state.groups);
+    return result.success ? { tasks: result.newTasks } : state;
   }),
   
   moveTaskToGroup: async (taskId, targetGroupId, overTaskId) => {
-    // 确保目标组已加载，防止order冲突
+    // Ensure target group is loaded to prevent order conflicts
     const state = useGroupStore.getState();
     if (!state.loadedGroups.has(targetGroupId)) {
       console.log(`[MoveTask] Target group ${targetGroupId} not loaded, loading first...`);
@@ -1255,70 +537,8 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     }
     
     set((state) => {
-      const task = state.tasks.find(t => t.id === taskId);
-      if (!task || task.groupId === targetGroupId) return state;
-      
-      const oldGroupId = task.groupId;
-    
-    // Collect task and all its descendants
-    const tasksToMove: StoreTask[] = [];
-    const collectTaskAndDescendants = (parentTask: StoreTask) => {
-      tasksToMove.push(parentTask);
-      const children = state.tasks.filter(t => t.parentId === parentTask.id);
-      children.forEach(child => collectTaskAndDescendants(child));
-    };
-    collectTaskAndDescendants(task);
-    
-    // Update groupId for all collected tasks
-    const movedTasks = tasksToMove.map(t => {
-      const updated: any = { ...t, groupId: targetGroupId };
-      // 保留 originalGroupId（如果存在）
-      if ((t as any).originalGroupId) {
-        updated.originalGroupId = (t as any).originalGroupId;
-      }
-      return updated;
-    });
-    
-    // Get target group TOP-LEVEL tasks only (excluding tasks being moved)
-    const targetGroupTasks = state.tasks
-      .filter(t => t.groupId === targetGroupId && !t.parentId && !tasksToMove.some(mt => mt.id === t.id))
-      .sort((a, b) => a.order - b.order);
-    
-    // Determine the insert index (only insert the parent task)
-    let insertIndex: number;
-    if (overTaskId) {
-      const overIndex = targetGroupTasks.findIndex(t => t.id === overTaskId);
-      insertIndex = overIndex !== -1 ? overIndex : targetGroupTasks.length;
-    } else {
-      insertIndex = targetGroupTasks.length;
-    }
-    
-    // Insert only the parent task at the target position
-    targetGroupTasks.splice(insertIndex, 0, movedTasks[0]);
-    
-    // Reassign order for target group TOP-LEVEL tasks
-    targetGroupTasks.forEach((t, i) => t.order = i);
-    
-    // Get old group TOP-LEVEL tasks (excluding moved tasks) and reassign order
-    const oldGroupTasks = state.tasks
-      .filter(t => t.groupId === oldGroupId && !t.parentId && !tasksToMove.some(mt => mt.id === t.id))
-      .sort((a, b) => a.order - b.order);
-    oldGroupTasks.forEach((t, i) => t.order = i);
-    
-    // Get child tasks from the moved tasks and preserve their order relative to parent
-    const movedChildTasks = movedTasks.slice(1);
-    
-    // Combine: other groups + old group + target group + moved children
-    const otherTasks = state.tasks.filter(
-      t => t.groupId !== oldGroupId && t.groupId !== targetGroupId && !tasksToMove.some(mt => mt.id === t.id)
-    );
-    const newTasks = [...otherTasks, ...oldGroupTasks, ...targetGroupTasks, ...movedChildTasks];
-    
-      // Persist both groups
-      persistGroup(state.groups, newTasks, oldGroupId);
-      persistGroup(state.groups, newTasks, targetGroupId);
-      
-      return { tasks: newTasks, activeGroupId: targetGroupId };
+      const result = moveTaskBetweenGroups(taskId, targetGroupId, overTaskId, state.tasks, state.groups);
+      return result.success ? { tasks: result.newTasks, activeGroupId: targetGroupId } : state;
     });
   },
 }));

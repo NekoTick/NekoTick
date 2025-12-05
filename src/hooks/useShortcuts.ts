@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
-import { useGroupStore } from '@/stores/useGroupStore';
+import { useGroupStore, useUIStore } from '@/stores/useGroupStore';
 import { invoke } from '@tauri-apps/api/core';
 import { getShortcutKeys, type ShortcutId } from '@/lib/shortcuts';
 
 export function useShortcuts() {
-  const { toggleDrawer, activeGroupId, archiveCompletedTasks, setActiveGroup } = useGroupStore();
+  const { activeGroupId, archiveCompletedTasks, setActiveGroup } = useGroupStore();
+  const { toggleDrawer } = useUIStore();
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
