@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getShortcutKeys, type ShortcutId } from '@/lib/shortcuts';
 
 export function useShortcuts() {
-  const { activeGroupId, archiveCompletedTasks, setActiveGroup } = useGroupStore();
+  const { activeGroupId, archiveCompletedTasks, setActiveGroup, undoLastAction } = useGroupStore();
   const { toggleDrawer } = useUIStore();
 
   useEffect(() => {
@@ -52,9 +52,20 @@ export function useShortcuts() {
           console.error('Failed to toggle fullscreen:', error);
         }
       }
+      
+      // Ctrl+Z: 撤销 (固定快捷键，不可自定义)
+      if (e.ctrlKey && e.key === 'z' && !e.shiftKey && !e.altKey) {
+        // 如果当前焦点在输入框中，不拦截（让浏览器处理文本撤销）
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        undoLastAction();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleDrawer, activeGroupId, archiveCompletedTasks, setActiveGroup]);
+  }, [toggleDrawer, activeGroupId, archiveCompletedTasks, setActiveGroup, undoLastAction]);
 }

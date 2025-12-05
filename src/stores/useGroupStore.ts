@@ -8,6 +8,7 @@ import { persistGroup, collectTaskAndDescendants, calculateActualTime } from './
 import { archiveCompletedTasksForGroup, archiveSingleTaskWithDescendants, deleteCompletedTasksInGroup, loadArchivedTasks } from './archiveUtils';
 import { reorderTasksInGroup, crossStatusReorderTask, moveTaskBetweenGroups } from './reorderUtils';
 import { useUIStore } from './uiSlice';
+import { useUndoStore } from './useUndoStore';
 
 // Re-export types and functions for backward compatibility
 export type { Group, Priority, StoreTask, ArchiveTimeView };
@@ -42,6 +43,7 @@ interface GroupStore {
   toggleTask: (id: string, skipReorder?: boolean) => void;
   toggleCollapse: (id: string) => void;
   deleteTask: (id: string) => void;
+  undoLastAction: () => void;
   archiveCompletedTasks: (groupId: string) => Promise<void>;
   archiveSingleTask: (taskId: string) => Promise<void>;
   deleteCompletedTasks: (groupId: string) => void;
@@ -459,6 +461,13 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     const tasksToDelete = collectTaskAndDescendants(task, state.tasks);
     const idsToDelete = new Set(tasksToDelete.map(t => t.id));
     
+    // 保存到撤销栈（深拷贝以避免引用问题）
+    useUndoStore.getState().pushUndo({
+      type: 'delete-task',
+      tasks: tasksToDelete.map(t => ({ ...t })),
+      groupId: task.groupId,
+    });
+    
     // Remove the task and all its descendants
     const tasksWithoutDeleted = state.tasks.filter(t => !idsToDelete.has(t.id));
     
@@ -487,6 +496,20 @@ export const useGroupStore = create<GroupStore>()((set, get) => ({
     
     persistGroup(state.groups, newTasks, task.groupId);
     return { tasks: newTasks };
+  }),
+  
+  undoLastAction: () => set((state) => {
+    const action = useUndoStore.getState().popUndo();
+    if (!action) return state;
+    
+    if (action.type === 'delete-task') {
+      // 恢复被删除的任务
+      const newTasks = [...state.tasks, ...action.tasks];
+      persistGroup(state.groups, newTasks, action.groupId);
+      return { tasks: newTasks };
+    }
+    
+    return state;
   }),
   
   archiveCompletedTasks: async (groupId) => {
