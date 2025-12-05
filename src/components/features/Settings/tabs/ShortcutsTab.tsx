@@ -63,7 +63,7 @@ export function ShortcutsTab({
                   onClick={() => onStartEditing(shortcut.id)}
                   className="w-full pl-2 pr-6 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded text-xs text-center text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-500 transition-colors"
                 >
-                  {shortcut.keys.length > 0 ? shortcut.keys.join('+') : 'Set shortcut'}
+                  {shortcut.keys.length > 0 ? shortcut.keys.join('+') : '设置快捷键'}
                 </button>
                 {shortcut.keys.length > 0 && (
                   <button

@@ -59,7 +59,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
         >
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-700">
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Login</h3>
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">登录</h3>
             <button
               onClick={handleClose}
               className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -73,13 +73,13 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
             {/* Email */}
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                Email
+                邮箱
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Your email..."
+                placeholder="你的邮箱..."
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-colors"
               />
             </div>
@@ -87,13 +87,13 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
             {/* Password */}
             <div>
               <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
-                Password
+                密码
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Your password..."
+                placeholder="你的密码..."
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 rounded-md text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-colors"
               />
             </div>
@@ -104,7 +104,7 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
                 onClick={openForgotPassword}
                 className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300 transition-colors"
               >
-                Forgot password?
+                忘记密码？
               </button>
             </div>
           </div>
@@ -115,13 +115,13 @@ export function LoginDialog({ open, onClose }: LoginDialogProps) {
               onClick={handleClose}
               className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-md transition-colors"
             >
-              Cancel
+              取消
             </button>
             <button
               onClick={handleLogin}
               className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-md transition-colors"
             >
-              Login
+              登录
             </button>
           </div>
         </motion.div>

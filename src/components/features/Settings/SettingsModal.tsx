@@ -17,9 +17,9 @@ interface SettingsModalProps {
 type SettingsTab = 'appearance' | 'shortcuts' | 'about';
 
 const tabs: { id: SettingsTab; label: string }[] = [
-  { id: 'about', label: 'About' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'about', label: '关于' },
+  { id: 'appearance', label: '外观' },
+  { id: 'shortcuts', label: '快捷键' },
 ];
 
 /**

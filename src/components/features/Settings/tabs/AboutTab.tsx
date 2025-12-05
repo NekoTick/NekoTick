@@ -34,23 +34,23 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
     <div className="max-w-3xl">
       {/* Account Section */}
       <div className="mb-6">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-3">Account</h2>
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-3">账户</h2>
         <div className="py-3 border-b border-zinc-200 dark:border-zinc-700">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-1">
-                Your Account
+                你的账户
               </div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                Sign in to sync your tasks across devices.
+                登录以在多设备间同步任务。
               </div>
             </div>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={onShowLogin} className={settingsButtonClassName}>
-                Login
+                登录
               </button>
               <button onClick={openSignup} className={settingsButtonClassName}>
-                Sign Up
+                注册
               </button>
             </div>
           </div>
@@ -59,7 +59,7 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
 
       {/* App Section */}
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">App</h2>
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">应用</h2>
       </div>
 
       <div className="space-y-0">
@@ -68,17 +68,17 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-0.5">
-                Version 0.1.0
+                版本 0.1.0
               </div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                You're using the latest version!
+                当前已是最新版本！
               </div>
             </div>
             <button
               onClick={() => {/* TODO: Check for updates */}}
               className={settingsButtonClassName}
             >
-              Check for Updates
+              检查更新
             </button>
           </div>
         </div>
@@ -88,10 +88,10 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-0.5">
-                Auto Update
+                自动更新
               </div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                When disabled, NekoTick will not update automatically.
+                关闭后，NekoTick 将不会自动更新。
               </div>
             </div>
             <button
@@ -112,10 +112,10 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-0.5">
-                Language
+                语言
               </div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                Change the interface language.
+                更改界面语言。
               </div>
             </div>
             <select className={selectClassName} style={selectStyle}>
@@ -130,10 +130,10 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100 mb-0.5">
-                GitHub Repository
+                GitHub 仓库
               </div>
               <div className="text-xs text-zinc-600 dark:text-zinc-400">
-                View source code, report issues, or contribute.
+                查看源代码、报告问题或参与贡献。
               </div>
             </div>
             <button
@@ -141,7 +141,7 @@ export function AboutTab({ onShowLogin }: AboutTabProps) {
               className={`${settingsButtonClassName} flex items-center gap-1.5`}
             >
               <ExternalLink className="size-3.5" />
-              Open
+              打开
             </button>
           </div>
         </div>
