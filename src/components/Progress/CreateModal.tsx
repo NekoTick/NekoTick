@@ -57,12 +57,38 @@ export function CreateModal({
     frequency: 'daily',
   });
 
+  // Preview Interaction State
+  const [previewCurrent, setPreviewCurrent] = useState(0);
+  const [previewTodayCount, setPreviewTodayCount] = useState(1);
+
+  // Update preview when total changes to keep a nice visual (approx 35%)
+  useEffect(() => {
+    if (type === 'progress') {
+      setPreviewCurrent(Math.floor(progressForm.total * 0.35));
+    } else {
+      setPreviewCurrent(12); // Demo starting value for counter
+    }
+    setPreviewTodayCount(type === 'progress' ? 1 : 3);
+  }, [type, progressForm.total]);
+
+  // Handle preview updates
+  const handlePreviewUpdate = (_: string, delta: number) => {
+    setPreviewTodayCount(prev => Math.max(0, prev + (delta > 0 ? 1 : -1))); // Simple simulation
+    
+    if (type === 'progress') {
+      setPreviewCurrent(prev => Math.max(0, Math.min(progressForm.total, prev + delta)));
+    } else {
+      setPreviewCurrent(prev => Math.max(0, prev + delta));
+    }
+  };
+
   // Reset on open
   useEffect(() => {
     if (open) {
       setType('progress');
       setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: '次' });
       setCounterForm({ title: '', step: 1, unit: '次', frequency: 'daily' });
+      // Reset preview state handled by the dependency effect above
     }
   }, [open]);
 
@@ -93,10 +119,10 @@ export function CreateModal({
     type: 'progress',
     title: progressForm.title || 'Untitled',
     icon: progressForm.icon || 'Circle', // Default icon
-    current: Math.floor(progressForm.total * 0.35), // Show some progress for demo
+    current: previewCurrent,
     total: progressForm.total,
     unit: progressForm.unit,
-    todayCount: 1,
+    todayCount: previewTodayCount,
     step: progressForm.step,
     direction: progressForm.direction
   } : {
@@ -104,9 +130,9 @@ export function CreateModal({
     type: 'counter',
     title: counterForm.title || 'Untitled',
     icon: counterForm.icon || 'Circle',
-    current: 12, // Demo value
+    current: previewCurrent,
     unit: counterForm.unit,
-    todayCount: 3,
+    todayCount: previewTodayCount,
     step: counterForm.step,
     frequency: counterForm.frequency
   };
@@ -141,10 +167,10 @@ export function CreateModal({
                 Preview
               </div>
               <div className="transform transition-all duration-500 hover:scale-[1.02]">
-                 {/* Pass a dummy update function */}
+                 {/* Interactive Preview */}
                  <ItemCard 
                    item={previewItem} 
-                   onUpdate={() => {}} 
+                   onUpdate={handlePreviewUpdate} 
                    isDragging={false}
                  />
               </div>
