@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { MoreHorizontal, Check } from 'lucide-react';
-import { TaskList } from '@/components/features/TaskList';
+import { TaskList } from '@/components/features/TaskList/index';
 import { TaskInput } from '@/components/features/TaskInput';
 import { SettingsModal } from '@/components/features/Settings';
 import { GroupSidebar } from '@/components/features/GroupDrawer';
