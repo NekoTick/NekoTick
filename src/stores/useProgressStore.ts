@@ -189,7 +189,10 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
       if (item.id !== id) return item;
       
       const isNewDay = item.lastUpdateDate !== today;
-      const newTodayCount = isNewDay ? 1 : item.todayCount + 1; // 记录操作次数，不是变化量
+      // Allow decreasing todayCount if delta is negative, but clamp at 0
+      const newTodayCount = isNewDay 
+        ? Math.max(0, delta) 
+        : Math.max(0, item.todayCount + delta); // Use delta directly, not Math.abs(delta) // 记录操作次数，不是变化量
       
       // 更新历史记录（操作次数）
       const history = { ...item.history };

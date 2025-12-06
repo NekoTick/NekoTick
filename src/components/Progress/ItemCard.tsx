@@ -93,7 +93,7 @@ export function ItemCard({ item, onUpdate, onClick, isDragging, previewIcon, pre
           className="absolute inset-y-0 left-0 bg-zinc-100 dark:bg-zinc-800"
           initial={false}
           animate={{ width: fillWidth }}
-          transition={{ type: "spring", stiffness: 100, damping: 20 }}
+          transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
         />
 
         {/* Content Layer */}
