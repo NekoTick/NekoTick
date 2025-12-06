@@ -214,15 +214,26 @@ export function CreateModal({
                         }
                      />
                   </div>
-                  <input
-                    type="text"
+                  <textarea
                     value={type === 'progress' ? progressForm.title : counterForm.title}
                     onChange={(e) => type === 'progress'
                       ? setProgressForm({ ...progressForm, title: e.target.value })
                       : setCounterForm({ ...counterForm, title: e.target.value })
                     }
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = `${target.scrollHeight}px`;
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSubmit();
+                      }
+                    }}
                     placeholder="What do you want to track?"
-                    className="w-full bg-transparent text-2xl font-semibold text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-300 dark:placeholder:text-zinc-700 outline-none"
+                    className="w-full bg-transparent text-2xl font-semibold text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-300 dark:placeholder:text-zinc-700 outline-none resize-none overflow-hidden min-h-[40px]"
+                    rows={1}
                     autoFocus
                   />
                 </div>
