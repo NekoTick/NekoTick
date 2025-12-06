@@ -138,7 +138,11 @@ export function ItemCard({ item, onUpdate, onClick, isDragging, previewIcon, pre
           </div>
 
           {/* Right: Super Number */}
-          <div className="flex flex-col items-end justify-center pl-6">
+          {/* Dynamic Safe Zone: Calculated to clear the floating button (40px) + breathing room (24px) */}
+          <div 
+            className="flex flex-col items-end justify-center pl-6"
+            style={{ paddingRight: 'calc(40px + 24px)' }}
+          >
              <motion.div 
                className="flex items-baseline gap-1.5"
                animate={{ 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { useProgressStore, type ProgressOrCounter } from '@/stores/useProgressStore';
 import { useProgressDrag } from './hooks/useProgressDrag';
 import { ItemCard } from './ItemCard';
@@ -21,14 +22,27 @@ import { DetailModal } from './DetailModal';
  */
 export function ProgressPage() {
   const { items, addProgress, addCounter, updateCurrent, deleteItem, updateItem, loadItems, reorderItems } = useProgressStore();
+  
+  // Scroll state for smart collapsing button
+  const [isScrolled, setIsScrolled] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (scrollRef.current) {
+      setIsScrolled(scrollRef.current.scrollTop > 20);
+    }
+  };
 
   useEffect(() => {
     loadItems();
   }, [loadItems]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<ProgressOrCounter | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null); // Store ID instead of object
   const [previewOverride, setPreviewOverride] = useState<{ icon?: string; title?: string } | null>(null);
+
+  // Derive the selected item from the fresh store data
+  const selectedItem = items.find(i => i.id === selectedId) || null;
 
   // Drag and drop
   const sensors = useSensors(
@@ -83,33 +97,99 @@ export function ProgressPage() {
   // Main list view
   return (
     <div className="h-full bg-white dark:bg-zinc-900 flex flex-col relative">
-      {/* Right: Levitating Lens Button (Always Floating) */}
-      <div className="absolute top-5 right-6 z-30 pointer-events-none">
-        <button
-           onClick={openCreateModal}
-           className="
-             pointer-events-auto
-             group flex items-center gap-2 pl-2 pr-4 py-2 rounded-full 
-             bg-white/60 hover:bg-white/90 dark:bg-zinc-900/60 dark:hover:bg-zinc-800/90
-             backdrop-blur-xl shadow-sm hover:shadow-md
-             border border-white/20 dark:border-white/5
-             transition-all duration-300
-             text-sm font-medium text-zinc-600 dark:text-zinc-300
-           "
-         >
-            <div className="bg-zinc-900 dark:bg-zinc-100 p-1 rounded-full group-hover:scale-110 transition-transform duration-300">
-              <Plus className="size-3 text-white dark:text-zinc-900" strokeWidth={2.5} />
-            </div>
-            <span className="tracking-wide text-xs uppercase font-bold opacity-90">New</span>
-         </button>
-      </div>
+      {/* Right: Levitating Lens Button (Organic Liquid Soul) */}
+      <motion.div 
+        className="absolute top-5 z-30 pointer-events-none"
+        initial={false}
+        animate={{
+          right: isScrolled ? 8 : 24 // Move to right-2 (8px) when scrolled, right-6 (24px) when expanded
+        }}
+        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      >
+        <motion.button
+          layout
+          onClick={openCreateModal}
+          initial={false}
+          animate={{
+            width: isScrolled ? 40 : "auto", // Slightly larger touch target
+            height: 40,
+            paddingLeft: isScrolled ? 0 : 16, // Balanced padding
+            paddingRight: isScrolled ? 0 : 20,
+            backgroundColor: isScrolled ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.6)',
+            borderRadius: 9999,
+            gap: isScrolled ? 0 : 8,
+          }}
+          style={{ borderRadius: 9999 }} // Force hardware rounded corners
+          transition={{ 
+            type: "spring", 
+            stiffness: 500, 
+            damping: 30,
+            mass: 0.8 
+          }}
+          className="
+            pointer-events-auto
+            group flex items-center justify-center
+            backdrop-blur-xl
+            border border-white/40 dark:border-white/10
+            shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08),0_2px_4px_-1px_rgba(0,0,0,0.04)]
+            hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.06)]
+            hover:bg-white/90 dark:bg-zinc-800/80
+            text-zinc-800 dark:text-zinc-100
+            transition-shadow duration-300
+          "
+        >
+          {/* Icon - Pure & Floating */}
+          <motion.div 
+            layout="position"
+            className="flex items-center justify-center shrink-0 relative z-10"
+          >
+            <Plus className="size-4" strokeWidth={2.5} />
+          </motion.div>
+          
+          {/* Text - Organic Reveal */}
+          <motion.div
+            initial={false}
+            animate={{ 
+              width: isScrolled ? 0 : "auto",
+              opacity: isScrolled ? 0 : 1,
+            }}
+            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
+            className="overflow-hidden flex items-center"
+          >
+            <motion.span 
+              animate={{ 
+                x: isScrolled ? -20 : 0, // Start from behind the icon (-20px)
+                filter: isScrolled ? "blur(10px)" : "blur(0px)", // Stronger blur for "materialization"
+                opacity: isScrolled ? 0 : 1
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 30, mass: 1 }} // Slightly heavier mass for momentum
+              className="text-[13px] font-bold tracking-wider uppercase whitespace-nowrap leading-none pt-[1px]"
+            >
+              New
+            </motion.span>
+          </motion.div>
+        </motion.button>
+      </motion.div>
 
       {/* Content (Scrollable) */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
-        {/* Header Section inside ScrollView */}
-        <div className="px-6 pt-6 pb-6 flex items-center justify-between">
+      <div 
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="
+          flex-1 overflow-y-auto px-6 py-4 pt-6
+          [&::-webkit-scrollbar]:w-1.5
+          [&::-webkit-scrollbar-track]:bg-transparent
+          [&::-webkit-scrollbar-thumb]:bg-zinc-200
+          [&::-webkit-scrollbar-thumb]:rounded-full
+          [&::-webkit-scrollbar-thumb]:hover:bg-zinc-300
+          dark:[&::-webkit-scrollbar-thumb]:bg-zinc-800
+          dark:[&::-webkit-scrollbar-thumb]:hover:bg-zinc-700
+        "
+      >
+        {/* Header Section inside ScrollView - Starts at same height as button */}
+        <div className="flex items-center justify-between mb-8">
            {/* Left: Time Anchor (Scrolls with content) */}
-           <div className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-[0.2em] select-none py-2">
+           <div className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-[0.2em] select-none py-1">
              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
            </div>
         </div>
@@ -151,7 +231,7 @@ export function ProgressPage() {
                       <ItemCard
                         item={item}
                         onUpdate={updateCurrent}
-                        onClick={() => setSelectedItem(item)}
+                        onClick={() => setSelectedId(item.id)}
                         isDragging={activeId === item.id}
                         previewIcon={selectedItem?.id === item.id ? previewOverride?.icon : undefined}
                         previewTitle={selectedItem?.id === item.id ? previewOverride?.title : undefined}
@@ -183,7 +263,7 @@ export function ProgressPage() {
       {/* Detail Modal */}
       <DetailModal
         item={selectedItem}
-        onClose={() => setSelectedItem(null)}
+        onClose={() => setSelectedId(null)}
         onUpdate={updateItem}
         onDelete={deleteItem}
         onPreviewChange={(icon, title) => {

@@ -102,13 +102,77 @@ export function getIconByName(name: string): LucideIcon | null {
   return found?.icon || null;
 }
 
-interface IconPickerProps {
-  value?: string;
-  onChange: (icon: string | undefined) => void;
+export function IconSelectionView({ value, onChange, onCancel }: { value?: string, onChange: (icon: string | undefined) => void, onCancel?: () => void }) {
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex justify-between items-center mb-6 px-2 shrink-0">
+        <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
+          Select Icon
+        </span>
+        <div className="flex gap-2">
+          {value && (
+            <button
+              onClick={() => onChange(undefined)}
+              className="px-3 py-1.5 text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+            >
+              Remove
+            </button>
+          )}
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="p-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-lg transition-colors"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto scrollbar-hide pb-8">
+        <div className="space-y-8">
+          {ICON_CATEGORIES.map((category) => (
+            <div key={category.name}>
+              <div className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-widest mb-4 pl-2 sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm py-2 z-10">
+                {category.name}
+              </div>
+              <div className="grid grid-cols-5 sm:grid-cols-6 gap-3 px-1">
+                {category.icons.map(({ name, icon: Icon }) => (
+                  <button
+                    key={name}
+                    onClick={() => onChange(name)}
+                    className={`
+                      group relative aspect-square rounded-2xl flex items-center justify-center transition-all duration-300
+                      ${value === name 
+                        ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg scale-105 ring-2 ring-zinc-200 dark:ring-zinc-700' 
+                        : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200 hover:scale-105 hover:shadow-md'
+                      }
+                    `}
+                  >
+                    <Icon 
+                      className="size-6 transition-transform duration-300 group-hover:scale-110" 
+                      strokeWidth={value === name ? 2.5 : 2} 
+                      fill="currentColor" 
+                      fillOpacity={value === name ? 0.2 : 0} 
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function IconPicker({ value, onChange }: IconPickerProps) {
   const [open, setOpen] = useState(false);
+  // ... (Keep existing IconPicker implementation for backward compatibility if needed, or simplify it to use IconSelectionView)
+  // For now, I will leave the original IconPicker logic largely intact but it seems I am replacing the whole file content in the edit block?
+  // No, I should append or insert. But 'edit' tool replaces.
+  // I will rewrite the whole file to include both, efficiently.
+  
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -149,7 +213,6 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
           <Sparkle className="size-5 text-zinc-400 dark:text-zinc-500" strokeWidth={2} />
         )}
         
-        {/* Active Indicator */}
         {open && (
            <motion.div 
              layoutId="active-ring"
@@ -158,7 +221,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
         )}
       </motion.button>
 
-      {/* Dropdown Panel */}
+      {/* Dropdown Panel using IconSelectionView */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -166,59 +229,9 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="absolute top-full left-0 mt-4 p-4 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl w-[320px] max-h-[400px] overflow-y-auto scrollbar-hide z-50 ring-1 ring-black/5 dark:ring-white/5"
+            className="absolute top-full left-0 mt-4 p-4 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-3xl shadow-2xl w-[320px] max-h-[400px] overflow-hidden z-50 ring-1 ring-black/5 dark:ring-white/5"
           >
-            {/* Header: Clear Button */}
-            <div className="flex justify-between items-center mb-4 px-1">
-              <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
-                Choose Icon
-              </span>
-              {value && (
-                <button
-                  onClick={() => { onChange(undefined); setOpen(false); }}
-                  className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-zinc-400 hover:text-red-500 rounded-full transition-colors"
-                  title="Clear icon"
-                >
-                  <X className="size-3" />
-                </button>
-              )}
-            </div>
-
-            <div className="space-y-6">
-              {ICON_CATEGORIES.map((category) => (
-                <div key={category.name}>
-                  <div className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-widest mb-3 pl-1">
-                    {category.name}
-                  </div>
-                  <div className="grid grid-cols-5 gap-2">
-                    {category.icons.map(({ name, icon: Icon }) => (
-                      <button
-                        key={name}
-                        onClick={() => {
-                          onChange(name);
-                          setOpen(false);
-                        }}
-                        className={`
-                          group relative p-3 rounded-2xl flex items-center justify-center transition-all duration-200
-                          ${value === name 
-                            ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg scale-110' 
-                            : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 hover:scale-105'
-                          }
-                        `}
-                      >
-                        {/* Icon with Duotone-ish feel using fill opacity */}
-                        <Icon 
-                          className="size-6 transition-transform duration-200" 
-                          strokeWidth={2} 
-                          fill="currentColor" 
-                          fillOpacity={value === name ? 0.2 : 0.1} 
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <IconSelectionView value={value} onChange={(v) => { onChange(v); setOpen(false); }} />
           </motion.div>
         )}
       </AnimatePresence>
