@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Trash2, Target, Footprints, Tag, Plus, Minus, Check, ChevronLeft, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { ProgressOrCounter } from '@/stores/useProgressStore';
 import { IconSelectionView, getIconByName } from './IconPicker';
+
+const appWindow = getCurrentWindow();
 
 interface DetailModalProps {
   item: ProgressOrCounter | null;
@@ -124,7 +127,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
     <AnimatePresence>
       {item && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop - Click to Save & Close */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -132,6 +135,15 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
             transition={{ duration: 0.3 }}
             className="fixed inset-0 bg-zinc-100/80 dark:bg-black/80 backdrop-blur-md z-50"
             onClick={handleSave}
+          />
+
+          {/* Virtual Title Bar - Drag Zone */}
+          <div 
+            className="fixed top-0 inset-x-0 h-10 z-50 cursor-default"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              appWindow.startDragging();
+            }}
           />
 
           {/* Modal - Levitating Control Deck */}
@@ -143,7 +155,22 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
               transition={{ type: "spring", duration: 0.5, bounce: 0.2 }}
               className="bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl w-[380px] max-w-full pointer-events-auto relative flex flex-col overflow-hidden"
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                // Robust Drag Logic:
+                // Drag if clicking in the top 80px (Header area) AND not clicking a button
+                const target = e.target as HTMLElement;
+                if (target.closest('button') || target.closest('input')) return;
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                const y = e.clientY - rect.top;
+                
+                // Header height approx 80px
+                if (y < 80) {
+                  appWindow.startDragging();
+                }
+              }}
             >
+              
               {/* Top Bar - Floating Control Pod (Invisible Mode) */}
               <div className="absolute top-6 right-6 z-20">
                 <motion.div 
@@ -178,7 +205,14 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
               </div>
 
               {/* --- Main Content (No Scroll) --- */}
-              <div className="flex flex-col items-center pt-8 pb-8 px-6 h-full">
+              <div 
+                className="flex flex-col items-center pt-8 pb-8 px-6 h-full"
+                onMouseDown={(e) => {
+                  if (e.target === e.currentTarget) {
+                    appWindow.startDragging();
+                  }
+                }}
+              >
                  
                  {/* 1. Identity Icon */}
                  <div className="mb-8">

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IconPicker } from './IconPicker';
 import { ItemCard } from './ItemCard';
+
+const appWindow = getCurrentWindow();
 
 type CreateType = 'progress' | 'counter';
 
@@ -143,13 +146,22 @@ export function CreateModal({
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop - Blur & Dark */}
+          {/* Backdrop - Blur & Dark - Click to Close */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-zinc-100/30 dark:bg-black/40 backdrop-blur-xl z-50"
             onClick={onClose}
+          />
+
+          {/* Virtual Title Bar - Drag Zone (Maps to App Title Bar) */}
+          <div 
+            className="fixed top-0 inset-x-0 h-10 z-50 cursor-default"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              appWindow.startDragging();
+            }}
           />
 
           {/* Creator Container */}
@@ -184,9 +196,25 @@ export function CreateModal({
               transition={{ duration: 0.4, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
               className="w-full max-w-md bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md rounded-3xl shadow-2xl border border-white/20 dark:border-white/5 pointer-events-auto"
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                // Robust Drag Logic:
+                // Drag if clicking in the top 60px (Header area) AND not clicking a button
+                const target = e.target as HTMLElement;
+                if (target.closest('button') || target.closest('input')) return;
+
+                const rect = e.currentTarget.getBoundingClientRect();
+                const y = e.clientY - rect.top;
+                
+                // Header height approx 60px
+                if (y < 60) {
+                  appWindow.startDragging();
+                }
+              }}
             >
-              {/* Type Switcher - Segmented */}
-              <div className="flex p-2 bg-zinc-100/50 dark:bg-zinc-900/50 border-b border-zinc-200/50 dark:border-zinc-800/50 rounded-t-3xl">
+              {/* Type Switcher - Segmented - Draggable Header */}
+              <div 
+                className="flex p-2 pt-3 bg-zinc-100/50 dark:bg-zinc-900/50 border-b border-zinc-200/50 dark:border-zinc-800/50 rounded-t-3xl cursor-default"
+              >
                 {(['progress', 'counter'] as const).map((t) => (
                   <button
                     key={t}
@@ -286,7 +314,14 @@ export function CreateModal({
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center justify-between pt-4">
+                <div 
+                  className="flex items-center justify-between pt-4"
+                  onMouseDown={(e) => {
+                    if (e.target === e.currentTarget) {
+                      appWindow.startDragging();
+                    }
+                  }}
+                >
                    <button
                      onClick={onClose}
                      className="text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400 transition-colors font-medium"
