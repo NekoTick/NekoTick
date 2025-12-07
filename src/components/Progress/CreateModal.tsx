@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { IconPicker } from './IconPicker';
+import { IconSelectionView, getIconByName } from './IconPicker';
 import { ItemCard } from './ItemCard';
 
 const appWindow = getCurrentWindow();
@@ -43,7 +43,8 @@ export function CreateModal({
   onCreateCounter,
 }: CreateModalProps) {
   const [type, setType] = useState<CreateType>('progress');
-  
+  const [isPickingIcon, setIsPickingIcon] = useState(false);
+
   // Forms
   const [progressForm, setProgressForm] = useState<ProgressFormData>({
     title: '',
@@ -52,7 +53,7 @@ export function CreateModal({
     step: 1,
     unit: '次',
   });
-  
+
   const [counterForm, setCounterForm] = useState<CounterFormData>({
     title: '',
     step: 1,
@@ -89,9 +90,9 @@ export function CreateModal({
   useEffect(() => {
     if (open) {
       setType('progress');
+      setIsPickingIcon(false); // Reset picker state
       setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: '次' });
       setCounterForm({ title: '', step: 1, unit: '次', frequency: 'daily' });
-      // Reset preview state handled by the dependency effect above
     }
   }, [open]);
 
@@ -99,11 +100,14 @@ export function CreateModal({
   useEffect(() => {
     if (!open) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+         if (isPickingIcon) setIsPickingIcon(false);
+         else onClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [open, onClose]);
+  }, [open, onClose, isPickingIcon]);
 
   const handleSubmit = () => {
     if (type === 'progress') {
@@ -121,7 +125,7 @@ export function CreateModal({
     id: 'preview',
     type: 'progress',
     title: progressForm.title || 'Untitled',
-    icon: progressForm.icon || 'Circle', // Default icon
+    icon: progressForm.icon,
     current: previewCurrent,
     total: progressForm.total,
     unit: progressForm.unit,
@@ -132,7 +136,7 @@ export function CreateModal({
     id: 'preview',
     type: 'counter',
     title: counterForm.title || 'Untitled',
-    icon: counterForm.icon || 'Circle',
+    icon: counterForm.icon,
     current: previewCurrent,
     unit: counterForm.unit,
     todayCount: previewTodayCount,
@@ -140,7 +144,10 @@ export function CreateModal({
     frequency: counterForm.frequency
   };
 
-    const isValid = type === 'progress' ? progressForm.title.trim().length > 0 : counterForm.title.trim().length > 0;
+  const isValid = type === 'progress' ? progressForm.title.trim().length > 0 : counterForm.title.trim().length > 0;
+
+  // Icon Display Component for the Input area
+  const DisplayIcon = previewItem.icon ? getIconByName(previewItem.icon) : null;
 
   return (
     <AnimatePresence>
@@ -165,26 +172,60 @@ export function CreateModal({
           />
 
           {/* Creator Altar */}
-          <div className="fixed inset-0 flex flex-col items-center justify-center z-50 pointer-events-none p-6">
+          <div className="fixed inset-0 flex flex-col items-center justify-start z-50 pointer-events-none pt-24 pb-6 px-6 overflow-y-auto">
             
-            {/* 1. The Vision (Preview) */}
+            {/* 1. The Morphing Vision (Preview / Icon Picker) */}
             <motion.div
+              layout
               initial={{ opacity: 0, y: -20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.9 }}
               transition={{ duration: 0.5, type: "spring", bounce: 0.3 }}
-              className="w-full max-w-lg mb-12 pointer-events-auto"
+              className="w-full max-w-lg mb-12 pointer-events-auto relative z-20"
             >
               <div className="text-center mb-6 text-[10px] font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-[0.3em] opacity-50">
-                Manifestation Preview
+                {isPickingIcon ? 'Select Totem' : 'Manifestation Preview'}
               </div>
-              <div className="transform transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2">
-                 <ItemCard 
-                   item={previewItem} 
-                   onUpdate={handlePreviewUpdate} 
-                   isDragging={false}
-                 />
-              </div>
+              
+              <AnimatePresence mode="wait">
+                {isPickingIcon ? (
+                    <motion.div
+                        key="icon-picker"
+                        initial={{ opacity: 0, scale: 0.9, height: 128 }}
+                        animate={{ opacity: 1, scale: 1, height: "min(400px, 55vh)" }}
+                        exit={{ opacity: 0, scale: 0.9, height: 128 }}
+                        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                        className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-white/20 dark:border-white/5 overflow-hidden flex flex-col"
+                    >
+                        <div className="flex-1 overflow-hidden p-6">
+                            <IconSelectionView 
+                                value={type === 'progress' ? progressForm.icon : counterForm.icon}
+                                onChange={(icon: string | undefined) => {
+                                    if (type === 'progress') setProgressForm({ ...progressForm, icon });
+                                    else setCounterForm({ ...counterForm, icon });
+                                    setIsPickingIcon(false);
+                                }}
+                                onCancel={() => setIsPickingIcon(false)}
+                            />
+                        </div>
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="preview-card"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="transform transition-all duration-500 hover:scale-[1.02] hover:-translate-y-2 cursor-pointer"
+                        onClick={() => setIsPickingIcon(true)}
+                    >
+                        <ItemCard 
+                            item={previewItem} 
+                            onUpdate={handlePreviewUpdate} 
+                            isDragging={false}
+                        />
+                    </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
 
             {/* 2. The Input Ritual */}
@@ -193,18 +234,20 @@ export function CreateModal({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="w-full max-w-lg pointer-events-auto relative"
+              className="w-full max-w-lg pointer-events-auto relative z-10"
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => {
-                // Drag Logic for the "Empty Space" around inputs
                 if (e.target === e.currentTarget) {
                     appWindow.startDragging();
                 }
               }}
             >
               
-              {/* Type Switcher - Minimalist */}
-              <div className="flex justify-center gap-8 mb-8">
+              {/* Type Switcher - Minimalist (Hidden when picking icons to reduce noise) */}
+              <motion.div 
+                className="flex justify-center gap-8 mb-8"
+                animate={{ opacity: isPickingIcon ? 0 : 1, pointerEvents: isPickingIcon ? 'none' : 'auto' }}
+              >
                 {(['progress', 'counter'] as const).map((t) => (
                   <button
                     key={t}
@@ -224,20 +267,30 @@ export function CreateModal({
                     )}
                   </button>
                 ))}
-              </div>
+              </motion.div>
 
               <div className="flex flex-col items-center gap-8">
                 {/* Main Input: Title */}
-                <div className="w-full relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                     <IconPicker
-                        value={type === 'progress' ? progressForm.icon : counterForm.icon}
-                        onChange={(icon) => type === 'progress' 
-                          ? setProgressForm({ ...progressForm, icon }) 
-                          : setCounterForm({ ...counterForm, icon })
-                        }
-                     />
-                  </div>
+                <div className="w-full relative group flex items-center justify-center gap-4">
+                  {/* Trigger Button - Now toggles the Preview View */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setIsPickingIcon(!isPickingIcon)}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                      isPickingIcon 
+                        ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg scale-110' 
+                        : 'bg-white/40 dark:bg-zinc-800/40 text-zinc-400 dark:text-zinc-500 hover:bg-white/60 dark:hover:bg-zinc-800/60'
+                    }`}
+                  >
+                     {DisplayIcon ? (
+                         <DisplayIcon className="size-6" strokeWidth={2} />
+                     ) : (
+                         <div className="text-xl">+</div> // Fallback if no icon
+                     )}
+                  </motion.button>
+
                   <textarea
                     value={type === 'progress' ? progressForm.title : counterForm.title}
                     onChange={(e) => type === 'progress'
@@ -255,21 +308,26 @@ export function CreateModal({
                         handleSubmit();
                       }
                     }}
+                    onFocus={() => setIsPickingIcon(false)} // Close picker when typing
                     placeholder="Name your goal..."
                     className="
-                        w-full bg-transparent text-center text-4xl font-light 
+                        bg-transparent text-left text-4xl font-light 
                         text-zinc-900 dark:text-zinc-100 
                         placeholder:text-zinc-300/50 dark:placeholder:text-zinc-700/50 
                         outline-none resize-none overflow-hidden min-h-[60px]
                         selection:bg-zinc-200 dark:selection:bg-zinc-800
+                        w-64
                     "
                     rows={1}
                     autoFocus
                   />
                 </div>
 
-                {/* Parameters - The Capsules */}
-                <div className="flex flex-wrap justify-center gap-4">
+                {/* Parameters - The Capsules (Hidden when picking icons) */}
+                <motion.div 
+                    className="flex flex-wrap justify-center gap-4"
+                    animate={{ opacity: isPickingIcon ? 0.3 : 1, filter: isPickingIcon ? 'blur(2px)' : 'blur(0px)' }}
+                >
                   {type === 'progress' ? (
                     <>
                       <CapsuleInput 
@@ -311,7 +369,7 @@ export function CreateModal({
                       />
                     </>
                   )}
-                </div>
+                </motion.div>
 
                 {/* Launch Button */}
                 <div className="pt-8">
