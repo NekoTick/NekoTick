@@ -103,8 +103,8 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
               {displayIcon ? (() => {
                 const Icon = getIconByName(displayIcon);
                 return Icon ? (
-                  <div className="text-zinc-400 dark:text-zinc-600 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors duration-500">
-                    <Icon className="size-10" strokeWidth={1} />
+                  <div className="text-zinc-500 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors duration-500">
+                    <Icon className="size-10" weight="duotone" />
                   </div>
                 ) : null;
               })() : (
@@ -266,8 +266,8 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                 {displayIcon && (() => {
                   const Icon = getIconByName(displayIcon);
                   return Icon ? (
-                    <div className={`transition-colors duration-500 ${isCompleting ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-800 dark:text-zinc-200'}`}>
-                      <Icon className="size-8" strokeWidth={1} fill="currentColor" fillOpacity={0.05} />
+                    <div className={`transition-colors duration-500 ${isCompleting ? 'text-zinc-500 dark:text-zinc-400' : 'text-zinc-600 dark:text-zinc-300'}`}>
+                      <Icon className="size-8" weight="duotone" />
                     </div>
                   ) : null;
                 })()}

@@ -159,7 +159,13 @@ export function CreateModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-zinc-100/60 dark:bg-black/60 backdrop-blur-2xl z-50"
-            onClick={onClose}
+            onClick={() => {
+              if (isPickingIcon) {
+                setIsPickingIcon(false);
+              } else {
+                onClose();
+              }
+            }}
           />
 
           {/* Virtual Title Bar - Drag Zone */}
@@ -172,7 +178,16 @@ export function CreateModal({
           />
 
           {/* Creator Altar */}
-          <div className="fixed inset-0 flex flex-col items-center justify-start z-50 pointer-events-none pt-24 pb-6 px-6 overflow-y-auto">
+          <div className="
+            fixed inset-0 flex flex-col items-center justify-start z-50 pointer-events-none pt-24 pb-6 px-6 overflow-y-auto
+            [&::-webkit-scrollbar]:w-1.5
+            [&::-webkit-scrollbar-track]:bg-transparent
+            [&::-webkit-scrollbar-thumb]:bg-zinc-200
+            [&::-webkit-scrollbar-thumb]:rounded-full
+            [&::-webkit-scrollbar-thumb]:hover:bg-zinc-300
+            dark:[&::-webkit-scrollbar-thumb]:bg-zinc-800
+            dark:[&::-webkit-scrollbar-thumb]:hover:bg-zinc-700
+          ">
             
             {/* 1. The Morphing Vision (Preview / Icon Picker) */}
             <motion.div
@@ -201,8 +216,9 @@ export function CreateModal({
                             <IconSelectionView 
                                 value={type === 'progress' ? progressForm.icon : counterForm.icon}
                                 onChange={(icon: string | undefined) => {
-                                    if (type === 'progress') setProgressForm({ ...progressForm, icon });
-                                    else setCounterForm({ ...counterForm, icon });
+                                    // Sync icon across both forms for seamless switching
+                                    setProgressForm(prev => ({ ...prev, icon }));
+                                    setCounterForm(prev => ({ ...prev, icon }));
                                     setIsPickingIcon(false);
                                 }}
                                 onCancel={() => setIsPickingIcon(false)}
@@ -269,34 +285,39 @@ export function CreateModal({
                 ))}
               </motion.div>
 
-              <div className="flex flex-col items-center gap-8">
-                {/* Main Input: Title */}
-                <div className="w-full relative group flex items-center justify-center gap-4">
-                  {/* Trigger Button - Now toggles the Preview View */}
+              <div className="flex flex-col items-center gap-6">
+                {/* Main Input Group */}
+                <div className="w-full relative group flex flex-row items-center justify-center gap-4 px-8">
+                  
+                  {/* Trigger Button - Totem */}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => setIsPickingIcon(!isPickingIcon)}
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                      isPickingIcon 
-                        ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg scale-110' 
-                        : 'bg-white/40 dark:bg-zinc-800/40 text-zinc-400 dark:text-zinc-500 hover:bg-white/60 dark:hover:bg-zinc-800/60'
-                    }`}
+                    className={`
+                        shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300
+                        ${isPickingIcon 
+                            ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xl' 
+                            : 'bg-white/40 dark:bg-zinc-800/40 text-zinc-400 dark:text-zinc-500 hover:bg-white/60 dark:hover:bg-zinc-800/60 hover:shadow-md'
+                        }
+                    `}
                   >
                      {DisplayIcon ? (
-                         <DisplayIcon className="size-6" strokeWidth={2} />
+                         <DisplayIcon className="size-6" weight="duotone" />
                      ) : (
-                         <div className="text-xl">+</div> // Fallback if no icon
+                         <div className="text-2xl font-light opacity-50">+</div>
                      )}
                   </motion.button>
 
                   <textarea
                     value={type === 'progress' ? progressForm.title : counterForm.title}
-                    onChange={(e) => type === 'progress'
-                      ? setProgressForm({ ...progressForm, title: e.target.value })
-                      : setCounterForm({ ...counterForm, title: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      // Sync title across both forms
+                      setProgressForm(prev => ({ ...prev, title: val }));
+                      setCounterForm(prev => ({ ...prev, title: val }));
+                    }}
                     onInput={(e) => {
                       const target = e.target as HTMLTextAreaElement;
                       target.style.height = 'auto';
@@ -311,12 +332,12 @@ export function CreateModal({
                     onFocus={() => setIsPickingIcon(false)} // Close picker when typing
                     placeholder="Name your goal..."
                     className="
-                        bg-transparent text-left text-4xl font-light 
+                        bg-transparent text-center text-3xl font-light 
                         text-zinc-900 dark:text-zinc-100 
                         placeholder:text-zinc-300/50 dark:placeholder:text-zinc-700/50 
-                        outline-none resize-none overflow-hidden min-h-[60px]
+                        outline-none resize-none overflow-hidden min-h-[40px]
                         selection:bg-zinc-200 dark:selection:bg-zinc-800
-                        w-64
+                        flex-1 py-2
                     "
                     rows={1}
                     autoFocus

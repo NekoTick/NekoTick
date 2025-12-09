@@ -1,25 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   // Activity
-  Dumbbell, Target, TrendingUp, Zap, Trophy, Award, Flag, Activity, Flame,
+  Barbell, Target, TrendUp, Lightning, Trophy, Medal, Flag, Pulse, Fire,
   // Health & Mind
-  Heart, Brain, Moon, Sun, Coffee, Smile, Sparkles,
+  Heart, Brain, Moon, Sun, Coffee, Smiley, Sparkle,
   // Work & Study
   Briefcase, GraduationCap, Book, Pen, Code, Laptop,
   // Life
-  Home, Music, Camera, Gamepad2, ShoppingBag, Utensils, Gift, Ticket,
+  House, MusicNote, Camera, GameController, ShoppingBag, ForkKnife, Gift, Ticket,
   // Travel
-  Plane, Car, Bike, Map, Compass, Globe,
+  Airplane, Car, Bicycle, MapTrifold, Compass, Globe,
   // Finance
-  DollarSign, PiggyBank,
+  CurrencyDollar, PiggyBank,
   // Nature
-  Leaf, Flower, Droplets,
+  Plant, Flower, Drop,
   // Tools
-  Clock, Calendar,
-  type LucideIcon,
-  Sparkle,
+  Clock, CalendarBlank,
+  type Icon as PhosphorIcon,
   X,
-} from 'lucide-react';
+} from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Categorized Icons
@@ -27,27 +26,27 @@ const ICON_CATEGORIES = [
   {
     name: 'Activity',
     icons: [
-      { name: 'dumbbell', icon: Dumbbell },
-      { name: 'activity', icon: Activity },
-      { name: 'flame', icon: Flame },
+      { name: 'dumbbell', icon: Barbell },
+      { name: 'activity', icon: Pulse },
+      { name: 'flame', icon: Fire },
       { name: 'target', icon: Target },
-      { name: 'trending-up', icon: TrendingUp },
+      { name: 'trending-up', icon: TrendUp },
       { name: 'trophy', icon: Trophy },
-      { name: 'award', icon: Award },
+      { name: 'award', icon: Medal },
       { name: 'flag', icon: Flag },
-      { name: 'zap', icon: Zap },
+      { name: 'zap', icon: Lightning },
     ]
   },
   {
     name: 'Life',
     icons: [
-      { name: 'home', icon: Home },
+      { name: 'home', icon: House },
       { name: 'coffee', icon: Coffee },
-      { name: 'music', icon: Music },
-      { name: 'gamepad', icon: Gamepad2 },
+      { name: 'music', icon: MusicNote },
+      { name: 'gamepad', icon: GameController },
       { name: 'camera', icon: Camera },
       { name: 'shopping', icon: ShoppingBag },
-      { name: 'utensils', icon: Utensils },
+      { name: 'utensils', icon: ForkKnife },
       { name: 'gift', icon: Gift },
       { name: 'ticket', icon: Ticket },
     ]
@@ -62,8 +61,8 @@ const ICON_CATEGORIES = [
       { name: 'code', icon: Code },
       { name: 'laptop', icon: Laptop },
       { name: 'pen', icon: Pen },
-      { name: 'sparkles', icon: Sparkles },
-      { name: 'dollar', icon: DollarSign },
+      { name: 'sparkles', icon: Sparkle },
+      { name: 'dollar', icon: CurrencyDollar },
       { name: 'piggy-bank', icon: PiggyBank },
     ]
   },
@@ -71,25 +70,25 @@ const ICON_CATEGORIES = [
     name: 'Health',
     icons: [
       { name: 'heart', icon: Heart },
-      { name: 'smile', icon: Smile },
+      { name: 'smile', icon: Smiley },
       { name: 'moon', icon: Moon },
       { name: 'sun', icon: Sun },
-      { name: 'droplets', icon: Droplets },
-      { name: 'leaf', icon: Leaf },
+      { name: 'droplets', icon: Drop },
+      { name: 'leaf', icon: Plant },
       { name: 'flower', icon: Flower },
     ]
   },
   {
     name: 'Travel',
     icons: [
-      { name: 'plane', icon: Plane },
+      { name: 'plane', icon: Airplane },
       { name: 'car', icon: Car },
-      { name: 'bike', icon: Bike },
-      { name: 'map', icon: Map },
+      { name: 'bike', icon: Bicycle },
+      { name: 'map', icon: MapTrifold },
       { name: 'compass', icon: Compass },
       { name: 'globe', icon: Globe },
       { name: 'clock', icon: Clock },
-      { name: 'calendar', icon: Calendar },
+      { name: 'calendar', icon: CalendarBlank },
     ]
   }
 ];
@@ -97,7 +96,7 @@ const ICON_CATEGORIES = [
 // Flatten for quick lookup
 const ALL_ICONS = ICON_CATEGORIES.flatMap(c => c.icons);
 
-export function getIconByName(name: string): LucideIcon | null {
+export function getIconByName(name: string): PhosphorIcon | null {
   const found = ALL_ICONS.find(i => i.name === name);
   return found?.icon || null;
 }
@@ -129,7 +128,16 @@ export function IconSelectionView({ value, onChange, onCancel }: { value?: strin
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-hide pb-8">
+      <div className="
+        flex-1 overflow-y-auto pb-8
+        [&::-webkit-scrollbar]:w-1.5
+        [&::-webkit-scrollbar-track]:bg-transparent
+        [&::-webkit-scrollbar-thumb]:bg-zinc-200
+        [&::-webkit-scrollbar-thumb]:rounded-full
+        [&::-webkit-scrollbar-thumb]:hover:bg-zinc-300
+        dark:[&::-webkit-scrollbar-thumb]:bg-zinc-800
+        dark:[&::-webkit-scrollbar-thumb]:hover:bg-zinc-700
+      ">
         <div className="space-y-8">
           {ICON_CATEGORIES.map((category) => (
             <div key={category.name}>
@@ -151,9 +159,7 @@ export function IconSelectionView({ value, onChange, onCancel }: { value?: strin
                   >
                     <Icon 
                       className="size-6 transition-transform duration-300 group-hover:scale-110" 
-                      strokeWidth={value === name ? 2.5 : 2} 
-                      fill="currentColor" 
-                      fillOpacity={value === name ? 0.2 : 0} 
+                      weight={value === name ? "duotone" : "light"}
                     />
                   </button>
                 ))}
@@ -173,11 +179,6 @@ interface IconPickerProps {
 
 export function IconPicker({ value, onChange }: IconPickerProps) {
   const [open, setOpen] = useState(false);
-  // ... (Keep existing IconPicker implementation for backward compatibility if needed, or simplify it to use IconSelectionView)
-  // For now, I will leave the original IconPicker logic largely intact but it seems I am replacing the whole file content in the edit block?
-  // No, I should append or insert. But 'edit' tool replaces.
-  // I will rewrite the whole file to include both, efficiently.
-  
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -212,10 +213,10 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
       >
         {SelectedIcon ? (
           <div className="text-zinc-900 dark:text-zinc-100">
-             <SelectedIcon className="size-6" strokeWidth={2} fill="currentColor" fillOpacity={0.1} />
+             <SelectedIcon className="size-6" weight="duotone" />
           </div>
         ) : (
-          <Sparkle className="size-6 text-zinc-400 dark:text-zinc-500 opacity-80" strokeWidth={1.5} />
+          <Sparkle className="size-6 text-zinc-400 dark:text-zinc-500 opacity-80" weight="light" />
         )}
         
         {open && (
