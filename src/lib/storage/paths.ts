@@ -22,11 +22,26 @@ export async function getBasePath(): Promise<string> {
 
 /**
  * Get all storage paths dynamically
+ * 
+ * Structure:
+ *   NekoTick/
+ *   ├── .nekotick/           <- Hidden metadata (app-only data)
+ *   │   ├── progress.json    <- Progress metadata
+ *   │   ├── tasks.json       <- Tasks metadata  
+ *   │   └── sync-status.json <- Future: sync state
+ *   ├── progress/            <- User-readable content
+ *   │   └── progress.md
+ *   ├── tasks/
+ *   ├── archive/
+ *   └── time-tracker/
  */
 export async function getPaths() {
   const base = await getBasePath();
   return {
     base,
+    // Hidden metadata folder (like .obsidian)
+    metadata: `${base}\\.nekotick`,
+    // User-visible content folders
     tasks: `${base}\\tasks`,
     progress: `${base}\\progress`,
     timeTracker: `${base}\\time-tracker`,

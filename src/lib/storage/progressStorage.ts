@@ -1,109 +1,48 @@
-// Progress storage operations
+/**
+ * Progress Storage - Layered Architecture
+ * 
+ * Two-layer storage system:
+ * 1. User Layer:     progress/progress.md     - Clean, human-readable markdown
+ * 2. Metadata Layer: .nekotick/progress.json  - App-only technical data
+ * 
+ * This separation allows users to read/edit their progress with any tool
+ * while preserving all the technical metadata the app needs.
+ */
 
-import { readTextFile, writeTextFile, exists } from '@tauri-apps/plugin-fs';
+import { readTextFile, writeTextFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { ensureDirectories, getPaths } from './paths';
 import type { ProgressData } from './types';
+import {
+  generateUserMarkdown,
+  generateExtendedMetadataJson,
+  parseExtendedMetadataJson,
+} from './layeredStorage';
 
-/**
- * Parse progress markdown file content
- */
-function parseProgressMd(content: string): ProgressData[] {
-  const items: ProgressData[] = [];
-  const blocks = content.split('\n## ').slice(1); // Skip first block (title)
-  
-  for (const block of blocks) {
-    const lines = block.split('\n');
-    const item: Partial<ProgressData> = {};
-    
-    // First line is the title
-    if (lines.length > 0 && lines[0].trim()) {
-      item.title = lines[0].trim();
-    }
-    
-    for (const line of lines.slice(1)) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('- id:')) {
-        item.id = trimmed.slice(5).trim();
-      } else if (trimmed.startsWith('- type:')) {
-        item.type = trimmed.slice(7).trim() as 'progress' | 'counter';
-      } else if (trimmed.startsWith('- icon:')) {
-        item.icon = trimmed.slice(7).trim() || undefined;
-      } else if (trimmed.startsWith('- direction:')) {
-        item.direction = trimmed.slice(12).trim() as 'increment' | 'decrement';
-      } else if (trimmed.startsWith('- total:')) {
-        item.total = parseInt(trimmed.slice(8).trim()) || 0;
-      } else if (trimmed.startsWith('- step:')) {
-        item.step = parseInt(trimmed.slice(7).trim()) || 1;
-      } else if (trimmed.startsWith('- unit:')) {
-        item.unit = trimmed.slice(7).trim();
-      } else if (trimmed.startsWith('- current:')) {
-        item.current = parseInt(trimmed.slice(10).trim()) || 0;
-      } else if (trimmed.startsWith('- todayCount:')) {
-        item.todayCount = parseInt(trimmed.slice(13).trim()) || 0;
-      } else if (trimmed.startsWith('- lastUpdateDate:')) {
-        item.lastUpdateDate = trimmed.slice(17).trim() || undefined;
-      } else if (trimmed.startsWith('- frequency:')) {
-        item.frequency = trimmed.slice(12).trim() as 'daily' | 'weekly' | 'monthly';
-      } else if (trimmed.startsWith('- history:')) {
-        try {
-          item.history = JSON.parse(trimmed.slice(10).trim());
-        } catch {
-          item.history = undefined;
-        }
-      } else if (trimmed.startsWith('- createdAt:')) {
-        item.createdAt = parseInt(trimmed.slice(12).trim()) || Date.now();
-      }
-    }
-    
-    if (item.id && item.type && item.title) {
-      items.push(item as ProgressData);
-    }
-  }
-  
-  return items;
-}
-
-/**
- * Generate markdown content from progress items
- */
-function generateProgressMd(items: ProgressData[]): string {
-  const lines: string[] = ['# Progress List', ''];
-  
-  for (const item of items) {
-    lines.push(`## ${item.title}`);
-    lines.push(`- id: ${item.id}`);
-    lines.push(`- type: ${item.type}`);
-    if (item.icon) lines.push(`- icon: ${item.icon}`);
-    if (item.direction) lines.push(`- direction: ${item.direction}`);
-    if (item.total !== undefined) lines.push(`- total: ${item.total}`);
-    lines.push(`- step: ${item.step}`);
-    lines.push(`- unit: ${item.unit}`);
-    lines.push(`- current: ${item.current}`);
-    lines.push(`- todayCount: ${item.todayCount}`);
-    if (item.lastUpdateDate) lines.push(`- lastUpdateDate: ${item.lastUpdateDate}`);
-    if (item.history && Object.keys(item.history).length > 0) {
-      lines.push(`- history: ${JSON.stringify(item.history)}`);
-    }
-    if (item.frequency) lines.push(`- frequency: ${item.frequency}`);
-    lines.push(`- createdAt: ${item.createdAt}`);
-    lines.push('');
-  }
-  
-  return lines.join('\n');
-}
+// ============================================================================
+// Main Storage Functions
+// ============================================================================
 
 /**
  * Load all progress items from storage
+ * Reads from .nekotick/progress.json (the source of truth)
  */
 export async function loadProgress(): Promise<ProgressData[]> {
   try {
     await ensureDirectories();
     const paths = await getPaths();
-    const filePath = `${paths.progress}\\progress.md`;
     
-    if (await exists(filePath)) {
-      const content = await readTextFile(filePath);
-      return parseProgressMd(content);
+    // Ensure .nekotick folder exists
+    if (!(await exists(paths.metadata))) {
+      await mkdir(paths.metadata, { recursive: true });
+    }
+    
+    const metadataPath = `${paths.metadata}\\progress.json`;
+    
+    if (await exists(metadataPath)) {
+      const content = await readTextFile(metadataPath);
+      const items = parseExtendedMetadataJson(content);
+      console.log('[Storage] Loaded:', items.length, 'items');
+      return items;
     }
     
     return [];
@@ -115,14 +54,33 @@ export async function loadProgress(): Promise<ProgressData[]> {
 
 /**
  * Save progress items to storage
+ * 
+ * Writes to two locations:
+ * 1. .nekotick/progress.json  - Full data for app use
+ * 2. progress/progress.md     - Clean markdown for user viewing
  */
 export async function saveProgress(items: ProgressData[]): Promise<void> {
   try {
     await ensureDirectories();
     const paths = await getPaths();
-    const filePath = `${paths.progress}\\progress.md`;
-    const content = generateProgressMd(items);
-    await writeTextFile(filePath, content);
+    
+    // Ensure .nekotick folder exists
+    if (!(await exists(paths.metadata))) {
+      await mkdir(paths.metadata, { recursive: true });
+    }
+    
+    const metadataPath = `${paths.metadata}\\progress.json`;
+    const userFilePath = `${paths.progress}\\progress.md`;
+    
+    // Write metadata JSON (complete data)
+    const metadataContent = generateExtendedMetadataJson(items);
+    await writeTextFile(metadataPath, metadataContent);
+    
+    // Write user-readable markdown (clean view)
+    const userContent = generateUserMarkdown(items);
+    await writeTextFile(userFilePath, userContent);
+    
+    console.log('[Storage] Saved:', items.length, 'items (layered format)');
   } catch (error) {
     console.error('Failed to save progress:', error);
   }

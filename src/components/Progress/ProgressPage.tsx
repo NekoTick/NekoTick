@@ -26,7 +26,6 @@ export function ProgressPage() {
   // Scroll state for smart collapsing button
   const [isScrolled, setIsScrolled] = useState(false);
   const [isArchiveView, setIsArchiveView] = useState(false);
-  const [isNotifying, setIsNotifying] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = () => {
@@ -41,8 +40,6 @@ export function ProgressPage() {
 
   const handleAutoArchive = (id: string) => {
     updateItem(id, { archived: true });
-    setIsNotifying(true);
-    setTimeout(() => setIsNotifying(false), 2000);
   };
 
   const [showCreateModal, setShowCreateModal] = useState(false);
