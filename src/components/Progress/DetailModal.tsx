@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
-  X, Trash, Archive, Check, CaretLeft, Plus, Minus,
+  X, Trash, Archive, Check, Plus, Minus,
   DotsThree, ArrowCounterClockwise, Prohibit
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ProgressOrCounter } from '@/stores/useProgressStore';
+import type { ProgressOrCounter, ProgressItem, CounterItem } from '@/stores/useProgressStore';
 import { IconSelectionView, getIconByName } from './IconPicker';
 
 const appWindow = getCurrentWindow();
@@ -55,7 +55,6 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
   }, []);
   
   // Refs
-  const titleInputRef = useRef<HTMLInputElement>(null);
   const prevItemId = useRef<string | null>(null);
 
   // Init Draft & State Management
@@ -133,7 +132,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
   };
 
   // Helper to update draft
-  const updateDraft = (key: keyof ProgressOrCounter, val: any) => {
+  const updateDraft = (key: keyof ProgressItem | keyof CounterItem, val: any) => {
     setDraft(prev => ({ ...prev, [key]: val }));
   };
 

@@ -10,7 +10,7 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Archive } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useProgressStore, type ProgressOrCounter } from '@/stores/useProgressStore';
+import { useProgressStore } from '@/stores/useProgressStore';
 import { useProgressDrag } from './hooks/useProgressDrag';
 import { ItemCard } from './ItemCard';
 import { CreateModal } from './CreateModal';
