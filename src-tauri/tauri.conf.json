@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.vladelaina.nekotick",
   "build": {
-    "beforeDevCommand": "",
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://127.0.0.1:3000",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"

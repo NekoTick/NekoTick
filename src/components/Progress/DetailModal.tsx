@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Trash2, Target, Footprints, Tag, Plus, Minus, Check, ChevronLeft, Archive } from 'lucide-react';
+import { 
+  X, Trash, Archive, Check, CaretLeft, Plus, Minus,
+  DotsThree, ArrowCounterClockwise, Prohibit
+} from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { ProgressOrCounter } from '@/stores/useProgressStore';
@@ -16,79 +19,92 @@ interface DetailModalProps {
 }
 
 /**
- * "Liquid Detail" - Immersive Control Deck
+ * "Liquid Hero" - Global Tuning Edition
+ * Concept: One Check to Rule Them All.
  */
 export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange }: DetailModalProps) {
-  const [title, setTitle] = useState('');
-  const [icon, setIcon] = useState<string | undefined>();
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [isEditingNumber, setIsEditingNumber] = useState(false);
+  // Global Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<Partial<ProgressOrCounter>>({});
+  
   const [isPickingIcon, setIsPickingIcon] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  
+  // Refs
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync item data
+  // Init Draft
   useEffect(() => {
     if (item) {
-      setTitle(item.title);
-      setIcon(item.icon);
+      setDraft(item);
+      setIsEditing(false); 
     }
   }, [item]);
 
-  // Real-time preview sync
-  useEffect(() => {
-    if (item && onPreviewChange) {
-      onPreviewChange(icon, title);
-    }
-  }, [icon, title, onPreviewChange]);
+  // Visual Computation
+  // Display based on DRAFT if editing, else ITEM
+  const displayItem = isEditing ? { ...item, ...draft } as ProgressOrCounter : item;
+  
+  // Prepare preview values
+  const previewIcon = displayItem?.icon;
+  const previewTitle = displayItem?.title;
 
-  // Focus input when editing starts
+  // Real-time preview sync (using draft if editing, else item)
+  // FIX: Only fire when actual VALUES change, not when item reference changes.
   useEffect(() => {
-    if (isEditingTitle && titleInputRef.current) {
-      titleInputRef.current.focus();
+    if (onPreviewChange) {
+      onPreviewChange(previewIcon, previewTitle);
     }
-  }, [isEditingTitle]);
+  }, [previewIcon, previewTitle, onPreviewChange]);
+  
+  if (!displayItem) return null;
 
+  const DisplayIcon = displayItem.icon ? getIconByName(displayItem.icon) : null;
+  const percentage = displayItem.type === 'progress' 
+    ? Math.min(100, Math.max(0, (displayItem.current / displayItem.total) * 100))
+    : 0;
+  const fillHeight = displayItem.type === 'progress' ? `${percentage}%` : '0%';
+
+  // Handlers for logic
   const handleClose = () => {
     onPreviewChange?.(undefined, undefined);
     onClose();
-    setIsEditingTitle(false);
+    setIsEditing(false);
     setIsPickingIcon(false);
+    setShowMenu(false);
   };
 
-  const handleSave = () => {
-    if (!item || !title.trim()) return;
-    onUpdate(item.id, { title: title.trim(), icon });
-    handleClose();
+  // The "One Check" Action
+  const handleCommit = () => {
+    if (!item) return;
+    // Commit draft to store
+    onUpdate(item.id, draft);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    if (!item) return;
+    // Revert draft
+    setDraft(item);
+    setIsEditing(false);
   };
 
   const handleIconChange = (newIcon: string | undefined) => {
-    setIcon(newIcon);
     if (item) {
       onUpdate(item.id, { icon: newIcon });
     }
     setIsPickingIcon(false);
   };
 
-  const handleArchive = () => {
-    if (!item) return;
-    
-    if (item.archived) {
-      // Unarchiving: Reset progress to 0 to restart the journey
-      onUpdate(item.id, { archived: false, current: 0 });
-    } else {
-      // Archiving: Just hide it
-      onUpdate(item.id, { archived: true });
-    }
-    handleClose();
+  // Helper to update draft
+  const updateDraft = (key: keyof ProgressOrCounter, val: any) => {
+    setDraft(prev => ({ ...prev, [key]: val }));
   };
 
-  const handleTitleBlur = () => {
-    setIsEditingTitle(false);
-    if (item && title.trim() && title !== item.title) {
-      onUpdate(item.id, { title: title.trim() });
-    } else if (item) {
-      setTitle(item.title);
-    }
+  const handleArchive = () => {
+    if (!item) return;
+    onUpdate(item.id, { archived: !item.archived, current: item.archived ? 0 : item.current });
+    handleClose();
   };
 
   const handleDelete = () => {
@@ -97,15 +113,10 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
     handleClose();
   };
 
-  // Update helper
-  const updateValue = (key: keyof ProgressOrCounter, value: any) => {
-    if (!item) return;
-    onUpdate(item.id, { [key]: value });
-  };
-
-  // Quick increment/decrement
   const handleQuickUpdate = (delta: number) => {
+    if (isEditing) return; // Disable quick update in edit mode
     if (!item) return;
+    
     const step = item.type === 'progress' 
       ? (item.direction === 'increment' ? item.step : -item.step)
       : item.step;
@@ -116,264 +127,413 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
     } else {
         newValue = Math.max(0, newValue);
     }
-    updateValue('current', newValue);
+    // Instant update
+    onUpdate(item.id, { current: newValue });
   };
-
-  // Stats calculation
-  const stats = item ? getStats(item) : null;
-  const DisplayIcon = icon ? getIconByName(icon) : null;
 
   return (
     <AnimatePresence>
       {item && (
         <>
-          {/* Backdrop - Click to Save & Close */}
+          {/* Backdrop - Blur & Dim */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="fixed inset-0 bg-zinc-100/80 dark:bg-black/80 backdrop-blur-md z-50"
-            onClick={handleSave}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 bg-zinc-100/60 dark:bg-black/80 backdrop-blur-xl z-50"
+            onClick={(e) => {
+                e.stopPropagation();
+                // Layered Dismissal: Peel the onion
+                if (isPickingIcon) {
+                  setIsPickingIcon(false);
+                  return;
+                }
+                if (isEditing) {
+                  handleCancelEdit();
+                  return;
+                }
+                // Only close modal if no sub-states are active
+                handleClose();
+            }}
           />
 
-          {/* Virtual Title Bar - Drag Zone */}
+          {/* Draggable Header Zone */}
           <div 
-            className="fixed top-0 inset-x-0 h-10 z-50 cursor-default"
+            className="fixed top-0 inset-x-0 h-12 z-50 cursor-default"
             onMouseDown={(e) => {
               e.preventDefault();
               appWindow.startDragging();
             }}
           />
 
-          {/* Modal - Levitating Control Deck */}
-          <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-6">
+          {/* The Hero Card */}
+          <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{ type: "spring", duration: 0.5, bounce: 0.2 }}
-              className="bg-white dark:bg-zinc-900 rounded-[2rem] shadow-2xl w-[380px] max-w-full pointer-events-auto relative flex flex-col overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => {
-                // Robust Drag Logic:
-                // Drag if clicking in the top 80px (Header area) AND not clicking a button
-                const target = e.target as HTMLElement;
-                if (target.closest('button') || target.closest('input')) return;
-
-                const rect = e.currentTarget.getBoundingClientRect();
-                const y = e.clientY - rect.top;
-                
-                // Header height approx 80px
-                if (y < 80) {
-                  appWindow.startDragging();
-                }
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="
+                relative w-[360px] h-[520px] 
+                bg-white dark:bg-zinc-900 
+                rounded-[3rem] 
+                shadow-2xl shadow-zinc-200/50 dark:shadow-black/80
+                overflow-hidden
+                pointer-events-auto
+                select-none
+                flex flex-col
+              "
+              onClick={(e) => {
+                e.stopPropagation();
+                // Auto-collapse menu when clicking empty space
+                if (showMenu) setShowMenu(false);
               }}
             >
-              
-              {/* Top Bar - Floating Control Pod (Invisible Mode) */}
-              <div className="absolute top-6 right-6 z-20">
+              {/* --- 1. The Liquid Soul (Background Fill) --- */}
+              <div className="absolute inset-0 pointer-events-none z-0">
+                {/* Base with Radial Glow */}
+                <div className="absolute inset-0 bg-white dark:bg-zinc-900" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-50/80 via-transparent to-transparent dark:from-zinc-800/30 dark:to-transparent opacity-60" />
+                
+                {/* Liquid Level */}
                 <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex items-center gap-2 p-1"
-                >
-                  <button
-                    onClick={handleArchive}
-                    className="p-2 rounded-full text-zinc-300 hover:text-zinc-900 dark:text-zinc-700 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
-                    title={item.archived ? "Unarchive" : "Archive"}
-                  >
-                    <Archive className="size-4" strokeWidth={2} />
-                  </button>
-                  
-                  <button
-                    onClick={handleDelete}
-                    className="p-2 rounded-full text-zinc-300 hover:text-red-500 hover:bg-red-50 dark:text-zinc-700 dark:hover:bg-red-900/20 transition-all"
-                    title="Delete"
-                  >
-                    <Trash2 className="size-4" strokeWidth={2} />
-                  </button>
-
-                  <button
-                    onClick={handleSave}
-                    className="p-2 rounded-full text-zinc-300 hover:text-zinc-900 dark:text-zinc-700 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all"
-                    title="Close"
-                  >
-                    <X className="size-4" strokeWidth={2} />
-                  </button>
-                </motion.div>
+                  className="absolute bottom-0 left-0 right-0 bg-zinc-50/50 dark:bg-zinc-800/50 backdrop-blur-[2px]"
+                  animate={{ height: fillHeight }}
+                  transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                />
+                
+                {/* The Watermark Icon - Deeper & Larger */}
+                {DisplayIcon && (
+                  <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none scale-125 mix-blend-multiply dark:mix-blend-overlay">
+                    <DisplayIcon weight="fill" className="size-80 text-zinc-900 dark:text-zinc-100" />
+                  </div>
+                )}
               </div>
 
-              {/* --- Main Content (No Scroll) --- */}
-              <div 
-                className="flex flex-col items-center pt-8 pb-8 px-6 h-full"
-                onMouseDown={(e) => {
-                  if (e.target === e.currentTarget) {
-                    appWindow.startDragging();
-                  }
-                }}
-              >
-                 
-                 {/* 1. Identity Icon */}
-                 <div className="mb-8">
-                   <button 
-                     onClick={() => setIsPickingIcon(true)}
-                     className="size-16 rounded-2xl bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center shadow-sm hover:scale-105 transition-transform duration-300 cursor-pointer ring-1 ring-zinc-100 dark:ring-zinc-700 group"
-                   >
-                      {DisplayIcon ? (
-                        <DisplayIcon className="size-7 text-zinc-400 dark:text-zinc-500 transition-colors group-hover:text-zinc-900 dark:group-hover:text-zinc-100" strokeWidth={1.5} />
-                      ) : (
-                        <div className="size-6 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600" />
-                      )}
-                   </button>
-                 </div>
+              {/* --- 2. Top Bar --- */}
+              <div className="relative z-20 flex justify-between items-center p-6 px-8 h-20">
+                 {/* Left: Icon Trigger */}
+                 <button 
+                   onClick={() => setIsPickingIcon(true)}
+                   className={`group relative size-10 flex items-center justify-center rounded-full 
+                     bg-white/40 dark:bg-zinc-800/40 hover:bg-white/80 dark:hover:bg-zinc-700/80
+                     transition-all duration-500 backdrop-blur-md
+                     shadow-sm ring-1 ring-white/50 dark:ring-zinc-700/50
+                     ${isEditing ? 'opacity-30 blur-[1px] pointer-events-none' : 'opacity-100'}
+                   `}
+                 >
+                   {DisplayIcon ? (
+                     <DisplayIcon weight="duotone" className="size-5 text-zinc-600 dark:text-zinc-300 group-hover:scale-110 transition-transform duration-500" />
+                   ) : (
+                     <Prohibit weight="bold" className="size-5 text-zinc-300 dark:text-zinc-600 group-hover:scale-110 transition-transform duration-500" />
+                   )}
+                 </button>
 
-                 {/* 2. The Core Value (Center Stage) */}
-                 <div className="flex items-center justify-center gap-8 relative mb-4 w-full">
-                    {/* Minus */}
-                    <button 
-                      onClick={() => handleQuickUpdate(-1)}
-                      className="p-3 rounded-full text-zinc-200 hover:text-zinc-600 hover:bg-zinc-100 dark:text-zinc-700 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors active:scale-90"
-                    >
-                      <Minus className="size-6" strokeWidth={2} />
-                    </button>
-
-                    <EditableBigNumber 
-                      value={item.current} 
-                      onSave={(val) => updateValue('current', val)} 
-                      isEditing={isEditingNumber}
-                      setIsEditing={setIsEditingNumber}
-                    />
-
-                    {/* Plus */}
-                    <button 
-                      onClick={() => handleQuickUpdate(1)}
-                      className="p-3 rounded-full text-zinc-200 hover:text-zinc-600 hover:bg-zinc-100 dark:text-zinc-700 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors active:scale-90"
-                    >
-                      <Plus className="size-6" strokeWidth={2} />
-                    </button>
-                 </div>
-
-                 {/* 3. Title (Subordinate to Value) */}
-                 <div className="mb-8 w-full flex justify-center">
+                 {/* Right: Menu Trigger / Expanded Capsule */}
+                 <div className="relative h-10 flex items-center justify-end min-w-[40px]">
                    <AnimatePresence mode="wait">
-                   {isEditingTitle ? (
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className="relative flex items-center group"
-                      >
-                        <div className="
-                          flex items-center gap-2 px-4 py-2 rounded-xl
-                          bg-white dark:bg-zinc-800 shadow-lg shadow-zinc-200/50 dark:shadow-black/50 
-                          ring-1 ring-zinc-200 dark:ring-zinc-700
-                        ">
-                          <input
-                            ref={titleInputRef}
-                            type="text"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            onBlur={() => {
-                                // Delay blur handling slightly to allow click on confirm button
-                                // Or rely on the fact that clicking the button (mousedown) prevents blur if handled right.
-                                // Here we use a simple specialized handler or just let the button do its work.
-                                // Actually, for simplicity and robustness:
-                                // We'll use onKeyDown for Enter/Escape. 
-                                // For clicking outside, we can rely on the button's mousedown to save.
-                                // If we blur without clicking the button, we save? Or cancel? 
-                                // Standard is save on blur.
-                                handleTitleBlur();
-                            }}
-                            onKeyDown={(e) => e.key === 'Enter' && handleTitleBlur()}
-                            className="
-                              w-40 text-center text-lg font-medium 
-                              bg-transparent border-none outline-none 
-                              text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-300
-                              min-w-[120px]
-                            "
-                            placeholder="Enter title..."
-                          />
-                          <motion.button
-                            initial={{ opacity: 0, scale: 0.5 }}
+                     {!isEditing && !showMenu && (
+                       <motion.button 
+                         key="menu-trigger"
+                         initial={{ opacity: 0, scale: 0.8 }}
+                         animate={{ opacity: 1, scale: 1 }}
+                         exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
+                         onClick={() => setShowMenu(true)}
+                         className="absolute right-0 p-2 rounded-full text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 transition-colors"
+                       >
+                         <DotsThree weight="bold" className="size-6" />
+                       </motion.button>
+                     )}
+                   
+                     {showMenu && !isEditing && (
+                       <motion.div
+                         key="menu-capsule"
+                         initial={{ width: 40, opacity: 0 }}
+                         animate={{ width: 'auto', opacity: 1 }}
+                         exit={{ width: 40, opacity: 0, transition: { duration: 0.2 } }}
+                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                         className="
+                           absolute right-0 flex items-center gap-1 p-1 pr-2 rounded-full 
+                           bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md 
+                           shadow-sm ring-1 ring-zinc-100 dark:ring-zinc-700
+                           overflow-hidden
+                         "
+                       >
+                         {/* Archive */}
+                         <motion.button
+                            initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="p-1 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:scale-105 transition-transform"
-                            onMouseDown={(e) => {
-                              e.preventDefault(); // Prevent input blur
-                              handleTitleBlur();
-                            }}
-                          >
-                            <Check className="size-3.5" strokeWidth={3} />
-                          </motion.button>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <motion.h2 
-                        layout
-                        onClick={() => setIsEditingTitle(true)}
-                        className="
-                          px-4 py-2 rounded-xl -mx-4
-                          text-lg font-medium text-zinc-500 dark:text-zinc-400 
-                          cursor-text hover:text-zinc-800 dark:hover:text-zinc-200 
-                          hover:bg-zinc-50 dark:hover:bg-zinc-800/50
-                          transition-all duration-200
-                        "
-                      >
-                        {title}
-                      </motion.h2>
-                    )}
+                            transition={{ delay: 0.05 }}
+                            onClick={handleArchive}
+                            className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
+                            title={item.archived ? "Unarchive" : "Archive"}
+                         >
+                            <Archive weight="duotone" className="size-5" />
+                         </motion.button>
+
+                         {/* Reset */}
+                         <motion.button
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.1 }}
+                            onClick={() => onUpdate(item.id, { current: 0 })}
+                            className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
+                            title="Reset Progress"
+                         >
+                            <ArrowCounterClockwise weight="bold" className="size-5" />
+                         </motion.button>
+                         
+                         {/* Divider */}
+                         <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+                         {/* Delete */}
+                         <motion.button
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: 0.15 }}
+                            onClick={handleDelete}
+                            className="p-2 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:text-zinc-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
+                            title="Delete"
+                         >
+                            <Trash weight="duotone" className="size-5" />
+                         </motion.button>
+
+                         {/* Close (Explicit X or just click outside? Let's add a tiny close or rely on toggle) */}
+                         {/* Actually, clicking the original trigger spot (which is covered by this capsule) could close it, 
+                             BUT we probably want an explicit way to dismiss or auto-dismiss. 
+                             Let's add a small close handle on the far left or make it toggle on click outside (backdrop handles that).
+                             For now, let's keep it clean. Clicking backdrop closes modal, so we need a way to close JUST menu?
+                             Maybe the user clicks any button and it closes. 
+                             Or we add a tiny 'X' on the right? 
+                             Let's make the WHOLE Backdrop click close the menu first? 
+                             Wait, the modal backdrop closes the modal. 
+                             We need a way to close this menu. 
+                             Let's add a click listener to window to close menu if clicked outside?
+                             Or simpler: clicking the capsule area doesn't close, but we add a 'X' button at the end? 
+                             Let's try: The capsule REPLACES the trigger. So clicking the '...' opened it. 
+                             Let's add a Close button at the end of capsule.
+                         */}
+                         <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+                         <motion.button
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            onClick={() => setShowMenu(false)}
+                            className="p-2 rounded-full text-zinc-300 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                         >
+                            <X weight="bold" className="size-4" />
+                         </motion.button>
+
+                       </motion.div>
+                     )}
                    </AnimatePresence>
                  </div>
-
-                 {/* 4. Pills */}
-                 <motion.div layout className="flex items-center justify-center gap-3 mb-auto">
-                    {item.type === 'progress' && (
-                      <EditablePill 
-                        icon={<Target className="size-3" />}
-                        label="Target"
-                        value={item.total}
-                        onSave={(val) => updateValue('total' as keyof ProgressOrCounter, val)}
-                      />
-                    )}
-                    <EditablePill 
-                      icon={<Footprints className="size-3" />}
-                      label="Step"
-                      value={item.step}
-                      onSave={(val) => updateValue('step', val)}
-                    />
-                    <EditablePill 
-                      icon={<Tag className="size-3" />}
-                      label="Unit"
-                      value={item.unit}
-                      isText
-                      onSave={(val) => updateValue('unit', val)}
-                    />
-                 </motion.div>
-
-                 {/* 5. Stats Footer */}
-                 {stats && (
-                   <div className="w-full flex flex-col gap-6 mt-8">
-                      {/* Divider */}
-                      <div className="w-12 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full mx-auto" />
-                      
-                      {/* Stats Row */}
-                      <div className="flex justify-between items-end px-4">
-                        <StatItem label="Total" value={stats.totalOps} />
-                        <StatItem label="Streak" value={stats.streak} highlight />
-                        <StatItem label="Active" value={stats.activeDays} />
-                      </div>
-
-                      {/* Date Footer */}
-                      <div className="text-center mt-2">
-                        <span className="text-[10px] text-zinc-300 dark:text-zinc-700 font-bold tracking-[0.2em] uppercase">
-                          Started {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                        </span>
-                      </div>
-                   </div>
-                 )}
               </div>
 
-              {/* --- Full Screen Icon Picker Overlay --- */}
+              {/* --- 3. Center Zone (The Tuning Engine) --- */}
+              <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 -mt-8">
+                
+                {/* 3.1 Title (The Crown - Borderless & Elegant) */}
+                <div className="relative z-20 w-full flex justify-center min-h-[40px]">
+                   {isEditing ? (
+                      <input
+                        autoFocus
+                        value={displayItem.title}
+                        onChange={(e) => updateDraft('title', e.target.value)}
+                        className="
+                          text-center text-3xl font-medium 
+                          bg-transparent border-none outline-none p-0
+                          text-zinc-900 dark:text-zinc-100 
+                          w-full max-w-[280px]
+                          placeholder:text-zinc-200 dark:placeholder:text-zinc-700
+                          caret-zinc-400
+                        "
+                        placeholder="Untitled"
+                        onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                      />
+                   ) : (
+                      <h2 
+                        onClick={() => setIsEditing(true)}
+                        className="
+                          text-3xl font-medium tracking-tight
+                          text-zinc-900 dark:text-zinc-100 
+                          cursor-pointer hover:opacity-70 transition-opacity
+                        "
+                      >
+                        {displayItem.title}
+                      </h2>
+                   )}
+                </div>
+
+                {/* 3.2 Number & +/- Hotspots */}
+                <div className="relative flex items-center justify-center w-full">
+                   
+                   {/* Left Hotspot (-1) */}
+                   {!isEditing && (
+                     <button 
+                       className="absolute left-6 size-24 flex items-center justify-center rounded-full text-zinc-200 dark:text-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-400 dark:hover:text-zinc-400 transition-all opacity-0 hover:opacity-100 active:scale-95"
+                       onClick={() => handleQuickUpdate(-1)}
+                     >
+                       <Minus weight="light" className="size-10" />
+                     </button>
+                   )}
+
+                   {/* Main Value Display/Input */}
+                   <div className="flex flex-col items-center gap-6">
+                     {isEditing ? (
+                       <input
+                         type="number"
+                         value={displayItem.current}
+                         onChange={(e) => updateDraft('current', Number(e.target.value))}
+                         className="
+                           w-64 text-center text-9xl font-thin tracking-tighter 
+                           bg-transparent outline-none border-none p-0 m-0 tabular-nums 
+                           text-zinc-900 dark:text-zinc-50 
+                           caret-zinc-400
+                           [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+                         "
+                         onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                       />
+                     ) : (
+                       <motion.span 
+                         layout
+                         onClick={() => setIsEditing(true)}
+                         className="
+                           text-9xl font-thin tracking-tighter 
+                           text-zinc-900 dark:text-zinc-50 
+                           cursor-pointer hover:scale-105 transition-transform duration-500
+                           tabular-nums select-none
+                           drop-shadow-sm
+                         "
+                       >
+                         {displayItem.current}
+                       </motion.span>
+                     )}
+
+                     {/* Metadata Row (Borderless & Minimal) */}
+                     <div className={`flex items-center gap-6 transition-all duration-500 ${isEditing ? 'opacity-100 translate-y-0' : 'opacity-40 hover:opacity-100 translate-y-2'}`}>
+                        {/* Target */}
+                        {displayItem.type === 'progress' && (
+                          <div className="flex flex-col items-center gap-1 group">
+                            <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Target</span>
+                            {isEditing ? (
+                              <input 
+                                type="number" 
+                                value={displayItem.total}
+                                onChange={(e) => updateDraft('total', Number(e.target.value))}
+                                className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                              />
+                            ) : (
+                              <span onClick={() => setIsEditing(true)} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                {displayItem.total}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Divider */}
+                        {displayItem.type === 'progress' && <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />}
+
+                        {/* Step */}
+                        <div className="flex flex-col items-center gap-1 group">
+                            <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Step</span>
+                            {isEditing ? (
+                              <input 
+                                type="number" 
+                                value={displayItem.step}
+                                onChange={(e) => updateDraft('step', Number(e.target.value))}
+                                className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                              />
+                            ) : (
+                              <span onClick={() => setIsEditing(true)} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                {displayItem.step}
+                              </span>
+                            )}
+                        </div>
+
+                        {/* Unit */}
+                        {displayItem.unit && (
+                          <>
+                            <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Unit</span>
+                              <span className="text-xl font-medium text-zinc-400 dark:text-zinc-500">
+                                {displayItem.unit}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                     </div>
+                   </div>
+
+                   {/* Right Hotspot (+1) */}
+                   {!isEditing && (
+                     <button 
+                       className="absolute right-6 size-24 flex items-center justify-center rounded-full text-zinc-200 dark:text-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-400 dark:hover:text-zinc-400 transition-all opacity-0 hover:opacity-100 active:scale-95"
+                       onClick={() => handleQuickUpdate(1)}
+                     >
+                       <Plus weight="light" className="size-10" />
+                     </button>
+                   )}
+                </div>
+              </div>
+
+              {/* --- 4. Footer: Stats or Check --- */}
+              <div className="relative z-20 pb-12 px-8 flex flex-col items-center justify-end h-32">
+                
+                <AnimatePresence mode="wait">
+                  {isEditing ? (
+                    <motion.button
+                      key="check-btn"
+                      initial={{ opacity: 0, y: 40, scale: 0.5 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 40, scale: 0.5 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                      onClick={handleCommit}
+                      className="
+                        size-20 rounded-full 
+                        bg-black dark:bg-white 
+                        text-white dark:text-black 
+                        shadow-2xl hover:scale-105 active:scale-95 hover:shadow-black/20
+                        flex items-center justify-center
+                        cursor-pointer z-50
+                      "
+                    >
+                      <Check weight="bold" className="size-8" />
+                    </motion.button>
+                  ) : (
+                    <motion.div
+                      key="stats-footer"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex flex-col items-center gap-6 w-full"
+                    >
+                        {/* Micro Stats - Simplified */}
+                        <div className="flex items-center gap-12 opacity-50 hover:opacity-100 transition-opacity duration-500">
+                          {(() => {
+                            const stats = getStats(displayItem);
+                            return (
+                              <>
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-3xl font-thin text-zinc-900 dark:text-zinc-100">{stats.streak}</span>
+                                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400">Streak</span>
+                                </div>
+                                <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-700" />
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-3xl font-thin text-zinc-900 dark:text-zinc-100">{stats.activeDays}</span>
+                                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400">Days</span>
+                                </div>
+                              </>
+                            )
+                          })()}
+                        </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Icon Picker Overlay */}
               <AnimatePresence>
                 {isPickingIcon && (
                   <motion.div
@@ -383,21 +543,9 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                     transition={{ type: "spring", damping: 30, stiffness: 300 }}
                     className="absolute inset-0 z-50 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl flex flex-col p-6"
                   >
-                    {/* Back Button */}
-                    <div className="flex items-center mb-4 shrink-0">
-                      <button
-                        onClick={() => setIsPickingIcon(false)}
-                        className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-                      >
-                        <ChevronLeft className="size-4" />
-                        Back to Details
-                      </button>
-                    </div>
-                    
-                    {/* The Picker Grid */}
                     <div className="flex-1 overflow-hidden">
                       <IconSelectionView 
-                        value={icon} 
+                        value={displayItem.icon} 
                         onChange={handleIconChange} 
                         onCancel={() => setIsPickingIcon(false)}
                       />
@@ -414,251 +562,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
   );
 }
 
-/* --- Sub-components for Liquid Detail --- */
-
-function EditableBigNumber({ 
-  value, 
-  onSave, 
-  isEditing, 
-  setIsEditing 
-}: { 
-  value: number, 
-  onSave: (val: number) => void,
-  isEditing: boolean,
-  setIsEditing: (val: boolean) => void
-}) {
-  const [tempVal, setTempVal] = useState(value.toString());
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync only when NOT editing to avoid fighting with user input
-  useEffect(() => {
-    if (!isEditing) {
-      setTempVal(value.toString());
-    }
-  }, [value, isEditing]);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setTempVal(value.toString()); // Revert
-  };
-
-  const handleConfirm = () => {
-    const num = parseInt(tempVal, 10);
-    if (!isNaN(num)) {
-      onSave(num);
-      setIsEditing(false);
-    } else {
-      setTempVal(value.toString()); // Revert if invalid
-      setIsEditing(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleConfirm();
-    if (e.key === 'Escape') handleCancel();
-  };
-
-  // Important: We use onBlur to CANCEL, not save. 
-  // But we need to be careful: clicking the "Check" button will trigger blur on input first.
-  // Solution: Use mousedown on the check button to prevent blur, OR don't use onBlur for cancel directly.
-  // A common pattern: Clicking outside closes. But clicking the button is "outside" the input.
-  // We can use a small timeout or rely on the fact that if we click the button, the action fires.
-  // Actually, the cleanest way for "Click Outside = Cancel" is using a transparent backdrop or a hook.
-  // For simplicity here, let's try: onBlur cancels, BUT clicking the check button works because we use onMouseDown which fires before blur.
-  
-  const handleInputBlur = () => {
-    // Small delay to allow button click to register if that was the target
-    // But actually, if we use onMouseDown for the button, it prevents focus loss? No.
-    // Standard "Click outside" logic is best.
-    // Let's just simply auto-revert on blur for now.
-    // To allow clicking the check button, we need the check button to be PART of the focus group or handle it carefully.
-    // Hack: onMouseDown={(e) => e.preventDefault()} on the button prevents the input from losing focus!
-    handleCancel();
-  };
-
-  if (isEditing) {
-    return (
-      <div className="flex items-center relative">
-        <input
-          ref={inputRef}
-          type="number"
-          value={tempVal}
-          onChange={(e) => setTempVal(e.target.value)}
-          onBlur={handleInputBlur}
-          onKeyDown={handleKeyDown}
-          className="
-            w-32 text-center text-5xl font-light tracking-tighter 
-            bg-transparent outline-none border-none p-0 m-0 tabular-nums
-            text-zinc-900 dark:text-zinc-50 
-            caret-zinc-900 dark:caret-zinc-100
-            selection:bg-zinc-200 dark:selection:bg-zinc-700
-            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
-          "
-        />
-        {/* Floating Confirm Button */}
-        <motion.button
-          initial={{ opacity: 0, x: -10, scale: 0.8 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          className="absolute -right-12 p-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-full shadow-lg hover:scale-110 transition-transform"
-          onMouseDown={(e) => {
-            e.preventDefault(); // Prevent input blur
-            handleConfirm();
-          }}
-        >
-          <Check className="size-4" strokeWidth={3} />
-        </motion.button>
-      </div>
-    );
-  }
-
-  return (
-    <motion.span 
-      layout
-      onClick={() => setIsEditing(true)}
-      className="text-5xl font-light tracking-tighter text-zinc-900 dark:text-zinc-50 cursor-text hover:opacity-50 transition-opacity tabular-nums select-none"
-    >
-      {value}
-    </motion.span>
-  );
-}
-
-function EditablePill({ icon, label, value, onSave, isText = false }: { icon: React.ReactNode, label: string, value: string | number, onSave: (val: any) => void, isText?: boolean }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [tempVal, setTempVal] = useState(value.toString());
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!isEditing) {
-      setTempVal(value.toString());
-    }
-  }, [value, isEditing]);
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setTempVal(value.toString());
-  };
-
-  const handleConfirm = () => {
-    if (isText) {
-      if (tempVal.trim()) onSave(tempVal.trim());
-      else setTempVal(value.toString());
-    } else {
-      const num = parseInt(tempVal, 10);
-      if (!isNaN(num)) onSave(num);
-      else setTempVal(value.toString());
-    }
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handleConfirm();
-    if (e.key === 'Escape') handleCancel();
-  };
-
-  const handleInputBlur = () => {
-    // Delay cancel to allow click on confirm button
-    // But since confirm button is inside, we can just use onMouseDown to prevent blur
-    handleCancel();
-  };
-
-  return (
-    <motion.div 
-      layout
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-      onClick={() => !isEditing && setIsEditing(true)}
-      className={`
-        group flex items-center gap-2 px-3 py-1.5 rounded-full 
-        cursor-pointer select-none relative overflow-hidden
-        ${isEditing 
-          ? 'bg-white dark:bg-zinc-800 shadow-lg shadow-zinc-200/50 dark:shadow-black/50 ring-1 ring-zinc-100 dark:ring-zinc-700 pr-9' 
-          : 'bg-zinc-100 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
-        }
-      `}
-    >
-      <motion.span layout="position" className="opacity-50 group-hover:opacity-100 transition-opacity flex items-center">
-        {icon}
-      </motion.span>
-      
-      <motion.span layout="position" className="opacity-70 group-hover:opacity-100 uppercase tracking-wide text-[10px] font-bold flex items-center">
-        {label}
-      </motion.span>
-      
-      {isEditing ? (
-        <>
-          <input
-            ref={inputRef}
-            type={isText ? "text" : "number"}
-            value={tempVal}
-            onChange={(e) => setTempVal(e.target.value)}
-            onBlur={handleInputBlur}
-            onKeyDown={handleKeyDown}
-            className="
-              w-16 bg-transparent outline-none border-none p-0 m-0
-              text-zinc-900 dark:text-zinc-100 font-bold text-sm
-              caret-zinc-900 dark:caret-zinc-100
-              selection:bg-zinc-200 dark:selection:bg-zinc-600
-              [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
-            "
-            onClick={(e) => e.stopPropagation()}
-          />
-          <motion.button
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="absolute right-1.5 p-1 text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 transition-colors"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleConfirm();
-            }}
-          >
-            <Check className="size-3.5" strokeWidth={3} />
-          </motion.button>
-        </>
-      ) : (
-        <motion.span layout="position" className="text-zinc-900 dark:text-zinc-200 font-bold text-sm ml-0.5">
-          {value}
-        </motion.span>
-      )}
-    </motion.div>
-  );
-}
-
-function StatItem({ label, value, highlight = false }: { label: string, value: number, highlight?: boolean }) {
-  return (
-    <div className="flex flex-col items-center group cursor-default">
-      <div className={`
-        text-3xl mb-2 tracking-tighter transition-all duration-500
-        ${highlight 
-          ? 'font-normal text-transparent bg-clip-text bg-gradient-to-br from-zinc-800 to-zinc-500 dark:from-zinc-100 dark:to-zinc-500 scale-110' 
-          : 'font-light text-zinc-400 dark:text-zinc-500'
-        }
-      `}>
-        {value}
-      </div>
-      <span className={`
-        text-[9px] font-bold uppercase tracking-[0.2em] transition-colors duration-300
-        ${highlight ? 'text-zinc-800 dark:text-zinc-200' : 'text-zinc-300 dark:text-zinc-700'}
-      `}>
-        {label}
-      </span>
-    </div>
-  )
-}
-
-// ... (Keep getStats as is, they are good)
-
+// Stats helper
 function getStats(item: ProgressOrCounter) {
   const history = item.history || {};
   const dates = Object.keys(history).sort();
@@ -673,13 +577,9 @@ function getStats(item: ProgressOrCounter) {
     const dateKey = d.toISOString().split('T')[0];
     if (history[dateKey] && history[dateKey] > 0) {
       streak++;
-    } else if (i > 0) {
-      break;
+    } else if (i > 0) { 
+       break; 
     }
   }
-  
   return { totalOps, activeDays, streak };
 }
-
-// Export for external use
-export { getIconByName };

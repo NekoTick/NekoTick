@@ -17,11 +17,12 @@ import {
   // Tools
   Clock, CalendarBlank,
   type Icon as PhosphorIcon,
-  X,
+  CaretLeft, Prohibit
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Categorized Icons
+// NOTE: We do NOT include the "None" option here. It is handled purely in the UI.
 const ICON_CATEGORIES = [
   {
     name: 'Activity',
@@ -104,68 +105,71 @@ export function getIconByName(name: string): PhosphorIcon | null {
 export function IconSelectionView({ value, onChange, onCancel }: { value?: string, onChange: (icon: string | undefined) => void, onCancel?: () => void }) {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-6 px-2 shrink-0">
-        <span className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
-          Select Icon
-        </span>
-        <div className="flex gap-2">
-          {value && (
-            <button
-              onClick={() => onChange(undefined)}
-              className="px-3 py-1.5 text-xs font-medium text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-            >
-              Remove
-            </button>
-          )}
-          {onCancel && (
+      {/* 1. Minimal Header */}
+      <div className="flex justify-start items-center mb-4 px-2 shrink-0 h-10">
+        {onCancel && (
             <button
               onClick={onCancel}
-              className="p-1.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-lg transition-colors"
+              className="p-2 -ml-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-500 dark:hover:text-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              title="Back"
             >
-              <X className="size-4" />
+              <CaretLeft weight="bold" className="size-5" />
             </button>
-          )}
-        </div>
+        )}
       </div>
 
+      {/* 2. Pure Icon Grid */}
       <div className="
-        flex-1 overflow-y-auto pb-8
+        flex-1 overflow-y-auto pb-8 -mx-4 px-4
         [&::-webkit-scrollbar]:w-1.5
         [&::-webkit-scrollbar-track]:bg-transparent
-        [&::-webkit-scrollbar-thumb]:bg-zinc-200
+        [&::-webkit-scrollbar-thumb]:bg-zinc-100
         [&::-webkit-scrollbar-thumb]:rounded-full
         [&::-webkit-scrollbar-thumb]:hover:bg-zinc-300
         dark:[&::-webkit-scrollbar-thumb]:bg-zinc-800
         dark:[&::-webkit-scrollbar-thumb]:hover:bg-zinc-700
       ">
-        <div className="space-y-8">
-          {ICON_CATEGORIES.map((category) => (
-            <div key={category.name}>
-              <div className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-widest mb-4 pl-2 sticky top-0 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm py-2 z-10">
-                {category.name}
-              </div>
-              <div className="grid grid-cols-5 sm:grid-cols-6 gap-3 px-1">
-                {category.icons.map(({ name, icon: Icon }) => (
-                  <button
-                    key={name}
-                    onClick={() => onChange(name)}
-                    className={`
-                      group relative aspect-square rounded-2xl flex items-center justify-center transition-all duration-300
-                      ${value === name 
-                        ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-lg scale-105 ring-2 ring-zinc-200 dark:ring-zinc-700' 
-                        : 'bg-zinc-50 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200 hover:scale-105 hover:shadow-md'
-                      }
-                    `}
-                  >
-                    <Icon 
-                      className="size-6 transition-transform duration-300 group-hover:scale-110" 
-                      weight={value === name ? "duotone" : "light"}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="grid grid-cols-5 gap-4 py-2">
+          {/* The "None" Option - Manually Inserted */}
+          <button
+            onClick={() => onChange(undefined)}
+            className={`
+              group relative aspect-square rounded-2xl flex items-center justify-center transition-all duration-300
+              ${!value 
+                ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xl scale-110 z-10' 
+                : 'bg-transparent text-zinc-300 dark:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 hover:scale-110'
+              }
+            `}
+            title="No Icon"
+          >
+            <Prohibit 
+              className={`transition-transform duration-300 ${!value ? 'size-6 opacity-100' : 'size-6 opacity-40 group-hover:opacity-100'}`}
+              weight={!value ? "bold" : "regular"}
+            />
+          </button>
+
+          {ALL_ICONS.map(({ name, icon: Icon }) => {
+            const isSelected = value === name;
+            return (
+              <button
+                key={name}
+                onClick={() => onChange(name)}
+                className={`
+                  group relative aspect-square rounded-2xl flex items-center justify-center transition-all duration-300
+                  ${isSelected
+                    ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 shadow-xl scale-110 z-10' 
+                    : 'bg-transparent text-zinc-400 dark:text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 hover:scale-110'
+                  }
+                `}
+                title={name}
+              >
+                <Icon 
+                  className="size-7 transition-transform duration-300" 
+                  weight={isSelected ? "duotone" : "light"}
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
