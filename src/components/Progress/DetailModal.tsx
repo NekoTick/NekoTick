@@ -56,14 +56,26 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
   
   // Refs
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const prevItemId = useRef<string | null>(null);
 
-  // Init Draft
+  // Init Draft & State Management
   useEffect(() => {
     if (item) {
-      setDraft(item);
-      setIsEditing(false); 
+      if (item.id !== prevItemId.current) {
+        // New Item Opened: Reset everything
+        setDraft(item);
+        setIsEditing(false); 
+        prevItemId.current = item.id;
+      } else {
+        // Same Item Updated:
+        // If NOT editing, sync draft to keep it fresh.
+        // If IS editing, do NOT touch draft to avoid overwriting user input.
+        if (!isEditing) {
+            setDraft(item);
+        }
+      }
     }
-  }, [item]);
+  }, [item, isEditing]);
 
   // Visual Computation
   // Display based on DRAFT if editing, else ITEM
@@ -253,12 +265,15 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                 <div className="relative z-20 flex justify-between items-center p-6 px-8 h-20">
                     {/* Left: Icon Trigger */}
                     <button 
-                    onClick={() => setIsPickingIcon(true)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsPickingIcon(true);
+                    }}
                     className={`group relative size-10 flex items-center justify-center rounded-full 
                         bg-white/40 dark:bg-zinc-800/40 hover:bg-white/80 dark:hover:bg-zinc-700/80
                         transition-all duration-500 backdrop-blur-md
                         shadow-sm ring-1 ring-white/50 dark:ring-zinc-700/50
-                        ${isEditing ? 'opacity-30 blur-[1px] pointer-events-none' : 'opacity-100'}
+                        opacity-100
                     `}
                     >
                     {DisplayIcon ? (
@@ -637,6 +652,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                         exit={{ opacity: 0, y: '100%' }}
                         transition={{ type: "spring", damping: 30, stiffness: 300 }}
                         className="absolute inset-0 z-50 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl flex flex-col p-6"
+                        onClick={(e) => e.stopPropagation()}
                     >
                         <div className="flex-1 overflow-hidden">
                         <IconSelectionView 
