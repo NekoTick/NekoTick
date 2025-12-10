@@ -76,6 +76,18 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
     }
   }, [item, isEditing]);
 
+  // Global Keyboard Shortcuts (Enter to Close when not editing)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Enter' && !isEditing && item && !isPickingIcon) {
+            handleClose();
+        }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditing, item, isPickingIcon]);
+
   // Visual Computation
   // Display based on DRAFT if editing, else ITEM
   const displayItem = isEditing ? { ...item, ...draft } as ProgressOrCounter : item;
@@ -401,7 +413,12 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                             caret-zinc-400
                             "
                             placeholder="Untitled"
-                            onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.stopPropagation();
+                                    handleCommit();
+                                }
+                            }}
                             onClick={(e) => e.stopPropagation()}
                         />
                     ) : (
@@ -460,7 +477,12 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                             caret-zinc-400
                             [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
                             "
-                            onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.stopPropagation();
+                                    handleCommit();
+                                }
+                            }}
                             onClick={(e) => e.stopPropagation()}
                         />
                         ) : (
@@ -492,7 +514,12 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                                     value={displayItem.total}
                                     onChange={(e) => updateDraft('total', Number(e.target.value))}
                                     className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.stopPropagation();
+                                            handleCommit();
+                                        }
+                                    }}
                                     onClick={(e) => e.stopPropagation()}
                                 />
                                 ) : (
@@ -516,7 +543,12 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                                     value={displayItem.step}
                                     onChange={(e) => updateDraft('step', Number(e.target.value))}
                                     className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.stopPropagation();
+                                            handleCommit();
+                                        }
+                                    }}
                                     onClick={(e) => e.stopPropagation()}
                                 />
                                 ) : (
@@ -539,7 +571,12 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                                     onChange={(e) => updateDraft('unit', e.target.value)}
                                     className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0 placeholder:text-zinc-200 dark:placeholder:text-zinc-700"
                                     placeholder="Unit"
-                                    onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.stopPropagation();
+                                            handleCommit();
+                                        }
+                                    }}
                                     onClick={(e) => e.stopPropagation()}
                                 />
                                 ) : (
