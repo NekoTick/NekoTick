@@ -56,17 +56,39 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
     : 0;
   
   // Counter fill based on activity (subtle feedback)
-  const counterFill = item.type === 'counter'
-    ? Math.min(100, (item.todayCount / 8) * 100) // Assuming 8 is a loose "daily goal" for visualization
-    : 0;
+  // const counterFill = item.type === 'counter'
+  //   ? Math.min(100, (item.todayCount / 8) * 100) // Assuming 8 is a loose "daily goal" for visualization
+  //   : 0;
 
-  const fillWidth = item.type === 'progress' ? `${percentage}%` : `${counterFill}%`;
+  const fillWidth = item.type === 'progress' ? `${percentage}%` : '0%'; // Counter handles its own visuals
   const [hoverZone, setHoverZone] = useState<'left' | 'right' | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const prevCurrent = useRef(item.current); // Track previous value to prevent "mount animation"
 
+  // Counter Specific State: Ripple Effect (Expansion) & Implosion Effect (Contraction)
+  const [ripples, setRipples] = useState<{ id: number, x: number, y: number }[]>([]);
+  const [implosions, setImplosions] = useState<{ id: number, x: number, y: number }[]>([]);
+  const rippleCount = useRef(0);
+
+  const triggerRipple = (x: number, y: number) => {
+    const id = rippleCount.current++;
+    setRipples(prev => [...prev, { id, x, y }]);
+    setTimeout(() => {
+      setRipples(prev => prev.filter(r => r.id !== id));
+    }, 1000);
+  };
+
+  const triggerImplosion = (x: number, y: number) => {
+    const id = rippleCount.current++;
+    setImplosions(prev => [...prev, { id, x, y }]);
+    setTimeout(() => {
+      setImplosions(prev => prev.filter(r => r.id !== id));
+    }, 1000); // Allow time for the "pop" at the end
+  };
+
   // If archived, render the "Timeline Ticket" view
   if (item.archived) {
+    // ... (keep existing archived view logic)
     const startDate = new Date(item.createdAt);
     const endDate = item.lastUpdateDate ? new Date(item.lastUpdateDate) : new Date();
     const durationMs = endDate.getTime() - startDate.getTime();
@@ -169,8 +191,7 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
     );
   }
 
-  // Auto-archive logic
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // Auto-archive logic (Only for Progress)
   useEffect(() => {
     if (item.type !== 'progress' || item.archived) return;
     
@@ -195,6 +216,7 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
     prevCurrent.current = item.current;
   }, [item.current, (item as any).total, item.type, item.archived, onAutoArchive, item.id]);
 
+  // --- RENDER START ---
   return (
     <div
       ref={setNodeRef}
@@ -216,9 +238,9 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
           hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.1)] dark:hover:shadow-black/50
         `}
       >
-        {/* Shimmer Effect (The "Wow" Factor) */}
+        {/* Shimmer Effect (Progress Only) */}
         <AnimatePresence>
-          {isCompleting && (
+          {isCompleting && item.type === 'progress' && (
             <motion.div
               initial={{ x: '-100%', opacity: 0 }}
               animate={{ x: '200%', opacity: 1 }}
@@ -228,7 +250,7 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
           )}
         </AnimatePresence>
 
-        {/* Base Layer: Pure White/Black -> Morphs to Premium Solid on Completion */}
+        {/* Base Layer */}
         <motion.div 
           className="absolute inset-0 bg-white dark:bg-zinc-900"
           animate={{ 
@@ -241,48 +263,121 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
           }}
         />
         
-        {/* Progress Layer: "Liquid Light" - Soft, Diffused, Beautiful */}
-        <motion.div 
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-800/50"
-          initial={false}
-          animate={{ width: fillWidth, opacity: isCompleting ? 0 : 1 }}
-          transition={{ duration: 0.8, ease: "circOut" }}
-        >
-            {/* The Leading Edge Glow */}
-            <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-zinc-300 dark:via-zinc-600 to-transparent opacity-50" />
-        </motion.div>
+        {/* VISUALS: PROGRESS VS COUNTER */}
+        {item.type === 'progress' ? (
+           /* --- PROGRESS VISUALS (Liquid Fill) --- */
+           <motion.div 
+             className="absolute inset-y-0 left-0 bg-gradient-to-r from-zinc-50 to-zinc-100 dark:from-zinc-800 dark:to-zinc-800/50"
+             initial={false}
+             animate={{ width: fillWidth, opacity: isCompleting ? 0 : 1 }}
+             transition={{ duration: 0.8, ease: "circOut" }}
+           >
+               {/* The Leading Edge Glow */}
+               <div className="absolute right-0 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-zinc-300 dark:via-zinc-600 to-transparent opacity-50" />
+           </motion.div>
+        ) : (
+           /* --- COUNTER VISUALS (Quantum Pulse / Aurora) --- */
+           <>
+              {/* 1. Deep Space / Aurora Background - Slowly rotating gradient mesh */}
+              <div className="absolute inset-0 overflow-hidden opacity-50 dark:opacity-40 pointer-events-none mix-blend-multiply dark:mix-blend-screen">
+                 <motion.div 
+                    className="absolute -inset-[50%] bg-[conic-gradient(from_0deg,transparent_0deg,rgba(0,0,0,0.03)_90deg,transparent_180deg,rgba(0,0,0,0.03)_270deg,transparent_360deg)] dark:bg-[conic-gradient(from_0deg,transparent_0deg,rgba(255,255,255,0.05)_90deg,transparent_180deg,rgba(255,255,255,0.05)_270deg,transparent_360deg)]"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                 />
+                 <motion.div 
+                    className="absolute -inset-[50%] bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.05),transparent_60%)] dark:bg-[radial-gradient(circle_at_50%_50%,rgba(59,130,246,0.15),transparent_60%)]"
+                    animate={{ 
+                       scale: [1, 1.2, 1],
+                       opacity: [0.3, 0.6, 0.3] 
+                    }}
+                    transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                 />
+              </div>
+              
+              {/* 2. Activity Heatmap - Warms up as you click more */}
+              <motion.div 
+                 className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 dark:from-indigo-400/0 dark:via-purple-400/0 dark:to-pink-400/0 opacity-0 pointer-events-none mix-blend-multiply dark:mix-blend-overlay"
+                 animate={{ opacity: Math.min(0.2, item.todayCount / 40) }} // Subtle color shift (softer in light mode)
+              />
+
+              {/* 3. Luminous Shockwaves (Expansion) & Black Holes (Implosion) */}
+              <AnimatePresence>
+                {/* Outward Ripples (Plus) */}
+                {ripples.map(ripple => (
+                  <motion.div
+                    key={`ripple-${ripple.id}`}
+                    initial={{ width: 0, height: 0, opacity: 0.8, x: ripple.x, y: ripple.y, boxShadow: "0 0 0 0px rgba(0,0,0,0.05)" }}
+                    animate={{ 
+                        width: 600, 
+                        height: 600, 
+                        opacity: 0, 
+                        x: ripple.x - 300, 
+                        y: ripple.y - 300,
+                        boxShadow: "0 0 40px 20px rgba(0,0,0,0)" 
+                    }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute rounded-full border border-zinc-900/5 dark:border-white/20 bg-zinc-900/5 dark:bg-white/5 pointer-events-none backdrop-blur-[1px] mix-blend-normal dark:mix-blend-overlay"
+                  />
+                ))}
+
+                {/* Inward Implosions (Minus) - Exact visual match of Ripple, but reversed */}
+                {implosions.map(imp => (
+                  <motion.div
+                    key={`imp-${imp.id}`}
+                    initial={{ 
+                        width: 600, 
+                        height: 600, 
+                        opacity: 0, 
+                        x: imp.x - 300, 
+                        y: imp.y - 300, 
+                        boxShadow: "0 0 40px 20px rgba(0,0,0,0)" 
+                    }}
+                    animate={{ 
+                        width: 0, 
+                        height: 0, 
+                        opacity: 1, // Becomes solid as it condenses
+                        x: imp.x, 
+                        y: imp.y,
+                        boxShadow: "0 0 0 0px rgba(0,0,0,0.05)"
+                    }}
+                    transition={{ duration: 0.5, ease: "easeIn" }} // Accelerate inwards
+                    className="absolute rounded-full border border-zinc-900/5 dark:border-white/20 bg-zinc-900/5 dark:bg-white/5 pointer-events-none backdrop-blur-[1px] mix-blend-normal dark:mix-blend-overlay"
+                  />
+                ))}
+              </AnimatePresence>
+           </>
+        )}
         
         {/* Delicate Border (Ring) */}
         <div className={`absolute inset-0 rounded-[2.5rem] ring-1 ring-inset pointer-events-none transition-colors duration-500 ${isCompleting ? 'ring-transparent' : 'ring-black/5 dark:ring-white/5'}`} />
 
-        {/* Content Layer - The Grand Transformation */}
+        {/* Content Layer */}
         <div className="absolute inset-0 flex items-center justify-between px-10 pointer-events-none z-20 overflow-hidden">
           
-          {/* Left Group: Title & Icon (Watermark Style) */}
+          {/* Left Group: Title & Icon */}
           <motion.div 
             className="relative flex items-center h-full min-w-0 flex-1"
             animate={{ 
-              x: isCompleting ? '50%' : (hoverZone === 'left' ? 48 : 0), // Center on complete
+              x: isCompleting ? '50%' : (hoverZone === 'left' ? 48 : 0), 
               opacity: hoverZone === 'left' ? 0.6 : 1 
             }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
           >
-            {/* Wrapper to center content relative to itself when moving */}
             <motion.div 
               className="relative flex items-center w-full h-full"
-              animate={{ x: isCompleting ? '-50%' : '0%' }} // Counter-offset for true centering
+              animate={{ x: isCompleting ? '-50%' : '0%' }}
             >
-                {/* Layer 0: The Watermark Icon */}
+                {/* Layer 0: Icon */}
                 {displayIcon && (() => {
                   const Icon = getIconByName(displayIcon);
                   return Icon ? (
                     <motion.div 
                         className="absolute left-0 flex items-center justify-center"
                         animate={{
-                            // Morphing: When completing, become a centered badge. When normal, be a watermark.
                             left: isCompleting ? '50%' : '-1.5rem',
                             x: isCompleting ? '-50%' : 0,
-                            scale: isCompleting ? 1 : 1, // Actually we control size via className font-size
                         }}
                     >
                         <div className={`
@@ -291,6 +386,7 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                                 ? 'text-zinc-500 dark:text-zinc-400 opacity-100 scale-100' // Badge State
                                 : 'text-zinc-900 dark:text-zinc-100 opacity-[0.06] dark:opacity-[0.08] scale-[2.5] -rotate-12 mix-blend-multiply dark:mix-blend-overlay origin-left' // Watermark State
                             }
+                            ${item.type === 'counter' ? 'opacity-[0.04] dark:opacity-[0.06]' : ''} // Subtler for counter
                         `}>
                             <Icon className="size-10" weight="duotone" />
                         </div>
@@ -298,11 +394,11 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                   ) : null;
                 })()}
 
-                {/* Layer 1: Text Content */}
+                {/* Layer 1: Text */}
                 <motion.div 
                     className="flex flex-col justify-center min-w-0 gap-1.5 relative z-10"
                     animate={{
-                        paddingLeft: isCompleting ? 0 : '5rem', // 20 (5rem) spacing for watermark
+                        paddingLeft: isCompleting ? 0 : '5rem',
                         alignItems: isCompleting ? 'center' : 'flex-start',
                         width: '100%'
                     }}
@@ -311,24 +407,28 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                     {displayTitle}
                   </span>
                   
-                  {/* Stats - Fade out on completion */}
+                  {/* Stats */}
                   <motion.div 
                     animate={{ opacity: isCompleting ? 0 : 1, height: isCompleting ? 0 : 'auto' }}
                     className="flex items-center gap-3 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] overflow-hidden"
                   >
                     <span className={item.todayCount > 0 ? "text-zinc-600 dark:text-zinc-300" : ""}>
-                      Today {item.todayCount}
+                      {item.type === 'counter' ? (
+                          item.todayCount > 0 ? `Today ${item.todayCount}` : "Tap to Count"
+                      ) : (
+                          `Today ${item.todayCount}`
+                      )}
                     </span>
                   </motion.div>
                 </motion.div>
             </motion.div>
           </motion.div>
 
-          {/* Right Group: Number / Checkmark */}
+          {/* Right Group: Number */}
           <motion.div 
             className="flex flex-col items-end justify-center pl-6 h-full absolute right-10"
             animate={{ 
-                right: isCompleting ? '50%' : '40px', // Move to center
+                right: isCompleting ? '50%' : '40px',
                 x: isCompleting ? '50%' : 0 
             }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -343,7 +443,6 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
                    className="flex items-center justify-center"
                  >
-                    {/* The Jewel: A glowing checkmark */}
                     <div className="p-4 rounded-full bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-[0_0_40px_rgba(255,255,255,0.6)] dark:shadow-[0_0_40px_rgba(255,255,255,0.1)]">
                       <Check className="size-8" strokeWidth={3} />
                     </div>
@@ -351,20 +450,52 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                ) : (
                  <motion.div 
                    key="progress-number"
-                   className="flex items-baseline gap-2"
+                   className="flex items-baseline gap-2 relative"
                    animate={{ 
                       x: hoverZone === 'right' ? -48 : 0,
-                      opacity: hoverZone === 'right' ? 0.6 : 1 
+                      opacity: hoverZone === 'right' ? 0.6 : 1,
+                      scale: item.type === 'counter' && item.current !== prevCurrent.current 
+                        ? (item.current > prevCurrent.current ? [1, 1.15, 1] : [1, 0.85, 1]) // Pulse Out (Inc) vs Pulse In (Dec)
+                        : 1 
+                   }}
+                   transition={{ 
+                      type: "spring", stiffness: 500, damping: 15,
+                      scale: { duration: 0.15 } 
                    }}
                    exit={{ opacity: 0, scale: 0.8 }}
-                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                  >
-                    <span className="text-5xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-50 font-sans tabular-nums">
+                    {/* Main Number */}
+                    <span className="text-5xl font-extralight tracking-tighter text-zinc-900 dark:text-zinc-50 font-sans tabular-nums relative z-10">
                       {item.type === 'progress' 
                         ? Math.round((item.current / item.total) * 100)
                         : item.current
                       }
                     </span>
+                    
+                    {/* Chromatic Aberration Ghost (Counter Only) */}
+                    {item.type === 'counter' && item.current !== prevCurrent.current && (
+                        <>
+                           <motion.span 
+                                key={`ghost-r-${item.current}`}
+                                className={`absolute left-0 top-0 text-5xl font-extralight tracking-tighter font-sans tabular-nums mix-blend-screen opacity-70 pointer-events-none ${item.current > prevCurrent.current ? 'text-red-500' : 'text-cyan-500'}`}
+                                initial={{ x: 0, opacity: 0 }}
+                                animate={{ x: [-2, 2, 0], opacity: [0, 0.8, 0] }}
+                                transition={{ duration: 0.2 }}
+                           >
+                               {item.current}
+                           </motion.span>
+                           <motion.span 
+                                key={`ghost-b-${item.current}`}
+                                className={`absolute left-0 top-0 text-5xl font-extralight tracking-tighter font-sans tabular-nums mix-blend-screen opacity-70 pointer-events-none ${item.current > prevCurrent.current ? 'text-blue-500' : 'text-fuchsia-500'}`}
+                                initial={{ x: 0, opacity: 0 }}
+                                animate={{ x: [2, -2, 0], opacity: [0, 0.8, 0] }}
+                                transition={{ duration: 0.2 }}
+                           >
+                               {item.current}
+                           </motion.span>
+                        </>
+                    )}
+
                     <span className="text-sm font-bold tracking-widest text-zinc-300 dark:text-zinc-600 mb-2 uppercase">
                       {item.type === 'progress' ? '%' : item.unit}
                     </span>
@@ -374,7 +505,7 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
           </motion.div>
         </div>
 
-        {/* Interaction Layer - Invisible but responsive */}
+        {/* Interaction Layer */}
         <div className="absolute inset-0 flex cursor-pointer">
           {/* Minus Zone - Left 30% */}
           <div 
@@ -382,6 +513,10 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
             onClick={(e) => {
               e.stopPropagation();
               onUpdate(item.id, -step);
+              if (item.type === 'counter') {
+                 // Trigger Implosion at the SAME location as Ripple (The Energy Core)
+                 triggerImplosion(400, 64); // Right side, vertical center
+              }
             }}
             onMouseEnter={() => setHoverZone('left')}
             onMouseLeave={() => setHoverZone(null)}
@@ -396,18 +531,30 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
             </motion.div>
           </div>
 
-          {/* Center Detail Zone - Middle 40% */}
+          {/* Center Detail Zone */}
           <div 
              className="flex-1"
-             onClick={onClick}
+             onClick={() => {
+                 // For Counter, clicking center also increments (Main Action)?
+                 // No, requirement says center opens detail.
+                 onClick && onClick();
+             }}
           />
           
-          {/* Plus Zone - Right 30% */}
+          {/* Plus Zone */}
           <div 
             className="w-[30%] flex items-center justify-end pr-8 opacity-0 hover:opacity-100 transition-opacity duration-300"
             onClick={(e) => {
               e.stopPropagation();
               onUpdate(item.id, step);
+              if (item.type === 'counter') {
+                 // Trigger Ripple from click position
+                 // const rect = e.currentTarget.getBoundingClientRect();
+                 // const x = e.clientX - rect.left + (rect.width * 0.7); // Approximate relative to card
+                 
+                 // Let's just make it explode from the Right Center
+                 triggerRipple(400, 64); // Right side, vertical center
+              }
             }}
             onMouseEnter={() => setHoverZone('right')}
             onMouseLeave={() => setHoverZone(null)}
@@ -423,7 +570,7 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
           </div>
         </div>
 
-        {/* Drag Handle - Hidden on far left edge */}
+        {/* Drag Handle */}
         <div 
             {...attributes} 
             {...listeners}
