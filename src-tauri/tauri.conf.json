@@ -19,8 +19,8 @@
         "minHeight": 300,
         "center": true,
         "decorations": false,
-        "transparent": false,
-        "backgroundColor": [255, 255, 255, 255]
+        "transparent": true,
+        "backgroundColor": "#00000000"
       }
     ],
     "security": {

@@ -60,12 +60,44 @@ import { Fire } from '@phosphor-icons/react';
 *   **Global Style**: Reject default system scrollbars.
 *   **Styling**:
     *   Width: `w-1.5` (Ultra-thin).
-    *   Track: Transparent.
-    *   Thumb: Rounded (`rounded-full`), Color `bg-zinc-200` (Light) / `bg-zinc-800` (Dark).
+
+3.  **The Void Option**
+    *   **"None" is an Option**: Do not use a separate "Remove" button if "Empty" can be represented as a choice.
+    *   **Visual Metaphor**: Represents "Nothingness" with a subtle symbol (e.g., a faint Prohibit icon) inside the selection grid.
+    *   *Result*: A cleaner header and a unified mental model.
+
+4.  **Liquid Tuning (Global Edit)**
+    *   **WYSIWYG**: Editing happens *in place*. Text turns into input, numbers turn into fields. No separate "Edit Modal".
+    *   **One Check to Rule Them All**: A single, floating, satisfying confirmation button. No micro-saves.
+
+## 4. Visual Hierarchy (The Crown Layout)
+
+Structure information like a monarchy, not a spreadsheet.
+
+1.  **The Crown (Identity)**: The Title sits at the top, commanding the card. It is the "Who".
+2.  **The Hero (Status)**: The Number is massive, thin, and central. It is the "What".
+3.  **The Footman (Control)**: Actions (Check button) float at the bottom, waiting for command.
+4.  **Zero Borders**:
+    *   **Kill the Lines**: Do not use `border-b` for inputs. Use text color/caret to imply focus.
+    *   **Space is the Divider**: Use whitespace to separate sections. Lines are visual noise.
+
+## 5. Components
+
+### Modals
+- **Backdrop**: `bg-zinc-100/60` (Light) or `bg-black/80` (Dark) with `backdrop-blur-xl`.
+- **Card**: Rounded corners `rounded-[3rem]`. Floating, detached from the edges.
+
+### Icons
+- **Library**: Phosphor Icons (React).
+- **Weights**:
+  - `Duotone` for selected/active states (Rich).
+  - `Light` for default states (Elegant).
+  - `Regular` for interactive elements.
+- **The Void**: A faint `Prohibit` icon represents "No Icon".
 
 ---
 
-## 4. Colors & Materials
+## 6. Colors & Materials
 Use the **Zinc** scale to express sophistication, rather than pure black or white.
 
 *   **Surface**: `bg-white/90` or `bg-zinc-900/90` + `backdrop-blur-xl` (Frosted Glass).
@@ -75,7 +107,7 @@ Use the **Zinc** scale to express sophistication, rather than pure black or whit
 
 ---
 
-## 5. Motion
+## 7. Motion
 Use `framer-motion`.
 
 *   **Physics**: Use `type: "spring"`.

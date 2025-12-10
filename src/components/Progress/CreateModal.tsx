@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -60,6 +60,22 @@ export function CreateModal({
     unit: '次',
     frequency: 'daily',
   });
+  
+  // Adaptive Scaling (Direct DOM)
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleResize = () => {
+       if (!wrapperRef.current) return;
+       const h = window.innerHeight;
+       // Target height ~700px
+       const targetH = 700; 
+       const s = Math.min(1, (h - 60) / targetH);
+       wrapperRef.current.style.transform = `scale(${s})`;
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Preview Interaction State
   const [previewCurrent, setPreviewCurrent] = useState(0);
@@ -158,7 +174,7 @@ export function CreateModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-zinc-100/60 dark:bg-black/60 backdrop-blur-2xl z-50"
+            className="fixed -inset-[50%] bg-zinc-100/60 dark:bg-black/60 backdrop-blur-2xl z-50"
             onClick={() => {
               if (isPickingIcon) {
                 setIsPickingIcon(false);
@@ -179,15 +195,9 @@ export function CreateModal({
 
           {/* Creator Altar */}
           <div className="
-            fixed inset-0 flex flex-col items-center justify-start z-50 pointer-events-none pt-24 pb-6 px-6 overflow-y-auto
-            [&::-webkit-scrollbar]:w-1.5
-            [&::-webkit-scrollbar-track]:bg-transparent
-            [&::-webkit-scrollbar-thumb]:bg-zinc-200
-            [&::-webkit-scrollbar-thumb]:rounded-full
-            [&::-webkit-scrollbar-thumb]:hover:bg-zinc-300
-            dark:[&::-webkit-scrollbar-thumb]:bg-zinc-800
-            dark:[&::-webkit-scrollbar-thumb]:hover:bg-zinc-700
+            fixed inset-0 flex flex-col items-center justify-center z-50 pointer-events-none p-6 overflow-hidden
           ">
+            <div ref={wrapperRef} style={{ transformOrigin: 'center center' }} className="w-full flex flex-col items-center">
             
             {/* 1. The Morphing Vision (Preview / Icon Picker) */}
             <motion.div
@@ -428,6 +438,7 @@ export function CreateModal({
 
               </div>
             </motion.div>
+            </div>
           </div>
         </>
       )}

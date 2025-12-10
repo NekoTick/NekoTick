@@ -25,10 +25,34 @@ interface DetailModalProps {
 export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange }: DetailModalProps) {
   // Global Edit State
   const [isEditing, setIsEditing] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<'title' | 'current' | 'total' | 'step' | 'unit'>('title');
   const [draft, setDraft] = useState<Partial<ProgressOrCounter>>({});
   
   const [isPickingIcon, setIsPickingIcon] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  
+  // Adaptive Scaling Logic (Direct DOM for Performance)
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+       if (!wrapperRef.current) return;
+       
+       const h = window.innerHeight;
+       const w = window.innerWidth;
+       // Target Card Size: 360x520 + 40px padding
+       const scaleH = Math.min(1, (h - 40) / 520);
+       const scaleW = Math.min(1, (w - 40) / 360);
+       const s = Math.min(scaleH, scaleW);
+       
+       wrapperRef.current.style.transform = `scale(${s})`;
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial calculation
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Refs
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -114,21 +138,30 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
   };
 
   const handleQuickUpdate = (delta: number) => {
-    if (isEditing) return; // Disable quick update in edit mode
     if (!item) return;
     
     const step = item.type === 'progress' 
       ? (item.direction === 'increment' ? item.step : -item.step)
       : item.step;
     
-    let newValue = item.current + (step * delta);
+    // Calculate new value based on DRAFT if editing, or item if not
+    const baseValue = isEditing ? (draft.current ?? item.current) : item.current;
+    
+    let newValue = baseValue + (step * delta);
     if (item.type === 'progress') {
-        newValue = Math.max(0, Math.min(item.total, newValue));
+        const total = isEditing ? ((draft as any).total ?? (item as any).total) : (item as any).total;
+        newValue = Math.max(0, Math.min(total, newValue));
     } else {
         newValue = Math.max(0, newValue);
     }
-    // Instant update
-    onUpdate(item.id, { current: newValue });
+
+    if (isEditing) {
+        // If editing, update draft
+        updateDraft('current', newValue);
+    } else {
+        // Instant update (fallback for safety, though UI hides buttons)
+        onUpdate(item.id, { current: newValue });
+    }
   };
 
   return (
@@ -141,7 +174,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
-            className="fixed inset-0 bg-zinc-100/60 dark:bg-black/80 backdrop-blur-xl z-50"
+            className="fixed -inset-[50%] bg-zinc-100/60 dark:bg-black/80 backdrop-blur-xl z-50"
             onClick={(e) => {
                 e.stopPropagation();
                 // Layered Dismissal: Peel the onion
@@ -169,392 +202,455 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
 
           {/* The Hero Card */}
           <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="
-                relative w-[360px] h-[520px] 
-                bg-white dark:bg-zinc-900 
-                rounded-[3rem] 
-                shadow-2xl shadow-zinc-200/50 dark:shadow-black/80
-                overflow-hidden
-                pointer-events-auto
-                select-none
-                flex flex-col
-              "
-              onClick={(e) => {
-                e.stopPropagation();
-                // Auto-collapse menu when clicking empty space
-                if (showMenu) setShowMenu(false);
-              }}
-            >
-              {/* --- 1. The Liquid Soul (Background Fill) --- */}
-              <div className="absolute inset-0 pointer-events-none z-0">
-                {/* Base with Radial Glow */}
-                <div className="absolute inset-0 bg-white dark:bg-zinc-900" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-50/80 via-transparent to-transparent dark:from-zinc-800/30 dark:to-transparent opacity-60" />
-                
-                {/* Liquid Level */}
-                <motion.div 
-                  className="absolute bottom-0 left-0 right-0 bg-zinc-50/50 dark:bg-zinc-800/50 backdrop-blur-[2px]"
-                  animate={{ height: fillHeight }}
-                  transition={{ type: "spring", stiffness: 100, damping: 20 }}
-                />
-                
-                {/* The Watermark Icon - Deeper & Larger */}
-                {DisplayIcon && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none scale-125 mix-blend-multiply dark:mix-blend-overlay">
-                    <DisplayIcon weight="fill" className="size-80 text-zinc-900 dark:text-zinc-100" />
-                  </div>
-                )}
-              </div>
-
-              {/* --- 2. Top Bar --- */}
-              <div className="relative z-20 flex justify-between items-center p-6 px-8 h-20">
-                 {/* Left: Icon Trigger */}
-                 <button 
-                   onClick={() => setIsPickingIcon(true)}
-                   className={`group relative size-10 flex items-center justify-center rounded-full 
-                     bg-white/40 dark:bg-zinc-800/40 hover:bg-white/80 dark:hover:bg-zinc-700/80
-                     transition-all duration-500 backdrop-blur-md
-                     shadow-sm ring-1 ring-white/50 dark:ring-zinc-700/50
-                     ${isEditing ? 'opacity-30 blur-[1px] pointer-events-none' : 'opacity-100'}
-                   `}
-                 >
-                   {DisplayIcon ? (
-                     <DisplayIcon weight="duotone" className="size-5 text-zinc-600 dark:text-zinc-300 group-hover:scale-110 transition-transform duration-500" />
-                   ) : (
-                     <Prohibit weight="bold" className="size-5 text-zinc-300 dark:text-zinc-600 group-hover:scale-110 transition-transform duration-500" />
-                   )}
-                 </button>
-
-                 {/* Right: Menu Trigger / Expanded Capsule */}
-                 <div className="relative h-10 flex items-center justify-end min-w-[40px]">
-                   <AnimatePresence mode="wait">
-                     {!isEditing && !showMenu && (
-                       <motion.button 
-                         key="menu-trigger"
-                         initial={{ opacity: 0, scale: 0.8 }}
-                         animate={{ opacity: 1, scale: 1 }}
-                         exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
-                         onClick={() => setShowMenu(true)}
-                         className="absolute right-0 p-2 rounded-full text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 transition-colors"
-                       >
-                         <DotsThree weight="bold" className="size-6" />
-                       </motion.button>
-                     )}
-                   
-                     {showMenu && !isEditing && (
-                       <motion.div
-                         key="menu-capsule"
-                         initial={{ width: 40, opacity: 0 }}
-                         animate={{ width: 'auto', opacity: 1 }}
-                         exit={{ width: 40, opacity: 0, transition: { duration: 0.2 } }}
-                         transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                         className="
-                           absolute right-0 flex items-center gap-1 p-1 pr-2 rounded-full 
-                           bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md 
-                           shadow-sm ring-1 ring-zinc-100 dark:ring-zinc-700
-                           overflow-hidden
-                         "
-                       >
-                         {/* Archive */}
-                         <motion.button
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.05 }}
-                            onClick={handleArchive}
-                            className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
-                            title={item.archived ? "Unarchive" : "Archive"}
-                         >
-                            <Archive weight="duotone" className="size-5" />
-                         </motion.button>
-
-                         {/* Reset */}
-                         <motion.button
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.1 }}
-                            onClick={() => onUpdate(item.id, { current: 0 })}
-                            className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
-                            title="Reset Progress"
-                         >
-                            <ArrowCounterClockwise weight="bold" className="size-5" />
-                         </motion.button>
-                         
-                         {/* Divider */}
-                         <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
-
-                         {/* Delete */}
-                         <motion.button
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: 0.15 }}
-                            onClick={handleDelete}
-                            className="p-2 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:text-zinc-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
-                            title="Delete"
-                         >
-                            <Trash weight="duotone" className="size-5" />
-                         </motion.button>
-
-                         {/* Close (Explicit X or just click outside? Let's add a tiny close or rely on toggle) */}
-                         {/* Actually, clicking the original trigger spot (which is covered by this capsule) could close it, 
-                             BUT we probably want an explicit way to dismiss or auto-dismiss. 
-                             Let's add a small close handle on the far left or make it toggle on click outside (backdrop handles that).
-                             For now, let's keep it clean. Clicking backdrop closes modal, so we need a way to close JUST menu?
-                             Maybe the user clicks any button and it closes. 
-                             Or we add a tiny 'X' on the right? 
-                             Let's make the WHOLE Backdrop click close the menu first? 
-                             Wait, the modal backdrop closes the modal. 
-                             We need a way to close this menu. 
-                             Let's add a click listener to window to close menu if clicked outside?
-                             Or simpler: clicking the capsule area doesn't close, but we add a 'X' button at the end? 
-                             Let's try: The capsule REPLACES the trigger. So clicking the '...' opened it. 
-                             Let's add a Close button at the end of capsule.
-                         */}
-                         <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
-                         <motion.button
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            onClick={() => setShowMenu(false)}
-                            className="p-2 rounded-full text-zinc-300 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                         >
-                            <X weight="bold" className="size-4" />
-                         </motion.button>
-
-                       </motion.div>
-                     )}
-                   </AnimatePresence>
-                 </div>
-              </div>
-
-              {/* --- 3. Center Zone (The Tuning Engine) --- */}
-              <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 -mt-8">
-                
-                {/* 3.1 Title (The Crown - Borderless & Elegant) */}
-                <div className="relative z-20 w-full flex justify-center min-h-[40px]">
-                   {isEditing ? (
-                      <input
-                        autoFocus
-                        value={displayItem.title}
-                        onChange={(e) => updateDraft('title', e.target.value)}
-                        className="
-                          text-center text-3xl font-medium 
-                          bg-transparent border-none outline-none p-0
-                          text-zinc-900 dark:text-zinc-100 
-                          w-full max-w-[280px]
-                          placeholder:text-zinc-200 dark:placeholder:text-zinc-700
-                          caret-zinc-400
-                        "
-                        placeholder="Untitled"
-                        onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
-                      />
-                   ) : (
-                      <h2 
-                        onClick={() => setIsEditing(true)}
-                        className="
-                          text-3xl font-medium tracking-tight
-                          text-zinc-900 dark:text-zinc-100 
-                          cursor-pointer hover:opacity-70 transition-opacity
-                        "
-                      >
-                        {displayItem.title}
-                      </h2>
-                   )}
+            {/* Responsive Wrapper - Instant Scale, No Lag */}
+            <div ref={wrapperRef} className="origin-center">
+                <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="
+                    relative w-[360px] h-[520px] 
+                    bg-white dark:bg-zinc-900 
+                    rounded-[3rem] 
+                    shadow-2xl shadow-zinc-200/50 dark:shadow-black/80
+                    overflow-hidden
+                    pointer-events-auto
+                    select-none
+                    flex flex-col
+                "
+                onClick={(e) => {
+                    e.stopPropagation();
+                    // Auto-collapse menu when clicking empty space
+                    if (showMenu) setShowMenu(false);
+                    
+                    // Commit changes if clicking empty space while editing
+                    if (isEditing) handleCommit();
+                }}
+                >
+                {/* --- 1. The Liquid Soul (Background Fill) --- */}
+                <div className="absolute inset-0 pointer-events-none z-0">
+                    {/* Base with Radial Glow */}
+                    <div className="absolute inset-0 bg-white dark:bg-zinc-900" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-zinc-50/80 via-transparent to-transparent dark:from-zinc-800/30 dark:to-transparent opacity-60" />
+                    
+                    {/* Liquid Level */}
+                    <motion.div 
+                    className="absolute bottom-0 left-0 right-0 bg-zinc-50/50 dark:bg-zinc-800/50 backdrop-blur-[2px]"
+                    animate={{ height: fillHeight }}
+                    transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                    />
+                    
+                    {/* The Watermark Icon - Deeper & Larger */}
+                    {DisplayIcon && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.06] pointer-events-none scale-125 mix-blend-multiply dark:mix-blend-overlay">
+                        <DisplayIcon weight="fill" className="size-80 text-zinc-900 dark:text-zinc-100" />
+                    </div>
+                    )}
                 </div>
 
-                {/* 3.2 Number & +/- Hotspots */}
-                <div className="relative flex items-center justify-center w-full">
-                   
-                   {/* Left Hotspot (-1) */}
-                   {!isEditing && (
-                     <button 
-                       className="absolute left-6 size-24 flex items-center justify-center rounded-full text-zinc-200 dark:text-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-400 dark:hover:text-zinc-400 transition-all opacity-0 hover:opacity-100 active:scale-95"
-                       onClick={() => handleQuickUpdate(-1)}
-                     >
-                       <Minus weight="light" className="size-10" />
-                     </button>
-                   )}
+                {/* --- 2. Top Bar --- */}
+                <div className="relative z-20 flex justify-between items-center p-6 px-8 h-20">
+                    {/* Left: Icon Trigger */}
+                    <button 
+                    onClick={() => setIsPickingIcon(true)}
+                    className={`group relative size-10 flex items-center justify-center rounded-full 
+                        bg-white/40 dark:bg-zinc-800/40 hover:bg-white/80 dark:hover:bg-zinc-700/80
+                        transition-all duration-500 backdrop-blur-md
+                        shadow-sm ring-1 ring-white/50 dark:ring-zinc-700/50
+                        ${isEditing ? 'opacity-30 blur-[1px] pointer-events-none' : 'opacity-100'}
+                    `}
+                    >
+                    {DisplayIcon ? (
+                        <DisplayIcon weight="duotone" className="size-5 text-zinc-600 dark:text-zinc-300 group-hover:scale-110 transition-transform duration-500" />
+                    ) : (
+                        <Prohibit weight="bold" className="size-5 text-zinc-300 dark:text-zinc-600 group-hover:scale-110 transition-transform duration-500" />
+                    )}
+                    </button>
 
-                   {/* Main Value Display/Input */}
-                   <div className="flex flex-col items-center gap-6">
-                     {isEditing ? (
-                       <input
-                         type="number"
-                         value={displayItem.current}
-                         onChange={(e) => updateDraft('current', Number(e.target.value))}
-                         className="
-                           w-64 text-center text-9xl font-thin tracking-tighter 
-                           bg-transparent outline-none border-none p-0 m-0 tabular-nums 
-                           text-zinc-900 dark:text-zinc-50 
-                           caret-zinc-400
-                           [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
-                         "
-                         onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
-                       />
-                     ) : (
-                       <motion.span 
-                         layout
-                         onClick={() => setIsEditing(true)}
-                         className="
-                           text-9xl font-thin tracking-tighter 
-                           text-zinc-900 dark:text-zinc-50 
-                           cursor-pointer hover:scale-105 transition-transform duration-500
-                           tabular-nums select-none
-                           drop-shadow-sm
-                         "
-                       >
-                         {displayItem.current}
-                       </motion.span>
-                     )}
+                    {/* Right: Menu Trigger / Expanded Capsule */}
+                    <div className="relative h-10 flex items-center justify-end min-w-[40px]">
+                    <AnimatePresence mode="wait">
+                        {!isEditing && !showMenu && (
+                        <motion.button 
+                            key="menu-trigger"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
+                            onClick={() => setShowMenu(true)}
+                            className="absolute right-0 p-2 rounded-full text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 transition-colors"
+                        >
+                            <DotsThree weight="bold" className="size-6" />
+                        </motion.button>
+                        )}
+                    
+                        {showMenu && !isEditing && (
+                        <motion.div
+                            key="menu-capsule"
+                            initial={{ width: 40, opacity: 0 }}
+                            animate={{ width: 'auto', opacity: 1 }}
+                            exit={{ width: 40, opacity: 0, transition: { duration: 0.2 } }}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                            className="
+                            absolute right-0 flex items-center gap-1 p-1 pr-2 rounded-full 
+                            bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md 
+                            shadow-sm ring-1 ring-zinc-100 dark:ring-zinc-700
+                            overflow-hidden
+                            "
+                        >
+                            {/* Archive */}
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.05 }}
+                                onClick={handleArchive}
+                                className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
+                                title={item.archived ? "Unarchive" : "Archive"}
+                            >
+                                <Archive weight="duotone" className="size-5" />
+                            </motion.button>
 
-                     {/* Metadata Row (Borderless & Minimal) */}
-                     <div className={`flex items-center gap-6 transition-all duration-500 ${isEditing ? 'opacity-100 translate-y-0' : 'opacity-40 hover:opacity-100 translate-y-2'}`}>
-                        {/* Target */}
-                        {displayItem.type === 'progress' && (
-                          <div className="flex flex-col items-center gap-1 group">
-                            <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Target</span>
-                            {isEditing ? (
-                              <input 
-                                type="number" 
-                                value={displayItem.total}
-                                onChange={(e) => updateDraft('total', Number(e.target.value))}
-                                className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
-                              />
-                            ) : (
-                              <span onClick={() => setIsEditing(true)} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
-                                {displayItem.total}
-                              </span>
-                            )}
-                          </div>
+                            {/* Reset */}
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.1 }}
+                                onClick={() => onUpdate(item.id, { current: 0 })}
+                                className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
+                                title="Reset Progress"
+                            >
+                                <ArrowCounterClockwise weight="bold" className="size-5" />
+                            </motion.button>
+                            
+                            {/* Divider */}
+                            <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+
+                            {/* Delete */}
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.15 }}
+                                onClick={handleDelete}
+                                className="p-2 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:text-zinc-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
+                                title="Delete"
+                            >
+                                <Trash weight="duotone" className="size-5" />
+                            </motion.button>
+
+                            {/* Close (Explicit X or just click outside? Let's add a tiny close or rely on toggle) */}
+                            {/* Actually, clicking the original trigger spot (which is covered by this capsule) could close it, 
+                                BUT we probably want an explicit way to dismiss or auto-dismiss. 
+                                Let's add a small close handle on the far left or make it toggle on click outside (backdrop handles that).
+                                For now, let's keep it clean. Clicking backdrop closes modal, so we need a way to close JUST menu?
+                                Maybe the user clicks any button and it closes. 
+                                Or we add a tiny 'X' on the right? 
+                                Let's make the WHOLE Backdrop click close the menu first? 
+                                Wait, the modal backdrop closes the modal. 
+                                We need a way to close this menu. 
+                                Let's add a click listener to window to close menu if clicked outside?
+                                Or simpler: clicking the capsule area doesn't close, but we add a 'X' button at the end? 
+                                Let's try: The capsule REPLACES the trigger. So clicking the '...' opened it. 
+                                Let's add a Close button at the end of capsule.
+                            */}
+                            <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                onClick={() => setShowMenu(false)}
+                                className="p-2 rounded-full text-zinc-300 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+                            >
+                                <X weight="bold" className="size-4" />
+                            </motion.button>
+
+                        </motion.div>
+                        )}
+                    </AnimatePresence>
+                    </div>
+                </div>
+
+                {/* --- 3. Center Zone (The Tuning Engine) --- */}
+                <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-8 -mt-8">
+                    
+                    {/* 3.1 Title (The Crown - Borderless & Elegant) */}
+                    <div className="relative z-20 w-full flex justify-center min-h-[40px]">
+                    {isEditing ? (
+                        <input
+                            autoFocus={focusTarget === 'title'}
+                            value={displayItem.title}
+                            onChange={(e) => updateDraft('title', e.target.value)}
+                            className="
+                            text-center text-3xl font-medium 
+                            bg-transparent border-none outline-none p-0
+                            text-zinc-900 dark:text-zinc-100 
+                            w-full max-w-[280px]
+                            placeholder:text-zinc-200 dark:placeholder:text-zinc-700
+                            caret-zinc-400
+                            "
+                            placeholder="Untitled"
+                            onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    ) : (
+                        <h2 
+                            onClick={() => { setFocusTarget('title'); setIsEditing(true); }}
+                            className="
+                            text-3xl font-medium tracking-tight
+                            text-zinc-900 dark:text-zinc-100 
+                            cursor-pointer hover:opacity-70 transition-opacity
+                            "
+                        >
+                            {displayItem.title}
+                        </h2>
+                    )}
+                    </div>
+
+                    {/* 3.2 Number & +/- Hotspots */}
+                    <div className="relative flex items-center justify-center w-full">
+                    
+                    {/* Left Hotspot (-1) - Invisible Touch */}
+                    <AnimatePresence>
+                        {isEditing && (
+                        <motion.button 
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="
+                            absolute left-0 top-1/2 -translate-y-1/2
+                            h-32 w-24 flex items-center justify-center
+                            text-zinc-200/50 dark:text-zinc-800/50 
+                            hover:text-zinc-400 dark:hover:text-zinc-500
+                            transition-colors duration-500
+                            cursor-pointer
+                            outline-none
+                            "
+                            onClick={(e) => { e.stopPropagation(); handleQuickUpdate(-1); }}
+                            tabIndex={-1}
+                        >
+                            <Minus weight="thin" className="size-10" />
+                        </motion.button>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Main Value Display/Input */}
+                    <div className="flex flex-col items-center gap-6 px-24 w-full">
+                        {isEditing ? (
+                        <input
+                            autoFocus={focusTarget === 'current'}
+                            type="number"
+                            value={displayItem.current}
+                            onChange={(e) => updateDraft('current', Number(e.target.value))}
+                            className="
+                            w-full text-center text-9xl font-thin tracking-tighter 
+                            bg-transparent outline-none border-none p-0 m-0 tabular-nums 
+                            text-zinc-900 dark:text-zinc-50 
+                            caret-zinc-400
+                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
+                            "
+                            onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        ) : (
+                        <motion.span 
+                            layout
+                            onClick={() => { setFocusTarget('current'); setIsEditing(true); }}
+                            className="
+                            text-9xl font-thin tracking-tighter 
+                            text-zinc-900 dark:text-zinc-50 
+                            cursor-pointer hover:scale-105 transition-transform duration-500
+                            tabular-nums select-none
+                            drop-shadow-sm
+                            "
+                        >
+                            {displayItem.current}
+                        </motion.span>
                         )}
 
-                        {/* Divider */}
-                        {displayItem.type === 'progress' && <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />}
-
-                        {/* Step */}
-                        <div className="flex flex-col items-center gap-1 group">
-                            <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Step</span>
-                            {isEditing ? (
-                              <input 
-                                type="number" 
-                                value={displayItem.step}
-                                onChange={(e) => updateDraft('step', Number(e.target.value))}
-                                className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
-                              />
-                            ) : (
-                              <span onClick={() => setIsEditing(true)} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
-                                {displayItem.step}
-                              </span>
-                            )}
-                        </div>
-
-                        {/* Unit */}
-                        {displayItem.unit && (
-                          <>
-                            <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Unit</span>
-                              <span className="text-xl font-medium text-zinc-400 dark:text-zinc-500">
-                                {displayItem.unit}
-                              </span>
+                        {/* Metadata Row (Borderless & Minimal) */}
+                        <div className={`flex items-center gap-6 transition-all duration-500 ${isEditing ? 'opacity-100 translate-y-0' : 'opacity-40 hover:opacity-100 translate-y-2'}`}>
+                            {/* Target */}
+                            {displayItem.type === 'progress' && (
+                            <div className="flex flex-col items-center gap-1 group">
+                                <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Target</span>
+                                {isEditing ? (
+                                <input 
+                                    autoFocus={focusTarget === 'total'}
+                                    type="number" 
+                                    value={displayItem.total}
+                                    onChange={(e) => updateDraft('total', Number(e.target.value))}
+                                    className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                                ) : (
+                                <span onClick={() => { setFocusTarget('total'); setIsEditing(true); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                    {displayItem.total}
+                                </span>
+                                )}
                             </div>
-                          </>
+                            )}
+
+                            {/* Divider */}
+                            {displayItem.type === 'progress' && <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />}
+
+                            {/* Step */}
+                            <div className="flex flex-col items-center gap-1 group">
+                                <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Step</span>
+                                {isEditing ? (
+                                <input 
+                                    autoFocus={focusTarget === 'step'}
+                                    type="number" 
+                                    value={displayItem.step}
+                                    onChange={(e) => updateDraft('step', Number(e.target.value))}
+                                    className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                                ) : (
+                                <span onClick={() => { setFocusTarget('step'); setIsEditing(true); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                    {displayItem.step}
+                                </span>
+                                )}
+                            </div>
+
+                            {/* Unit - Always Render for Editability */}
+                            <>
+                            <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />
+                            <div className="flex flex-col items-center gap-1 group">
+                                <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Unit</span>
+                                {isEditing ? (
+                                <input 
+                                    autoFocus={focusTarget === 'unit'}
+                                    type="text" 
+                                    value={displayItem.unit || ''}
+                                    onChange={(e) => updateDraft('unit', e.target.value)}
+                                    className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0 placeholder:text-zinc-200 dark:placeholder:text-zinc-700"
+                                    placeholder="Unit"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleCommit()}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                                ) : (
+                                <span 
+                                    onClick={() => { setFocusTarget('unit'); setIsEditing(true); }}
+                                    className={`
+                                    text-xl font-medium cursor-pointer transition-colors
+                                    ${displayItem.unit 
+                                        ? 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100' 
+                                        : 'text-zinc-200 dark:text-zinc-700 group-hover:text-zinc-400'
+                                    }
+                                    `}
+                                >
+                                    {displayItem.unit || '—'}
+                                </span>
+                                )}
+                            </div>
+                            </>
+                        </div>
+                    </div>
+
+                    {/* Right Hotspot (+1) - Invisible Touch */}
+                    <AnimatePresence>
+                        {isEditing && (
+                        <motion.button 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="
+                            absolute right-0 top-1/2 -translate-y-1/2
+                            h-32 w-24 flex items-center justify-center
+                            text-zinc-200/50 dark:text-zinc-800/50 
+                            hover:text-zinc-400 dark:hover:text-zinc-500
+                            transition-colors duration-500
+                            cursor-pointer
+                            outline-none
+                            "
+                            onClick={(e) => { e.stopPropagation(); handleQuickUpdate(1); }}
+                            tabIndex={-1}
+                        >
+                            <Plus weight="thin" className="size-10" />
+                        </motion.button>
                         )}
-                     </div>
-                   </div>
-
-                   {/* Right Hotspot (+1) */}
-                   {!isEditing && (
-                     <button 
-                       className="absolute right-6 size-24 flex items-center justify-center rounded-full text-zinc-200 dark:text-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 hover:text-zinc-400 dark:hover:text-zinc-400 transition-all opacity-0 hover:opacity-100 active:scale-95"
-                       onClick={() => handleQuickUpdate(1)}
-                     >
-                       <Plus weight="light" className="size-10" />
-                     </button>
-                   )}
+                    </AnimatePresence>
+                    </div>
                 </div>
-              </div>
 
-              {/* --- 4. Footer: Stats or Check --- */}
-              <div className="relative z-20 pb-12 px-8 flex flex-col items-center justify-end h-32">
-                
-                <AnimatePresence mode="wait">
-                  {isEditing ? (
-                    <motion.button
-                      key="check-btn"
-                      initial={{ opacity: 0, y: 40, scale: 0.5 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 40, scale: 0.5 }}
-                      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                      onClick={handleCommit}
-                      className="
-                        size-20 rounded-full 
-                        bg-black dark:bg-white 
-                        text-white dark:text-black 
-                        shadow-2xl hover:scale-105 active:scale-95 hover:shadow-black/20
-                        flex items-center justify-center
-                        cursor-pointer z-50
-                      "
-                    >
-                      <Check weight="bold" className="size-8" />
-                    </motion.button>
-                  ) : (
+                {/* --- 4. Footer: Stats or Check --- */}
+                <div className="relative z-20 pb-12 px-8 flex flex-col items-center justify-end h-32">
+                    
+                    <AnimatePresence mode="wait">
+                    {isEditing ? (
+                        <motion.button
+                        key="check-btn"
+                        initial={{ opacity: 0, y: 40, scale: 0.5 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 40, scale: 0.5 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        onClick={handleCommit}
+                        className="
+                            size-20 rounded-full 
+                            bg-black dark:bg-white 
+                            text-white dark:text-black 
+                            shadow-2xl hover:scale-105 active:scale-95 hover:shadow-black/20
+                            flex items-center justify-center
+                            cursor-pointer z-50
+                        "
+                        >
+                        <Check weight="bold" className="size-8" />
+                        </motion.button>
+                    ) : (
+                        <motion.div
+                        key="stats-footer"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="flex flex-col items-center gap-6 w-full"
+                        >
+                            {/* Micro Stats - Simplified */}
+                            <div className="flex items-center gap-12 opacity-50 hover:opacity-100 transition-opacity duration-500">
+                            {(() => {
+                                const stats = getStats(displayItem);
+                                return (
+                                <>
+                                    <div className="flex flex-col items-center gap-1">
+                                    <span className="text-3xl font-thin text-zinc-900 dark:text-zinc-100">{stats.streak}</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400">Streak</span>
+                                    </div>
+                                    <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-700" />
+                                    <div className="flex flex-col items-center gap-1">
+                                    <span className="text-3xl font-thin text-zinc-900 dark:text-zinc-100">{stats.activeDays}</span>
+                                    <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400">Days</span>
+                                    </div>
+                                </>
+                                )
+                            })()}
+                            </div>
+                        </motion.div>
+                    )}
+                    </AnimatePresence>
+                </div>
+
+                {/* Icon Picker Overlay */}
+                <AnimatePresence>
+                    {isPickingIcon && (
                     <motion.div
-                      key="stats-footer"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="flex flex-col items-center gap-6 w-full"
+                        initial={{ opacity: 0, y: '100%' }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: '100%' }}
+                        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                        className="absolute inset-0 z-50 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl flex flex-col p-6"
                     >
-                        {/* Micro Stats - Simplified */}
-                        <div className="flex items-center gap-12 opacity-50 hover:opacity-100 transition-opacity duration-500">
-                          {(() => {
-                            const stats = getStats(displayItem);
-                            return (
-                              <>
-                                <div className="flex flex-col items-center gap-1">
-                                  <span className="text-3xl font-thin text-zinc-900 dark:text-zinc-100">{stats.streak}</span>
-                                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400">Streak</span>
-                                </div>
-                                <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-700" />
-                                <div className="flex flex-col items-center gap-1">
-                                  <span className="text-3xl font-thin text-zinc-900 dark:text-zinc-100">{stats.activeDays}</span>
-                                  <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-400">Days</span>
-                                </div>
-                              </>
-                            )
-                          })()}
+                        <div className="flex-1 overflow-hidden">
+                        <IconSelectionView 
+                            value={displayItem.icon} 
+                            onChange={handleIconChange} 
+                            onCancel={() => setIsPickingIcon(false)}
+                        />
                         </div>
                     </motion.div>
-                  )}
+                    )}
                 </AnimatePresence>
-              </div>
 
-              {/* Icon Picker Overlay */}
-              <AnimatePresence>
-                {isPickingIcon && (
-                  <motion.div
-                    initial={{ opacity: 0, y: '100%' }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: '100%' }}
-                    transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                    className="absolute inset-0 z-50 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl flex flex-col p-6"
-                  >
-                    <div className="flex-1 overflow-hidden">
-                      <IconSelectionView 
-                        value={displayItem.icon} 
-                        onChange={handleIconChange} 
-                        onCancel={() => setIsPickingIcon(false)}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-            </motion.div>
+                </motion.div>
+            </div>
           </div>
         </> 
       )}
