@@ -351,16 +351,16 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                                 initial="hidden"
                                 animate="visible"
                                 exit="hidden"
-                                className="absolute inset-x-8 inset-y-0 flex items-center justify-end gap-3 pointer-events-auto z-50"
+                                className="absolute inset-x-8 inset-y-0 flex items-center justify-end pointer-events-auto z-50"
                             >
-                                {/* Action Pill (Archive, Reset, Delete) */}
+                                {/* Unified Command Toolbar */}
                                 <motion.div 
-                                    className="flex items-center gap-1 p-1 h-10 rounded-full bg-white/50 dark:bg-zinc-800/50 backdrop-blur-md shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                                    className="flex items-center pl-1 pr-1 h-10 rounded-full bg-white/90 dark:bg-zinc-800/90 backdrop-blur-xl shadow-2xl shadow-zinc-200/50 dark:shadow-black/50 ring-1 ring-black/5 dark:ring-white/10"
                                     variants={{
                                         visible: { 
                                             opacity: 1, scale: 1, x: 0,
                                             transition: { 
-                                                type: "spring", stiffness: 600, damping: 30, mass: 0.5
+                                                duration: 0.15, ease: "circOut"
                                             }
                                         },
                                         hidden: { 
@@ -369,80 +369,81 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                                         }
                                     }}
                                 >
-                                    {/* Archive */}
-                                    <motion.button
-                                        variants={{
-                                            hidden: { opacity: 0, scale: 1 },
-                                            visible: { opacity: 1, scale: 1, transition: { duration: 0.1 } }
-                                        }}
-                                        onClick={() => { setShowMenu(false); handleArchive(); }}
-                                        className="
-                                            size-8 flex items-center justify-center rounded-full 
-                                            bg-transparent
-                                            text-zinc-500 dark:text-zinc-400
-                                            hover:bg-white dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100
-                                            hover:shadow-sm
-                                            transition-all duration-200
-                                        "
-                                        title={item.archived ? "Unarchive" : "Archive"}
-                                    >
-                                        <Archive weight="duotone" className="size-4" />
-                                    </motion.button>
+                                    {/* Action Group */}
+                                    <div className="flex items-center gap-0.5">
+                                        {/* Delete (Moved to Left for Safety) */}
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => { setShowMenu(false); handleDelete(); }}
+                                            className="
+                                                size-8 flex items-center justify-center rounded-full 
+                                                bg-transparent
+                                                text-zinc-400 dark:text-zinc-500
+                                                hover:text-red-600 dark:hover:text-red-400
+                                                hover:bg-red-50 dark:hover:bg-red-900/20
+                                                transition-colors duration-200
+                                            "
+                                            title="Delete Item"
+                                        >
+                                            <Trash weight="duotone" className="size-5" />
+                                        </motion.button>
 
-                                    {/* Reset */}
-                                    <motion.button
-                                        variants={{
-                                            hidden: { opacity: 0, scale: 1 },
-                                            visible: { opacity: 1, scale: 1, transition: { duration: 0.1 } }
-                                        }}
-                                        onClick={() => { setShowMenu(false); onUpdate(item.id, { current: 0 }); }}
+                                        {/* Reset */}
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => { setShowMenu(false); onUpdate(item.id, { current: 0 }); }}
+                                            className="
+                                                size-8 flex items-center justify-center rounded-full 
+                                                bg-transparent
+                                                text-zinc-400 dark:text-zinc-500
+                                                hover:text-zinc-900 dark:hover:text-zinc-100
+                                                hover:bg-zinc-100 dark:hover:bg-zinc-700
+                                                transition-colors duration-200
+                                            "
+                                            title="Reset Progress"
+                                        >
+                                            <ArrowCounterClockwise weight="bold" className="size-5 transition-transform hover:-rotate-90 duration-500" />
+                                        </motion.button>
+                                        
+                                        {/* Archive (Moved to Right - Safer Overlap) */}
+                                        <motion.button
+                                            whileHover={{ scale: 1.1 }}
+                                            whileTap={{ scale: 0.9 }}
+                                            onClick={() => { setShowMenu(false); handleArchive(); }}
+                                            className="
+                                                size-8 flex items-center justify-center rounded-full 
+                                                bg-transparent
+                                                text-zinc-400 dark:text-zinc-500
+                                                hover:text-zinc-900 dark:hover:text-zinc-100
+                                                hover:bg-zinc-100 dark:hover:bg-zinc-700
+                                                transition-colors duration-200
+                                            "
+                                            title={item.archived ? "Unarchive" : "Archive"}
+                                        >
+                                            <Archive weight="duotone" className="size-5" />
+                                        </motion.button>
+                                    </div>
+
+                                    {/* Divider */}
+                                    <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1.5" />
+
+                                    {/* Integrated Close Button */}
+                                    <motion.button 
+                                        layoutId="modal-close-button"
+                                        onClick={() => setShowMenu(false)}
                                         className="
                                             size-8 flex items-center justify-center rounded-full 
                                             bg-transparent
-                                            text-zinc-500 dark:text-zinc-400
-                                            hover:bg-white dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100
-                                            hover:shadow-sm
-                                            transition-all duration-200
+                                            text-zinc-400 dark:text-zinc-500
+                                            hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100
+                                            transition-colors duration-300
                                         "
-                                        title="Reset Progress"
                                     >
-                                        <ArrowCounterClockwise weight="bold" className="size-4 transition-transform hover:-rotate-90 duration-500" />
-                                    </motion.button>
-                                    
-                                    {/* Delete */}
-                                    <motion.button
-                                        variants={{
-                                            hidden: { opacity: 0, scale: 1 },
-                                            visible: { opacity: 1, scale: 1, transition: { duration: 0.1 } }
-                                        }}
-                                        onClick={() => { setShowMenu(false); handleDelete(); }}
-                                        className="
-                                            size-8 flex items-center justify-center rounded-full 
-                                            bg-transparent
-                                            text-zinc-500 dark:text-zinc-400
-                                            hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400
-                                            transition-all duration-200
-                                        "
-                                        title="Delete Item"
-                                    >
-                                        <Trash weight="duotone" className="size-4" />
+                                        <X weight="bold" className="size-4" />
                                     </motion.button>
                                 </motion.div>
-
-                                {/* Back / Close Menu - Independent */}
-                                <motion.button 
-                                    layoutId="modal-close-button"
-                                    onClick={() => setShowMenu(false)}
-                                    className="
-                                        size-10 flex items-center justify-center rounded-full 
-                                        bg-transparent
-                                        text-zinc-400 dark:text-zinc-500
-                                        hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100
-                                        transition-colors duration-300
-                                    "
-                                >
-                                    <X weight="bold" className="size-4" />
-                                </motion.button>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -741,7 +742,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                         initial={{ opacity: 0, y: '100%' }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: '100%' }}
-                        transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 25, mass: 0.5 }}
                         className="absolute inset-0 z-50 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl flex flex-col p-6"
                         onClick={(e) => e.stopPropagation()}
                     >
