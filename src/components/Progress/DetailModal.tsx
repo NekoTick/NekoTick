@@ -196,7 +196,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            transition={{ duration: 0.15 }}
             className="fixed -inset-[50%] bg-zinc-100/60 dark:bg-black/80 backdrop-blur-xl z-50"
             onClick={(e) => {
                 e.stopPropagation();
@@ -231,7 +231,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                transition={{ type: "spring", stiffness: 600, damping: 28, mass: 0.5 }}
                 className="
                     relative w-[360px] h-[520px] 
                     bg-white dark:bg-zinc-900 
@@ -261,7 +261,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                     <motion.div 
                     className="absolute bottom-0 left-0 right-0 bg-zinc-50/50 dark:bg-zinc-800/50 backdrop-blur-[2px]"
                     animate={{ height: fillHeight }}
-                    transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
                     />
                     
                     {/* The Watermark Icon - Deeper & Larger */}
@@ -273,125 +273,179 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                 </div>
 
                 {/* --- 2. Top Bar --- */}
-                <div className="relative z-20 flex justify-between items-center p-6 px-8 h-20">
-                    {/* Left: Icon Trigger */}
-                    <button 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setIsPickingIcon(true);
-                    }}
-                    className={`group relative size-10 flex items-center justify-center rounded-full 
-                        bg-white/40 dark:bg-zinc-800/40 hover:bg-white/80 dark:hover:bg-zinc-700/80
-                        transition-all duration-500 backdrop-blur-md
-                        shadow-sm ring-1 ring-white/50 dark:ring-zinc-700/50
-                        opacity-100
-                    `}
-                    >
-                    {DisplayIcon ? (
-                        <DisplayIcon weight="duotone" className="size-5 text-zinc-600 dark:text-zinc-300 group-hover:scale-110 transition-transform duration-500" />
-                    ) : (
-                        <Prohibit weight="bold" className="size-5 text-zinc-300 dark:text-zinc-600 group-hover:scale-110 transition-transform duration-500" />
-                    )}
-                    </button>
-
-                    {/* Right: Menu Trigger / Expanded Capsule */}
-                    <div className="relative h-10 flex items-center justify-end min-w-[40px]">
-                    <AnimatePresence mode="wait">
-                        {!isEditing && !showMenu && (
-                        <motion.button 
-                            key="menu-trigger"
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
-                            onClick={() => setShowMenu(true)}
-                            className="absolute right-0 p-2 rounded-full text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 transition-colors"
-                        >
-                            <DotsThree weight="bold" className="size-6" />
-                        </motion.button>
-                        )}
-                    
-                        {showMenu && !isEditing && (
-                        <motion.div
-                            key="menu-capsule"
-                            initial={{ width: 40, opacity: 0 }}
-                            animate={{ width: 'auto', opacity: 1 }}
-                            exit={{ width: 40, opacity: 0, transition: { duration: 0.2 } }}
-                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                            className="
-                            absolute right-0 flex items-center gap-1 p-1 pr-2 rounded-full 
-                            bg-white/80 dark:bg-zinc-800/80 backdrop-blur-md 
-                            shadow-sm ring-1 ring-zinc-100 dark:ring-zinc-700
-                            overflow-hidden
-                            "
-                        >
-                            {/* Archive */}
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.05 }}
-                                onClick={handleArchive}
-                                className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
-                                title={item.archived ? "Unarchive" : "Archive"}
+                <div className="relative z-20 flex justify-between items-center p-6 px-8 h-20 overflow-hidden">
+                    <AnimatePresence initial={false}>
+                        {!showMenu ? (
+                            /* STATE A: Default Header */
+                            <motion.div 
+                                key="header-default"
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                className="absolute inset-x-8 inset-y-0 flex items-center justify-between gap-2 pointer-events-none"
                             >
-                                <Archive weight="duotone" className="size-5" />
-                            </motion.button>
+                                {/* Left: Icon Trigger (Pointer Events Auto) */}
+                                <div className="pointer-events-auto">
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsPickingIcon(true);
+                                        }}
+                                        className={`group relative size-10 flex items-center justify-center rounded-full 
+                                            bg-white/40 dark:bg-zinc-800/40 hover:bg-white/80 dark:hover:bg-zinc-700/80
+                                            transition-all duration-500 backdrop-blur-md
+                                            shadow-sm ring-1 ring-white/50 dark:ring-zinc-700/50
+                                            opacity-100
+                                        `}
+                                    >
+                                        {DisplayIcon ? (
+                                            <DisplayIcon weight="duotone" className="size-5 text-zinc-600 dark:text-zinc-300 group-hover:scale-110 transition-transform duration-500" />
+                                        ) : (
+                                            <Prohibit weight="bold" className="size-5 text-zinc-300 dark:text-zinc-600 group-hover:scale-110 transition-transform duration-500" />
+                                        )}
+                                    </button>
+                                </div>
 
-                            {/* Reset */}
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.1 }}
-                                onClick={() => onUpdate(item.id, { current: 0 })}
-                                className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
-                                title="Reset Progress"
+                                {/* Right: Actions Group (Pointer Events Auto) */}
+                                <div className="flex items-center gap-4 pointer-events-auto">
+                                    {/* More Menu Trigger */}
+                                    {!isEditing && (
+                                        <motion.button 
+                                            layoutId="more-trigger"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowMenu(true);
+                                            }}
+                                            className="
+                                                size-10 flex items-center justify-center rounded-full 
+                                                text-zinc-300 hover:text-zinc-900 dark:text-zinc-600 dark:hover:text-zinc-100 
+                                                hover:bg-black/5 dark:hover:bg-white/10
+                                                transition-all duration-300
+                                            "
+                                        >
+                                            <DotsThree weight="bold" className="size-6" />
+                                        </motion.button>
+                                    )}
+
+                                    {/* Close Button - Independent & Primary - Ghost Style */}
+                                    <motion.button 
+                                        layoutId="modal-close-button"
+                                        onClick={handleClose}
+                                        className="
+                                            size-10 flex items-center justify-center rounded-full 
+                                            bg-transparent
+                                            text-zinc-300 hover:text-zinc-900 dark:text-zinc-600 dark:hover:text-zinc-100
+                                            hover:bg-zinc-100 dark:hover:bg-zinc-800
+                                            transition-colors duration-300
+                                        "
+                                    >
+                                        <X weight="bold" className="size-4" />
+                                    </motion.button>
+                                </div>
+                            </motion.div>
+                        ) : (
+                            /* STATE B: Action Mode (Replaces Header) */
+                            <motion.div 
+                                key="header-actions"
+                                initial="hidden"
+                                animate="visible"
+                                exit="hidden"
+                                className="absolute inset-x-8 inset-y-0 flex items-center justify-end gap-3 pointer-events-auto z-50"
                             >
-                                <ArrowCounterClockwise weight="bold" className="size-5" />
-                            </motion.button>
-                            
-                            {/* Divider */}
-                            <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+                                {/* Action Pill (Archive, Reset, Delete) */}
+                                <motion.div 
+                                    className="flex items-center gap-1 p-1 h-10 rounded-full bg-white/50 dark:bg-zinc-800/50 backdrop-blur-md shadow-sm ring-1 ring-black/5 dark:ring-white/5"
+                                    variants={{
+                                        visible: { 
+                                            opacity: 1, scale: 1, x: 0,
+                                            transition: { 
+                                                type: "spring", stiffness: 600, damping: 30, mass: 0.5
+                                            }
+                                        },
+                                        hidden: { 
+                                            opacity: 0, scale: 1, x: 10,
+                                            transition: { duration: 0.1 }
+                                        }
+                                    }}
+                                >
+                                    {/* Archive */}
+                                    <motion.button
+                                        variants={{
+                                            hidden: { opacity: 0, scale: 1 },
+                                            visible: { opacity: 1, scale: 1, transition: { duration: 0.1 } }
+                                        }}
+                                        onClick={() => { setShowMenu(false); handleArchive(); }}
+                                        className="
+                                            size-8 flex items-center justify-center rounded-full 
+                                            bg-transparent
+                                            text-zinc-500 dark:text-zinc-400
+                                            hover:bg-white dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100
+                                            hover:shadow-sm
+                                            transition-all duration-200
+                                        "
+                                        title={item.archived ? "Unarchive" : "Archive"}
+                                    >
+                                        <Archive weight="duotone" className="size-4" />
+                                    </motion.button>
 
-                            {/* Delete */}
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.15 }}
-                                onClick={handleDelete}
-                                className="p-2 rounded-full text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:text-zinc-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 transition-colors"
-                                title="Delete"
-                            >
-                                <Trash weight="duotone" className="size-5" />
-                            </motion.button>
+                                    {/* Reset */}
+                                    <motion.button
+                                        variants={{
+                                            hidden: { opacity: 0, scale: 1 },
+                                            visible: { opacity: 1, scale: 1, transition: { duration: 0.1 } }
+                                        }}
+                                        onClick={() => { setShowMenu(false); onUpdate(item.id, { current: 0 }); }}
+                                        className="
+                                            size-8 flex items-center justify-center rounded-full 
+                                            bg-transparent
+                                            text-zinc-500 dark:text-zinc-400
+                                            hover:bg-white dark:hover:bg-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100
+                                            hover:shadow-sm
+                                            transition-all duration-200
+                                        "
+                                        title="Reset Progress"
+                                    >
+                                        <ArrowCounterClockwise weight="bold" className="size-4 transition-transform hover:-rotate-90 duration-500" />
+                                    </motion.button>
+                                    
+                                    {/* Delete */}
+                                    <motion.button
+                                        variants={{
+                                            hidden: { opacity: 0, scale: 1 },
+                                            visible: { opacity: 1, scale: 1, transition: { duration: 0.1 } }
+                                        }}
+                                        onClick={() => { setShowMenu(false); handleDelete(); }}
+                                        className="
+                                            size-8 flex items-center justify-center rounded-full 
+                                            bg-transparent
+                                            text-zinc-500 dark:text-zinc-400
+                                            hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400
+                                            transition-all duration-200
+                                        "
+                                        title="Delete Item"
+                                    >
+                                        <Trash weight="duotone" className="size-4" />
+                                    </motion.button>
+                                </motion.div>
 
-                            {/* Close (Explicit X or just click outside? Let's add a tiny close or rely on toggle) */}
-                            {/* Actually, clicking the original trigger spot (which is covered by this capsule) could close it, 
-                                BUT we probably want an explicit way to dismiss or auto-dismiss. 
-                                Let's add a small close handle on the far left or make it toggle on click outside (backdrop handles that).
-                                For now, let's keep it clean. Clicking backdrop closes modal, so we need a way to close JUST menu?
-                                Maybe the user clicks any button and it closes. 
-                                Or we add a tiny 'X' on the right? 
-                                Let's make the WHOLE Backdrop click close the menu first? 
-                                Wait, the modal backdrop closes the modal. 
-                                We need a way to close this menu. 
-                                Let's add a click listener to window to close menu if clicked outside?
-                                Or simpler: clicking the capsule area doesn't close, but we add a 'X' button at the end? 
-                                Let's try: The capsule REPLACES the trigger. So clicking the '...' opened it. 
-                                Let's add a Close button at the end of capsule.
-                            */}
-                            <div className="w-px h-4 bg-zinc-200 dark:bg-zinc-700 mx-1" />
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.8 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                onClick={() => setShowMenu(false)}
-                                className="p-2 rounded-full text-zinc-300 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                            >
-                                <X weight="bold" className="size-4" />
-                            </motion.button>
-
-                        </motion.div>
+                                {/* Back / Close Menu - Independent */}
+                                <motion.button 
+                                    layoutId="modal-close-button"
+                                    onClick={() => setShowMenu(false)}
+                                    className="
+                                        size-10 flex items-center justify-center rounded-full 
+                                        bg-transparent
+                                        text-zinc-400 dark:text-zinc-500
+                                        hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100
+                                        transition-colors duration-300
+                                    "
+                                >
+                                    <X weight="bold" className="size-4" />
+                                </motion.button>
+                            </motion.div>
                         )}
                     </AnimatePresence>
-                    </div>
                 </div>
 
                 {/* --- 3. Center Zone (The Tuning Engine) --- */}
@@ -653,6 +707,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
                         className="flex flex-col items-center gap-6 w-full"
                         >
                             {/* Micro Stats - Simplified */}
@@ -686,7 +741,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                         initial={{ opacity: 0, y: '100%' }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: '100%' }}
-                        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
                         className="absolute inset-0 z-50 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl flex flex-col p-6"
                         onClick={(e) => e.stopPropagation()}
                     >
