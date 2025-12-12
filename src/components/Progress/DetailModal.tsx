@@ -5,7 +5,7 @@ import {
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { ProgressOrCounter, ProgressItem, CounterItem } from '@/stores/useProgressStore';
+import type { ProgressOrCounter, ProgressItem, CounterItem } from '../../stores/useProgressStore';
 import { IconSelectionView, getIconByName } from './IconPicker';
 
 const appWindow = getCurrentWindow();
@@ -736,7 +736,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
 function getStats(item: ProgressOrCounter) {
   const history = item.history || {};
   const dates = Object.keys(history).sort();
-  const totalOps = Object.values(history).reduce((a, b) => a + b, 0);
+  const totalOps = Object.values(history).reduce((a: number, b: number) => a + b, 0);
   const activeDays = dates.filter(d => history[d] > 0).length;
   
   let streak = 0;

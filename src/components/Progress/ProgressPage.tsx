@@ -9,8 +9,8 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Archive, ArrowLeft } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useProgressStore } from '@/stores/useProgressStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useProgressStore } from '../../stores/useProgressStore';
 import { useProgressDrag } from './hooks/useProgressDrag';
 import { ItemCard } from './ItemCard';
 import { CreateModal } from './CreateModal';
@@ -107,7 +107,6 @@ export function ProgressPage() {
   // Time & Greeting Logic
   const now = new Date();
   const day = now.getDate();
-  const month = now.toLocaleDateString('en-US', { month: 'long' });
   const weekday = now.toLocaleDateString('en-US', { weekday: 'long' });
   
   // Calculate Pending Count (Active items that are not 100% complete)
@@ -116,6 +115,8 @@ export function ProgressPage() {
     if (i.type === 'progress') return i.current < i.total;
     return true; // Counters are always "pending" daily tasks
   }).length;
+
+  const archivedCount = items.filter(i => i.archived).length;
 
   const greeting = pendingCount === 0 ? 'All Done' : `${pendingCount} Pending`;
 
@@ -134,78 +135,85 @@ export function ProgressPage() {
   return (
     <div className="h-full bg-white dark:bg-zinc-900 flex flex-col relative overflow-hidden">
       {/* Right: Levitating Lens Button (Organic Liquid Soul) */}
-      <motion.div 
-        className="absolute top-5 z-40 pointer-events-none flex items-center gap-3"
-        initial={false}
-        animate={{
-          right: isScrolled ? 8 : 24
-        }}
-        transition={{ type: "spring", stiffness: 850, damping: 35, mass: 0.5 }}
-      >
-        <motion.button
-          layout
-          onClick={openCreateModal}
-          initial={false}
-          animate={{
-            width: isScrolled ? 40 : "auto", // Slightly larger touch target
-            height: 40,
-            paddingLeft: isScrolled ? 0 : 16, // Balanced padding
-            paddingRight: isScrolled ? 0 : 20,
-            backgroundColor: isScrolled ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.6)',
-            borderRadius: 9999,
-            gap: isScrolled ? 0 : 8,
-          }}
-          style={{ borderRadius: 9999 }} // Force hardware rounded corners
-          transition={{ 
-            type: "spring", 
-            stiffness: 850, 
-            damping: 35,
-            mass: 0.5 
-          }}
-          className="
-            pointer-events-auto
-            group flex items-center justify-center
-            backdrop-blur-xl
-            border border-white/40 dark:border-white/10
-            shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08),0_2px_4px_-1px_rgba(0,0,0,0.04)]
-            hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.06)]
-            hover:bg-white/90 dark:bg-zinc-800/80
-            text-zinc-800 dark:text-zinc-100
-            transition-shadow duration-300
-          "
-        >
-          {/* Icon - Pure & Floating */}
+      <AnimatePresence>
+        {!isArchiveView && (
           <motion.div 
-            layout="position"
-            className="flex items-center justify-center shrink-0 relative z-10"
-          >
-            <Plus className="size-4" strokeWidth={2.5} />
-          </motion.div>
-          
-          {/* Text - Organic Reveal */}
-          <motion.div
-            initial={false}
+            className="absolute top-5 z-40 pointer-events-none flex items-center gap-3"
+            initial={{ opacity: 0, scale: 0.8 }}
             animate={{ 
-              width: isScrolled ? 0 : "auto",
-              opacity: isScrolled ? 0 : 1,
+              opacity: 1, 
+              scale: 1,
+              right: isScrolled ? 8 : 24
             }}
-            transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
-            className="overflow-hidden flex items-center"
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 850, damping: 35, mass: 0.5 }}
           >
-            <motion.span 
-              animate={{ 
-                x: isScrolled ? -20 : 0, // Start from behind the icon (-20px)
-                filter: isScrolled ? "blur(10px)" : "blur(0px)", // Stronger blur for "materialization"
-                opacity: isScrolled ? 0 : 1
+            <motion.button
+              layout
+              onClick={openCreateModal}
+              initial={false}
+              animate={{
+                width: isScrolled ? 40 : "auto", // Slightly larger touch target
+                height: 40,
+                paddingLeft: isScrolled ? 0 : 16, // Balanced padding
+                paddingRight: isScrolled ? 0 : 20,
+                backgroundColor: isScrolled ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.6)',
+                borderRadius: 9999,
+                gap: isScrolled ? 0 : 8,
               }}
-              transition={{ type: "spring", stiffness: 850, damping: 35, mass: 0.5 }} // High-Velocity Momentum
-              className="text-[13px] font-bold tracking-wider uppercase whitespace-nowrap leading-none pt-[1px]"
+              style={{ borderRadius: 9999 }} // Force hardware rounded corners
+              transition={{ 
+                type: "spring", 
+                stiffness: 850, 
+                damping: 35,
+                mass: 0.5 
+              }}
+              className="
+                pointer-events-auto
+                group flex items-center justify-center
+                backdrop-blur-xl
+                border border-white/40 dark:border-white/10
+                shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08),0_2px_4px_-1px_rgba(0,0,0,0.04)]
+                hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.06)]
+                hover:bg-white/90 dark:bg-zinc-800/80
+                text-zinc-800 dark:text-zinc-100
+                transition-shadow duration-300
+              "
             >
-              New
-            </motion.span>
+              {/* Icon - Pure & Floating */}
+              <motion.div 
+                layout="position"
+                className="flex items-center justify-center shrink-0 relative z-10"
+              >
+                <Plus className="size-4" strokeWidth={2.5} />
+              </motion.div>
+              
+              {/* Text - Organic Reveal */}
+              <motion.div
+                initial={false}
+                animate={{ 
+                  width: isScrolled ? 0 : "auto",
+                  opacity: isScrolled ? 0 : 1,
+                }}
+                transition={{ type: "spring", stiffness: 500, damping: 30, mass: 0.8 }}
+                className="overflow-hidden flex items-center"
+              >
+                <motion.span 
+                  animate={{ 
+                    x: isScrolled ? -20 : 0, // Start from behind the icon (-20px)
+                    filter: isScrolled ? "blur(10px)" : "blur(0px)", // Stronger blur for "materialization"
+                    opacity: isScrolled ? 0 : 1
+                  }}
+                  transition={{ type: "spring", stiffness: 850, damping: 35, mass: 0.5 }} // High-Velocity Momentum
+                  className="text-[13px] font-bold tracking-wider uppercase whitespace-nowrap leading-none pt-[1px]"
+                >
+                  New
+                </motion.span>
+              </motion.div>
+            </motion.button>
           </motion.div>
-        </motion.button>
-      </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Content (Scrollable) */}
       <div 
@@ -242,18 +250,14 @@ export function ProgressPage() {
                     
                     {/* Content Layer - Floating above */}
                     <div className="relative z-10 pt-0 flex flex-col gap-0">
-                      {/* Greeting / Month - The Whisper */}
-                      <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] font-bold tracking-[0.25em] text-zinc-400/80 dark:text-zinc-500 uppercase">
-                            {month.toUpperCase()}
-                          </span>
-                          <div className="h-px w-3 bg-zinc-200 dark:bg-zinc-700" />
-                          <span className="text-[9px] font-medium text-zinc-400 dark:text-zinc-500 italic font-serif">
-                            {greeting}
+                      {/* Greeting / Status - The Call to Action */}
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[9px] font-bold tracking-[0.25em] text-zinc-400 dark:text-zinc-500 uppercase">
+                            {greeting.toUpperCase()}
                           </span>
                       </div>
 
-                      {/* Weekday - The Statement */}
+                      {/* Weekday - The Temporal Anchor */}
                       <h1 className="text-2xl font-serif italic font-light text-zinc-800 dark:text-zinc-100 tracking-tight">
                         {weekday}
                       </h1>
@@ -261,23 +265,31 @@ export function ProgressPage() {
                   </>
                 ) : (
                   <>
-                    {/* Background "BOX" */}
-                    <div className="absolute -top-4 -left-4 text-[3.5rem] leading-none font-thin text-zinc-50 dark:text-zinc-800/30 select-none pointer-events-none tracking-tighter mix-blend-multiply dark:mix-blend-screen">
-                      BOX
-                    </div>
-                    <div className="relative z-10 pt-0 flex flex-col gap-0">
-                        <button 
-                          onClick={() => setIsArchiveView(false)}
-                          className="flex items-center gap-2 group cursor-pointer w-fit mb-1"
-                        >
-                          <ArrowLeft className="size-3 text-zinc-400 group-hover:text-zinc-600 dark:text-zinc-500 dark:group-hover:text-zinc-300 transition-colors" />
-                          <span className="text-[9px] font-bold tracking-[0.25em] text-zinc-400/80 dark:text-zinc-500 uppercase group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors">
-                            BACK TO LIST
-                          </span>
-                        </button>
-                        <h1 className="text-2xl font-serif italic font-light text-zinc-800 dark:text-zinc-100 tracking-tight">
-                        Archived
-                      </h1>
+                    <div className="relative z-10 flex flex-col gap-0 w-full pl-0 -mt-2">
+                        {/* Single Row: Back Arrow -> Title -> Count */}
+                        <div className="flex items-center gap-3 w-full">
+                          {/* Back Button - Pure Art (Minimalist Arrow) */}
+                          <button 
+                            onClick={() => setIsArchiveView(false)}
+                            className="group relative flex items-center justify-center py-2 pr-2 -ml-1 cursor-pointer outline-none"
+                            title="Back to List"
+                          >
+                            <ArrowLeft 
+                              className="size-5 text-zinc-400 group-hover:text-zinc-900 dark:text-zinc-500 dark:group-hover:text-zinc-100 transition-colors duration-300 transform group-hover:-translate-x-1" 
+                              strokeWidth={1.5} 
+                            />
+                          </button>
+
+                          {/* Title & Count - The Narrative */}
+                          <div className="flex items-baseline gap-3 select-none">
+                            <h1 className="text-2xl font-serif italic font-light text-zinc-800 dark:text-zinc-100 tracking-tight">
+                              Archived
+                            </h1>
+                            <span className="text-xs font-medium text-zinc-300 dark:text-zinc-600 font-serif italic">
+                              {archivedCount}
+                            </span>
+                          </div>
+                        </div>
                     </div>
                   </>
                 )}

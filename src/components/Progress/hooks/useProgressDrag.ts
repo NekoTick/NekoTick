@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { DragStartEvent, DragMoveEvent, DragEndEvent } from '@dnd-kit/core';
-import type { ProgressOrCounter } from '@/stores/useProgressStore';
+import type { ProgressOrCounter } from '../../../stores/useProgressStore';
 
 // Update position without awaiting result for smoother animation
 const updatePositionFast = (x: number, y: number) => {

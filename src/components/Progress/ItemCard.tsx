@@ -1,7 +1,7 @@
 import { useSortable, defaultAnimateLayoutChanges, type AnimateLayoutChanges } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, Minus, Check } from 'lucide-react';
-import type { ProgressOrCounter } from '@/stores/useProgressStore';
+import type { ProgressOrCounter } from '../../stores/useProgressStore';
 import { getIconByName } from './IconPicker';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
