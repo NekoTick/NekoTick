@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IconSelectionView, getIconByName } from './IconPicker';
 import { ItemCard } from './ItemCard';
-import { useClickOutside } from '../../hooks/useClickOutside';
 
 const appWindow = getCurrentWindow();
 

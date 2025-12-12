@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format, subDays, isSameDay, parseISO } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import type { ProgressOrCounter } from '../../stores/useProgressStore';
 
 interface HistoryWaveformProps {
@@ -107,13 +107,11 @@ export function HistoryWaveform({ item, days = 10 }: HistoryWaveformProps) {
         onMouseLeave={() => setHoveredIndex(null)}
       >
         {dataPoints.map((point, index) => (
-          <WavePill 
+          <WavePill
             key={point.date.toISOString()}
             point={point}
             index={index}
-            totalPoints={days}
             onHover={() => setHoveredIndex(index)}
-            itemType={item.type}
           />
         ))}
         
@@ -124,9 +122,18 @@ export function HistoryWaveform({ item, days = 10 }: HistoryWaveformProps) {
   );
 }
 
-function WavePill({ point, index, totalPoints, onHover, itemType }: any) {
-  const isHovered = false; // Handled by parent for coordination, but we can add local effects
-  
+interface WavePillProps {
+  point: {
+    date: Date;
+    heightRatio: number;
+    isZero: boolean;
+    isToday: boolean;
+  };
+  index: number;
+  onHover: () => void;
+}
+
+function WavePill({ point, index, onHover }: WavePillProps) {
   return (
     <motion.div
       className="group relative flex-1 h-full flex items-end justify-center cursor-pointer"

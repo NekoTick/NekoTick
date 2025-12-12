@@ -181,7 +181,7 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
 
     if (needsPersist) {
       console.log('[ProgressStore] Auto-resetting daily counters and persisting changes.');
-      await persistItems(items); // Persist immediately after reset
+      await saveProgress(items); // Persist immediately after reset
     }
 
     set({ items: items.map(fromStorageFormat), loaded: true });

@@ -5,3 +5,4 @@ export { CreateModal } from './CreateModal';
 export { DetailModal } from './DetailModal';
 export { IconPicker, getIconByName } from './IconPicker';
 export { useProgressDrag } from './hooks/useProgressDrag';
+export { HistoryWaveform } from './HistoryWaveform';

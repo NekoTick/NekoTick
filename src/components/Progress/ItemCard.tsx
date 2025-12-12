@@ -1,6 +1,6 @@
 import { useSortable, defaultAnimateLayoutChanges, type AnimateLayoutChanges } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Minus, Check, Clock, ArrowsClockwise } from '@phosphor-icons/react';
+import { Plus, Minus, Check, ArrowsClockwise } from '@phosphor-icons/react';
 import type { ProgressOrCounter } from '../../stores/useProgressStore';
 import { getIconByName } from './IconPicker';
 import { motion, AnimatePresence } from 'framer-motion';
