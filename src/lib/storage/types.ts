@@ -37,7 +37,8 @@ export interface ProgressData {
   todayCount: number;
   lastUpdateDate?: string;
   history?: Record<string, number>;
-  frequency?: 'daily' | 'weekly' | 'monthly';
+  frequency?: 'daily' | 'weekly' | 'monthly'; // For display, not reset
+  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; // New field for auto-reset behavior
   startDate?: number;
   endDate?: number;
   createdAt: number;

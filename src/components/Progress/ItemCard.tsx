@@ -1,6 +1,6 @@
 import { useSortable, defaultAnimateLayoutChanges, type AnimateLayoutChanges } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Minus, Check } from '@phosphor-icons/react';
+import { Plus, Minus, Check, Clock, ArrowsClockwise } from '@phosphor-icons/react';
 import type { ProgressOrCounter } from '../../stores/useProgressStore';
 import { getIconByName } from './IconPicker';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -405,8 +405,13 @@ export function ItemCard({ item, onUpdate, onClick, onAutoArchive, isDragging, p
                   {/* Stats */}
                   <motion.div 
                     animate={{ opacity: isCompleting ? 0 : 1, height: isCompleting ? 0 : 'auto' }}
-                    className="flex items-center gap-3 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] overflow-hidden"
+                    className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.2em] overflow-hidden"
                   >
+                    {/* Reset Indicator (The Loop) */}
+                    {item.resetFrequency === 'daily' && (
+                        <ArrowsClockwise weight="bold" className="size-3 text-zinc-300 dark:text-zinc-600" />
+                    )}
+                    
                     <span className={item.todayCount > 0 ? "text-zinc-600 dark:text-zinc-300" : ""}>
                       {item.type === 'counter' ? (
                           item.todayCount > 0 ? `Today ${item.todayCount}` : "Tap to Count"

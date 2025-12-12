@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   X, Trash, Archive, Check, Plus, Minus,
-  DotsThree, ArrowCounterClockwise, Prohibit
+  DotsThree, ArrowCounterClockwise, Prohibit,
+  Clock, ArrowsClockwise // Added ArrowsClockwise icon
 } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -25,7 +26,7 @@ interface DetailModalProps {
 export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange }: DetailModalProps) {
   // Global Edit State
   const [isEditing, setIsEditing] = useState(false);
-  const [focusTarget, setFocusTarget] = useState<'title' | 'current' | 'total' | 'step' | 'unit'>('title');
+  const [focusTarget, setFocusTarget] = useState<'title' | 'current' | 'total' | 'step' | 'unit' | 'resetFrequency'>('title');
   const [draft, setDraft] = useState<Partial<ProgressOrCounter>>({});
   
   const [isPickingIcon, setIsPickingIcon] = useState(false);
@@ -233,7 +234,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 transition={{ type: "spring", stiffness: 850, damping: 35, mass: 0.5 }}
                 className="
-                    relative w-[360px] h-[520px] 
+                    relative w-[360px] h-[580px] 
                     bg-white dark:bg-zinc-900 
                     rounded-[3rem] 
                     shadow-2xl shadow-zinc-200/50 dark:shadow-black/80
@@ -482,7 +483,7 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                     </AnimatePresence>
 
                     {/* Main Value Display/Input */}
-                    <div className="flex flex-col items-center gap-6 px-24 w-full">
+                    <div className="flex flex-col items-center gap-6 px-24 w-full mb-8">
                         {isEditing ? (
                         <input
                             autoFocus={focusTarget === 'current'}
@@ -520,100 +521,233 @@ export function DetailModal({ item, onClose, onUpdate, onDelete, onPreviewChange
                         </motion.span>
                         )}
 
-                        {/* Metadata Row (Borderless & Minimal) */}
-                        <div className={`flex items-center gap-6 transition-all duration-300 ${isEditing ? 'opacity-100 translate-y-0' : 'opacity-40 hover:opacity-100 translate-y-2'}`}>
-                            {/* Target */}
-                            {displayItem.type === 'progress' && (
-                            <div className="flex flex-col items-center gap-1 group">
-                                <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Target</span>
-                                {isEditing ? (
-                                <input 
-                                    autoFocus={focusTarget === 'total'}
-                                    type="number" 
-                                    value={displayItem.total}
-                                    onChange={(e) => updateDraft('total', Number(e.target.value))}
-                                    className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.stopPropagation();
-                                            handleCommit();
-                                        }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                                ) : (
-                                <span onClick={() => { setFocusTarget('total'); setIsEditing(true); setShowMenu(false); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
-                                    {displayItem.total}
-                                </span>
-                                )}
-                            </div>
+                        {/* Metadata Layout (Adaptive: Grid for Progress, Flex for Counter) */}
+                        <div className={`mt-2 transition-all duration-300 ${isEditing ? 'opacity-100 translate-y-0' : 'opacity-40 hover:opacity-100 translate-y-2'}`}>
+                            
+                            {displayItem.type === 'progress' ? (
+                                /* Progress Layout: 2x2 Grid */
+                                <div className="grid grid-cols-2 gap-x-12 gap-y-6">
+                                    {/* Row 1, Col 1: Target */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Target</span>
+                                        {isEditing ? (
+                                        <input 
+                                            autoFocus={focusTarget === 'total'}
+                                            type="number" 
+                                            value={displayItem.total}
+                                            onChange={(e) => updateDraft('total', Number(e.target.value))}
+                                            className="w-20 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.stopPropagation();
+                                                    handleCommit();
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        ) : (
+                                        <span onClick={() => { setFocusTarget('total'); setIsEditing(true); setShowMenu(false); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                            {displayItem.total}
+                                        </span>
+                                        )}
+                                    </div>
+
+                                    {/* Row 1, Col 2: Step */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Step</span>
+                                        {isEditing ? (
+                                        <input 
+                                            autoFocus={focusTarget === 'step'}
+                                            type="number" 
+                                            value={displayItem.step}
+                                            onChange={(e) => updateDraft('step', Number(e.target.value))}
+                                            className="w-20 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.stopPropagation();
+                                                    handleCommit();
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        ) : (
+                                        <span onClick={() => { setFocusTarget('step'); setIsEditing(true); setShowMenu(false); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                            {displayItem.step}
+                                        </span>
+                                        )}
+                                    </div>
+
+                                    {/* Row 2, Col 1: Unit */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Unit</span>
+                                        {isEditing ? (
+                                        <input 
+                                            autoFocus={focusTarget === 'unit'}
+                                            type="text" 
+                                            value={displayItem.unit || ''}
+                                            onChange={(e) => updateDraft('unit', e.target.value)}
+                                            className="w-20 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0 placeholder:text-zinc-200 dark:placeholder:text-zinc-700"
+                                            placeholder="Unit"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.stopPropagation();
+                                                    handleCommit();
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        ) : (
+                                        <span 
+                                            onClick={() => { setFocusTarget('unit'); setIsEditing(true); setShowMenu(false); }}
+                                            className={`
+                                            text-xl font-medium cursor-pointer transition-colors
+                                            ${displayItem.unit 
+                                                ? 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100' 
+                                                : 'text-zinc-200 dark:text-zinc-700 group-hover:text-zinc-400'
+                                            }
+                                            `}
+                                        >
+                                            {displayItem.unit || '—'}
+                                        </span>
+                                        )}
+                                    </div>
+
+                                    {/* Row 2, Col 2: Reset */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Reset</span>
+                                        {isEditing ? (
+                                            <div 
+                                                className="flex items-center justify-center h-[28px] cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const current = displayItem.resetFrequency || 'none';
+                                                    const next = current === 'none' ? 'daily' : 'none';
+                                                    updateDraft('resetFrequency', next);
+                                                }}
+                                            >
+                                                <span className="text-xl font-medium text-zinc-900 dark:text-zinc-100 select-none">
+                                                    {displayItem.resetFrequency === 'daily' ? 'Daily' : 'None'}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div 
+                                                onClick={(e) => { 
+                                                    e.stopPropagation();
+                                                    const current = displayItem.resetFrequency || 'none';
+                                                    const next = current === 'none' ? 'daily' : 'none';
+                                                    onUpdate(item.id, { resetFrequency: next });
+                                                }}
+                                                className="flex items-center justify-center gap-1 cursor-pointer group/reset"
+                                            >
+                                                {displayItem.resetFrequency === 'daily' ? (
+                                                    <ArrowsClockwise weight="duotone" className="size-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors" />
+                                                ) : (
+                                                    <span className="text-xl font-medium text-zinc-200 dark:text-zinc-700 group-hover:text-zinc-400 transition-colors">—</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Counter Layout: Single Row Flex (Tripod) - Compact & Clean */
+                                <div className="flex items-center justify-center gap-6">
+                                    {/* Item 1: Step */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Step</span>
+                                        {isEditing ? (
+                                        <input 
+                                            autoFocus={focusTarget === 'step'}
+                                            type="number" 
+                                            value={displayItem.step}
+                                            onChange={(e) => updateDraft('step', Number(e.target.value))}
+                                            className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.stopPropagation();
+                                                    handleCommit();
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        ) : (
+                                        <span onClick={() => { setFocusTarget('step'); setIsEditing(true); setShowMenu(false); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
+                                            {displayItem.step}
+                                        </span>
+                                        )}
+                                    </div>
+
+                                    {/* Item 2: Unit */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Unit</span>
+                                        {isEditing ? (
+                                        <input 
+                                            autoFocus={focusTarget === 'unit'}
+                                            type="text" 
+                                            value={displayItem.unit || ''}
+                                            onChange={(e) => updateDraft('unit', e.target.value)}
+                                            className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0 placeholder:text-zinc-200 dark:placeholder:text-zinc-700"
+                                            placeholder="Unit"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.stopPropagation();
+                                                    handleCommit();
+                                                }
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                        ) : (
+                                        <span 
+                                            onClick={() => { setFocusTarget('unit'); setIsEditing(true); setShowMenu(false); }}
+                                            className={`
+                                            text-xl font-medium cursor-pointer transition-colors
+                                            ${displayItem.unit 
+                                                ? 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100' 
+                                                : 'text-zinc-200 dark:text-zinc-700 group-hover:text-zinc-400'
+                                            }
+                                            `}
+                                        >
+                                            {displayItem.unit || '—'}
+                                        </span>
+                                        )}
+                                    </div>
+
+                                    {/* Item 3: Reset */}
+                                    <div className="flex flex-col items-center gap-1 group">
+                                        <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Reset</span>
+                                        {isEditing ? (
+                                            <div 
+                                                className="flex items-center justify-center h-[28px] cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const current = displayItem.resetFrequency || 'none';
+                                                    const next = current === 'none' ? 'daily' : 'none';
+                                                    updateDraft('resetFrequency', next);
+                                                }}
+                                            >
+                                                <span className="text-xl font-medium text-zinc-900 dark:text-zinc-100 select-none">
+                                                    {displayItem.resetFrequency === 'daily' ? 'Daily' : 'None'}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div 
+                                                onClick={(e) => { 
+                                                    e.stopPropagation();
+                                                    const current = displayItem.resetFrequency || 'none';
+                                                    const next = current === 'none' ? 'daily' : 'none';
+                                                    onUpdate(item.id, { resetFrequency: next });
+                                                }}
+                                                className="flex items-center justify-center gap-1 cursor-pointer group/reset"
+                                            >
+                                                {displayItem.resetFrequency === 'daily' ? (
+                                                    <ArrowsClockwise weight="duotone" className="size-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors" />
+                                                ) : (
+                                                    <span className="text-xl font-medium text-zinc-200 dark:text-zinc-700 group-hover:text-zinc-400 transition-colors">—</span>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             )}
-
-                            {/* Divider */}
-                            {displayItem.type === 'progress' && <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />}
-
-                            {/* Step */}
-                            <div className="flex flex-col items-center gap-1 group">
-                                <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Step</span>
-                                {isEditing ? (
-                                <input 
-                                    autoFocus={focusTarget === 'step'}
-                                    type="number" 
-                                    value={displayItem.step}
-                                    onChange={(e) => updateDraft('step', Number(e.target.value))}
-                                    className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.stopPropagation();
-                                            handleCommit();
-                                        }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                                ) : (
-                                <span onClick={() => { setFocusTarget('step'); setIsEditing(true); setShowMenu(false); }} className="text-xl font-medium text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition-colors cursor-pointer">
-                                    {displayItem.step}
-                                </span>
-                                )}
-                            </div>
-
-                            {/* Unit - Always Render for Editability */}
-                            <>
-                            <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />
-                            <div className="flex flex-col items-center gap-1 group">
-                                <span className="text-[9px] font-bold uppercase text-zinc-300 dark:text-zinc-600 tracking-[0.25em]">Unit</span>
-                                {isEditing ? (
-                                <input 
-                                    autoFocus={focusTarget === 'unit'}
-                                    type="text" 
-                                    value={displayItem.unit || ''}
-                                    onChange={(e) => updateDraft('unit', e.target.value)}
-                                    className="w-16 bg-transparent border-none outline-none text-center font-medium text-xl text-zinc-900 dark:text-zinc-100 caret-zinc-400 p-0 placeholder:text-zinc-200 dark:placeholder:text-zinc-700"
-                                    placeholder="Unit"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.stopPropagation();
-                                            handleCommit();
-                                        }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                                ) : (
-                                <span 
-                                    onClick={() => { setFocusTarget('unit'); setIsEditing(true); setShowMenu(false); }}
-                                    className={`
-                                    text-xl font-medium cursor-pointer transition-colors
-                                    ${displayItem.unit 
-                                        ? 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100' 
-                                        : 'text-zinc-200 dark:text-zinc-700 group-hover:text-zinc-400'
-                                    }
-                                    `}
-                                >
-                                    {displayItem.unit || '—'}
-                                </span>
-                                )}
-                            </div>
-                            </>
                         </div>
                     </div>
 

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { IconSelectionView, getIconByName } from './IconPicker';
 import { ItemCard } from './ItemCard';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 const appWindow = getCurrentWindow();
 
@@ -16,6 +17,7 @@ interface ProgressFormData {
   total: number;
   step: number;
   unit: string;
+  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; // Added resetFrequency
 }
 
 interface CounterFormData {
@@ -24,13 +26,14 @@ interface CounterFormData {
   step: number;
   unit: string;
   frequency: 'daily' | 'weekly' | 'monthly';
+  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; // Added resetFrequency
 }
 
 interface CreateModalProps {
   open: boolean;
   onClose: () => void;
   onCreateProgress: (data: ProgressFormData) => void;
-  onCreateCounter: (data: CounterFormData) => void;
+  onCreateCounter: (data: CounterFormData) => void; // Updated to accept resetFrequency
 }
 
 /**
@@ -52,6 +55,7 @@ export function CreateModal({
     total: 100,
     step: 1,
     unit: '次',
+    resetFrequency: 'none', // Initialize resetFrequency
   });
 
   const [counterForm, setCounterForm] = useState<CounterFormData>({
@@ -59,6 +63,7 @@ export function CreateModal({
     step: 1,
     unit: '次',
     frequency: 'daily',
+    resetFrequency: 'none', // Initialize resetFrequency
   });
   
   // Adaptive Scaling (Direct DOM)
@@ -107,8 +112,8 @@ export function CreateModal({
     if (open) {
       setType('progress');
       setIsPickingIcon(false); // Reset picker state
-      setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: '次' });
-      setCounterForm({ title: '', step: 1, unit: '次', frequency: 'daily' });
+      setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: '次', resetFrequency: 'none' }); // Reset resetFrequency
+      setCounterForm({ title: '', step: 1, unit: '次', frequency: 'daily', resetFrequency: 'none' }); // Reset resetFrequency
     }
   }, [open]);
 
@@ -128,10 +133,10 @@ export function CreateModal({
   const handleSubmit = () => {
     if (type === 'progress') {
       if (!progressForm.title.trim()) return;
-      onCreateProgress({ ...progressForm, title: progressForm.title.trim(), unit: progressForm.unit.trim() || '次' });
+      onCreateProgress({ ...progressForm, title: progressForm.title.trim(), unit: progressForm.unit.trim() || '次', resetFrequency: progressForm.resetFrequency }); // Pass resetFrequency
     } else {
       if (!counterForm.title.trim()) return;
-      onCreateCounter({ ...counterForm, title: counterForm.title.trim(), unit: counterForm.unit.trim() || '次' });
+      onCreateCounter({ ...counterForm, title: counterForm.title.trim(), unit: counterForm.unit.trim() || '次', resetFrequency: counterForm.resetFrequency }); // Pass resetFrequency
     }
     onClose();
   };
@@ -147,7 +152,8 @@ export function CreateModal({
     unit: progressForm.unit,
     todayCount: previewTodayCount,
     step: progressForm.step,
-    direction: progressForm.direction
+    direction: progressForm.direction,
+    resetFrequency: progressForm.resetFrequency, // Pass resetFrequency to preview
   } : {
     id: 'preview',
     type: 'counter',
@@ -195,7 +201,7 @@ export function CreateModal({
 
           {/* Creator Altar */}
           <div className="
-            fixed inset-0 flex flex-col items-center justify-center z-50 pointer-events-none p-6 overflow-hidden
+            fixed inset-0 flex flex-col items-center justify-center z-50 pointer-events-none p-6
           ">
             <div ref={wrapperRef} style={{ transformOrigin: 'center center' }} className="w-full flex flex-col items-center">
             
@@ -385,6 +391,16 @@ export function CreateModal({
                         type="text"
                         width="w-24"
                       />
+                      {/* New CapsuleSelector for Reset Frequency */}
+                      <CapsuleSelector
+                        label="Reset"
+                        value={progressForm.resetFrequency || 'none'}
+                        options={[
+                            { label: 'None', value: 'none' },
+                            { label: 'Daily', value: 'daily' },
+                        ]}
+                        onChange={(v: 'daily' | 'weekly' | 'monthly' | 'none') => setProgressForm({ ...progressForm, resetFrequency: v })}
+                      />
                     </>
                   ) : (
                     <>
@@ -401,6 +417,17 @@ export function CreateModal({
                         onChange={(v: string) => setCounterForm({ ...counterForm, unit: v })}
                         type="text"
                         width="w-24"
+                      />
+                      {/* New CapsuleSelector for Reset Frequency */}
+                      <CapsuleSelector
+                        label="Reset"
+                        value={counterForm.resetFrequency || 'none'}
+                        options={[
+                            { label: 'None', value: 'none' },
+                            { label: 'Daily', value: 'daily' },
+                            // Add weekly/monthly options later if needed
+                        ]}
+                        onChange={(v: 'daily' | 'weekly' | 'monthly' | 'none') => setCounterForm({ ...counterForm, resetFrequency: v })}
                       />
                     </>
                   )}
@@ -472,5 +499,51 @@ function CapsuleInput({ label, value, onChange, type, width = "w-28" }: any) {
         />
     </div>
   );
+}
+
+// New CapsuleSelector component
+interface CapsuleSelectorOption {
+    label: string;
+    value: string;
+}
+
+interface CapsuleSelectorProps {
+    label: string;
+    value: string;
+    options: CapsuleSelectorOption[];
+    onChange: (value: any) => void;
+    width?: string;
+}
+
+function CapsuleSelector({ label, value, options, onChange, width = "w-28" }: CapsuleSelectorProps) {
+    const selectedOption = options.find(o => o.value === value) || options[0];
+
+    const handleClick = () => {
+        const currentIndex = options.findIndex(o => o.value === value);
+        const nextIndex = (currentIndex + 1) % options.length;
+        onChange(options[nextIndex].value);
+    };
+
+    return (
+        <div 
+            className={`
+                relative flex flex-col items-center justify-center
+                ${width} h-16 rounded-2xl
+                bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm
+                border border-white/20 dark:border-white/5
+                shadow-sm hover:shadow-md hover:bg-white/60 dark:hover:bg-zinc-800/60
+                transition-all duration-300 group
+                cursor-pointer select-none
+            `}
+            onClick={handleClick}
+        >
+            <span className="text-[9px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-0.5 group-hover:text-zinc-600 dark:group-hover:text-zinc-400 transition-colors">
+                {label}
+            </span>
+            <span className="w-full bg-transparent text-center font-medium text-lg text-zinc-800 dark:text-zinc-200 outline-none p-0">
+                {selectedOption.label}
+            </span>
+        </div>
+    );
 }
 

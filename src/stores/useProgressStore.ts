@@ -17,6 +17,7 @@ export interface ProgressItem {
   history?: Record<string, number>; // { "2025-12-05": 3, ... } 每天操作次数
   startDate?: number;
   endDate?: number;
+  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; // Added resetFrequency
   createdAt: number;
   archived?: boolean;
 }
@@ -32,7 +33,8 @@ export interface CounterItem {
   todayCount: number;
   lastUpdateDate?: string;
   history?: Record<string, number>; // { "2025-12-05": 3, ... } 每天操作次数
-  frequency: 'daily' | 'weekly' | 'monthly';
+  frequency: 'daily' | 'weekly' | 'monthly'; // For display, not reset
+  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; // New field for auto-reset behavior
   createdAt: number;
   archived?: boolean;
 }
@@ -71,6 +73,7 @@ function fromStorageFormat(data: ProgressData): ProgressOrCounter {
       history: data.history,
       startDate: data.startDate,
       endDate: data.endDate,
+      resetFrequency: data.resetFrequency || 'none', // Map resetFrequency
       createdAt: data.createdAt,
       archived: data.archived || false,
     };
@@ -87,6 +90,7 @@ function fromStorageFormat(data: ProgressData): ProgressOrCounter {
       lastUpdateDate: data.lastUpdateDate,
       history: data.history,
       frequency: data.frequency || 'daily',
+      resetFrequency: data.resetFrequency || 'none', // Handle new field
       createdAt: data.createdAt,
       archived: data.archived || false,
     };
@@ -111,6 +115,7 @@ function toStorageFormat(item: ProgressOrCounter): ProgressData {
       history: item.history,
       startDate: item.startDate,
       endDate: item.endDate,
+      resetFrequency: item.resetFrequency, // Map resetFrequency
       createdAt: item.createdAt,
       archived: item.archived,
     };
@@ -127,6 +132,7 @@ function toStorageFormat(item: ProgressOrCounter): ProgressData {
       lastUpdateDate: item.lastUpdateDate,
       history: item.history,
       frequency: item.frequency,
+      resetFrequency: item.resetFrequency, // Handle new field
       createdAt: item.createdAt,
       archived: item.archived,
     };
@@ -144,11 +150,37 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
   
   loadItems: async () => {
     if (get().loaded) return;
-    const data = await loadProgress();
-    set({ items: data.map(fromStorageFormat), loaded: true });
+    let items = await loadProgress();
+    const todayKey = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    let needsPersist = false;
+    
+    // Apply auto-reset logic
+    items = items.map(item => {
+      // Check for daily reset
+      if (item.resetFrequency === 'daily') {
+        // If last update was not today, reset current and todayCount
+        if (item.lastUpdateDate !== todayKey) {
+          needsPersist = true;
+          return {
+            ...item,
+            current: 0,
+            todayCount: 0,
+            lastUpdateDate: todayKey, // Update lastUpdateDate to current day after reset
+          };
+        }
+      }
+      return item;
+    });
+
+    if (needsPersist) {
+      console.log('[ProgressStore] Auto-resetting daily counters and persisting changes.');
+      await persistItems(items); // Persist immediately after reset
+    }
+
+    set({ items: items.map(fromStorageFormat), loaded: true });
   },
   
-  addProgress: (data) => set((state) => {
+  addProgress: (data: Omit<ProgressItem, 'id' | 'type' | 'current' | 'todayCount' | 'createdAt'>) => set((state) => {
     const newItem: ProgressItem = {
       id: nanoid(),
       type: 'progress',
@@ -163,6 +195,7 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
       lastUpdateDate: undefined,
       startDate: data.startDate,
       endDate: data.endDate,
+      resetFrequency: data.resetFrequency || 'none', // Set resetFrequency
       createdAt: Date.now(),
     };
     const newItems = [newItem, ...state.items];
@@ -170,7 +203,7 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
     return { items: newItems };
   }),
   
-  addCounter: (data) => set((state) => {
+  addCounter: (data: { title: string; icon?: string; step: number; unit: string; frequency: 'daily' | 'weekly' | 'monthly'; resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; }) => set((state) => {
     const newItem: CounterItem = {
       id: nanoid(),
       type: 'counter',
@@ -182,6 +215,7 @@ export const useProgressStore = create<ProgressStore>((set, get) => ({
       todayCount: 0,
       lastUpdateDate: undefined,
       frequency: data.frequency,
+      resetFrequency: data.resetFrequency || 'none', // Set resetFrequency here
       createdAt: Date.now(),
     };
     const newItems = [newItem, ...state.items];
