@@ -59,11 +59,13 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
       let dateLabel = '';
       let isCurrentPeriod = false;
       let dateForKey = new Date();
+      let pointId = ''; // Ensure ID is defined for all scopes
 
       if (aggregationType === 'day') {
         const date = subDays(today, i);
         dateForKey = date;
         const dateKey = format(date, 'yyyy-MM-dd');
+        pointId = dateKey; // Use date as ID
         value = history[dateKey] || 0;
         dateLabel = i === 0 ? 'Today' : format(date, labelFormat);
         isCurrentPeriod = i === 0;
@@ -71,6 +73,7 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
       else if (aggregationType === 'week') {
         const weekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 1 });
         dateForKey = weekStart;
+        pointId = format(weekStart, 'yyyy-MM-dd'); // Use week start date as ID
         dateLabel = format(weekStart, 'MMM d');
         isCurrentPeriod = i === 0;
         for (let d = 0; d < 7; d++) {
@@ -82,6 +85,7 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
       else if (aggregationType === 'month') {
         const monthStart = startOfMonth(subMonths(today, i));
         dateForKey = monthStart;
+        pointId = format(monthStart, 'yyyy-MM'); // Use month as ID
         dateLabel = format(monthStart, 'MMM');
         isCurrentPeriod = i === 0;
         const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
@@ -96,7 +100,7 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
       }
       
       points.push({
-        id: `${scope}-${i}`,
+        id: pointId, // Stable ID
         date: dateForKey,
         label: dateLabel,
         value,
@@ -306,28 +310,27 @@ function WavePill({ point, index, totalPoints, hoveredIndex, onHover }: WavePill
   const targetMaxWidth = totalPoints > 20 ? 6 : (totalPoints <= 7 ? 16 : 10);
   const targetMinWidth = totalPoints > 20 ? 3 : 4;
 
-  // "Magnetic Field" Logic
-  // If we are hovering something, and it's NOT this pill, dim this pill.
-  // If we are hovering this pill, highlight it strongly.
   const isHovered = hoveredIndex === index;
   const isAnyHovered = hoveredIndex !== null;
   
-  // Calculate distance from hover for "wave" effect could be added here, 
-  // but keeping it simple & performant: Focus State vs Ambient State.
-  
   return (
     <motion.div
-      layout
+      layout // Critical: Allows smooth sliding when position changes
       className="group relative flex-1 h-full flex items-end justify-center cursor-pointer"
       onMouseEnter={onHover}
       initial={{ opacity: 0, scaleY: 0 }}
       animate={{ opacity: 1, scaleY: 1 }}
-      exit={{ opacity: 0, scaleY: 0 }}
+      exit={{ 
+          opacity: 0, 
+          scaleY: 0,
+          transition: { duration: 0.2 } 
+      }}
       transition={{ 
         type: "spring", 
         stiffness: 400, 
         damping: 30,
-        layout: { duration: 0.3 }
+        mass: 0.8,
+        delay: index * 0.015 // Stagger effect: Domino entry
       }}
     >
         {/* Hit Area */}
