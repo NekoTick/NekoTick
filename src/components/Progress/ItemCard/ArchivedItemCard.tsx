@@ -45,7 +45,7 @@ export function ArchivedItemCard({ item, onClick, previewIcon, previewTitle }: I
                 {(() => {
                   const Icon = displayIcon ? getIconByName(displayIcon) : null;
                   return Icon ? (
-                    <div className="flex-shrink-0 transition-transform duration-700 ease-out group-hover/zone1:scale-110 group-hover/zone1:-rotate-12 group-hover/zone1:translate-x-1">
+                    <div className="flex-shrink-0 transition-transform duration-700 ease-out group-hover:scale-110 group-hover:-rotate-12 group-hover:translate-x-1">
                       <Icon 
                           className="size-16 text-zinc-900 dark:text-zinc-100 opacity-[0.06] dark:opacity-[0.08] mix-blend-multiply dark:mix-blend-overlay transition-colors duration-300" 
                           weight="duotone" 
