@@ -318,22 +318,22 @@ function WavePill({ point, index, totalPoints, hoveredIndex, onHover }: WavePill
       layout
       className="group relative flex-1 h-full flex items-end justify-center cursor-pointer"
       onMouseEnter={onHover}
-      // Dramatic Entry: Erupt from below
+      // Clean, Hydraulic Entry
       initial={{ opacity: 0, scaleY: 0, y: 20 }} 
       animate={{ opacity: 1, scaleY: 1, y: 0 }}
-      // Dramatic Exit: Sink into the ground
       exit={{ 
           opacity: 0, 
-          scaleY: 0,
+          scaleY: 0, 
           y: 10,
-          transition: { duration: 0.2 } 
+          transition: { duration: 0.15 } 
       }}
       transition={{ 
+        // "Liquid Mercury" Physics: Heavy but fluid
         type: "spring", 
-        stiffness: 500,  // High energy
-        damping: 15,     // Low resistance = lots of bounce/wobble
-        mass: 1.2,       // Heavy feeling
-        delay: index * 0.04 // Distinct domino wave
+        stiffness: 450, 
+        damping: 25,     
+        mass: 1,
+        delay: index * 0.02 // Faster, tighter wave
       }}
     >
         {/* Hit Area */}
