@@ -2,103 +2,114 @@ import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, subDays, startOfWeek, endOfWeek, subWeeks, startOfMonth, subMonths, isSameDay } from 'date-fns';
 import type { ProgressOrCounter } from '../../stores/useProgressStore';
-import { CaretDown } from '@phosphor-icons/react';
 
 interface HistoryWaveformProps {
   item: ProgressOrCounter;
 }
 
-type TimeScope = '14D' | '12W' | '12M';
+type TimeScope = '7D' | '14D' | '30D' | '12W' | '12M';
+
+const SCOPE_CONFIG: Record<TimeScope, { full: string, tiny: string }> = {
+  '7D':  { full: 'Week',    tiny: '7D' },
+  '14D': { full: '2 Weeks', tiny: '14' },
+  '30D': { full: 'Month',   tiny: '30' },
+  '12W': { full: 'Quarter', tiny: '3M' },
+  '12M': { full: 'Year',    tiny: '1Y' },
+};
 
 /**
  * "Chrono-Rhythm" Visualization
- * A liquid, interactive waveform representing the user's history with time-dilation capabilities.
+ * A liquid, interactive waveform with a "Phantom Handle" control mechanism.
  */
 export function HistoryWaveform({ item }: HistoryWaveformProps) {
   const [scope, setScope] = useState<TimeScope>('14D');
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [isControlActive, setIsControlActive] = useState(false);
 
-  // 1. Intelligent Data Aggregation (The Time Lens)
+  // 1. Intelligent Data Aggregation
   const dataPoints = useMemo(() => {
     const points = [];
     const today = new Date();
     const history = item.history || {};
 
-    // Define the window and granularity based on scope
     let iterations = 14;
-    let labelFormat = 'EEE'; // "Mon"
-    
-    if (scope === '12W') {
-      iterations = 12;
-      labelFormat = 'MMM d'; // "Oct 24" (Week Start)
-    } else if (scope === '12M') {
-      iterations = 12;
-      labelFormat = 'MMM'; // "Oct"
+    let labelFormat = 'EEE'; 
+    let aggregationType: 'day' | 'week' | 'month' = 'day';
+
+    switch (scope) {
+      case '7D':
+        iterations = 7;
+        labelFormat = 'EEE';
+        aggregationType = 'day';
+        break;
+      case '14D':
+        iterations = 14;
+        labelFormat = 'EEE';
+        aggregationType = 'day';
+        break;
+      case '30D':
+        iterations = 30;
+        labelFormat = 'd';
+        aggregationType = 'day';
+        break;
+      case '12W':
+        iterations = 12;
+        labelFormat = 'MMM d';
+        aggregationType = 'week';
+        break;
+      case '12M':
+        iterations = 12;
+        labelFormat = 'MMM';
+        aggregationType = 'month';
+        break;
     }
 
-    // Determine Max Value for normalization
-    // For progress, max is fixed (total). For counters, it's relative.
     let maxValue = item.type === 'progress' ? (item.total || 100) : 1;
 
-    // --- Aggregation Loop ---
     for (let i = iterations - 1; i >= 0; i--) {
       let value = 0;
       let dateLabel = '';
       let isCurrentPeriod = false;
       let dateForKey = new Date();
 
-      if (scope === '14D') {
+      if (aggregationType === 'day') {
         const date = subDays(today, i);
         dateForKey = date;
         const dateKey = format(date, 'yyyy-MM-dd');
         value = history[dateKey] || 0;
-        dateLabel = i === 0 ? 'Today' : format(date, labelFormat);
+        if (i === 0) dateLabel = 'Today';
+        else dateLabel = format(date, labelFormat);
         isCurrentPeriod = i === 0;
       } 
-      else if (scope === '12W') {
-        // Aggregate by Week
-        // For current week, we look back from today to start of week? 
-        // Or just take the last 12 full weeks? 
-        // Let's take current week as index 0.
+      else if (aggregationType === 'week') {
         const weekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 1 });
         dateForKey = weekStart;
         dateLabel = format(weekStart, 'MMM d');
         isCurrentPeriod = i === 0;
-
-        // Sum up 7 days
         for (let d = 0; d < 7; d++) {
           const day = subDays(endOfWeek(weekStart, { weekStartsOn: 1 }), d);
           const k = format(day, 'yyyy-MM-dd');
           value += (history[k] || 0);
         }
-        // For progress types (e.g. daily water), weekly value might be sum or average?
-        // Usually "Total water this week" makes sense.
       } 
-      else if (scope === '12M') {
-        // Aggregate by Month
+      else if (aggregationType === 'month') {
         const monthStart = startOfMonth(subMonths(today, i));
         dateForKey = monthStart;
         dateLabel = format(monthStart, 'MMM');
         isCurrentPeriod = i === 0;
-
-        // Sum up all days in month
-        // This is expensive but accurate. Optimized: just iterate keys? No, keys are sparse.
-        // Iterate days in month is safer.
         const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
-           // Construct date: YYYY-MM-DD
            const dStr = `${format(monthStart, 'yyyy-MM')}-${String(d).padStart(2, '0')}`;
            value += (history[dStr] || 0);
         }
       }
 
-      // Dynamic Max Value Adjustment for Counters/Aggregations
-      if (item.type === 'counter' || scope !== '14D') {
+      if (item.type === 'counter' || aggregationType !== 'day') {
          if (value > maxValue) maxValue = value;
       }
       
       points.push({
-        id: `${scope}-${i}`, // Stable ID for layout animation
+        id: `${scope}-${i}`,
         date: dateForKey,
         label: dateLabel,
         value,
@@ -106,9 +117,7 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
       });
     }
 
-    // Normalize
     return points.map(p => {
-      // Reserve 10% for "zero" dots
       const rawRatio = maxValue === 0 ? 0 : p.value / maxValue;
       const heightRatio = p.value === 0 ? 0.08 : Math.max(0.15, Math.min(1, rawRatio));
       return { ...p, heightRatio, isZero: p.value === 0 };
@@ -117,72 +126,54 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
   }, [item, scope]);
 
   return (
-    <div className="w-full flex flex-col items-center justify-end h-full min-h-[160px] select-none relative group/container">
+    <div 
+        className="w-full flex flex-col items-center justify-end h-full min-h-[160px] select-none relative pb-2 overflow-hidden" // Reduced min-height slightly
+        onMouseLeave={() => setHoveredIndex(null)}
+    >
       
-      {/* Scope Selector (The Time Lens Control) */}
-      <div className="absolute top-0 right-0 z-20 opacity-0 group-hover/container:opacity-100 transition-opacity duration-300">
-        <div className="flex bg-zinc-100 dark:bg-zinc-800 rounded-full p-0.5 shadow-sm border border-zinc-200 dark:border-zinc-700">
-          {(['14D', '12W', '12M'] as TimeScope[]).map((s) => (
-            <button
-              key={s}
-              onClick={() => setScope(s)}
-              className={`
-                px-2 py-0.5 text-[10px] font-bold rounded-full transition-all duration-200
-                ${scope === s 
-                  ? 'bg-white dark:bg-zinc-600 text-zinc-900 dark:text-zinc-100 shadow-sm' 
-                  : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
-                }
-              `}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Interaction Feedback (Floating Tooltip) */}
-      <div className="h-8 mb-2 flex items-center justify-center relative z-10">
+      {/* Top Tooltip (Data Context) */}
+      <div className="absolute top-0 inset-x-0 h-8 flex items-center justify-center pointer-events-none z-10">
         <AnimatePresence mode="wait">
-          {hoveredIndex !== null ? (
+          {hoveredIndex !== null && dataPoints[hoveredIndex] ? (
             <motion.div
               key="tooltip"
               initial={{ opacity: 0, y: 5, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 5, scale: 0.95 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/5 dark:bg-white/10 backdrop-blur-md shadow-sm border border-white/20"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-900/90 dark:bg-white/90 backdrop-blur-md shadow-lg border border-white/10 dark:border-zinc-800"
             >
-              <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-zinc-300 dark:text-zinc-600 uppercase tracking-wider">
                 {dataPoints[hoveredIndex].label}
               </span>
-              <div className="w-px h-3 bg-zinc-300 dark:bg-zinc-600" />
-              <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">
-                 {/* For aggregated views, always show raw value. Percentage only makes sense for daily progress limits. */}
-                 {scope === '14D' && item.type === 'progress'
-                    ? `${Math.round((dataPoints[hoveredIndex].value / (item.total || 1)) * 100)}%`
+              <div className="w-px h-3 bg-zinc-600 dark:bg-zinc-400" />
+              <span className="text-sm font-bold text-white dark:text-zinc-900 tabular-nums">
+                 {scope === '7D' || scope === '14D' || scope === '30D'
+                    ? (item.type === 'progress' 
+                        ? `${Math.round((dataPoints[hoveredIndex].value / (item.total || 1)) * 100)}%`
+                        : `${dataPoints[hoveredIndex].value} ${item.unit}`)
                     : `${Math.round(dataPoints[hoveredIndex].value * 10) / 10} ${item.unit}`
                  }
               </span>
             </motion.div>
           ) : (
+            !isControlActive && (
              <motion.div
                 key="label"
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 0.4 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500"
+                className="text-[10px] font-bold uppercase tracking-[0.3em] text-zinc-300/50 dark:text-zinc-500/50"
              >
-                {scope === '14D' ? 'Recent Days' : scope === '12W' ? 'Weekly Trend' : 'Monthly Trend'}
+                {SCOPE_CONFIG[scope].full}
              </motion.div>
+            )
           )}
         </AnimatePresence>
       </div>
 
-      {/* The Waveform Container */}
-      <div 
-        className="flex items-end justify-between w-full px-4 gap-1.5 h-32 relative"
-        onMouseLeave={() => setHoveredIndex(null)}
-      >
+      {/* Waveform Container */}
+      <div className="flex items-end justify-between w-full px-4 gap-1.5 h-32 relative z-0 mb-4"> {/* Added mb-4 for safety space */}
         <AnimatePresence mode="popLayout">
             {dataPoints.map((point, index) => (
             <WavePill
@@ -195,9 +186,94 @@ export function HistoryWaveform({ item }: HistoryWaveformProps) {
             ))}
         </AnimatePresence>
         
-        {/* Baseline (Subtle) */}
+        {/* Baseline */}
         <div className="absolute bottom-0 left-4 right-4 h-px bg-gradient-to-r from-transparent via-zinc-200 dark:via-zinc-800 to-transparent opacity-50 pointer-events-none" />
       </div>
+
+      {/* The Phantom Handle / Time Capsule */}
+      {/* Moved position to bottom-2 (8px from bottom) to avoid edge clipping */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 flex justify-center z-20 h-12 items-end pointer-events-auto cursor-pointer"
+        onMouseEnter={() => setIsControlActive(true)}
+        onMouseLeave={() => setIsControlActive(false)}
+      >
+        <motion.div 
+            layout
+            className={`
+                relative flex items-center justify-center pointer-events-auto mb-2
+                bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md 
+                shadow-[0_4px_20px_-4px_rgba(0,0,0,0.15)] 
+                border border-zinc-200/50 dark:border-zinc-700/50
+                overflow-hidden
+            `}
+            initial={false}
+            animate={{
+                width: isControlActive ? 'auto' : 40,
+                height: isControlActive ? 28 : 4,
+                borderRadius: isControlActive ? 9999 : 2,
+                opacity: isControlActive ? 1 : 0.4,
+                y: isControlActive ? -4 : 0, // Levitate UP when active
+            }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        >
+            <AnimatePresence>
+                {isControlActive && (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.1 } }}
+                        className="flex items-center px-1"
+                    >
+                        {(Object.keys(SCOPE_CONFIG) as TimeScope[]).map((s) => {
+                            const isActive = scope === s;
+                            return (
+                                <button
+                                    key={s}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setScope(s);
+                                    }}
+                                    className={`
+                                        relative flex items-center justify-center
+                                        rounded-full text-[9px] font-medium 
+                                        transition-all duration-300 outline-none
+                                        ${isActive ? 'px-3 py-1' : 'px-2 py-1'}
+                                    `}
+                                    style={{
+                                        color: isActive 
+                                            ? 'var(--text-active)' 
+                                            : 'var(--text-inactive)'
+                                    }}
+                                >
+                                    {isActive && (
+                                        <motion.div
+                                            layoutId="scopeHighlight"
+                                            className="absolute inset-0 bg-zinc-900 dark:bg-zinc-100 rounded-full shadow-sm"
+                                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 mix-blend-exclusion dark:mix-blend-normal dark:text-zinc-900 whitespace-nowrap">
+                                        {isActive ? SCOPE_CONFIG[s].full : SCOPE_CONFIG[s].tiny}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
+      </div>
+
+      <style>{`
+        :root {
+            --text-active: #fff;
+            --text-inactive: #71717a;
+        }
+        .dark {
+            --text-active: #000;
+            --text-inactive: #a1a1aa;
+        }
+      `}</style>
     </div>
   );
 }
@@ -214,6 +290,10 @@ interface WavePillProps {
 }
 
 function WavePill({ point, index, totalPoints, onHover }: WavePillProps) {
+  // Calculate target widths explicitly to avoid animating from "auto"
+  const targetMaxWidth = totalPoints > 20 ? 6 : (totalPoints <= 7 ? 16 : 10);
+  const targetMinWidth = totalPoints > 20 ? 3 : 4;
+
   return (
     <motion.div
       layout
@@ -229,7 +309,7 @@ function WavePill({ point, index, totalPoints, onHover }: WavePillProps) {
         layout: { duration: 0.3 }
       }}
     >
-        {/* Hit Area (Invisible) - Larger for easier interaction */}
+        {/* Hit Area */}
         <div className="absolute inset-x-0 bottom-0 top-0 z-10" />
 
         {/* The Light Pillar */}
@@ -244,13 +324,15 @@ function WavePill({ point, index, totalPoints, onHover }: WavePillProps) {
                         : 'bg-zinc-400 dark:bg-zinc-600'
                 }
             `}
-            // Dynamic Height & Width Animation
-            initial={{ height: "8%" }}
+            initial={{ 
+                height: "8%",
+                maxWidth: targetMaxWidth,
+                minWidth: targetMinWidth 
+            }}
             animate={{ 
                 height: `${point.heightRatio * 100}%`,
-                // Make pillars slightly wider when there are fewer of them (e.g. 12 months)
-                maxWidth: totalPoints <= 12 ? 14 : 8,
-                minWidth: 4,
+                maxWidth: targetMaxWidth,
+                minWidth: targetMinWidth,
                 opacity: point.isZero ? 0.3 : (point.isCurrentPeriod ? 1 : 0.7)
             }}
             whileHover={{ 
@@ -267,7 +349,6 @@ function WavePill({ point, index, totalPoints, onHover }: WavePillProps) {
                 '--color-hover-active': point.isCurrentPeriod ? '#000' : '#52525b', 
             }}
         >
-            {/* Glow Effect for High Values */}
             {!point.isZero && point.heightRatio > 0.8 && (
                 <div className="absolute top-0 inset-x-0 h-full bg-white/30 blur-[2px] rounded-full" />
             )}
