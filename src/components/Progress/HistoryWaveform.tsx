@@ -346,30 +346,33 @@ function WavePill({ point, index, totalPoints, hoveredIndex, onHover }: WavePill
                 transition-colors duration-300
             `}
             initial={{ 
-                height: "8%",
+                height: "0%", // Start from nothing
                 maxWidth: targetMaxWidth,
                 minWidth: targetMinWidth 
             }}
             animate={{ 
-                height: `${point.heightRatio * 100}%`,
+                // If zero:
+                // - Default: 4px dot (barely visible)
+                // - Hover: 16px "Seed" (visible feedback, but clearly not "full")
+                height: point.isZero ? (isHovered ? "16px" : "4px") : `${point.heightRatio * 100}%`,
                 maxWidth: targetMaxWidth,
                 minWidth: targetMinWidth,
-                // Complex Opacity Logic for "Focus"
+                // Zero pillars are invisible (opacity 0.1) unless hovered
                 opacity: isHovered 
                     ? 1 
-                    : (isAnyHovered ? 0.3 : (point.isZero ? 0.3 : (point.isCurrentPeriod ? 1 : 0.6))),
+                    : (isAnyHovered ? 0.1 : (point.isZero ? 0.1 : (point.isCurrentPeriod ? 1 : 0.6))),
                 // Color Logic
                 backgroundColor: isHovered
-                    ? (point.isZero ? '#a1a1aa' : (document.documentElement.classList.contains('dark') ? '#fff' : '#000'))
+                    ? (point.isZero ? (document.documentElement.classList.contains('dark') ? '#3f3f46' : '#e4e4e7') : (document.documentElement.classList.contains('dark') ? '#fff' : '#000'))
                     : (point.isZero 
-                        ? (document.documentElement.classList.contains('dark') ? '#27272a' : '#e4e4e7') // zinc-800 / zinc-200
+                        ? (document.documentElement.classList.contains('dark') ? '#27272a' : '#e4e4e7') 
                         : (point.isCurrentPeriod 
                             ? (document.documentElement.classList.contains('dark') ? '#fff' : '#000') 
-                            : (document.documentElement.classList.contains('dark') ? '#52525b' : '#a1a1aa'))) // zinc-600 / zinc-400
+                            : (document.documentElement.classList.contains('dark') ? '#52525b' : '#a1a1aa')))
             }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
         >
-            {/* Inner Light (Glow) for active pillars */}
+            {/* Inner Light (Glow) only for non-zero pillars */}
             {!point.isZero && point.heightRatio > 0.5 && (
                 <div 
                     className={`
