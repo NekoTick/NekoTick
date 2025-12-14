@@ -67,6 +67,15 @@ export function KineticAction({
   const lastTimeRef = useRef(0);
   const isChargingRef = useRef(false); // Ref for loop access
 
+  // STABLE CALLBACKS PATTERN
+  // We use a ref to hold the latest callbacks so that handleGlobalPointerUp 
+  // doesn't need to be recreated (and listeners reset) when parent re-renders.
+  // This is critical for preventing "ghost interactions" when parent state (like ripples) updates.
+  const callbacksRef = useRef({ onTrigger, onCommit, step });
+  useEffect(() => {
+    callbacksRef.current = { onTrigger, onCommit, step };
+  }, [onTrigger, onCommit, step]);
+
   const LONG_PRESS_DELAY = 300; // ms
 
   // Haptics
@@ -266,13 +275,13 @@ export function KineticAction({
         // Was charging -> Commit
         const finalVal = Math.floor(valueRef.current);
         if (finalVal > 0) {
-            onCommit(finalVal * step);
+            callbacksRef.current.onCommit(finalVal * callbacksRef.current.step);
         }
     } else {
         // Was short press -> Trigger
         // Only trigger if we haven't already committed (extra safety)
         if (!isChargingRef.current) {
-             onTrigger();
+             callbacksRef.current.onTrigger();
         }
     }
 
@@ -280,7 +289,7 @@ export function KineticAction({
     isChargingRef.current = false;
     originRef.current = null;
     setAccumulatedValue(0);
-  }, [step, onCommit, onTrigger]);
+  }, []); // Empty dependencies = Stable Listener!
 
   // Cleanup
   useEffect(() => {
@@ -345,19 +354,20 @@ export function KineticAction({
 
       {/* 2. The Portal Overlay */}
       {mode === 'charging' && createPortal(
-        <div className="fixed inset-0 z-[9999] pointer-events-none font-sans text-zinc-900 dark:text-zinc-100">
+        <div className="fixed inset-0 z-[9999] font-sans text-zinc-900 dark:text-zinc-100 pointer-events-auto" onPointerUp={handleGlobalPointerUp}>
+            {/* Darken Background for Focus */}
             <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-zinc-100/50 dark:bg-black/50 backdrop-blur-sm"
+                className="absolute inset-0 bg-zinc-100/50 dark:bg-black/50 backdrop-blur-sm pointer-events-none"
             />
 
             <ElasticLine />
 
             <motion.div
                 style={{ x: orbX, y: orbY, scale }}
-                className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 will-change-transform flex items-center justify-center"
+                className="absolute top-0 left-0 -translate-x-1/2 -translate-y-1/2 will-change-transform flex items-center justify-center pointer-events-none"
             >
                 {/* HUD Container */}
                 <motion.div 
