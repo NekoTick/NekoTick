@@ -78,88 +78,79 @@ export function CounterEffects({ ripples, implosions }: CounterEffectsProps) {
 }
 
 /**
- * DebrisField - High Fidelity
- * Simulates shattering into premium crystalline shards.
+ * DebrisField - Quantum Dissolve Edition
+ * High-density particle system simulating digital disintegration.
  */
 export function DebrisField() {
-  // Generate shards with irregular polygon shapes
-  // Using deterministic randomness for stable visual but chaotic look
-  const shards = Array.from({ length: 24 }).map((_, i) => {
-    const seed = i * 13.5;
+  // Generate high density particles (Quantum Dust)
+  const particles = Array.from({ length: 64 }).map((_, i) => {
+    // Distribution: More density in the center, sparse at edges
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.pow(Math.random(), 0.5) * 50; // Bias towards center
+    const startX = 50 + Math.cos(angle) * distance;
+    const startY = 50 + Math.sin(angle) * distance;
     
-    // Irregular Shapes (Polygons)
-    const shapeType = i % 3;
-    let clipPath = '';
-    if (shapeType === 0) clipPath = 'polygon(50% 0%, 0% 100%, 100% 100%)'; // Triangle
-    else if (shapeType === 1) clipPath = 'polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)'; // Trapezoid
-    else clipPath = 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)'; // Diamond
+    // Physics: Explosion from center
+    const force = 1 + Math.random() * 2;
+    const moveX = Math.cos(angle) * 150 * force;
+    const moveY = Math.sin(angle) * 150 * force;
 
-    // Scatter logic: Center burst
-    // x: 0-100%, y: 0-100%
-    const startX = (i % 6) * 16 + Math.random() * 10;
-    const startY = Math.floor(i / 6) * 25 + Math.random() * 10;
-    
-    // Explosion Physics
-    // Shards near center fly straight out, shards near edge fly sideways
-    const centerX = 50;
-    const centerY = 50;
-    const distX = startX - centerX;
-    const distY = startY - centerY;
-    
     return {
       id: i,
       x: startX,
       y: startY,
-      width: 15 + Math.random() * 25,
-      height: 15 + Math.random() * 25,
-      rotation: Math.random() * 360,
-      clipPath,
-      // Target: Move away from center + gravity (positive Y)
-      targetX: distX * (2 + Math.random()), 
-      targetY: distY * (2 + Math.random()) + 150, // Add gravity
-      targetRotate: (Math.random() - 0.5) * 720, // Violent spin
-      delay: Math.random() * 0.05 // Micro-delays for "crunchy" feel
+      size: 2 + Math.random() * 4, // Tiny particles
+      color: Math.random() > 0.6 ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-400 dark:bg-zinc-600', // Mix of primary/secondary colors
+      opacity: 0.4 + Math.random() * 0.6,
+      targetX: moveX,
+      targetY: moveY,
+      delay: Math.random() * 0.1,
+      duration: 0.6 + Math.random() * 0.4
     };
   });
 
   return (
     <div className="absolute inset-0 overflow-visible pointer-events-none z-[100]">
-      {shards.map((shard) => (
+      {/* 1. The Shockwave (Sonic Boom) */}
+      <motion.div
+        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-zinc-900/10 dark:border-white/20"
+        initial={{ width: 0, height: 0, opacity: 0.5, borderWidth: 20 }}
+        animate={{ width: 600, height: 600, opacity: 0, borderWidth: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+      />
+
+      {/* 2. The Quantum Particles */}
+      {particles.map((p) => (
         <motion.div
-          key={shard.id}
-          className="absolute backdrop-blur-md"
+          key={p.id}
+          className={`absolute rounded-full ${p.color}`}
           style={{
-            left: `${shard.x}%`,
-            top: `${shard.y}%`,
-            width: shard.width,
-            height: shard.height,
-            clipPath: shard.clipPath,
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size,
           }}
           initial={{ 
-            opacity: 1, 
-            scale: 1,
-            rotate: shard.rotation 
+            opacity: p.opacity, 
+            scale: 1 
           }}
           animate={{ 
             opacity: 0,
-            x: shard.targetX,
-            y: shard.targetY,
-            rotate: shard.rotation + shard.targetRotate,
-            scale: [1, 0.8, 0] // Shrink as they fly
+            x: p.targetX,
+            y: p.targetY,
+            scale: 0
           }}
           transition={{ 
-            duration: 0.9, 
-            ease: [0.25, 1, 0.5, 1], // "Flash" start, slow tail
-            delay: shard.delay
+            duration: p.duration, 
+            ease: [0.215, 0.61, 0.355, 1], // Cubic Bezier (Ease Out)
+            delay: p.delay
           }}
-        >
-          {/* Shard Material: Glassy/Ceramic Gradient */}
-          <div className="w-full h-full bg-gradient-to-br from-white via-zinc-100 to-zinc-300 dark:from-zinc-700 dark:via-zinc-800 dark:to-black opacity-90 border border-white/40 dark:border-white/10" />
-        </motion.div>
+        />
       ))}
     </div>
   );
 }
+
 
 
 
