@@ -77,6 +77,10 @@ export function KineticAction({
     e.preventDefault();
     e.stopPropagation();
     
+    // CAPTURE POINTER: The magic fix for dragging outside/off-screen
+    // This ensures we receive events even if the mouse leaves the browser/screen
+    (e.target as Element).setPointerCapture(e.pointerId);
+
     const rect = e.currentTarget.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
