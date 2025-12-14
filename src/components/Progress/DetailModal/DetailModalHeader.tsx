@@ -123,14 +123,7 @@ export function DetailModalHeader({
                 mass: 0.8
             }}
           >
-            {/* Archive */}
-            <button
-              onClick={onArchive}
-              className="p-2 rounded-full text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200/50 dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-700/50 transition-colors"
-              title={isArchived ? 'Unarchive' : 'Archive'}
-            >
-              <Archive weight="duotone" className="size-5" />
-            </button>
+
 
             {/* Reset */}
             <button

@@ -42,7 +42,10 @@ export function ProgressPage() {
   }, [loadItems]);
 
   const handleAutoArchive = (id: string) => {
-    updateItem(id, { archived: true });
+    const item = items.find(i => i.id === id);
+    if (item) {
+      updateItem(id, { archived: !item.archived });
+    }
   };
 
   const [showCreateModal, setShowCreateModal] = useState(false);

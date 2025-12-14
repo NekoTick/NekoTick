@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
+import { ArrowCounterClockwise } from '@phosphor-icons/react';
 import { getIconByName } from '../IconPicker';
 import { ItemCardProps } from './types';
 
-export function ArchivedItemCard({ item, onClick, previewIcon, previewTitle }: ItemCardProps) {
+export function ArchivedItemCard({ item, onClick, onAutoArchive, previewIcon, previewTitle }: ItemCardProps) {
   const displayIcon = previewIcon !== undefined ? previewIcon : item.icon;
   const displayTitle = previewTitle !== undefined ? previewTitle : item.title;
 
@@ -30,7 +31,7 @@ export function ArchivedItemCard({ item, onClick, previewIcon, previewTitle }: I
           shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none
           backdrop-blur-xl
           h-28 select-none cursor-pointer
-          grid grid-cols-[1.5fr_2.5fr] gap-8 items-center px-6
+          grid grid-cols-[1.5fr_2.5fr_auto] gap-8 items-center pl-6 pr-8
           transition-all duration-300
           hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] 
           hover:bg-white/80 dark:hover:bg-zinc-900
@@ -100,6 +101,28 @@ export function ArchivedItemCard({ item, onClick, previewIcon, previewTitle }: I
                   {durationDays} Days Journey
                </span>
             </div>
+         </div>
+
+         {/* Zone 3: The Resurrection (Restart Button) */}
+         <div className="relative z-20 flex items-center justify-center">
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent card click
+                onAutoArchive?.(item.id);
+              }}
+              className="
+                p-3 rounded-full
+                text-zinc-300 dark:text-zinc-600
+                hover:bg-zinc-100 dark:hover:bg-zinc-800
+                hover:text-zinc-900 dark:hover:text-zinc-100
+                hover:shadow-sm
+                transition-all duration-500 ease-out
+                opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0
+              "
+              title="Restore to active list"
+            >
+              <ArrowCounterClockwise className="size-5" weight="bold" />
+            </button>
          </div>
       </motion.div>
     </div>
