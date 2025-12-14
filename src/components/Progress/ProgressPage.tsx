@@ -47,12 +47,15 @@ export function ProgressPage() {
       const updates: any = { archived: !item.archived };
       
       // Smart Restore Logic:
-      // If we are restoring (currently archived) AND it was fully completed...
       if (item.archived && item.type === 'progress' && item.current >= item.total) {
-         // ...reset it to 0 for a fresh start ("New Game+").
          updates.current = 0;
       }
-      // Otherwise (incomplete items or counters), preserve the state ("Continue").
+
+      // Auto-Exit Logic:
+      // If we are in archive view, restoring an item, and it's the last one...
+      if (isArchiveView && item.archived && archivedCount === 1) {
+        setIsArchiveView(false);
+      }
 
       updateItem(id, updates);
     }
