@@ -320,17 +320,17 @@ export function KineticAction({
                 >
                     {/* The Speedometer / Multiplier Gauge */}
                     <div className="
-                        flex items-center justify-center gap-3
-                        h-14 px-6
+                        flex items-center justify-center gap-4
+                        h-16 px-6
                         bg-white dark:bg-zinc-900 
                         rounded-2xl
                         border border-zinc-200 dark:border-zinc-700
                         shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)]
                     ">
-                        {/* Speed Indicator */}
-                        <div className="flex flex-col items-center justify-center w-8 gap-0.5">
+                        {/* Speed Indicator (Visual Feedback for "Throttle") */}
+                        <div className="flex flex-col items-center justify-center w-8 gap-0.5 opacity-80">
                              <CaretUp weight="bold" className={`size-3 ${speedMultiplier > 2 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-700'}`} />
-                             <div className="h-4 w-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden relative">
+                             <div className="h-5 w-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden relative">
                                 <motion.div 
                                     className="absolute bottom-0 inset-x-0 bg-zinc-900 dark:bg-zinc-100"
                                     style={{ height: `${Math.min(100, (speedMultiplier - 0.5) * 20)}%` }}
@@ -339,37 +339,27 @@ export function KineticAction({
                              <CaretDown weight="bold" className={`size-3 ${speedMultiplier < 0.8 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-700'}`} />
                         </div>
 
-                        <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-800" />
+                        <div className="w-px h-8 bg-zinc-100 dark:bg-zinc-800" />
                         
-                        {/* The Counter */}
-                        <div className="flex flex-col items-start min-w-[60px]">
-                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                        {/* The Main Value Display */}
+                        <div className="flex flex-col items-start min-w-[80px]">
+                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-0.5">
                                 {direction === 'left' ? 'Removing' : 'Adding'}
                              </span>
-                             <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-bold tabular-nums leading-none">
-                                    {accumulatedValue === 0 ? 1 : accumulatedValue}
+                             <div className="flex items-baseline gap-2">
+                                <span className="text-3xl font-bold tabular-nums leading-none text-zinc-900 dark:text-zinc-100">
+                                    {accumulatedValue * step}
                                 </span>
-                                <span className="text-xs text-zinc-400 font-medium">x</span>
+                                
+                                {/* Percentage for Progress */}
+                                {itemType === 'progress' && total > 0 && (
+                                    <span className="text-sm font-bold text-zinc-400 dark:text-zinc-600">
+                                        ({Math.round(((accumulatedValue * step) / total) * 100)}%)
+                                    </span>
+                                )}
                              </div>
                         </div>
                     </div>
-                    
-                    {/* Total Preview */}
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/10">
-                        <span className="text-xs text-zinc-500">Value:</span>
-                        <span className="text-xl font-light tabular-nums">
-                            {accumulatedValue * step}
-                        </span>
-                        
-                        {/* Percentage Indicator (Progress Only) */}
-                        {itemType === 'progress' && total > 0 && (
-                            <span className="ml-1 text-sm font-bold text-zinc-400">
-                                ({Math.round(((accumulatedValue * step) / total) * 100)}%)
-                            </span>
-                        )}
-                    </div>
-
                 </motion.div>
             </motion.div>
             
