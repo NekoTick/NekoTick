@@ -226,7 +226,7 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
           />
           
           <div 
-               className="absolute inset-y-0 left-[25%] right-[25%] cursor-pointer z-30"
+               className="absolute inset-y-0 left-[30%] right-[30%] cursor-pointer z-30"
                onClick={(e) => {
                    e.stopPropagation();
                    onClick && onClick();

@@ -335,6 +335,7 @@ export function KineticAction({
           outline-none select-none
         `}
         onPointerDown={handlePointerDown}
+        onClick={(e) => e.stopPropagation()} // Stop click propagation to parents (e.g. PreviewSection)
         onMouseEnter={onHoverStart}
         onMouseLeave={onHoverEnd}
       >
