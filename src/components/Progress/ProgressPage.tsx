@@ -44,7 +44,17 @@ export function ProgressPage() {
   const handleAutoArchive = (id: string) => {
     const item = items.find(i => i.id === id);
     if (item) {
-      updateItem(id, { archived: !item.archived });
+      const updates: any = { archived: !item.archived };
+      
+      // Smart Restore Logic:
+      // If we are restoring (currently archived) AND it was fully completed...
+      if (item.archived && item.type === 'progress' && item.current >= item.total) {
+         // ...reset it to 0 for a fresh start ("New Game+").
+         updates.current = 0;
+      }
+      // Otherwise (incomplete items or counters), preserve the state ("Continue").
+
+      updateItem(id, updates);
     }
   };
 
