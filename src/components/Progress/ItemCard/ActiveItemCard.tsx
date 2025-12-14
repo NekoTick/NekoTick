@@ -274,6 +274,8 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
         step={Math.abs(item.step)} // Always pass positive step magnitude
         direction="left"
         isActive={hoverZone === 'left'}
+        itemType={item.type}
+        total={item.type === 'progress' ? item.total : 0}
         onHoverStart={() => setHoverZone('left')}
         onHoverEnd={() => setHoverZone(null)}
         onTrigger={() => {
@@ -306,6 +308,8 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
         step={Math.abs(item.step)}
         direction="right"
         isActive={hoverZone === 'right'}
+        itemType={item.type}
+        total={item.type === 'progress' ? item.total : 0}
         onHoverStart={() => setHoverZone('right')}
         onHoverEnd={() => setHoverZone(null)}
         onTrigger={() => {

@@ -19,15 +19,14 @@ interface KineticActionProps {
   onHoverStart: () => void;
   onHoverEnd: () => void;
   isActive: boolean;
+  // Context for smarter display
+  itemType?: 'progress' | 'counter';
+  total?: number; 
 }
 
 /**
  * KineticAction 3.0 - "The Deep Press"
- * 
- * Interaction:
- * - Tap: Instant trigger (+1)
- * - Press & Hold: Opens the portal and starts accumulating energy.
- * - Vertical Drag: Adjusts the accumulation speed (Throttle).
+ * ...
  */
 export function KineticAction({ 
   icon: Icon, 
@@ -37,7 +36,9 @@ export function KineticAction({
   onCommit,
   onHoverStart,
   onHoverEnd,
-  isActive
+  isActive,
+  itemType = 'counter',
+  total = 0
 }: KineticActionProps) {
   const [mode, setMode] = useState<'idle' | 'charging'>('idle');
   const [accumulatedValue, setAccumulatedValue] = useState(0);
@@ -356,10 +357,17 @@ export function KineticAction({
                     
                     {/* Total Preview */}
                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/10">
-                        <span className="text-xs text-zinc-500">Total:</span>
+                        <span className="text-xs text-zinc-500">Value:</span>
                         <span className="text-xl font-light tabular-nums">
                             {accumulatedValue * step}
                         </span>
+                        
+                        {/* Percentage Indicator (Progress Only) */}
+                        {itemType === 'progress' && total > 0 && (
+                            <span className="ml-1 text-sm font-bold text-zinc-400">
+                                ({Math.round(((accumulatedValue * step) / total) * 100)}%)
+                            </span>
+                        )}
                     </div>
 
                 </motion.div>
