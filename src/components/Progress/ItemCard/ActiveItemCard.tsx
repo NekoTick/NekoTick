@@ -23,6 +23,7 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
   const [hoverZone, setHoverZone] = useState<'left' | 'right' | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const prevCurrent = useRef(item.current);
+  const pendingArchiveRef = useRef(false); // Track pending archive action
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Counter Specific State
@@ -69,14 +70,26 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
     
     if (isDone && !wasDone) {
       setIsCompleting(true);
+      pendingArchiveRef.current = true; // Mark as pending
+      
       const timer = setTimeout(() => {
         if (onAutoArchive) {
           onAutoArchive(item.id);
+          pendingArchiveRef.current = false; // Action completed normally
         }
       }, 1200);
-      return () => clearTimeout(timer);
+      
+      return () => {
+        clearTimeout(timer);
+        // If unmounting while pending, force execution immediately
+        if (pendingArchiveRef.current && onAutoArchive) {
+            onAutoArchive(item.id);
+            pendingArchiveRef.current = false;
+        }
+      };
     } else {
       setIsCompleting(false);
+      pendingArchiveRef.current = false;
     }
     
     prevCurrent.current = item.current;
