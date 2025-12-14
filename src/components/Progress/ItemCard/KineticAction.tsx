@@ -157,8 +157,30 @@ export function KineticAction({
       const dt = Math.min(time - lastTimeRef.current, 64);
       lastTimeRef.current = time;
 
-      // Base Speed: 5 units / sec
-      const baseSpeed = 5; 
+      // ADAPTIVE SPEED ENGINE
+      // Goal: Ensure large totals feel as responsive as small ones.
+      // Target: At max throttle, fill the remaining gap in ~2 seconds.
+      
+      let adaptiveBaseSpeed = 5; // Default for small numbers/counters
+
+      if (itemType === 'progress' && total > 0) {
+          // Calculate the "Scope" of the task
+          // If total is 1000, we want base speed to be higher than if total is 10.
+          // Let's say at 1x throttle (mult=1), we want to cover 10% of total per second? 
+          // Or maybe 5% per second is a good "cruising speed".
+          // So baseSpeed = total * 0.05
+          
+          const cruiseSpeed = total * 0.05;
+          adaptiveBaseSpeed = Math.max(5, cruiseSpeed);
+      } else {
+          // For counters (infinite), we scale based on current accumulation
+          // The more you add, the faster it gets (Snowball effect)
+          // 0-10: speed 5
+          // 10-100: speed 20
+          // 100+: speed 100
+          if (valueRef.current > 100) adaptiveBaseSpeed = 50;
+          else if (valueRef.current > 20) adaptiveBaseSpeed = 15;
+      }
       
       const currentY = mouseY.get();
       const originY = originRef.current?.y || 0;
@@ -177,7 +199,7 @@ export function KineticAction({
           mult = Math.max(0.1, 1 + (dy / 100));
       }
 
-      const addition = baseSpeed * mult * (dt / 1000);
+      const addition = adaptiveBaseSpeed * mult * (dt / 1000);
       
       // Calculate potential new raw accumulation
       let newValue = valueRef.current + addition;
