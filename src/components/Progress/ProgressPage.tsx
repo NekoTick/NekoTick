@@ -287,12 +287,14 @@ export function ProgressPage() {
                     {/* Content Layer - Floating above */}
                     <div className="relative z-10 pt-0 flex flex-col gap-0">
                       {/* Greeting / Status - The Call to Action */}
-                      <div className="flex items-center gap-1.5 mb-0.5">
+                      <div 
+                        onClick={() => setIsArchiveView(true)}
+                        className="flex items-center gap-1.5 mb-0.5 cursor-pointer"
+                      >
                         <motion.div 
-                          onClick={() => setIsArchiveView(true)}
                           onMouseEnter={() => setIsStatusHovered(true)}
                           onMouseLeave={() => setIsStatusHovered(false)}
-                          className="group/status relative flex items-center justify-start cursor-pointer h-4 overflow-hidden"
+                          className="group/status relative flex items-center justify-start h-4 overflow-hidden"
                         >
                           <AnimatePresence mode="wait" initial={false}>
                           {isStatusHovered ? (
