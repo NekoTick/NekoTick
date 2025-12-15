@@ -21,7 +21,6 @@ export function ArchivedItemCard({ item, onClick, onAutoArchive, onDelete, previ
   return (
     <div className="relative group mb-4">
       <motion.div
-        layout
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={onClick}

@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext,
-  closestCenter,
+  pointerWithin,
   PointerSensor,
   useSensor,
   useSensors,
   DragOverlay,
+  MeasuringStrategy,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Archive, ArrowLeft } from '@phosphor-icons/react';
@@ -85,7 +86,7 @@ export function ProgressPage() {
   // Drag and drop
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 5 },
     })
   );
 
@@ -387,7 +388,12 @@ export function ProgressPage() {
 
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCenter}
+            collisionDetection={pointerWithin}
+            measuring={{
+              droppable: {
+                strategy: MeasuringStrategy.Always,
+              },
+            }}
             onDragStart={onDragStart}
             onDragMove={handleDragMove}
             onDragOver={handleDragOver}
