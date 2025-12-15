@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
   closestCenter,
@@ -29,6 +30,7 @@ export function ProgressPage() {
   // Scroll state for smart collapsing button
   const [isScrolled, setIsScrolled] = useState(false);
   const [isArchiveView, setIsArchiveView] = useState(false);
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleScroll = () => {
@@ -88,6 +90,14 @@ export function ProgressPage() {
     handleDragOver,
     handleDragEnd,
   } = useProgressDrag({ items: visibleItems, onReorder: reorderItems });
+
+  const onDragStart = (event: any) => {
+    handleDragStart(event);
+    const node = document.getElementById(`sortable-item-${event.active.id}`);
+    if (node) {
+      setDragWidth(node.offsetWidth);
+    }
+  };
 
   // Handle opening create modal
   const openCreateModal = () => {
@@ -334,7 +344,7 @@ export function ProgressPage() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
+            onDragStart={onDragStart}
             onDragMove={handleDragMove}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
@@ -351,7 +361,7 @@ export function ProgressPage() {
                   const insertAfter = isDropTarget && activeIndex !== -1 && overIndex > activeIndex;
 
                   return (
-                    <div key={item.id}>
+                    <div key={item.id} id={`sortable-item-${item.id}`}>
                       {!insertAfter && isDropTarget && (
                         <div className="h-20 rounded-md border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 mb-3" />
                       )}
@@ -387,34 +397,41 @@ export function ProgressPage() {
               </div>
             )}
 
-            <DragOverlay dropAnimation={null}>
-              {activeId ? (() => {
-                const item = items.find(i => i.id === activeId);
-                if (!item) return null;
-                
-                return (
-                  <div className="w-full">
-                    {item.archived ? (
-                      <ArchivedItemCard 
-                        item={item}
-                        onUpdate={updateCurrent}
-                        onClick={() => {}}
-                        onAutoArchive={handleAutoArchive}
-                        isDragging={true}
-                      />
-                    ) : (
-                      <ActiveItemCard 
-                        item={item}
-                        onUpdate={updateCurrent}
-                        onClick={() => {}}
-                        onAutoArchive={handleAutoArchive}
-                        isDragging={true}
-                      />
-                    )}
-                  </div>
-                );
-              })() : null}
-            </DragOverlay>
+            {createPortal(
+              <DragOverlay 
+                dropAnimation={null} 
+                className="cursor-grabbing" 
+                style={{ zIndex: 999999 }} // Force Topmost Layer
+              >
+                {activeId ? (() => {
+                  const item = items.find(i => i.id === activeId);
+                  if (!item) return null;
+                  
+                  return (
+                    <div className="w-full" style={{ width: dragWidth ? `${dragWidth}px` : '100%' }}>
+                      {item.archived ? (
+                        <ArchivedItemCard 
+                          item={item}
+                          onUpdate={updateCurrent}
+                          onClick={() => {}}
+                          onAutoArchive={handleAutoArchive}
+                          isDragging={true}
+                        />
+                      ) : (
+                        <ActiveItemCard 
+                          item={item}
+                          onUpdate={updateCurrent}
+                          onClick={() => {}}
+                          onAutoArchive={handleAutoArchive}
+                          isDragging={true}
+                        />
+                      )}
+                    </div>
+                  );
+                })() : null}
+              </DragOverlay>,
+              document.body
+            )}
           </DndContext>
         </div>
       </div>

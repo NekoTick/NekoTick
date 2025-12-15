@@ -90,7 +90,7 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
       layout
       initial={false}
       animate={isDragging 
-        ? { scale: 1.05, y: -5, zIndex: 50 } 
+        ? { scale: 1.08, y: -5, zIndex: 50 } 
         : { scale: 1, y: 0, zIndex: 0 }
       }
       whileHover={{ scale: 1.01, y: -2 }}
@@ -98,9 +98,12 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
       transition={{ type: "spring", stiffness: 400, damping: 30 }}
       className={`
         group relative overflow-visible rounded-[2.5rem]
-        h-32 select-none
+        h-32 select-none cursor-grab active:cursor-grabbing
         transition-shadow duration-500
-        ${isShattering ? '' : 'bg-white dark:bg-zinc-900 border border-white/50 dark:border-white/5 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] dark:shadow-none hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.1)] dark:hover:shadow-black/50'}
+        ${isShattering ? '' : isDragging 
+            ? 'bg-white dark:bg-zinc-900 border border-white/50 dark:border-white/5 shadow-2xl' 
+            : 'bg-white dark:bg-zinc-900 border border-white/50 dark:border-white/5 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.05)] dark:shadow-none hover:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.1)] dark:hover:shadow-black/50'
+        }
       `}
     >
       {isShattering && <DebrisField />}
