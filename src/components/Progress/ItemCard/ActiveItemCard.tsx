@@ -14,10 +14,10 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
     ? (item.direction === 'increment' ? item.step : -item.step)
     : item.step; 
 
-  const isDone = item.type === 'progress' && item.current >= item.total;
+  const isDone = item.type === 'progress' && item.current >= safeTotal;
 
   const percentage = item.type === 'progress' 
-    ? Math.min(100, Math.max(0, (item.current / item.total) * 100))
+    ? Math.min(100, Math.max(0, (item.current / safeTotal) * 100))
     : 0;
   
   const fillWidth = item.type === 'progress' ? `${percentage}%` : '0%';
@@ -64,7 +64,7 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
   useEffect(() => {
     if (item.type !== 'progress' || item.archived) return; 
     
-    const justFinished = item.current >= item.total && prevCurrent.current < item.total;
+    const justFinished = item.current >= safeTotal && prevCurrent.current < safeTotal;
     
     if (justFinished) {
       setIsShattering(true);
@@ -79,13 +79,13 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
       
       return () => clearTimeout(archiveTimer);
 
-    } else if (item.current < item.total) {
+    } else if (item.current < safeTotal) {
       setIsShattering(false);
       pendingArchiveRef.current = false;
     }
     
     prevCurrent.current = item.current;
-  }, [item.current, item.total, item.type, item.archived, onAutoArchive, item.id]);
+  }, [item.current, safeTotal, item.type, item.archived, onAutoArchive, item.id]);
 
   return (
     <motion.div
