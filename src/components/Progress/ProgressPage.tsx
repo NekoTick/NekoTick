@@ -362,9 +362,6 @@ export function ProgressPage() {
 
                   return (
                     <div key={item.id} id={`sortable-item-${item.id}`}>
-                      {!insertAfter && isDropTarget && (
-                        <div className="h-20 rounded-md border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 mb-3" />
-                      )}
                       <ItemCard
                         item={item}
                         onUpdate={updateCurrent}
@@ -374,9 +371,6 @@ export function ProgressPage() {
                         previewIcon={selectedItem?.id === item.id ? previewOverride?.icon : undefined}
                         previewTitle={selectedItem?.id === item.id ? previewOverride?.title : undefined}
                       />
-                      {insertAfter && isDropTarget && (
-                        <div className="h-20 rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800/50 mt-3" />
-                      )}
                     </div>
                   );
                 })}
