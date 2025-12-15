@@ -182,6 +182,7 @@ export function CreateModal({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
+                        e.currentTarget.blur(); // Force blur to prevent rapid re-fire
                         handleSubmit();
                       }
                     }}

@@ -9,6 +9,7 @@ export function useCreateForm(
 ) {
   const [type, setType] = useState<CreateType>('progress');
   const [isPickingIcon, setIsPickingIcon] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Forms
   const [progressForm, setProgressForm] = useState<ProgressFormData>({
@@ -56,6 +57,7 @@ export function useCreateForm(
   // Reset on open
   useEffect(() => {
     if (open) {
+      setIsSubmitting(false);
       setType('progress');
       setIsPickingIcon(false);
       setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: '次', resetFrequency: 'none' });
@@ -65,6 +67,9 @@ export function useCreateForm(
 
   // Submit Handler
   const handleSubmit = () => {
+    if (isSubmitting) return; // Prevent duplicate submission
+    setIsSubmitting(true);
+
     if (type === 'progress') {
       if (!progressForm.title.trim()) return;
       onCreateProgress({ ...progressForm, title: progressForm.title.trim(), unit: progressForm.unit.trim() || '次', resetFrequency: progressForm.resetFrequency });
