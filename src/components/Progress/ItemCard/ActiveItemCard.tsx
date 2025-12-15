@@ -72,7 +72,7 @@ export function ActiveItemCard({ item, onUpdate, onClick, onAutoArchive, isDragg
           onAutoArchive(item.id);
           pendingArchiveRef.current = false;
         }
-      }, 900); 
+      }, 400); 
       
       return () => clearTimeout(archiveTimer);
 

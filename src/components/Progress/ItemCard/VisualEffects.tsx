@@ -104,7 +104,7 @@ export function DebrisField() {
       targetX: moveX,
       targetY: moveY,
       delay: Math.random() * 0.1,
-      duration: 0.6 + Math.random() * 0.4
+      duration: 0.4 + Math.random() * 0.2
     };
   });
 
