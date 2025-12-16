@@ -1,190 +1,171 @@
-import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { format, startOfWeek, addDays, startOfDay, addMinutes } from 'date-fns';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
+import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, DragEndEvent } from '@dnd-kit/core';
+
+import { CalendarLayout } from './New/Layout';
+import { TimeGrid } from './New/TimeGrid';
+import { MiniCalendar } from './New/MiniCalendar';
+import { ContextPanel } from './New/ContextPanel';
+import { useCalendarStore } from '@/stores/useCalendarStore';
+import { useGroupStore } from '@/stores/useGroupStore'; // Import GroupStore
+
+const HOUR_HEIGHT = 64;
+const GUTTER_WIDTH = 60;
+const SNAP_MINUTES = 15;
 
 export function CalendarPage() {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const { load, selectedDate, setSelectedDate, addEvent } = useCalendarStore();
+  const { updateTask } = useGroupStore(); // Get updateTask
+  const [activeDragItem, setActiveDragItem] = useState<any>(null);
 
-  // 获取当前月份的第一天和最后一天
-  const firstDayOfMonth = useMemo(() => {
-    return new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-  }, [currentDate]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const lastDayOfMonth = useMemo(() => {
-    return new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-  }, [currentDate]);
+  const navigateWeek = (direction: 'prev' | 'next') => {
+    const days = direction === 'prev' ? -7 : 7;
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate);
+  };
 
-  // 获取月份的天数
-  const daysInMonth = lastDayOfMonth.getDate();
+  const jumpToToday = () => setSelectedDate(new Date());
 
-  // 获取第一天是星期几（0 = 周日）
-  const startingDayOfWeek = firstDayOfMonth.getDay();
+  // Sensors for DnD
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }, 
+    })
+  );
 
-  // 生成日历网格数据
-  const calendarDays = useMemo(() => {
-    const days: (Date | null)[] = [];
+  const handleDragStart = (event: any) => {
+    setActiveDragItem(event.active.data.current?.task);
+  };
 
-    // 填充前面的空白天
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active } = event;
+    setActiveDragItem(null);
 
-    // 填充实际的天数
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(new Date(currentDate.getFullYear(), currentDate.getMonth(), day));
-    }
+    // If dropped over the TimeGrid (we'll check coordinates manually for precision)
+    const gridContainer = document.getElementById('time-grid-container');
+    if (!gridContainer) return;
 
-    // 填充后面的空白天到完整周
-    const remainingDays = 7 - (days.length % 7);
-    if (remainingDays < 7) {
-      for (let i = 0; i < remainingDays; i++) {
-        days.push(null);
+    const rect = gridContainer.getBoundingClientRect();
+    const dropRect = event.active.rect.current.translated;
+    if (!dropRect) return;
+
+    const x = dropRect.left + 20; 
+    const y = dropRect.top + 20;
+
+    if (
+      x >= rect.left && 
+      x <= rect.right && 
+      y >= rect.top && 
+      y <= rect.bottom
+    ) {
+      // 1. Calculate Day
+      const relativeX = x - rect.left - GUTTER_WIDTH;
+      if (relativeX < 0) return; // Dropped on gutter
+
+      const dayWidth = (rect.width - GUTTER_WIDTH) / 7;
+      const dayIndex = Math.floor(relativeX / dayWidth);
+      if (dayIndex < 0 || dayIndex > 6) return;
+
+      // 2. Calculate Time
+      const scrollContainer = document.getElementById('time-grid-scroll');
+      const scrollTop = scrollContainer?.scrollTop || 0;
+      
+      const relativeY = y - rect.top + scrollTop;
+      const totalMinutes = (relativeY / HOUR_HEIGHT) * 60;
+      const snappedMinutes = Math.round(totalMinutes / SNAP_MINUTES) * SNAP_MINUTES;
+
+      // 3. Determine Date
+      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+      const dayDate = addDays(weekStart, dayIndex);
+      const startDate = addMinutes(startOfDay(dayDate), snappedMinutes);
+      
+      // 4. Handle Action based on Item Type
+      const task = active.data.current?.task;
+
+      if (task) {
+        // --- SCENARIO A: Scheduling a Task ---
+        // Update the task with the specific scheduled time
+        // Note: TaskStore likely expects a string or specific format for scheduledTime.
+        // Assuming it stores it as a timestamp string or simple string for now.
+        updateTask(task.id, { 
+          scheduledTime: startDate.getTime().toString(), // Storing as timestamp string
+          estimatedMinutes: task.estimatedMinutes || 60 // Default duration if not set
+        });
+        console.log('[Calendar] Scheduled Task:', task.title, 'at', startDate);
+      } else {
+        // --- SCENARIO B: Creating a Generic Event (Fallback) ---
+        // (This path might be used if we implement other drag types later)
+        const endDate = addMinutes(startDate, 60);
+        addEvent({
+          title: 'New Event',
+          startDate: startDate.getTime(),
+          endDate: endDate.getTime(),
+          isAllDay: false,
+          color: 'blue',
+        });
       }
     }
-
-    return days;
-  }, [currentDate, daysInMonth, startingDayOfWeek]);
-
-  // 导航到上个月
-  const previousMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
-
-  // 导航到下个月
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-  };
-
-  // 导航到今天
-  const goToToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  // 检查是否是今天
-  const isToday = (date: Date | null) => {
-    if (!date) return false;
-    const today = new Date();
-    return (
-      date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear()
-    );
-  };
-
-  // 检查是否是选中的日期
-  const isSelected = (date: Date | null) => {
-    if (!date || !selectedDate) return false;
-    return (
-      date.getDate() === selectedDate.getDate() &&
-      date.getMonth() === selectedDate.getMonth() &&
-      date.getFullYear() === selectedDate.getFullYear()
-    );
-  };
-
-  // 格式化月份显示
-  const monthYear = `${currentDate.getFullYear()}年${currentDate.getMonth() + 1}月`;
-
-  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {monthYear}
-        </h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={goToToday}
-            className="px-3 py-1.5 text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 transition-colors"
-          >
-            今天
-          </button>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={previousMonth}
-              className="p-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-              aria-label="上个月"
-            >
-              <ChevronLeft className="size-5" />
-            </button>
-            <button
-              onClick={nextMonth}
-              className="p-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-              aria-label="下个月"
-            >
-              <ChevronRight className="size-5" />
-            </button>
+    <DndContext 
+      sensors={sensors} 
+      onDragStart={handleDragStart} 
+      onDragEnd={handleDragEnd}
+    >
+      <CalendarLayout
+        sidebar={
+          <div className="p-4">
+            <MiniCalendar />
           </div>
-        </div>
-      </div>
-
-      {/* Calendar Grid */}
-      <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-md overflow-hidden">
-        {/* Week Days Header */}
-        <div className="grid grid-cols-7 border-b border-zinc-200 dark:border-zinc-700">
-          {weekDays.map((day) => (
-            <div
-              key={day}
-              className="py-3 text-center text-sm font-medium text-zinc-500 dark:text-zinc-400"
-            >
-              {day}
+        }
+        main={
+          <div className="flex h-full flex-col">
+            {/* Header Toolbar */}
+            <div className="h-12 border-b border-zinc-200 dark:border-zinc-800 flex items-center px-4 justify-between bg-white dark:bg-zinc-950 z-30 relative">
+               <div className="flex items-center gap-3">
+                 <h2 className="text-lg font-semibold tracking-tight">
+                   {format(selectedDate, 'MMMM yyyy')}
+                 </h2>
+                 <div className="flex items-center gap-1">
+                   <button onClick={() => navigateWeek('prev')} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-500"><CaretLeft className="size-4" /></button>
+                   <button onClick={jumpToToday} className="px-2 py-1 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-600 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">Today</button>
+                   <button onClick={() => navigateWeek('next')} className="p-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-md text-zinc-500"><CaretRight className="size-4" /></button>
+                 </div>
+               </div>
+               
+               <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 rounded-lg p-0.5 border border-zinc-200 dark:border-zinc-800">
+                  <button className="px-3 py-1 text-xs font-medium rounded-[4px] bg-white dark:bg-zinc-800 shadow-sm text-zinc-900 dark:text-zinc-100">Week</button>
+                  <button className="px-3 py-1 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors">Month</button>
+               </div>
             </div>
-          ))}
-        </div>
-
-        {/* Calendar Days */}
-        <div className="grid grid-cols-7" style={{ gridAutoRows: 'minmax(100px, 1fr)' }}>
-          {calendarDays.map((date, index) => (
-            <div
-              key={index}
-              className={`border-b border-r border-zinc-200 dark:border-zinc-700 p-2 ${
-                index % 7 === 6 ? 'border-r-0' : ''
-              } ${
-                index >= calendarDays.length - 7 ? 'border-b-0' : ''
-              }`}
-            >
-              {date && (
-                <button
-                  onClick={() => setSelectedDate(date)}
-                  className={`w-full h-full min-h-[80px] flex flex-col items-start p-2 rounded-md transition-colors ${
-                    isToday(date)
-                      ? 'bg-zinc-100 dark:bg-zinc-800'
-                      : isSelected(date)
-                      ? 'bg-zinc-100 dark:bg-zinc-800'
-                      : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50'
-                  }`}
-                >
-                  <span
-                    className={`flex items-center justify-center w-7 h-7 rounded-full text-sm font-medium ${
-                      isToday(date)
-                        ? 'bg-zinc-400 dark:bg-zinc-500 text-white'
-                        : isSelected(date)
-                        ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100'
-                        : 'text-zinc-700 dark:text-zinc-300'
-                    }`}
-                  >
-                    {date.getDate()}
-                  </span>
-                  {/* Future: Add tasks or events here */}
-                </button>
-              )}
+            
+            {/* The Core Grid */}
+            <div className="flex-1 min-h-0 relative" id="time-grid-container">
+               {/* Pass IDs for coordinate calculation */}
+               <TimeGrid /> 
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        }
+        contextPanel={<ContextPanel />}
+      />
 
-      {/* Footer Info */}
-      {selectedDate && (
-        <div className="mt-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-md">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            选中日期：{selectedDate.getFullYear()}年{selectedDate.getMonth() + 1}月{selectedDate.getDate()}日
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1">
-            未来可以在这里显示当天的任务和事件
-          </p>
-        </div>
-      )}
-    </div>
+      {/* Drag Overlay for visual feedback */}
+      <DragOverlay>
+        {activeDragItem ? (
+           <div className="p-2 bg-white dark:bg-zinc-800 rounded border border-blue-500 shadow-lg w-48 opacity-90 rotate-2">
+              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 line-clamp-1">
+                {activeDragItem.content}
+              </span>
+           </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
