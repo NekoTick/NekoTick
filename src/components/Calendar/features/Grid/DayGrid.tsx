@@ -5,6 +5,7 @@ import { useCalendarStore } from '@/stores/useCalendarStore';
 import { useGroupStore } from '@/stores/useGroupStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { EventBlock } from '../Event/EventBlock';
+import { calculateEventLayout } from '../../utils/eventLayout';
 
 const HOUR_HEIGHT = 64;
 const GUTTER_WIDTH = 60;
@@ -294,14 +295,19 @@ export function DayGrid() {
 
             {/* Events Layer */}
             <div className={`absolute inset-0 z-10 grid pointer-events-none`} style={{ gridTemplateColumns: `repeat(${dayCount}, 1fr)` }}>
-              {days.map((day) => (
-                <div key={day.toString()} className="relative h-full">
-                  {displayItems
-                    .filter(item => isSameDay(new Date(item.startDate), day) && !item.isAllDay)
-                    .map(item => (
+              {days.map((day) => {
+                const dayEvents = displayItems.filter(
+                  item => isSameDay(new Date(item.startDate), day) && !item.isAllDay
+                );
+                const layoutMap = calculateEventLayout(dayEvents);
+                
+                return (
+                  <div key={day.toString()} className="relative h-full">
+                    {dayEvents.map(item => (
                       <div key={item.id} className="event-block pointer-events-auto">
                         <EventBlock
                           event={item}
+                          layout={layoutMap.get(item.id)}
                           onToggle={(id) => {
                             if (item.type === 'task') {
                               toggleTask(id);
@@ -310,8 +316,9 @@ export function DayGrid() {
                         />
                       </div>
                     ))}
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Ghost Event */}
