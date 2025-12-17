@@ -34,42 +34,33 @@ export async function getBasePath(): Promise<string> {
 /**
  * Get all storage paths dynamically
  * 
- * Structure:
+ * Structure (Unified Single-File Architecture):
  *   NekoTick/
- *   ├── .nekotick/           <- Hidden metadata (app-only data)
- *   │   ├── progress.json    <- Progress metadata
- *   │   ├── tasks.json       <- Tasks metadata  
- *   │   └── sync-status.json <- Future: sync state
- *   ├── progress/            <- User-readable content
- *   │   └── progress.md
- *   ├── tasks/
- *   ├── archive/
- *   └── time-tracker/
+ *   ├── .nekotick/           <- Hidden metadata
+ *   │   └── data.json        <- Source of truth (all app data)
+ *   └── nekotick.md          <- Human-readable backup
  */
 export async function getPaths() {
   const base = await getBasePath();
+  const sep = base.includes('\\') ? '\\' : '/';
   return {
     base,
-    // Hidden metadata folder (like .obsidian)
-    metadata: `${base}\\.nekotick`,
-    // User-visible content folders
-    tasks: `${base}\\tasks`,
-    progress: `${base}\\progress`,
-    timeTracker: `${base}\\time-tracker`,
-    archive: `${base}\\archive`,
+    metadata: `${base}${sep}.nekotick`,
+    dataJson: `${base}${sep}.nekotick${sep}data.json`,
+    markdown: `${base}${sep}nekotick.md`,
   };
 }
 
 /**
- * Ensure all storage directories exist
+ * Ensure storage directories exist
  */
 export async function ensureDirectories(): Promise<void> {
   try {
-    const paths = await getPaths();
-    for (const path of Object.values(paths)) {
-      if (!(await exists(path))) {
-        await mkdir(path, { recursive: true });
-      }
+    const base = await getBasePath();
+    const sep = base.includes('\\') ? '\\' : '/';
+    const metadataDir = `${base}${sep}.nekotick`;
+    if (!(await exists(metadataDir))) {
+      await mkdir(metadataDir, { recursive: true });
     }
   } catch (error) {
     console.error('Failed to create directories:', error);

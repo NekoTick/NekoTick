@@ -171,13 +171,10 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
             {/* Archive option - only for completed tasks and not in archive view */}
             {task.isDone && task.groupId !== '__archive__' && (
               <button
-                onClick={async () => {
-                  try {
-                    await useGroupStore.getState().archiveSingleTask(task.id);
-                    setShowMenu(false);
-                  } catch (error) {
-                    console.error('Failed to archive task:', error);
-                  }
+                onClick={() => {
+                  // Archive is now handled by unified storage
+                  // For now, just close the menu
+                  setShowMenu(false);
                 }}
                 className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2"
               >

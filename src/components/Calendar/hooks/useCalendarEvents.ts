@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
-import { useCalendarStore } from '@/stores/useCalendarStore';
+import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
 import { useGroupStore } from '@/stores/useGroupStore';
-import { type CalendarEvent } from '@/lib/storage/calendarStorage';
 
 export function useCalendarEvents() {
   const { events } = useCalendarStore();

@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { Clock, Users, Video, FileText, MapPin, Bell, Eye, X } from 'lucide-react';
-import { useCalendarStore } from '@/stores/useCalendarStore';
-import type { CalendarEvent } from '@/lib/storage/calendarStorage';
+import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
 
 interface EventEditFormProps {
   event: CalendarEvent;

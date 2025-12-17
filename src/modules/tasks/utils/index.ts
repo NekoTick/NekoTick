@@ -1,7 +1,9 @@
-// Tasks module utils
-// 重新导出现有工具函数
+/**
+ * Tasks Module Utilities
+ * 
+ * Re-exports utility functions for task operations.
+ */
 
 export { parseTimeString } from '@/stores/timeParser';
-export * from '@/stores/taskUtils';
-export * from '@/stores/archiveUtils';
-export * from '@/stores/reorderUtils';
+export { collectTaskAndDescendants, calculateActualTime } from '@/stores/taskUtils';
+export { reorderTasksInGroup, crossStatusReorderTask, moveTaskBetweenGroups } from '@/stores/reorderUtils';

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { type CalendarEvent } from '@/lib/storage/calendarStorage';
+import { type CalendarEvent } from '@/stores/useCalendarStore';
 import { Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EventContextMenu } from './EventContextMenu';

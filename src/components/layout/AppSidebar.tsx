@@ -25,7 +25,7 @@ const navItems = [
 ];
 
 export function AppSidebar() {
-  const tasks = useGroupStore((state) => state.tasks);
+  const { tasks } = useGroupStore();
   const inboxCount = tasks.filter((t) => !t.completed).length;
   const { state, toggleSidebar } = useSidebar();
   const isExpanded = state === 'expanded';

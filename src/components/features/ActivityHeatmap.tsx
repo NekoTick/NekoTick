@@ -19,7 +19,7 @@ interface ActivityData {
  * Transform tasks into activity calendar data format
  */
 function useActivityData(): ActivityData[] {
-  const tasks = useGroupStore((state) => state.tasks);
+  const { tasks } = useGroupStore();
 
   return useMemo(() => {
     // Get date range: last 365 days

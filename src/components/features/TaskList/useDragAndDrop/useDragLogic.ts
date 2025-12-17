@@ -119,61 +119,13 @@ export function useDragLogic({
           if (parentTask.collapsed) toggleCollapse(parentTask.id);
           
           if (!isTaskDescendant(tasks, taskId, parentTask.id)) {
-            // Apply hierarchy change
+            // Apply hierarchy change via store action (auto-persists)
             const siblings = tasks.filter(t => t.parentId === parentTask.id && t.id !== taskId);
             const newOrder = siblings.length;
-            const oldParentId = draggedTask.parentId;
             
             flushSync(() => {
-              useGroupStore.setState((state) => {
-                const newTasks = state.tasks.map(t =>
-                  t.id === taskId ? { ...t, parentId: parentTask.id, order: newOrder } : t
-                );
-                
-                if (oldParentId !== parentTask.id) {
-                  const oldSiblings = newTasks
-                    .filter(t => t.parentId === oldParentId && t.id !== taskId)
-                    .sort((a, b) => a.order - b.order);
-                  
-                  oldSiblings.forEach((t, i) => {
-                    const task = newTasks.find(nt => nt.id === t.id);
-                    if (task) task.order = i;
-                  });
-                }
-                return { tasks: newTasks };
-              });
+              useGroupStore.getState().updateTaskParent(taskId, parentTask.id, newOrder);
             });
-            
-            // Persist
-            try {
-              const updatedTasks = useGroupStore.getState().tasks;
-              const { saveGroup } = await import('@/lib/storage');
-              const groupTasks = updatedTasks.filter(t => t.groupId === activeGroupId);
-              const currentGroup = groups.find(g => g.id === activeGroupId);
-              
-              if (currentGroup && activeGroupId) {
-                await saveGroup({
-                  ...currentGroup,
-                  pinned: currentGroup.pinned ?? false, // Ensure strict boolean
-                  updatedAt: Date.now(),
-                  tasks: groupTasks.map(t => ({
-                    id: t.id,
-                    content: t.content,
-                    completed: t.completed,
-                    createdAt: t.createdAt,
-                    completedAt: t.completedAt,
-                    order: t.order,
-                    parentId: t.parentId || null,
-                    collapsed: t.collapsed,
-                    priority: t.priority,
-                    estimatedMinutes: t.estimatedMinutes,
-                    actualMinutes: t.actualMinutes,
-                  }))
-                });
-              }
-            } catch (error) {
-              console.error('Failed to save hierarchy:', error);
-            }
             
             // Cleanup
             setActiveId(null);

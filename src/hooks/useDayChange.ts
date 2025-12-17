@@ -9,7 +9,7 @@ import { useProgressStore } from '../stores/useProgressStore';
  * and triggers a validation of the daily state.
  */
 export function useDayChange() {
-  const validateDailyState = useProgressStore(state => state.validateDailyState);
+  const { validateDailyState } = useProgressStore();
   const lastCheck = useRef<string>(new Date().toDateString());
 
   useEffect(() => {
@@ -29,7 +29,6 @@ export function useDayChange() {
     };
 
     // 3. Setup Interval (Midnight check for active sessions)
-    // Check every minute if the date string has changed
     const intervalId = setInterval(() => {
         const today = new Date().toDateString();
         if (today !== lastCheck.current) {
@@ -37,7 +36,7 @@ export function useDayChange() {
             lastCheck.current = today;
             validateDailyState();
         }
-    }, 60 * 1000); // Check every minute
+    }, 60 * 1000);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 

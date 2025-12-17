@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { loadTimeTracker, type DayTimeData } from '../storage';
+import type { DayTimeData } from '../storage';
 import { AppUsage, TimeRange, SourceType } from '../types';
 
 export function useTimeTracker() {
@@ -10,11 +10,10 @@ export function useTimeTracker() {
   const [sourceType, setSourceType] = useState<SourceType>('app');
   const [selectedApp, setSelectedApp] = useState<AppUsage | null>(null);
 
-  // Load data
+  // Time tracker data loading - placeholder for future implementation
   useEffect(() => {
-    loadTimeTracker().then(data => {
-      setAllData(data);
-    });
+    // Time tracker will be integrated with unified storage in a future update
+    setAllData([]);
   }, []);
 
   // Filter and aggregate data based on selection

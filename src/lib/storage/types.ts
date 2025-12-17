@@ -1,5 +1,23 @@
-// Storage type definitions
+/**
+ * Storage Type Definitions
+ * 
+ * Legacy types kept for backward compatibility.
+ * New code should use types from unifiedStorage.ts
+ */
 
+// Time Tracker types (still in use)
+export interface AppUsageData {
+  name: string;
+  duration: number; // seconds
+}
+
+export interface DayTimeData {
+  date: string;
+  apps: AppUsageData[];
+  websites: AppUsageData[];
+}
+
+// Legacy types (kept for compatibility, prefer UnifiedTask/UnifiedGroup/etc.)
 export interface TaskData {
   id: string;
   content: string;
@@ -37,23 +55,12 @@ export interface ProgressData {
   todayCount: number;
   lastUpdateDate?: string;
   history?: Record<string, number>;
-  frequency?: 'daily' | 'weekly' | 'monthly'; // For display, not reset
-  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none'; // New field for auto-reset behavior
+  frequency?: 'daily' | 'weekly' | 'monthly';
+  resetFrequency?: 'daily' | 'weekly' | 'monthly' | 'none';
   startDate?: number;
   endDate?: number;
   createdAt: number;
   archived?: boolean;
-}
-
-export interface AppUsageData {
-  name: string;
-  duration: number; // seconds
-}
-
-export interface DayTimeData {
-  date: string;
-  apps: AppUsageData[];
-  websites: AppUsageData[];
 }
 
 export interface ArchiveSection {

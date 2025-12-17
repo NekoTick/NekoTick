@@ -1,28 +1,11 @@
-// Task utility functions for store operations
-
-import { saveGroup, type GroupData } from '@/lib/storage';
-import { useToastStore } from './useToastStore';
-import type { Group, StoreTask } from './types';
-
 /**
- * Convert StoreTask to TaskData format for persistence
+ * Task Utility Functions
+ * 
+ * Pure utility functions for task operations.
+ * Note: All persistence is handled by useUnifiedStore.
  */
-export function toTaskData(task: StoreTask) {
-  return {
-    id: task.id,
-    content: task.content,
-    completed: task.completed,
-    createdAt: task.createdAt,
-    completedAt: task.completedAt,
-    scheduledTime: task.scheduledTime,
-    order: task.order,
-    parentId: task.parentId,
-    collapsed: task.collapsed,
-    priority: task.priority,
-    estimatedMinutes: task.estimatedMinutes,
-    actualMinutes: task.actualMinutes,
-  };
-}
+
+import type { StoreTask } from './types';
 
 /**
  * Recursively collect a task and all its descendants
@@ -68,60 +51,4 @@ export function calculateActualTime(
   }
   
   return actualMinutes;
-}
-
-/**
- * Persist a group and its tasks to file
- * Skips archive group as archived tasks are managed separately
- */
-export async function persistGroup(
-  groups: Group[],
-  tasks: StoreTask[],
-  groupId: string
-): Promise<void> {
-  // Skip archive group (archived tasks are managed in archive files)
-  if (groupId === '__archive__') {
-    console.log('[PersistGroup] Skipping persist for __archive__ group');
-    return;
-  }
-  
-  const group = groups.find(g => g.id === groupId);
-  if (!group) return;
-  
-  const groupTasks = tasks.filter(t => t.groupId === groupId);
-  
-  // Safety check: remove duplicates before saving
-  const taskIds = groupTasks.map(t => t.id);
-  const hasDuplicates = taskIds.length !== new Set(taskIds).size;
-  
-  let tasksToSave = groupTasks;
-  if (hasDuplicates) {
-    const seen = new Set<string>();
-    tasksToSave = groupTasks.filter(t => {
-      if (seen.has(t.id)) {
-        return false;
-      }
-      seen.add(t.id);
-      return true;
-    });
-  }
-  
-  const groupData: GroupData = {
-    id: group.id,
-    name: group.name,
-    pinned: group.pinned || false,
-    tasks: tasksToSave.map(toTaskData),
-    createdAt: group.createdAt,
-    updatedAt: Date.now(),
-  };
-  
-  try {
-    await saveGroup(groupData);
-  } catch (error) {
-    useToastStore.getState().addToast(
-      error instanceof Error ? error.message : 'Failed to save tasks',
-      'error',
-      4000
-    );
-  }
 }

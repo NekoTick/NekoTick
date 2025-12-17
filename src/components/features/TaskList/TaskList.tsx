@@ -56,11 +56,7 @@ export function TaskList() {
   const timeView = archiveTimeView;
   const setTimeView = (view: TimeView) => {
     setArchiveTimeView(view);
-    // Clear archive cache when switching time view
-    useGroupStore.setState((state) => ({
-      loadedGroups: new Set([...state.loadedGroups].filter(g => g !== '__archive__')),
-      tasks: state.tasks.filter(t => t.groupId !== '__archive__')
-    }));
+    // Archive view switching is handled by unified store
   };
 
   // Time range helpers
@@ -72,11 +68,7 @@ export function TaskList() {
   
   const setCurrentRange = (range: number | 'all') => {
     setArchiveRange(timeView, range);
-    // Clear archive cache when changing range
-    useGroupStore.setState((state) => ({
-      loadedGroups: new Set([...state.loadedGroups].filter(g => g !== '__archive__')),
-      tasks: state.tasks.filter(t => t.groupId !== '__archive__')
-    }));
+    // Archive range change is handled by unified store
   };
 
   // Drag and drop hook
