@@ -239,7 +239,6 @@ export function DayGrid() {
             ))}
           </div>
         </div>
-        <span className="text-zinc-400 text-sm">+</span>
       </div>
 
       {/* BODY */}

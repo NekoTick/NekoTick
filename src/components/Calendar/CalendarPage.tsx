@@ -20,7 +20,7 @@ const GUTTER_WIDTH = 60;
 const SNAP_MINUTES = 15;
 
 export function CalendarPage() {
-  const { load, selectedDate, setSelectedDate, addEvent, viewMode, showSidebar, showContextPanel } = useCalendarStore();
+  const { load, selectedDate, addEvent, viewMode, showSidebar, showContextPanel } = useCalendarStore();
   const { updateTaskSchedule, updateTaskEstimation } = useGroupStore();
   const [activeDragItem, setActiveDragItem] = useState<any>(null);
 
@@ -142,10 +142,10 @@ export function CalendarPage() {
         showContextPanel={showContextPanel}
       />
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={null}>
         {activeDragItem ? (
-           <div className="p-2 bg-white dark:bg-zinc-800 rounded border border-blue-500 shadow-lg w-48 opacity-90 rotate-2">
-              <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 line-clamp-1">
+           <div className="px-3 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 max-w-[200px] rotate-1">
+              <span className="text-[13px] text-zinc-700 dark:text-zinc-200 line-clamp-2">
                 {activeDragItem.content}
               </span>
            </div>
