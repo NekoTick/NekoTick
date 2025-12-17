@@ -264,7 +264,7 @@ export function TimeGrid() {
       <div ref={scrollRef} id="time-grid-scroll" className="flex-1 overflow-y-auto relative scrollbar-hidden">
         <div className="flex relative" ref={containerRef} style={{ minHeight: HOUR_HEIGHT * 24 }}>
           
-          {/* Gutter - 时间标签列（层级化刻度） */}
+          {/* Gutter - 时间标签列 */}
           <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 sticky left-0 z-10 bg-white dark:bg-zinc-950">
             {Array.from({ length: 24 }).map((_, hour) => (
               <div key={hour} style={{ height: HOUR_HEIGHT }} className="relative">
@@ -274,64 +274,25 @@ export function TimeGrid() {
                     {hour < 12 ? `${hour}AM` : hour === 12 ? '12PM' : `${hour - 12}PM`}
                   </span>
                 )}
-                {/* 半点标签 - 仅在放大时显示 */}
-                {HOUR_HEIGHT >= 80 && (
-                  <span 
-                    className="absolute right-3 text-[9px] text-zinc-300 dark:text-zinc-600 font-medium tabular-nums"
-                    style={{ top: HOUR_HEIGHT / 2 - 5 }}
-                  >
-                    {hour < 12 ? `${hour}:30` : hour === 12 ? '12:30' : `${hour - 12}:30`}
-                  </span>
-                )}
               </div>
             ))}
           </div>
 
           {/* Canvas */}
           <div ref={canvasRef} className="flex-1 relative" onMouseDown={handleMouseDown}>
-            {/* Grid Lines - 层级化刻度 */}
+            {/* Grid Lines */}
             <div className="absolute inset-0 z-0 pointer-events-none">
                {Array.from({ length: 24 }).map((_, hour) => (
                  <div key={hour} style={{ height: HOUR_HEIGHT }} className="relative w-full">
-                   {/* 整点线 - 始终显示，最深 */}
+                   {/* 整点线 */}
                    <div className="absolute bottom-0 left-0 right-0 h-px bg-zinc-200/80 dark:bg-zinc-700/50" />
                    
-                   {/* 半点线 - 中等放大时显示 */}
-                   {HOUR_HEIGHT >= 80 && (
+                   {/* 半点线 - 放大较多时显示 */}
+                   {HOUR_HEIGHT >= 200 && (
                      <div 
                        className="absolute left-0 right-0 h-px bg-zinc-100 dark:bg-zinc-800/40"
                        style={{ top: '50%' }}
                      />
-                   )}
-                   
-                   {/* 15分钟刻度线 - 大放大时显示 */}
-                   {HOUR_HEIGHT >= 160 && (
-                     <>
-                       <div 
-                         className="absolute left-0 right-0 h-px bg-zinc-50 dark:bg-zinc-800/20"
-                         style={{ top: '25%' }}
-                       />
-                       <div 
-                         className="absolute left-0 right-0 h-px bg-zinc-50 dark:bg-zinc-800/20"
-                         style={{ top: '75%' }}
-                       />
-                     </>
-                   )}
-                   
-                   {/* 5分钟刻度线 - 最大放大时显示（虚线效果） */}
-                   {HOUR_HEIGHT >= 300 && (
-                     <>
-                       {[1, 2, 4, 5, 7, 8, 10, 11].map((slot) => (
-                         <div 
-                           key={slot}
-                           className="absolute left-0 right-0 h-px"
-                           style={{ 
-                             top: `${(slot / 12) * 100}%`,
-                             background: 'repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(161,161,170,0.35) 3px, rgba(161,161,170,0.35) 6px)'
-                           }}
-                         />
-                       ))}
-                     </>
                    )}
                  </div>
                ))}
