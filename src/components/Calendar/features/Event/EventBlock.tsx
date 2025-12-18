@@ -10,7 +10,7 @@ const GAP = 3;
 const RESIZE_HANDLE_HEIGHT = 6;
 const AUTO_SCROLL_THRESHOLD = 5; // 距离边缘多少像素开始自动滚动（几乎触碰边缘）
 const AUTO_SCROLL_SPEED = 10; // 滚动速度
-const STORE_UPDATE_INTERVAL = 100; // store 更新间隔（毫秒）
+const STORE_UPDATE_INTERVAL = 0; // store 更新间隔（毫秒）- 立即更新，让布局实时响应拖动
 
 // 根据缩放级别动态计算时间精度
 function getSnapMinutes(hourHeight: number): number {
@@ -417,7 +417,7 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
     setIsHovered(true);
   };
 
-  // 智能间距计算
+  // 智能间距计算 - 始终使用 layout 来计算位置
   const positioning = useMemo(() => {
     if (!layout) {
       return {
@@ -448,7 +448,8 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
   const depthStyles = useMemo(() => {
     const column = layout?.column || 0;
     const baseZ = column + 10;
-    const z = isResizing || isDragging ? 200 : isActive ? 100 : isHovered ? 50 : baseZ;
+    // 拖动时 zIndex 稍高但不要太高，让布局变化更明显
+    const z = isResizing || isDragging ? 50 : isActive ? 100 : isHovered ? 40 : baseZ;
     const shadowIntensity = Math.min(column * 0.5, 2);
 
     return { zIndex: z, shadowIntensity };

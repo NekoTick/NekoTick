@@ -2,6 +2,19 @@ import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { Clock, Folder, ChevronDown, X } from 'lucide-react';
 import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
+import { cn } from '@/lib/utils';
+import type { ItemColor } from '@/stores/types';
+
+// 颜色配置
+const COLOR_OPTIONS: ItemColor[] = ['default', 'blue', 'green', 'purple', 'yellow', 'red'];
+const COLOR_VALUES: Record<ItemColor, string> = {
+  red: '#ef4444',
+  yellow: '#eab308',
+  purple: '#a855f7',
+  green: '#22c55e',
+  blue: '#3b82f6',
+  default: '#d4d4d8',
+};
 
 interface EventEditFormProps {
   event: CalendarEvent;
@@ -53,6 +66,10 @@ export function EventEditForm({ event }: EventEditFormProps) {
     updateEvent(event.id, { content: newTitle });
   };
 
+  const handleColorChange = (color: ItemColor) => {
+    updateEvent(event.id, { color });
+  };
+
   const startDate = new Date(event.startDate);
   const endDate = new Date(event.endDate);
   const durationMs = endDate.getTime() - startDate.getTime();
@@ -88,6 +105,27 @@ export function EventEditForm({ event }: EventEditFormProps) {
           placeholder="添加标题"
           className="w-full bg-zinc-100 dark:bg-zinc-800 rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
+        
+        {/* 颜色选择器 */}
+        <div className="flex items-center justify-between gap-1.5 mt-3">
+          {COLOR_OPTIONS.map((color) => (
+            <button
+              key={color}
+              onClick={() => handleColorChange(color)}
+              className={cn(
+                "w-6 h-6 rounded-md border-2 transition-all hover:scale-110",
+                event.color === color || (!event.color && color === 'default')
+                  ? "ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1 dark:ring-offset-zinc-900"
+                  : ""
+              )}
+              style={{
+                borderColor: COLOR_VALUES[color],
+                backgroundColor: color === 'default' ? 'transparent' : undefined
+              }}
+              title={color === 'default' ? '默认' : color}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Content */}

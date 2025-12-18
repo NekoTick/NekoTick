@@ -313,18 +313,32 @@ export function DayGrid() {
                   const actualEndMin = Math.max(dragStart!.time, dragEnd!.time);
                   const dayDate = days[dragStart!.dayIndex];
                   
-                  // 创建虚拟事件（默认蓝色，新事件的默认颜色）
-                  const ghostEvent = {
-                    id: '__ghost__',
-                    startDate: addMinutes(startOfDay(dayDate), actualStartMin).getTime(),
-                    endDate: addMinutes(startOfDay(dayDate), actualEndMin).getTime(),
-                    color: 'blue' as const,
-                  };
+                  const ghostStartTime = addMinutes(startOfDay(dayDate), actualStartMin).getTime();
+                  const ghostEndTime = addMinutes(startOfDay(dayDate), actualEndMin).getTime();
                   
-                  // 将虚拟事件加入布局计算
-                  const eventsWithGhost = [...dayEvents, ghostEvent];
-                  layoutMap = calculateEventLayout(eventsWithGhost);
-                  ghostLayout = layoutMap.get('__ghost__');
+                  // 检查虚拟事件是否与现有事件有时间重叠
+                  const hasOverlap = dayEvents.some(event => 
+                    event.startDate < ghostEndTime && event.endDate > ghostStartTime
+                  );
+                  
+                  if (hasOverlap) {
+                    // 有重叠时，虚拟事件参与布局计算
+                    // 新创建的事件默认未完成，这样它会正确参与排序
+                    const ghostEvent = {
+                      id: '__ghost__',
+                      startDate: ghostStartTime,
+                      endDate: ghostEndTime,
+                      color: 'blue' as const,
+                      completed: false,
+                    };
+                    const eventsWithGhost = [...dayEvents, ghostEvent];
+                    layoutMap = calculateEventLayout(eventsWithGhost);
+                    ghostLayout = layoutMap.get('__ghost__');
+                  } else {
+                    // 无重叠时，虚拟事件独立布局，不影响现有事件
+                    layoutMap = calculateEventLayout(dayEvents);
+                    ghostLayout = { id: '__ghost__', column: 0, totalColumns: 1, leftPercent: 0, widthPercent: 100 };
+                  }
                 } else {
                   layoutMap = calculateEventLayout(dayEvents);
                 }
