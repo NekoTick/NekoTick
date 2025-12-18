@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
+import { useCalendarStore } from '@/stores/useCalendarStore';
 import { Check } from 'lucide-react';
 import { EventContextMenu } from './EventContextMenu';
 import { type EventLayoutInfo } from '../../utils/eventLayout';
+import { type CalendarDisplayItem } from '../../hooks/useCalendarEvents';
 
 const GAP = 3;
 const RESIZE_HANDLE_HEIGHT = 6;
@@ -24,7 +25,7 @@ function getSnapMinutes(hourHeight: number): number {
 const getScrollContainer = () => document.getElementById('time-grid-scroll');
 
 interface EventBlockProps {
-  event: CalendarEvent & { type?: 'event' | 'task'; originalTask?: any };
+  event: CalendarDisplayItem;
   onToggle?: (id: string) => void;
   layout?: EventLayoutInfo;
 }
@@ -59,7 +60,6 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
 
   const isActive = editingEventId === event.id;
   const isSelected = selectedEventId === event.id;
-  const isTask = event.type === 'task';
 
   // 使用临时时间（拖拽中）或实际时间来计算位置
   const displayStartDate = tempTimes?.start ?? event.startDate;
@@ -75,7 +75,7 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
   // 检测鼠标位置
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
-      if (isResizing || isDragging || isTask) return;
+      if (isResizing || isDragging) return;
 
       const rect = e.currentTarget.getBoundingClientRect();
       const relativeY = e.clientY - rect.top;
@@ -88,7 +88,7 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
         setResizeEdge(null);
       }
     },
-    [isResizing, isDragging, isTask]
+    [isResizing, isDragging]
   );
 
   // 边缘拖拽调整时长
@@ -380,16 +380,12 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
       closeEditingEvent();
     }
     
-    // 单击同时选中并打开编辑面板（仅非 task 类型）
+    // 单击同时选中并打开编辑面板
     setSelectedEventId(event.id);
-    if (!isTask) {
-      setEditingEventId(event.id);
-    }
+    setEditingEventId(event.id);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (isTask) return;
-
     e.preventDefault();
     e.stopPropagation();
 
@@ -458,7 +454,7 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
     return { zIndex: z, shadowIntensity };
   }, [layout?.column, isActive, isHovered, isResizing, isDragging]);
 
-  const isCompleted = isTask && event.originalTask?.completed;
+  const isCompleted = event.completed;
 
   // 高度分级
   const heightLevel = useMemo(() => {
@@ -514,23 +510,7 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
     return colors[colorKey] || colors.blue;
   }, [colorKey]);
 
-  // Task 使用统一颜色系统
-  const taskColors = useMemo(() => {
-    if (!isTask) return null;
-    // 使用统一的 color 字段
-    const color = event.color || 'default';
 
-    const colorStyles: Record<string, { border: string; bg: string }> = {
-      red: { border: 'border-l-rose-500', bg: 'bg-rose-50/50 dark:bg-rose-950/20' },
-      yellow: { border: 'border-l-amber-400', bg: 'bg-amber-50/50 dark:bg-amber-950/20' },
-      purple: { border: 'border-l-violet-500', bg: 'bg-violet-50/50 dark:bg-violet-950/20' },
-      green: { border: 'border-l-emerald-500', bg: 'bg-emerald-50/50 dark:bg-emerald-950/20' },
-      blue: { border: 'border-l-blue-500', bg: 'bg-blue-50/50 dark:bg-blue-950/20' },
-      default: { border: 'border-l-zinc-400', bg: 'bg-white/90 dark:bg-zinc-900/90' },
-    };
-
-    return colorStyles[color] || colorStyles.default;
-  }, [isTask, event.color]);
 
   // 动态阴影
   const shadowClass = useMemo(() => {
@@ -542,24 +522,23 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
     return 'shadow-sm shadow-black/5 dark:shadow-black/15';
   }, [isActive, isHovered, isResizing, isDragging, depthStyles.shadowIntensity]);
 
-  // 光标样式
   // 光标样式：默认保持普通样式，只在边缘或拖拽时改变
   const cursorClass = useMemo(() => {
     if (isResizing) return 'cursor-row-resize';
     if (isDragging) return 'cursor-grabbing';
-    if (resizeEdge && !isTask) return 'cursor-row-resize';
-    // 默认使用普通光标，不使用 grab 手型
+    if (resizeEdge) return 'cursor-row-resize';
     return 'cursor-default';
-  }, [resizeEdge, isResizing, isDragging, isTask]);
+  }, [resizeEdge, isResizing, isDragging]);
 
-  const renderEventContent = () => {
+  const renderContent = () => {
     const showTime = heightLevel !== 'micro' && heightLevel !== 'tiny';
     const showEndTime = heightLevel === 'large' || heightLevel === 'medium';
+    const showCheckbox = heightLevel !== 'micro';
 
     return (
       <div
         className={`
-          w-full h-full flex flex-col justify-center
+          w-full h-full flex flex-col
           border-l-[3px] ${colorSystem.border}
           ${colorSystem.bg}
           rounded-[5px]
@@ -569,47 +548,9 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
           ${isSelected && !isActive ? 'ring-2 ring-blue-500/60 dark:ring-blue-400/50' : ''}
           ${isHovered && !isActive && !isSelected ? `ring-1 ${colorSystem.ring}` : ''}
         `}
+        style={{ opacity: isCompleted ? 0.6 : 1 }}
       >
-        <div className="px-2 py-1 min-w-0">
-          <p
-            className={`font-medium leading-tight truncate ${colorSystem.text} ${heightLevel === 'micro' ? 'text-[9px]' : 'text-[11px]'}`}
-          >
-            {event.title || '无标题'}
-          </p>
-          {showTime && (
-            <p
-              className={`mt-0.5 tabular-nums font-medium ${colorSystem.text} opacity-70 ${heightLevel === 'small' ? 'text-[8px]' : 'text-[9px]'}`}
-            >
-              {format(event.startDate, 'HH:mm')}
-              {showEndTime && ` - ${format(event.endDate, 'HH:mm')}`}
-            </p>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderTaskContent = () => {
-    const showTime = heightLevel !== 'micro' && heightLevel !== 'tiny';
-    const showCheckbox = heightLevel !== 'micro';
-
-    return (
-      <div
-        className={`
-          w-full h-full flex flex-col
-          border-l-[3px] ${taskColors?.border}
-          ${taskColors?.bg}
-          rounded-[5px]
-          transition-shadow duration-200 ease-out
-          ${shadowClass}
-          ring-1 ring-inset ring-black/[0.04] dark:ring-white/[0.06]
-          ${isActive ? 'ring-2 ring-blue-400/40 dark:ring-blue-500/30' : ''}
-          ${isSelected && !isActive ? 'ring-2 ring-blue-500/60 dark:ring-blue-400/50' : ''}
-          ${isHovered && !isActive && !isSelected ? 'ring-blue-300/30 dark:ring-blue-500/20' : ''}
-        `}
-        style={{ opacity: isCompleted ? 0.55 : 1 }}
-      >
-        <div className={`flex items-start gap-1.5 px-1.5 py-1 ${heightLevel === 'tiny' ? 'items-center' : ''}`}>
+        <div className={`flex items-start gap-1.5 px-2 py-1 ${heightLevel === 'tiny' ? 'items-center' : ''}`}>
           {showCheckbox && (
             <button
               onClick={(e) => {
@@ -617,11 +558,11 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
                 onToggle?.(event.id);
               }}
               className={`
-                flex-shrink-0 w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center transition-all duration-150
+                flex-shrink-0 w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center transition-all duration-150 mt-0.5
                 ${
                   isCompleted
                     ? 'bg-zinc-400 border-zinc-400 dark:bg-zinc-500 dark:border-zinc-500'
-                    : 'border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 hover:border-blue-400 dark:hover:border-blue-500'
+                    : `border-current opacity-50 bg-white/50 dark:bg-zinc-800/50 hover:opacity-80`
                 }
               `}
             >
@@ -630,13 +571,16 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
           )}
           <div className="flex-1 min-w-0 flex flex-col justify-center">
             <p
-              className={`font-medium leading-tight truncate ${isCompleted ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200'} ${heightLevel === 'micro' ? 'text-[9px]' : 'text-[11px]'}`}
+              className={`font-medium leading-tight truncate ${colorSystem.text} ${isCompleted ? 'line-through opacity-60' : ''} ${heightLevel === 'micro' ? 'text-[9px]' : 'text-[11px]'}`}
             >
               {event.title || '无标题'}
             </p>
             {showTime && (
-              <p className="mt-0.5 text-[8px] text-zinc-400 dark:text-zinc-500 tabular-nums font-medium">
-                {format(event.startDate, 'HH:mm')} - {format(event.endDate, 'HH:mm')}
+              <p
+                className={`mt-0.5 tabular-nums font-medium ${colorSystem.text} opacity-70 ${heightLevel === 'small' ? 'text-[8px]' : 'text-[9px]'}`}
+              >
+                {format(event.startDate, 'HH:mm')}
+                {showEndTime && ` - ${format(event.endDate, 'HH:mm')}`}
               </p>
             )}
           </div>
@@ -664,7 +608,7 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
         onMouseLeave={handleMouseLeave}
         onContextMenu={handleContextMenu}
       >
-        {isTask ? renderTaskContent() : renderEventContent()}
+        {renderContent()}
       </div>
 
       {contextMenu && (

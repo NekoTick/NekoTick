@@ -6,19 +6,19 @@ export interface Task {
   id: string;
   content: string;
   isDone: boolean;
-  createdAt: number;  // Unix timestamp
+  createdAt: number;
   tags?: string[];
-  groupId?: string;   // Group ID, defaults to 'inbox'
-  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';  // 统一颜色
-  
+  groupId?: string;
+  color?: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+
   // Time Auditing
-  estimatedMinutes?: number;  // Estimated duration in minutes
-  actualMinutes?: number;     // Actual time spent in minutes
-  completedAt?: string;       // ISO date string (YYYY-MM-DD) for heatmap
-  
-  // Hierarchical structure (multi-level tasks)
-  parentId?: string | null;   // Parent task ID, null for top-level tasks
-  collapsed?: boolean;        // Whether children are hidden
+  estimatedMinutes?: number;
+  actualMinutes?: number;
+  completedAt?: string;
+
+  // Hierarchical structure
+  parentId?: string | null;
+  collapsed?: boolean;
 }
 
 /**

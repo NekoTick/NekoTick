@@ -2,32 +2,32 @@
 // Handles: drawer, search, filters, drag state, archive view settings
 
 import { create } from 'zustand';
-import type { Priority } from './types';
+import type { ItemColor } from './types';
 
-const PRIORITY_FILTER_KEY = 'nekotick-priority-filter';
-const ALL_PRIORITIES: Priority[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+const COLOR_FILTER_KEY = 'nekotick-color-filter';
+const ALL_COLORS: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
 
 interface UIStore {
   // Drawer state
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
   toggleDrawer: () => void;
-  
+
   // Display settings
   hideCompleted: boolean;
   hideActualTime: boolean;
   setHideCompleted: (hide: boolean) => void;
   setHideActualTime: (hide: boolean) => void;
-  
+
   // Search
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  
-  // Priority filter
-  selectedPriorities: Priority[];
-  setSelectedPriorities: (priorities: Priority[]) => void;
-  togglePriority: (priority: Priority) => void;
-  toggleAllPriorities: () => void;
+
+  // Color filter
+  selectedColors: ItemColor[];
+  setSelectedColors: (colors: ItemColor[]) => void;
+  toggleColor: (color: ItemColor) => void;
+  toggleAllColors: () => void;
   
   // Archive time view settings
   archiveTimeView: 'day' | 'week' | 'month';
@@ -43,26 +43,20 @@ interface UIStore {
   setDraggingTaskId: (id: string | null) => void;
 }
 
-/**
- * Load priority filter from localStorage or return default
- */
-function loadPriorityFilter(): Priority[] {
+function loadColorFilter(): ItemColor[] {
   try {
-    const saved = localStorage.getItem(PRIORITY_FILTER_KEY);
+    const saved = localStorage.getItem(COLOR_FILTER_KEY);
     if (saved) {
       return JSON.parse(saved);
     }
   } catch {
     // Ignore parse errors
   }
-  return ALL_PRIORITIES;
+  return ALL_COLORS;
 }
 
-/**
- * Save priority filter to localStorage
- */
-function savePriorityFilter(priorities: Priority[]): void {
-  localStorage.setItem(PRIORITY_FILTER_KEY, JSON.stringify(priorities));
+function saveColorFilter(colors: ItemColor[]): void {
+  localStorage.setItem(COLOR_FILTER_KEY, JSON.stringify(colors));
 }
 
 export const useUIStore = create<UIStore>()((set, get) => ({
@@ -81,33 +75,30 @@ export const useUIStore = create<UIStore>()((set, get) => ({
   searchQuery: '',
   setSearchQuery: (query) => set({ searchQuery: query }),
   
-  // Priority filter (initialized from localStorage)
-  selectedPriorities: loadPriorityFilter(),
-  
-  setSelectedPriorities: (priorities) => {
-    set({ selectedPriorities: priorities });
-    savePriorityFilter(priorities);
+  // Color filter (initialized from localStorage)
+  selectedColors: loadColorFilter(),
+
+  setSelectedColors: (colors) => {
+    set({ selectedColors: colors });
+    saveColorFilter(colors);
   },
-  
-  togglePriority: (priority) => {
+
+  toggleColor: (color) => {
     set((state) => {
-      const newPriorities = state.selectedPriorities.includes(priority)
-        ? state.selectedPriorities.filter(p => p !== priority)
-        : [...state.selectedPriorities, priority];
-      
-      savePriorityFilter(newPriorities);
-      return { selectedPriorities: newPriorities };
+      const newColors = state.selectedColors.includes(color)
+        ? state.selectedColors.filter(c => c !== color)
+        : [...state.selectedColors, color];
+
+      saveColorFilter(newColors);
+      return { selectedColors: newColors };
     });
   },
-  
-  toggleAllPriorities: () => {
+
+  toggleAllColors: () => {
     set((state) => {
-      // Toggle between all selected and none selected
-      const newPriorities = state.selectedPriorities.length === ALL_PRIORITIES.length
-        ? []
-        : ALL_PRIORITIES;
-      savePriorityFilter(newPriorities);
-      return { selectedPriorities: newPriorities };
+      const newColors = state.selectedColors.length === ALL_COLORS.length ? [] : ALL_COLORS;
+      saveColorFilter(newColors);
+      return { selectedColors: newColors };
     });
   },
   

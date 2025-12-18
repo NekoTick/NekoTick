@@ -11,7 +11,7 @@ export function ArchiveTaskList({
   tasks,
   groups,
   timeView,
-  selectedPriorities,
+  selectedColors,
   dayRange,
   weekRange,
   monthRange,
@@ -26,7 +26,7 @@ export function ArchiveTaskList({
   const groupedArchiveTasks = useArchiveGrouping({
     tasks,
     timeView,
-    selectedPriorities,
+    selectedColors,
     dayRange,
     weekRange,
     monthRange

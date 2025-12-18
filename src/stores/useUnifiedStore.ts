@@ -1,8 +1,16 @@
 /**
- * Unified Store - Single source of truth for all app data
+ * Unified Store - 统一数据源
  * 
- * Manages: Tasks, Groups, Calendar Events, Progress items
- * Persists to: nekotick.md + .nekotick/data.json
+ * 核心理念：世界上只有一种"事项"（UnifiedTask）
+ * - 有 startDate 的事项 → 在日历视图中显示
+ * - 没有 startDate 的事项 → 只在待办列表中显示
+ * - 给待办安排时间 = 添加 startDate 属性
+ * - 删除日历事件的时间 = 移除 startDate 属性
+ * 
+ * 数据流：
+ * - useUnifiedStore: 唯一数据源
+ * - useCalendarStore: 日历视图的数据访问层（筛选有时间的事项）
+ * - useGroupStore: 待办视图的数据访问层（兼容旧 API）
  */
 
 import { create } from 'zustand';
@@ -13,7 +21,6 @@ import {
   type UnifiedData,
   type UnifiedTask,
   type UnifiedGroup,
-  type UnifiedEvent,
   type UnifiedProgress,
   type UnifiedArchiveSection,
 } from '@/lib/storage/unifiedStorage';
@@ -22,16 +29,12 @@ import {
 export type {
   UnifiedTask,
   UnifiedGroup,
-  UnifiedEvent,
   UnifiedProgress,
   UnifiedArchiveSection,
 };
 
 // 统一颜色类型
 export type ItemColor = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
-
-// 保留 Priority 别名以便兼容
-export type Priority = ItemColor;
 
 // View mode type
 export type ViewMode = 'day' | 'week' | 'month';
@@ -92,9 +95,7 @@ interface UnifiedStore {
   setSelectedEventId: (id: string | null) => void;
   closeEditingEvent: () => void;
   
-  // 兼容旧 API（内部转发到新方法）
-  updateTaskSchedule: (id: string, scheduledTime?: string) => void;
-  updateTaskPriority: (id: string, priority: Priority) => void;
+  // 日历事件操作（使用 title 作为参数名，内部映射到 content）
   addEvent: (event: { title: string; startDate: number; endDate: number; isAllDay: boolean; color?: string }) => string;
   updateEvent: (id: string, updates: Partial<UnifiedTask>) => void;
   deleteEvent: (id: string) => void;
@@ -587,25 +588,9 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     }
   },
 
-  // ========== 兼容旧 API ==========
-
-  updateTaskSchedule: (id, scheduledTime) => {
-    // 旧 API：将 scheduledTime 字符串转换为 startDate
-    if (scheduledTime) {
-      const timestamp = parseInt(scheduledTime, 10);
-      if (!isNaN(timestamp)) {
-        get().updateTaskTime(id, timestamp, timestamp + 60 * 60 * 1000);
-      }
-    }
-  },
-
-  updateTaskPriority: (id, priority) => {
-    // 旧 API：priority 现在是 color
-    get().updateTaskColor(id, priority);
-  },
+  // ========== 日历事件操作 ==========
 
   addEvent: (eventData) => {
-    // 旧 API：转发到 addCalendarTask
     return get().addCalendarTask({
       content: eventData.title,
       startDate: eventData.startDate,
@@ -616,7 +601,6 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
   },
 
   updateEvent: (id, updates) => {
-    // 旧 API：转发到 task 更新
     set((state) => {
       const newData = {
         ...state.data,
@@ -641,7 +625,6 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
   },
 
   deleteEvent: (id) => {
-    // 旧 API：转发到 deleteTask，但保留撤销功能
     set((state) => {
       const taskToDelete = state.data.tasks.find(t => t.id === id);
       const newData = {
@@ -650,11 +633,11 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
       };
       persist(newData);
       
-      const newUndoStack = taskToDelete 
+      const newUndoStack = taskToDelete
         ? [...state.undoStack, { type: 'deleteTask' as const, task: taskToDelete }].slice(-20)
         : state.undoStack;
       
-      return { 
+      return {
         data: newData,
         editingEventId: state.editingEventId === id ? null : state.editingEventId,
         selectedEventId: state.selectedEventId === id ? null : state.selectedEventId,

@@ -11,7 +11,7 @@ import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useViewStore } from '@/stores/useViewStore';
-import { useGroupStore, useUIStore, type Priority } from '@/stores/useGroupStore';
+import { useGroupStore, useUIStore, type ItemColor } from '@/stores/useGroupStore';
 import { useVimShortcuts } from '@/hooks/useVimShortcuts';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { getShortcutKeys } from '@/lib/shortcuts';
@@ -21,14 +21,14 @@ function AppContent() {
   useShortcuts();
   const { currentView } = useViewStore();
   const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded } = useGroupStore();
-  const { hideCompleted, setHideCompleted, hideActualTime, setHideActualTime, selectedPriorities, togglePriority, toggleAllPriorities } = useUIStore();
+  const { hideCompleted, setHideCompleted, hideActualTime, setHideActualTime, selectedColors, toggleColor, toggleAllColors } = useUIStore();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  
-  // 所有颜色选项（统一颜色系统）
-  const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+
+  // 所有颜色选项
+  const allColors: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
 
   // 获取当前分组信息
   const activeGroup = activeGroupId === '__archive__' 
@@ -208,13 +208,13 @@ function AppContent() {
                       <div className="flex items-center justify-between gap-1.5">
                         {/* 默认颜色按钮 */}
                         <button
-                          data-priority-option
+                          data-color-option
                           onClick={(e) => {
                             e.stopPropagation();
-                            togglePriority('default');
+                            toggleColor('default');
                           }}
                           className={`w-6 h-6 rounded-sm border-2 transition-all hover:scale-110 ${
-                            selectedPriorities.includes('default')
+                            selectedColors.includes('default')
                               ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                               : ''
                           }`}
@@ -223,17 +223,17 @@ function AppContent() {
                             backgroundColor: 'transparent'
                           }}
                         />
-                        {/* 各颜色选项（统一颜色系统） */}
+                        {/* 各颜色选项 */}
                         {(['blue', 'green', 'purple', 'yellow', 'red'] as const).map(color => (
                           <button
                             key={color}
-                            data-priority-option
+                            data-color-option
                             onClick={(e) => {
                               e.stopPropagation();
-                              togglePriority(color);
+                              toggleColor(color);
                             }}
                             className={`w-5 h-5 rounded-sm border-2 transition-all hover:scale-110 ${
-                              selectedPriorities.includes(color)
+                              selectedColors.includes(color)
                                 ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                                 : ''
                             }`}
@@ -246,15 +246,15 @@ function AppContent() {
                             }}
                           />
                         ))}
-                        {/* 全选按钮 - 柔和彩虹渐变 */}
+                        {/* 全选按钮 */}
                         <button
-                          data-priority-option
+                          data-color-option
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleAllPriorities();
+                            toggleAllColors();
                           }}
                           className={`w-6 h-6 rounded-sm transition-all hover:scale-110 relative overflow-hidden p-[2px] ${
-                            selectedPriorities.length === allPriorities.length
+                            selectedColors.length === allColors.length
                               ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                               : ''
                           }`}

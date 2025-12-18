@@ -2,30 +2,30 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useGroupStore, type Priority } from '@/stores/useGroupStore';
+import { useGroupStore, type ItemColor } from '@/stores/useGroupStore';
 
-// 统一颜色配置
-const priorityColors: Record<string, { bg: string; border: string; text: string; label: string }> = {
-  red: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-red-500', label: '红色 (最高)' },
+// 颜色配置
+const colorConfig: Record<string, { bg: string; border: string; text: string; label: string }> = {
+  red: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-red-500', label: '红色' },
   yellow: { bg: 'bg-yellow-500', border: 'border-yellow-500', text: 'text-yellow-500', label: '黄色' },
   purple: { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-500', label: '紫色' },
   green: { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-500', label: '绿色' },
   blue: { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-500', label: '蓝色' },
-  default: { bg: 'bg-zinc-400', border: 'border-zinc-400', text: 'text-zinc-400', label: '默认 (最低)' },
+  default: { bg: 'bg-zinc-400', border: 'border-zinc-400', text: 'text-zinc-400', label: '默认' },
 };
 
 export function TaskInput() {
   const [content, setContent] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const [priority, setPriority] = useState<Priority>('default');
-  const [showPriorityMenu, setShowPriorityMenu] = useState(false);
+  const [color, setColor] = useState<ItemColor>('default');
+  const [showColorMenu, setShowColorMenu] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const priorityMenuRef = useRef<HTMLDivElement>(null);
+  const colorMenuRef = useRef<HTMLDivElement>(null);
   const { addTask, activeGroupId } = useGroupStore();
 
   const handleSubmit = () => {
     if (content.trim() && activeGroupId) {
-      addTask(content.trim(), activeGroupId, priority);
+      addTask(content.trim(), activeGroupId, color);
       setContent('');
       // Keep the selected priority for next task (don't reset to default)
       inputRef.current?.focus();
@@ -48,18 +48,18 @@ export function TaskInput() {
     }
   }, [content]);
 
-  // Close priority menu when clicking outside
+  // Close color menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (priorityMenuRef.current && !priorityMenuRef.current.contains(e.target as Node)) {
-        setShowPriorityMenu(false);
+      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target as Node)) {
+        setShowColorMenu(false);
       }
     };
-    if (showPriorityMenu) {
+    if (showColorMenu) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showPriorityMenu]);
+  }, [showColorMenu]);
 
   return (
     <motion.div
@@ -77,49 +77,48 @@ export function TaskInput() {
           : 'border-transparent hover:border-border/30'
       )}
     >
-      {/* Priority Selector (Apple Style Circle) */}
-      <div className="relative shrink-0 pt-1.5" ref={priorityMenuRef}>
+      {/* Color Selector */}
+      <div className="relative shrink-0 pt-1.5" ref={colorMenuRef}>
         <div
-          onClick={() => setShowPriorityMenu(!showPriorityMenu)}
+          onClick={() => setShowColorMenu(!showColorMenu)}
           className="group flex items-center justify-center w-5 h-5 rounded-full border border-zinc-300 dark:border-zinc-600 hover:border-zinc-400 dark:hover:border-zinc-500 cursor-pointer transition-colors"
           role="button"
           tabIndex={0}
-          aria-label="Set priority"
+          aria-label="Set color"
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              setShowPriorityMenu(!showPriorityMenu);
+              setShowColorMenu(!showColorMenu);
             }
           }}
         >
           <div
             className={cn(
               "w-3 h-3 rounded-full transition-colors",
-              priority && priority !== 'default'
-                ? priorityColors[priority].bg
+              color && color !== 'default'
+                ? colorConfig[color].bg
                 : "bg-transparent group-hover:bg-zinc-100 dark:group-hover:bg-zinc-800"
             )}
           />
         </div>
-        
-        {showPriorityMenu && (
+
+        {showColorMenu && (
           <div className="absolute left-0 top-full mt-2 w-fit bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl py-2 px-2 z-50 flex flex-col gap-1 min-w-[40px]">
-            {/* 颜色选项：从低到高排列 */}
-            {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as Priority[]).map((p) => (
+            {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as ItemColor[]).map((c) => (
               <button
-                key={p}
+                key={c}
                 onClick={() => {
-                  setPriority(p);
-                  setShowPriorityMenu(false);
+                  setColor(c);
+                  setShowColorMenu(false);
                 }}
                 className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors flex justify-center"
-                title={priorityColors[p].label}
+                title={colorConfig[c].label}
               >
                 <div
                   className={cn(
                     "w-3 h-3 rounded-full",
-                    p && p !== 'default'
-                      ? priorityColors[p].bg
+                    c && c !== 'default'
+                      ? colorConfig[c].bg
                       : "border border-zinc-300 dark:border-zinc-600"
                   )}
                 />

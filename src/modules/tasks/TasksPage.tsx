@@ -7,17 +7,17 @@ import { MoreHorizontal, Check } from 'lucide-react';
 import { TaskList } from '@/components/features/TaskList/index';
 import { TaskInput } from '@/components/features/TaskInput';
 import { GroupSidebar } from '@/components/features/GroupDrawer';
-import { useGroupStore, useUIStore, type Priority } from '@/stores/useGroupStore';
+import { useGroupStore, useUIStore, type ItemColor } from '@/stores/useGroupStore';
 
 export function TasksPage() {
   const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded } = useGroupStore();
-  const { hideCompleted, setHideCompleted, hideActualTime, setHideActualTime, selectedPriorities, togglePriority, toggleAllPriorities } = useUIStore();
+  const { hideCompleted, setHideCompleted, hideActualTime, setHideActualTime, selectedColors, toggleColor, toggleAllColors } = useUIStore();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
-  
-  // 所有颜色选项（统一颜色系统）
-  const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+
+  // 所有颜色选项
+  const allColors: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
 
   const activeGroup = activeGroupId === '__archive__' 
     ? { id: '__archive__', name: '归档', createdAt: Date.now() }
@@ -36,7 +36,7 @@ export function TasksPage() {
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('[data-priority-option]')) {
+      if (target.closest('[data-color-option]')) {
         return;
       }
       if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
@@ -117,13 +117,13 @@ export function TasksPage() {
                   <div className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">颜色筛选</div>
                   <div className="flex items-center justify-between gap-1.5">
                     <button
-                      data-priority-option
+                      data-color-option
                       onClick={(e) => {
                         e.stopPropagation();
-                        togglePriority('default');
+                        toggleColor('default');
                       }}
                       className={`w-6 h-6 rounded-sm border-2 transition-all hover:scale-110 ${
-                        selectedPriorities.includes('default')
+                        selectedColors.includes('default')
                           ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                           : ''
                       }`}
@@ -132,17 +132,16 @@ export function TasksPage() {
                         backgroundColor: 'transparent'
                       }}
                     />
-                    {/* 各颜色选项（统一颜色系统） */}
                     {(['blue', 'green', 'purple', 'yellow', 'red'] as const).map(color => (
                       <button
                         key={color}
-                        data-priority-option
+                        data-color-option
                         onClick={(e) => {
                           e.stopPropagation();
-                          togglePriority(color);
+                          toggleColor(color);
                         }}
                         className={`w-5 h-5 rounded-sm border-2 transition-all hover:scale-110 ${
-                          selectedPriorities.includes(color)
+                          selectedColors.includes(color)
                             ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                             : ''
                         }`}
@@ -156,13 +155,13 @@ export function TasksPage() {
                       />
                     ))}
                     <button
-                      data-priority-option
+                      data-color-option
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggleAllPriorities();
+                        toggleAllColors();
                       }}
                       className={`w-6 h-6 rounded-sm transition-all hover:scale-110 relative overflow-hidden p-[2px] ${
-                        selectedPriorities.length === allPriorities.length
+                        selectedColors.length === allColors.length
                           ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                           : ''
                       }`}

@@ -11,8 +11,8 @@ import { CompletedSection } from './CompletedSection';
 import { ArchiveTaskList } from './ArchiveTaskList';
 import { SubTaskModal } from './SubTaskModal';
 
-// 颜色优先级排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
-const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
+// 颜色排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
+const colorOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 export function TaskList() {
   const {
@@ -23,9 +23,8 @@ export function TaskList() {
     archiveCompletedTasks,
     deleteCompletedTasks,
     reorderTasks,
-    crossStatusReorder,
     activeGroupId,
-    updateTaskPriority,
+    updateTaskColor,
     moveTaskToGroup,
     addSubTask,
     toggleCollapse,
@@ -36,7 +35,7 @@ export function TaskList() {
     hideCompleted,
     searchQuery,
     setDraggingTaskId,
-    selectedPriorities,
+    selectedColors,
     // Archive time range settings
     archiveTimeView,
     archiveDayRange,
@@ -88,9 +87,8 @@ export function TaskList() {
     groups,
     toggleCollapse,
     reorderTasks,
-    crossStatusReorder,
     moveTaskToGroup,
-    updateTaskPriority,
+    updateTaskColor,
     setDraggingTaskId,
   });
 
@@ -145,21 +143,21 @@ export function TaskList() {
     const topLevelTasks = tasks
       .filter((t) => {
         if (t.groupId !== activeGroupId || t.parentId) return false;
-        if (!selectedPriorities.includes(t.priority || 'default')) return false;
+        if (!selectedColors.includes(t.color || 'default')) return false;
         return true;
       })
       .sort((a, b) => {
-        const aPriority = priorityOrder[a.priority || 'default'];
-        const bPriority = priorityOrder[b.priority || 'default'];
-        if (aPriority !== bPriority) return aPriority - bPriority;
+        const aColor = colorOrder[a.color || 'default'];
+        const bColor = colorOrder[b.color || 'default'];
+        if (aColor !== bColor) return aColor - bColor;
         return a.order - b.order;
       });
-    
+
     return {
       incompleteTasks: topLevelTasks.filter((t) => !t.completed),
       completedTasks: hideCompleted ? [] : topLevelTasks.filter((t) => t.completed),
     };
-  }, [tasks, activeGroupId, hideCompleted, selectedPriorities]);
+  }, [tasks, activeGroupId, hideCompleted, selectedColors]);
 
   const filteredTasks = useMemo(() => {
     return [...incompleteTasks, ...completedTasks];
@@ -240,7 +238,7 @@ export function TaskList() {
             isDone: task.completed,
             createdAt: task.createdAt,
             groupId: task.groupId,
-            priority: task.priority,
+            color: task.color,
             completedAt: task.completedAt ? new Date(task.completedAt).toISOString().split('T')[0] : undefined,
             estimatedMinutes: task.estimatedMinutes,
             actualMinutes: task.actualMinutes,
@@ -327,7 +325,7 @@ export function TaskList() {
                 tasks={tasks}
                 groups={groups}
                 timeView={timeView}
-                selectedPriorities={selectedPriorities}
+                selectedColors={selectedColors}
                 dayRange={archiveDayRange}
                 weekRange={archiveWeekRange}
                 monthRange={archiveMonthRange}

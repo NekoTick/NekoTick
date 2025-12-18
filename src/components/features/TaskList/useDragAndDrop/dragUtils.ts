@@ -1,9 +1,9 @@
-import { StoreTask, Priority } from '@/stores/useGroupStore';
+import { Task, ItemColor } from '@/stores/useGroupStore';
 
-// 颜色优先级排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
-export const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
+// 颜色排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
+export const colorOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
-export const findTargetTaskByMouse = (mouseY: number, activeId: string, tasks: StoreTask[]): StoreTask | undefined => {
+export const findTargetTaskByMouse = (mouseY: number, activeId: string, tasks: Task[]): Task | undefined => {
   if (mouseY <= 0) return undefined;
 
   const allTaskElements = document.querySelectorAll('[data-task-id]');
@@ -31,26 +31,25 @@ export const findTargetTaskByMouse = (mouseY: number, activeId: string, tasks: S
 };
 
 export const determineParentTask = (
-  draggedTask: StoreTask,
-  overTask: StoreTask,
+  draggedTask: Task,
+  overTask: Task,
   activeId: string,
   overId: string,
   activeGroupId: string,
-  tasks: StoreTask[]
-): StoreTask | null => {
+  tasks: Task[]
+): Task | null => {
   if (overId === activeId) {
-    // Dragged to own position: find previous top-level task as parent
     if (!draggedTask.parentId) {
       const topLevelTasks = tasks
-        .filter(t => 
-          t.groupId === activeGroupId && 
-          !t.parentId && 
+        .filter(t =>
+          t.groupId === activeGroupId &&
+          !t.parentId &&
           t.completed === draggedTask.completed
         )
         .sort((a, b) => {
-          const aPriority = priorityOrder[a.priority || 'default'];
-          const bPriority = priorityOrder[b.priority || 'default'];
-          if (aPriority !== bPriority) return aPriority - bPriority;
+          const aColor = colorOrder[a.color || 'default'];
+          const bColor = colorOrder[b.color || 'default'];
+          if (aColor !== bColor) return aColor - bColor;
           return a.order - b.order;
         });
       const selfIndex = topLevelTasks.findIndex(t => t.id === activeId);
@@ -59,45 +58,44 @@ export const determineParentTask = (
       return null;
     }
   } else {
-    // Dragged to another task: that task becomes the parent
     return overTask;
   }
 };
 
-export const isTaskDescendant = (tasks: StoreTask[], ancestorId: string, descendantId: string): boolean => {
+export const isTaskDescendant = (tasks: Task[], ancestorId: string, descendantId: string): boolean => {
   const children = tasks.filter(t => t.parentId === ancestorId);
   if (children.some(c => c.id === descendantId)) return true;
   return children.some(c => isTaskDescendant(tasks, c.id, descendantId));
 };
 
-export const calculatePriorityToInherit = (
-  draggedTask: StoreTask,
-  targetTask: StoreTask,
+export const calculateColorToInherit = (
+  draggedTask: Task,
+  targetTask: Task,
   activeGroupId: string | null,
-  tasks: StoreTask[],
+  tasks: Task[],
   overId: string
-): Priority | null => {
+): ItemColor | null => {
   if (draggedTask.completed !== targetTask.completed) return null;
 
   const groupTasks = tasks
     .filter(t => t.groupId === activeGroupId && !t.parentId && t.completed === targetTask.completed && t.id !== draggedTask.id)
     .sort((a, b) => {
-      const aPriority = priorityOrder[a.priority || 'default'];
-      const bPriority = priorityOrder[b.priority || 'default'];
-      if (aPriority !== bPriority) return aPriority - bPriority;
+      const aColor = colorOrder[a.color || 'default'];
+      const bColor = colorOrder[b.color || 'default'];
+      if (aColor !== bColor) return aColor - bColor;
       return a.order - b.order;
     });
-  
+
   const targetIndex = groupTasks.findIndex(t => t.id === overId);
   const taskAbove = targetIndex > 0 ? groupTasks[targetIndex - 1] : null;
-  
-  const abovePriority = (taskAbove?.priority || 'default') as string;
-  const targetPriority = (targetTask.priority || 'default') as string;
-  
-  if (abovePriority !== 'default') {
-    return abovePriority as Priority;
-  } else if (targetPriority !== 'default') {
-    return targetPriority as Priority;
+
+  const aboveColor = (taskAbove?.color || 'default') as string;
+  const targetColor = (targetTask.color || 'default') as string;
+
+  if (aboveColor !== 'default') {
+    return aboveColor as ItemColor;
+  } else if (targetColor !== 'default') {
+    return targetColor as ItemColor;
   } else {
     return 'default';
   }

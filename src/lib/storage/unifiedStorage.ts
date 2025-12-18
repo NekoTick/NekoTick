@@ -1,12 +1,14 @@
 /**
- * Unified Storage - Single File Architecture
+ * Unified Storage - 统一存储架构
  * 
- * All user data stored in one MD file (nekotick.md)
- * Technical metadata stored in .nekotick/data.json
+ * 核心理念：世界上只有一种"事项"（UnifiedTask）
+ * - 有时间属性的事项会出现在日历视图中
+ * - 没有时间属性的事项只出现在待办视图中
+ * - 日历和待办只是观察同一份数据的不同窗口
  * 
- * Structure:
- * - nekotick.md: Human-readable markdown with all tasks, events, progress
- * - .nekotick/data.json: IDs, timestamps, settings, and other metadata
+ * 存储结构：
+ * - .nekotick/data.json: 数据源（JSON 格式，程序读写）
+ * - nekotick.md: 人类可读的 Markdown 视图（只写，用于备份和查看）
  */
 
 import { readTextFile, writeTextFile, exists, mkdir } from '@tauri-apps/plugin-fs';
@@ -60,9 +62,7 @@ export interface UnifiedGroup {
   updatedAt?: number;
 }
 
-// UnifiedEvent 已废弃，所有事项统一使用 UnifiedTask
-// 保留类型别名以便渐进式迁移
-export type UnifiedEvent = UnifiedTask;
+
 
 export interface UnifiedProgress {
   id: string;
@@ -101,8 +101,6 @@ export interface UnifiedArchiveSection {
 export interface UnifiedData {
   groups: UnifiedGroup[];
   tasks: UnifiedTask[];
-  // events 已废弃，所有事项统一存储在 tasks 中
-  // 有 startDate 的 task 会显示在日历中
   progress: UnifiedProgress[];
   archive: UnifiedArchiveSection[];
   settings: {

@@ -5,7 +5,7 @@ export interface ArchiveTaskListProps {
   tasks: StoreTask[];
   groups: Group[];
   timeView: TimeView;
-  selectedPriorities: string[];
+  selectedColors: string[];
   dayRange: number | 'all';
   weekRange: number | 'all';
   monthRange: number | 'all';

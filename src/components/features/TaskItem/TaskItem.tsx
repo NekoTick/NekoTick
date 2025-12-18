@@ -187,34 +187,34 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
         <div className="w-5" /> /* Spacer for child tasks */
       )}
 
-      {/* Checkbox with Priority Border */}
+      {/* Checkbox with Color Border */}
       <div className="mt-0.5">
         <Checkbox
           checked={task.isDone}
           onCheckedChange={() => onToggle(task.id)}
           checkmarkColor={
-            task.isDone && task.priority && task.priority !== 'default'
-              ? task.priority === 'red' ? '#ef4444' :
-                task.priority === 'yellow' ? '#eab308' :
-                task.priority === 'purple' ? '#a855f7' :
-                task.priority === 'green' ? '#22c55e' :
-                task.priority === 'blue' ? '#3b82f6' : undefined
+            task.isDone && task.color && task.color !== 'default'
+              ? task.color === 'red' ? '#ef4444' :
+                task.color === 'yellow' ? '#eab308' :
+                task.color === 'purple' ? '#a855f7' :
+                task.color === 'green' ? '#22c55e' :
+                task.color === 'blue' ? '#3b82f6' : undefined
               : undefined
           }
           className={cn(
             "h-4 w-4 rounded-sm transition-none",
-            task.priority && task.priority !== 'default'
+            task.color && task.color !== 'default'
               ? "border-2"
               : "border border-muted-foreground/40"
           )}
           style={
-            task.priority && task.priority !== 'default'
+            task.color && task.color !== 'default'
               ? {
-                  borderColor: task.priority === 'red' ? '#ef4444' :
-                               task.priority === 'yellow' ? '#eab308' :
-                               task.priority === 'purple' ? '#a855f7' :
-                               task.priority === 'green' ? '#22c55e' :
-                               task.priority === 'blue' ? '#3b82f6' : undefined
+                  borderColor: task.color === 'red' ? '#ef4444' :
+                               task.color === 'yellow' ? '#eab308' :
+                               task.color === 'purple' ? '#a855f7' :
+                               task.color === 'green' ? '#22c55e' :
+                               task.color === 'blue' ? '#3b82f6' : undefined
                 }
               : undefined
           }
