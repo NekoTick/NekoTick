@@ -9,20 +9,21 @@ interface EventContextMenuProps {
   onClose: () => void;
 }
 
-const COLORS = [
+// 统一颜色系统 - 与待办保持一致
+type ColorName = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+const COLORS: { name: ColorName; bg: string }[] = [
   { name: 'red', bg: 'bg-red-500' },
-  { name: 'orange', bg: 'bg-orange-500' },
   { name: 'yellow', bg: 'bg-yellow-500' },
+  { name: 'purple', bg: 'bg-purple-500' },
   { name: 'green', bg: 'bg-green-500' },
   { name: 'blue', bg: 'bg-blue-500' },
-  { name: 'purple', bg: 'bg-purple-500' },
-  { name: 'gray', bg: 'bg-zinc-400' },
+  { name: 'default', bg: 'bg-zinc-400' },
 ];
 
 export function EventContextMenu({ eventId, position, currentColor = 'blue', onClose }: EventContextMenuProps) {
   const { updateEvent, deleteEvent, events, addEvent } = useCalendarStore();
 
-  const handleColorChange = (color: string) => {
+  const handleColorChange = (color: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default') => {
     updateEvent(eventId, { color });
     onClose();
   };
@@ -37,7 +38,6 @@ export function EventContextMenu({ eventId, position, currentColor = 'blue', onC
     if (event) {
       addEvent({
         title: event.title,
-        description: event.description,
         startDate: event.startDate,
         endDate: event.endDate,
         isAllDay: event.isAllDay,

@@ -9,7 +9,7 @@ export interface Task {
   createdAt: number;  // Unix timestamp
   tags?: string[];
   groupId?: string;   // Group ID, defaults to 'inbox'
-  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'default';  // Task priority
+  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';  // 统一颜色
   
   // Time Auditing
   estimatedMinutes?: number;  // Estimated duration in minutes

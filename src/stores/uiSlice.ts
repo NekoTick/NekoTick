@@ -5,7 +5,7 @@ import { create } from 'zustand';
 import type { Priority } from './types';
 
 const PRIORITY_FILTER_KEY = 'nekotick-priority-filter';
-const ALL_PRIORITIES: Priority[] = ['red', 'yellow', 'purple', 'green', 'default'];
+const ALL_PRIORITIES: Priority[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
 
 interface UIStore {
   // Drawer state

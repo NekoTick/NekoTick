@@ -197,7 +197,8 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
               ? task.priority === 'red' ? '#ef4444' :
                 task.priority === 'yellow' ? '#eab308' :
                 task.priority === 'purple' ? '#a855f7' :
-                task.priority === 'green' ? '#22c55e' : undefined
+                task.priority === 'green' ? '#22c55e' :
+                task.priority === 'blue' ? '#3b82f6' : undefined
               : undefined
           }
           className={cn(
@@ -212,7 +213,8 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
                   borderColor: task.priority === 'red' ? '#ef4444' :
                                task.priority === 'yellow' ? '#eab308' :
                                task.priority === 'purple' ? '#a855f7' :
-                               task.priority === 'green' ? '#22c55e' : undefined
+                               task.priority === 'green' ? '#22c55e' :
+                               task.priority === 'blue' ? '#3b82f6' : undefined
                 }
               : undefined
           }

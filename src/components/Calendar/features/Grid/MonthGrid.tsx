@@ -113,13 +113,20 @@ export function MonthGrid() {
                         key={event.id}
                         className={`
                           text-xs px-1.5 py-0.5 rounded truncate
-                          ${event.type === 'task' && event.originalTask?.completed
+                          ${event.completed
                             ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 line-through'
                             : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                           }
                         `}
                         style={{
-                          borderLeft: `3px solid ${event.color === 'blue' ? '#3b82f6' : event.color === 'green' ? '#22c55e' : '#a855f7'}`,
+                          borderLeft: `3px solid ${
+                            event.color === 'red' ? '#ef4444' :
+                            event.color === 'yellow' ? '#eab308' :
+                            event.color === 'purple' ? '#a855f7' :
+                            event.color === 'green' ? '#22c55e' :
+                            event.color === 'blue' ? '#3b82f6' :
+                            '#d4d4d8'
+                          }`,
                         }}
                       >
                         {event.title}

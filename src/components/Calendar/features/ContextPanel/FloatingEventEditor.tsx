@@ -3,33 +3,32 @@ import { format } from 'date-fns';
 import { Clock, Folder, ChevronDown, X } from 'lucide-react';
 import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
 
-interface EventEditFormProps {
+interface FloatingEventEditorProps {
   event: CalendarEvent;
+  position?: { x: number; y: number };
 }
 
-export function EventEditForm({ event }: EventEditFormProps) {
+export function FloatingEventEditor({ event, position }: FloatingEventEditorProps) {
   const { updateEvent, closeEditingEvent, groups } = useCalendarStore();
   const [title, setTitle] = useState(event.title);
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const groupPickerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isNewEvent = useRef(!event.title.trim());
   
-  // 当前分组
   const currentGroup = groups.find(g => g.id === event.groupId) || groups[0];
 
   useEffect(() => {
     setTitle(event.title);
   }, [event.title]);
   
-  // 只有新创建的事件（标题为空）才自动聚焦
   useEffect(() => {
     if (isNewEvent.current && inputRef.current) {
       inputRef.current.focus();
     }
   }, []);
   
-  // 点击外部关闭分组选择器
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (groupPickerRef.current && !groupPickerRef.current.contains(e.target as Node)) {
@@ -42,7 +41,6 @@ export function EventEditForm({ event }: EventEditFormProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showGroupPicker]);
   
-  // 更新分组
   const handleGroupChange = (groupId: string) => {
     updateEvent(event.id, { groupId });
     setShowGroupPicker(false);
@@ -60,17 +58,56 @@ export function EventEditForm({ event }: EventEditFormProps) {
   const durationMinutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
 
   const formatDuration = () => {
-    if (durationHours > 0 && durationMinutes > 0) return `${durationHours}小时${durationMinutes}分钟`;
-    if (durationHours > 0) return `${durationHours}小时`;
-    return `${durationMinutes}分钟`;
+    if (durationHours > 0 && durationMinutes > 0) return `${durationHours}h${durationMinutes}m`;
+    if (durationHours > 0) return `${durationHours}h`;
+    return `${durationMinutes}m`;
+  };
+
+  // 计算浮动窗口位置
+  const getStyle = () => {
+    if (!position) return { top: '50%', right: '20px', transform: 'translateY(-50%)' };
+    
+    // 确保窗口不超出屏幕
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const panelWidth = 280;
+    const panelHeight = 200;
+    
+    let top = position.y;
+    let left = position.x + 20; // 偏移一点避免遮挡事件块
+    
+    // 如果右边空间不够，放到左边
+    if (left + panelWidth > windowWidth - 20) {
+      left = position.x - panelWidth - 20;
+    }
+    
+    // 确保不超出底部
+    if (top + panelHeight > windowHeight - 20) {
+      top = windowHeight - panelHeight - 20;
+    }
+    
+    // 确保不超出顶部
+    if (top < 20) {
+      top = 20;
+    }
+    
+    return { top: `${top}px`, left: `${left}px` };
   };
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-zinc-900">
+    <div 
+      ref={containerRef}
+      data-context-panel
+      style={getStyle()}
+      className="fixed z-[100] w-[280px] bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
+    >
       {/* Header */}
-      <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="p-3 border-b border-zinc-100 dark:border-zinc-800">
         <div className="flex items-center justify-end mb-2">
-          <button onClick={closeEditingEvent} className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded">
+          <button 
+            onClick={closeEditingEvent} 
+            className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+          >
             <X className="size-4 text-zinc-400" />
           </button>
         </div>
@@ -91,32 +128,31 @@ export function EventEditForm({ event }: EventEditFormProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-visible p-4 space-y-4">
+      <div className="p-3 space-y-3">
         {/* Time */}
-        <div className="flex items-start gap-3">
-          <Clock className="size-4 text-zinc-400 mt-0.5" />
-          <div className="text-sm text-zinc-700 dark:text-zinc-300">
+        <div className="flex items-center gap-2">
+          <Clock className="size-4 text-zinc-400" />
+          <span className="text-sm text-zinc-600 dark:text-zinc-300">
             {format(startDate, 'h:mm a').toUpperCase()}
-            <span className="mx-2 text-zinc-400">→</span>
+            <span className="mx-1.5 text-zinc-400">→</span>
             {format(endDate, 'h:mm a').toUpperCase()}
-            <span className="ml-2 text-zinc-400">{formatDuration()}</span>
-          </div>
+            <span className="ml-1.5 text-zinc-400">{formatDuration()}</span>
+          </span>
         </div>
 
-        {/* 分组选择器 */}
-        <div className="flex items-center gap-3 relative" ref={groupPickerRef}>
+        {/* Group Picker */}
+        <div className="flex items-center gap-2 relative" ref={groupPickerRef}>
           <Folder className="size-4 text-zinc-400" />
           <button
             onClick={() => setShowGroupPicker(!showGroupPicker)}
-            className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 transition-colors"
+            className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 transition-colors"
           >
             <span>{currentGroup?.name || '收集箱'}</span>
-            <ChevronDown className={`size-3.5 text-zinc-400 transition-transform ${showGroupPicker ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`size-3 text-zinc-400 transition-transform ${showGroupPicker ? 'rotate-180' : ''}`} />
           </button>
           
-          {/* 分组下拉菜单 */}
           {showGroupPicker && (
-            <div className="absolute left-7 top-full mt-1 w-40 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
+            <div className="absolute left-6 top-full mt-1 w-36 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg py-1 z-50">
               {groups.map(group => (
                 <button
                   key={group.id}
@@ -134,7 +170,6 @@ export function EventEditForm({ event }: EventEditFormProps) {
           )}
         </div>
       </div>
-
     </div>
   );
 }

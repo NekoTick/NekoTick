@@ -11,8 +11,8 @@ import { CompletedSection } from './CompletedSection';
 import { ArchiveTaskList } from './ArchiveTaskList';
 import { SubTaskModal } from './SubTaskModal';
 
-// Priority order: red (0) > yellow (1) > purple (2) > green (3) > default (4)
-const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
+// 颜色优先级排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
+const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 export function TaskList() {
   const {

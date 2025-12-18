@@ -6,12 +6,13 @@ import { useDraggable } from '@dnd-kit/core';
 import { motion } from 'framer-motion';
 import { EventEditForm } from './EventEditForm';
 
-// 优先级颜色映射
+// 统一颜色映射
 const PRIORITY_COLORS = {
   red: '#ef4444',
   yellow: '#eab308',
   purple: '#a855f7',
   green: '#22c55e',
+  blue: '#3b82f6',
   default: 'transparent',
 } as const;
 
@@ -26,20 +27,20 @@ export function ContextPanel() {
   // If editing an event, show the edit form
   if (editingEvent) {
     return (
-      <div data-context-panel>
+      <div data-context-panel className="h-full overflow-visible">
         <EventEditForm event={editingEvent} />
       </div>
     );
   }
 
-  // 收件箱模式：显示所有未安排的任务（没有 scheduledTime 的任务）
+  // 收件箱模式：显示所有未安排的任务（没有 startDate 的任务）
   const unscheduledTasks = tasks.filter(t => 
     !t.completed && 
-    (!t.scheduledTime || t.scheduledTime.length === 0)
+    !t.startDate
   );
 
-  // 按优先级排序：红 > 黄 > 紫 > 绿 > 默认
-  const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
+  // 按颜色优先级排序：红 > 黄 > 紫 > 绿 > 蓝 > 默认
+  const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
   const sortedTasks = [...unscheduledTasks].sort((a, b) => {
     const aPriority = priorityOrder[a.priority || 'default'];
     const bPriority = priorityOrder[b.priority || 'default'];

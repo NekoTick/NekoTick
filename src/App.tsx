@@ -27,8 +27,8 @@ function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   
-  // 所有优先级选项
-  const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'default'];
+  // 所有颜色选项（统一颜色系统）
+  const allPriorities: Priority[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
 
   // 获取当前分组信息
   const activeGroup = activeGroupId === '__archive__' 
@@ -223,25 +223,26 @@ function AppContent() {
                             backgroundColor: 'transparent'
                           }}
                         />
-                        {/* 各颜色选项 */}
-                        {(['green', 'purple', 'yellow', 'red'] as const).map(priority => (
+                        {/* 各颜色选项（统一颜色系统） */}
+                        {(['blue', 'green', 'purple', 'yellow', 'red'] as const).map(color => (
                           <button
-                            key={priority}
+                            key={color}
                             data-priority-option
                             onClick={(e) => {
                               e.stopPropagation();
-                              togglePriority(priority);
+                              togglePriority(color);
                             }}
-                            className={`w-6 h-6 rounded-sm border-2 transition-all hover:scale-110 ${
-                              selectedPriorities.includes(priority)
+                            className={`w-5 h-5 rounded-sm border-2 transition-all hover:scale-110 ${
+                              selectedPriorities.includes(color)
                                 ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
                                 : ''
                             }`}
                             style={{
-                              borderColor: priority === 'red' ? '#ef4444' :
-                                           priority === 'yellow' ? '#eab308' :
-                                           priority === 'purple' ? '#a855f7' :
-                                           '#22c55e'
+                              borderColor: color === 'red' ? '#ef4444' :
+                                           color === 'yellow' ? '#eab308' :
+                                           color === 'purple' ? '#a855f7' :
+                                           color === 'green' ? '#22c55e' :
+                                           '#3b82f6'
                             }}
                           />
                         ))}

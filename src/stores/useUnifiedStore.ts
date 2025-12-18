@@ -27,16 +27,19 @@ export type {
   UnifiedArchiveSection,
 };
 
-// Priority type
-export type Priority = 'red' | 'yellow' | 'purple' | 'green' | 'default';
+// 统一颜色类型
+export type ItemColor = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+
+// 保留 Priority 别名以便兼容
+export type Priority = ItemColor;
 
 // View mode type
 export type ViewMode = 'day' | 'week' | 'month';
 
 // 撤销操作类型
 type UndoAction = {
-  type: 'deleteEvent';
-  event: UnifiedEvent;
+  type: 'deleteTask';
+  task: UnifiedTask;
 };
 
 interface UnifiedStore {
@@ -47,6 +50,7 @@ interface UnifiedStore {
   // UI State (not persisted)
   activeGroupId: string;
   editingEventId: string | null;
+  editingEventPosition: { x: number; y: number } | null;
   selectedEventId: string | null;
   showSidebar: boolean;
   showContextPanel: boolean;
@@ -66,12 +70,11 @@ interface UnifiedStore {
   setActiveGroup: (id: string) => void;
   reorderGroups: (activeId: string, overId: string) => void;
   
-  // Task Actions
-  addTask: (content: string, groupId: string, priority?: Priority) => void;
+  // Task Actions（统一事项操作）
+  addTask: (content: string, groupId: string, color?: ItemColor) => void;
   addSubTask: (parentId: string, content: string) => void;
   updateTask: (id: string, content: string) => void;
-  updateTaskSchedule: (id: string, scheduledTime?: string) => void;
-  updateTaskPriority: (id: string, priority: Priority) => void;
+  updateTaskColor: (id: string, color: ItemColor) => void;
   updateTaskEstimation: (id: string, estimatedMinutes?: number) => void;
   updateTaskParent: (id: string, parentId: string | null, order: number) => void;
   toggleTask: (id: string) => void;
@@ -82,13 +85,19 @@ interface UnifiedStore {
   moveTaskToGroup: (taskId: string, targetGroupId: string, overTaskId?: string | null) => void;
   archiveCompletedTasks: (groupId: string) => void;
   
-  // Event Actions
-  addEvent: (event: Omit<UnifiedEvent, 'id' | 'createdAt' | 'updatedAt'>) => string;
-  updateEvent: (id: string, updates: Partial<UnifiedEvent>) => void;
-  deleteEvent: (id: string) => void;
-  setEditingEventId: (id: string | null) => void;
+  // 日历事项操作（本质上是带时间属性的 task）
+  addCalendarTask: (task: { content: string; startDate: number; endDate: number; isAllDay?: boolean; color?: ItemColor; groupId?: string }) => string;
+  updateTaskTime: (id: string, startDate?: number, endDate?: number, isAllDay?: boolean) => void;
+  setEditingEventId: (id: string | null, position?: { x: number; y: number }) => void;
   setSelectedEventId: (id: string | null) => void;
   closeEditingEvent: () => void;
+  
+  // 兼容旧 API（内部转发到新方法）
+  updateTaskSchedule: (id: string, scheduledTime?: string) => void;
+  updateTaskPriority: (id: string, priority: Priority) => void;
+  addEvent: (event: { title: string; startDate: number; endDate: number; isAllDay: boolean; color?: string }) => string;
+  updateEvent: (id: string, updates: Partial<UnifiedTask>) => void;
+  deleteEvent: (id: string) => void;
   
   // Undo Actions
   undo: () => void;
@@ -126,7 +135,6 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
   data: {
     groups: [{ id: 'default', name: 'Inbox', pinned: false, createdAt: Date.now() }],
     tasks: [],
-    events: [],
     progress: [],
     archive: [],
     settings: { timezone: 8, viewMode: 'week', dayCount: 1, hourHeight: 64 },
@@ -134,6 +142,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
   loaded: false,
   activeGroupId: 'default',
   editingEventId: null,
+  editingEventPosition: null,
   selectedEventId: null,
   showSidebar: true,
   showContextPanel: true,
@@ -231,8 +240,8 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
 
   // ========== Task Actions ==========
 
-  addTask: (content, groupId, priority = 'default') => {
-    const groupTasks = get().data.tasks.filter(t => t.groupId === groupId && !t.parentId);
+  addTask: (content, groupId, color = 'default') => {
+    const groupTasks = get().data.tasks.filter(t => t.groupId === groupId && !t.parentId && !t.startDate);
     const newTask: UnifiedTask = {
       id: nanoid(),
       content,
@@ -242,7 +251,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
       groupId,
       parentId: null,
       collapsed: false,
-      priority,
+      color,
     };
     set((state) => {
       const newData = {
@@ -268,6 +277,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
       groupId: parent.groupId,
       parentId,
       collapsed: false,
+      color: parent.color || 'default', // 继承父任务的颜色
     };
     set((state) => {
       const newData = {
@@ -292,25 +302,12 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     });
   },
 
-  updateTaskSchedule: (id, scheduledTime) => {
+  updateTaskColor: (id, color) => {
     set((state) => {
       const newData = {
         ...state.data,
         tasks: state.data.tasks.map(t =>
-          t.id === id ? { ...t, scheduledTime } : t
-        ),
-      };
-      persist(newData);
-      return { data: newData };
-    });
-  },
-
-  updateTaskPriority: (id, priority) => {
-    set((state) => {
-      const newData = {
-        ...state.data,
-        tasks: state.data.tasks.map(t =>
-          t.id === id ? { ...t, priority } : t
+          t.id === id ? { ...t, color } : t
         ),
       };
       persist(newData);
@@ -505,7 +502,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
           content: t.content,
           completedAt: t.completedAt,
           createdAt: t.createdAt,
-          priority: t.priority,
+          color: t.color,
           estimatedMinutes: t.estimatedMinutes,
           actualMinutes: t.actualMinutes,
           groupId: t.groupId,
@@ -522,32 +519,45 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     });
   },
 
-  // ========== Event Actions ==========
+  // ========== 日历事项操作（带时间属性的 task）==========
 
-  addEvent: (eventData) => {
-    const newEvent: UnifiedEvent = {
+  addCalendarTask: (taskData) => {
+    const newTask: UnifiedTask = {
       id: nanoid(),
+      content: taskData.content,
+      completed: false,
       createdAt: Date.now(),
-      updatedAt: Date.now(),
-      ...eventData,
+      order: 0,
+      groupId: taskData.groupId || 'default',
+      parentId: null,
+      collapsed: false,
+      color: taskData.color || 'blue',
+      startDate: taskData.startDate,
+      endDate: taskData.endDate,
+      isAllDay: taskData.isAllDay,
     };
     set((state) => {
       const newData = {
         ...state.data,
-        events: [...state.data.events, newEvent],
+        tasks: [...state.data.tasks, newTask],
       };
       persist(newData);
       return { data: newData };
     });
-    return newEvent.id;
+    return newTask.id;
   },
 
-  updateEvent: (id, updates) => {
+  updateTaskTime: (id, startDate, endDate, isAllDay) => {
     set((state) => {
       const newData = {
         ...state.data,
-        events: state.data.events.map(e =>
-          e.id === id ? { ...e, ...updates, updatedAt: Date.now() } : e
+        tasks: state.data.tasks.map(t =>
+          t.id === id ? { 
+            ...t, 
+            startDate: startDate ?? t.startDate, 
+            endDate: endDate ?? t.endDate,
+            isAllDay: isAllDay ?? t.isAllDay,
+          } : t
         ),
       };
       persist(newData);
@@ -555,18 +565,93 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     });
   },
 
-  deleteEvent: (id) => {
+  setEditingEventId: (id, position) => set({ editingEventId: id, editingEventPosition: position || null }),
+  
+  setSelectedEventId: (id) => set({ selectedEventId: id }),
+
+  closeEditingEvent: () => {
+    const { editingEventId, data } = get();
+    if (editingEventId) {
+      const task = data.tasks.find(t => t.id === editingEventId);
+      if (task && !task.content.trim()) {
+        // Delete empty task
+        const newData = {
+          ...data,
+          tasks: data.tasks.filter(t => t.id !== editingEventId),
+        };
+        persist(newData);
+        set({ data: newData, editingEventId: null, editingEventPosition: null });
+      } else {
+        set({ editingEventId: null, editingEventPosition: null });
+      }
+    }
+  },
+
+  // ========== 兼容旧 API ==========
+
+  updateTaskSchedule: (id, scheduledTime) => {
+    // 旧 API：将 scheduledTime 字符串转换为 startDate
+    if (scheduledTime) {
+      const timestamp = parseInt(scheduledTime, 10);
+      if (!isNaN(timestamp)) {
+        get().updateTaskTime(id, timestamp, timestamp + 60 * 60 * 1000);
+      }
+    }
+  },
+
+  updateTaskPriority: (id, priority) => {
+    // 旧 API：priority 现在是 color
+    get().updateTaskColor(id, priority);
+  },
+
+  addEvent: (eventData) => {
+    // 旧 API：转发到 addCalendarTask
+    return get().addCalendarTask({
+      content: eventData.title,
+      startDate: eventData.startDate,
+      endDate: eventData.endDate,
+      isAllDay: eventData.isAllDay,
+      color: (eventData.color as ItemColor) || 'blue',
+    });
+  },
+
+  updateEvent: (id, updates) => {
+    // 旧 API：转发到 task 更新
     set((state) => {
-      const eventToDelete = state.data.events.find(e => e.id === id);
       const newData = {
         ...state.data,
-        events: state.data.events.filter(e => e.id !== id),
+        tasks: state.data.tasks.map(t => {
+          if (t.id !== id) return t;
+          const newTask = { ...t };
+          if ('title' in updates) newTask.content = updates.title as string;
+          if ('content' in updates) newTask.content = updates.content as string;
+          if ('startDate' in updates) newTask.startDate = updates.startDate;
+          if ('endDate' in updates) newTask.endDate = updates.endDate;
+          if ('isAllDay' in updates) newTask.isAllDay = updates.isAllDay;
+          if ('color' in updates) newTask.color = (updates.color as ItemColor) || t.color;
+          if ('description' in updates) newTask.description = updates.description;
+          if ('location' in updates) newTask.location = updates.location;
+          if ('groupId' in updates) newTask.groupId = updates.groupId as string;
+          return newTask;
+        }),
+      };
+      persist(newData);
+      return { data: newData };
+    });
+  },
+
+  deleteEvent: (id) => {
+    // 旧 API：转发到 deleteTask，但保留撤销功能
+    set((state) => {
+      const taskToDelete = state.data.tasks.find(t => t.id === id);
+      const newData = {
+        ...state.data,
+        tasks: state.data.tasks.filter(t => t.id !== id),
       };
       persist(newData);
       
-      // 添加到撤销栈（只保留最近 20 个操作）
-      const newUndoStack = eventToDelete 
-        ? [...state.undoStack, { type: 'deleteEvent' as const, event: eventToDelete }].slice(-20)
+      const newUndoStack = taskToDelete 
+        ? [...state.undoStack, { type: 'deleteTask' as const, task: taskToDelete }].slice(-20)
         : state.undoStack;
       
       return { 
@@ -576,28 +661,6 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
         undoStack: newUndoStack,
       };
     });
-  },
-
-  setEditingEventId: (id) => set({ editingEventId: id }),
-  
-  setSelectedEventId: (id) => set({ selectedEventId: id }),
-
-  closeEditingEvent: () => {
-    const { editingEventId, data } = get();
-    if (editingEventId) {
-      const event = data.events.find(e => e.id === editingEventId);
-      if (event && !event.title.trim()) {
-        // Delete empty event
-        const newData = {
-          ...data,
-          events: data.events.filter(e => e.id !== editingEventId),
-        };
-        persist(newData);
-        set({ data: newData, editingEventId: null });
-      } else {
-        set({ editingEventId: null });
-      }
-    }
   },
 
   // ========== Progress Actions ==========
@@ -771,11 +834,11 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
       const lastAction = state.undoStack[state.undoStack.length - 1];
       const newUndoStack = state.undoStack.slice(0, -1);
       
-      if (lastAction.type === 'deleteEvent') {
-        // 恢复删除的事件
+      if (lastAction.type === 'deleteTask') {
+        // 恢复删除的事项
         const newData = {
           ...state.data,
-          events: [...state.data.events, lastAction.event],
+          tasks: [...state.data.tasks, lastAction.task],
         };
         persist(newData);
         return { data: newData, undoStack: newUndoStack };

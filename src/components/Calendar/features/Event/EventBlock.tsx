@@ -514,20 +514,23 @@ export function EventBlock({ event, onToggle, layout }: EventBlockProps) {
     return colors[colorKey] || colors.blue;
   }, [colorKey]);
 
-  // Task 优先级颜色
+  // Task 使用统一颜色系统
   const taskColors = useMemo(() => {
     if (!isTask) return null;
-    const priority = event.originalTask?.priority || 'default';
+    // 使用统一的 color 字段
+    const color = event.color || 'default';
 
-    const priorityColors: Record<string, { border: string; bg: string }> = {
+    const colorStyles: Record<string, { border: string; bg: string }> = {
       red: { border: 'border-l-rose-500', bg: 'bg-rose-50/50 dark:bg-rose-950/20' },
       yellow: { border: 'border-l-amber-400', bg: 'bg-amber-50/50 dark:bg-amber-950/20' },
+      purple: { border: 'border-l-violet-500', bg: 'bg-violet-50/50 dark:bg-violet-950/20' },
       green: { border: 'border-l-emerald-500', bg: 'bg-emerald-50/50 dark:bg-emerald-950/20' },
-      default: { border: 'border-l-blue-500', bg: 'bg-white/90 dark:bg-zinc-900/90' },
+      blue: { border: 'border-l-blue-500', bg: 'bg-blue-50/50 dark:bg-blue-950/20' },
+      default: { border: 'border-l-zinc-400', bg: 'bg-white/90 dark:bg-zinc-900/90' },
     };
 
-    return priorityColors[priority] || priorityColors.default;
-  }, [isTask, event.originalTask?.priority]);
+    return colorStyles[color] || colorStyles.default;
+  }, [isTask, event.color]);
 
   // 动态阴影
   const shadowClass = useMemo(() => {

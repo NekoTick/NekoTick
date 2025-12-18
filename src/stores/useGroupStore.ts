@@ -5,16 +5,26 @@
  * All data operations delegate to useUnifiedStore.
  */
 
-import { useUnifiedStore } from './useUnifiedStore';
-import type { Priority } from './types';
-import { PRIORITY_COLORS } from './types';
+import { useUnifiedStore, type ItemColor } from './useUnifiedStore';
 import { parseTimeString } from './timeParser';
 import { useUIStore } from './uiSlice';
 
+// 统一颜色类型
+export type Priority = ItemColor;
+
+// 统一颜色配置
+export const PRIORITY_COLORS = {
+  red: { border: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', text: '#dc2626' },
+  yellow: { border: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', text: '#ca8a04' },
+  purple: { border: '#a855f7', bg: 'rgba(168, 85, 247, 0.1)', text: '#9333ea' },
+  green: { border: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', text: '#16a34a' },
+  blue: { border: '#3b82f6', bg: 'rgba(59, 130, 246, 0.1)', text: '#2563eb' },
+  default: { border: '#d4d4d8', bg: 'transparent', text: '#71717a' },
+};
+
 // Re-export for backward compatibility
-export type { Priority };
 export type { ArchiveTimeView } from './types';
-export { parseTimeString, PRIORITY_COLORS, useUIStore };
+export { parseTimeString, useUIStore };
 
 // Group type (matches old API)
 export interface Group {
@@ -25,31 +35,42 @@ export interface Group {
   updatedAt?: number;
 }
 
-// Task type (matches old API)
+// Task type（统一事项模型）
 export interface StoreTask {
   id: string;
   content: string;
   completed: boolean;
   createdAt: number;
   completedAt?: number;
-  scheduledTime?: string;
   order: number;
   groupId: string;
   parentId: string | null;
   collapsed: boolean;
-  priority?: Priority;
+  color: Priority;
+  // priority 是 color 的别名，保持向后兼容
+  priority: Priority;
   estimatedMinutes?: number;
   actualMinutes?: number;
+  // 时间属性（有时间 = 日历事件）
+  startDate?: number;
+  endDate?: number;
+  isAllDay?: boolean;
 }
 
 // Hook that provides the old API
 export function useGroupStore() {
   const store = useUnifiedStore();
   
+  // 将 tasks 映射为包含 priority 别名的格式
+  const tasksWithPriority = store.data.tasks.map(t => ({
+    ...t,
+    priority: t.color || 'default',
+  })) as StoreTask[];
+  
   return {
     // Data
     groups: store.data.groups as Group[],
-    tasks: store.data.tasks as StoreTask[],
+    tasks: tasksWithPriority,
     loaded: store.loaded,
     activeGroupId: store.activeGroupId,
     loadedGroups: new Set(['default']),
@@ -71,7 +92,8 @@ export function useGroupStore() {
     updateTask: store.updateTask,
     updateTaskSchedule: store.updateTaskSchedule,
     updateTaskEstimation: store.updateTaskEstimation,
-    updateTaskPriority: store.updateTaskPriority,
+    updateTaskPriority: store.updateTaskColor,
+    updateTaskColor: store.updateTaskColor,
     updateTaskParent: store.updateTaskParent,
     toggleTask: store.toggleTask,
     toggleCollapse: store.toggleTaskCollapse,
@@ -99,13 +121,19 @@ export function useGroupStore() {
 // For direct state access (used by useDragLogic and other components)
 useGroupStore.getState = () => {
   const store = useUnifiedStore.getState();
+  const tasksWithPriority = store.data.tasks.map(t => ({
+    ...t,
+    priority: t.color || 'default',
+  })) as StoreTask[];
+  
   return {
     groups: store.data.groups as Group[],
-    tasks: store.data.tasks as StoreTask[],
+    tasks: tasksWithPriority,
     loaded: store.loaded,
     activeGroupId: store.activeGroupId,
     updateTaskParent: store.updateTaskParent,
-    updateTaskPriority: store.updateTaskPriority,
+    updateTaskPriority: store.updateTaskColor,
+    updateTaskColor: store.updateTaskColor,
     updateTaskEstimation: store.updateTaskEstimation,
     archiveSingleTask: () => {}, // No-op for now
   };

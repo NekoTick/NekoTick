@@ -28,7 +28,7 @@ export interface TaskData {
   order: number;
   parentId: string | null;
   collapsed: boolean;
-  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'default';
+  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
   estimatedMinutes?: number;
   actualMinutes?: number;
 }

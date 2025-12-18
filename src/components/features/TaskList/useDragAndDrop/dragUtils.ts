@@ -1,7 +1,7 @@
 import { StoreTask, Priority } from '@/stores/useGroupStore';
 
-// Priority order: red (0) > yellow (1) > purple (2) > green (3) > default (4)
-export const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
+// 颜色优先级排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
+export const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 export const findTargetTaskByMouse = (mouseY: number, activeId: string, tasks: StoreTask[]): StoreTask | undefined => {
   if (mouseY <= 0) return undefined;

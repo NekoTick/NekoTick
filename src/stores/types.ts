@@ -3,46 +3,58 @@
 export interface Group {
   id: string;
   name: string;
-  color?: string;
   createdAt: number;
   updatedAt?: number;
   pinned?: boolean;
 }
 
-// Priority levels: red (highest) > yellow > purple > green > default (lowest)
-export type Priority = 'red' | 'yellow' | 'purple' | 'green' | 'default';
+// 统一颜色系统：用于待办和日历
+export type ItemColor = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
 
-// Priority color mapping
-export const PRIORITY_COLORS: Record<Priority, string> = {
+// 保留 Priority 别名以便兼容
+export type Priority = ItemColor;
+
+// 统一颜色配置
+export const PRIORITY_COLORS: Record<ItemColor, string> = {
   red: '#ef4444',
   yellow: '#eab308',
   purple: '#a855f7',
   green: '#22c55e',
+  blue: '#3b82f6',
   default: '#d4d4d8',
 } as const;
 
-// Internal Task type for persistence (uses 'completed')
+// 统一事项模型
 export interface StoreTask {
   id: string;
   content: string;
   completed: boolean;
   createdAt: number;
   completedAt?: number;
-  scheduledTime?: string;
   order: number;
   groupId: string;
-  priority?: Priority;
   
-  // Time estimation and tracking
+  // 统一颜色
+  color: ItemColor;
+  // priority 是 color 的别名，保持向后兼容
+  priority: ItemColor;
+  
+  // 时间属性（有时间 = 日历事件，无时间 = 纯待办）
+  startDate?: number;
+  endDate?: number;
+  isAllDay?: boolean;
+  
+  // 时间追踪
   estimatedMinutes?: number;
   actualMinutes?: number;
   
-  // Hierarchical structure (nested tasks)
+  // 层级结构
   parentId: string | null;
   collapsed: boolean;
   
-  // Archive metadata - stores original group ID when task is archived
-  originalGroupId?: string;
+  // 日历相关
+  location?: string;
+  description?: string;
 }
 
 // Archive time view type

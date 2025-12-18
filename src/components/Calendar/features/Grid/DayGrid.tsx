@@ -109,7 +109,7 @@ export function DayGrid() {
     [isDragging, dragStart, HOUR_HEIGHT]
   );
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((e: MouseEvent) => {
     if (!isDragging || !dragStart || !dragEnd) return;
 
     setIsDragging(false);
@@ -139,8 +139,8 @@ export function DayGrid() {
       color: 'blue',
     });
 
-    // Open the edit form for the new event
-    setEditingEventId(newEventId);
+    // Open the edit form for the new event, with position for floating editor
+    setEditingEventId(newEventId, { x: e.clientX, y: e.clientY });
 
     setDragStart(null);
     setDragEnd(null);
@@ -156,28 +156,6 @@ export function DayGrid() {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
-
-  const getGhostStyle = () => {
-    if (!dragStart || !dragEnd) return null;
-    
-    // 只有拖拽了才显示预览框
-    if (dragStart.time === dragEnd.time) return null;
-    
-    // 支持向上或向下拖拽
-    const actualStartMin = Math.min(dragStart.time, dragEnd.time);
-    const actualEndMin = Math.max(dragStart.time, dragEnd.time);
-    const duration = actualEndMin - actualStartMin;
-
-    const top = (actualStartMin / 60) * HOUR_HEIGHT;
-    const height = (duration / 60) * HOUR_HEIGHT;
-
-    return {
-      top: `${top}px`,
-      height: `${height}px`,
-      left: `${(dragStart.dayIndex / dayCount) * 100}%`,
-      width: `${100 / dayCount}%`,
-    };
-  };
 
   const nowTop = (getHours(now) * HOUR_HEIGHT) + (getMinutes(now) / 60) * HOUR_HEIGHT;
 
@@ -318,11 +296,37 @@ export function DayGrid() {
 
             {/* Events Layer */}
             <div className={`absolute inset-0 z-10 grid pointer-events-none`} style={{ gridTemplateColumns: `repeat(${dayCount}, 1fr)` }}>
-              {days.map((day) => {
+              {days.map((day, dayIdx) => {
                 const dayEvents = displayItems.filter(
                   item => isSameDay(new Date(item.startDate), day) && !item.isAllDay
                 );
-                const layoutMap = calculateEventLayout(dayEvents);
+                
+                // 如果正在这一天拖拽创建，加入虚拟事件参与布局计算
+                const isCreatingOnThisDay = isDragging && dragStart && dragEnd && 
+                  dragStart.dayIndex === dayIdx && dragStart.time !== dragEnd.time;
+                
+                let layoutMap;
+                let ghostLayout;
+                
+                if (isCreatingOnThisDay) {
+                  const actualStartMin = Math.min(dragStart!.time, dragEnd!.time);
+                  const actualEndMin = Math.max(dragStart!.time, dragEnd!.time);
+                  const dayDate = days[dragStart!.dayIndex];
+                  
+                  // 创建虚拟事件
+                  const ghostEvent = {
+                    id: '__ghost__',
+                    startDate: addMinutes(startOfDay(dayDate), actualStartMin).getTime(),
+                    endDate: addMinutes(startOfDay(dayDate), actualEndMin).getTime(),
+                  };
+                  
+                  // 将虚拟事件加入布局计算
+                  const eventsWithGhost = [...dayEvents, ghostEvent];
+                  layoutMap = calculateEventLayout(eventsWithGhost);
+                  ghostLayout = layoutMap.get('__ghost__');
+                } else {
+                  layoutMap = calculateEventLayout(dayEvents);
+                }
                 
                 return (
                   <div key={day.toString()} className="relative h-full">
@@ -331,26 +335,28 @@ export function DayGrid() {
                         <EventBlock
                           event={item}
                           layout={layoutMap.get(item.id)}
-                          onToggle={(id) => {
-                            if (item.type === 'task') {
-                              toggleTask(id);
-                            }
-                          }}
+                          onToggle={toggleTask}
                         />
                       </div>
                     ))}
+                    
+                    {/* Ghost Event - 使用布局计算的位置 */}
+                    {isCreatingOnThisDay && ghostLayout && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: `${(Math.min(dragStart!.time, dragEnd!.time) / 60) * HOUR_HEIGHT}px`,
+                          height: `${(Math.abs(dragEnd!.time - dragStart!.time) / 60) * HOUR_HEIGHT}px`,
+                          left: `${ghostLayout.leftPercent}%`,
+                          width: `${ghostLayout.widthPercent}%`,
+                        }}
+                        className="z-30 bg-blue-500/20 border-2 border-blue-500 rounded-md pointer-events-none"
+                      />
+                    )}
                   </div>
                 );
               })}
             </div>
-
-            {/* Ghost Event */}
-            {isDragging && dragStart && getGhostStyle() && (
-              <div
-                style={getGhostStyle()!}
-                className="absolute z-30 bg-blue-500/20 border-2 border-blue-500 rounded-md pointer-events-none"
-              />
-            )}
           </div>
         </div>
       </div>

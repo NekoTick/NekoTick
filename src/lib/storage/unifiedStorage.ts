@@ -16,20 +16,40 @@ import { appDataDir } from '@tauri-apps/api/path';
 // Types
 // ============================================================================
 
+/**
+ * 统一事项模型
+ * 
+ * 核心理念：世界上只有一种"事项"，它可以有时间属性，也可以没有。
+ * - 有时间属性的事项会出现在日历视图中
+ * - 没有时间属性的事项只出现在待办视图中
+ * - 颜色系统统一，跨视图保持一致
+ */
 export interface UnifiedTask {
   id: string;
   content: string;
   completed: boolean;
   createdAt: number;
   completedAt?: number;
-  scheduledTime?: string;
   order: number;
   groupId: string;
   parentId: string | null;
   collapsed: boolean;
-  priority?: 'red' | 'yellow' | 'purple' | 'green' | 'default';
+  
+  // 统一颜色系统
+  color: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+  
+  // 时间属性（有时间 = 日历事件，无时间 = 纯待办）
+  startDate?: number;
+  endDate?: number;
+  isAllDay?: boolean;
+  
+  // 时间追踪
   estimatedMinutes?: number;
   actualMinutes?: number;
+  
+  // 日历相关（可选）
+  location?: string;
+  description?: string;
 }
 
 export interface UnifiedGroup {
@@ -40,23 +60,9 @@ export interface UnifiedGroup {
   updatedAt?: number;
 }
 
-export interface UnifiedEvent {
-  id: string;
-  title: string;
-  description?: string;
-  startDate: number;
-  endDate: number;
-  isAllDay: boolean;
-  color?: string;
-  location?: string;
-  meetingUrl?: string;
-  reminder?: number;
-  busyStatus?: 'busy' | 'free';
-  visibility?: 'default' | 'public' | 'private';
-  taskId?: string;
-  createdAt: number;
-  updatedAt: number;
-}
+// UnifiedEvent 已废弃，所有事项统一使用 UnifiedTask
+// 保留类型别名以便渐进式迁移
+export type UnifiedEvent = UnifiedTask;
 
 export interface UnifiedProgress {
   id: string;
@@ -81,7 +87,7 @@ export interface UnifiedArchiveEntry {
   content: string;
   completedAt?: number;
   createdAt?: number;
-  priority?: string;
+  color?: string;
   estimatedMinutes?: number;
   actualMinutes?: number;
   groupId: string;
@@ -95,14 +101,15 @@ export interface UnifiedArchiveSection {
 export interface UnifiedData {
   groups: UnifiedGroup[];
   tasks: UnifiedTask[];
-  events: UnifiedEvent[];
+  // events 已废弃，所有事项统一存储在 tasks 中
+  // 有 startDate 的 task 会显示在日历中
   progress: UnifiedProgress[];
   archive: UnifiedArchiveSection[];
   settings: {
     timezone: number;
     viewMode: 'day' | 'week' | 'month';
     dayCount: number;
-    hourHeight?: number; // 每小时的像素高度，默认 64
+    hourHeight?: number;
   };
 }
 
@@ -155,12 +162,11 @@ function getDefaultData(): UnifiedData {
       createdAt: Date.now(),
     }],
     tasks: [],
-    events: [],
     progress: [],
     archive: [],
     settings: {
       timezone: 8,
-      viewMode: 'week',
+      viewMode: 'day',
       dayCount: 1,
     },
   };
@@ -298,30 +304,34 @@ function generateMarkdown(data: UnifiedData): string {
     if (topLevel.length > 0) lines.push('');
   }
   
-  // Calendar Section
+  // Calendar Section - 从 tasks 中筛选有时间属性的事项
   lines.push('# Calendar');
   lines.push('');
   
-  const sortedEvents = [...data.events].sort((a, b) => a.startDate - b.startDate);
-  const eventsByDate = new Map<string, UnifiedEvent[]>();
+  const scheduledTasks = data.tasks
+    .filter(t => t.startDate !== undefined)
+    .sort((a, b) => (a.startDate || 0) - (b.startDate || 0));
   
-  for (const event of sortedEvents) {
-    const dateKey = new Date(event.startDate).toISOString().split('T')[0];
-    if (!eventsByDate.has(dateKey)) {
-      eventsByDate.set(dateKey, []);
+  const tasksByDate = new Map<string, UnifiedTask[]>();
+  
+  for (const task of scheduledTasks) {
+    const dateKey = new Date(task.startDate!).toISOString().split('T')[0];
+    if (!tasksByDate.has(dateKey)) {
+      tasksByDate.set(dateKey, []);
     }
-    eventsByDate.get(dateKey)!.push(event);
+    tasksByDate.get(dateKey)!.push(task);
   }
   
-  for (const [date, events] of eventsByDate) {
+  for (const [date, tasks] of tasksByDate) {
     lines.push(`## ${date}`);
-    for (const event of events) {
-      const start = new Date(event.startDate);
-      const end = new Date(event.endDate);
-      const timeStr = event.isAllDay 
+    for (const task of tasks) {
+      const start = new Date(task.startDate!);
+      const end = task.endDate ? new Date(task.endDate) : start;
+      const timeStr = task.isAllDay 
         ? 'All Day'
         : `${formatTime(start)}-${formatTime(end)}`;
-      lines.push(`- ${timeStr} ${event.title}`);
+      const checkbox = task.completed ? '[x]' : '[ ]';
+      lines.push(`- ${checkbox} ${timeStr} ${task.content}`);
     }
     lines.push('');
   }
@@ -377,8 +387,8 @@ function generateMarkdown(data: UnifiedData): string {
 
 function renderTask(task: UnifiedTask, allTasks: UnifiedTask[], lines: string[], indent: string): void {
   const checkbox = task.completed ? '[x]' : '[ ]';
-  const priority = task.priority && task.priority !== 'default' ? ` [${task.priority}]` : '';
-  lines.push(`${indent}- ${checkbox} ${task.content}${priority}`);
+  const color = task.color && task.color !== 'default' ? ` [${task.color}]` : '';
+  lines.push(`${indent}- ${checkbox} ${task.content}${color}`);
   
   // Render children
   const children = allTasks

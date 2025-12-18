@@ -4,11 +4,13 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGroupStore, type Priority } from '@/stores/useGroupStore';
 
-const priorityColors = {
+// 统一颜色配置
+const priorityColors: Record<string, { bg: string; border: string; text: string; label: string }> = {
   red: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-red-500', label: '红色 (最高)' },
   yellow: { bg: 'bg-yellow-500', border: 'border-yellow-500', text: 'text-yellow-500', label: '黄色' },
   purple: { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-500', label: '紫色' },
   green: { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-500', label: '绿色' },
+  blue: { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-500', label: '蓝色' },
   default: { bg: 'bg-zinc-400', border: 'border-zinc-400', text: 'text-zinc-400', label: '默认 (最低)' },
 };
 
@@ -102,8 +104,8 @@ export function TaskInput() {
         
         {showPriorityMenu && (
           <div className="absolute left-0 top-full mt-2 w-fit bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-xl py-2 px-2 z-50 flex flex-col gap-1 min-w-[40px]">
-            {/* Reverse order: default (lowest) to red (highest) */}
-            {(['default', 'green', 'purple', 'yellow', 'red'] as Priority[]).map((p) => (
+            {/* 颜色选项：从低到高排列 */}
+            {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as Priority[]).map((p) => (
               <button
                 key={p}
                 onClick={() => {

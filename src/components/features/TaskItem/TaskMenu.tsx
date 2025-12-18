@@ -59,29 +59,30 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
             className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Priority Selector */}
+            {/* 颜色选择器（统一颜色系统） */}
             <div className="px-3 py-2">
               <div className="flex items-center justify-between gap-1.5">
-                {(['default', 'green', 'purple', 'yellow', 'red'] as const).map((priority) => (
+                {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as const).map((color) => (
                   <button
-                    key={priority}
+                    key={color}
                     onClick={() => {
-                      useGroupStore.getState().updateTaskPriority(task.id, priority);
+                      useGroupStore.getState().updateTaskColor(task.id, color);
                       setShowMenu(false);
                     }}
                     className={cn(
-                      "w-6 h-6 rounded-sm border-2 transition-all hover:scale-110",
-                      task.priority === priority || (!task.priority && priority === 'default')
+                      "w-5 h-5 rounded-sm border-2 transition-all hover:scale-110",
+                      task.priority === color || (!task.priority && color === 'default')
                         ? "ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1"
                         : ""
                     )}
                     style={{
-                      borderColor: priority === 'red' ? '#ef4444' :
-                                   priority === 'yellow' ? '#eab308' :
-                                   priority === 'purple' ? '#a855f7' :
-                                   priority === 'green' ? '#22c55e' :
-                                   '#d4d4d8', // zinc-300 for default
-                      backgroundColor: priority === 'default' ? 'transparent' : undefined
+                      borderColor: color === 'red' ? '#ef4444' :
+                                   color === 'yellow' ? '#eab308' :
+                                   color === 'purple' ? '#a855f7' :
+                                   color === 'green' ? '#22c55e' :
+                                   color === 'blue' ? '#3b82f6' :
+                                   '#d4d4d8',
+                      backgroundColor: color === 'default' ? 'transparent' : undefined
                     }}
                   />
                 ))}

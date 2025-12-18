@@ -10,6 +10,7 @@ import { DayGrid } from './features/Grid/DayGrid';
 import { MonthGrid } from './features/Grid/MonthGrid';
 import { MiniCalendar } from './features/Sidebar/MiniCalendar';
 import { ContextPanel } from './features/ContextPanel/ContextPanel';
+import { FloatingEventEditor } from './features/ContextPanel/FloatingEventEditor';
 import { ViewSwitcher } from './features/ViewSwitcher';
 
 import { useCalendarStore } from '@/stores/useCalendarStore';
@@ -25,13 +26,16 @@ export function CalendarPage() {
   const { 
     load, selectedDate, addEvent, viewMode, showSidebar, showContextPanel, 
     hourHeight, setHourHeight, selectedEventId, setSelectedEventId, 
-    deleteEvent, undo, editingEventId, closeEditingEvent 
+    deleteEvent, undo, editingEventId, editingEventPosition, closeEditingEvent, events
   } = useCalendarStore();
   const { updateTaskSchedule, updateTaskEstimation } = useGroupStore();
   const [activeDragItem, setActiveDragItem] = useState<any>(null);
   
   const hourHeightRef = useRef(hourHeight);
   hourHeightRef.current = hourHeight;
+  
+  // 获取正在编辑的事件
+  const editingEvent = editingEventId ? events.find(e => e.id === editingEventId) : null;
 
   useEffect(() => {
     load();
@@ -307,6 +311,14 @@ export function CalendarPage() {
            </div>
         ) : null}
       </DragOverlay>
+      
+      {/* 浮动编辑器 - 当右侧面板隐藏且有编辑事件时显示 */}
+      {!showContextPanel && editingEvent && (
+        <FloatingEventEditor 
+          event={editingEvent} 
+          position={editingEventPosition || undefined}
+        />
+      )}
     </DndContext>
   );
 }

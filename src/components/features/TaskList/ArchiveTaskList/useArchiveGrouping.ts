@@ -4,8 +4,8 @@ import { StoreTask } from '@/stores/types';
 import { TimeView } from '@/lib/dateUtils';
 import { DateGroups } from './types';
 
-// Priority order for sorting
-const priorityOrder = { red: 0, yellow: 1, purple: 2, green: 3, default: 4 };
+// 颜色优先级排序
+const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 interface UseArchiveGroupingProps {
   tasks: StoreTask[];
@@ -53,15 +53,15 @@ export function useArchiveGrouping({
       if (!task.completedAt) return;
       
       const timeKey = getTimeRangeKey(task.completedAt, timeView);
-      const originalGroupId = task.originalGroupId || 'unknown';
+      const taskGroupId = task.groupId || 'unknown';
       
       if (!dateGroups[timeKey]) {
         dateGroups[timeKey] = {};
       }
-      if (!dateGroups[timeKey][originalGroupId]) {
-        dateGroups[timeKey][originalGroupId] = [];
+      if (!dateGroups[timeKey][taskGroupId]) {
+        dateGroups[timeKey][taskGroupId] = [];
       }
-      dateGroups[timeKey][originalGroupId].push(task);
+      dateGroups[timeKey][taskGroupId].push(task);
     });
     
     // Sort tasks within each group by priority
