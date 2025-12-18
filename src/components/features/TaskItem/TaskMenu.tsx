@@ -60,7 +60,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
             className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 颜色选择器（统一颜色系统） */}
+            {/* Color picker (unified color system) */}
             <div className="px-3 py-2">
               <div className="flex items-center justify-between gap-1.5">
                 {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as const).map((color) => (
@@ -93,7 +93,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
             
             {/* Edit Estimated Time */}
             <div className="px-3 py-2">
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">预估时间</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1.5">Estimated Time</div>
               <input
                 ref={timeInputRef}
                 type="text"
@@ -142,7 +142,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
                     }
                   }
                 }}
-                placeholder="如 2d, 3h, 30m, 2d3h5m"
+                placeholder="e.g. 2d, 3h, 30m, 2d3h5m"
                 className="w-full px-2 py-1 text-sm bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-600 rounded focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500 text-zinc-900 dark:text-zinc-100"
                 onClick={(e) => e.stopPropagation()}
               />
@@ -157,7 +157,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
                 }
               }}
               disabled={!canAddSubTask}
-              title={!canAddSubTask ? '已达到最大嵌套层级（4层）' : ''}
+              title={!canAddSubTask ? 'Maximum nesting level reached (4 levels)' : ''}
               className={cn(
                 "w-full px-3 py-1.5 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2",
                 canAddSubTask 
@@ -167,7 +167,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
             >
               <Plus className="h-4 w-4" />
               <span>Add Subtask</span>
-              {!canAddSubTask && <span className="ml-auto text-xs">(Max 4层)</span>}
+              {!canAddSubTask && <span className="ml-auto text-xs">(Max 4 levels)</span>}
             </button>
             <div className="h-px bg-zinc-200 dark:bg-zinc-700 my-1" />
             {/* Archive option - only for completed tasks and not in archive view */}
@@ -181,7 +181,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
                 className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2"
               >
                 <Archive className="h-4 w-4" />
-                <span>归档</span>
+                <span>Archive</span>
               </button>
             )}
             <button

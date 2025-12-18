@@ -4,14 +4,14 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGroupStore, type ItemColor } from '@/stores/useGroupStore';
 
-// 颜色配置
+// Color configuration
 const colorConfig: Record<string, { bg: string; border: string; text: string; label: string }> = {
-  red: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-red-500', label: '红色' },
-  yellow: { bg: 'bg-yellow-500', border: 'border-yellow-500', text: 'text-yellow-500', label: '黄色' },
-  purple: { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-500', label: '紫色' },
-  green: { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-500', label: '绿色' },
-  blue: { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-500', label: '蓝色' },
-  default: { bg: 'bg-zinc-400', border: 'border-zinc-400', text: 'text-zinc-400', label: '默认' },
+  red: { bg: 'bg-red-500', border: 'border-red-500', text: 'text-red-500', label: 'Red' },
+  yellow: { bg: 'bg-yellow-500', border: 'border-yellow-500', text: 'text-yellow-500', label: 'Yellow' },
+  purple: { bg: 'bg-purple-500', border: 'border-purple-500', text: 'text-purple-500', label: 'Purple' },
+  green: { bg: 'bg-green-500', border: 'border-green-500', text: 'text-green-500', label: 'Green' },
+  blue: { bg: 'bg-blue-500', border: 'border-blue-500', text: 'text-blue-500', label: 'Blue' },
+  default: { bg: 'bg-zinc-400', border: 'border-zinc-400', text: 'text-zinc-400', label: 'Default' },
 };
 
 export function TaskInput() {

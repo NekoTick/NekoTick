@@ -4,17 +4,17 @@ import { CaretDown, CaretLeft, CaretRight, Check, MagnifyingGlass, SidebarSimple
 import { useCalendarStore, type ViewMode } from '@/stores/useCalendarStore';
 import { addDays, addMonths } from 'date-fns';
 
-// View mode labels in Chinese
+// View mode labels
 const VIEW_MODE_LABELS: Record<ViewMode, string> = {
-  day: '天',
-  week: '周',
-  month: '月',
+  day: 'Day',
+  week: 'Week',
+  month: 'Month',
 };
 
 // Keyboard shortcuts display
 const VIEW_MODE_SHORTCUTS: Record<ViewMode, string> = {
-  day: '1 或 D',
-  week: '0 或 W',
+  day: '1 or D',
+  week: '0 or W',
   month: 'M',
 };
 
@@ -181,7 +181,7 @@ export function ViewSwitcher() {
   // Get display label for current view
   const getDisplayLabel = () => {
     if (viewMode === 'day' && dayCount && dayCount > 1) {
-      return `${dayCount}天`;
+      return `${dayCount} Days`;
     }
     return VIEW_MODE_LABELS[viewMode];
   };
@@ -196,7 +196,7 @@ export function ViewSwitcher() {
             ? 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800' 
             : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
         }`}
-        title={showSidebar ? '隐藏左侧边栏' : '显示左侧边栏'}
+        title={showSidebar ? 'Hide left sidebar' : 'Show left sidebar'}
       >
         <SidebarSimple weight={showSidebar ? 'duotone' : 'light'} className="size-5" />
       </button>
@@ -204,7 +204,7 @@ export function ViewSwitcher() {
       {/* Search Button */}
       <button
         className="p-1.5 rounded-md text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-        title="搜索"
+        title="Search"
       >
         <MagnifyingGlass weight="regular" className="size-5" />
       </button>
@@ -268,7 +268,7 @@ export function ViewSwitcher() {
                     <Check weight="bold" className="size-4" />
                   )}
                 </span>
-                <span className="text-base">天数</span>
+                <span className="text-base">Days</span>
               </span>
               <CaretRight weight="bold" className="size-4 text-zinc-500" />
             </button>
@@ -279,7 +279,7 @@ export function ViewSwitcher() {
             <button className="w-full px-4 py-2.5 flex items-center justify-between text-sm text-zinc-100 hover:bg-zinc-800 transition-colors">
               <span className="flex items-center gap-3">
                 <span className="w-4" />
-                <span className="text-base">视图设置</span>
+                <span className="text-base">View Settings</span>
               </span>
               <CaretRight weight="bold" className="size-4 text-zinc-500" />
             </button>
@@ -304,7 +304,7 @@ export function ViewSwitcher() {
                 onClick={() => handleSelectDayCount(count)}
                 className="w-full px-4 py-2 flex items-center justify-between text-sm text-zinc-100 hover:bg-zinc-800 transition-colors"
               >
-                <span>{count}天</span>
+                <span>{count} days</span>
                 <span className="text-zinc-500">{count}</span>
               </button>
             ))}
@@ -321,7 +321,7 @@ export function ViewSwitcher() {
               }}
               className="w-full px-4 py-2 text-left text-sm text-zinc-100 hover:bg-zinc-800 transition-colors"
             >
-              其他...
+              Other...
             </button>
           </div>,
           document.body
@@ -358,7 +358,7 @@ export function ViewSwitcher() {
                     setCustomDayInput('');
                   }
                 }}
-                placeholder="设置显示天数..."
+                placeholder="Set number of days..."
                 className="flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
               />
             </div>
@@ -383,9 +383,9 @@ export function ViewSwitcher() {
             
             {/* Footer */}
             <div className="px-4 py-2 border-t border-zinc-200 flex items-center gap-4 text-xs text-zinc-400">
-              <span>↑↓ 导航</span>
-              <span>↵ 选择</span>
-              <span>Esc 关闭</span>
+              <span>↑↓ Navigate</span>
+              <span>↵ Select</span>
+              <span>Esc Close</span>
             </div>
           </div>
         </div>,
@@ -397,7 +397,7 @@ export function ViewSwitcher() {
         onClick={handleTodayClick}
         className="px-3 py-1.5 text-sm font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
       >
-        今天
+        Today
       </button>
 
       {/* Navigation Arrows */}
@@ -424,7 +424,7 @@ export function ViewSwitcher() {
             ? 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800' 
             : 'text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800'
         }`}
-        title={showContextPanel ? '隐藏侧边栏' : '显示侧边栏'}
+        title={showContextPanel ? 'Hide sidebar' : 'Show sidebar'}
       >
         <SidebarSimple weight={showContextPanel ? 'duotone' : 'light'} className="size-5 -scale-x-100" />
       </button>

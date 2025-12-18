@@ -11,7 +11,7 @@ import { CompletedSection } from './CompletedSection';
 import { ArchiveTaskList } from './ArchiveTaskList';
 import { SubTaskModal } from './SubTaskModal';
 
-// 颜色排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
+// Color sorting: red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
 const colorOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 export function TaskList() {

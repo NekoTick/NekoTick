@@ -100,7 +100,7 @@ export function ContextPanel() {
           {sortedGroupIds.map((groupId) => {
             const groupTasks = tasksByGroup[groupId];
             const group = groups.find(g => g.id === groupId);
-            const groupName = group?.name || '收集箱';
+            const groupName = group?.name || 'Inbox';
 
             return (
               <div key={groupId} className="space-y-1.5">

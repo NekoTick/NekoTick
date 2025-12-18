@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion'; // 移除 AnimatePresence
+import { motion } from 'framer-motion'; // Removed AnimatePresence
 import { Plus, Minus, ArrowsClockwise } from '@phosphor-icons/react';
 import { getIconByName } from '../IconPicker';
 import { ItemCardProps } from './types';

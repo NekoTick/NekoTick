@@ -75,7 +75,7 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
               transition={{ duration: 0.15 }}
               className="h-full flex items-center"
             >
-              {/* 待办 */}
+              {/* Tasks */}
               <button
                 onClick={() => {
                   setView('tasks');
@@ -90,10 +90,10 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
                     : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
                 }`}
               >
-                待办
+                Tasks
               </button>
 
-              {/* 进度 */}
+              {/* Progress */}
               <button
                 onClick={() => {
                   setView('progress');
@@ -108,10 +108,10 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
                     : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
                 }`}
               >
-                进度
+                Progress
               </button>
 
-              {/* 日历 */}
+              {/* Calendar */}
               <button
                 onClick={() => {
                   setView('calendar');
@@ -127,10 +127,10 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
                 }`}
               >
                 <Calendar className="size-3.5" />
-                日历
+                Calendar
               </button>
 
-              {/* 时间管理 */}
+              {/* Time Tracker */}
               <button
                 onClick={() => {
                   setView('time-tracker');
@@ -145,10 +145,10 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
                     : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500'
                 }`}
               >
-                时间管理
+                Time Tracker
               </button>
 
-              {/* 设置 */}
+              {/* Settings */}
               <button
                 onClick={() => {
                   onOpenSettings?.();
@@ -160,7 +160,7 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
                 className="h-full px-3 text-sm text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors whitespace-nowrap flex items-center gap-1"
               >
                 <Settings className="size-3.5" />
-                设置
+                Settings
               </button>
             </motion.div>
           )}
@@ -178,7 +178,7 @@ export function TitleBar({ onOpenSettings }: TitleBarProps) {
         <button
           onClick={togglePin}
           className="h-full w-12 flex items-center justify-center hover:bg-zinc-100 transition-colors"
-          title={isPinned ? '取消置顶' : '置顶窗口'}
+          title={isPinned ? 'Unpin window' : 'Pin window'}
         >
           <Pin className={`size-4 transition-all duration-200 ${isPinned ? 'text-zinc-500 rotate-0' : 'text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 rotate-45'}`} />
         </button>

@@ -56,7 +56,7 @@ export function AppearanceTab() {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                基础颜色
+                Base Color
               </div>
             </div>
             <select
@@ -65,9 +65,9 @@ export function AppearanceTab() {
               className={selectClassName}
               style={selectStyle}
             >
-              <option value="system">跟随系统</option>
-              <option value="light">浅色</option>
-              <option value="dark">深色</option>
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
             </select>
           </div>
         </div>
@@ -77,7 +77,7 @@ export function AppearanceTab() {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                主题
+                Theme
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -88,13 +88,13 @@ export function AppearanceTab() {
                 <Folder className="size-4" />
               </button>
               <select className={selectClassName} style={selectStyle}>
-                <option value="default">默认</option>
+                <option value="default">Default</option>
               </select>
               <button
                 onClick={() => {/* TODO: Manage themes */}}
                 className={settingsButtonClassName}
               >
-                管理
+                Manage
               </button>
             </div>
           </div>
@@ -105,7 +105,7 @@ export function AppearanceTab() {
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1">
               <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                字体大小
+                Font Size
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -113,7 +113,7 @@ export function AppearanceTab() {
                 <button
                   onClick={resetFontSize}
                   className="p-1 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
-                  title="恢复默认"
+                  title="Reset to default"
                 >
                   <RotateCcw className="size-3.5" />
                 </button>

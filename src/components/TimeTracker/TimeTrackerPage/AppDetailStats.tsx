@@ -14,21 +14,21 @@ export function AppDetailStats({ selectedApp, timeRange, todayTotal }: AppDetail
       {/* Stats Cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-zinc-50 rounded-xl p-4">
-          <p className="text-xs text-zinc-400 mb-1">平均每日</p>
+          <p className="text-xs text-zinc-400 mb-1">Daily Average</p>
           <p className="text-lg font-medium text-zinc-900">
             {formatDuration(Math.floor(selectedApp.duration / (timeRange === 'day' ? 1 : timeRange === 'month' ? 30 : 365)))}
           </p>
         </div>
         <div className="bg-zinc-50 rounded-xl p-4">
-          <p className="text-xs text-zinc-400 mb-1">使用高峰</p>
+          <p className="text-xs text-zinc-400 mb-1">Peak Usage</p>
           <p className="text-lg font-medium text-zinc-900">
-            {timeRange === 'day' ? '14:00-16:00' : timeRange === 'month' ? '周三' : '3月'}
+            {timeRange === 'day' ? '14:00-16:00' : timeRange === 'month' ? 'Wed' : 'Mar'}
           </p>
         </div>
         <div className="bg-zinc-50 rounded-xl p-4">
-          <p className="text-xs text-zinc-400 mb-1">使用天数</p>
+          <p className="text-xs text-zinc-400 mb-1">Days Used</p>
           <p className="text-lg font-medium text-zinc-900">
-            {timeRange === 'day' ? '1天' : timeRange === 'month' ? '18天' : '156天'}
+            {timeRange === 'day' ? '1 day' : timeRange === 'month' ? '18 days' : '156 days'}
           </p>
         </div>
       </div>
@@ -36,7 +36,7 @@ export function AppDetailStats({ selectedApp, timeRange, todayTotal }: AppDetail
       {/* Usage Percentage */}
       <div className="bg-zinc-50 rounded-xl p-4 mb-6">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-medium text-zinc-700">使用占比</p>
+          <p className="text-sm font-medium text-zinc-700">Usage Percentage</p>
           <motion.span 
             className="text-sm font-medium text-zinc-900"
             initial={{ opacity: 0 }}
@@ -55,18 +55,18 @@ export function AppDetailStats({ selectedApp, timeRange, todayTotal }: AppDetail
           />
         </div>
         <p className="text-xs text-zinc-400 mt-2">
-          占{timeRange === 'day' ? '今日' : timeRange === 'month' ? '本月' : '今年'}总使用时长的比例
+          Percentage of {timeRange === 'day' ? "today's" : timeRange === 'month' ? "this month's" : "this year's"} total usage time
         </p>
       </div>
 
       {/* Recent Sessions */}
       <div className="bg-zinc-50 rounded-xl p-4">
-        <p className="text-sm font-medium text-zinc-700 mb-3">最近使用</p>
+        <p className="text-sm font-medium text-zinc-700 mb-3">Recent Sessions</p>
         <div className="space-y-2">
           {[
-            { time: '今天 14:30', duration: 7200 },
-            { time: '今天 09:15', duration: 3600 },
-            { time: '昨天 16:45', duration: 5400 },
+            { time: 'Today 14:30', duration: 7200 },
+            { time: 'Today 09:15', duration: 3600 },
+            { time: 'Yesterday 16:45', duration: 5400 },
           ].map((session, i) => (
             <div key={i} className="flex items-center justify-between text-sm">
               <span className="text-zinc-500">{session.time}</span>

@@ -14,7 +14,7 @@ export function TimeChart({ selectedApp, timeRange, sourceType, todayTotal }: Ti
     <div className="max-w-xl mx-auto mb-6">
       <div className="flex justify-between h-16 gap-1 mt-10">
         {(() => {
-          // 为选中的应用生成随机但稳定的数据
+          // Generate random but stable data for selected app
           const generateAppData = (name: string, range: TimeRange): number[] => {
             const seed = name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
             const counts = { day: 24, month: 30, year: 12 };
@@ -24,7 +24,7 @@ export function TimeChart({ selectedApp, timeRange, sourceType, todayTotal }: Ti
             });
           };
 
-          // 不同条件下的柱状图数据
+          // Bar chart data for different conditions
           const chartData: Record<string, Record<string, number[]>> = {
             app: {
               day: [0, 0, 0, 0, 0, 0.1, 0.2, 0.4, 0.7, 0.9, 0.95, 0.8, 0.5, 0.6, 0.85, 0.9, 0.75, 0.6, 0.7, 0.8, 0.6, 0.4, 0.2, 0.05],
@@ -45,10 +45,10 @@ export function TimeChart({ selectedApp, timeRange, sourceType, todayTotal }: Ti
           const labels = timeRange === 'day' 
             ? { count: 24, format: (i: number) => `${i}:00 - ${i + 1}:00` }
             : timeRange === 'month'
-              ? { count: 30, format: (i: number) => `${i + 1}日` }
-              : { count: 12, format: (i: number) => `${i + 1}月` };
+              ? { count: 30, format: (i: number) => `Day ${i + 1}` }
+              : { count: 12, format: (i: number) => `Month ${i + 1}` };
           
-          // 计算显示的时长（基于usage比例和总时长）
+          // Calculate display duration (based on usage ratio and total duration)
           const totalDuration = selectedApp?.duration || todayTotal;
           
           return Array.from({ length: labels.count }, (_, i) => {
@@ -96,27 +96,27 @@ export function TimeChart({ selectedApp, timeRange, sourceType, todayTotal }: Ti
       <div className="flex justify-between mt-1 text-xs text-zinc-400">
         {timeRange === 'day' ? (
           <>
-            <span>0时</span>
-            <span>6时</span>
-            <span>12时</span>
-            <span>18时</span>
-            <span>24时</span>
+            <span>0:00</span>
+            <span>6:00</span>
+            <span>12:00</span>
+            <span>18:00</span>
+            <span>24:00</span>
           </>
         ) : timeRange === 'month' ? (
           <>
-            <span>1日</span>
-            <span>8日</span>
-            <span>15日</span>
-            <span>22日</span>
-            <span>30日</span>
+            <span>1st</span>
+            <span>8th</span>
+            <span>15th</span>
+            <span>22nd</span>
+            <span>30th</span>
           </>
         ) : (
           <>
-            <span>1月</span>
-            <span>4月</span>
-            <span>7月</span>
-            <span>10月</span>
-            <span>12月</span>
+            <span>Jan</span>
+            <span>Apr</span>
+            <span>Jul</span>
+            <span>Oct</span>
+            <span>Dec</span>
           </>
         )}
       </div>

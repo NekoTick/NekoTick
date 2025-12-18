@@ -1,16 +1,16 @@
 /**
- * Tasks Module - 任务模块
+ * Tasks Module
  * 
- * 提供任务管理功能，包括任务的增删改查、分组、归档等
+ * Provides task management functionality including CRUD operations, grouping, archiving, etc.
  */
 
-// 页面组件
+// Page Components
 export { TasksPage } from './TasksPage';
 
 // Store
 export { useGroupStore, useUIStore } from './stores';
 
-// 类型
+// Types
 export type {
   Group,
   ItemColor,
@@ -20,7 +20,7 @@ export type {
 } from './types';
 export { PRIORITY_COLORS, ITEM_COLORS } from './types';
 
-// 组件
+// Components
 export {
   TaskItem,
   TaskList,

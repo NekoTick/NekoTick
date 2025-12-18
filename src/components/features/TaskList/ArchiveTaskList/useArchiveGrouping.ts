@@ -4,7 +4,7 @@ import { Task } from '@/stores/useGroupStore';
 import { TimeView } from '@/lib/dateUtils';
 import { DateGroups } from './types';
 
-// 颜色排序
+// Color sorting
 const colorOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 interface UseArchiveGroupingProps {

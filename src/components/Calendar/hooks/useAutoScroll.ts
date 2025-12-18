@@ -1,7 +1,7 @@
 /**
- * 自动滚动 Hook
+ * Auto Scroll Hook
  * 
- * 当拖动元素接近容器边缘时自动滚动
+ * Automatically scrolls when dragging element approaches container edge
  */
 
 import { useRef, useCallback } from 'react';

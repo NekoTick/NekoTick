@@ -25,7 +25,7 @@ export function useShortcuts() {
         'open-archive': () => setActiveGroup('__archive__'),
       };
 
-      // 检查每个快捷键是否匹配
+      // Check if each shortcut matches
       for (const [id, handler] of Object.entries(shortcuts)) {
         const keys = getShortcutKeys(id as ShortcutId);
         if (!keys || keys.length === 0) continue;
@@ -45,7 +45,7 @@ export function useShortcuts() {
         }
       }
       
-      // F11: Toggle Fullscreen (固定快捷键，不可自定义)
+      // F11: Toggle Fullscreen (fixed shortcut, not customizable)
       if (e.key === 'F11') {
         e.preventDefault();
         try {
@@ -55,9 +55,9 @@ export function useShortcuts() {
         }
       }
       
-      // Ctrl+Z: 撤销 (固定快捷键，不可自定义)
+      // Ctrl+Z: Undo (fixed shortcut, not customizable)
       if (e.ctrlKey && e.key === 'z' && !e.shiftKey && !e.altKey) {
-        // 如果当前焦点在输入框中，不拦截（让浏览器处理文本撤销）
+        // If focus is in an input field, don't intercept (let browser handle text undo)
         const target = e.target as HTMLElement;
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
           return;

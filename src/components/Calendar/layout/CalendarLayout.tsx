@@ -14,7 +14,7 @@ export function CalendarLayout({ sidebar, main, contextPanel, showSidebar = true
   const [isHovering, setIsHovering] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 当侧边栏隐藏时，鼠标移到左边缘触发悬停展开
+  // When sidebar is hidden, mouse hover on left edge triggers expansion
   const handleMouseEnterTrigger = () => {
     if (!showSidebar) {
       if (hoverTimeoutRef.current) {
@@ -54,7 +54,7 @@ export function CalendarLayout({ sidebar, main, contextPanel, showSidebar = true
     }
   }, [showSidebar]);
 
-  // 计算侧边栏是否应该展开
+  // Calculate whether sidebar should expand
   const shouldExpand = showSidebar || isHovering;
 
   return (
@@ -62,7 +62,7 @@ export function CalendarLayout({ sidebar, main, contextPanel, showSidebar = true
       {/* Background Ambience */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50/20 via-transparent to-purple-50/20 dark:from-blue-900/10 dark:to-purple-900/10 pointer-events-none" />
 
-      {/* Left Edge Hover Trigger - 当侧边栏隐藏时显示 */}
+      {/* Left Edge Hover Trigger - Shown when sidebar is hidden */}
       {!showSidebar && !isHovering && (
         <div 
           className="absolute left-0 top-0 bottom-0 w-3 z-50 cursor-pointer hover:bg-zinc-200/30 dark:hover:bg-zinc-700/30 transition-colors"
@@ -70,7 +70,7 @@ export function CalendarLayout({ sidebar, main, contextPanel, showSidebar = true
         />
       )}
 
-      {/* Left Sidebar - 始终渲染，通过宽度控制显示 */}
+      {/* Left Sidebar - Always rendered, visibility controlled by width */}
       <aside 
         onMouseEnter={handleMouseEnterSidebar}
         onMouseLeave={handleMouseLeaveSidebar}

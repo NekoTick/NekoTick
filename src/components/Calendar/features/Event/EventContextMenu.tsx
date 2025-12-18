@@ -9,7 +9,7 @@ interface EventContextMenuProps {
   onClose: () => void;
 }
 
-// 统一颜色系统 - 与待办保持一致
+// Unified color system - consistent with todo
 type ColorName = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
 const COLORS: { name: ColorName; bg: string }[] = [
   { name: 'red', bg: 'bg-red-500' },
@@ -82,13 +82,13 @@ export function EventContextMenu({ eventId, position, currentColor = 'blue', onC
         {/* Actions */}
         <button className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800">
           <Scissors className="size-4" />
-          <span className="flex-1 text-left">剪切</span>
+          <span className="flex-1 text-left">Cut</span>
           <span className="text-zinc-500 text-xs">Ctrl X</span>
         </button>
 
         <button className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800">
           <Copy className="size-4" />
-          <span className="flex-1 text-left">拷贝</span>
+          <span className="flex-1 text-left">Copy</span>
           <span className="text-zinc-500 text-xs">Ctrl C</span>
         </button>
 
@@ -97,7 +97,7 @@ export function EventContextMenu({ eventId, position, currentColor = 'blue', onC
           className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800"
         >
           <CopyPlus className="size-4" />
-          <span className="flex-1 text-left">创建副本</span>
+          <span className="flex-1 text-left">Duplicate</span>
           <span className="text-zinc-500 text-xs">Ctrl D</span>
         </button>
 
@@ -108,8 +108,8 @@ export function EventContextMenu({ eventId, position, currentColor = 'blue', onC
           className="w-full px-4 py-2 flex items-center gap-3 text-sm text-red-400 hover:bg-zinc-800"
         >
           <Trash2 className="size-4" />
-          <span className="flex-1 text-left">删除</span>
-          <span className="text-zinc-500 text-xs">删除</span>
+          <span className="flex-1 text-left">Delete</span>
+          <span className="text-zinc-500 text-xs">Del</span>
         </button>
       </div>
     </>,

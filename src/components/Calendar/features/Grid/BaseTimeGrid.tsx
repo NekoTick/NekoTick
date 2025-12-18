@@ -7,7 +7,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { format, isSameDay, getHours, getMinutes, startOfDay, addMinutes } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+
 import { useCalendarStore } from '@/stores/useCalendarStore';
 import { useGroupStore } from '@/stores/useGroupStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
@@ -283,7 +283,7 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
             {days.map((day) => (
               <div key={day.toString()} className="flex items-center gap-1">
                 <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {format(day, 'EEEE', { locale: zhCN }).replace('星期', '周')}
+                  {format(day, 'EEE')}
                 </span>
                 <span className="text-sm text-zinc-800 dark:text-zinc-200">
                   {format(day, 'd')}

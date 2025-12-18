@@ -276,7 +276,7 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
               <p
                 className={`font-medium leading-tight truncate ${colorStyles.text} ${isCompleted ? 'line-through opacity-60' : ''} ${heightLevel === 'micro' ? 'text-[9px]' : 'text-[11px]'}`}
               >
-                {event.title || '无标题'}
+                {event.title || 'Untitled'}
               </p>
               {showTime && (
                 <p className={`mt-0.5 tabular-nums font-medium ${colorStyles.text} opacity-70 ${heightLevel === 'small' ? 'text-[8px]' : 'text-[9px]'}`}>

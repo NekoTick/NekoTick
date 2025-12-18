@@ -17,14 +17,14 @@ export function useCreateForm(
     direction: 'increment',
     total: 100,
     step: 1,
-    unit: '次',
+    unit: 'times',
     resetFrequency: 'none',
   });
 
   const [counterForm, setCounterForm] = useState<CounterFormData>({
     title: '',
     step: 1,
-    unit: '次',
+    unit: 'times',
     frequency: 'daily',
     resetFrequency: 'none',
   });
@@ -60,8 +60,8 @@ export function useCreateForm(
       setIsSubmitting(false);
       setType('progress');
       setIsPickingIcon(false);
-      setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: '次', resetFrequency: 'none' });
-      setCounterForm({ title: '', step: 1, unit: '次', frequency: 'daily', resetFrequency: 'none' });
+      setProgressForm({ title: '', direction: 'increment', total: 100, step: 1, unit: 'times', resetFrequency: 'none' });
+      setCounterForm({ title: '', step: 1, unit: 'times', frequency: 'daily', resetFrequency: 'none' });
     }
   }, [open]);
 
@@ -72,10 +72,10 @@ export function useCreateForm(
 
     if (type === 'progress') {
       if (!progressForm.title.trim()) return;
-      onCreateProgress({ ...progressForm, title: progressForm.title.trim(), unit: progressForm.unit.trim() || '次', resetFrequency: progressForm.resetFrequency });
+      onCreateProgress({ ...progressForm, title: progressForm.title.trim(), unit: progressForm.unit.trim() || 'times', resetFrequency: progressForm.resetFrequency });
     } else {
       if (!counterForm.title.trim()) return;
-      onCreateCounter({ ...counterForm, title: counterForm.title.trim(), unit: counterForm.unit.trim() || '次', resetFrequency: counterForm.resetFrequency });
+      onCreateCounter({ ...counterForm, title: counterForm.title.trim(), unit: counterForm.unit.trim() || 'times', resetFrequency: counterForm.resetFrequency });
     }
     onClose();
   };

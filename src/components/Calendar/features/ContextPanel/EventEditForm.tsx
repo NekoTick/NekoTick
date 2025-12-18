@@ -96,9 +96,9 @@ export function EventEditForm({ event, mode = 'embedded', position }: EventEditF
   const durationMinutes = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
 
   const formatDuration = () => {
-    if (durationHours > 0 && durationMinutes > 0) return `${durationHours}小时${durationMinutes}分钟`;
-    if (durationHours > 0) return `${durationHours}小时`;
-    return `${durationMinutes}分钟`;
+    if (durationHours > 0 && durationMinutes > 0) return `${durationHours}h ${durationMinutes}m`;
+    if (durationHours > 0) return `${durationHours}h`;
+    return `${durationMinutes}m`;
   };
 
   // ============ Floating Mode Position Calculation ============
@@ -167,7 +167,7 @@ export function EventEditForm({ event, mode = 'embedded', position }: EventEditF
               closeEditingEvent();
             }
           }}
-          placeholder="添加标题"
+          placeholder="Add title"
           className="w-full bg-zinc-100 dark:bg-zinc-800 rounded px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
 
@@ -187,7 +187,7 @@ export function EventEditForm({ event, mode = 'embedded', position }: EventEditF
                 borderColor: COLOR_VALUES[color],
                 backgroundColor: color === 'default' ? 'transparent' : undefined,
               }}
-              title={color === 'default' ? '默认' : color}
+              title={color === 'default' ? 'Default' : color}
             />
           ))}
         </div>
@@ -213,7 +213,7 @@ export function EventEditForm({ event, mode = 'embedded', position }: EventEditF
             onClick={() => setShowGroupPicker(!showGroupPicker)}
             className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100 transition-colors"
           >
-            <span>{currentGroup?.name || '收集箱'}</span>
+            <span>{currentGroup?.name || 'Inbox'}</span>
             <ChevronDown className={`size-3.5 text-zinc-400 transition-transform ${showGroupPicker ? 'rotate-180' : ''}`} />
           </button>
 

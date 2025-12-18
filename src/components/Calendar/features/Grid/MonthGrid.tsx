@@ -15,7 +15,7 @@ import { useCalendarStore } from '@/stores/useCalendarStore';
 import { useCalendarEvents, type CalendarDisplayItem } from '../../hooks/useCalendarEvents';
 import type { ItemColor } from '@/stores/types';
 
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Color priority mapping: consistent with eventLayout.ts
 const COLOR_PRIORITY: Record<ItemColor, number> = {
@@ -125,7 +125,7 @@ export function MonthGrid() {
                     {/* Show month name on first day of month */}
                     {date.getDate() === 1 && (
                       <span className={`text-xs mr-auto ${isCurrentMonth ? 'text-zinc-600 dark:text-zinc-400' : 'text-zinc-400 dark:text-zinc-600'}`}>
-                        {format(date, 'M月', { locale: zhCN })}
+                        {format(date, 'MMM')}
                       </span>
                     )}
                     <span
@@ -168,7 +168,7 @@ export function MonthGrid() {
                     ))}
                     {dayEvents.length > 3 && (
                       <div className="text-xs text-zinc-400 dark:text-zinc-500 px-1">
-                        +{dayEvents.length - 3} 更多
+                        +{dayEvents.length - 3} more
                       </div>
                     )}
                   </div>

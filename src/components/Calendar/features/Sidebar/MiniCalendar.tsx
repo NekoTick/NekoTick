@@ -45,9 +45,9 @@ export function MiniCalendar() {
           </button>
         </div>
 
-        {/* Days Header - Chinese weekday names */}
+        {/* Days Header - Weekday names */}
         <div className="grid grid-cols-7 text-center mb-3">
-          {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map(d => (
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
             <div key={d} className="text-xs font-medium text-zinc-400">
               {d}
             </div>

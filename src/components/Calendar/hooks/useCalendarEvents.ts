@@ -3,10 +3,10 @@ import { useUnifiedStore } from '@/stores/useUnifiedStore';
 import type { ItemColor } from '@/stores/useUnifiedStore';
 
 /**
- * 日历事件显示项
+ * Calendar event display item
  * 
- * 这是 UnifiedTask 在日历视图中的表示形式
- * 统一了 title 字段名（映射自 content）并确保时间属性存在
+ * This is the representation of UnifiedTask in calendar view
+ * Unified title field name (mapped from content) and ensures time properties exist
  */
 export interface CalendarDisplayItem {
   id: string;
@@ -20,18 +20,18 @@ export interface CalendarDisplayItem {
 }
 
 /**
- * 统一事项模型下的日历事件 hook
+ * Calendar events hook under unified item model
  * 
- * 核心理念：世界上只有一种"事项"
- * - 有 startDate 的事项会显示在日历中
- * - 没有 startDate 的事项只在待办列表中显示
- * - 颜色系统统一，跨视图保持一致
+ * Core concept: There is only one type of "item"
+ * - Items with startDate are displayed in calendar
+ * - Items without startDate only appear in todo list
+ * - Unified color system, consistent across views
  */
 export function useCalendarEvents(): CalendarDisplayItem[] {
   const tasks = useUnifiedStore(state => state.data.tasks);
 
   const displayItems = useMemo(() => {
-    // 筛选有时间属性的事项，转换为日历显示格式
+    // Filter items with time properties, convert to calendar display format
     return tasks
       .filter(t => t.startDate !== undefined)
       .map(t => ({

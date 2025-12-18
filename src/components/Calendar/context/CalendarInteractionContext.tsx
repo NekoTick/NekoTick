@@ -1,8 +1,8 @@
 /**
- * 日历交互上下文
+ * Calendar Interaction Context
  * 
- * 统一管理所有拖动、调整大小、创建事件的状态
- * 这是解决布局同步问题的核心
+ * Unified management of all drag, resize, and event creation states
+ * This is the core solution for layout synchronization issues
  */
 
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
@@ -10,7 +10,7 @@ import { startOfDay, addMinutes } from 'date-fns';
 import { useCalendarStore } from '@/stores/useCalendarStore';
 import { getSnapMinutes, CALENDAR_CONSTANTS } from '../utils/timeUtils';
 
-// ============ 类型定义 ============
+// ============ Type Definitions ============
 
 export type InteractionType = 'idle' | 'creating' | 'moving' | 'resizing';
 export type ResizeEdge = 'top' | 'bottom';
@@ -46,31 +46,31 @@ interface InteractionState {
 }
 
 interface CalendarInteractionContextValue {
-  // 状态
+  // State
   state: InteractionState;
   
-  // 创建事件
+  // Create event
   startCreate: (dayIndex: number, minutes: number) => void;
   updateCreate: (minutes: number) => void;
   finishCreate: (days: Date[]) => string | null;
   cancelCreate: () => void;
   
-  // 移动事件
+  // Move event
   startMove: (eventId: string, startDate: number, endDate: number) => void;
   updateMove: (deltaMinutes: number) => void;
   finishMove: () => void;
   cancelMove: () => void;
   
-  // 调整大小
+  // Resize
   startResize: (eventId: string, edge: ResizeEdge, startDate: number, endDate: number) => void;
   updateResize: (deltaMinutes: number) => void;
   finishResize: () => void;
   cancelResize: () => void;
   
-  // 获取事件的临时时间（用于布局计算）
+  // Get event's temporary times (for layout calculation)
   getEventTempTimes: (eventId: string) => { start: number; end: number } | null;
   
-  // 获取正在创建的虚拟事件
+  // Get the ghost event being created
   getGhostEvent: () => { startMinutes: number; endMinutes: number; dayIndex: number } | null;
 }
 
@@ -96,11 +96,11 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     resize: null,
   });
   
-  // 使用 ref 存储最新状态，避免闭包问题
+  // Use ref to store latest state, avoiding closure issues
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // ============ 创建事件 ============
+  // ============ Create Event ============
   
   const startCreate = useCallback((dayIndex: number, minutes: number) => {
     const snapped = Math.round(minutes / snapMinutes) * snapMinutes;
@@ -129,7 +129,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     
     const { dayIndex, startMinutes, endMinutes } = current.create;
     
-    // 如果没有拖动距离，不创建
+    // If no drag distance, don't create
     if (startMinutes === endMinutes) {
       setState({ type: 'idle', create: null, move: null, resize: null });
       return null;
@@ -158,7 +158,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     setState({ type: 'idle', create: null, move: null, resize: null });
   }, []);
 
-  // ============ 移动事件 ============
+  // ============ Move Event ============
   
   const startMove = useCallback((eventId: string, startDate: number, endDate: number) => {
     setState({
@@ -185,7 +185,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
       const newStart = prev.move.originalStart + deltaMs;
       const newEnd = prev.move.originalEnd + deltaMs;
       
-      // 边界检查：不能超出当天
+      // Boundary check: cannot exceed current day
       const startOfDayMs = new Date(prev.move.originalStart).setHours(0, 0, 0, 0);
       const endOfDayMs = startOfDayMs + 24 * 60 * 60 * 1000;
       
@@ -193,7 +193,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
         return prev;
       }
       
-      // 实时更新 store
+      // Real-time update to store
       updateEvent(prev.move.eventId, { startDate: newStart, endDate: newEnd });
       
       return {
@@ -207,7 +207,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     const current = stateRef.current;
     if (current.type !== 'moving' || !current.move) return;
     
-    // 确保最终状态同步
+    // Ensure final state is synced
     updateEvent(current.move.eventId, {
       startDate: current.move.currentStart,
       endDate: current.move.currentEnd,
@@ -220,7 +220,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     const current = stateRef.current;
     if (current.type !== 'moving' || !current.move) return;
     
-    // 恢复原始位置
+    // Restore original position
     updateEvent(current.move.eventId, {
       startDate: current.move.originalStart,
       endDate: current.move.originalEnd,
@@ -229,7 +229,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     setState({ type: 'idle', create: null, move: null, resize: null });
   }, [updateEvent]);
 
-  // ============ 调整大小 ============
+  // ============ Resize ============
   
   const startResize = useCallback((eventId: string, edge: ResizeEdge, startDate: number, endDate: number) => {
     setState({
@@ -304,7 +304,7 @@ export function CalendarInteractionProvider({ children, hourHeight }: CalendarIn
     setState({ type: 'idle', create: null, move: null, resize: null });
   }, [updateEvent]);
 
-  // ============ 辅助方法 ============
+  // ============ Helper Methods ============
   
   const getEventTempTimes = useCallback((eventId: string) => {
     const current = stateRef.current;

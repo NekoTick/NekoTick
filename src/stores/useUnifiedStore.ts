@@ -1,16 +1,16 @@
 /**
- * Unified Store - 统一数据源
+ * Unified Store - Single Source of Truth
  * 
- * 核心理念：世界上只有一种"事项"（UnifiedTask）
- * - 有 startDate 的事项 → 在日历视图中显示
- * - 没有 startDate 的事项 → 只在待办列表中显示
- * - 给待办安排时间 = 添加 startDate 属性
- * - 删除日历事件的时间 = 移除 startDate 属性
+ * Core concept: There is only one type of "item" (UnifiedTask)
+ * - Items with startDate → displayed in calendar view
+ * - Items without startDate → only displayed in todo list
+ * - Scheduling a todo = adding startDate property
+ * - Removing calendar event time = removing startDate property
  * 
- * 数据流：
- * - useUnifiedStore: 唯一数据源
- * - useCalendarStore: 日历视图的数据访问层（筛选有时间的事项）
- * - useGroupStore: 待办视图的数据访问层（兼容旧 API）
+ * Data flow:
+ * - useUnifiedStore: Single source of truth
+ * - useCalendarStore: Calendar view data access layer (filters items with time)
+ * - useGroupStore: Todo view data access layer (compatible with legacy API)
  */
 
 import { create } from 'zustand';
@@ -33,13 +33,13 @@ export type {
   UnifiedArchiveSection,
 };
 
-// 统一颜色类型
+// Unified color type
 export type ItemColor = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
 
 // View mode type
 export type ViewMode = 'day' | 'week' | 'month';
 
-// 撤销操作类型
+// Undo action type
 type UndoAction = {
   type: 'deleteTask';
   task: UnifiedTask;
@@ -73,7 +73,7 @@ interface UnifiedStore {
   setActiveGroup: (id: string) => void;
   reorderGroups: (activeId: string, overId: string) => void;
   
-  // Task Actions（统一事项操作）
+  // Task Actions (unified item operations)
   addTask: (content: string, groupId: string, color?: ItemColor) => void;
   addSubTask: (parentId: string, content: string) => void;
   updateTask: (id: string, content: string) => void;
@@ -88,14 +88,14 @@ interface UnifiedStore {
   moveTaskToGroup: (taskId: string, targetGroupId: string, overTaskId?: string | null) => void;
   archiveCompletedTasks: (groupId: string) => void;
   
-  // 日历事项操作（本质上是带时间属性的 task）
+  // Calendar item operations (essentially tasks with time properties)
   addCalendarTask: (task: { content: string; startDate: number; endDate: number; isAllDay?: boolean; color?: ItemColor; groupId?: string }) => string;
   updateTaskTime: (id: string, startDate?: number, endDate?: number, isAllDay?: boolean) => void;
   setEditingEventId: (id: string | null, position?: { x: number; y: number }) => void;
   setSelectedEventId: (id: string | null) => void;
   closeEditingEvent: () => void;
   
-  // 日历事件操作（使用 title 作为参数名，内部映射到 content）
+  // Calendar event operations (uses title as parameter name, internally mapped to content)
   addEvent: (event: { title: string; startDate: number; endDate: number; isAllDay: boolean; color?: string }) => string;
   updateEvent: (id: string, updates: Partial<UnifiedTask>) => void;
   deleteEvent: (id: string) => void;
@@ -278,7 +278,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
       groupId: parent.groupId,
       parentId,
       collapsed: false,
-      color: parent.color || 'default', // 继承父任务的颜色
+      color: parent.color || 'default', // Inherit parent task's color
     };
     set((state) => {
       const newData = {
@@ -520,7 +520,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     });
   },
 
-  // ========== 日历事项操作（带时间属性的 task）==========
+  // ========== Calendar item operations (tasks with time properties) ==========
 
   addCalendarTask: (taskData) => {
     const newTask: UnifiedTask = {
@@ -588,7 +588,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     }
   },
 
-  // ========== 日历事件操作 ==========
+  // ========== Calendar event operations ==========
 
   addEvent: (eventData) => {
     return get().addCalendarTask({
@@ -793,7 +793,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
   },
 
   setHourHeight: (height) => {
-    // 限制范围：32px - 800px（最大可以让一个小时占满屏幕）
+    // Clamp range: 32px - 800px (max allows one hour to fill the screen)
     const clampedHeight = Math.max(32, Math.min(800, height));
     set((state) => {
       const newData = {
@@ -818,7 +818,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
       const newUndoStack = state.undoStack.slice(0, -1);
       
       if (lastAction.type === 'deleteTask') {
-        // 恢复删除的事项
+        // Restore deleted item
         const newData = {
           ...state.data,
           tasks: [...state.data.tasks, lastAction.task],

@@ -1,8 +1,8 @@
 /**
- * Group Store - 待办视图的数据访问层
+ * Group Store - Todo view data access layer
  * 
- * 核心理念：这只是 UnifiedStore 的一个视图
- * 所有数据操作都委托给 useUnifiedStore
+ * Core concept: This is just a view of UnifiedStore
+ * All data operations are delegated to useUnifiedStore
  */
 
 import { useUnifiedStore, type ItemColor } from './useUnifiedStore';
@@ -20,7 +20,7 @@ export interface Group {
   updatedAt?: number;
 }
 
-// Task type（统一事项模型）
+// Task type (unified item model)
 export interface Task {
   id: string;
   content: string;

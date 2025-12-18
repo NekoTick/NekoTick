@@ -1,14 +1,14 @@
 /**
- * Unified Storage - 统一存储架构
+ * Unified Storage - Unified storage architecture
  * 
- * 核心理念：世界上只有一种"事项"（UnifiedTask）
- * - 有时间属性的事项会出现在日历视图中
- * - 没有时间属性的事项只出现在待办视图中
- * - 日历和待办只是观察同一份数据的不同窗口
+ * Core concept: There is only one type of "item" (UnifiedTask)
+ * - Items with time properties appear in calendar view
+ * - Items without time properties only appear in todo view
+ * - Calendar and todo are just different windows observing the same data
  * 
- * 存储结构：
- * - .nekotick/data.json: 数据源（JSON 格式，程序读写）
- * - nekotick.md: 人类可读的 Markdown 视图（只写，用于备份和查看）
+ * Storage structure:
+ * - .nekotick/data.json: Data source (JSON format, read/write by program)
+ * - nekotick.md: Human-readable Markdown view (write-only, for backup and viewing)
  */
 
 import { readTextFile, writeTextFile, exists, mkdir } from '@tauri-apps/plugin-fs';
@@ -19,12 +19,12 @@ import { appDataDir } from '@tauri-apps/api/path';
 // ============================================================================
 
 /**
- * 统一事项模型
+ * Unified item model
  * 
- * 核心理念：世界上只有一种"事项"，它可以有时间属性，也可以没有。
- * - 有时间属性的事项会出现在日历视图中
- * - 没有时间属性的事项只出现在待办视图中
- * - 颜色系统统一，跨视图保持一致
+ * Core concept: There is only one type of "item", it can have time properties or not.
+ * - Items with time properties appear in calendar view
+ * - Items without time properties only appear in todo view
+ * - Unified color system, consistent across views
  */
 export interface UnifiedTask {
   id: string;
@@ -37,19 +37,19 @@ export interface UnifiedTask {
   parentId: string | null;
   collapsed: boolean;
   
-  // 统一颜色系统
+  // Unified color system
   color: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
   
-  // 时间属性（有时间 = 日历事件，无时间 = 纯待办）
+  // Time properties (with time = calendar event, without time = pure todo)
   startDate?: number;
   endDate?: number;
   isAllDay?: boolean;
   
-  // 时间追踪
+  // Time tracking
   estimatedMinutes?: number;
   actualMinutes?: number;
   
-  // 日历相关（可选）
+  // Calendar related (optional)
   location?: string;
   description?: string;
 }
@@ -302,7 +302,7 @@ function generateMarkdown(data: UnifiedData): string {
     if (topLevel.length > 0) lines.push('');
   }
   
-  // Calendar Section - 从 tasks 中筛选有时间属性的事项
+  // Calendar Section - filter items with time properties from tasks
   lines.push('# Calendar');
   lines.push('');
   

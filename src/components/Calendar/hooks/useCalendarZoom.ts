@@ -1,5 +1,5 @@
 /**
- * 日历缩放 Hook
+ * Calendar Zoom Hook
  */
 
 import { useEffect, useRef } from 'react';
@@ -13,7 +13,7 @@ export function useCalendarZoom() {
   const hourHeightRef = useRef(hourHeight);
   hourHeightRef.current = hourHeight;
 
-  // 窗口大小变化时，自动调整 hourHeight 以填满容器
+  // Auto-adjust hourHeight to fill container when window size changes
   useEffect(() => {
     if (viewMode === 'month') return;
 
@@ -36,7 +36,7 @@ export function useCalendarZoom() {
     return () => window.removeEventListener('resize', handleResize);
   }, [viewMode, setHourHeight]);
 
-  // Ctrl+滚轮缩放时间刻度
+  // Ctrl+wheel to zoom time scale
   useEffect(() => {
     const handleZoomWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
@@ -63,7 +63,7 @@ export function useCalendarZoom() {
 
       if (Math.abs(newHourHeight - currentHourHeight) < 0.1) return;
 
-      // 锚点缩放：保持鼠标指向的时间点不变
+      // Anchor zoom: keep the time point under mouse cursor unchanged
       if (scrollContainer) {
         const rect = scrollContainer.getBoundingClientRect();
         const mouseY = e.clientY - rect.top;

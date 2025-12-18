@@ -36,7 +36,7 @@ interface TaskItemProps {
 }
 
 export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isBeingDragged, isDropTarget, insertAfter, level = 0, hasChildren = false, collapsed = false, onToggleCollapse, dragIndent = 0 }: TaskItemProps) {
-  const MAX_LEVEL = 3; // 0, 1, 2, 3 = 4 层
+  const MAX_LEVEL = 3; // 0, 1, 2, 3 = 4 levels
   const canAddSubTask = level < MAX_LEVEL;
   const itemRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -45,7 +45,7 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { searchQuery, hideActualTime } = useUIStore();
   
-  // 高亮搜索词 (加粗)
+  // Highlight search terms (bold)
   const highlightText = (text: string, query: string) => {
     if (!query.trim()) return text;
     
@@ -125,8 +125,8 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
   // Drop target indicator with indent based on drag offset
   const INDENT_THRESHOLD = 28;
   const shouldShowIndent = dragIndent > INDENT_THRESHOLD;
-  // 基础左边距: 8px(px-2) + 20px(w-5折叠图标) + 8px(gap-2) + 14px(手柄到复选框中间) = 50px
-  // 如果缩进，额外增加 24px
+  // Base left margin: 8px(px-2) + 20px(w-5 collapse icon) + 8px(gap-2) + 14px(handle to checkbox center) = 50px
+  // If indented, add extra 24px
   const baseMargin = 50;
   const indentAmount = shouldShowIndent ? baseMargin + 24 : baseMargin;
   
@@ -257,10 +257,10 @@ export function TaskItem({ task, onToggle, onUpdate, onDelete, onAddSubTask, isB
         {!hideActualTime && (task.estimatedMinutes || task.actualMinutes) && (
           <div className="flex items-center gap-2 mt-1 text-xs text-zinc-400 dark:text-zinc-600">
             {task.estimatedMinutes && (
-              <span>预估 {formatMinutes(task.estimatedMinutes)}</span>
+              <span>Est. {formatMinutes(task.estimatedMinutes)}</span>
             )}
             {task.actualMinutes && (
-              <span>实际 {formatMinutes(task.actualMinutes)}</span>
+              <span>Actual {formatMinutes(task.actualMinutes)}</span>
             )}
           </div>
         )}

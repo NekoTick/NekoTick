@@ -1,10 +1,10 @@
 /**
- * Calendar Store - 日历视图的数据访问层
+ * Calendar Store - Calendar view data access layer
  * 
- * 核心理念：世界上只有一种"事项"（UnifiedTask）
- * - 有时间属性的事项会出现在日历视图中
- * - 没有时间属性的事项只出现在待办视图中
- * - 日历和待办只是观察同一份数据的不同窗口
+ * Core concept: There is only one type of "item" (UnifiedTask)
+ * - Items with time properties appear in calendar view
+ * - Items without time properties only appear in todo view
+ * - Calendar and todo are just different windows observing the same data
  */
 
 import { useUnifiedStore, type ItemColor } from './useUnifiedStore';
@@ -14,14 +14,14 @@ import type { UnifiedTask } from '@/lib/storage/unifiedStorage';
 export type ViewMode = 'day' | 'week' | 'month';
 
 /**
- * 日历事件类型
+ * Calendar event type
  * 
- * 这是 UnifiedTask 的视图层表示，添加了一些便捷属性
- * 本质上就是带时间属性的 UnifiedTask
+ * This is the view layer representation of UnifiedTask with some convenience properties
+ * Essentially a UnifiedTask with time properties
  */
 export interface CalendarEvent {
   id: string;
-  title: string;           // 映射自 content
+  title: string;           // Mapped from content
   startDate: number;
   endDate: number;
   isAllDay: boolean;
@@ -33,8 +33,8 @@ export interface CalendarEvent {
 }
 
 /**
- * 将 UnifiedTask 转换为 CalendarEvent 视图格式
- * 这只是一个视图层的映射，不创建新的数据实体
+ * Convert UnifiedTask to CalendarEvent view format
+ * This is just a view layer mapping, does not create new data entities
  */
 function toCalendarEvent(task: UnifiedTask): CalendarEvent {
   return {
@@ -52,21 +52,21 @@ function toCalendarEvent(task: UnifiedTask): CalendarEvent {
 }
 
 /**
- * 日历视图的数据访问 hook
+ * Calendar view data access hook
  * 
- * 从统一的 tasks 中筛选出有时间属性的事项
- * 提供日历视图所需的所有状态和操作
+ * Filters items with time properties from unified tasks
+ * Provides all state and operations needed for calendar view
  */
 export function useCalendarStore() {
   const store = useUnifiedStore();
   
-  // 从 tasks 中筛选出有时间属性的事项
+  // Filter items with time properties from tasks
   const calendarEvents = store.data.tasks
     .filter(t => t.startDate !== undefined)
     .map(toCalendarEvent);
   
   return {
-    // Data - 日历事件（有时间属性的 tasks）
+    // Data - calendar events (tasks with time properties)
     events: calendarEvents,
     groups: store.data.groups,
     loaded: store.loaded,
@@ -101,7 +101,7 @@ export function useCalendarStore() {
     closeEditingEvent: store.closeEditingEvent,
     setTimezone: store.setTimezone,
     
-    // Task 操作（日历事件本质上就是 task）
+    // Task operations (calendar events are essentially tasks)
     toggleTask: store.toggleTask,
     updateTaskColor: store.updateTaskColor,
   };

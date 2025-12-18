@@ -1,24 +1,24 @@
 import { create } from 'zustand';
 import type { StoreTask } from './types';
 
-// 撤销操作类型
+// Undo action type
 type UndoAction = {
   type: 'delete-task';
-  tasks: StoreTask[]; // 被删除的任务及其子任务
+  tasks: StoreTask[]; // Deleted tasks and their subtasks
   groupId: string;
 };
 
 interface UndoStore {
-  // 撤销栈，最多保存 20 个操作
+  // Undo stack, stores up to 20 operations
   history: UndoAction[];
   
-  // 添加一个可撤销的操作
+  // Add an undoable operation
   pushUndo: (action: UndoAction) => void;
   
-  // 弹出最近的操作（用于撤销）
+  // Pop the most recent operation (for undo)
   popUndo: () => UndoAction | null;
   
-  // 清空历史
+  // Clear history
   clearHistory: () => void;
 }
 

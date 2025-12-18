@@ -1,5 +1,5 @@
 /**
- * 日历键盘快捷键 Hook
+ * Calendar Keyboard Shortcuts Hook
  */
 
 import { useEffect } from 'react';
@@ -10,20 +10,20 @@ export function useCalendarKeyboard() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 如果正在编辑（输入框聚焦），不处理快捷键
+      // If editing (input focused), don't handle shortcuts
       const activeElement = document.activeElement;
       if (activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA') {
         return;
       }
 
-      // Ctrl+Z / Cmd+Z 撤销
+      // Ctrl+Z / Cmd+Z undo
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
         return;
       }
 
-      // Backspace 或 Delete 删除选中的事件
+      // Backspace or Delete to delete selected event
       if ((e.key === 'Backspace' || e.key === 'Delete') && selectedEventId) {
         e.preventDefault();
         deleteEvent(selectedEventId);
@@ -31,7 +31,7 @@ export function useCalendarKeyboard() {
         return;
       }
 
-      // Escape 取消选中
+      // Escape to deselect
       if (e.key === 'Escape' && selectedEventId) {
         setSelectedEventId(null);
         return;

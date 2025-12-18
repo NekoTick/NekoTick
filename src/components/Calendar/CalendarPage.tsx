@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { format, startOfWeek, addDays, startOfDay, addMinutes } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+
 import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, DragEndEvent } from '@dnd-kit/core';
 
 import { CalendarLayout } from './layout/CalendarLayout';
@@ -168,7 +168,7 @@ export function CalendarPage() {
               style={{ zIndex: 100 }}
             >
               <h2 className="text-lg font-semibold tracking-tight">
-                {format(selectedDate, 'yyyy年M月', { locale: zhCN })}
+                {format(selectedDate, 'MMMM yyyy')}
               </h2>
               <ViewSwitcher />
             </div>

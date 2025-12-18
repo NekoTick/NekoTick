@@ -64,14 +64,14 @@ function useActivityData(): ActivityData[] {
 export function ActivityHeatmap() {
   const data = useActivityData();
   
-  // 使用 useMemo 缓存统计计算，避免每次渲染都重新计算
+  // Use useMemo to cache statistics calculation, avoid recalculating on every render
   const { totalCompleted, currentStreak } = useMemo(() => {
     const total = data.reduce((sum, d) => sum + d.count, 0);
     
     // Find streak
     let streak = 0;
     for (let i = 0; i < data.length; i++) {
-      const dayData = data[data.length - 1 - i]; // 从最近的日期开始
+      const dayData = data[data.length - 1 - i]; // Start from the most recent date
       if (dayData.count > 0) {
         streak++;
       } else if (i > 0) {

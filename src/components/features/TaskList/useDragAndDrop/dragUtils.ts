@@ -1,6 +1,6 @@
 import { Task, ItemColor } from '@/stores/useGroupStore';
 
-// 颜色排序：red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
+// Color sorting: red (0) > yellow (1) > purple (2) > green (3) > blue (4) > default (5)
 export const colorOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
 
 export const findTargetTaskByMouse = (mouseY: number, activeId: string, tasks: Task[]): Task | undefined => {
