@@ -17,7 +17,7 @@ import type { ItemColor } from '@/stores/types';
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
-// 颜色优先级映射：与 eventLayout.ts 保持一致
+// Color priority mapping: consistent with eventLayout.ts
 const COLOR_PRIORITY: Record<ItemColor, number> = {
   red: 0,
   yellow: 1,
@@ -28,17 +28,17 @@ const COLOR_PRIORITY: Record<ItemColor, number> = {
 };
 
 /**
- * 按完成状态和颜色优先级排序事件
- * 未完成的排在前面，已完成的排在后面
+ * Sort events by completion status and color priority
+ * Incomplete events come first, completed events come last
  */
 function sortEventsByPriority(events: CalendarDisplayItem[]): CalendarDisplayItem[] {
   return [...events].sort((a, b) => {
-    // 首先按完成状态排序：未完成的排在前面
+    // First sort by completion status: incomplete first
     const completedA = a.completed ? 1 : 0;
     const completedB = b.completed ? 1 : 0;
     if (completedA !== completedB) return completedA - completedB;
 
-    // 然后按颜色优先级排序
+    // Then sort by color priority
     const colorPriorityA = COLOR_PRIORITY[a.color || 'default'] ?? COLOR_PRIORITY.default;
     const colorPriorityB = COLOR_PRIORITY[b.color || 'default'] ?? COLOR_PRIORITY.default;
     if (colorPriorityA !== colorPriorityB) return colorPriorityA - colorPriorityB;
