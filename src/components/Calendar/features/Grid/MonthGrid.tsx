@@ -1,4 +1,4 @@
-import { } from 'react';
+import { useMemo } from 'react';
 import {
   format,
   startOfMonth,
@@ -12,9 +12,40 @@ import {
 } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { useCalendarStore } from '@/stores/useCalendarStore';
-import { useCalendarEvents } from '../../hooks/useCalendarEvents';
+import { useCalendarEvents, type CalendarDisplayItem } from '../../hooks/useCalendarEvents';
+import type { ItemColor } from '@/stores/types';
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+// 颜色优先级映射：与 eventLayout.ts 保持一致
+const COLOR_PRIORITY: Record<ItemColor, number> = {
+  red: 0,
+  yellow: 1,
+  purple: 2,
+  green: 3,
+  blue: 4,
+  default: 5,
+};
+
+/**
+ * 按完成状态和颜色优先级排序事件
+ * 未完成的排在前面，已完成的排在后面
+ */
+function sortEventsByPriority(events: CalendarDisplayItem[]): CalendarDisplayItem[] {
+  return [...events].sort((a, b) => {
+    // 首先按完成状态排序：未完成的排在前面
+    const completedA = a.completed ? 1 : 0;
+    const completedB = b.completed ? 1 : 0;
+    if (completedA !== completedB) return completedA - completedB;
+
+    // 然后按颜色优先级排序
+    const colorPriorityA = COLOR_PRIORITY[a.color || 'default'] ?? COLOR_PRIORITY.default;
+    const colorPriorityB = COLOR_PRIORITY[b.color || 'default'] ?? COLOR_PRIORITY.default;
+    if (colorPriorityA !== colorPriorityB) return colorPriorityA - colorPriorityB;
+
+    return a.startDate - b.startDate;
+  });
+}
 
 export function MonthGrid() {
   const { selectedDate, setSelectedDate } = useCalendarStore();
@@ -41,10 +72,13 @@ export function MonthGrid() {
     weeks.push(days.slice(i, i + 7));
   }
 
-  // Get events for a specific day
-  const getEventsForDay = (date: Date) => {
-    return displayItems.filter((item) => isSameDay(new Date(item.startDate), date));
-  };
+  // Get events for a specific day, sorted by completion status and color priority
+  const getEventsForDay = useMemo(() => {
+    return (date: Date) => {
+      const dayEvents = displayItems.filter((item) => isSameDay(new Date(item.startDate), date));
+      return sortEventsByPriority(dayEvents);
+    };
+  }, [displayItems]);
 
   const handleDayClick = (date: Date) => {
     setSelectedDate(date);

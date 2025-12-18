@@ -313,11 +313,12 @@ export function DayGrid() {
                   const actualEndMin = Math.max(dragStart!.time, dragEnd!.time);
                   const dayDate = days[dragStart!.dayIndex];
                   
-                  // 创建虚拟事件
+                  // 创建虚拟事件（默认蓝色，新事件的默认颜色）
                   const ghostEvent = {
                     id: '__ghost__',
                     startDate: addMinutes(startOfDay(dayDate), actualStartMin).getTime(),
                     endDate: addMinutes(startOfDay(dayDate), actualEndMin).getTime(),
+                    color: 'blue' as const,
                   };
                   
                   // 将虚拟事件加入布局计算
