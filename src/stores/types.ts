@@ -20,3 +20,28 @@ export const ITEM_COLORS: Record<ItemColor, string> = {
   blue: '#3b82f6',
   default: '#d4d4d8',
 } as const;
+
+// Alias for backward compatibility
+export const PRIORITY_COLORS = ITEM_COLORS;
+
+// StoreTask type for archive components
+export interface StoreTask {
+  id: string;
+  content: string;
+  completed: boolean;
+  createdAt: number;
+  completedAt?: number;
+  order: number;
+  groupId: string;
+  parentId: string | null;
+  collapsed: boolean;
+  color: ItemColor;
+  estimatedMinutes?: number;
+  actualMinutes?: number;
+  startDate?: number;
+  endDate?: number;
+  isAllDay?: boolean;
+}
+
+// Archive time view type
+export type ArchiveTimeView = 'day' | 'week' | 'month';

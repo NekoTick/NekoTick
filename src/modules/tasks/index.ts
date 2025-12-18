@@ -13,12 +13,12 @@ export { useGroupStore, useUIStore } from './stores';
 // 类型
 export type {
   Group,
-  Priority,
+  ItemColor,
   StoreTask,
   ArchiveTimeView,
   SortOption,
 } from './types';
-export { PRIORITY_COLORS } from './types';
+export { PRIORITY_COLORS, ITEM_COLORS } from './types';
 
 // 组件
 export {

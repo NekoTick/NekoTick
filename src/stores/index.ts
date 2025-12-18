@@ -7,7 +7,7 @@
 
 // Main unified store
 export { useUnifiedStore, useStore } from './useUnifiedStore';
-export type { Priority, ViewMode } from './useUnifiedStore';
+export type { ViewMode } from './useUnifiedStore';
 
 // Compatibility wrappers
 export { useGroupStore, useUIStore } from './useGroupStore';
@@ -20,8 +20,8 @@ export { useToastStore } from './useToastStore';
 export { useUndoStore } from './useUndoStore';
 
 // Types
-export type { Group, StoreTask, ArchiveTimeView } from './types';
-export { PRIORITY_COLORS } from './types';
+export type { Group, StoreTask, ArchiveTimeView, ItemColor } from './types';
+export { PRIORITY_COLORS, ITEM_COLORS } from './types';
 
 // Utilities
 export { parseTimeString, parseTimeEstimation } from './timeParser';

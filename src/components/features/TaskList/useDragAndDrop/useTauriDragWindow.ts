@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { StoreTask } from '@/stores/useGroupStore';
+import type { StoreTask } from '@/stores/types';
 
 export function useTauriDragWindow() {
   const createDragWindow = async (task: StoreTask, pointerEvent: PointerEvent, allTasks: StoreTask[]) => {
@@ -31,7 +31,7 @@ export function useTauriDragWindow() {
         height: height,
         isDone: task.completed,
         isDark: isDarkMode,
-        priority: task.priority || 'default',
+        priority: task.color || 'default',
       });
     } catch (e) {
       console.error('Failed to create drag window:', e);

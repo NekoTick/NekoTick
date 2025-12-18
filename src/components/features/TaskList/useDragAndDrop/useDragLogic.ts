@@ -20,7 +20,7 @@ import {
   findTargetTaskByMouse, 
   determineParentTask, 
   isTaskDescendant, 
-  calculatePriorityToInherit 
+  calculateColorToInherit 
 } from './dragUtils';
 
 export function useDragLogic({
@@ -29,9 +29,8 @@ export function useDragLogic({
   groups,
   toggleCollapse,
   reorderTasks,
-  crossStatusReorder,
   moveTaskToGroup,
-  updateTaskPriority,
+  updateTaskColor,
   setDraggingTaskId,
 }: UseDragAndDropOptions) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -150,16 +149,13 @@ export function useDragLogic({
       const targetTask = tasks.find(t => t.id === over.id);
       
       if (draggedTask && targetTask) {
-        if (draggedTask.completed !== targetTask.completed) {
-          crossStatusReorder(taskId, over.id as string);
-        } else {
-          reorderTasks(taskId, over.id as string);
-        }
+        // Same status reorder
+        reorderTasks(taskId, over.id as string);
         
-        // Priority Inheritance
-        const priority = calculatePriorityToInherit(draggedTask, targetTask, activeGroupId, tasks, over.id as string);
-        if (priority && priority !== draggedTask.priority) {
-          updateTaskPriority(taskId, priority);
+        // Color Inheritance
+        const color = calculateColorToInherit(draggedTask, targetTask, activeGroupId, tasks, over.id as string);
+        if (color && color !== draggedTask.color) {
+          updateTaskColor(taskId, color);
         }
       }
     }
@@ -177,7 +173,7 @@ export function useDragLogic({
 
   }, [
     tasks, groups, activeGroupId, dragIndent,
-    toggleCollapse, moveTaskToGroup, reorderTasks, crossStatusReorder, updateTaskPriority, setDraggingTaskId, destroyDragWindow
+    toggleCollapse, moveTaskToGroup, reorderTasks, updateTaskColor, setDraggingTaskId, destroyDragWindow
   ]);
 
   return {

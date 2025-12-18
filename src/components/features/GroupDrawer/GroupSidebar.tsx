@@ -200,12 +200,8 @@ export function GroupSidebar() {
     setEditingName('');
   }, []);
 
-  const handleSelectGroup = useCallback(async (groupId: string) => {
-    try {
-      await setActiveGroup(groupId);
-    } catch (error) {
-      console.error('Failed to switch group:', error);
-    }
+  const handleSelectGroup = useCallback((groupId: string) => {
+    setActiveGroup(groupId);
   }, [setActiveGroup]);
 
   const handleTaskDrop = useCallback(async (targetGroupId: string) => {

@@ -28,7 +28,7 @@ export function CalendarPage() {
     hourHeight, setHourHeight, selectedEventId, setSelectedEventId, 
     deleteEvent, undo, editingEventId, editingEventPosition, closeEditingEvent, events
   } = useCalendarStore();
-  const { updateTaskSchedule, updateTaskEstimation } = useGroupStore();
+  const { updateTaskTime, updateTaskEstimation } = useGroupStore();
   const [activeDragItem, setActiveDragItem] = useState<any>(null);
   
   const hourHeightRef = useRef(hourHeight);
@@ -246,13 +246,14 @@ export function CalendarPage() {
       const task = active.data.current?.task;
 
       if (task) {
-        updateTaskSchedule(task.id, startDate.getTime().toString());
+        const endDate = addMinutes(startDate, task.estimatedMinutes || 60);
+        updateTaskTime(task.id, startDate.getTime(), endDate.getTime());
         // Only update estimation if it was default/fallback, otherwise keep original or update if needed
         // For simplicity, we just ensure schedule is set. Estimation update is optional here.
         if (!task.estimatedMinutes) {
            updateTaskEstimation(task.id, 60);
         }
-        console.log('[Calendar] Scheduled Task:', task.title, 'at', startDate);
+        console.log('[Calendar] Scheduled Task:', task.content, 'at', startDate);
       } else {
         const endDate = addMinutes(startDate, 60);
         addEvent({

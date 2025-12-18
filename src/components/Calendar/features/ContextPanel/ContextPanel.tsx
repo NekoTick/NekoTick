@@ -42,8 +42,8 @@ export function ContextPanel() {
   // 按颜色优先级排序：红 > 黄 > 紫 > 绿 > 蓝 > 默认
   const priorityOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
   const sortedTasks = [...unscheduledTasks].sort((a, b) => {
-    const aPriority = priorityOrder[a.priority || 'default'];
-    const bPriority = priorityOrder[b.priority || 'default'];
+    const aPriority = priorityOrder[a.color || 'default'];
+    const bPriority = priorityOrder[b.color || 'default'];
     if (aPriority !== bPriority) return aPriority - bPriority;
     return a.createdAt - b.createdAt;
   });
@@ -131,8 +131,8 @@ function DraggableTaskCard({ task }: { task: any }) {
     zIndex: 9999,
   } : undefined;
 
-  const priorityColor = PRIORITY_COLORS[task.priority as keyof typeof PRIORITY_COLORS] || PRIORITY_COLORS.default;
-  const hasPriority = task.priority && task.priority !== 'default';
+  const priorityColor = PRIORITY_COLORS[task.color as keyof typeof PRIORITY_COLORS] || PRIORITY_COLORS.default;
+  const hasPriority = task.color && task.color !== 'default';
 
   return (
     <motion.div

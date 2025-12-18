@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { useGroupStore, useUIStore } from '@/stores/useGroupStore';
+import { useUnifiedStore } from '@/stores/useUnifiedStore';
 import { invoke } from '@tauri-apps/api/core';
 import { getShortcutKeys, type ShortcutId } from '@/lib/shortcuts';
 
 export function useShortcuts() {
-  const { activeGroupId, archiveCompletedTasks, setActiveGroup, undoLastAction } = useGroupStore();
+  const { activeGroupId, archiveCompletedTasks, setActiveGroup } = useGroupStore();
+  const undoLastAction = useUnifiedStore(state => state.undo);
   const { toggleDrawer } = useUIStore();
 
   useEffect(() => {

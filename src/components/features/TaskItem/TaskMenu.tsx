@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from 'react';
 import { Trash2, Plus, Archive, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useGroupStore, parseTimeString } from '@/stores/useGroupStore';
+import { useGroupStore } from '@/stores/useGroupStore';
+import { parseTimeString } from '@/stores/timeParser';
 import { Task } from '@/types';
 import { formatEstimatedTimeForInput } from './utils';
 
@@ -71,7 +72,7 @@ export function TaskMenu({ task, showMenu, setShowMenu, onDelete, onAddSubTask, 
                     }}
                     className={cn(
                       "w-5 h-5 rounded-sm border-2 transition-all hover:scale-110",
-                      task.priority === color || (!task.priority && color === 'default')
+                      task.color === color || (!task.color && color === 'default')
                         ? "ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1"
                         : ""
                     )}

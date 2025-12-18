@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 interface UseCrossGroupDragOptions {
   activeGroupId: string | null;
   draggingTaskId: string | null;
-  onSwitchGroup: (groupId: string) => Promise<void>;
+  onSwitchGroup: (groupId: string) => void;
   hoverDelay?: number;
 }
 
@@ -83,13 +83,9 @@ export function useCrossGroupDrag({
     
     setHoveringGroupId(groupId);
     
-    hoverTimeoutRef.current = setTimeout(async () => {
+    hoverTimeoutRef.current = setTimeout(() => {
       if (draggingTaskId) {
-        try {
-          await onSwitchGroup(groupId);
-        } catch (error) {
-          console.error('Failed to switch group:', error);
-        }
+        onSwitchGroup(groupId);
       }
     }, hoverDelay);
   }, [draggingTaskId, activeGroupId, onSwitchGroup, hoverDelay]);
