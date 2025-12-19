@@ -6,7 +6,7 @@ import { SettingsModal } from '@/components/features/Settings';
 import { GroupSidebar } from '@/components/features/GroupDrawer';
 import { TimeTrackerPage } from '@/components/TimeTracker';
 import { ProgressPage } from '@/components/Progress';
-import { CalendarPage, CalendarToolbar } from '@/components/Calendar';
+import { CalendarPage, CalendarToolbar, CalendarContextPanel, CalendarSidebar } from '@/components/Calendar';
 import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -23,7 +23,7 @@ function AppContent() {
   const { currentView } = useViewStore();
   const { activeGroupId, deleteGroup, groups, tasks, loadData, loaded } = useGroupStore();
   const { hideCompleted, setHideCompleted, hideActualTime, setHideActualTime, selectedColors, toggleColor, toggleAllColors } = useUIStore();
-  const { showContextPanel } = useCalendarStore();
+  const { showContextPanel, showSidebar: showCalendarSidebar } = useCalendarStore();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -138,7 +138,14 @@ function AppContent() {
 
       {/* Calendar Page */}
       {currentView === 'calendar' && (
-        <Layout onOpenSettings={() => setSettingsOpen(true)} toolbar={<CalendarToolbar />} showRightPanelDivider={showContextPanel}>
+        <Layout 
+          onOpenSettings={() => setSettingsOpen(true)} 
+          toolbar={<CalendarToolbar />}
+          leftPanel={<CalendarSidebar />}
+          showLeftPanel={showCalendarSidebar}
+          rightPanel={<CalendarContextPanel />}
+          showRightPanel={showContextPanel}
+        >
           <CalendarPage />
         </Layout>
       )}

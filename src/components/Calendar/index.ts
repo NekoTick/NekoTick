@@ -1,6 +1,9 @@
 // Calendar module exports
 export { CalendarPage } from './CalendarPage';
 export { ViewSwitcher as CalendarToolbar } from './features/ViewSwitcher';
+export { ContextPanel as CalendarContextPanel } from './features/ContextPanel/ContextPanel';
+// CalendarSidebar wrapper with proper padding
+export { CalendarSidebarWrapper as CalendarSidebar } from './features/Sidebar/CalendarSidebarWrapper';
 
 // Hooks
 export { useCalendarEvents } from './hooks/useCalendarEvents';

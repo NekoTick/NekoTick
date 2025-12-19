@@ -9,9 +9,11 @@ const appWindow = getCurrentWindow();
 interface TitleBarProps {
   onOpenSettings?: () => void;
   toolbar?: ReactNode;
+  /** When true, toolbar is aligned to right edge (for calendar with right panel) */
+  toolbarAlignRight?: boolean;
 }
 
-export function TitleBar({ onOpenSettings, toolbar }: TitleBarProps) {
+export function TitleBar({ onOpenSettings, toolbar, toolbarAlignRight }: TitleBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPinned, setMenuPinned] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
@@ -50,7 +52,7 @@ export function TitleBar({ onOpenSettings, toolbar }: TitleBarProps) {
   };
 
   return (
-    <div className="h-9 bg-white dark:bg-zinc-900 flex items-center justify-between select-none relative">
+    <div className="h-9 bg-white dark:bg-zinc-900 flex items-center justify-between select-none">
       {/* Left: Menu Button + Expandable Menu */}
       <div 
         ref={menuRef}
@@ -174,15 +176,15 @@ export function TitleBar({ onOpenSettings, toolbar }: TitleBarProps) {
         className="flex-1 h-full cursor-default"
       />
 
-      {/* Custom Toolbar (e.g., Calendar controls) */}
+      {/* Custom Toolbar (e.g., Calendar controls) - aligned to right edge when toolbarAlignRight */}
       {toolbar && (
-        <div className="flex items-center h-full pr-3">
+        <div className={`flex items-center h-full ${toolbarAlignRight ? 'pr-3 ml-auto' : 'pr-3'}`}>
           {toolbar}
         </div>
       )}
 
-      {/* Window Controls */}
-      <div className="flex h-full shrink-0">
+      {/* Window Controls - fixed position at window right edge */}
+      <div className={`flex shrink-0 ${toolbarAlignRight ? 'fixed right-0 top-0 h-9 z-50 bg-white dark:bg-zinc-900' : 'h-full'}`}>
         <button
           onClick={togglePin}
           className="h-full w-12 flex items-center justify-center hover:bg-zinc-100 transition-colors"

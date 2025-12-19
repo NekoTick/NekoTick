@@ -16,8 +16,6 @@ import { CalendarLayout } from './layout/CalendarLayout';
 import { TimeGrid } from './features/Grid/TimeGrid';
 import { DayGrid } from './features/Grid/DayGrid';
 import { MonthGrid } from './features/Grid/MonthGrid';
-import { MiniCalendar } from './features/Sidebar/MiniCalendar';
-import { ContextPanel } from './features/ContextPanel/ContextPanel';
 import { EventEditForm } from './features/ContextPanel/EventEditForm';
 
 import { useCalendarStore } from '@/stores/useCalendarStore';
@@ -31,7 +29,7 @@ const SNAP_MINUTES = 15;
 
 export function CalendarPage() {
   const {
-    load, selectedDate, addEvent, viewMode, showSidebar, showContextPanel,
+    load, selectedDate, addEvent, viewMode, showContextPanel,
     hourHeight, editingEventId, editingEventPosition, closeEditingEvent, events
   } = useCalendarStore();
   const { updateTaskTime, updateTaskEstimation } = useGroupStore();
@@ -153,11 +151,6 @@ export function CalendarPage() {
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <CalendarLayout
-        sidebar={
-          <div className="p-4">
-            <MiniCalendar />
-          </div>
-        }
         main={
           <div className="flex h-full flex-col">
             {/* Grid */}
@@ -166,9 +159,6 @@ export function CalendarPage() {
             </div>
           </div>
         }
-        contextPanel={<ContextPanel />}
-        showSidebar={showSidebar}
-        showContextPanel={showContextPanel}
       />
 
       {/* Drag preview */}

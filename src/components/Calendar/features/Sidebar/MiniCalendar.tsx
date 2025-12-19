@@ -33,7 +33,7 @@ export function MiniCalendar() {
       <div className="select-none">
         {/* Month/Year and Navigation */}
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] text-zinc-400 dark:text-zinc-500">
+          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {format(currentMonth, 'MMM yyyy')}
           </span>
           <div className="flex gap-0">
