@@ -10,7 +10,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Maximize2, Minimize2, ChevronDown, Check,
-  Archive, Search, X
+  Archive, Search, X, MoreHorizontal
 } from 'lucide-react';
 import { DndContext } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -50,6 +50,8 @@ export function CalendarTaskPanel({
     toggleCollapse,
     moveTaskToGroup,
     updateTaskColor,
+    archiveCompletedTasks,
+    deleteCompletedTasks,
   } = useGroupStore();
 
   const {
@@ -65,11 +67,13 @@ export function CalendarTaskPanel({
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [completedExpanded, setCompletedExpanded] = useState(false);
+  const [showCompletedMenu, setShowCompletedMenu] = useState(false);
   const [addingSubTaskFor, setAddingSubTaskFor] = useState<string | null>(null);
   const [subTaskContent, setSubTaskContent] = useState('');
 
   const groupPickerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const completedMenuRef = useRef<HTMLDivElement>(null);
 
   // 当前分组
   const currentGroup = groups.find(g => g.id === activeGroupId) || groups[0];
@@ -164,6 +168,9 @@ export function CalendarTaskPanel({
       
       if (groupPickerRef.current && !groupPickerRef.current.contains(target)) {
         setShowGroupPicker(false);
+      }
+      if (completedMenuRef.current && !completedMenuRef.current.contains(target)) {
+        setShowCompletedMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -423,19 +430,67 @@ export function CalendarTaskPanel({
           {/* 已完成任务 */}
           {completedTasks.length > 0 && (
             <>
-              <button
-                onClick={() => setCompletedExpanded(!completedExpanded)}
-                className="flex items-center gap-2 w-full mt-4 mb-2 group"
-              >
-                <ChevronDown className={cn(
-                  "size-3.5 text-zinc-400 transition-transform",
-                  !completedExpanded && "-rotate-90"
-                )} />
-                <span className="text-xs text-zinc-400">
-                  Completed ({completedTasks.length})
-                </span>
+              <div className="flex items-center gap-2 w-full mt-4 mb-2">
+                <button
+                  onClick={() => setCompletedExpanded(!completedExpanded)}
+                  className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
+                >
+                  <ChevronDown className={cn(
+                    "size-3.5 text-zinc-400 transition-transform",
+                    !completedExpanded && "-rotate-90"
+                  )} />
+                  <span className="text-xs text-zinc-400">
+                    Completed ({completedTasks.length})
+                  </span>
+                </button>
                 <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-              </button>
+                
+                {/* 已完成菜单 - 非归档视图 */}
+                {activeGroupId !== '__archive__' && (
+                  <div className="relative" ref={completedMenuRef}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowCompletedMenu(!showCompletedMenu);
+                      }}
+                      className={cn(
+                        "p-1 rounded-md transition-colors",
+                        showCompletedMenu 
+                          ? "text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800" 
+                          : "text-zinc-300 hover:text-zinc-400 dark:text-zinc-600 dark:hover:text-zinc-500"
+                      )}
+                    >
+                      <MoreHorizontal className="size-3.5" />
+                    </button>
+                    {showCompletedMenu && (
+                      <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                        <button
+                          onClick={() => {
+                            if (activeGroupId) {
+                              archiveCompletedTasks(activeGroupId);
+                            }
+                            setShowCompletedMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        >
+                          Archive All
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (activeGroupId) {
+                              deleteCompletedTasks(activeGroupId);
+                            }
+                            setShowCompletedMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                        >
+                          Delete All
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <AnimatePresence>
                 {completedExpanded && (
