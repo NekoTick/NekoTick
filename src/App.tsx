@@ -6,7 +6,7 @@ import { SettingsModal } from '@/components/features/Settings';
 import { GroupSidebar } from '@/components/features/GroupDrawer';
 import { TimeTrackerPage } from '@/components/TimeTracker';
 import { ProgressPage } from '@/components/Progress';
-import { CalendarPage, CalendarToolbar, CalendarContextPanel, CalendarSidebar } from '@/components/Calendar';
+import { CalendarPage, CalendarToolbar, CalendarContextPanel, CalendarSidebar, CalendarTaskPanel } from '@/components/Calendar';
 import { Layout } from '@/components/layout';
 import { ThemeProvider } from '@/components/theme-provider';
 import { ToastContainer } from '@/components/ui/Toast';
@@ -143,7 +143,7 @@ function AppContent() {
           toolbar={<CalendarToolbar />}
           leftPanel={<CalendarSidebar />}
           showLeftPanel={showCalendarSidebar}
-          rightPanel={<CalendarContextPanel />}
+          rightPanel={<CalendarTaskPanel />}
           showRightPanel={showContextPanel}
         >
           <CalendarPage />

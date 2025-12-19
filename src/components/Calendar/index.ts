@@ -4,6 +4,8 @@ export { ViewSwitcher as CalendarToolbar } from './features/ViewSwitcher';
 export { ContextPanel as CalendarContextPanel } from './features/ContextPanel/ContextPanel';
 // CalendarSidebar wrapper with proper padding
 export { CalendarSidebarWrapper as CalendarSidebar } from './features/Sidebar/CalendarSidebarWrapper';
+// Task panel for right sidebar
+export { CalendarTaskPanel } from './features/TaskPanel';
 
 // Hooks
 export { useCalendarEvents } from './hooks/useCalendarEvents';
