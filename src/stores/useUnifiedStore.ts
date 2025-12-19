@@ -120,6 +120,7 @@ interface UnifiedStore {
   toggleSidebar: () => void;
   toggleContextPanel: () => void;
   setSelectedDate: (date: Date) => void;
+  toggle24Hour: () => void;
 }
 
 // Helper: Get today's date key
@@ -139,7 +140,7 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
     tasks: [],
     progress: [],
     archive: [],
-    settings: { timezone: 8, viewMode: 'week', dayCount: 1, hourHeight: 64 },
+    settings: { timezone: 8, viewMode: 'week', dayCount: 1, hourHeight: 64, use24Hour: false },
   },
   loaded: false,
   activeGroupId: 'default',
@@ -808,6 +809,17 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => ({
   toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
   toggleContextPanel: () => set((state) => ({ showContextPanel: !state.showContextPanel })),
   setSelectedDate: (date) => set({ selectedDate: date }),
+  
+  toggle24Hour: () => {
+    set((state) => {
+      const newData = {
+        ...state.data,
+        settings: { ...state.data.settings, use24Hour: !state.data.settings.use24Hour },
+      };
+      persist(newData);
+      return { data: newData };
+    });
+  },
   
   // Undo last action
   undo: () => {

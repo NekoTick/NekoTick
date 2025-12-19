@@ -108,6 +108,7 @@ export interface UnifiedData {
     viewMode: 'day' | 'week' | 'month';
     dayCount: number;
     hourHeight?: number;
+    use24Hour?: boolean;
   };
 }
 

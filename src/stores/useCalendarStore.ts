@@ -81,6 +81,7 @@ export function useCalendarStore() {
     selectedEventId: store.selectedEventId,
     timezone: store.data.settings.timezone,
     hourHeight: store.data.settings.hourHeight ?? 64,
+    use24Hour: store.data.settings.use24Hour ?? false,
     
     // Actions
     load: store.load,
@@ -99,6 +100,7 @@ export function useCalendarStore() {
     setSelectedEventId: store.setSelectedEventId,
     closeEditingEvent: store.closeEditingEvent,
     setTimezone: store.setTimezone,
+    toggle24Hour: store.toggle24Hour,
     
     // Task operations (calendar events are essentially tasks)
     toggleTask: store.toggleTask,

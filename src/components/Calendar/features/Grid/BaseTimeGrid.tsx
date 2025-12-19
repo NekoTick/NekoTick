@@ -28,7 +28,8 @@ interface BaseTimeGridProps {
 export function BaseTimeGrid({ days }: BaseTimeGridProps) {
   const { 
     addEvent, setEditingEventId, closeEditingEvent, 
-    timezone, setTimezone, hourHeight, updateEvent 
+    timezone, setTimezone, hourHeight, updateEvent,
+    use24Hour, toggle24Hour
   } = useCalendarStore();
   const { toggleTask } = useGroupStore();
   const displayItems = useCalendarEvents();
@@ -245,36 +246,45 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
     <div className="flex flex-col h-full bg-white dark:bg-zinc-950 select-none relative">
       {/* Header */}
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-zinc-100 dark:border-zinc-800/50">
-        {/* Timezone */}
-        {isEditingTimezone ? (
-          <div className="flex items-center">
-            <span className="text-zinc-400 text-[10px]">GMT</span>
-            <input
-              ref={timezoneInputRef}
-              type="text"
-              value={timezoneInput}
-              onChange={(e) => setTimezoneInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleTimezoneSubmit();
-                else if (e.key === 'Escape') setIsEditingTimezone(false);
+        {/* Timezone & Time Format */}
+        <div className="flex items-center gap-2">
+          {isEditingTimezone ? (
+            <div className="flex items-center">
+              <span className="text-zinc-400 text-[10px]">GMT</span>
+              <input
+                ref={timezoneInputRef}
+                type="text"
+                value={timezoneInput}
+                onChange={(e) => setTimezoneInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleTimezoneSubmit();
+                  else if (e.key === 'Escape') setIsEditingTimezone(false);
+                }}
+                onBlur={handleTimezoneSubmit}
+                className="w-6 text-[10px] text-zinc-400 bg-transparent border-b border-zinc-300 dark:border-zinc-600 outline-none text-center"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setTimezoneInput(timezone >= 0 ? `+${timezone}` : `${timezone}`);
+                setIsEditingTimezone(true);
+                setTimeout(() => timezoneInputRef.current?.select(), 0);
               }}
-              onBlur={handleTimezoneSubmit}
-              className="w-6 text-[10px] text-zinc-400 bg-transparent border-b border-zinc-300 dark:border-zinc-600 outline-none text-center"
-              autoFocus
-            />
-          </div>
-        ) : (
+              className="text-zinc-400 text-[10px] hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              GMT{timezone >= 0 ? `+${timezone}` : timezone}
+            </button>
+          )}
           <button
-            onClick={() => {
-              setTimezoneInput(timezone >= 0 ? `+${timezone}` : `${timezone}`);
-              setIsEditingTimezone(true);
-              setTimeout(() => timezoneInputRef.current?.select(), 0);
-            }}
+            onClick={toggle24Hour}
             className="text-zinc-400 text-[10px] hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            title={use24Hour ? 'Switch to 12-hour format' : 'Switch to 24-hour format'}
           >
-            GMT{timezone >= 0 ? `+${timezone}` : timezone}
+            {use24Hour ? '24h' : '12h'}
           </button>
-        )}
+        </div>
 
         {/* Date header */}
         <div className="flex-1 flex justify-center">
@@ -302,7 +312,10 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
               <div key={hour} style={{ height: hourHeight }} className="relative">
                 {hour !== 0 && (
                   <span className="absolute -top-2 right-3 text-[11px] text-zinc-400 dark:text-zinc-500 font-medium tabular-nums">
-                    {hour < 12 ? `${hour}AM` : hour === 12 ? '12PM' : `${hour - 12}PM`}
+                    {use24Hour 
+                      ? `${hour}:00`
+                      : hour < 12 ? `${hour || 12}AM` : hour === 12 ? '12PM' : `${hour - 12}PM`
+                    }
                   </span>
                 )}
               </div>
@@ -343,7 +356,7 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
               <div style={{ top: nowTop }} className="absolute left-0 right-0 z-20 flex items-center pointer-events-none">
                 <div className="absolute flex items-center" style={{ left: -GUTTER_WIDTH }}>
                   <span className="bg-red-500 text-white text-[11px] font-medium px-1.5 py-0.5 rounded">
-                    {format(now, 'h:mma').toUpperCase()}
+                    {use24Hour ? format(now, 'H:mm') : format(now, 'h:mma').toUpperCase()}
                   </span>
                 </div>
                 <div className="h-[2px] w-full bg-red-500" />

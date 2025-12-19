@@ -6,12 +6,189 @@
  * 2. Floating (when the right panel is hidden)
  */
 
-import { useState, useEffect, useRef } from 'react';
-import { format } from 'date-fns';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { format, setHours, setMinutes } from 'date-fns';
 import { Clock, Folder, ChevronDown, X } from 'lucide-react';
 import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
 import { cn } from '@/lib/utils';
 import type { ItemColor } from '@/stores/types';
+
+// ============ Time Parsing ============
+
+/**
+ * Parse time string to hours and minutes
+ * Supports formats:
+ * - 24h: "14:30", "14：30", "1430", "14.30", "14-30"
+ * - 12h: "2:30pm", "2:30 PM", "2pm", "230pm"
+ * - Flexible separators: : ： . - (colon, Chinese colon, dot, dash)
+ */
+function parseTimeString(input: string): { hours: number; minutes: number } | null {
+  // Normalize input: trim, lowercase, replace common separators with colon
+  let normalized = input.trim().toLowerCase();
+  // Replace Chinese colon, dot, dash with standard colon
+  normalized = normalized.replace(/[：.。\-－]/g, ':');
+  // Remove extra spaces
+  normalized = normalized.replace(/\s+/g, ' ');
+  
+  // Try HH:MM format (24h or 12h)
+  const colonMatch = normalized.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
+  if (colonMatch) {
+    let hours = parseInt(colonMatch[1], 10);
+    const minutes = parseInt(colonMatch[2], 10);
+    const period = colonMatch[3];
+    
+    if (period === 'pm' && hours < 12) hours += 12;
+    if (period === 'am' && hours === 12) hours = 0;
+    
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      return { hours, minutes };
+    }
+  }
+  
+  // Try HHMM format (e.g., "1430" or "230", "230pm")
+  const numMatch = normalized.match(/^(\d{3,4})\s*(am|pm)?$/);
+  if (numMatch) {
+    const num = numMatch[1];
+    const period = numMatch[2];
+    let hours: number;
+    let minutes: number;
+    
+    if (num.length === 3) {
+      hours = parseInt(num[0], 10);
+      minutes = parseInt(num.slice(1), 10);
+    } else {
+      hours = parseInt(num.slice(0, 2), 10);
+      minutes = parseInt(num.slice(2), 10);
+    }
+    
+    if (period === 'pm' && hours < 12) hours += 12;
+    if (period === 'am' && hours === 12) hours = 0;
+    
+    if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+      return { hours, minutes };
+    }
+  }
+  
+  // Try H am/pm format (e.g., "2pm", "2 pm")
+  const simpleMatch = normalized.match(/^(\d{1,2})\s*(am|pm)$/);
+  if (simpleMatch) {
+    let hours = parseInt(simpleMatch[1], 10);
+    const period = simpleMatch[2];
+    
+    if (period === 'pm' && hours < 12) hours += 12;
+    if (period === 'am' && hours === 12) hours = 0;
+    
+    if (hours >= 0 && hours <= 23) {
+      return { hours, minutes: 0 };
+    }
+  }
+  
+  // Try plain hour (e.g., "14" -> 14:00, "9" -> 9:00)
+  const hourOnly = normalized.match(/^(\d{1,2})$/);
+  if (hourOnly) {
+    const hours = parseInt(hourOnly[1], 10);
+    if (hours >= 0 && hours <= 23) {
+      return { hours, minutes: 0 };
+    }
+  }
+  
+  return null;
+}
+
+// ============ Editable Time Component ============
+
+interface EditableTimeProps {
+  date: Date;
+  onChange: (newDate: Date) => void;
+  use24Hour?: boolean;
+}
+
+function EditableTime({ date, onChange, use24Hour = true }: EditableTimeProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const displayTime = use24Hour 
+    ? format(date, 'H:mm')
+    : format(date, 'h:mm a').toUpperCase();
+  
+  // 解析预览：显示用户输入被解析成什么，无效时显示当前时间
+  const parsedPreview = (() => {
+    const parsed = parseTimeString(inputValue);
+    const previewDate = parsed 
+      ? setMinutes(setHours(new Date(), parsed.hours), parsed.minutes)
+      : date;
+    const text = use24Hour 
+      ? format(previewDate, 'H:mm')
+      : format(previewDate, 'h:mm a').toUpperCase();
+    return { valid: !!parsed, text };
+  })();
+  
+  const handleStartEdit = () => {
+    // 根据用户设置显示对应格式，方便用户编辑
+    setInputValue(use24Hour ? format(date, 'H:mm') : format(date, 'h:mma').toLowerCase());
+    setIsEditing(true);
+  };
+  
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+  
+  // 实时预览：输入时立即更新事件
+  const handleInputChange = useCallback((value: string) => {
+    setInputValue(value);
+    const parsed = parseTimeString(value);
+    if (parsed) {
+      const newDate = setMinutes(setHours(date, parsed.hours), parsed.minutes);
+      onChange(newDate);
+    }
+  }, [date, onChange]);
+  
+  const handleBlur = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setIsEditing(false);
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+    }
+  };
+  
+  if (isEditing) {
+    return (
+      <div className="relative">
+        {/* 解析预览 */}
+        <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 text-[10px] rounded whitespace-nowrap bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+          {parsedPreview.text}
+        </div>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          className="w-16 px-1 py-0.5 text-sm bg-zinc-100 dark:bg-zinc-800 rounded outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-500 text-center"
+        />
+      </div>
+    );
+  }
+  
+  return (
+    <button
+      onClick={handleStartEdit}
+      className="px-1 py-0.5 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+    >
+      {displayTime}
+    </button>
+  );
+}
 
 // ============ Color Configuration ============
 
@@ -36,7 +213,7 @@ interface EventEditFormProps {
 // ============ Component ============
 
 export function EventEditForm({ event, mode = 'embedded', position }: EventEditFormProps) {
-  const { updateEvent, closeEditingEvent, groups } = useCalendarStore();
+  const { updateEvent, closeEditingEvent, groups, use24Hour } = useCalendarStore();
   const [content, setContent] = useState(event.content || '');
   const [showGroupPicker, setShowGroupPicker] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -197,12 +374,32 @@ export function EventEditForm({ event, mode = 'embedded', position }: EventEditF
       <div className={`flex-1 overflow-visible p-4 space-y-4 ${mode === 'floating' ? 'p-3 space-y-3' : ''}`}>
         {/* Time */}
         <div className="flex items-start gap-3">
-          <Clock className="size-4 text-zinc-400 mt-0.5" />
-          <div className="text-sm text-zinc-700 dark:text-zinc-300">
-            {format(startDate, 'h:mm a').toUpperCase()}
-            <span className="mx-2 text-zinc-400">→</span>
-            {format(endDate, 'h:mm a').toUpperCase()}
-            <span className="ml-2 text-zinc-400">{formatDuration()}</span>
+          <Clock className="size-4 text-zinc-400 mt-1" />
+          <div className="flex items-center text-sm">
+            <EditableTime
+              date={startDate}
+              use24Hour={use24Hour}
+              onChange={(newStart) => {
+                // Keep duration when changing start time
+                const newEnd = new Date(newStart.getTime() + durationMs);
+                updateEvent(event.id, { 
+                  startDate: newStart.getTime(),
+                  endDate: newEnd.getTime()
+                });
+              }}
+            />
+            <span className="mx-1 text-zinc-400">→</span>
+            <EditableTime
+              date={endDate}
+              use24Hour={use24Hour}
+              onChange={(newEnd) => {
+                // Only change end time, duration will change
+                if (newEnd.getTime() > event.startDate) {
+                  updateEvent(event.id, { endDate: newEnd.getTime() });
+                }
+              }}
+            />
+            <span className="ml-2 text-zinc-400 text-xs">{formatDuration()}</span>
           </div>
         </div>
 

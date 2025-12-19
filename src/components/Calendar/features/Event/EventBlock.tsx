@@ -72,7 +72,8 @@ interface EventBlockProps {
 export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }: EventBlockProps) {
   const { 
     setEditingEventId, editingEventId, 
-    setSelectedEventId, closeEditingEvent 
+    setSelectedEventId, closeEditingEvent,
+    use24Hour
   } = useCalendarStore();
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -282,8 +283,8 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
               </p>
               {showTime && (
                 <p className={`mt-0.5 tabular-nums font-medium ${colorStyles.text} opacity-70 ${heightLevel === 'small' ? 'text-[8px]' : 'text-[9px]'}`}>
-                  {format(event.startDate, 'HH:mm')}
-                  {showEndTime && ` - ${format(event.endDate, 'HH:mm')}`}
+                  {use24Hour ? format(event.startDate, 'H:mm') : format(event.startDate, 'h:mma').toLowerCase()}
+                  {showEndTime && ` - ${use24Hour ? format(event.endDate, 'H:mm') : format(event.endDate, 'h:mma').toLowerCase()}`}
                 </p>
               )}
             </div>
