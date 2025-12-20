@@ -1,7 +1,6 @@
-import { useState, useRef, ReactNode } from 'react';
+import { useState, ReactNode } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Minus, Square, X, Menu, Pin, Settings, Calendar } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Minus, Square, X, Pin, Settings } from 'lucide-react';
 
 const appWindow = getCurrentWindow();
 
@@ -13,10 +12,7 @@ interface TitleBarProps {
 }
 
 export function TitleBar({ onOpenSettings, toolbar, toolbarAlignRight }: TitleBarProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPinned, setMenuPinned] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const togglePin = async () => {
     const newPinned = !isPinned;
@@ -28,86 +24,16 @@ export function TitleBar({ onOpenSettings, toolbar, toolbarAlignRight }: TitleBa
     await appWindow.startDragging();
   };
 
-  // No longer need click outside handler since we use hover
-
-  // Handle menu hover and click
-  const handleMenuMouseEnter = () => {
-    if (!menuPinned) {
-      setMenuOpen(true);
-    }
-  };
-
-  const handleMenuMouseLeave = () => {
-    if (!menuPinned) {
-      setMenuOpen(false);
-    }
-  };
-
-  const handleMenuClick = () => {
-    const newPinned = !menuPinned;
-    setMenuPinned(newPinned);
-    setMenuOpen(newPinned);
-  };
-
   return (
     <div className="h-9 bg-white dark:bg-zinc-900 flex items-center justify-between select-none">
-      {/* Left: Menu Button + Expandable Menu */}
-      <div 
-        ref={menuRef}
-        className="h-full flex items-center"
-        onMouseEnter={handleMenuMouseEnter}
-        onMouseLeave={handleMenuMouseLeave}
+      {/* Left: Settings Button */}
+      <button
+        onClick={onOpenSettings}
+        className="h-full px-3 flex items-center justify-center hover:bg-zinc-100 transition-colors"
+        title="Settings"
       >
-        {/* Menu Toggle Button */}
-        <button
-          onClick={handleMenuClick}
-          className="h-full px-3 flex items-center justify-center hover:bg-zinc-100 transition-colors"
-        >
-          <Menu className="size-4 text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500" />
-        </button>
-
-        {/* Menu Items */}
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.15 }}
-              className="h-full flex items-center"
-            >
-              {/* Calendar */}
-              <button
-                onClick={() => {
-                  if (menuPinned) {
-                    setMenuOpen(false);
-                    setMenuPinned(false);
-                  }
-                }}
-                className="h-full px-3 text-sm transition-colors whitespace-nowrap flex items-center gap-1.5 text-zinc-400 dark:text-zinc-500"
-              >
-                <Calendar className="size-3.5" />
-                Calendar
-              </button>
-
-              {/* Settings */}
-              <button
-                onClick={() => {
-                  onOpenSettings?.();
-                  if (menuPinned) {
-                    setMenuOpen(false);
-                    setMenuPinned(false);
-                  }
-                }}
-                className="h-full px-3 text-sm text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500 transition-colors whitespace-nowrap flex items-center gap-1"
-              >
-                <Settings className="size-3.5" />
-                Settings
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+        <Settings className="size-4 text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500" />
+      </button>
 
       {/* Draggable Area */}
       <div 
