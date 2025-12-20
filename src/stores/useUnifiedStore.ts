@@ -96,12 +96,11 @@ interface UnifiedStoreActions {
   archiveCompletedTasks: (groupId: string) => void;
   
   // Calendar Actions
-  addCalendarTask: (task: { content: string; startDate: number; endDate: number; isAllDay?: boolean; color?: ItemColor; groupId?: string }) => string;
   updateTaskTime: (id: string, startDate?: number, endDate?: number, isAllDay?: boolean) => void;
   setEditingEventId: (id: string | null, position?: { x: number; y: number }) => void;
   setSelectedEventId: (id: string | null) => void;
   closeEditingEvent: () => void;
-  addEvent: (event: { content: string; startDate: number; endDate: number; isAllDay: boolean; color?: string }) => string;
+  addEvent: (event: { content: string; startDate: number; endDate: number; isAllDay: boolean; color?: string; groupId?: string }) => string;
   updateEvent: (id: string, updates: Partial<UnifiedTask>) => void;
   deleteEvent: (id: string) => void;
   undo: () => void;

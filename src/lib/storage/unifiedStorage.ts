@@ -2,13 +2,17 @@
  * Unified Storage - Unified storage architecture
  * 
  * Core concept: There is only one type of "item" (UnifiedTask)
+ * - All items are stored in a single unified list
  * - Items with time properties appear in calendar view
  * - Items without time properties only appear in todo view
- * - Calendar and todo are just different windows observing the same data
+ * - Calendar and todo are just different views of the same data
  * 
  * Storage structure:
  * - .nekotick/data.json: Data source (JSON format, read/write by program)
  * - nekotick.md: Human-readable Markdown view (write-only, for backup and viewing)
+ *   - Items section: All tasks grouped by group, with time info inline
+ *   - Progress section: Progress trackers
+ *   - Archive section: Archived completed tasks
  */
 
 import { readTextFile, writeTextFile, exists, mkdir } from '@tauri-apps/plugin-fs';
@@ -280,8 +284,8 @@ export async function saveUnifiedDataImmediate(data: UnifiedData): Promise<void>
 function generateMarkdown(data: UnifiedData): string {
   const lines: string[] = [];
   
-  // Tasks Section
-  lines.push('# Tasks');
+  // Unified Items Section - Tasks and Calendar events are the same data
+  lines.push('# Items');
   lines.push('');
   
   for (const group of data.groups) {
@@ -291,48 +295,16 @@ function generateMarkdown(data: UnifiedData): string {
     lines.push(`## ${group.name}`);
     lines.push('');
     
-    // Render top-level tasks
+    // Render top-level tasks with time info inline
     const topLevel = groupTasks
       .filter(t => !t.parentId)
       .sort((a, b) => a.order - b.order);
     
     for (const task of topLevel) {
-      renderTask(task, groupTasks, lines, '');
+      renderTaskUnified(task, groupTasks, lines, '');
     }
     
     if (topLevel.length > 0) lines.push('');
-  }
-  
-  // Calendar Section - filter items with time properties from tasks
-  lines.push('# Calendar');
-  lines.push('');
-  
-  const scheduledTasks = data.tasks
-    .filter(t => t.startDate !== undefined)
-    .sort((a, b) => (a.startDate || 0) - (b.startDate || 0));
-  
-  const tasksByDate = new Map<string, UnifiedTask[]>();
-  
-  for (const task of scheduledTasks) {
-    const dateKey = new Date(task.startDate!).toISOString().split('T')[0];
-    if (!tasksByDate.has(dateKey)) {
-      tasksByDate.set(dateKey, []);
-    }
-    tasksByDate.get(dateKey)!.push(task);
-  }
-  
-  for (const [date, tasks] of tasksByDate) {
-    lines.push(`## ${date}`);
-    for (const task of tasks) {
-      const start = new Date(task.startDate!);
-      const end = task.endDate ? new Date(task.endDate) : start;
-      const timeStr = task.isAllDay 
-        ? 'All Day'
-        : `${formatTime(start)}-${formatTime(end)}`;
-      const checkbox = task.completed ? '[x]' : '[ ]';
-      lines.push(`- ${checkbox} ${timeStr} ${task.content}`);
-    }
-    lines.push('');
   }
   
   // Progress Section
@@ -384,10 +356,29 @@ function generateMarkdown(data: UnifiedData): string {
   return lines.join('\n');
 }
 
-function renderTask(task: UnifiedTask, allTasks: UnifiedTask[], lines: string[], indent: string): void {
+/**
+ * Render a task with unified format
+ * - Items with time show: `- [ ] 09:00-10:00 content [color]`
+ * - Items without time show: `- [ ] content [color]`
+ */
+function renderTaskUnified(task: UnifiedTask, allTasks: UnifiedTask[], lines: string[], indent: string): void {
   const checkbox = task.completed ? '[x]' : '[ ]';
   const color = task.color && task.color !== 'default' ? ` [${task.color}]` : '';
-  lines.push(`${indent}- ${checkbox} ${task.content}${color}`);
+  
+  // Build time string if task has time properties
+  let timeStr = '';
+  if (task.startDate !== undefined) {
+    const start = new Date(task.startDate);
+    if (task.isAllDay) {
+      timeStr = `[${start.toISOString().split('T')[0]}] `;
+    } else {
+      const end = task.endDate ? new Date(task.endDate) : start;
+      const dateStr = start.toISOString().split('T')[0];
+      timeStr = `[${dateStr} ${formatTime(start)}-${formatTime(end)}] `;
+    }
+  }
+  
+  lines.push(`${indent}- ${checkbox} ${timeStr}${task.content}${color}`);
   
   // Render children
   const children = allTasks
@@ -395,7 +386,7 @@ function renderTask(task: UnifiedTask, allTasks: UnifiedTask[], lines: string[],
     .sort((a, b) => a.order - b.order);
   
   for (const child of children) {
-    renderTask(child, allTasks, lines, indent + '  ');
+    renderTaskUnified(child, allTasks, lines, indent + '  ');
   }
 }
 

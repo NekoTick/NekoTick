@@ -1,5 +1,8 @@
 /**
  * Calendar Actions - 日历事件相关操作
+ * 
+ * 注意：日历事件就是带有 startDate 的 UnifiedTask
+ * 这里的操作本质上是对 tasks 数组中带时间属性的任务进行操作
  */
 
 import { nanoid } from 'nanoid';
@@ -34,39 +37,6 @@ type Persist = (data: UnifiedData) => void;
 
 export function createCalendarActions(set: SetState, get: GetState, persist: Persist) {
   return {
-    addCalendarTask: (taskData: { 
-      content: string; 
-      startDate: number; 
-      endDate: number; 
-      isAllDay?: boolean; 
-      color?: ItemColor; 
-      groupId?: string 
-    }) => {
-      const newTask: UnifiedTask = {
-        id: nanoid(),
-        content: taskData.content,
-        completed: false,
-        createdAt: Date.now(),
-        order: 0,
-        groupId: taskData.groupId || 'default',
-        parentId: null,
-        collapsed: false,
-        color: taskData.color || 'default',
-        startDate: taskData.startDate,
-        endDate: taskData.endDate,
-        isAllDay: taskData.isAllDay,
-      };
-      set((state) => {
-        const newData = {
-          ...state.data,
-          tasks: [...state.data.tasks, newTask],
-        };
-        persist(newData);
-        return { data: newData };
-      });
-      return newTask.id;
-    },
-
     updateTaskTime: (id: string, startDate?: number, endDate?: number, isAllDay?: boolean) => {
       set((state) => {
         const newData = {
@@ -110,12 +80,14 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
       }
     },
 
+    // 添加带时间的任务（日历事件）
     addEvent: (eventData: { 
       content: string; 
       startDate: number; 
       endDate: number; 
       isAllDay: boolean; 
-      color?: string 
+      color?: string;
+      groupId?: string;
     }) => {
       const newTask: UnifiedTask = {
         id: nanoid(),
@@ -123,7 +95,7 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
         completed: false,
         createdAt: Date.now(),
         order: 0,
-        groupId: 'default',
+        groupId: eventData.groupId || 'default',
         parentId: null,
         collapsed: false,
         color: (eventData.color as ItemColor) || 'default',
@@ -142,6 +114,7 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
       return newTask.id;
     },
 
+    // 更新任务（包括日历事件）
     updateEvent: (id: string, updates: Partial<UnifiedTask>) => {
       set((state) => {
         const newData = {
@@ -165,6 +138,7 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
       });
     },
 
+    // 删除任务（包括日历事件）
     deleteEvent: (id: string) => {
       set((state) => {
         const taskToDelete = state.data.tasks.find(t => t.id === id);
