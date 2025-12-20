@@ -1,1 +1,1 @@
-export { TimeTrackerPage } from './TimeTrackerPage/TimeTrackerPage';
+export { TimeTrackerPage } from './TimeTrackerPage';

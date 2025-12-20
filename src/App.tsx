@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { SettingsModal } from '@/components/features/Settings';
+import { SettingsModal } from '@/components/common/Settings';
 import { TimeTrackerPage } from '@/components/TimeTracker';
 import { ProgressPage } from '@/components/Progress';
 import { CalendarPage, CalendarToolbar, CalendarSidebar, CalendarTaskPanel } from '@/components/Calendar';

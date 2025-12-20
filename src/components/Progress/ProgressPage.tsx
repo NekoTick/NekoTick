@@ -12,12 +12,12 @@ import {
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Plus, Archive, ArrowLeft } from '@phosphor-icons/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useProgressStore } from '../../stores/useProgressStore';
+import { useProgressStore } from '@/stores/useProgressStore';
 import { useProgressDrag } from './hooks/useProgressDrag';
-import { useDayChange } from '../../hooks/useDayChange'; // Import Watchman
-import { ItemCard, ActiveItemCard, ArchivedItemCard } from './ItemCard';
-import { CreateModal } from './CreateModal';
-import { DetailModal } from './DetailModal';
+import { useDayChange } from '@/hooks/useDayChange';
+import { ItemCard, ActiveItemCard, ArchivedItemCard } from './features/ItemCard';
+import { CreateModal } from './features/CreateModal';
+import { DetailModal } from './features/DetailModal';
 
 
 /**

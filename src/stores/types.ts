@@ -11,6 +11,9 @@ export interface Group {
 // Unified color system
 export type ItemColor = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
 
+// View mode type
+export type ViewMode = 'day' | 'week' | 'month';
+
 // Unified color configuration
 export const ITEM_COLORS: Record<ItemColor, string> = {
   red: '#ef4444',
