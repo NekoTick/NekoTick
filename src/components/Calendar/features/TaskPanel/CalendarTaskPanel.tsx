@@ -7,12 +7,13 @@
  */
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Maximize2, Minimize2, ChevronDown, Check,
   Archive, Search, X, MoreHorizontal
 } from 'lucide-react';
-import { DndContext } from '@dnd-kit/core';
+import { DndContext, DragOverlay } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import { useGroupStore, useUIStore } from '@/stores/useGroupStore';
@@ -561,6 +562,24 @@ export function CalendarTaskPanel({
                 )}
               </AnimatePresence>
             </>
+          )}
+
+          {/* Drag Overlay - rendered via portal for cross-panel dragging */}
+          {createPortal(
+            <DragOverlay dropAnimation={null} className="cursor-grabbing" style={{ zIndex: 999999 }}>
+              {activeId ? (() => {
+                const task = tasks.find(t => t.id === activeId);
+                if (!task) return null;
+                return (
+                  <div className="px-3 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 max-w-[240px]">
+                    <span className="text-[13px] text-zinc-700 dark:text-zinc-200 line-clamp-2">
+                      {task.content}
+                    </span>
+                  </div>
+                );
+              })() : null}
+            </DragOverlay>,
+            document.body
           )}
         </DndContext>
       </div>
