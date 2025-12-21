@@ -4,9 +4,9 @@
  * Responsibilities: Rendering + drag interaction dispatch
  */
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Check } from 'lucide-react';
+import { Check, Pause } from 'lucide-react';
 import { useCalendarStore } from '@/stores/useCalendarStore';
 import { EventContextMenu } from './EventContextMenu';
 import { type EventLayoutInfo } from '../../utils/eventLayout';
@@ -18,42 +18,54 @@ const RESIZE_HANDLE_HEIGHT = CALENDAR_CONSTANTS.RESIZE_HANDLE_HEIGHT as number;
 
 // ============ Color System ============
 
-const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; ring: string }> = {
+const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; ring: string; fill: string; overtime: string }> = {
   blue: {
     bg: 'bg-blue-50/90 dark:bg-blue-950/40',
     text: 'text-blue-700 dark:text-blue-200',
     border: 'border-blue-400 dark:border-blue-500',
     ring: 'ring-blue-300/50 dark:ring-blue-600/30',
+    fill: 'bg-blue-200/80 dark:bg-blue-800/60',
+    overtime: 'border-blue-400',
   },
   red: {
     bg: 'bg-rose-50/90 dark:bg-rose-950/40',
     text: 'text-rose-700 dark:text-rose-200',
     border: 'border-rose-400 dark:border-rose-500',
     ring: 'ring-rose-300/50 dark:ring-rose-600/30',
+    fill: 'bg-rose-200/80 dark:bg-rose-800/60',
+    overtime: 'border-rose-400',
   },
   green: {
     bg: 'bg-emerald-50/90 dark:bg-emerald-950/40',
     text: 'text-emerald-700 dark:text-emerald-200',
     border: 'border-emerald-400 dark:border-emerald-500',
     ring: 'ring-emerald-300/50 dark:ring-emerald-600/30',
+    fill: 'bg-emerald-200/80 dark:bg-emerald-800/60',
+    overtime: 'border-emerald-400',
   },
   yellow: {
     bg: 'bg-amber-50/90 dark:bg-amber-950/40',
     text: 'text-amber-700 dark:text-amber-200',
     border: 'border-amber-400 dark:border-amber-500',
     ring: 'ring-amber-300/50 dark:ring-amber-600/30',
+    fill: 'bg-amber-200/80 dark:bg-amber-800/60',
+    overtime: 'border-amber-400',
   },
   purple: {
     bg: 'bg-violet-50/90 dark:bg-violet-950/40',
     text: 'text-violet-700 dark:text-violet-200',
     border: 'border-violet-400 dark:border-violet-500',
     ring: 'ring-violet-300/50 dark:ring-violet-600/30',
+    fill: 'bg-violet-200/80 dark:bg-violet-800/60',
+    overtime: 'border-violet-400',
   },
   default: {
     bg: 'bg-zinc-50/90 dark:bg-zinc-800/40',
     text: 'text-zinc-700 dark:text-zinc-200',
     border: 'border-zinc-400 dark:border-zinc-500',
     ring: 'ring-zinc-300/50 dark:ring-zinc-600/30',
+    fill: 'bg-zinc-300/80 dark:bg-zinc-600/60',
+    overtime: 'border-zinc-400',
   },
 };
 
@@ -80,14 +92,58 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
   const [isHovered, setIsHovered] = useState(false);
   const [resizeEdge, setResizeEdge] = useState<'top' | 'bottom' | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const blockRef = useRef<HTMLDivElement>(null);
 
   const isActive = editingEventId === event.id;
   const isCompleted = event.completed;
+  const isTimerRunning = event.timerState === 'running';
+  const isTimerPaused = event.timerState === 'paused';
+  const isTimerActive = isTimerRunning || isTimerPaused;
+
+  // Timer tick effect
+  useEffect(() => {
+    // 非计时状态，清除 elapsed
+    if (!isTimerRunning && !isTimerPaused) {
+      setElapsedMs(0);
+      return;
+    }
+    
+    // 暂停时显示累计时间
+    if (isTimerPaused) {
+      setElapsedMs(event.timerAccumulated || 0);
+      return;
+    }
+
+    // 计时中：每秒更新
+    const updateElapsed = () => {
+      const accumulated = event.timerAccumulated || 0;
+      const startedAt = event.timerStartedAt || Date.now();
+      const sinceStart = Date.now() - startedAt;
+      setElapsedMs(accumulated + sinceStart);
+    };
+
+    // 立即更新一次
+    updateElapsed();
+    
+    // 设置定时器
+    const interval = setInterval(updateElapsed, 100); // 100ms 更新一次，更流畅
+    return () => clearInterval(interval);
+  }, [isTimerRunning, isTimerPaused, event.timerStartedAt, event.timerAccumulated]);
 
   // Calculate position and size
   const top = calculateEventTop(event.startDate, hourHeight);
-  const height = calculateEventHeight(event.startDate, event.endDate, hourHeight);
+  const plannedDuration = event.endDate - event.startDate;
+  const plannedHeight = calculateEventHeight(event.startDate, event.endDate, hourHeight);
+  
+  // 计算实际高度（包括超时部分）
+  const actualHeight = useMemo(() => {
+    if (!isTimerActive) return plannedHeight;
+    const elapsedHeight = (elapsedMs / 3600000) * hourHeight;
+    return Math.max(plannedHeight, elapsedHeight);
+  }, [isTimerActive, elapsedMs, plannedHeight, hourHeight]);
+
+  const height = actualHeight;
 
   // Height level
   const heightLevel = useMemo(() => {
@@ -222,6 +278,26 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
   const showEndTime = heightLevel === 'large' || heightLevel === 'medium';
   const showCheckbox = heightLevel !== 'micro';
 
+  // 计时相关计算
+  const plannedMinutes = Math.round(plannedDuration / 60000);
+  const isOvertime = elapsedMs > plannedDuration;
+  const fillPercent = isTimerActive 
+    ? Math.min((elapsedMs / plannedDuration) * 100, 100) 
+    : 0;
+
+  // 格式化计时显示（以秒为单位）
+  const formatElapsed = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <>
       <div
@@ -246,18 +322,39 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
       >
         <div
           className={`
-            w-full h-full flex flex-col
+            w-full h-full flex flex-col relative overflow-hidden
             border-l-[3px] ${colorStyles.border}
-            ${colorStyles.bg}
+            ${isTimerActive ? 'opacity-60' : ''} ${colorStyles.bg}
             rounded-[5px]
             transition-shadow duration-200 ease-out
             ${shadowClass}
             ${isActive ? `ring-2 ${colorStyles.ring}` : ''}
             ${isHovered && !isActive ? `ring-1 ${colorStyles.ring}` : ''}
+            ${isTimerActive ? 'border-dashed' : ''}
           `}
           style={{ opacity: isCompleted ? 0.6 : 1 }}
         >
-          <div className={`flex items-start gap-1.5 px-2 py-1 ${heightLevel === 'tiny' ? 'items-center' : ''}`}>
+          {/* Timer fill layer - 扫描线效果 */}
+          {isTimerActive && (
+            <div 
+              className={`absolute inset-0 ${colorStyles.fill} transition-all duration-1000 ease-linear rounded-r-[4px]`}
+              style={{ 
+                height: `${fillPercent}%`,
+                opacity: 1,
+              }}
+            />
+          )}
+          
+          {/* 超时分界线 */}
+          {isOvertime && (
+            <div 
+              className={`absolute left-0 right-0 border-t-2 ${colorStyles.overtime}`}
+              style={{ top: `${plannedHeight}px` }}
+            />
+          )}
+
+          {/* Content layer */}
+          <div className={`relative z-10 flex items-start gap-1.5 px-2 py-1 ${heightLevel === 'tiny' ? 'items-center' : ''}`}>
             {showCheckbox && (
               <button
                 onClick={(e) => {
@@ -276,15 +373,31 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
               </button>
             )}
             <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <p
-                className={`font-medium leading-tight truncate ${colorStyles.text} ${isCompleted ? 'line-through opacity-60' : ''} ${heightLevel === 'micro' ? 'text-[9px]' : 'text-[11px]'}`}
-              >
-                {event.content || 'Untitled'}
-              </p>
+              <div className="flex items-center gap-1">
+                {isTimerPaused && <Pause className="w-2.5 h-2.5 flex-shrink-0 opacity-70" />}
+                <p
+                  className={`font-medium leading-tight truncate ${colorStyles.text} ${isCompleted ? 'line-through opacity-60' : ''} ${heightLevel === 'micro' ? 'text-[9px]' : 'text-[11px]'}`}
+                >
+                  {event.content || 'Untitled'}
+                </p>
+              </div>
               {showTime && (
                 <p className={`mt-0.5 tabular-nums font-medium ${colorStyles.text} opacity-70 ${heightLevel === 'small' ? 'text-[8px]' : 'text-[9px]'}`}>
-                  {use24Hour ? format(event.startDate, 'H:mm') : format(event.startDate, 'h:mma').toLowerCase()}
-                  {showEndTime && ` - ${use24Hour ? format(event.endDate, 'H:mm') : format(event.endDate, 'h:mma').toLowerCase()}`}
+                  {isTimerActive ? (
+                    // 计时中显示：已用时间 / 计划时间
+                    <>
+                      <span className={isOvertime ? 'text-red-500' : ''}>
+                        {formatElapsed(elapsedMs)}
+                      </span>
+                      <span className="opacity-50"> / {plannedMinutes}m</span>
+                    </>
+                  ) : (
+                    // 正常显示时间范围
+                    <>
+                      {use24Hour ? format(event.startDate, 'H:mm') : format(event.startDate, 'h:mma').toLowerCase()}
+                      {showEndTime && ` - ${use24Hour ? format(event.endDate, 'H:mm') : format(event.endDate, 'h:mma').toLowerCase()}`}
+                    </>
+                  )}
                 </p>
               )}
             </div>
@@ -297,6 +410,7 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
           eventId={event.id}
           position={contextMenu}
           currentColor={event.color}
+          timerState={event.timerState}
           onClose={() => setContextMenu(null)}
         />
       )}

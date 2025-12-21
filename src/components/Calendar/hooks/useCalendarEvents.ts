@@ -17,6 +17,10 @@ export interface CalendarDisplayItem {
   color: ItemColor;
   completed: boolean;
   groupId: string;
+  // Timer state
+  timerState?: 'idle' | 'running' | 'paused';
+  timerStartedAt?: number;
+  timerAccumulated?: number;
 }
 
 /**
@@ -63,6 +67,9 @@ export function useCalendarEvents(): CalendarDisplayItem[] {
         color: t.color || 'default',
         completed: t.completed,
         groupId: t.groupId,
+        timerState: t.timerState,
+        timerStartedAt: t.timerStartedAt,
+        timerAccumulated: t.timerAccumulated,
       }));
   }, [tasks, selectedColors, selectedStatuses, editingEventId, draggingToCalendarTaskId]);
 

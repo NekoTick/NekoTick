@@ -53,6 +53,11 @@ export interface UnifiedTask {
   estimatedMinutes?: number;
   actualMinutes?: number;
   
+  // Timer state
+  timerState?: 'idle' | 'running' | 'paused';
+  timerStartedAt?: number;      // 本次计时开始的时间戳
+  timerAccumulated?: number;    // 累计的毫秒数（用于暂停恢复）
+  
   // Calendar related (optional)
   location?: string;
   description?: string;

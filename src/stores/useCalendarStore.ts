@@ -105,5 +105,11 @@ export function useCalendarStore() {
     // Task operations (calendar events are essentially tasks)
     toggleTask: store.toggleTask,
     updateTaskColor: store.updateTaskColor,
+    
+    // Timer operations
+    startTimer: store.startTimer,
+    pauseTimer: store.pauseTimer,
+    resumeTimer: store.resumeTimer,
+    stopTimer: store.stopTimer,
   };
 }

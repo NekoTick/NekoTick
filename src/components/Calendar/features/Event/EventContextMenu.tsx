@@ -1,11 +1,12 @@
 import { createPortal } from 'react-dom';
-import { Scissors, Copy, CopyPlus, Trash2, Check } from 'lucide-react';
+import { Scissors, Copy, CopyPlus, Trash2, Check, Play, Pause, Square } from 'lucide-react';
 import { useCalendarStore } from '@/stores/useCalendarStore';
 
 interface EventContextMenuProps {
   eventId: string;
   position: { x: number; y: number };
   currentColor?: string;
+  timerState?: 'idle' | 'running' | 'paused';
   onClose: () => void;
 }
 
@@ -20,8 +21,8 @@ const COLORS: { name: ColorName; bg: string }[] = [
   { name: 'default', bg: 'bg-zinc-400' },
 ];
 
-export function EventContextMenu({ eventId, position, currentColor = 'blue', onClose }: EventContextMenuProps) {
-  const { updateEvent, deleteEvent, events, addEvent } = useCalendarStore();
+export function EventContextMenu({ eventId, position, currentColor = 'blue', timerState = 'idle', onClose }: EventContextMenuProps) {
+  const { updateEvent, deleteEvent, events, addEvent, startTimer, pauseTimer, resumeTimer, stopTimer } = useCalendarStore();
 
   const handleColorChange = (color: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default') => {
     updateEvent(eventId, { color });
@@ -44,6 +45,26 @@ export function EventContextMenu({ eventId, position, currentColor = 'blue', onC
         color: event.color,
       });
     }
+    onClose();
+  };
+
+  const handleStartTimer = () => {
+    startTimer(eventId);
+    onClose();
+  };
+
+  const handlePauseTimer = () => {
+    pauseTimer(eventId);
+    onClose();
+  };
+
+  const handleResumeTimer = () => {
+    resumeTimer(eventId);
+    onClose();
+  };
+
+  const handleStopTimer = () => {
+    stopTimer(eventId);
     onClose();
   };
 
@@ -76,6 +97,57 @@ export function EventContextMenu({ eventId, position, currentColor = 'blue', onC
             </button>
           ))}
         </div>
+
+        <div className="h-px bg-zinc-700 my-2" />
+
+        {/* Timer Actions */}
+        {timerState === 'idle' && (
+          <button 
+            onClick={handleStartTimer}
+            className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800"
+          >
+            <Play className="size-4" />
+            <span className="flex-1 text-left">Start Timer</span>
+          </button>
+        )}
+        
+        {timerState === 'running' && (
+          <>
+            <button 
+              onClick={handlePauseTimer}
+              className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              <Pause className="size-4" />
+              <span className="flex-1 text-left">Pause Timer</span>
+            </button>
+            <button 
+              onClick={handleStopTimer}
+              className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              <Square className="size-4" />
+              <span className="flex-1 text-left">Stop Timer</span>
+            </button>
+          </>
+        )}
+        
+        {timerState === 'paused' && (
+          <>
+            <button 
+              onClick={handleResumeTimer}
+              className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              <Play className="size-4" />
+              <span className="flex-1 text-left">Resume Timer</span>
+            </button>
+            <button 
+              onClick={handleStopTimer}
+              className="w-full px-4 py-2 flex items-center gap-3 text-sm text-zinc-300 hover:bg-zinc-800"
+            >
+              <Square className="size-4" />
+              <span className="flex-1 text-left">Stop Timer</span>
+            </button>
+          </>
+        )}
 
         <div className="h-px bg-zinc-700 my-2" />
 

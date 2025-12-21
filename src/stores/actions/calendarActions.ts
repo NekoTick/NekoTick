@@ -186,5 +186,131 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
         return { undoStack: newUndoStack };
       });
     },
+
+    // Timer Actions
+    startTimer: (id: string) => {
+      const now = Date.now();
+      set((state) => {
+        // 先暂停其他正在计时的任务
+        const tasksWithPausedOthers = state.data.tasks.map(t => {
+          if (t.id !== id && t.timerState === 'running') {
+            const elapsed = now - (t.timerStartedAt || now);
+            return {
+              ...t,
+              timerState: 'paused' as const,
+              timerAccumulated: (t.timerAccumulated || 0) + elapsed,
+              timerStartedAt: undefined,
+            };
+          }
+          return t;
+        });
+
+        // 启动目标任务的计时器，并移动到当前时间
+        const newData = {
+          ...state.data,
+          tasks: tasksWithPausedOthers.map(t => {
+            if (t.id !== id) return t;
+            
+            // 计算任务时长
+            const duration = t.endDate && t.startDate ? t.endDate - t.startDate : 25 * 60 * 1000;
+            
+            return {
+              ...t,
+              timerState: 'running' as const,
+              timerStartedAt: now,
+              timerAccumulated: t.timerAccumulated || 0,
+              // 移动事件到当前时间线
+              startDate: now,
+              endDate: now + duration,
+            };
+          }),
+        };
+        persist(newData);
+        return { data: newData };
+      });
+    },
+
+    pauseTimer: (id: string) => {
+      const now = Date.now();
+      set((state) => {
+        const newData = {
+          ...state.data,
+          tasks: state.data.tasks.map(t => {
+            if (t.id !== id) return t;
+            const elapsed = now - (t.timerStartedAt || now);
+            return {
+              ...t,
+              timerState: 'paused' as const,
+              timerAccumulated: (t.timerAccumulated || 0) + elapsed,
+              timerStartedAt: undefined,
+            };
+          }),
+        };
+        persist(newData);
+        return { data: newData };
+      });
+    },
+
+    resumeTimer: (id: string) => {
+      const now = Date.now();
+      set((state) => {
+        // 先暂停其他正在计时的任务
+        const tasksWithPausedOthers = state.data.tasks.map(t => {
+          if (t.id !== id && t.timerState === 'running') {
+            const elapsed = now - (t.timerStartedAt || now);
+            return {
+              ...t,
+              timerState: 'paused' as const,
+              timerAccumulated: (t.timerAccumulated || 0) + elapsed,
+              timerStartedAt: undefined,
+            };
+          }
+          return t;
+        });
+
+        const newData = {
+          ...state.data,
+          tasks: tasksWithPausedOthers.map(t => {
+            if (t.id !== id) return t;
+            return {
+              ...t,
+              timerState: 'running' as const,
+              timerStartedAt: now,
+            };
+          }),
+        };
+        persist(newData);
+        return { data: newData };
+      });
+    },
+
+    stopTimer: (id: string) => {
+      const now = Date.now();
+      set((state) => {
+        const newData = {
+          ...state.data,
+          tasks: state.data.tasks.map(t => {
+            if (t.id !== id) return t;
+            
+            // 计算总耗时
+            let totalMs = t.timerAccumulated || 0;
+            if (t.timerState === 'running' && t.timerStartedAt) {
+              totalMs += now - t.timerStartedAt;
+            }
+            const actualMinutes = Math.round(totalMs / 60000);
+            
+            return {
+              ...t,
+              timerState: 'idle' as const,
+              timerStartedAt: undefined,
+              timerAccumulated: undefined,
+              actualMinutes,
+            };
+          }),
+        };
+        persist(newData);
+        return { data: newData };
+      });
+    },
   };
 }

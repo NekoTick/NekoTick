@@ -105,6 +105,12 @@ interface UnifiedStoreActions {
   deleteEvent: (id: string) => void;
   undo: () => void;
   
+  // Timer Actions
+  startTimer: (id: string) => void;
+  pauseTimer: (id: string) => void;
+  resumeTimer: (id: string) => void;
+  stopTimer: (id: string) => void;
+  
   // Progress Actions
   addProgress: (item: Omit<UnifiedProgress, 'id' | 'createdAt' | 'current' | 'todayCount'>) => void;
   updateProgress: (id: string, delta: number) => void;
