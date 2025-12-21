@@ -191,24 +191,10 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
     startTimer: (id: string) => {
       const now = Date.now();
       set((state) => {
-        // 先暂停其他正在计时的任务
-        const tasksWithPausedOthers = state.data.tasks.map(t => {
-          if (t.id !== id && t.timerState === 'running') {
-            const elapsed = now - (t.timerStartedAt || now);
-            return {
-              ...t,
-              timerState: 'paused' as const,
-              timerAccumulated: (t.timerAccumulated || 0) + elapsed,
-              timerStartedAt: undefined,
-            };
-          }
-          return t;
-        });
-
         // 启动目标任务的计时器，并移动到当前时间
         const newData = {
           ...state.data,
-          tasks: tasksWithPausedOthers.map(t => {
+          tasks: state.data.tasks.map(t => {
             if (t.id !== id) return t;
             
             // 计算任务时长
@@ -254,23 +240,9 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
     resumeTimer: (id: string) => {
       const now = Date.now();
       set((state) => {
-        // 先暂停其他正在计时的任务
-        const tasksWithPausedOthers = state.data.tasks.map(t => {
-          if (t.id !== id && t.timerState === 'running') {
-            const elapsed = now - (t.timerStartedAt || now);
-            return {
-              ...t,
-              timerState: 'paused' as const,
-              timerAccumulated: (t.timerAccumulated || 0) + elapsed,
-              timerStartedAt: undefined,
-            };
-          }
-          return t;
-        });
-
         const newData = {
           ...state.data,
-          tasks: tasksWithPausedOthers.map(t => {
+          tasks: state.data.tasks.map(t => {
             if (t.id !== id) return t;
             return {
               ...t,
@@ -305,6 +277,9 @@ export function createCalendarActions(set: SetState, get: GetState, persist: Per
               timerStartedAt: undefined,
               timerAccumulated: undefined,
               actualMinutes,
+              // 自动标记完成
+              completed: true,
+              completedAt: now,
             };
           }),
         };

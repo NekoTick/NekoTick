@@ -132,13 +132,30 @@ export function createTaskActions(set: SetState, get: GetState, persist: Persist
         if (!task) return state;
         
         const isCompleting = !task.completed;
+        const now = Date.now();
+        
+        // 如果是完成任务且正在计时，同时停止计时
+        let actualMinutes = task.actualMinutes;
+        if (isCompleting && (task.timerState === 'running' || task.timerState === 'paused')) {
+          let totalMs = task.timerAccumulated || 0;
+          if (task.timerState === 'running' && task.timerStartedAt) {
+            totalMs += now - task.timerStartedAt;
+          }
+          actualMinutes = Math.round(totalMs / 60000);
+        }
+        
         const newData = {
           ...state.data,
           tasks: state.data.tasks.map(t =>
             t.id === id ? {
               ...t,
               completed: isCompleting,
-              completedAt: isCompleting ? Date.now() : undefined,
+              completedAt: isCompleting ? now : undefined,
+              // 完成时停止计时
+              timerState: isCompleting ? ('idle' as const) : t.timerState,
+              timerStartedAt: isCompleting ? undefined : t.timerStartedAt,
+              timerAccumulated: isCompleting ? undefined : t.timerAccumulated,
+              actualMinutes: isCompleting ? actualMinutes : t.actualMinutes,
             } : t
           ),
         };

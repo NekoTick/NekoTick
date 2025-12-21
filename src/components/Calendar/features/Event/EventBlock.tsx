@@ -324,18 +324,18 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
           className={`
             w-full h-full flex flex-col relative overflow-hidden
             border-l-[3px] ${colorStyles.border}
-            ${isTimerActive ? 'opacity-60' : ''} ${colorStyles.bg}
+            ${isTimerActive && !isCompleted ? 'opacity-60' : ''} ${colorStyles.bg}
             rounded-[5px]
             transition-shadow duration-200 ease-out
             ${shadowClass}
             ${isActive ? `ring-2 ${colorStyles.ring}` : ''}
             ${isHovered && !isActive ? `ring-1 ${colorStyles.ring}` : ''}
-            ${isTimerActive ? 'border-dashed' : ''}
+            ${isTimerActive && !isCompleted ? 'border-dashed' : ''}
           `}
           style={{ opacity: isCompleted ? 0.6 : 1 }}
         >
-          {/* Timer fill layer - 扫描线效果 */}
-          {isTimerActive && (
+          {/* Timer fill layer - 扫描线效果（已完成不显示） */}
+          {isTimerActive && !isCompleted && (
             <div 
               className={`absolute inset-0 ${colorStyles.fill} transition-all duration-1000 ease-linear rounded-r-[4px]`}
               style={{ 
@@ -384,12 +384,12 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart }:
               {showTime && (
                 <p className={`mt-0.5 tabular-nums font-medium ${colorStyles.text} opacity-70 ${heightLevel === 'small' ? 'text-[8px]' : 'text-[9px]'}`}>
                   {isTimerActive ? (
-                    // 计时中显示：已用时间 / 计划时间
+                    // 计时中显示：已用时间 / 计划时间（都用时:分:秒格式）
                     <>
                       <span className={isOvertime ? 'text-red-500' : ''}>
                         {formatElapsed(elapsedMs)}
                       </span>
-                      <span className="opacity-50"> / {plannedMinutes}m</span>
+                      <span className="opacity-50"> / {formatElapsed(plannedDuration)}</span>
                     </>
                   ) : (
                     // 正常显示时间范围
