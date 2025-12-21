@@ -291,7 +291,7 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
         </div>
 
         {/* Date header */}
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 flex justify-center items-center gap-3">
           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
             <PopoverTrigger asChild>
               <button 
@@ -325,6 +325,16 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
               />
             </PopoverContent>
           </Popover>
+
+          {/* Today Button - Only show when not viewing today */}
+          {!days.some(day => isSameDay(day, now)) && (
+            <button
+              onClick={() => setSelectedDate(new Date())}
+              className="px-2 py-0.5 text-xs font-medium text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-all animate-in fade-in zoom-in-95 duration-200"
+            >
+              Today
+            </button>
+          )}
         </div>
       </div>
 

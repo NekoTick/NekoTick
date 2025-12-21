@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { CaretDown, CaretLeft, CaretRight, Check, MagnifyingGlass, SidebarSimple } from '@phosphor-icons/react';
 import { useCalendarStore, type ViewMode } from '@/stores/useCalendarStore';
-import { addDays, addMonths, isSameDay } from 'date-fns';
+import { addDays, addMonths } from 'date-fns';
 
 // View mode labels
 const VIEW_MODE_LABELS: Record<ViewMode, string> = {
@@ -141,11 +141,6 @@ export function ViewSwitcher() {
       setShowDayCountSubmenu(false);
       setCustomDayInput('');
     }
-  };
-
-  // Navigate to today
-  const handleTodayClick = () => {
-    setSelectedDate(new Date());
   };
 
   // Navigate prev/next based on view mode
@@ -377,16 +372,6 @@ export function ViewSwitcher() {
           </div>
         </div>,
         document.body
-      )}
-
-      {/* Today Button - Only show when not viewing today */}
-      {!isSameDay(selectedDate, new Date()) && (
-        <button
-          onClick={handleTodayClick}
-          className="px-2 py-1 text-sm font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
-        >
-          Today
-        </button>
       )}
 
       {/* Navigation Arrows */}
