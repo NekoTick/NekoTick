@@ -17,37 +17,23 @@ import {
   rectIntersection,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import type { Task, Group, ItemColor } from '@/stores/useGroupStore';
+import type { Task } from '@/stores/useGroupStore';
 
 interface UsePanelDragAndDropProps {
   tasks: Task[];
-  activeGroupId: string;
-  groups: Group[];
-  toggleCollapse: (taskId: string) => void;
   reorderTasks: (activeId: string, overId: string, makeChild?: boolean) => void;
-  moveTaskToGroup: (taskId: string, groupId: string) => void;
-  updateTaskColor: (taskId: string, color: ItemColor) => void;
-  updateTaskTime: (taskId: string, startDate?: number, endDate?: number) => void;
+  updateTaskTime: (taskId: string, startDate?: number | null, endDate?: number | null) => void;
+  toggleTask: (taskId: string) => void;
   setDraggingTaskId: (id: string | null) => void;
 }
 
 export function usePanelDragAndDrop({
   tasks,
-  activeGroupId: _activeGroupId,
-  groups: _groups,
-  toggleCollapse: _toggleCollapse,
   reorderTasks,
-  moveTaskToGroup: _moveTaskToGroup,
-  updateTaskColor: _updateTaskColor,
   updateTaskTime,
+  toggleTask,
   setDraggingTaskId,
 }: UsePanelDragAndDropProps) {
-  // 保留这些参数以便后续扩展功能
-  void _activeGroupId;
-  void _groups;
-  void _toggleCollapse;
-  void _moveTaskToGroup;
-  void _updateTaskColor;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [dragIndent, setDragIndent] = useState(0);
@@ -111,9 +97,31 @@ export function usePanelDragAndDrop({
     if (!over || active.id === over.id) return;
 
     const activeTask = tasks.find(t => t.id === active.id);
-    const overTask = tasks.find(t => t.id === over.id);
+    if (!activeTask) return;
 
-    if (!activeTask || !overTask) return;
+    const overId = over.id as string;
+    
+    // 处理拖到分割线上的情况
+    if (overId === '__divider_scheduled__') {
+      if (activeTask.startDate) {
+        // 已分配的任务拖到分割线上 = 取消分配（移到待办）
+        updateTaskTime(activeTask.id, null, null);
+      } else if (!activeTask.completed) {
+        // 待办任务拖到分割线上 = 设置时间（移到已分配）
+        const startTime = Date.now();
+        const endTime = startTime + 25 * 60 * 1000;
+        updateTaskTime(activeTask.id, startTime, endTime);
+      }
+      return;
+    }
+    
+    if (overId === '__divider_completed__') {
+      // 拖到"已完成"分割线上 - 忽略，不改变状态
+      return;
+    }
+
+    const overTask = tasks.find(t => t.id === over.id);
+    if (!overTask) return;
 
     // 检查任务状态
     const activeIsScheduled = !!activeTask.startDate;
@@ -121,23 +129,55 @@ export function usePanelDragAndDrop({
     const overIsScheduled = !!overTask.startDate;
     const overIsCompleted = overTask.completed;
     
-    // 从已分配拖到待办，清除时间
-    if (activeIsScheduled && !overIsScheduled && !overIsCompleted) {
-      updateTaskTime(activeTask.id, undefined, undefined);
-    }
-    // 从待办拖到已分配，自动创建当前时间开始的 25 分钟任务
-    else if (!activeIsScheduled && !activeIsCompleted && overIsScheduled) {
-      const startTime = Date.now();
-      const endTime = startTime + 25 * 60 * 1000; // 25 分钟
-      updateTaskTime(activeTask.id, startTime, endTime);
+    // 判断是否跨区域拖动
+    const isCrossSection = (activeIsScheduled !== overIsScheduled) || (activeIsCompleted !== overIsCompleted);
+    
+    if (isCrossSection) {
+      // 跨区域拖动：改变状态
+      // 从已分配拖到待办（未分配且未完成）
+      if (activeIsScheduled && !activeIsCompleted && !overIsScheduled && !overIsCompleted) {
+        updateTaskTime(activeTask.id, null, null);
+        return;
+      }
+      // 从待办拖到已分配，自动创建当前时间开始的 25 分钟任务
+      if (!activeIsScheduled && !activeIsCompleted && overIsScheduled && !overIsCompleted) {
+        const startTime = Date.now();
+        const endTime = startTime + 25 * 60 * 1000;
+        updateTaskTime(activeTask.id, startTime, endTime);
+        return;
+      }
+      // 从已分配拖到已完成 - 标记完成并清除时间
+      if (activeIsScheduled && !activeIsCompleted && overIsCompleted) {
+        updateTaskTime(activeTask.id, null, null);
+        toggleTask(activeTask.id);
+        return;
+      }
+      // 从待办拖到已完成 - 标记完成
+      if (!activeIsScheduled && !activeIsCompleted && overIsCompleted) {
+        toggleTask(activeTask.id);
+        return;
+      }
+      // 从已完成拖到待办 - 取消完成
+      if (activeIsCompleted && !overIsScheduled && !overIsCompleted) {
+        toggleTask(activeTask.id);
+        return;
+      }
+      // 从已完成拖到已分配 - 取消完成并设置时间
+      if (activeIsCompleted && overIsScheduled && !overIsCompleted) {
+        toggleTask(activeTask.id);
+        const startTime = Date.now();
+        const endTime = startTime + 25 * 60 * 1000;
+        updateTaskTime(activeTask.id, startTime, endTime);
+        return;
+      }
+      return;
     }
 
-    // 检查是否应该作为子任务
+    // 同区域内排序
     const INDENT_THRESHOLD = 28;
     const makeChild = dragIndent > INDENT_THRESHOLD;
-
     reorderTasks(active.id as string, over.id as string, makeChild);
-  }, [tasks, dragIndent, reorderTasks, updateTaskTime, setDraggingTaskId]);
+  }, [tasks, dragIndent, reorderTasks, updateTaskTime, toggleTask, setDraggingTaskId]);
 
   return {
     sensors,

@@ -37,18 +37,24 @@ type Persist = (data: UnifiedData) => void;
 
 export function createCalendarActions(set: SetState, get: GetState, persist: Persist) {
   return {
-    updateTaskTime: (id: string, startDate?: number, endDate?: number, isAllDay?: boolean) => {
+    updateTaskTime: (id: string, startDate?: number | null, endDate?: number | null, isAllDay?: boolean) => {
       set((state) => {
         const newData = {
           ...state.data,
-          tasks: state.data.tasks.map(t =>
-            t.id === id ? { 
+          tasks: state.data.tasks.map(t => {
+            if (t.id !== id) return t;
+            
+            // 使用 null 表示清除时间，undefined 表示保持不变
+            const newStartDate = startDate === null ? undefined : (startDate !== undefined ? startDate : t.startDate);
+            const newEndDate = endDate === null ? undefined : (endDate !== undefined ? endDate : t.endDate);
+            
+            return { 
               ...t, 
-              startDate: startDate ?? t.startDate, 
-              endDate: endDate ?? t.endDate,
+              startDate: newStartDate, 
+              endDate: newEndDate,
               isAllDay: isAllDay ?? t.isAllDay,
-            } : t
-          ),
+            };
+          }),
         };
         persist(newData);
         return { data: newData };

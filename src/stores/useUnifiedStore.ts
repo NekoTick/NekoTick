@@ -96,7 +96,7 @@ interface UnifiedStoreActions {
   archiveCompletedTasks: (groupId: string) => void;
   
   // Calendar Actions
-  updateTaskTime: (id: string, startDate?: number, endDate?: number, isAllDay?: boolean) => void;
+  updateTaskTime: (id: string, startDate?: number | null, endDate?: number | null, isAllDay?: boolean) => void;
   setEditingEventId: (id: string | null, position?: { x: number; y: number }) => void;
   setSelectedEventId: (id: string | null) => void;
   closeEditingEvent: () => void;

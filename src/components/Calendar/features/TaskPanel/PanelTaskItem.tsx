@@ -66,14 +66,14 @@ export function PanelTaskItem({
   onDelete,
   onAddSubTask,
   isBeingDragged,
-  isDropTarget,
-  insertAfter,
+  isDropTarget: _isDropTarget,
+  insertAfter: _insertAfter,
   level = 0,
   hasChildren = false,
   collapsed = false,
   onToggleCollapse,
-  dragIndent = 0,
-  compact = false,
+  dragIndent: _dragIndent = 0,
+  compact: _compact = false,
 }: PanelTaskItemProps) {
   const MAX_LEVEL = 3;
   const canAddSubTask = level < MAX_LEVEL;
