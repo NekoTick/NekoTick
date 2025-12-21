@@ -23,7 +23,7 @@ export function CalendarHeaderControl() {
   if (viewMode === 'month') {
     // For month view, just show Month/Year selector centered
     return (
-      <div className="flex-1 flex justify-center items-center">
+      <div className="flex items-center">
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
             <button className="flex items-center gap-2 px-3 py-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors group outline-none">
@@ -42,9 +42,9 @@ export function CalendarHeaderControl() {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center h-full relative" data-tauri-drag-region>
-      {/* Centered Date Container */}
-      <div className="flex justify-center items-center h-full relative group/container" data-tauri-drag-region>
+    <div className="flex items-center h-full relative">
+      {/* Date Container */}
+      <div className="flex items-center h-full relative group/container">
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
             <button className="h-full flex items-center gap-4 px-4 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors group outline-none">
@@ -70,7 +70,7 @@ export function CalendarHeaderControl() {
 
         {/* Today Button - Appears next to the date group */}
         {!days.some(day => isSameDay(day, new Date())) && (
-          <div className="absolute left-full ml-4 top-1/2 -translate-y-1/2">
+          <div className="ml-4">
             <button
               onClick={() => setSelectedDate(new Date())}
               className="whitespace-nowrap px-2 py-0.5 text-xs font-medium text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300 bg-zinc-100 dark:bg-zinc-800/50 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-md transition-all animate-in fade-in slide-in-from-left-2 duration-200"

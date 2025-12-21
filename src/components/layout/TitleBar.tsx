@@ -30,7 +30,7 @@ export function TitleBar({ onOpenSettings, toolbar, content, toolbarAlignRight }
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) startDrag();
       }}
-      className="h-10 bg-white dark:bg-zinc-900 flex items-center justify-between select-none relative z-50 border-b border-zinc-200 dark:border-zinc-800"
+      className="h-10 bg-white dark:bg-zinc-900 flex items-center select-none relative z-50 border-b border-zinc-200 dark:border-zinc-800"
     >
       {/* Left: Settings Button */}
       <button
@@ -41,23 +41,27 @@ export function TitleBar({ onOpenSettings, toolbar, content, toolbarAlignRight }
         <Settings className="size-4 text-zinc-200 hover:text-zinc-400 dark:text-zinc-700 dark:hover:text-zinc-500" />
       </button>
 
-      {/* Main Content Area */}
+      {/* Center Content Area - Absolutely positioned for true centering */}
       <div 
         onMouseDown={(e) => {
-          // Only start drag if clicking directly on the container or an element marked for dragging
           if (e.target === e.currentTarget || (e.target as HTMLElement).hasAttribute('data-tauri-drag-region')) {
             startDrag();
           }
         }}
-        className="flex-1 h-full flex items-center min-w-0"
+        className="absolute inset-0 flex items-center justify-center pointer-events-none"
         data-tauri-drag-region
       >
-        {content}
+        <div className="pointer-events-auto">
+          {content}
+        </div>
       </div>
+
+      {/* Spacer to push toolbar and controls to the right */}
+      <div className="flex-1" />
 
       {/* Custom Toolbar (e.g., Calendar controls) */}
       {toolbar && (
-        <div className={`flex items-center h-full z-20 ${toolbarAlignRight ? 'pr-3 ml-auto' : 'pr-3'}`}>
+        <div className={`flex items-center h-full z-20 ${toolbarAlignRight ? 'pr-3' : 'pr-3'}`}>
           {toolbar}
         </div>
       )}
