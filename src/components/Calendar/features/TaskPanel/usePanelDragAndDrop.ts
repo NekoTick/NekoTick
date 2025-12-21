@@ -27,6 +27,7 @@ interface UsePanelDragAndDropProps {
   reorderTasks: (activeId: string, overId: string, makeChild?: boolean) => void;
   moveTaskToGroup: (taskId: string, groupId: string) => void;
   updateTaskColor: (taskId: string, color: ItemColor) => void;
+  updateTaskTime: (taskId: string, startDate?: number, endDate?: number) => void;
   setDraggingTaskId: (id: string | null) => void;
 }
 
@@ -38,6 +39,7 @@ export function usePanelDragAndDrop({
   reorderTasks,
   moveTaskToGroup: _moveTaskToGroup,
   updateTaskColor: _updateTaskColor,
+  updateTaskTime,
   setDraggingTaskId,
 }: UsePanelDragAndDropProps) {
   // 保留这些参数以便后续扩展功能
@@ -113,12 +115,29 @@ export function usePanelDragAndDrop({
 
     if (!activeTask || !overTask) return;
 
+    // 检查任务状态
+    const activeIsScheduled = !!activeTask.startDate;
+    const activeIsCompleted = activeTask.completed;
+    const overIsScheduled = !!overTask.startDate;
+    const overIsCompleted = overTask.completed;
+    
+    // 从已分配拖到待办，清除时间
+    if (activeIsScheduled && !overIsScheduled && !overIsCompleted) {
+      updateTaskTime(activeTask.id, undefined, undefined);
+    }
+    // 从待办拖到已分配，自动创建当前时间开始的 25 分钟任务
+    else if (!activeIsScheduled && !activeIsCompleted && overIsScheduled) {
+      const startTime = Date.now();
+      const endTime = startTime + 25 * 60 * 1000; // 25 分钟
+      updateTaskTime(activeTask.id, startTime, endTime);
+    }
+
     // 检查是否应该作为子任务
     const INDENT_THRESHOLD = 28;
     const makeChild = dragIndent > INDENT_THRESHOLD;
 
     reorderTasks(active.id as string, over.id as string, makeChild);
-  }, [tasks, dragIndent, reorderTasks, setDraggingTaskId]);
+  }, [tasks, dragIndent, reorderTasks, updateTaskTime, setDraggingTaskId]);
 
   return {
     sensors,

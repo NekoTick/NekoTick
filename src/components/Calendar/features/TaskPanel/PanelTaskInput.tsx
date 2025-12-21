@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, MoreHorizontal, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGroupStore, useUIStore, type ItemColor } from '@/stores/useGroupStore';
+import type { TaskStatus } from '@/stores/uiSlice';
 
 // 颜色配置
 const colorConfig: Record<string, { bg: string; border: string }> = {
@@ -23,6 +24,14 @@ const colorConfig: Record<string, { bg: string; border: string }> = {
 
 // 所有颜色选项
 const allColors: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+
+// 所有状态选项
+const allStatuses: TaskStatus[] = ['todo', 'scheduled', 'completed'];
+const statusLabels: Record<TaskStatus, string> = {
+  todo: 'Todo',
+  scheduled: 'Scheduled',
+  completed: 'Done',
+};
 
 interface PanelTaskInputProps {
   compact?: boolean;
@@ -42,7 +51,8 @@ export function PanelTaskInput({ compact = false }: PanelTaskInputProps) {
   const { 
     hideCompleted, setHideCompleted, 
     hideActualTime, setHideActualTime,
-    selectedColors, toggleColor, toggleAllColors 
+    selectedColors, toggleColor, toggleAllColors,
+    selectedStatuses, toggleStatus, toggleAllStatuses
   } = useUIStore();
 
   const handleSubmit = () => {
@@ -218,7 +228,7 @@ export function PanelTaskInput({ compact = false }: PanelTaskInputProps) {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50"
+              className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50"
             >
               {/* 颜色过滤 */}
               <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
@@ -259,6 +269,46 @@ export function PanelTaskInput({ compact = false }: PanelTaskInputProps) {
                     style={{ background: 'linear-gradient(135deg, #22c55e, #a855f7, #eab308, #ef4444)' }}
                   >
                     <span className="block w-full h-full bg-white dark:bg-zinc-900 rounded-sm" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 状态过滤 */}
+              <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
+                <div className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Status Filter</div>
+                <div className="flex items-center gap-1">
+                  {allStatuses.map(s => (
+                    <button
+                      key={s}
+                      data-color-option
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStatus(s);
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 text-[10px] rounded-md border transition-all",
+                        selectedStatuses.includes(s)
+                          ? "border-zinc-400 dark:border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200"
+                          : "border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600"
+                      )}
+                    >
+                      {statusLabels[s]}
+                    </button>
+                  ))}
+                  <button
+                    data-color-option
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAllStatuses();
+                    }}
+                    className={cn(
+                      "px-2 py-0.5 text-[10px] rounded-md border transition-all",
+                      selectedStatuses.length === allStatuses.length
+                        ? "border-zinc-400 dark:border-zinc-500 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200"
+                        : "border-zinc-200 dark:border-zinc-700 text-zinc-400 dark:text-zinc-500 hover:border-zinc-300 dark:hover:border-zinc-600"
+                    )}
+                  >
+                    All
                   </button>
                 </div>
               </div>

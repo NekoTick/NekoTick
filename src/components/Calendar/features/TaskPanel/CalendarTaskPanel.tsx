@@ -18,6 +18,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 
 import { useGroupStore, useUIStore } from '@/stores/useGroupStore';
 import { useCalendarStore } from '@/stores/useCalendarStore';
+import type { TaskStatus } from '@/stores/uiSlice';
 import { cn } from '@/lib/utils';
 import { EventEditForm } from '../ContextPanel/EventEditForm';
 import { PanelTaskInput } from './PanelTaskInput';
@@ -55,6 +56,7 @@ export function CalendarTaskPanel({
     toggleCollapse,
     moveTaskToGroup,
     updateTaskColor,
+    updateTaskTime,
     archiveCompletedTasks,
     deleteCompletedTasks,
   } = useGroupStore();
@@ -62,6 +64,7 @@ export function CalendarTaskPanel({
   const {
     hideCompleted,
     selectedColors,
+    selectedStatuses,
     setDraggingTaskId,
   } = useUIStore();
 
@@ -109,6 +112,7 @@ export function CalendarTaskPanel({
     reorderTasks,
     moveTaskToGroup,
     updateTaskColor,
+    updateTaskTime,
     setDraggingTaskId,
   });
 
@@ -148,12 +152,17 @@ export function CalendarTaskPanel({
     const scheduled = notCompleted.filter((t) => t.startDate);
     const unscheduled = notCompleted.filter((t) => !t.startDate);
 
+    // 根据状态筛选决定是否显示
+    const showTodo = selectedStatuses.includes('todo' as TaskStatus);
+    const showScheduled = selectedStatuses.includes('scheduled' as TaskStatus);
+    const showCompleted = selectedStatuses.includes('completed' as TaskStatus);
+
     return {
-      incompleteTasks: unscheduled,
-      scheduledTasks: scheduled,
-      completedTasks: hideCompleted ? [] : topLevelTasks.filter((t) => t.completed),
+      incompleteTasks: showTodo ? unscheduled : [],
+      scheduledTasks: showScheduled ? scheduled : [],
+      completedTasks: (hideCompleted || !showCompleted) ? [] : topLevelTasks.filter((t) => t.completed),
     };
-  }, [tasks, activeGroupId, hideCompleted, selectedColors, searchQuery]);
+  }, [tasks, activeGroupId, hideCompleted, selectedColors, selectedStatuses, searchQuery]);
 
   // 任务 ID 列表
   const incompleteTaskIds = useMemo(() => {
@@ -488,8 +497,12 @@ export function CalendarTaskPanel({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          {/* 未完成任务 */}
-          <SortableContext items={incompleteTaskIds} strategy={verticalListSortingStrategy}>
+          {/* 使用统一的 SortableContext 让跨区域拖动时能正确让位 */}
+          <SortableContext 
+            items={[...incompleteTaskIds, ...scheduledTaskIds, ...completedTaskIds]} 
+            strategy={verticalListSortingStrategy}
+          >
+            {/* 未完成任务 */}
             {incompleteTasks.length > 0 ? (
               <div className="space-y-2">
                 {incompleteTasks.map(task => renderTaskItem(task, 0))}
@@ -499,129 +512,125 @@ export function CalendarTaskPanel({
                 <p className="text-xs text-zinc-400 dark:text-zinc-600">No tasks</p>
               </div>
             ) : null}
-          </SortableContext>
 
-          {/* 已分配任务 */}
-          {scheduledTasks.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 w-full mt-4 mb-2">
-                <button
-                  onClick={() => setScheduledExpanded(!scheduledExpanded)}
-                  className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
-                >
-                  <ChevronDown className={cn(
-                    "size-3.5 text-zinc-400 transition-transform",
-                    !scheduledExpanded && "-rotate-90"
-                  )} />
-                  <span className="text-xs text-zinc-400">
-                    Scheduled ({scheduledTasks.length})
-                  </span>
-                </button>
-                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-              </div>
-
-              <AnimatePresence>
-                {scheduledExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
+            {/* 已分配任务 */}
+            {scheduledTasks.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 w-full mt-4 mb-2">
+                  <button
+                    onClick={() => setScheduledExpanded(!scheduledExpanded)}
+                    className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
                   >
-                    <SortableContext items={scheduledTaskIds} strategy={verticalListSortingStrategy}>
+                    <ChevronDown className={cn(
+                      "size-3.5 text-zinc-400 transition-transform",
+                      !scheduledExpanded && "-rotate-90"
+                    )} />
+                    <span className="text-xs text-zinc-400">
+                      Scheduled ({scheduledTasks.length})
+                    </span>
+                  </button>
+                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                </div>
+
+                <AnimatePresence>
+                  {scheduledExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
                       <div className="space-y-2">
                         {scheduledTasks.map(task => renderTaskItem(task, 0))}
                       </div>
-                    </SortableContext>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
 
-          {/* 已完成任务 */}
-          {completedTasks.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 w-full mt-4 mb-2">
-                <button
-                  onClick={() => setCompletedExpanded(!completedExpanded)}
-                  className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
-                >
-                  <ChevronDown className={cn(
-                    "size-3.5 text-zinc-400 transition-transform",
-                    !completedExpanded && "-rotate-90"
-                  )} />
-                  <span className="text-xs text-zinc-400">
-                    Completed ({completedTasks.length})
-                  </span>
-                </button>
-                <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
-                
-                {/* 已完成菜单 - 非归档视图 */}
-                {activeGroupId !== '__archive__' && (
-                  <div className="relative" ref={completedMenuRef}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowCompletedMenu(!showCompletedMenu);
-                      }}
-                      className={cn(
-                        "p-1 rounded-md transition-colors",
-                        showCompletedMenu 
-                          ? "text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800" 
-                          : "text-zinc-300 hover:text-zinc-400 dark:text-zinc-600 dark:hover:text-zinc-500"
-                      )}
-                    >
-                      <MoreHorizontal className="size-3.5" />
-                    </button>
-                    {showCompletedMenu && (
-                      <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
-                        <button
-                          onClick={() => {
-                            if (activeGroupId) {
-                              archiveCompletedTasks(activeGroupId);
-                            }
-                            setShowCompletedMenu(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                        >
-                          Archive All
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (activeGroupId) {
-                              deleteCompletedTasks(activeGroupId);
-                            }
-                            setShowCompletedMenu(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                        >
-                          Delete All
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <AnimatePresence>
-                {completedExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden"
+            {/* 已完成任务 */}
+            {completedTasks.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 w-full mt-4 mb-2">
+                  <button
+                    onClick={() => setCompletedExpanded(!completedExpanded)}
+                    className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
                   >
-                    <SortableContext items={completedTaskIds} strategy={verticalListSortingStrategy}>
+                    <ChevronDown className={cn(
+                      "size-3.5 text-zinc-400 transition-transform",
+                      !completedExpanded && "-rotate-90"
+                    )} />
+                    <span className="text-xs text-zinc-400">
+                      Completed ({completedTasks.length})
+                    </span>
+                  </button>
+                  <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800" />
+                  
+                  {/* 已完成菜单 - 非归档视图 */}
+                  {activeGroupId !== '__archive__' && (
+                    <div className="relative" ref={completedMenuRef}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowCompletedMenu(!showCompletedMenu);
+                        }}
+                        className={cn(
+                          "p-1 rounded-md transition-colors",
+                          showCompletedMenu 
+                            ? "text-zinc-400 bg-zinc-100 dark:text-zinc-500 dark:bg-zinc-800" 
+                            : "text-zinc-300 hover:text-zinc-400 dark:text-zinc-600 dark:hover:text-zinc-500"
+                        )}
+                      >
+                        <MoreHorizontal className="size-3.5" />
+                      </button>
+                      {showCompletedMenu && (
+                        <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1 z-50">
+                          <button
+                            onClick={() => {
+                              if (activeGroupId) {
+                                archiveCompletedTasks(activeGroupId);
+                              }
+                              setShowCompletedMenu(false);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-sm text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          >
+                            Archive All
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (activeGroupId) {
+                                deleteCompletedTasks(activeGroupId);
+                              }
+                              setShowCompletedMenu(false);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-sm text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          >
+                            Delete All
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <AnimatePresence>
+                  {completedExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
                       <div className="space-y-2 opacity-60">
                         {completedTasks.map(task => renderTaskItem(task, 0))}
                       </div>
-                    </SortableContext>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
-          )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+          </SortableContext>
 
           {/* Drag Overlay - rendered via portal for cross-panel dragging */}
           {createPortal(
