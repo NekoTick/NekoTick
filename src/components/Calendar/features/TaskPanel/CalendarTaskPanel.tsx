@@ -734,9 +734,25 @@ export function CalendarTaskPanel({
                   );
                 }
                 
-                // 默认任务卡片样式
+                // 默认任务卡片样式（带颜色复选框）
+                const colorValue = task.color && task.color !== 'default'
+                  ? task.color === 'red' ? '#ef4444' :
+                    task.color === 'yellow' ? '#eab308' :
+                    task.color === 'purple' ? '#a855f7' :
+                    task.color === 'green' ? '#22c55e' :
+                    task.color === 'blue' ? '#3b82f6' : undefined
+                  : undefined;
+                
                 return (
-                  <div className="px-3 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 max-w-[240px]">
+                  <div className="flex items-start gap-2 px-3 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-xl ring-1 ring-black/5 dark:ring-white/10 max-w-[240px]">
+                    {/* 颜色复选框 */}
+                    <div 
+                      className={cn(
+                        "flex-shrink-0 w-3.5 h-3.5 rounded-sm mt-0.5",
+                        colorValue ? "border-2" : "border border-zinc-400/40"
+                      )}
+                      style={colorValue ? { borderColor: colorValue } : undefined}
+                    />
                     <span className="text-[13px] text-zinc-700 dark:text-zinc-200 line-clamp-2">
                       {task.content}
                     </span>
