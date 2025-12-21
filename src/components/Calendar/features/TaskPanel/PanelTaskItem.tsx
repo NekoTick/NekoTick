@@ -42,6 +42,23 @@ function formatEstimatedTimeForInput(minutes: number | undefined): string {
   return parts.join(' ') || '';
 }
 
+function formatScheduledTime(startDate: number, endDate?: number): string {
+  const start = new Date(startDate);
+  const month = (start.getMonth() + 1).toString().padStart(2, '0');
+  const day = start.getDate().toString().padStart(2, '0');
+  const startHour = start.getHours().toString().padStart(2, '0');
+  const startMin = start.getMinutes().toString().padStart(2, '0');
+  
+  if (endDate) {
+    const end = new Date(endDate);
+    const endHour = end.getHours().toString().padStart(2, '0');
+    const endMin = end.getMinutes().toString().padStart(2, '0');
+    const durationMin = Math.round((endDate - startDate) / 60000);
+    return `${startHour}:${startMin} - ${endHour}:${endMin} (${durationMin}m) · ${month}/${day}`;
+  }
+  return `${startHour}:${startMin} · ${month}/${day}`;
+}
+
 interface PanelTaskItemProps {
   task: Task;
   onToggle: (id: string) => void;
@@ -49,14 +66,10 @@ interface PanelTaskItemProps {
   onDelete: (id: string) => void;
   onAddSubTask?: (parentId: string) => void;
   isBeingDragged?: boolean;
-  isDropTarget?: boolean;
-  insertAfter?: boolean;
   level?: number;
   hasChildren?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
-  dragIndent?: number;
-  compact?: boolean;
 }
 
 export function PanelTaskItem({
@@ -66,14 +79,10 @@ export function PanelTaskItem({
   onDelete,
   onAddSubTask,
   isBeingDragged,
-  isDropTarget: _isDropTarget,
-  insertAfter: _insertAfter,
   level = 0,
   hasChildren = false,
   collapsed = false,
   onToggleCollapse,
-  dragIndent: _dragIndent = 0,
-  compact: _compact = false,
 }: PanelTaskItemProps) {
   const MAX_LEVEL = 3;
   const canAddSubTask = level < MAX_LEVEL;
@@ -272,6 +281,13 @@ export function PanelTaskItem({
               {task.actualMinutes && (
                 <span>Act. {formatMinutes(task.actualMinutes)}</span>
               )}
+            </div>
+          )}
+          
+          {/* 已分配时间 */}
+          {task.startDate && !task.isAllDay && (
+            <div className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500">
+              {formatScheduledTime(task.startDate, task.endDate)}
             </div>
           )}
         </div>

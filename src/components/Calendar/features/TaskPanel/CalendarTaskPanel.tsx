@@ -97,8 +97,6 @@ export function CalendarTaskPanel({
     sensors,
     customCollisionDetection,
     activeId,
-    overId,
-    dragIndent,
     handleDragStart,
     handleDragMove,
     handleDragOver,
@@ -256,11 +254,6 @@ export function CalendarTaskPanel({
 
   // 渲染单个任务
   const renderTaskItem = useCallback((task: typeof incompleteTasks[0], level: number = 0) => {
-    const activeIndex = activeId ? incompleteTasks.findIndex(t => t.id === activeId) : -1;
-    const overIndex = overId ? incompleteTasks.findIndex(t => t.id === overId) : -1;
-    const isDropTarget = task.id === overId;
-    const insertAfter = isDropTarget && activeIndex !== -1 && overIndex > activeIndex;
-    
     const children = getChildren(task.id);
     const hasChildren = children.length > 0;
     
@@ -283,23 +276,19 @@ export function CalendarTaskPanel({
           onDelete={deleteTask}
           onAddSubTask={handleAddSubTask}
           isBeingDragged={isBeingDragged}
-          isDropTarget={isDropTarget}
-          insertAfter={insertAfter}
           level={level}
           hasChildren={hasChildren}
           collapsed={task.collapsed}
           onToggleCollapse={() => toggleCollapse(task.id)}
-          dragIndent={dragIndent}
-          compact={!isExpanded}
         />
         {hasChildren && !task.collapsed && (
-          <div className={isExpanded ? "ml-6" : "ml-4"}>
+          <div className="ml-4">
             {children.map(child => renderTaskItem(child, level + 1))}
           </div>
         )}
       </div>
     );
-  }, [activeId, overId, incompleteTasks, getChildren, tasks, toggleTask, updateTask, deleteTask, handleAddSubTask, toggleCollapse, dragIndent, isExpanded]);
+  }, [activeId, getChildren, tasks, toggleTask, updateTask, deleteTask, handleAddSubTask, toggleCollapse]);
 
   // 如果正在编辑事件，显示编辑表单
   if (editingEvent) {
