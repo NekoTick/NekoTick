@@ -46,6 +46,7 @@ export function getSnapMinutes(hourHeight: number): number {
 
 /**
  * Convert pixel position to minutes (adjusted for day start hour)
+ * Returns actual time minutes (0-1439) where 0 = midnight
  */
 export function pixelsToMinutes(pixels: number, hourHeight: number): number {
   const displayMinutes = (pixels / hourHeight) * 60;
@@ -54,6 +55,14 @@ export function pixelsToMinutes(pixels: number, hourHeight: number): number {
   const minutesPart = displayMinutes % 60;
   const actualHour = displayPositionToHour(displayHour);
   return actualHour * 60 + minutesPart;
+}
+
+/**
+ * Convert pixel delta to minutes delta (for relative movement calculations)
+ * This does NOT apply day start hour offset - used for drag deltas
+ */
+export function pixelsDeltaToMinutes(pixelsDelta: number, hourHeight: number): number {
+  return (pixelsDelta / hourHeight) * 60;
 }
 
 /**

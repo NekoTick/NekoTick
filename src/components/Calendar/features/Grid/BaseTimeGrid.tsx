@@ -13,7 +13,7 @@ import { useGroupStore } from '@/stores/useGroupStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { EventBlock } from '../Event/EventBlock';
 import { calculateEventLayout } from '../../utils/eventLayout';
-import { getSnapMinutes, pixelsToMinutes, CALENDAR_CONSTANTS, DAY_START_HOUR, displayPositionToHour, hourToDisplayPosition, minutesToPixels } from '../../utils/timeUtils';
+import { getSnapMinutes, pixelsToMinutes, pixelsDeltaToMinutes, CALENDAR_CONSTANTS, DAY_START_HOUR, displayPositionToHour, hourToDisplayPosition, minutesToPixels } from '../../utils/timeUtils';
 
 const GUTTER_WIDTH = CALENDAR_CONSTANTS.GUTTER_WIDTH as number;
 
@@ -121,7 +121,8 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
     if (eventDrag && scrollRef.current) {
       const scrollDelta = scrollRef.current.scrollTop - eventDrag.startScrollTop;
       const deltaY = e.clientY - eventDrag.startY + scrollDelta;
-      const deltaMinutes = Math.round(pixelsToMinutes(deltaY, hourHeight) / snapMinutes) * snapMinutes;
+      // Use pixelsDeltaToMinutes for relative movement (no day start offset)
+      const deltaMinutes = Math.round(pixelsDeltaToMinutes(deltaY, hourHeight) / snapMinutes) * snapMinutes;
       const deltaMs = deltaMinutes * 60 * 1000;
 
       const event = displayItems.find(item => item.id === eventDrag.eventId);
