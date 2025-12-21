@@ -13,7 +13,7 @@ import { useGroupStore } from '@/stores/useGroupStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { EventBlock } from '../Event/EventBlock';
 import { calculateEventLayout } from '../../utils/eventLayout';
-import { getSnapMinutes, pixelsToMinutes, CALENDAR_CONSTANTS, DAY_START_HOUR, displayPositionToHour, hourToDisplayPosition } from '../../utils/timeUtils';
+import { getSnapMinutes, pixelsToMinutes, CALENDAR_CONSTANTS, DAY_START_HOUR, displayPositionToHour, hourToDisplayPosition, minutesToPixels } from '../../utils/timeUtils';
 
 const GUTTER_WIDTH = CALENDAR_CONSTANTS.GUTTER_WIDTH as number;
 
@@ -358,7 +358,7 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
                       <div
                         style={{
                           position: 'absolute',
-                          top: `${(Math.min(dragStart!.minutes, dragEnd!.minutes) / 60) * hourHeight}px`,
+                          top: `${minutesToPixels(Math.min(dragStart!.minutes, dragEnd!.minutes), hourHeight)}px`,
                           height: `${(Math.abs(dragEnd!.minutes - dragStart!.minutes) / 60) * hourHeight}px`,
                           left: `${ghostLayout.leftPercent}%`,
                           width: `${ghostLayout.widthPercent}%`,
