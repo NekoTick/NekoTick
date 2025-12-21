@@ -5,6 +5,35 @@
  */
 
 /**
+ * Day start hour - the hour at which a "day" begins in the calendar view
+ * Hours before this are shown at the bottom (after midnight)
+ * 
+ * Example: DAY_START_HOUR = 5 means:
+ * - Calendar shows: 5:00, 6:00, ..., 23:00, 0:00, 1:00, 2:00, 3:00, 4:00
+ * - A day runs from 5:00 AM to 4:59 AM the next day
+ */
+export const DAY_START_HOUR = 5;
+
+/**
+ * Convert actual hour (0-23) to display position (0-23)
+ * Maps hours so that DAY_START_HOUR appears at position 0
+ */
+export function hourToDisplayPosition(hour: number): number {
+  if (hour >= DAY_START_HOUR) {
+    return hour - DAY_START_HOUR;
+  }
+  return hour + (24 - DAY_START_HOUR);
+}
+
+/**
+ * Convert display position (0-23) to actual hour (0-23)
+ */
+export function displayPositionToHour(position: number): number {
+  const hour = position + DAY_START_HOUR;
+  return hour >= 24 ? hour - 24 : hour;
+}
+
+/**
  * Dynamically calculate time precision (minutes) based on zoom level
  */
 export function getSnapMinutes(hourHeight: number): number {
@@ -16,17 +45,25 @@ export function getSnapMinutes(hourHeight: number): number {
 }
 
 /**
- * Convert pixel position to minutes
+ * Convert pixel position to minutes (adjusted for day start hour)
  */
 export function pixelsToMinutes(pixels: number, hourHeight: number): number {
-  return (pixels / hourHeight) * 60;
+  const displayMinutes = (pixels / hourHeight) * 60;
+  // Convert display minutes to actual minutes
+  const displayHour = Math.floor(displayMinutes / 60);
+  const minutesPart = displayMinutes % 60;
+  const actualHour = displayPositionToHour(displayHour);
+  return actualHour * 60 + minutesPart;
 }
 
 /**
- * Convert minutes to pixel position
+ * Convert minutes to pixel position (adjusted for day start hour)
  */
 export function minutesToPixels(minutes: number, hourHeight: number): number {
-  return (minutes / 60) * hourHeight;
+  const hour = Math.floor(minutes / 60);
+  const minutesPart = minutes % 60;
+  const displayPosition = hourToDisplayPosition(hour);
+  return (displayPosition * 60 + minutesPart) / 60 * hourHeight;
 }
 
 /**
@@ -45,13 +82,14 @@ export function getMinutesFromMidnight(timestamp: number): number {
 }
 
 /**
- * Calculate event's vertical position in the grid
+ * Calculate event's vertical position in the grid (adjusted for day start hour)
  */
 export function calculateEventTop(startDate: number, hourHeight: number): number {
   const date = new Date(startDate);
   const hours = date.getHours();
   const minutes = date.getMinutes();
-  return hours * hourHeight + (minutes / 60) * hourHeight;
+  const displayPosition = hourToDisplayPosition(hours);
+  return displayPosition * hourHeight + (minutes / 60) * hourHeight;
 }
 
 /**

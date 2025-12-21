@@ -13,7 +13,7 @@ import { useGroupStore } from '@/stores/useGroupStore';
 import { useCalendarEvents } from '../../hooks/useCalendarEvents';
 import { EventBlock } from '../Event/EventBlock';
 import { calculateEventLayout } from '../../utils/eventLayout';
-import { getSnapMinutes, pixelsToMinutes, CALENDAR_CONSTANTS } from '../../utils/timeUtils';
+import { getSnapMinutes, pixelsToMinutes, CALENDAR_CONSTANTS, DAY_START_HOUR, displayPositionToHour, hourToDisplayPosition } from '../../utils/timeUtils';
 
 const GUTTER_WIDTH = CALENDAR_CONSTANTS.GUTTER_WIDTH as number;
 
@@ -65,7 +65,9 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
   useEffect(() => {
     if (scrollRef.current) {
       const currentHour = now.getHours();
-      scrollRef.current.scrollTop = (currentHour - 2) * hourHeight;
+      const displayPosition = hourToDisplayPosition(currentHour);
+      // Scroll to show current time near the top, with some padding
+      scrollRef.current.scrollTop = Math.max(0, (displayPosition - 1) * hourHeight);
     }
   }, []);
 
@@ -219,7 +221,10 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
 
   // ============ Render ============
 
-  const nowTop = getHours(now) * hourHeight + (getMinutes(now) / 60) * hourHeight;
+  const nowHour = getHours(now);
+  const nowMinutes = getMinutes(now);
+  const nowDisplayPosition = hourToDisplayPosition(nowHour);
+  const nowTop = nowDisplayPosition * hourHeight + (nowMinutes / 60) * hourHeight;
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-zinc-950 select-none relative">
@@ -228,18 +233,24 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
         <div className="flex relative" style={{ minHeight: hourHeight * 24 }}>
           {/* Time labels column */}
           <div style={{ width: GUTTER_WIDTH }} className="flex-shrink-0 sticky left-0 z-10 bg-white dark:bg-zinc-950">
-            {Array.from({ length: 24 }).map((_, hour) => (
-              <div key={hour} style={{ height: hourHeight }} className="relative">
-                {hour !== 0 && (
-                  <span className="absolute -top-2 right-3 text-[11px] text-zinc-400 dark:text-zinc-500 font-medium tabular-nums">
-                    {use24Hour 
-                      ? `${hour}:00`
-                      : hour < 12 ? `${hour || 12}AM` : hour === 12 ? '12PM' : `${hour - 12}PM`
-                    }
-                  </span>
-                )}
-              </div>
-            ))}
+            {Array.from({ length: 24 }).map((_, displayPos) => {
+              const actualHour = displayPositionToHour(displayPos);
+              return (
+                <div key={displayPos} style={{ height: hourHeight }} className="relative">
+                  {displayPos !== 0 && (
+                    <span className="absolute -top-2 right-3 text-[11px] text-zinc-400 dark:text-zinc-500 font-medium tabular-nums">
+                      {use24Hour 
+                        ? `${actualHour}:00`
+                        : actualHour === 0 ? '12AM' 
+                        : actualHour < 12 ? `${actualHour}AM` 
+                        : actualHour === 12 ? '12PM' 
+                        : `${actualHour - 12}PM`
+                      }
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Canvas */}
