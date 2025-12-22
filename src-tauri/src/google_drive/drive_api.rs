@@ -127,16 +127,24 @@ impl DriveClient {
 
     /// Create a folder in root
     async fn create_folder(&self, name: &str) -> Result<String, DriveError> {
+        self.create_folder_in_parent(name, None).await
+    }
+
+    /// Create a folder in a specific parent folder
+    pub async fn create_folder_in_parent(&self, name: &str, parent_id: Option<&str>) -> Result<String, DriveError> {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct CreateFolderRequest {
             name: String,
             mime_type: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            parents: Option<Vec<String>>,
         }
 
         let request = CreateFolderRequest {
             name: name.to_string(),
             mime_type: "application/vnd.google-apps.folder".to_string(),
+            parents: parent_id.map(|id| vec![id.to_string()]),
         };
 
         let response = self
@@ -156,6 +164,50 @@ impl DriveClient {
             .map_err(|e| DriveError::ApiError(e.to_string()))?;
 
         Ok(file.id)
+    }
+
+    /// Find or create a subfolder within a parent folder
+    pub async fn ensure_subfolder(&self, parent_id: &str, name: &str) -> Result<String, DriveError> {
+        // First, try to find existing folder
+        if let Some(folder) = self.find_file(parent_id, name).await? {
+            if folder.mime_type.as_deref() == Some("application/vnd.google-apps.folder") {
+                return Ok(folder.id);
+            }
+        }
+
+        // Create new folder
+        self.create_folder_in_parent(name, Some(parent_id)).await
+    }
+
+    /// List all files in a folder
+    pub async fn list_files(&self, folder_id: &str) -> Result<Vec<DriveFile>, DriveError> {
+        let query = format!(
+            "'{}' in parents and trashed = false",
+            folder_id
+        );
+
+        let url = format!(
+            "{}/files?q={}&fields=files(id,name,modifiedTime,mimeType)",
+            DRIVE_API_BASE,
+            urlencoding::encode(&query)
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.access_token)
+            .send()
+            .await
+            .map_err(|e| DriveError::NetworkError(e.to_string()))?;
+
+        Self::check_status(response.status().as_u16())?;
+
+        let list: FileListResponse = response
+            .json()
+            .await
+            .map_err(|e| DriveError::ApiError(e.to_string()))?;
+
+        Ok(list.files)
     }
 
     /// Find a file by name in a folder

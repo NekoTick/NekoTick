@@ -17,6 +17,8 @@ const GOOGLE_CLIENT_ID: &str = "743009558942-gj6kv6infeeuf5rcu9m7oickbfedh0s7.ap
 const GOOGLE_CLIENT_SECRET: &str = "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";
 
 const DATA_FILE_NAME: &str = "data.json";
+const NEKOTICK_FOLDER: &str = ".nekotick";
+const MARKDOWN_FILE: &str = "nekotick.md";
 
 /// Sync status returned to frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -296,13 +298,24 @@ pub async fn check_remote_data() -> Result<RemoteDataInfo, String> {
         }
     };
 
-    // Check for data file
-    match drive.find_file(&folder_id, DATA_FILE_NAME).await {
-        Ok(Some(file)) => Ok(RemoteDataInfo {
-            exists: true,
-            modified_time: file.modified_time,
-            file_id: Some(file.id),
-        }),
+    // Check for .nekotick subfolder
+    match drive.find_file(&folder_id, NEKOTICK_FOLDER).await {
+        Ok(Some(nekotick_folder)) => {
+            // Check for data.json inside .nekotick
+            match drive.find_file(&nekotick_folder.id, DATA_FILE_NAME).await {
+                Ok(Some(file)) => Ok(RemoteDataInfo {
+                    exists: true,
+                    modified_time: file.modified_time,
+                    file_id: Some(file.id),
+                }),
+                Ok(None) => Ok(RemoteDataInfo {
+                    exists: false,
+                    modified_time: None,
+                    file_id: None,
+                }),
+                Err(e) => Err(e.to_string()),
+            }
+        }
         Ok(None) => Ok(RemoteDataInfo {
             exists: false,
             modified_time: None,
@@ -313,6 +326,12 @@ pub async fn check_remote_data() -> Result<RemoteDataInfo, String> {
 }
 
 /// Sync local data to Google Drive
+/// 
+/// Syncs the entire directory structure:
+/// - NekoTick_Data/
+///   - .nekotick/
+///     - data.json
+///   - nekotick.md
 #[tauri::command]
 pub async fn sync_to_drive(app: tauri::AppHandle) -> Result<SyncResult, String> {
     let mut tokens = TokenManager::get_tokens()
@@ -328,17 +347,11 @@ pub async fn sync_to_drive(app: tauri::AppHandle) -> Result<SyncResult, String> 
         }
     }
 
-    // Read local data file
-    let mut data_path = get_data_dir(&app)?;
-    data_path.push(".nekotick");
-    data_path.push(DATA_FILE_NAME);
-
-    let content = fs::read(&data_path).map_err(|e| format!("Failed to read local data: {}", e))?;
-
+    let base_path = get_data_dir(&app)?;
     let drive = DriveClient::new(tokens.access_token);
 
-    // Get or create folder
-    let folder_id = match tokens.folder_id {
+    // Get or create app folder (NekoTick_Data)
+    let app_folder_id = match tokens.folder_id {
         Some(id) => id,
         None => {
             let id = drive.ensure_app_folder().await.map_err(|e| e.to_string())?;
@@ -347,11 +360,33 @@ pub async fn sync_to_drive(app: tauri::AppHandle) -> Result<SyncResult, String> 
         }
     };
 
-    // Upload file
-    drive
-        .upload_file(&folder_id, DATA_FILE_NAME, &content)
+    // Create .nekotick subfolder in Drive
+    let nekotick_folder_id = drive
+        .ensure_subfolder(&app_folder_id, NEKOTICK_FOLDER)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Upload .nekotick/data.json
+    let data_json_path = base_path.join(NEKOTICK_FOLDER).join(DATA_FILE_NAME);
+    if data_json_path.exists() {
+        let content = fs::read(&data_json_path)
+            .map_err(|e| format!("Failed to read {}: {}", DATA_FILE_NAME, e))?;
+        drive
+            .upload_file(&nekotick_folder_id, DATA_FILE_NAME, &content)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Upload nekotick.md (in root of NekoTick_Data)
+    let md_path = base_path.join(MARKDOWN_FILE);
+    if md_path.exists() {
+        let content = fs::read(&md_path)
+            .map_err(|e| format!("Failed to read {}: {}", MARKDOWN_FILE, e))?;
+        drive
+            .upload_file(&app_folder_id, MARKDOWN_FILE, &content)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
 
     // Update sync metadata
     let now = chrono::Utc::now().timestamp();
@@ -368,6 +403,10 @@ pub async fn sync_to_drive(app: tauri::AppHandle) -> Result<SyncResult, String> 
 }
 
 /// Restore data from Google Drive
+/// 
+/// Restores the entire directory structure:
+/// - .nekotick/data.json
+/// - nekotick.md
 #[tauri::command]
 pub async fn restore_from_drive(app: tauri::AppHandle) -> Result<SyncResult, String> {
     let mut tokens = TokenManager::get_tokens()
@@ -383,10 +422,11 @@ pub async fn restore_from_drive(app: tauri::AppHandle) -> Result<SyncResult, Str
         }
     }
 
+    let base_path = get_data_dir(&app)?;
     let drive = DriveClient::new(tokens.access_token);
 
-    // Get folder ID
-    let folder_id = match tokens.folder_id {
+    // Get app folder ID
+    let app_folder_id = match tokens.folder_id {
         Some(id) => id,
         None => {
             let id = drive.ensure_app_folder().await.map_err(|e| e.to_string())?;
@@ -395,39 +435,52 @@ pub async fn restore_from_drive(app: tauri::AppHandle) -> Result<SyncResult, Str
         }
     };
 
-    // Find remote file
-    let file = drive
-        .find_file(&folder_id, DATA_FILE_NAME)
+    // Find .nekotick subfolder
+    let nekotick_folder = drive
+        .find_file(&app_folder_id, NEKOTICK_FOLDER)
         .await
         .map_err(|e| e.to_string())?
-        .ok_or("No remote data found")?;
+        .ok_or("No remote .nekotick folder found")?;
 
-    // Download content
-    let content = drive
-        .download_file(&file.id)
+    // Find and download data.json
+    let data_file = drive
+        .find_file(&nekotick_folder.id, DATA_FILE_NAME)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("No remote data.json found")?;
+
+    let data_content = drive
+        .download_file(&data_file.id)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Backup current local data
-    let mut data_path = get_data_dir(&app)?;
-    data_path.push(".nekotick");
-    fs::create_dir_all(&data_path).map_err(|e| e.to_string())?;
-    
-    let data_file = data_path.join(DATA_FILE_NAME);
-    let backup_file = data_path.join(format!("{}.backup", DATA_FILE_NAME));
+    // Ensure local .nekotick directory exists
+    let nekotick_dir = base_path.join(NEKOTICK_FOLDER);
+    fs::create_dir_all(&nekotick_dir).map_err(|e| e.to_string())?;
 
-    if data_file.exists() {
-        fs::copy(&data_file, &backup_file)
+    // Backup and write data.json
+    let data_json_path = nekotick_dir.join(DATA_FILE_NAME);
+    let backup_path = nekotick_dir.join(format!("{}.backup", DATA_FILE_NAME));
+
+    if data_json_path.exists() {
+        fs::copy(&data_json_path, &backup_path)
             .map_err(|e| format!("Failed to create backup: {}", e))?;
     }
 
-    // Write new data
-    if let Err(e) = fs::write(&data_file, &content) {
+    if let Err(e) = fs::write(&data_json_path, &data_content) {
         // Restore from backup on failure
-        if backup_file.exists() {
-            let _ = fs::copy(&backup_file, &data_file);
+        if backup_path.exists() {
+            let _ = fs::copy(&backup_path, &data_json_path);
         }
-        return Err(format!("Failed to write data: {}", e));
+        return Err(format!("Failed to write data.json: {}", e));
+    }
+
+    // Try to download and restore nekotick.md (optional)
+    if let Ok(Some(md_file)) = drive.find_file(&app_folder_id, MARKDOWN_FILE).await {
+        if let Ok(md_content) = drive.download_file(&md_file.id).await {
+            let md_path = base_path.join(MARKDOWN_FILE);
+            let _ = fs::write(&md_path, &md_content);
+        }
     }
 
     // Update sync metadata
