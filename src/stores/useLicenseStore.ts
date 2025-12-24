@@ -24,6 +24,7 @@ interface LicenseStatus {
   trial_ends_at: number | null;
   license_key: string | null;
   activated_at: number | null;
+  expires_at: number | null;
   last_validated_at: number | null;
   needs_validation: boolean;
   in_grace_period: boolean;
@@ -51,6 +52,7 @@ interface LicenseState {
   isLoading: boolean;
   licenseKey: string | null;
   activatedAt: number | null;
+  expiresAt: number | null;
   lastValidatedAt: number | null;
   inGracePeriod: boolean;
   gracePeriodEndsAt: number | null;
@@ -75,6 +77,7 @@ interface LicenseActions {
   getTrialDaysRemaining: () => number | null;
   getTrialHoursRemaining: () => number | null;
   getTrialSecondsRemaining: () => number | null;
+  getExpiryDaysRemaining: () => number | null;
 }
 
 type LicenseStore = LicenseState & LicenseActions;
@@ -87,6 +90,7 @@ export const useLicenseStore = create<LicenseStore>((set, get) => ({
   isLoading: true,
   licenseKey: null,
   activatedAt: null,
+  expiresAt: null,
   lastValidatedAt: null,
   inGracePeriod: false,
   gracePeriodEndsAt: null,
@@ -117,6 +121,7 @@ export const useLicenseStore = create<LicenseStore>((set, get) => ({
         trialEndsAt: status.trial_ends_at,
         licenseKey: status.license_key,
         activatedAt: status.activated_at,
+        expiresAt: status.expires_at,
         lastValidatedAt: status.last_validated_at,
         inGracePeriod: status.in_grace_period,
         gracePeriodEndsAt: status.grace_period_ends_at,
@@ -184,6 +189,7 @@ export const useLicenseStore = create<LicenseStore>((set, get) => ({
         trialEndsAt: null,
         licenseKey: null,
         activatedAt: null,
+        expiresAt: null,
         lastValidatedAt: null,
         inGracePeriod: false,
         gracePeriodEndsAt: null,
@@ -216,6 +222,7 @@ export const useLicenseStore = create<LicenseStore>((set, get) => ({
           trialEndsAt: null,
           licenseKey: null,
           activatedAt: null,
+          expiresAt: null,
           lastValidatedAt: null,
           inGracePeriod: false,
           gracePeriodEndsAt: null,
@@ -282,5 +289,18 @@ export const useLicenseStore = create<LicenseStore>((set, get) => ({
     const now = Math.floor(Date.now() / 1000);
     const remaining = trialEndsAt - now;
     return remaining > 0 ? remaining : 0;
+  },
+
+  // Get expiry days remaining (for licensed users)
+  getExpiryDaysRemaining: () => {
+    const { expiresAt, isProUser, isTrial } = get();
+    // Only for licensed users (not trial)
+    if (!isProUser || isTrial || !expiresAt) return null;
+    
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = expiresAt - now;
+    if (remaining <= 0) return 0;
+    
+    return Math.ceil(remaining / (24 * 60 * 60));
   },
 }));

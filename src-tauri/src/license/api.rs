@@ -33,6 +33,7 @@ pub struct ValidateRequest {
 pub struct ActivateResponse {
     pub success: bool,
     pub activated_at: Option<i64>,
+    pub expires_at: Option<i64>,
     pub error_code: Option<String>,
     pub error: Option<String>,
 }

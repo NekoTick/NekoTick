@@ -37,7 +37,7 @@ export function AboutTab() {
     isTrial,
     isLoading: isLicenseLoading,
     licenseKey,
-    activatedAt,
+    expiresAt,
     inGracePeriod,
     gracePeriodEndsAt,
     timeTamperDetected,
@@ -51,6 +51,7 @@ export function AboutTab() {
     getTrialDaysRemaining,
     getTrialHoursRemaining,
     getTrialSecondsRemaining,
+    getExpiryDaysRemaining,
   } = useLicenseStore();
 
   // Determine trial phase: 'normal' (>24h), 'urgent' (<=24h), 'expired' (0)
@@ -141,6 +142,22 @@ export function AboutTab() {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const formatExpiryDate = (timestamp: number | null) => {
+    if (!timestamp) return '永久';
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString('zh-CN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  // Check if license is expiring soon (within 3 days)
+  const isExpiringSoon = () => {
+    const daysRemaining = getExpiryDaysRemaining();
+    return daysRemaining !== null && daysRemaining <= 3 && daysRemaining > 0;
   };
 
   return (
@@ -405,30 +422,33 @@ export function AboutTab() {
 
               <div className="h-px bg-zinc-200 dark:bg-zinc-700" />
               
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    Activated
+              <div className="text-sm">
+                {isExpiringSoon() ? (
+                  // Expiring soon warning (within 3 days)
+                  <div className="text-red-600 dark:text-red-400">
+                    ⚠️ 会员即将过期 (剩余 {getExpiryDaysRemaining()} 天)
                   </div>
-                  <div className="text-zinc-900 dark:text-zinc-100">
-                    {formatActivatedDate(activatedAt)}
+                ) : expiresAt ? (
+                  // Normal subscription with expiry date
+                  <div className="text-zinc-500 dark:text-zinc-400">
+                    有效期至：{formatExpiryDate(expiresAt)}
                   </div>
-                </div>
-                <div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                    Status
+                ) : (
+                  // Permanent license (no expiry)
+                  <div className="text-green-600 dark:text-green-400">
+                    永久有效
                   </div>
-                  <div className="text-zinc-900 dark:text-zinc-100">
-                    {inGracePeriod ? (
-                      <span className="text-amber-600 dark:text-amber-400">
-                        Grace Period (until {formatActivatedDate(gracePeriodEndsAt)})
-                      </span>
-                    ) : (
-                      <span className="text-green-600 dark:text-green-400">Active</span>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
+
+              {inGracePeriod && (
+                <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="size-4 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    宽限期至 {formatActivatedDate(gracePeriodEndsAt)}，请确保网络连接以完成验证
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             // Phase 3: Not activated / Trial expired - show expired warning

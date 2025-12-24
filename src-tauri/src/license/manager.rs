@@ -23,6 +23,7 @@ pub struct LicenseStatus {
     pub trial_ends_at: Option<i64>,
     pub license_key: Option<String>,
     pub activated_at: Option<i64>,
+    pub expires_at: Option<i64>,  // License expiry timestamp (seconds)
     pub last_validated_at: Option<i64>,
     pub needs_validation: bool,
     pub in_grace_period: bool,
@@ -38,6 +39,7 @@ impl Default for LicenseStatus {
             trial_ends_at: None,
             license_key: None,
             activated_at: None,
+            expires_at: None,
             last_validated_at: None,
             needs_validation: false,
             in_grace_period: false,
@@ -120,14 +122,19 @@ impl LicenseManager {
         let response = self.api_client.activate(license_key, &self.device_id).await?;
 
         if response.success {
-            let activated_at = response.activated_at.unwrap_or_else(|| Utc::now().timestamp());
+            // API returns milliseconds, convert to seconds for internal storage
+            let activated_at = response.activated_at
+                .map(|ms| ms / 1000)
+                .unwrap_or_else(|| Utc::now().timestamp());
+            // expires_at is also in milliseconds from API, convert to seconds
+            let expires_at = response.expires_at.map(|ms| ms / 1000);
             let now = Utc::now().timestamp();
 
             // Check if we have existing data (trial) to upgrade
             match self.store.load() {
                 Ok(mut data) => {
                     // Upgrade existing trial to license
-                    data.set_license(license_key.to_string(), activated_at, now);
+                    data.set_license(license_key.to_string(), activated_at, now, expires_at);
                     self.store.save(&data)?;
                 }
                 Err(_) => {
@@ -137,6 +144,7 @@ impl LicenseManager {
                         self.device_id.clone(),
                         activated_at,
                         now,
+                        expires_at,
                     );
                     self.store.save(&data)?;
                 }
@@ -225,6 +233,7 @@ impl LicenseManager {
             trial_ends_at,
             license_key: masked_key,
             activated_at: data.activated_at,
+            expires_at: data.expires_at,
             last_validated_at: data.last_validated_at,
             needs_validation,
             in_grace_period,
@@ -404,6 +413,7 @@ mod tests {
         assert!(!status.is_trial);
         assert!(status.trial_ends_at.is_none());
         assert!(status.license_key.is_none());
+        assert!(status.expires_at.is_none());
         assert!(!status.time_tamper_detected);
     }
 }

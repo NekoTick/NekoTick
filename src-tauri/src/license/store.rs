@@ -20,6 +20,7 @@ pub struct LicenseData {
     pub device_id: String,
     pub activated_at: Option<i64>,
     pub last_validated_at: Option<i64>,
+    pub expires_at: Option<i64>,  // License expiry timestamp (milliseconds from API, stored as-is)
     
     // Trial fields (new)
     pub trial_started_at: Option<i64>,  // UTC timestamp when trial started
@@ -39,6 +40,7 @@ impl LicenseData {
         device_id: String,
         activated_at: i64,
         last_validated_at: i64,
+        expires_at: Option<i64>,
     ) -> Self {
         let last_seen_utc_time = chrono::Utc::now().timestamp();
         let mut data = Self {
@@ -46,6 +48,7 @@ impl LicenseData {
             device_id,
             activated_at: Some(activated_at),
             last_validated_at: Some(last_validated_at),
+            expires_at,
             trial_started_at: None,
             trial_used: true, // License activation marks trial as used
             last_seen_utc_time,
@@ -63,6 +66,7 @@ impl LicenseData {
             device_id,
             activated_at: None,
             last_validated_at: None,
+            expires_at: None,
             trial_started_at: Some(now),
             trial_used: false,
             last_seen_utc_time: now,
@@ -79,6 +83,7 @@ impl LicenseData {
             self.license_key.as_deref().unwrap_or(""),
             self.activated_at.unwrap_or(0),
             self.last_validated_at.unwrap_or(0),
+            self.expires_at.unwrap_or(0),
             self.trial_started_at.unwrap_or(0),
             self.trial_used,
             self.last_seen_utc_time,
@@ -91,15 +96,17 @@ impl LicenseData {
         license_key: &str,
         activated_at: i64,
         last_validated_at: i64,
+        expires_at: i64,
         trial_started_at: i64,
         trial_used: bool,
         last_seen_utc_time: i64,
     ) -> String {
         let message = format!(
-            "{}:{}:{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}:{}:{}",
             license_key, 
             activated_at, 
-            last_validated_at, 
+            last_validated_at,
+            expires_at,
             trial_started_at,
             trial_used,
             last_seen_utc_time
@@ -139,10 +146,11 @@ impl LicenseData {
     }
 
     /// Set license key (upgrade from trial to licensed)
-    pub fn set_license(&mut self, license_key: String, activated_at: i64, last_validated_at: i64) {
+    pub fn set_license(&mut self, license_key: String, activated_at: i64, last_validated_at: i64, expires_at: Option<i64>) {
         self.license_key = Some(license_key);
         self.activated_at = Some(activated_at);
         self.last_validated_at = Some(last_validated_at);
+        self.expires_at = expires_at;
         self.trial_used = true;
         self.update_seen_time_and_signature();
     }
@@ -287,6 +295,7 @@ mod tests {
             device_id.to_string(),
             1703001600,
             1703001600,
+            Some(1735603200), // expires_at: 2024-12-31
         )
     }
 
@@ -430,7 +439,7 @@ mod tests {
         assert!(data.is_trial_only());
         
         // Upgrade to license
-        data.set_license("NEKO-UPGRADE-1234".to_string(), 1703001600, 1703001600);
+        data.set_license("NEKO-UPGRADE-1234".to_string(), 1703001600, 1703001600, Some(1735603200));
         assert!(!data.is_trial_only());
         assert!(data.has_license());
         assert!(data.trial_used);
@@ -517,7 +526,8 @@ mod property_tests {
             device_id in device_id_strategy(),
             license_key in license_key_strategy(),
             activated_at in timestamp_strategy(),
-            last_validated_at in timestamp_strategy()
+            last_validated_at in timestamp_strategy(),
+            expires_at in timestamp_strategy()
         ) {
             let temp_dir = tempdir().unwrap();
             let path = temp_dir.path().to_path_buf();
@@ -528,6 +538,7 @@ mod property_tests {
                 device_id.clone(),
                 activated_at,
                 last_validated_at,
+                Some(expires_at),
             );
 
             store.save(&original).unwrap();
@@ -536,6 +547,7 @@ mod property_tests {
             prop_assert_eq!(&original.license_key, &loaded.license_key);
             prop_assert_eq!(&original.device_id, &loaded.device_id);
             prop_assert_eq!(original.activated_at, loaded.activated_at);
+            prop_assert_eq!(original.expires_at, loaded.expires_at);
             prop_assert!(loaded.verify_signature());
         }
 
