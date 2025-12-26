@@ -7,8 +7,8 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { format, setHours, setMinutes } from 'date-fns';
-import { Clock, Folder, ChevronDown, X } from 'lucide-react';
+import { format, setHours, setMinutes, startOfDay, endOfDay } from 'date-fns';
+import { Clock, Folder, ChevronDown, X, Sun } from 'lucide-react';
 import { useCalendarStore, type CalendarEvent } from '@/stores/useCalendarStore';
 import { cn } from '@/lib/utils';
 import type { ItemColor } from '@/stores/types';
@@ -397,34 +397,83 @@ export function EventEditForm({ event, mode = 'embedded', position }: EventEditF
         {/* Divider */}
         <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
 
-        {/* Time */}
-        <div className="flex items-start gap-3">
-          <Clock className="size-4 text-zinc-400 mt-0.5" />
-          <div className="flex items-center text-sm">
-            <EditableTime
-              date={startDate}
-              use24Hour={use24Hour}
-              onChange={(newStart) => {
-                const newEnd = new Date(newStart.getTime() + durationMs);
-                updateEvent(event.id, { 
-                  startDate: newStart.getTime(),
-                  endDate: newEnd.getTime()
+        {/* All-day toggle */}
+        <div className="flex items-center gap-3">
+          <Sun className="size-4 text-zinc-400" />
+          <button
+            onClick={() => {
+              if (event.isAllDay) {
+                // Convert to timed event: set to 9:00-10:00 on the same day
+                const dayStart = new Date(event.startDate);
+                dayStart.setHours(9, 0, 0, 0);
+                const dayEnd = new Date(dayStart);
+                dayEnd.setHours(10, 0, 0, 0);
+                updateEvent(event.id, {
+                  isAllDay: false,
+                  startDate: dayStart.getTime(),
+                  endDate: dayEnd.getTime(),
                 });
-              }}
-            />
-            <span className="mx-1 text-zinc-400">→</span>
-            <EditableTime
-              date={endDate}
-              use24Hour={use24Hour}
-              onChange={(newEnd) => {
-                if (newEnd.getTime() > event.startDate) {
-                  updateEvent(event.id, { endDate: newEnd.getTime() });
-                }
-              }}
-            />
-            <span className="ml-2 text-zinc-400 text-xs">{formatDuration()}</span>
-          </div>
+              } else {
+                // Convert to all-day event
+                updateEvent(event.id, {
+                  isAllDay: true,
+                  startDate: startOfDay(startDate).getTime(),
+                  endDate: endOfDay(startDate).getTime(),
+                });
+              }
+            }}
+            className={cn(
+              "flex items-center gap-2 text-sm transition-colors",
+              event.isAllDay
+                ? "text-blue-600 dark:text-blue-400"
+                : "text-zinc-600 dark:text-zinc-300 hover:text-zinc-800 dark:hover:text-zinc-100"
+            )}
+          >
+            <div className={cn(
+              "w-8 h-4 rounded-full transition-colors relative",
+              event.isAllDay
+                ? "bg-blue-500"
+                : "bg-zinc-300 dark:bg-zinc-600"
+            )}>
+              <div className={cn(
+                "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform",
+                event.isAllDay ? "translate-x-4" : "translate-x-0.5"
+              )} />
+            </div>
+            <span>全天</span>
+          </button>
         </div>
+
+        {/* Time (only show for non-all-day events) */}
+        {!event.isAllDay && (
+          <div className="flex items-start gap-3 mt-3">
+            <Clock className="size-4 text-zinc-400 mt-0.5" />
+            <div className="flex items-center text-sm">
+              <EditableTime
+                date={startDate}
+                use24Hour={use24Hour}
+                onChange={(newStart) => {
+                  const newEnd = new Date(newStart.getTime() + durationMs);
+                  updateEvent(event.id, { 
+                    startDate: newStart.getTime(),
+                    endDate: newEnd.getTime()
+                  });
+                }}
+              />
+              <span className="mx-1 text-zinc-400">→</span>
+              <EditableTime
+                date={endDate}
+                use24Hour={use24Hour}
+                onChange={(newEnd) => {
+                  if (newEnd.getTime() > event.startDate) {
+                    updateEvent(event.id, { endDate: newEnd.getTime() });
+                  }
+                }}
+              />
+              <span className="ml-2 text-zinc-400 text-xs">{formatDuration()}</span>
+            </div>
+          </div>
+        )}
 
         {/* Group picker */}
         <div className="flex items-center gap-3 mt-3 relative" ref={groupPickerRef}>
