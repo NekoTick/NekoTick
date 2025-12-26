@@ -13,6 +13,7 @@ import {
 
 import { useCalendarStore } from '@/stores/useCalendarStore';
 import { useCalendarEvents, type CalendarDisplayItem } from '../../hooks/useCalendarEvents';
+import { isEventInVisualDay, DEFAULT_DAY_START_MINUTES } from '../../utils/timeUtils';
 import type { ItemColor } from '@/stores/types';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -48,8 +49,9 @@ function sortEventsByColor(events: CalendarDisplayItem[]): CalendarDisplayItem[]
 }
 
 export function MonthGrid() {
-  const { selectedDate, setSelectedDate } = useCalendarStore();
+  const { selectedDate, setSelectedDate, dayStartTime } = useCalendarStore();
   const displayItems = useCalendarEvents();
+  const dayStartMinutes = dayStartTime ?? DEFAULT_DAY_START_MINUTES;
   // No need for now state in month view
 
   // Calculate calendar grid
@@ -73,12 +75,13 @@ export function MonthGrid() {
   }
 
   // Get events for a specific day, sorted by completion status and color
+  // Uses visual day logic to match week/day view behavior
   const getEventsForDay = useMemo(() => {
     return (date: Date) => {
-      const dayEvents = displayItems.filter((item) => isSameDay(new Date(item.startDate), date));
+      const dayEvents = displayItems.filter((item) => isEventInVisualDay(item.startDate, date, dayStartMinutes));
       return sortEventsByColor(dayEvents);
     };
-  }, [displayItems]);
+  }, [displayItems, dayStartMinutes]);
 
   const handleDayClick = (date: Date) => {
     setSelectedDate(date);

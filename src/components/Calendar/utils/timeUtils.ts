@@ -228,3 +228,68 @@ export const CALENDAR_CONSTANTS = {
   ZOOM_FACTOR: 1.15,
   MIN_EVENT_DURATION_MINUTES: 5,
 } as const;
+
+/**
+ * Check if an event belongs to a "visual day" based on dayStartMinutes
+ * 
+ * A visual day runs from dayStartMinutes on one calendar day to dayStartMinutes on the next.
+ * For example, if dayStartMinutes is 300 (5:00 AM):
+ * - Visual day for Monday runs from Monday 5:00 AM to Tuesday 5:00 AM
+ * - An event at Monday 11:00 PM belongs to Monday's visual day
+ * - An event at Tuesday 2:00 AM also belongs to Monday's visual day
+ * 
+ * @param eventStartDate - The event's start timestamp
+ * @param visualDay - The calendar date representing the visual day
+ * @param dayStartMinutes - Minutes from midnight when the visual day starts
+ */
+export function isEventInVisualDay(
+  eventStartDate: number,
+  visualDay: Date,
+  dayStartMinutes: number = DEFAULT_DAY_START_MINUTES
+): boolean {
+  const eventDate = new Date(eventStartDate);
+  
+  // Calculate the visual day's start and end timestamps
+  const visualDayStart = new Date(visualDay);
+  visualDayStart.setHours(Math.floor(dayStartMinutes / 60), dayStartMinutes % 60, 0, 0);
+  
+  const visualDayEnd = new Date(visualDayStart);
+  visualDayEnd.setDate(visualDayEnd.getDate() + 1);
+  
+  const eventTime = eventDate.getTime();
+  
+  return eventTime >= visualDayStart.getTime() && eventTime < visualDayEnd.getTime();
+}
+
+/**
+ * Get the visual day boundaries for a given event timestamp
+ * Returns the start and end timestamps of the visual day the event belongs to
+ */
+export function getVisualDayBoundaries(
+  eventTimestamp: number,
+  dayStartMinutes: number = DEFAULT_DAY_START_MINUTES
+): { start: number; end: number } {
+  const eventDate = new Date(eventTimestamp);
+  const eventHour = eventDate.getHours();
+  const eventMinute = eventDate.getMinutes();
+  const eventTotalMinutes = eventHour * 60 + eventMinute;
+  
+  // Determine which visual day this event belongs to
+  const visualDayStart = new Date(eventDate);
+  
+  if (eventTotalMinutes < dayStartMinutes) {
+    // Event is in the "late night" portion (before dayStartMinutes)
+    // It belongs to the previous calendar day's visual day
+    visualDayStart.setDate(visualDayStart.getDate() - 1);
+  }
+  
+  visualDayStart.setHours(Math.floor(dayStartMinutes / 60), dayStartMinutes % 60, 0, 0);
+  
+  const visualDayEnd = new Date(visualDayStart);
+  visualDayEnd.setDate(visualDayEnd.getDate() + 1);
+  
+  return {
+    start: visualDayStart.getTime(),
+    end: visualDayEnd.getTime(),
+  };
+}
