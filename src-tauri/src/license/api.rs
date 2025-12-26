@@ -73,8 +73,10 @@ impl ApiClient {
         device_id: &str,
     ) -> Result<ActivateResponse, LicenseError> {
         let url = format!("{}/activate", API_BASE);
+        // 标准化激活码格式（转大写）
+        let normalized_key = license_key.to_uppercase();
         let request = ActivateRequest {
-            license_key: license_key.to_string(),
+            license_key: normalized_key,
             device_id: device_id.to_string(),
         };
 
@@ -106,8 +108,10 @@ impl ApiClient {
         device_id: &str,
     ) -> Result<DeactivateResponse, LicenseError> {
         let url = format!("{}/deactivate", API_BASE);
+        // 标准化激活码格式（转大写）
+        let normalized_key = license_key.to_uppercase();
         let request = DeactivateRequest {
-            license_key: license_key.to_string(),
+            license_key: normalized_key,
             device_id: device_id.to_string(),
         };
 
@@ -139,8 +143,10 @@ impl ApiClient {
         device_id: &str,
     ) -> Result<ValidateResponse, LicenseError> {
         let url = format!("{}/validate", API_BASE);
+        // 标准化激活码格式（转大写）
+        let normalized_key = license_key.to_uppercase();
         let request = ValidateRequest {
-            license_key: license_key.to_string(),
+            license_key: normalized_key,
             device_id: device_id.to_string(),
         };
 

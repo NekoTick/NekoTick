@@ -44,6 +44,7 @@ hmac = "0.12"
 hex = "0.4"
 aes-gcm = "0.10"
 dirs = "5"
+regex = "1"
 
 [dev-dependencies]
 proptest = "1"

@@ -5,9 +5,11 @@ import { invoke } from '@tauri-apps/api/core';
 const ERROR_MESSAGES: Record<string, string> = {
   DEVICE_LIMIT_REACHED: '设备数量已达上限，请先解绑其他设备',
   INVALID_KEY: '激活码无效，请检查输入',
+  INVALID_FORMAT: '激活码格式不正确',
   EXPIRED: '激活码已过期',
   ALREADY_ACTIVATED: '此设备已激活',
   NETWORK_ERROR: '网络连接失败，请检查网络后重试',
+  REVOKED: '激活码已被吊销',
 };
 
 function getErrorMessage(errorCode: string | null, fallback?: string): string {
