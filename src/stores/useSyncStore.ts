@@ -37,6 +37,9 @@ interface RemoteDataInfo {
   fileId: string | null;
 }
 
+// Sync status for UI indicator
+export type SyncStatusType = 'idle' | 'pending' | 'syncing' | 'success' | 'error';
+
 // Store state
 interface SyncState {
   // Connection state
@@ -56,8 +59,11 @@ interface SyncState {
   // Loading state
   isLoading: boolean;
   
-  // Auto sync (PRO feature)
-  autoSyncEnabled: boolean;
+  // Auto sync state (PRO feature)
+  pendingSync: boolean;           // 是否有待同步的变更
+  lastSyncAttempt: number | null; // 上次同步尝试时间戳
+  syncRetryCount: number;         // 当前重试次数
+  syncStatus: SyncStatusType;     // 同步状态（用于 UI 指示器）
 }
 
 // Store actions
@@ -83,11 +89,13 @@ interface SyncActions {
   // Clear error
   clearError: () => void;
   
-  // Toggle auto sync (PRO feature)
-  toggleAutoSync: () => boolean;
-  
-  // Check if user can use auto sync
-  canUseAutoSync: () => boolean;
+  // Auto sync actions
+  markPendingSync: () => void;
+  clearPendingSync: () => void;
+  setSyncStatus: (status: SyncStatusType) => void;
+  incrementRetryCount: () => void;
+  resetRetryCount: () => void;
+  performAutoSync: () => Promise<boolean>;
 }
 
 type SyncStore = SyncState & SyncActions;
@@ -102,7 +110,10 @@ const initialState: SyncState = {
   hasRemoteData: false,
   remoteModifiedTime: null,
   isLoading: true,
-  autoSyncEnabled: false,
+  pendingSync: false,
+  lastSyncAttempt: null,
+  syncRetryCount: 0,
+  syncStatus: 'idle',
 };
 
 export const useSyncStore = create<SyncStore>((set, get) => ({
@@ -270,27 +281,90 @@ export const useSyncStore = create<SyncStore>((set, get) => ({
     set({ syncError: null });
   },
 
-  toggleAutoSync: () => {
-    const { isProUser, timeTamperDetected } = useLicenseStore.getState();
-    
-    if (timeTamperDetected) {
-      set({ syncError: '系统时间异常，请校准时间后重试' });
-      return false;
-    }
-    
-    if (!isProUser) {
-      set({ syncError: '自动同步是 PRO 功能，请先激活 PRO 会员' });
-      return false;
-    }
-    
-    const newValue = !get().autoSyncEnabled;
-    set({ autoSyncEnabled: newValue });
-    localStorage.setItem('autoSyncEnabled', JSON.stringify(newValue));
-    return true;
+  markPendingSync: () => {
+    set({ pendingSync: true, syncStatus: 'pending' });
+    // 持久化到 localStorage
+    localStorage.setItem('pendingSync', 'true');
   },
 
-  canUseAutoSync: () => {
+  clearPendingSync: () => {
+    set({ pendingSync: false, syncStatus: 'idle' });
+    localStorage.removeItem('pendingSync');
+  },
+
+  setSyncStatus: (status: SyncStatusType) => {
+    set({ syncStatus: status });
+  },
+
+  incrementRetryCount: () => {
+    set((state) => ({ syncRetryCount: state.syncRetryCount + 1 }));
+  },
+
+  resetRetryCount: () => {
+    set({ syncRetryCount: 0 });
+  },
+
+  performAutoSync: async () => {
+    const state = get();
+    
+    // 检查是否可以同步
+    if (!state.isConnected) {
+      console.log('[AutoSync] Not connected to Google Drive');
+      return false;
+    }
+    
+    if (state.isSyncing) {
+      console.log('[AutoSync] Sync already in progress');
+      return false;
+    }
+    
+    // 检查 PRO 状态
     const { isProUser, timeTamperDetected } = useLicenseStore.getState();
-    return isProUser && !timeTamperDetected;
+    if (!isProUser) {
+      console.log('[AutoSync] Not a PRO user');
+      return false;
+    }
+    
+    if (timeTamperDetected) {
+      console.log('[AutoSync] Time tamper detected');
+      return false;
+    }
+    
+    set({ isSyncing: true, syncStatus: 'syncing', syncError: null, lastSyncAttempt: Date.now() });
+    
+    try {
+      const result = await invoke<SyncResult>('auto_sync_to_drive');
+      
+      if (result.success) {
+        set({
+          lastSyncTime: result.timestamp,
+          isSyncing: false,
+          hasRemoteData: true,
+          pendingSync: false,
+          syncStatus: 'idle',
+          syncRetryCount: 0,
+        });
+        localStorage.removeItem('pendingSync');
+        console.log('[AutoSync] Sync successful');
+        return true;
+      } else {
+        set({
+          syncError: result.error || 'Auto sync failed',
+          isSyncing: false,
+          syncStatus: 'error',
+        });
+        console.error('[AutoSync] Sync failed:', result.error);
+        return false;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      set({
+        syncError: errorMsg,
+        isSyncing: false,
+        syncStatus: 'error',
+      });
+      console.error('[AutoSync] Sync error:', errorMsg);
+      return false;
+    }
   },
 }));
