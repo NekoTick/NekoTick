@@ -7,7 +7,7 @@
  * Validates: Requirements 1.1, 1.3, 1.4, 1.5, 5.2, 5.3
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import * as fc from 'fast-check';
 import { getAutoSyncManager, resetAutoSyncManager, AutoSyncConfig } from './autoSyncManager';
 import { useSyncStore } from '@/stores/useSyncStore';
@@ -39,9 +39,9 @@ vi.mock('@/stores/useLicenseStore', () => ({
   },
 }));
 
-// Get mocked functions
-const mockUseSyncStore = vi.mocked(useSyncStore);
-const mockUseLicenseStore = vi.mocked(useLicenseStore);
+// Get mocked functions with proper typing
+const mockSyncStoreGetState = useSyncStore.getState as Mock;
+const mockLicenseStoreGetState = useLicenseStore.getState as Mock;
 
 describe('AutoSyncManager', () => {
   beforeEach(() => {
@@ -49,7 +49,7 @@ describe('AutoSyncManager', () => {
     resetAutoSyncManager();
     
     // Reset mocks to default state
-    mockUseSyncStore.getState.mockReturnValue({
+    mockSyncStoreGetState.mockReturnValue({
       isConnected: true,
       isSyncing: false,
       syncRetryCount: 0,
@@ -59,12 +59,12 @@ describe('AutoSyncManager', () => {
       incrementRetryCount: vi.fn(),
       resetRetryCount: vi.fn(),
       performAutoSync: vi.fn().mockResolvedValue(true),
-    } as any);
+    });
     
-    mockUseLicenseStore.getState.mockReturnValue({
+    mockLicenseStoreGetState.mockReturnValue({
       isProUser: true,
       timeTamperDetected: false,
-    } as any);
+    });
   });
 
   afterEach(() => {
@@ -87,7 +87,7 @@ describe('AutoSyncManager', () => {
             const manager = getAutoSyncManager({ debounceMs: 5000 });
             const mockPerformAutoSync = vi.fn().mockResolvedValue(true);
             
-            mockUseSyncStore.getState.mockReturnValue({
+            mockSyncStoreGetState.mockReturnValue({
               isConnected: true,
               isSyncing: false,
               syncRetryCount: 0,
@@ -96,7 +96,7 @@ describe('AutoSyncManager', () => {
               setSyncStatus: vi.fn(),
               incrementRetryCount: vi.fn(),
               resetRetryCount: vi.fn(),
-            } as any);
+            });
 
             // Trigger sync multiple times rapidly
             for (let i = 0; i < triggerCount; i++) {
@@ -128,7 +128,7 @@ describe('AutoSyncManager', () => {
       const manager = getAutoSyncManager({ debounceMs: 100, cooldownMs: 30000 });
       const mockPerformAutoSync = vi.fn().mockResolvedValue(true);
       
-      mockUseSyncStore.getState.mockReturnValue({
+      mockSyncStoreGetState.mockReturnValue({
         isConnected: true,
         isSyncing: false,
         syncRetryCount: 0,
@@ -137,7 +137,7 @@ describe('AutoSyncManager', () => {
         setSyncStatus: vi.fn(),
         incrementRetryCount: vi.fn(),
         resetRetryCount: vi.fn(),
-      } as any);
+      });
 
       // First sync
       manager.triggerSync();
@@ -166,10 +166,10 @@ describe('AutoSyncManager', () => {
      * canSync should return false when not connected
      */
     it('canSync should return false when not connected', () => {
-      mockUseSyncStore.getState.mockReturnValue({
+      mockSyncStoreGetState.mockReturnValue({
         isConnected: false,
         isSyncing: false,
-      } as any);
+      });
 
       const manager = getAutoSyncManager();
       expect(manager.canSync()).toBe(false);
@@ -179,14 +179,14 @@ describe('AutoSyncManager', () => {
      * canSync should return false when not PRO user
      */
     it('canSync should return false when not PRO user', () => {
-      mockUseSyncStore.getState.mockReturnValue({
+      mockSyncStoreGetState.mockReturnValue({
         isConnected: true,
         isSyncing: false,
-      } as any);
-      mockUseLicenseStore.getState.mockReturnValue({
+      });
+      mockLicenseStoreGetState.mockReturnValue({
         isProUser: false,
         timeTamperDetected: false,
-      } as any);
+      });
 
       const manager = getAutoSyncManager();
       expect(manager.canSync()).toBe(false);
@@ -196,10 +196,10 @@ describe('AutoSyncManager', () => {
      * canSync should return false when already syncing
      */
     it('canSync should return false when already syncing', () => {
-      mockUseSyncStore.getState.mockReturnValue({
+      mockSyncStoreGetState.mockReturnValue({
         isConnected: true,
         isSyncing: true,
-      } as any);
+      });
 
       const manager = getAutoSyncManager();
       expect(manager.canSync()).toBe(false);
@@ -232,7 +232,7 @@ describe('AutoSyncManager', () => {
             const mockSetSyncStatus = vi.fn();
             const mockIncrementRetryCount = vi.fn();
             
-            mockUseSyncStore.getState.mockReturnValue({
+            mockSyncStoreGetState.mockReturnValue({
               isConnected: true,
               isSyncing: false,
               syncRetryCount: retryCount,
@@ -241,7 +241,7 @@ describe('AutoSyncManager', () => {
               setSyncStatus: mockSetSyncStatus,
               incrementRetryCount: mockIncrementRetryCount,
               resetRetryCount: vi.fn(),
-            } as any);
+            });
 
             const manager = getAutoSyncManager({ debounceMs: 100, maxRetries: 5 });
             
@@ -266,7 +266,7 @@ describe('AutoSyncManager', () => {
     it('syncNow should reset retry count', async () => {
       const mockResetRetryCount = vi.fn();
       
-      mockUseSyncStore.getState.mockReturnValue({
+      mockSyncStoreGetState.mockReturnValue({
         isConnected: true,
         isSyncing: false,
         syncRetryCount: 3,
@@ -275,7 +275,7 @@ describe('AutoSyncManager', () => {
         setSyncStatus: vi.fn(),
         incrementRetryCount: vi.fn(),
         resetRetryCount: mockResetRetryCount,
-      } as any);
+      });
 
       const manager = getAutoSyncManager();
       await manager.syncNow();

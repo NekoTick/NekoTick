@@ -9,20 +9,34 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as fc from 'fast-check';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { SyncButton } from './SyncButton';
+import type { SyncStatusType } from '@/stores/useSyncStore';
 
-// Mock stores
-const mockSyncStore = {
+// Mock stores with proper types
+interface MockSyncStore {
+  isConnected: boolean;
+  isSyncing: boolean;
+  syncStatus: SyncStatusType;
+  pendingSync: boolean;
+  syncToCloud: ReturnType<typeof vi.fn>;
+  syncError: string | null;
+}
+
+interface MockLicenseStore {
+  isProUser: boolean;
+}
+
+const mockSyncStore: MockSyncStore = {
   isConnected: true,
   isSyncing: false,
-  syncStatus: 'idle' as const,
+  syncStatus: 'idle',
   pendingSync: false,
   syncToCloud: vi.fn(),
   syncError: null,
 };
 
-const mockLicenseStore = {
+const mockLicenseStore: MockLicenseStore = {
   isProUser: false,
 };
 
