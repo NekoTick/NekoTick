@@ -125,6 +125,11 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
     setIsDragging(true);
     setDragStart(pos);
     setDragEnd({ minutes: pos.minutes });
+    // Initialize time indicator for drag-to-create
+    setDragTimeIndicator({
+      startMinutes: pos.minutes,
+      endMinutes: pos.minutes,
+    });
   }, [getPositionFromMouse, closeEditingEvent]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -135,6 +140,13 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
       const totalMinutes = pixelsToMinutes(relativeY, hourHeight, dayStartMinutes);
       const snappedMinutes = Math.round(totalMinutes / snapMinutes) * snapMinutes;
       setDragEnd({ minutes: snappedMinutes });
+      // Update time indicator for drag-to-create
+      const startMin = Math.min(dragStart.minutes, snappedMinutes);
+      const endMin = Math.max(dragStart.minutes, snappedMinutes);
+      setDragTimeIndicator({
+        startMinutes: startMin,
+        endMinutes: endMin,
+      });
     }
 
     // Handle event drag
@@ -238,6 +250,7 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
           // Instead, just reset the drag state
           setDragStart(null);
           setDragEnd(null);
+          setDragTimeIndicator(null);
           return;
         }
         
@@ -273,6 +286,7 @@ export function BaseTimeGrid({ days }: BaseTimeGridProps) {
 
       setDragStart(null);
       setDragEnd(null);
+      setDragTimeIndicator(null);
     }
 
     // Complete event drag
