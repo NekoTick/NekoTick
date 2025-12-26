@@ -1,7 +1,10 @@
 import { ReactNode, useState, useRef, useCallback, useEffect } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { TitleBar } from './TitleBar';
 import { WindowControls } from './WindowControls';
 import { cn } from '@/lib/utils';
+
+const appWindow = getCurrentWindow();
 
 const PANEL_CONFIG = {
   right: { default: 300, min: 48, storageKey: 'nekotick-right-panel-width' },
@@ -148,8 +151,21 @@ export function Layout({ children, onOpenSettings, toolbar, content, leftPanel, 
               className="flex-shrink-0 flex flex-col bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl overflow-hidden"
               style={{ width: rightPanelWidth }}
             >
-              {/* Window Controls at top of right panel */}
-              <div className="flex-shrink-0 flex justify-end border-b border-zinc-200 dark:border-zinc-800">
+              {/* Window Controls at top of right panel - with drag region */}
+              <div 
+                className="flex-shrink-0 flex items-center border-b border-zinc-200 dark:border-zinc-800 h-10"
+                onMouseDown={(e) => {
+                  // Allow dragging on the empty space, but not on buttons
+                  if (e.target === e.currentTarget) {
+                    appWindow.startDragging();
+                  }
+                }}
+              >
+                {/* Drag region spacer */}
+                <div 
+                  className="flex-1 h-full cursor-default"
+                  onMouseDown={() => appWindow.startDragging()}
+                />
                 <WindowControls />
               </div>
               <div className="flex-1 overflow-auto min-w-0">{rightPanel}</div>
