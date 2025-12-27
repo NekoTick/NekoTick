@@ -7,11 +7,12 @@
 
 import { useMemo, useCallback, useState, useRef } from 'react';
 import { startOfDay, differenceInDays } from 'date-fns';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 import { useCalendarStore } from '@/stores/useCalendarStore';
 import { useGroupStore } from '@/stores/useGroupStore';
 import type { CalendarDisplayItem } from '../../hooks/useCalendarEvents';
+import { EventContextMenu } from '../Event/EventContextMenu';
 
 // ============ Constants ============
 
@@ -19,6 +20,7 @@ const MAX_VISIBLE_ROWS = 3;
 const EVENT_HEIGHT = 22;
 const EVENT_GAP = 2;
 const MIN_AREA_HEIGHT = 28;
+const COLLAPSED_HEIGHT = 28; // Height when collapsed with chevron
 
 // ============ Color Styles ============
 
@@ -182,22 +184,28 @@ export function AllDayArea({
   const [dragEnd, setDragEnd] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [eventDragStarted, setEventDragStarted] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null);
 
   // Calculate layout
-  const { layoutedEvents, totalRows, overflowByDay } = useMemo(
+  const { layoutedEvents, totalRows } = useMemo(
     () => calculateAllDayLayout(allDayEvents, days),
     [allDayEvents, days]
   );
 
-  // Visible rows (limited unless expanded)
-  const visibleRows = isExpanded ? totalRows : Math.min(totalRows, MAX_VISIBLE_ROWS);
-  const hasOverflow = totalRows > MAX_VISIBLE_ROWS;
+  // Notion-style: collapse when 2+ events, show directly when 0-1 event
+  const shouldCollapse = allDayEvents.length >= 2;
+  const showEvents = !shouldCollapse || isExpanded;
 
   // Calculate area height
-  const areaHeight = Math.max(
-    MIN_AREA_HEIGHT,
-    visibleRows * (EVENT_HEIGHT + EVENT_GAP) + EVENT_GAP
-  );
+  const areaHeight = useMemo(() => {
+    if (allDayEvents.length === 0) return MIN_AREA_HEIGHT;
+    if (!showEvents) return COLLAPSED_HEIGHT; // Collapsed state
+    // Expanded or single event
+    return Math.max(
+      MIN_AREA_HEIGHT,
+      totalRows * (EVENT_HEIGHT + EVENT_GAP) + EVENT_GAP
+    );
+  }, [allDayEvents.length, showEvents, totalRows]);
 
   // Get day index from mouse position
   const getDayIndexFromMouse = useCallback((clientX: number) => {
@@ -213,6 +221,11 @@ export function AllDayArea({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest('.all-day-event')) return;
+    // Don't create new event if context menu is open
+    if (contextMenu) {
+      setContextMenu(null);
+      return;
+    }
 
     const dayIndex = getDayIndexFromMouse(e.clientX);
     if (dayIndex === null) return;
@@ -220,7 +233,7 @@ export function AllDayArea({
     setIsDragging(true);
     setDragStart(dayIndex);
     setDragEnd(dayIndex);
-  }, [getDayIndexFromMouse]);
+  }, [getDayIndexFromMouse, contextMenu]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging) return;
@@ -282,6 +295,13 @@ export function AllDayArea({
     toggleTask(eventId);
   }, [toggleTask]);
 
+  // Right-click context menu
+  const handleContextMenu = useCallback((e: React.MouseEvent, eventId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ eventId, x: e.clientX, y: e.clientY });
+  }, []);
+
   // Render ghost selection
   const renderGhost = () => {
     if (!isDragging || dragStart === null || dragEnd === null) return null;
@@ -319,12 +339,28 @@ export function AllDayArea({
       {/* Gutter */}
       <div 
         style={{ width: gutterWidth }} 
-        className="flex-shrink-0 flex items-end justify-end pr-2 pb-1"
+        className="flex-shrink-0 flex items-center justify-end pr-2"
       >
         {allDayEvents.length > 0 && (
-          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
-            全天
-          </span>
+          shouldCollapse ? (
+            // Notion-style: chevron + count when collapsed
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="flex items-center gap-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronUp className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
+              <span className="font-medium">{allDayEvents.length}</span>
+            </button>
+          ) : (
+            // Single event: just show "全天" label
+            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+              全天
+            </span>
+          )
         )}
       </div>
 
@@ -343,10 +379,8 @@ export function AllDayArea({
           ))}
         </div>
 
-        {/* Events */}
-        {layoutedEvents
-          .filter(le => !isExpanded ? le.row < MAX_VISIBLE_ROWS : true)
-          .map(({ event, row, startCol, endCol }) => {
+        {/* Events - only show when expanded or single event */}
+        {showEvents && layoutedEvents.map(({ event, row, startCol, endCol }) => {
             const dayWidth = 100 / days.length;
             const colorStyles = COLOR_STYLES[event.color || 'default'] || COLOR_STYLES.default;
             const isActive = editingEventId === event.id;
@@ -370,6 +404,7 @@ export function AllDayArea({
                 }}
                 onClick={(e) => handleEventClick(e, event.id)}
                 onMouseDown={(e) => handleEventMouseDown(e, event.id)}
+                onContextMenu={(e) => handleContextMenu(e, event.id)}
               >
                 {/* Checkbox */}
                 <button
@@ -404,34 +439,6 @@ export function AllDayArea({
             );
           })}
 
-        {/* Overflow indicators */}
-        {!isExpanded && Array.from(overflowByDay.entries()).map(([col, count]) => {
-          const dayWidth = 100 / days.length;
-          return (
-            <button
-              key={`overflow-${col}`}
-              className="absolute text-[10px] text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 font-medium"
-              style={{
-                left: `calc(${col * dayWidth}% + 4px)`,
-                bottom: 2,
-              }}
-              onClick={() => setIsExpanded(true)}
-            >
-              +{count} more
-            </button>
-          );
-        })}
-
-        {/* Collapse button */}
-        {isExpanded && hasOverflow && (
-          <button
-            className="absolute right-2 bottom-1 text-[10px] text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-            onClick={() => setIsExpanded(false)}
-          >
-            收起
-          </button>
-        )}
-
         {/* Ghost selection */}
         {renderGhost()}
 
@@ -444,6 +451,16 @@ export function AllDayArea({
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <EventContextMenu
+          eventId={contextMenu.eventId}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          currentColor={allDayEvents.find(e => e.id === contextMenu.eventId)?.color}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
