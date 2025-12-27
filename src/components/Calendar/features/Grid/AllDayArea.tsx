@@ -358,25 +358,26 @@ export function AllDayArea({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
     >
-      {/* Gutter */}
+      {/* Gutter - entire area clickable for expand/collapse */}
       <div 
         style={{ width: gutterWidth }} 
-        className="flex-shrink-0 flex items-center justify-end pr-2"
+        className={`
+          flex-shrink-0 flex items-center justify-end pr-2
+          ${shouldCollapse ? 'hover:bg-zinc-100/50 dark:hover:bg-zinc-800/30 transition-colors' : ''}
+        `}
+        onClick={shouldCollapse ? () => setIsExpanded(!isExpanded) : undefined}
       >
         {allDayEvents.length > 0 && (
           shouldCollapse ? (
             // Notion-style: chevron + count when collapsed
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-            >
+            <div className="flex items-center gap-0.5 text-[10px] text-zinc-400 dark:text-zinc-500">
               {isExpanded ? (
                 <ChevronUp className="w-3 h-3" />
               ) : (
                 <ChevronDown className="w-3 h-3" />
               )}
               <span className="font-medium">{allDayEvents.length}</span>
-            </button>
+            </div>
           ) : (
             // Single event: just show "全天" label
             <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
@@ -412,7 +413,7 @@ export function AllDayArea({
               <div
                 key={event.id}
                 className={`
-                  all-day-event absolute flex items-center gap-1 px-1.5 rounded cursor-pointer
+                  all-day-event absolute flex items-center gap-1 px-1.5 rounded
                   transition-all duration-150 select-none
                   ${colorStyles.bg} ${colorStyles.text}
                   ${isActive ? 'ring-2 ring-blue-400 dark:ring-blue-500 shadow-md z-30' : 'hover:shadow-sm z-10'}
