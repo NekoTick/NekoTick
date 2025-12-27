@@ -214,20 +214,21 @@ export function AllDayArea({
     [allDayEvents, days]
   );
 
-  // Notion-style: collapse when 2+ events, show directly when 0-1 event
-  const shouldCollapse = allDayEvents.length >= 2;
+  // Notion-style: collapse when 2+ visible events, show directly when 0-1 event
+  // Use layoutedEvents.length (events in current view) instead of allDayEvents.length
+  const shouldCollapse = layoutedEvents.length >= 2;
   const showEvents = !shouldCollapse || isExpanded;
 
   // Calculate area height
   const areaHeight = useMemo(() => {
-    if (allDayEvents.length === 0) return MIN_AREA_HEIGHT;
+    if (layoutedEvents.length === 0) return MIN_AREA_HEIGHT;
     if (!showEvents) return COLLAPSED_HEIGHT; // Collapsed state
     // Expanded or single event
     return Math.max(
       MIN_AREA_HEIGHT,
       totalRows * (EVENT_HEIGHT + EVENT_GAP) + EVENT_GAP
     );
-  }, [allDayEvents.length, showEvents, totalRows]);
+  }, [layoutedEvents.length, showEvents, totalRows]);
 
   // Get day index from mouse position
   const getDayIndexFromMouse = useCallback((clientX: number) => {
@@ -367,7 +368,7 @@ export function AllDayArea({
         `}
         onClick={shouldCollapse ? () => setIsExpanded(!isExpanded) : undefined}
       >
-        {allDayEvents.length > 0 && (
+        {layoutedEvents.length > 0 && (
           shouldCollapse ? (
             // Notion-style: chevron + count when collapsed
             <div className="flex items-center gap-0.5 text-[10px] text-zinc-400 dark:text-zinc-500">
@@ -376,7 +377,7 @@ export function AllDayArea({
               ) : (
                 <ChevronDown className="w-3 h-3" />
               )}
-              <span className="font-medium">{allDayEvents.length}</span>
+              <span className="font-medium">{layoutedEvents.length}</span>
             </div>
           ) : (
             // Single event: just show "全天" label
