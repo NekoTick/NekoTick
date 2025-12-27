@@ -18,7 +18,7 @@ const RESIZE_HANDLE_HEIGHT = CALENDAR_CONSTANTS.RESIZE_HANDLE_HEIGHT as number;
 
 // ============ Color System ============
 
-const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; ring: string; fill: string; overtime: string }> = {
+const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; ring: string; fill: string; overtime: string; accent: string }> = {
   blue: {
     bg: 'bg-blue-50/90 dark:bg-blue-950/40',
     text: 'text-blue-700 dark:text-blue-200',
@@ -26,6 +26,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; r
     ring: 'ring-blue-300/50 dark:ring-blue-600/30',
     fill: 'bg-blue-200/80 dark:bg-blue-800/60',
     overtime: 'border-blue-400',
+    accent: 'bg-blue-500 dark:bg-blue-400',
   },
   red: {
     bg: 'bg-rose-50/90 dark:bg-rose-950/40',
@@ -34,6 +35,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; r
     ring: 'ring-rose-300/50 dark:ring-rose-600/30',
     fill: 'bg-rose-200/80 dark:bg-rose-800/60',
     overtime: 'border-rose-400',
+    accent: 'bg-rose-500 dark:bg-rose-400',
   },
   green: {
     bg: 'bg-emerald-50/90 dark:bg-emerald-950/40',
@@ -42,6 +44,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; r
     ring: 'ring-emerald-300/50 dark:ring-emerald-600/30',
     fill: 'bg-emerald-200/80 dark:bg-emerald-800/60',
     overtime: 'border-emerald-400',
+    accent: 'bg-emerald-500 dark:bg-emerald-400',
   },
   yellow: {
     bg: 'bg-amber-50/90 dark:bg-amber-950/40',
@@ -50,6 +53,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; r
     ring: 'ring-amber-300/50 dark:ring-amber-600/30',
     fill: 'bg-amber-200/80 dark:bg-amber-800/60',
     overtime: 'border-amber-400',
+    accent: 'bg-amber-500 dark:bg-amber-400',
   },
   purple: {
     bg: 'bg-violet-50/90 dark:bg-violet-950/40',
@@ -58,6 +62,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; r
     ring: 'ring-violet-300/50 dark:ring-violet-600/30',
     fill: 'bg-violet-200/80 dark:bg-violet-800/60',
     overtime: 'border-violet-400',
+    accent: 'bg-violet-500 dark:bg-violet-400',
   },
   default: {
     bg: 'bg-zinc-50/90 dark:bg-zinc-800/40',
@@ -66,6 +71,7 @@ const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; r
     ring: 'ring-zinc-300/50 dark:ring-zinc-600/30',
     fill: 'bg-zinc-300/80 dark:bg-zinc-600/60',
     overtime: 'border-zinc-400',
+    accent: 'bg-zinc-400 dark:bg-zinc-500',
   },
 };
 
@@ -323,21 +329,24 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart, d
         <div
           className={`
             w-full h-full flex flex-col relative overflow-hidden
-            border-l-[3px] ${colorStyles.border}
             ${isTimerActive && !isCompleted ? 'opacity-60' : ''} ${colorStyles.bg}
             rounded-[5px]
             transition-shadow duration-200 ease-out
             ${shadowClass}
             ${isActive ? `ring-2 ${colorStyles.ring}` : ''}
             ${isHovered && !isActive ? `ring-1 ${colorStyles.ring}` : ''}
-            ${isTimerActive && !isCompleted ? 'border-dashed' : ''}
           `}
           style={{ opacity: isCompleted ? 0.6 : 1 }}
         >
+          {/* Apple Calendar style - left accent bar */}
+          <div 
+            className={`absolute left-1 top-1 bottom-1 w-[3px] rounded-full ${colorStyles.accent} ${isTimerActive && !isCompleted ? 'opacity-60' : ''}`}
+          />
+
           {/* Timer fill layer - 扫描线效果（已完成不显示） */}
           {isTimerActive && !isCompleted && (
             <div 
-              className={`absolute inset-0 ${colorStyles.fill} transition-all duration-1000 ease-linear rounded-r-[4px]`}
+              className={`absolute inset-0 ${colorStyles.fill} transition-all duration-1000 ease-linear rounded-[4px]`}
               style={{ 
                 height: `${fillPercent}%`,
                 opacity: 1,
@@ -354,7 +363,7 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart, d
           )}
 
           {/* Content layer */}
-          <div className={`relative z-10 flex items-start gap-1.5 px-2 py-1 ${heightLevel === 'tiny' ? 'items-center' : ''}`}>
+          <div className={`relative z-10 flex items-start gap-1.5 pl-3 pr-2 py-1 ${heightLevel === 'tiny' ? 'items-center' : ''}`}>
             {showCheckbox && (
               <button
                 onClick={(e) => {
