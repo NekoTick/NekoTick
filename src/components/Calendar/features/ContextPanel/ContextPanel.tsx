@@ -37,8 +37,8 @@ export function ContextPanel() {
   // Inbox mode: show unscheduled tasks
   const unscheduledTasks = tasks.filter(t => !t.completed && !t.startDate);
 
-  // Sort by color
-  const colorOrder: Record<string, number> = { red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 };
+  // Sort by color: red, orange, yellow, green, blue, purple, brown, gray (default)
+  const colorOrder: Record<string, number> = { red: 0, orange: 1, yellow: 2, green: 3, blue: 4, purple: 5, brown: 6, default: 7 };
   const sortedTasks = [...unscheduledTasks].sort((a, b) => {
     const aOrder = colorOrder[a.color || 'default'];
     const bOrder = colorOrder[b.color || 'default'];

@@ -12,18 +12,20 @@ import { cn } from '@/lib/utils';
 import { useGroupStore, useUIStore, type ItemColor } from '@/stores/useGroupStore';
 import type { TaskStatus } from '@/stores/uiSlice';
 
-// 颜色配置
+// 颜色配置 - 使用新的 Apple 风格颜色
 const colorConfig: Record<string, { bg: string; border: string }> = {
-  red: { bg: 'bg-red-500', border: 'border-red-500' },
-  yellow: { bg: 'bg-yellow-500', border: 'border-yellow-500' },
-  purple: { bg: 'bg-purple-500', border: 'border-purple-500' },
-  green: { bg: 'bg-green-500', border: 'border-green-500' },
-  blue: { bg: 'bg-blue-500', border: 'border-blue-500' },
-  default: { bg: 'bg-zinc-400', border: 'border-zinc-400' },
+  red: { bg: 'bg-[#FE002D]', border: 'border-[#FE002D]' },
+  orange: { bg: 'bg-[#FF8500]', border: 'border-[#FF8500]' },
+  yellow: { bg: 'bg-[#FEC900]', border: 'border-[#FEC900]' },
+  green: { bg: 'bg-[#63DA38]', border: 'border-[#63DA38]' },
+  blue: { bg: 'bg-[#008BFE]', border: 'border-[#008BFE]' },
+  purple: { bg: 'bg-[#DD11E8]', border: 'border-[#DD11E8]' },
+  brown: { bg: 'bg-[#B47D58]', border: 'border-[#B47D58]' },
+  default: { bg: 'bg-[#9F9FA9]', border: 'border-[#9F9FA9]' },
 };
 
 // 所有颜色选项
-const allColors: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+const allColors: ItemColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'brown', 'default'];
 
 // 所有状态选项
 const allStatuses: TaskStatus[] = ['todo', 'scheduled', 'completed'];
@@ -150,7 +152,7 @@ export function PanelTaskInput({ compact = false }: PanelTaskInputProps) {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="absolute left-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-xl py-1.5 px-1.5 z-50 flex flex-col gap-0.5"
               >
-                {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as ItemColor[]).map((c) => (
+                {allColors.map((c) => (
                   <button
                     key={c}
                     onClick={() => {
@@ -234,28 +236,36 @@ export function PanelTaskInput({ compact = false }: PanelTaskInputProps) {
               <div className="px-3 py-2 border-b border-zinc-200 dark:border-zinc-700">
                 <div className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Color Filter</div>
                 <div className="flex items-center gap-1.5">
-                  {allColors.map(c => (
-                    <button
-                      key={c}
-                      data-color-option
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleColor(c);
-                      }}
-                      className={cn(
-                        "w-5 h-5 rounded-sm border-2 transition-all hover:scale-110",
-                        selectedColors.includes(c) && "ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1"
-                      )}
-                      style={{
-                        borderColor: c === 'red' ? '#ef4444' :
-                                     c === 'yellow' ? '#eab308' :
-                                     c === 'purple' ? '#a855f7' :
-                                     c === 'green' ? '#22c55e' :
-                                     c === 'blue' ? '#3b82f6' : '#d4d4d8',
-                        backgroundColor: c === 'default' ? 'transparent' : undefined,
-                      }}
-                    />
-                  ))}
+                  {allColors.map(c => {
+                    const colorHex: Record<ItemColor, string> = {
+                      red: '#FE002D',
+                      orange: '#FF8500',
+                      yellow: '#FEC900',
+                      green: '#63DA38',
+                      blue: '#008BFE',
+                      purple: '#DD11E8',
+                      brown: '#B47D58',
+                      default: '#9F9FA9',
+                    };
+                    return (
+                      <button
+                        key={c}
+                        data-color-option
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleColor(c);
+                        }}
+                        className={cn(
+                          "w-5 h-5 rounded-sm border-2 transition-all hover:scale-110",
+                          selectedColors.includes(c) && "ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1"
+                        )}
+                        style={{
+                          borderColor: colorHex[c],
+                          backgroundColor: c === 'default' ? 'transparent' : undefined,
+                        }}
+                      />
+                    );
+                  })}
                   <button
                     data-color-option
                     onClick={(e) => {
@@ -266,7 +276,7 @@ export function PanelTaskInput({ compact = false }: PanelTaskInputProps) {
                       "w-5 h-5 rounded-sm transition-all hover:scale-110 p-[2px]",
                       selectedColors.length === allColors.length && "ring-2 ring-zinc-400 ring-offset-1"
                     )}
-                    style={{ background: 'linear-gradient(135deg, #22c55e, #a855f7, #eab308, #ef4444)' }}
+                    style={{ background: 'linear-gradient(135deg, #FE002D, #FF8500, #FEC900, #63DA38, #008BFE, #DD11E8)' }}
                   >
                     <span className="block w-full h-full bg-white dark:bg-zinc-900 rounded-sm" />
                   </button>

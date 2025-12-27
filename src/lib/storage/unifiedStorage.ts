@@ -44,8 +44,8 @@ export interface UnifiedTask {
   parentId: string | null;
   collapsed: boolean;
   
-  // Unified color system
-  color: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+  // Unified color system - Apple style colors
+  color: 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'brown' | 'default';
   
   // Time properties (with time = calendar event, without time = pure todo)
   startDate?: number;

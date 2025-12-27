@@ -25,12 +25,15 @@ async fn create_drag_window(app: AppHandle, content: String, x: f64, y: f64, wid
         ("#fff", "#e5e5e5", "#18181b", "#a1a1aa")
     };
     
-    // Task color
+    // Task color - Apple style colors
     let task_color = match color.as_deref() {
-        Some("red") => "#ef4444",
-        Some("yellow") => "#eab308",
-        Some("purple") => "#a855f7",
-        Some("green") => "#22c55e",
+        Some("red") => "#FE002D",
+        Some("orange") => "#FF8500",
+        Some("yellow") => "#FEC900",
+        Some("green") => "#63DA38",
+        Some("blue") => "#008BFE",
+        Some("purple") => "#DD11E8",
+        Some("brown") => "#B47D58",
         _ => text_muted,
     };
     

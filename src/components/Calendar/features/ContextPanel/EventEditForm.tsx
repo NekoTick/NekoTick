@@ -192,14 +192,16 @@ function EditableTime({ date, onChange, use24Hour = true }: EditableTimeProps) {
 
 // ============ Color Configuration ============
 
-const COLOR_OPTIONS: ItemColor[] = ['default', 'blue', 'green', 'purple', 'yellow', 'red'];
+const COLOR_OPTIONS: ItemColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'brown', 'default'];
 const COLOR_VALUES: Record<ItemColor, string> = {
-  red: '#ef4444',
-  yellow: '#eab308',
-  purple: '#a855f7',
-  green: '#22c55e',
-  blue: '#3b82f6',
-  default: '#d4d4d8',
+  red: '#FE002D',
+  orange: '#FF8500',
+  yellow: '#FEC900',
+  green: '#63DA38',
+  blue: '#008BFE',
+  purple: '#DD11E8',
+  brown: '#B47D58',
+  default: '#9F9FA9',
 };
 
 // ============ Types ============

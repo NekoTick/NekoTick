@@ -22,38 +22,48 @@ const EVENT_GAP = 2;
 const MIN_AREA_HEIGHT = 28;
 const COLLAPSED_HEIGHT = 28; // Height when collapsed with chevron
 
-// ============ Color Styles ============
+// ============ Color Styles - Apple Style Colors ============
 
 const COLOR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  blue: {
-    bg: 'bg-blue-100/80 dark:bg-blue-900/40',
-    text: 'text-blue-700 dark:text-blue-200',
-    border: 'border-blue-300 dark:border-blue-600',
-  },
   red: {
-    bg: 'bg-rose-100/80 dark:bg-rose-900/40',
-    text: 'text-rose-700 dark:text-rose-200',
-    border: 'border-rose-300 dark:border-rose-600',
+    bg: 'bg-[#FE002D]/15 dark:bg-[#FE002D]/25',
+    text: 'text-[#FE002D] dark:text-[#FF6B6B]',
+    border: 'border-[#FE002D]/30 dark:border-[#FE002D]/40',
   },
-  green: {
-    bg: 'bg-emerald-100/80 dark:bg-emerald-900/40',
-    text: 'text-emerald-700 dark:text-emerald-200',
-    border: 'border-emerald-300 dark:border-emerald-600',
+  orange: {
+    bg: 'bg-[#FF8500]/15 dark:bg-[#FF8500]/25',
+    text: 'text-[#FF8500] dark:text-[#FFB366]',
+    border: 'border-[#FF8500]/30 dark:border-[#FF8500]/40',
   },
   yellow: {
-    bg: 'bg-amber-100/80 dark:bg-amber-900/40',
-    text: 'text-amber-700 dark:text-amber-200',
-    border: 'border-amber-300 dark:border-amber-600',
+    bg: 'bg-[#FEC900]/15 dark:bg-[#FEC900]/25',
+    text: 'text-[#B8920A] dark:text-[#FEC900]',
+    border: 'border-[#FEC900]/30 dark:border-[#FEC900]/40',
+  },
+  green: {
+    bg: 'bg-[#63DA38]/15 dark:bg-[#63DA38]/25',
+    text: 'text-[#4CAF2A] dark:text-[#63DA38]',
+    border: 'border-[#63DA38]/30 dark:border-[#63DA38]/40',
+  },
+  blue: {
+    bg: 'bg-[#008BFE]/15 dark:bg-[#008BFE]/25',
+    text: 'text-[#008BFE] dark:text-[#66B8FF]',
+    border: 'border-[#008BFE]/30 dark:border-[#008BFE]/40',
   },
   purple: {
-    bg: 'bg-violet-100/80 dark:bg-violet-900/40',
-    text: 'text-violet-700 dark:text-violet-200',
-    border: 'border-violet-300 dark:border-violet-600',
+    bg: 'bg-[#DD11E8]/15 dark:bg-[#DD11E8]/25',
+    text: 'text-[#DD11E8] dark:text-[#E866F0]',
+    border: 'border-[#DD11E8]/30 dark:border-[#DD11E8]/40',
+  },
+  brown: {
+    bg: 'bg-[#B47D58]/15 dark:bg-[#B47D58]/25',
+    text: 'text-[#B47D58] dark:text-[#D4A484]',
+    border: 'border-[#B47D58]/30 dark:border-[#B47D58]/40',
   },
   default: {
-    bg: 'bg-zinc-100/80 dark:bg-zinc-800/40',
-    text: 'text-zinc-700 dark:text-zinc-200',
-    border: 'border-zinc-300 dark:border-zinc-600',
+    bg: 'bg-[#9F9FA9]/15 dark:bg-[#9F9FA9]/25',
+    text: 'text-[#6B6B73] dark:text-[#9F9FA9]',
+    border: 'border-[#9F9FA9]/30 dark:border-[#9F9FA9]/40',
   },
 };
 
@@ -75,14 +85,16 @@ interface LayoutedEvent {
   endCol: number;
 }
 
-// Color sort order: consistent with eventLayout.ts
+// Color sort order: red, orange, yellow, green, blue, purple, brown, gray (default)
 const COLOR_SORT_ORDER: Record<string, number> = {
   red: 0,
-  yellow: 1,
-  purple: 2,
+  orange: 1,
+  yellow: 2,
   green: 3,
   blue: 4,
-  default: 5,
+  purple: 5,
+  brown: 6,
+  default: 7,
 };
 
 function getColorSortOrder(color?: string): number {

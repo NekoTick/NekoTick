@@ -8,20 +8,22 @@ export interface Group {
   pinned?: boolean;
 }
 
-// Unified color system
-export type ItemColor = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+// Unified color system: red, orange, yellow, green, blue, purple, brown, gray (default)
+export type ItemColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'brown' | 'default';
 
 // View mode type
 export type ViewMode = 'day' | 'week' | 'month';
 
-// Unified color configuration
+// Unified color configuration with new Apple-style colors
 export const ITEM_COLORS: Record<ItemColor, string> = {
-  red: '#ef4444',
-  yellow: '#eab308',
-  purple: '#a855f7',
-  green: '#22c55e',
-  blue: '#3b82f6',
-  default: '#d4d4d8',
+  red: '#FE002D',
+  orange: '#FF8500',
+  yellow: '#FEC900',
+  green: '#63DA38',
+  blue: '#008BFE',
+  purple: '#DD11E8',
+  brown: '#B47D58',
+  default: '#9F9FA9',
 } as const;
 
 // StoreTask type for archive components

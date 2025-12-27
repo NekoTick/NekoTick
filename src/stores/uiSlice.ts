@@ -6,7 +6,7 @@ import type { ItemColor } from './types';
 
 const COLOR_FILTER_KEY = 'nekotick-color-filter';
 const STATUS_FILTER_KEY = 'nekotick-status-filter';
-const ALL_COLORS: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+const ALL_COLORS: ItemColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'brown', 'default'];
 
 export type TaskStatus = 'todo' | 'scheduled' | 'completed';
 const ALL_STATUSES: TaskStatus[] = ['todo', 'scheduled', 'completed'];

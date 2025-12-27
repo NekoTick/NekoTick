@@ -25,14 +25,16 @@ export interface EventLayoutInfo {
   widthPercent: number;
 }
 
-// Color sort order: lower number = positioned more to the left
+// Color sort order: red, orange, yellow, green, blue, purple, brown, gray (default)
 const COLOR_SORT_ORDER: Record<ItemColor, number> = {
   red: 0,
-  yellow: 1,
-  purple: 2,
+  orange: 1,
+  yellow: 2,
   green: 3,
   blue: 4,
-  default: 5,
+  purple: 5,
+  brown: 6,
+  default: 7,
 };
 
 /**

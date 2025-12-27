@@ -98,30 +98,29 @@ export function MiniCalendar() {
   );
 }
 
-const ALL_COLORS: ItemColor[] = ['red', 'yellow', 'purple', 'green', 'blue', 'default'];
+const ALL_COLORS: ItemColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'brown', 'default'];
 
 function ColorFilter() {
   const { selectedColors, toggleColor, toggleAllColors } = useUIStore();
+  
+  // Apple 风格颜色
+  const colorHexMap: Record<string, string> = {
+    red: '#FE002D',
+    orange: '#FF8500',
+    yellow: '#FEC900',
+    green: '#63DA38',
+    blue: '#008BFE',
+    purple: '#DD11E8',
+    brown: '#B47D58',
+    default: '#9F9FA9',
+  };
   
   return (
     <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
       <div className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">Color Filter</div>
       <div className="flex items-center justify-between gap-1.5">
-        {/* Default color button */}
-        <button
-          onClick={() => toggleColor('default')}
-          className={`w-6 h-6 rounded-sm border-2 transition-all hover:scale-110 ${
-            selectedColors.includes('default')
-              ? 'ring-2 ring-zinc-400 dark:ring-zinc-500 ring-offset-1'
-              : ''
-          }`}
-          style={{
-            borderColor: '#d4d4d8',
-            backgroundColor: 'transparent'
-          }}
-        />
-        {/* Color options */}
-        {(['blue', 'green', 'purple', 'yellow', 'red'] as const).map(color => (
+        {/* Color options - 按新顺序 */}
+        {ALL_COLORS.map(color => (
           <button
             key={color}
             onClick={() => toggleColor(color)}
@@ -131,11 +130,8 @@ function ColorFilter() {
                 : ''
             }`}
             style={{
-              borderColor: color === 'red' ? '#ef4444' :
-                           color === 'yellow' ? '#eab308' :
-                           color === 'purple' ? '#a855f7' :
-                           color === 'green' ? '#22c55e' :
-                           '#3b82f6'
+              borderColor: colorHexMap[color],
+              backgroundColor: color === 'default' ? 'transparent' : undefined
             }}
           />
         ))}
@@ -148,7 +144,7 @@ function ColorFilter() {
               : ''
           }`}
           style={{
-            background: 'linear-gradient(135deg, #22c55e, #a855f7, #eab308, #ef4444)'
+            background: 'linear-gradient(135deg, #FE002D, #FF8500, #FEC900, #63DA38, #008BFE, #DD11E8)'
           }}
         >
           <span className="block w-full h-full bg-white dark:bg-zinc-900 rounded-sm" />

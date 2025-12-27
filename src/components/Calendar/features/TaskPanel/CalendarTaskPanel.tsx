@@ -27,42 +27,52 @@ import { SortableDivider } from './SortableDivider';
 import { usePanelDragAndDrop } from './usePanelDragAndDrop';
 import { ProgressContent } from '@/components/Progress/features/ProgressContent';
 
-// 颜色排序
+// 颜色排序 - Apple 风格颜色顺序
 const colorOrder: Record<string, number> = { 
-  red: 0, yellow: 1, purple: 2, green: 3, blue: 4, default: 5 
+  red: 0, orange: 1, yellow: 2, green: 3, blue: 4, purple: 5, brown: 6, default: 7 
 };
 
-// 颜色样式（用于日历事件块样式的 DragOverlay）
+// 颜色样式（用于日历事件块样式的 DragOverlay）- Apple 风格颜色
 const COLOR_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  blue: {
-    bg: 'bg-blue-50/90 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-200',
-    border: 'border-blue-400 dark:border-blue-500',
-  },
   red: {
-    bg: 'bg-rose-50/90 dark:bg-rose-950/40',
-    text: 'text-rose-700 dark:text-rose-200',
-    border: 'border-rose-400 dark:border-rose-500',
+    bg: 'bg-[#FE002D]/15 dark:bg-[#FE002D]/25',
+    text: 'text-[#FE002D] dark:text-[#FE002D]',
+    border: 'border-[#FE002D] dark:border-[#FE002D]',
   },
-  green: {
-    bg: 'bg-emerald-50/90 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-200',
-    border: 'border-emerald-400 dark:border-emerald-500',
+  orange: {
+    bg: 'bg-[#FF8500]/15 dark:bg-[#FF8500]/25',
+    text: 'text-[#FF8500] dark:text-[#FF8500]',
+    border: 'border-[#FF8500] dark:border-[#FF8500]',
   },
   yellow: {
-    bg: 'bg-amber-50/90 dark:bg-amber-950/40',
-    text: 'text-amber-700 dark:text-amber-200',
-    border: 'border-amber-400 dark:border-amber-500',
+    bg: 'bg-[#FEC900]/15 dark:bg-[#FEC900]/25',
+    text: 'text-[#FEC900] dark:text-[#FEC900]',
+    border: 'border-[#FEC900] dark:border-[#FEC900]',
+  },
+  green: {
+    bg: 'bg-[#63DA38]/15 dark:bg-[#63DA38]/25',
+    text: 'text-[#63DA38] dark:text-[#63DA38]',
+    border: 'border-[#63DA38] dark:border-[#63DA38]',
+  },
+  blue: {
+    bg: 'bg-[#008BFE]/15 dark:bg-[#008BFE]/25',
+    text: 'text-[#008BFE] dark:text-[#008BFE]',
+    border: 'border-[#008BFE] dark:border-[#008BFE]',
   },
   purple: {
-    bg: 'bg-violet-50/90 dark:bg-violet-950/40',
-    text: 'text-violet-700 dark:text-violet-200',
-    border: 'border-violet-400 dark:border-violet-500',
+    bg: 'bg-[#DD11E8]/15 dark:bg-[#DD11E8]/25',
+    text: 'text-[#DD11E8] dark:text-[#DD11E8]',
+    border: 'border-[#DD11E8] dark:border-[#DD11E8]',
+  },
+  brown: {
+    bg: 'bg-[#B47D58]/15 dark:bg-[#B47D58]/25',
+    text: 'text-[#B47D58] dark:text-[#B47D58]',
+    border: 'border-[#B47D58] dark:border-[#B47D58]',
   },
   default: {
-    bg: 'bg-zinc-50/90 dark:bg-zinc-800/40',
-    text: 'text-zinc-700 dark:text-zinc-200',
-    border: 'border-zinc-400 dark:border-zinc-500',
+    bg: 'bg-[#9F9FA9]/15 dark:bg-[#9F9FA9]/25',
+    text: 'text-[#9F9FA9] dark:text-[#9F9FA9]',
+    border: 'border-[#9F9FA9] dark:border-[#9F9FA9]',
   },
 };
 
@@ -735,12 +745,19 @@ export function CalendarTaskPanel({
                 }
                 
                 // 默认任务卡片样式（带颜色复选框）
+                // Apple 风格颜色
+                const colorHexMap: Record<string, string> = {
+                  red: '#FE002D',
+                  orange: '#FF8500',
+                  yellow: '#FEC900',
+                  green: '#63DA38',
+                  blue: '#008BFE',
+                  purple: '#DD11E8',
+                  brown: '#B47D58',
+                  default: '#9F9FA9',
+                };
                 const colorValue = task.color && task.color !== 'default'
-                  ? task.color === 'red' ? '#ef4444' :
-                    task.color === 'yellow' ? '#eab308' :
-                    task.color === 'purple' ? '#a855f7' :
-                    task.color === 'green' ? '#22c55e' :
-                    task.color === 'blue' ? '#3b82f6' : undefined
+                  ? colorHexMap[task.color]
                   : undefined;
                 
                 return (

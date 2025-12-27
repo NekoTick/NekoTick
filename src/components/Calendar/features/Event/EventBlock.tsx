@@ -16,62 +16,80 @@ import { calculateEventTop, calculateEventHeight, CALENDAR_CONSTANTS, DEFAULT_DA
 const GAP = CALENDAR_CONSTANTS.GAP as number;
 const RESIZE_HANDLE_HEIGHT = CALENDAR_CONSTANTS.RESIZE_HANDLE_HEIGHT as number;
 
-// ============ Color System ============
+// ============ Color System - Apple Style Colors ============
 
 const COLOR_STYLES: Record<string, { bg: string; text: string; border: string; ring: string; fill: string; overtime: string; accent: string }> = {
-  blue: {
-    bg: 'bg-blue-50/90 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-200',
-    border: 'border-blue-400 dark:border-blue-500',
-    ring: 'ring-blue-300/50 dark:ring-blue-600/30',
-    fill: 'bg-blue-200/80 dark:bg-blue-800/60',
-    overtime: 'border-blue-400',
-    accent: 'bg-blue-500 dark:bg-blue-400',
-  },
   red: {
-    bg: 'bg-rose-50/90 dark:bg-rose-950/40',
-    text: 'text-rose-700 dark:text-rose-200',
-    border: 'border-rose-400 dark:border-rose-500',
-    ring: 'ring-rose-300/50 dark:ring-rose-600/30',
-    fill: 'bg-rose-200/80 dark:bg-rose-800/60',
-    overtime: 'border-rose-400',
-    accent: 'bg-rose-500 dark:bg-rose-400',
+    bg: 'bg-[#FE002D]/10 dark:bg-[#FE002D]/20',
+    text: 'text-[#FE002D] dark:text-[#FF6B6B]',
+    border: 'border-[#FE002D]/40 dark:border-[#FE002D]/50',
+    ring: 'ring-[#FE002D]/30 dark:ring-[#FE002D]/20',
+    fill: 'bg-[#FE002D]/30 dark:bg-[#FE002D]/40',
+    overtime: 'border-[#FE002D]',
+    accent: 'bg-[#FE002D]',
   },
-  green: {
-    bg: 'bg-emerald-50/90 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-200',
-    border: 'border-emerald-400 dark:border-emerald-500',
-    ring: 'ring-emerald-300/50 dark:ring-emerald-600/30',
-    fill: 'bg-emerald-200/80 dark:bg-emerald-800/60',
-    overtime: 'border-emerald-400',
-    accent: 'bg-emerald-500 dark:bg-emerald-400',
+  orange: {
+    bg: 'bg-[#FF8500]/10 dark:bg-[#FF8500]/20',
+    text: 'text-[#FF8500] dark:text-[#FFB366]',
+    border: 'border-[#FF8500]/40 dark:border-[#FF8500]/50',
+    ring: 'ring-[#FF8500]/30 dark:ring-[#FF8500]/20',
+    fill: 'bg-[#FF8500]/30 dark:bg-[#FF8500]/40',
+    overtime: 'border-[#FF8500]',
+    accent: 'bg-[#FF8500]',
   },
   yellow: {
-    bg: 'bg-amber-50/90 dark:bg-amber-950/40',
-    text: 'text-amber-700 dark:text-amber-200',
-    border: 'border-amber-400 dark:border-amber-500',
-    ring: 'ring-amber-300/50 dark:ring-amber-600/30',
-    fill: 'bg-amber-200/80 dark:bg-amber-800/60',
-    overtime: 'border-amber-400',
-    accent: 'bg-amber-500 dark:bg-amber-400',
+    bg: 'bg-[#FEC900]/10 dark:bg-[#FEC900]/20',
+    text: 'text-[#B8920A] dark:text-[#FEC900]',
+    border: 'border-[#FEC900]/40 dark:border-[#FEC900]/50',
+    ring: 'ring-[#FEC900]/30 dark:ring-[#FEC900]/20',
+    fill: 'bg-[#FEC900]/30 dark:bg-[#FEC900]/40',
+    overtime: 'border-[#FEC900]',
+    accent: 'bg-[#FEC900]',
+  },
+  green: {
+    bg: 'bg-[#63DA38]/10 dark:bg-[#63DA38]/20',
+    text: 'text-[#4CAF2A] dark:text-[#63DA38]',
+    border: 'border-[#63DA38]/40 dark:border-[#63DA38]/50',
+    ring: 'ring-[#63DA38]/30 dark:ring-[#63DA38]/20',
+    fill: 'bg-[#63DA38]/30 dark:bg-[#63DA38]/40',
+    overtime: 'border-[#63DA38]',
+    accent: 'bg-[#63DA38]',
+  },
+  blue: {
+    bg: 'bg-[#008BFE]/10 dark:bg-[#008BFE]/20',
+    text: 'text-[#008BFE] dark:text-[#66B8FF]',
+    border: 'border-[#008BFE]/40 dark:border-[#008BFE]/50',
+    ring: 'ring-[#008BFE]/30 dark:ring-[#008BFE]/20',
+    fill: 'bg-[#008BFE]/30 dark:bg-[#008BFE]/40',
+    overtime: 'border-[#008BFE]',
+    accent: 'bg-[#008BFE]',
   },
   purple: {
-    bg: 'bg-violet-50/90 dark:bg-violet-950/40',
-    text: 'text-violet-700 dark:text-violet-200',
-    border: 'border-violet-400 dark:border-violet-500',
-    ring: 'ring-violet-300/50 dark:ring-violet-600/30',
-    fill: 'bg-violet-200/80 dark:bg-violet-800/60',
-    overtime: 'border-violet-400',
-    accent: 'bg-violet-500 dark:bg-violet-400',
+    bg: 'bg-[#DD11E8]/10 dark:bg-[#DD11E8]/20',
+    text: 'text-[#DD11E8] dark:text-[#E866F0]',
+    border: 'border-[#DD11E8]/40 dark:border-[#DD11E8]/50',
+    ring: 'ring-[#DD11E8]/30 dark:ring-[#DD11E8]/20',
+    fill: 'bg-[#DD11E8]/30 dark:bg-[#DD11E8]/40',
+    overtime: 'border-[#DD11E8]',
+    accent: 'bg-[#DD11E8]',
+  },
+  brown: {
+    bg: 'bg-[#B47D58]/10 dark:bg-[#B47D58]/20',
+    text: 'text-[#B47D58] dark:text-[#D4A484]',
+    border: 'border-[#B47D58]/40 dark:border-[#B47D58]/50',
+    ring: 'ring-[#B47D58]/30 dark:ring-[#B47D58]/20',
+    fill: 'bg-[#B47D58]/30 dark:bg-[#B47D58]/40',
+    overtime: 'border-[#B47D58]',
+    accent: 'bg-[#B47D58]',
   },
   default: {
-    bg: 'bg-zinc-50/90 dark:bg-zinc-800/40',
-    text: 'text-zinc-700 dark:text-zinc-200',
-    border: 'border-zinc-400 dark:border-zinc-500',
-    ring: 'ring-zinc-300/50 dark:ring-zinc-600/30',
-    fill: 'bg-zinc-300/80 dark:bg-zinc-600/60',
-    overtime: 'border-zinc-400',
-    accent: 'bg-zinc-400 dark:bg-zinc-500',
+    bg: 'bg-[#9F9FA9]/10 dark:bg-[#9F9FA9]/20',
+    text: 'text-[#6B6B73] dark:text-[#9F9FA9]',
+    border: 'border-[#9F9FA9]/40 dark:border-[#9F9FA9]/50',
+    ring: 'ring-[#9F9FA9]/30 dark:ring-[#9F9FA9]/20',
+    fill: 'bg-[#9F9FA9]/30 dark:bg-[#9F9FA9]/40',
+    overtime: 'border-[#9F9FA9]',
+    accent: 'bg-[#9F9FA9]',
   },
 };
 
@@ -162,7 +180,7 @@ export function EventBlock({ event, layout, hourHeight, onToggle, onDragStart, d
   }, [height]);
 
   // Color
-  const colorStyles = COLOR_STYLES[event.color || 'blue'] || COLOR_STYLES.blue;
+  const colorStyles = COLOR_STYLES[event.color || 'default'] || COLOR_STYLES.default;
 
   // Position calculation
   // Ensure events don't overlap by applying consistent gaps

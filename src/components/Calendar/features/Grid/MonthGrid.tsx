@@ -18,14 +18,16 @@ import type { ItemColor } from '@/stores/types';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Color sort order: consistent with eventLayout.ts
+// Color sort order: red, orange, yellow, green, blue, purple, brown, gray (default)
 const COLOR_SORT_ORDER: Record<ItemColor, number> = {
   red: 0,
-  yellow: 1,
-  purple: 2,
+  orange: 1,
+  yellow: 2,
   green: 3,
   blue: 4,
-  default: 5,
+  purple: 5,
+  brown: 6,
+  default: 7,
 };
 
 /**
@@ -157,12 +159,14 @@ export function MonthGrid() {
                         `}
                         style={{
                           borderLeft: `3px solid ${
-                            event.color === 'red' ? '#ef4444' :
-                            event.color === 'yellow' ? '#eab308' :
-                            event.color === 'purple' ? '#a855f7' :
-                            event.color === 'green' ? '#22c55e' :
-                            event.color === 'blue' ? '#3b82f6' :
-                            '#d4d4d8'
+                            event.color === 'red' ? '#FE002D' :
+                            event.color === 'orange' ? '#FF8500' :
+                            event.color === 'yellow' ? '#FEC900' :
+                            event.color === 'green' ? '#63DA38' :
+                            event.color === 'blue' ? '#008BFE' :
+                            event.color === 'purple' ? '#DD11E8' :
+                            event.color === 'brown' ? '#B47D58' :
+                            '#9F9FA9'
                           }`,
                         }}
                       >

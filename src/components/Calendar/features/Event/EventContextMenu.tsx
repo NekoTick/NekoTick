@@ -10,21 +10,23 @@ interface EventContextMenuProps {
   onClose: () => void;
 }
 
-// Unified color system - consistent with todo
-type ColorName = 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default';
+// Unified color system - Apple style colors
+type ColorName = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple' | 'brown' | 'default';
 const COLORS: { name: ColorName; bg: string }[] = [
-  { name: 'red', bg: 'bg-red-500' },
-  { name: 'yellow', bg: 'bg-yellow-500' },
-  { name: 'purple', bg: 'bg-purple-500' },
-  { name: 'green', bg: 'bg-green-500' },
-  { name: 'blue', bg: 'bg-blue-500' },
-  { name: 'default', bg: 'bg-zinc-400' },
+  { name: 'red', bg: 'bg-[#FE002D]' },
+  { name: 'orange', bg: 'bg-[#FF8500]' },
+  { name: 'yellow', bg: 'bg-[#FEC900]' },
+  { name: 'green', bg: 'bg-[#63DA38]' },
+  { name: 'blue', bg: 'bg-[#008BFE]' },
+  { name: 'purple', bg: 'bg-[#DD11E8]' },
+  { name: 'brown', bg: 'bg-[#B47D58]' },
+  { name: 'default', bg: 'bg-[#9F9FA9]' },
 ];
 
 export function EventContextMenu({ eventId, position, currentColor = 'blue', timerState = 'idle', onClose }: EventContextMenuProps) {
   const { updateEvent, deleteEvent, events, addEvent, startTimer, pauseTimer, resumeTimer, stopTimer } = useCalendarStore();
 
-  const handleColorChange = (color: 'red' | 'yellow' | 'purple' | 'green' | 'blue' | 'default') => {
+  const handleColorChange = (color: ColorName) => {
     updateEvent(eventId, { color });
     onClose();
   };

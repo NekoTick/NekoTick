@@ -175,13 +175,19 @@ export function PanelTaskItem({
     (itemRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
   };
 
-  // 颜色值
+  // 颜色值 - Apple 风格颜色
+  const colorHexMap: Record<string, string> = {
+    red: '#FE002D',
+    orange: '#FF8500',
+    yellow: '#FEC900',
+    green: '#63DA38',
+    blue: '#008BFE',
+    purple: '#DD11E8',
+    brown: '#B47D58',
+    default: '#9F9FA9',
+  };
   const colorValue = task.color && task.color !== 'default'
-    ? task.color === 'red' ? '#ef4444' :
-      task.color === 'yellow' ? '#eab308' :
-      task.color === 'purple' ? '#a855f7' :
-      task.color === 'green' ? '#22c55e' :
-      task.color === 'blue' ? '#3b82f6' : undefined
+    ? colorHexMap[task.color]
     : undefined;
 
   return (
@@ -314,7 +320,7 @@ export function PanelTaskItem({
               {/* 颜色选择器 */}
               <div className="px-3 py-2">
                 <div className="flex items-center justify-between gap-1.5">
-                  {(['default', 'blue', 'green', 'purple', 'yellow', 'red'] as const).map((color) => (
+                  {(['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'brown', 'default'] as const).map((color) => (
                     <button
                       key={color}
                       onClick={() => {
@@ -328,11 +334,7 @@ export function PanelTaskItem({
                           : ""
                       )}
                       style={{
-                        borderColor: color === 'red' ? '#ef4444' :
-                                     color === 'yellow' ? '#eab308' :
-                                     color === 'purple' ? '#a855f7' :
-                                     color === 'green' ? '#22c55e' :
-                                     color === 'blue' ? '#3b82f6' : '#d4d4d8',
+                        borderColor: colorHexMap[color],
                         backgroundColor: color === 'default' ? 'transparent' : undefined
                       }}
                     />
