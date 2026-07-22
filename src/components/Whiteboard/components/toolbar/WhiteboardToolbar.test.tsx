@@ -343,9 +343,8 @@ describe('WhiteboardToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
 
     expect(screen.getByRole('button', { name: 'whiteboard.tool.pencil' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '#000000' })).toHaveClass(
-      'border-2',
-      'border-[var(--vlaina-color-whiteboard-selected)]',
+    expect(screen.getByRole('button', { name: '#000000' })).toContainElement(
+      document.querySelector('[data-whiteboard-color-selection-ring="true"]'),
     );
     expect(screen.getByRole('button', { name: 'whiteboard.brushSize 100%' })).toBeInTheDocument();
     const sizePreviews = document.querySelectorAll('[data-whiteboard-size-preview]');
@@ -363,9 +362,8 @@ describe('WhiteboardToolbar', () => {
     });
 
     expect(screen.getByRole('button', { name: '#f0a0b5' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: '#f0a0b5' })).toHaveClass(
-      'border-2',
-      'border-[var(--vlaina-color-whiteboard-selected)]',
+    expect(screen.getByRole('button', { name: '#f0a0b5' })).toContainElement(
+      document.querySelector('[data-whiteboard-color-selection-ring="true"]'),
     );
   });
 

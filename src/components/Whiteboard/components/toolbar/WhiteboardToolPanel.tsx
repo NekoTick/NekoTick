@@ -106,14 +106,17 @@ function ColorChoices({ colors, tool, onChange }: {
             aria-pressed={selectedColor === color.toLowerCase()}
             data-whiteboard-dock-visual="true"
             onClick={() => onChange(tool, color)}
-            className={cn(
-              'size-[var(--vlaina-size-24px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border-2',
-              selectedColor === color.toLowerCase()
-                ? 'border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]'
-                : 'border-[var(--vlaina-color-subtle-border-strong)]',
-            )}
+            className="relative size-[var(--vlaina-size-24px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
             style={{ backgroundColor: color }}
-          />
+          >
+            {selectedColor === color.toLowerCase() ? (
+              <span
+                aria-hidden="true"
+                data-whiteboard-color-selection-ring="true"
+                className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
+              />
+            ) : null}
+          </button>
         </WhiteboardDockSlot>
       ))}
       <WhiteboardColorPicker color={colors[tool]} onChange={(color) => onChange(tool, color)} />

@@ -954,6 +954,7 @@
   --vlaina-whiteboard-toolbar-max-width: calc(100% - var(--vlaina-size-56px));
   --vlaina-whiteboard-panel-max-width: calc(100vw - var(--vlaina-size-24px));
   --vlaina-whiteboard-color-picker-max-height: calc(100vh - var(--vlaina-size-32px));
+  --vlaina-whiteboard-color-selection-ring-offset: calc(var(--vlaina-size-4px) * -1);
   --vlaina-color-whiteboard-pen: #27272a;
   --vlaina-color-whiteboard-pencil: #52525b;
   --vlaina-color-whiteboard-marker: #f59e0b;
