@@ -1191,6 +1191,18 @@ html[data-whiteboard-color-picking='true'] * {
   cursor: var(--vlaina-cursor-whiteboard-eyedropper) !important;
 }
 
+.whiteboard-dock-slot {
+  contain: layout;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whiteboard-dock-slot {
+    will-change: auto;
+  }
+}
+
 @keyframes vlaina-graph-node-enter {
   from { opacity: 0; }
   to { opacity: 1; }
