@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/icons';
 import { useDisplayIcon } from '@/hooks/useTitleSync';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
-import { noteToolbarIconButtonClassName } from '@/components/Notes/features/Editor/NoteToolbarActions';
+import { noteToolbarIconButtonClassName } from '@/components/Notes/features/Editor/noteToolbarStyles';
 import { NoteIcon } from '../IconPicker/NoteIcon';
 
 export function NotesSplitPaneChrome({

@@ -85,6 +85,11 @@ describe('EditorOutlineRail', () => {
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveClass('bg-transparent');
+    expect(toggle).toHaveClass('shadow-none');
+    expect(toggle).toHaveClass('hover:bg-[var(--vlaina-color-pill-surface-hover)]');
+    expect(toggle).toHaveClass('hover:shadow-[var(--vlaina-shadow-menu-hover)]');
+    expect(toggle).toHaveClass('text-[var(--vlaina-sidebar-row-selected-text)]');
     expect(rail).toHaveAttribute('data-collapsed', 'false');
     expect(panel).toBeVisible();
     expect(outline).toHaveAttribute('aria-hidden', 'false');

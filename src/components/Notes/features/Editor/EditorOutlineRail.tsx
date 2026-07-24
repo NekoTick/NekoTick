@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { themeDomStyleTokens } from '@/styles/themeTokens';
 import { useNotesOutline } from '../Sidebar/Outline/useNotesOutline';
+import { noteToolbarIconButtonClassName } from './noteToolbarStyles';
 
 export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
   const { t } = useI18n();
@@ -42,7 +43,11 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="editor-outline-trigger"
+            className={cn(
+              noteToolbarIconButtonClassName,
+              'editor-outline-trigger p-0 border-0',
+              !isCollapsed && 'text-[var(--vlaina-sidebar-row-selected-text)]',
+            )}
             aria-label={t('notes.documentOutline')}
             aria-controls={outlineId}
             aria-expanded={!isCollapsed}

@@ -1,9 +1,6 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/icons';
-import {
-  ghostIconButtonClass,
-  raisedPillSurfaceClass,
-} from '@/components/ui/surfaceStyles';
+import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { getShortcutKeys } from '@/lib/shortcuts';
@@ -22,6 +19,7 @@ import {
 } from '@/styles/themeTokens';
 import { NoteToolbarMoreMenu } from './NoteToolbarMoreMenu';
 import { preloadEmbeddedChatViewModule } from '../../notesViewLazyComponents';
+import { noteToolbarIconButtonClassName } from './noteToolbarStyles';
 
 export interface NoteToolbarActionsProps {
   currentNotePath: string | null | undefined;
@@ -46,12 +44,6 @@ export interface NoteToolbarActionsProps {
   forceShowChat?: boolean;
   onOpenChat?: () => void | Promise<void>;
 }
-
-export const noteToolbarIconButtonClassName = cn(
-  'app-no-drag flex h-8 w-8 items-center justify-center',
-  'cursor-pointer text-[var(--vlaina-color-titlebar-button)] disabled:cursor-default',
-  ghostIconButtonClass,
-);
 
 function NoteToolbarTooltip({ children, label }: { children: ReactNode; label: string }) {
   return (
