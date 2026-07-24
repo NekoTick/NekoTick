@@ -44,50 +44,6 @@
   z-index: var(--vlaina-z-1) !important;
 }
 
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled .editor-block-selected:not(.code-block-container):not(.mermaid-block):not(.editor-tag-token):not(.editor-raw-markdown-link-text),
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled .editor-block-selected *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *),
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled .editor-block-selected-textlike:not(.code-block-container):not(.mermaid-block):not(.editor-tag-token):not(.editor-raw-markdown-link-text),
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled .editor-block-selected-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled .editor-tag-token :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-) {
-  color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent)) !important;
-  -webkit-text-fill-color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent)) !important;
-}
-
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-) :is(a, .external-link, .internal-link, .editor-raw-markdown-link-text),
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-),
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-):is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) {
-  color: var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent)))) !important;
-  -webkit-text-fill-color: var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent)))) !important;
-}
-
 .milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
   .code-block-container.editor-block-selected,
   .code-block-container.editor-block-drag-source,
@@ -97,44 +53,6 @@
   border-color: var(--vlaina-color-white) !important;
   outline: var(--vlaina-code-block-selected-border-outline) !important;
   outline-offset: var(--vlaina-code-block-selected-border-outline-offset) !important;
-}
-
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
-  .code-block-container.editor-block-selected,
-  .code-block-container.editor-block-drag-source,
-  .editor-block-selected .code-block-container,
-  .code-block-container.editor-block-selected-contained
-),
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
-  .code-block-container.editor-block-selected,
-  .code-block-container.editor-block-drag-source,
-  .editor-block-selected .code-block-container,
-  .code-block-container.editor-block-selected-contained
-) :is(
-  .code-block-chrome-header,
-  .code-block-chrome-language,
-  .code-block-chrome-language-label,
-  .code-block-chrome-copy-button,
-  .code-block-editable,
-  .code-block-lazy-preview,
-  .code-block-lazy-preview *,
-  .code-block-lazy-line-numbers,
-  .code-block-lazy-line-numbers *,
-  .cm-editor,
-  .cm-scroller,
-  .cm-content,
-  .cm-line,
-  .cm-line *,
-  .cm-s-inner,
-  .cm-s-inner *,
-  .cm-gutters,
-  .cm-gutter,
-  .cm-gutterElement,
-  .cm-lineNumbers,
-  .cm-gutter-filler
-) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
@@ -149,8 +67,6 @@
   background-color: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;
   outline: none !important;
   box-shadow: var(--vlaina-inline-code-selected-border-shadow) !important;
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(
@@ -165,8 +81,6 @@
   background-color: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;
   outline: none !important;
   box-shadow: var(--vlaina-highlight-selected-border-shadow) !important;
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror :is(
@@ -179,26 +93,6 @@
   background: var(--vlaina-block-selection-color) !important;
   background-color: var(--vlaina-block-selection-color) !important;
   box-shadow: var(--vlaina-block-selection-shadow) !important;
-}
-
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror :is(
-  [data-type='math-inline'],
-  [data-type='math-block'],
-  [data-type='html-block']:not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->'])
-).ProseMirror-selectednode,
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror :is(
-  [data-type='math-inline'],
-  [data-type='math-block'],
-  [data-type='html-block']:not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->'])
-).ProseMirror-selectednode * {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror .mermaid-block.ProseMirror-selectednode :is(text, tspan, .nodeLabel, .nodeLabel *, .label, .label *, .edgeLabel, .edgeLabel *) {
-  color: var(--vlaina-markdown-color-text) !important;
-  -webkit-text-fill-color: var(--vlaina-markdown-color-text) !important;
-  fill: var(--vlaina-markdown-color-text) !important;
 }
 
 .milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-atomic-block-keyboard-selected :is(
@@ -214,8 +108,6 @@
     0 var(--vlaina-math-hover-bleed-y) 0 0 var(--vlaina-math-hover-color),
     0 calc(-1 * var(--vlaina-math-hover-bleed-y)) 0 0 var(--vlaina-math-hover-color),
     calc(-1 * var(--vlaina-math-hover-bleed-x-start)) 0 0 0 var(--vlaina-math-hover-color) !important;
-  color: inherit !important;
-  -webkit-text-fill-color: inherit !important;
 }
 
 .milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror :is(

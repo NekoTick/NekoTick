@@ -40,14 +40,6 @@ describe("editor block drag interaction styles", () => {
       css,
       'body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected,'
     );
-    const dragSourceForegroundRule = extractCssRule(
-      css,
-      'body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected:not(.code-block-container):not(.mermaid-block):not(.milkdown-table-block),'
-    );
-    const dragSourceMarkerRule = extractCssRule(
-      css,
-      'body.editor-block-drag-active .milkdown .ProseMirror li.editor-block-selected::marker,'
-    );
 
     expect(css).toContain('.milkdown .ProseMirror .editor-block-drag-source {');
     expect(css).toContain('body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected,');
@@ -68,16 +60,9 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('body.editor-block-drag-active .milkdown .ProseMirror .editor-native-selected-textlike {');
     expect(css).toContain('background-color: transparent !important;');
     expect(css).toContain('box-shadow: none !important;');
-    expect(dragSourceForegroundRule).toContain('body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected:not(.code-block-container):not(.mermaid-block):not(.milkdown-table-block),');
-    expect(dragSourceForegroundRule).toContain('body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *),');
-    expect(dragSourceForegroundRule).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike,');
-    expect(dragSourceForegroundRule).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {');
+    expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike.editor-block-drag-source-has-next,');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike.editor-block-drag-source-has-previous,');
-    expect(dragSourceMarkerRule).toContain('body.editor-block-drag-active .milkdown .ProseMirror li.editor-block-selected-parent-marker::marker,');
-    expect(dragSourceMarkerRule).toContain('.milkdown .ProseMirror li.editor-block-drag-source::marker,');
-    expect(dragSourceMarkerRule).toContain('.milkdown .ProseMirror li.editor-block-drag-source-parent-marker::marker {');
-    expect(dragSourceMarkerRule).not.toContain('li:has(> p.editor-block-drag-source)');
   });
 
   it('keeps block handle dragging on a grabbing cursor', () => {
@@ -90,7 +75,7 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('cursor: grabbing !important;');
   });
 
-  it('keeps editor block selection color independent from global gray text tokens', () => {
+  it('keeps editor block selection surfaces independent from content colors', () => {
     const css = readBlockSelectionStyle();
     const themeCss = readThemeStyle();
     const source = readBlankAreaInteractionUtilsSource();
@@ -98,7 +83,6 @@ describe("editor block drag interaction styles", () => {
 
     expect(themeCss).toContain('--vlaina-editor-block-selection-base: var(--vlaina-color-editor-block-selection);');
     expect(themeCss).toContain('--vlaina-editor-block-selection-bg: var(--vlaina-color-editor-block-selection-bg);');
-    expect(themeCss).toContain('--vlaina-editor-block-selection-fg: var(--vlaina-color-editor-block-selection-fg);');
     expect(themeCss).toContain('--vlaina-editor-block-selection-handle: var(--vlaina-color-editor-block-selection-handle);');
     expect(themeCss).toContain('--vlaina-block-selection-color-default: var(--vlaina-editor-block-selection-bg);');
     expect(themeCss).toContain('--vlaina-block-selection-bleed-x-default: var(--vlaina-space-72px);');
@@ -120,8 +104,7 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('--vlaina-block-selection-fill-bottom: var(--vlaina-block-selection-gap-y);');
     expect(css).toContain('background-color: transparent;');
     expect(css).toContain('box-shadow: none;');
-    expect(css).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(css).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');
     expect(source).toContain("const DRAG_BOX_COLOR = 'var(--vlaina-color-editor-block-selection-drag-box)';");
     expect(lineFillSource).toContain('function resolveLineFillLeft(paragraph: HTMLElement, paragraphRect = paragraph.getBoundingClientRect()): number {');
     expect(lineFillSource).toContain('return paragraphRect.left - resolveBlockSelectionBleedXStart(paragraph);');

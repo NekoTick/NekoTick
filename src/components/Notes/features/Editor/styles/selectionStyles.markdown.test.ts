@@ -40,20 +40,16 @@ describe("editor markdown presentation styles", () => {
     expect(commonCss).not.toContain('font-size: var(--vlaina-font-h1, 34px);');
   });
 
-  it('keeps embedded floating toolbars readable inside selected blocks', () => {
+  it('keeps floating toolbar colors independent from block selection state', () => {
     const css = readStyleFile('floating-toolbar.css');
 
-    expect(css).toContain('.milkdown .ProseMirror .editor-block-selected :is(');
-    expect(css).toContain('.floating-toolbar-inner,');
-    expect(css).toContain('.toolbar-tooltip');
-    expect(css).toContain('color: var(--vlaina-text-primary) !important;');
-    expect(css).toContain('-webkit-text-fill-color: currentColor !important;');
-    expect(css).toContain(') :is(.toolbar-btn:hover, .toolbar-btn:hover *) {');
-    expect(css).toContain(') :is(.toolbar-btn.active:not([data-action="color"]), .toolbar-btn.active:not([data-action="color"]) *) {');
-    expect(css).toContain('color: var(--vlaina-accent) !important;');
-    expect(css).toContain('.toolbar-btn[data-action="color"].active *');
-    expect(css).toContain('.toolbar-btn:hover[class*="status-danger"] *');
-    expect(css).toContain('color: var(--vlaina-color-status-danger-fg) !important;');
+    expect(css).toContain('.toolbar-btn {');
+    expect(css).toContain('color: var(--vlaina-text-primary);');
+    expect(css).toContain('.toolbar-btn:hover {');
+    expect(css).toContain('color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent));');
+    expect(css).toContain('.toolbar-btn.active {');
+    expect(css).toContain('color: var(--vlaina-accent);');
+    expect(css).not.toContain('.editor-block-selected');
   });
 
   it('keeps raw HTML tables compact instead of using editable markdown table sizing', () => {
@@ -130,12 +126,10 @@ describe("editor markdown presentation styles", () => {
     expect(css).not.toContain('text-underline-offset: 4px;');
   });
 
-  it('keeps link color for both block-selection decoration nesting orders', () => {
+  it('lets links keep their existing color during block selection', () => {
     const css = readStyleFile('block-selection-list.css');
 
-    expect(css).toContain(') :is(a, .external-link, .internal-link),');
-    expect(css).toContain('.milkdown .ProseMirror :is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) :is(');
-    expect(css).toContain('):is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) {');
+    expect(css).not.toContain(':is(a, .external-link, .internal-link, .editor-raw-markdown-link-text)');
   });
 
   it('uses explicit tag token run classes instead of sibling :has selectors', () => {
@@ -224,8 +218,8 @@ describe("editor markdown presentation styles", () => {
     expect(selectedInlineCodeRule).toContain('background-color: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;');
     expect(selectedInlineCodeRule).toContain('outline: none;');
     expect(selectedInlineCodeRule).toContain('box-shadow: var(--vlaina-inline-code-selected-border-shadow);');
-    expect(selectedInlineCodeRule).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(selectedInlineCodeRule).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(selectedInlineCodeRule).not.toContain('\n  color:');
+    expect(selectedInlineCodeRule).not.toContain('\n  -webkit-text-fill-color:');
 
     expect(themeCompatibilityCss).toContain(".milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(");
     expect(themeCompatibilityCss).toContain(') :is(code:not(pre code), .v-std-code, .cm-inline-code),');
@@ -233,7 +227,8 @@ describe("editor markdown presentation styles", () => {
     expect(externalSelectedInlineCodeRule).toContain('background: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;');
     expect(externalSelectedInlineCodeRule).toContain('outline: none !important;');
     expect(externalSelectedInlineCodeRule).toContain('box-shadow: var(--vlaina-inline-code-selected-border-shadow) !important;');
-    expect(externalSelectedInlineCodeRule).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(externalSelectedInlineCodeRule).not.toContain('\n  color:');
+    expect(externalSelectedInlineCodeRule).not.toContain('\n  -webkit-text-fill-color:');
   });
 
   it('keeps highlighted text readable inside selected blocks', () => {
@@ -258,14 +253,15 @@ describe("editor markdown presentation styles", () => {
     expect(selectedHighlightRule).toContain('background-color: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;');
     expect(selectedHighlightRule).toContain('outline: none;');
     expect(selectedHighlightRule).toContain('box-shadow: var(--vlaina-highlight-selected-border-shadow);');
-    expect(selectedHighlightRule).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(selectedHighlightRule).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(selectedHighlightRule).not.toContain('\n  color:');
+    expect(selectedHighlightRule).not.toContain('\n  -webkit-text-fill-color:');
 
     expect(themeCompatibilityCss).toContain(') :is(mark.highlight, .highlight),');
     expect(externalSelectedHighlightRule).toContain('background: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;');
     expect(externalSelectedHighlightRule).toContain('outline: none !important;');
     expect(externalSelectedHighlightRule).toContain('box-shadow: var(--vlaina-highlight-selected-border-shadow) !important;');
-    expect(externalSelectedHighlightRule).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(externalSelectedHighlightRule).not.toContain('\n  color:');
+    expect(externalSelectedHighlightRule).not.toContain('\n  -webkit-text-fill-color:');
   });
 
   it('renders footnote references as smaller inline-code chips with a capsule hover value', () => {

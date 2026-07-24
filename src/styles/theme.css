@@ -775,7 +775,6 @@
   --vlaina-color-soft-placeholder: #e1e1e1;
   --vlaina-color-editor-block-selection: var(--vlaina-color-accent);
   --vlaina-color-editor-block-selection-bg: #bedffe;
-  --vlaina-color-editor-block-selection-fg: #fefbf9;
   --vlaina-color-editor-block-selection-drag-box: rgb(190 223 254 / 0.42);
   --vlaina-color-editor-block-selection-handle: var(--vlaina-color-text-primary);
   --vlaina-color-sidebar-pin: #636363;
@@ -1125,7 +1124,6 @@
   --vlaina-hover-filled: var(--vlaina-color-surface-tertiary);
   --vlaina-editor-block-selection-base: var(--vlaina-color-editor-block-selection);
   --vlaina-editor-block-selection-bg: var(--vlaina-color-editor-block-selection-bg);
-  --vlaina-editor-block-selection-fg: var(--vlaina-color-editor-block-selection-fg);
   --vlaina-editor-block-selection-handle: var(--vlaina-color-editor-block-selection-handle);
   --vlaina-sidebar-width: 270px;
   --vlaina-sidebar-bg: var(--vlaina-color-surface-main);
@@ -1291,7 +1289,6 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-color-soft-placeholder: #4a4a50;
   --vlaina-color-editor-block-selection: var(--vlaina-color-accent);
   --vlaina-color-editor-block-selection-bg: #0b2538;
-  --vlaina-color-editor-block-selection-fg: #fcfcfc;
   --vlaina-color-editor-block-selection-drag-box: rgb(30 150 235 / 0.32);
   --vlaina-color-editor-block-selection-handle: var(--vlaina-color-text-primary);
   --vlaina-color-sidebar-pin: #8f8f96;

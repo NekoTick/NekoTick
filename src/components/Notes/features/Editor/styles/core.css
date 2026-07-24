@@ -189,12 +189,6 @@ body.editor-block-drag-active .milkdown-editor.markdown-body-line-numbers .body-
   user-select: none;
 }
 
-.milkdown-editor.markdown-body-line-numbers .body-line-number.body-line-number-selected {
-  color: var(--vlaina-color-white);
-  -webkit-text-fill-color: var(--vlaina-color-white);
-  opacity: 1;
-}
-
 /* Selection */
 .milkdown-editor.theme-vlaina .ProseMirror::selection {
   background-color: var(--vlaina-markdown-color-selection) !important;

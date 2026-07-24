@@ -101,9 +101,7 @@ describe("editor text selection and link styles", () => {
     const selectionCss = readStyleFile('selection-width.css');
 
     expect(blockSelectionCss).toContain('.milkdown .ProseMirror .editor-block-selected-textlike,');
-    expect(blockSelectionCss).toContain(".milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {");
-    expect(blockSelectionCss).toContain(".milkdown .ProseMirror .editor-native-selected-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {");
-    expect(blockSelectionCss).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg);');
+    expect(blockSelectionCss).not.toContain('var(--vlaina-editor-block-selection-fg)');
     expect(selectionCss).toContain(
       '.milkdown .ProseMirror.editor-text-selection-overlay-active .editor-atomic-selected,'
     );

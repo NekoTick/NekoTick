@@ -158,61 +158,6 @@ body.editor-block-drag-active .milkdown .ProseMirror :is(
   z-index: var(--vlaina-z-1);
 }
 
-.milkdown .ProseMirror :is(
-  [data-type='math-block'].math-block-wrapper,
-  [data-type='html-block'].md-htmlblock-container:not(.md-htmlblock-literal-text):not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->']),
-  .toc-block
-):is(
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .ProseMirror-selectednode,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike
-),
-.milkdown .ProseMirror :is(
-  [data-type='math-block'].math-block-wrapper,
-  [data-type='html-block'].md-htmlblock-container:not(.md-htmlblock-literal-text):not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->']),
-  .toc-block
-):is(
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .ProseMirror-selectednode,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike
-) * {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror :is(
-  [data-type='math-block'].math-block-wrapper
-):is(
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .ProseMirror-selectednode,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike
-) :is(svg, svg *, .katex, .katex *, text, tspan, path, rect, circle, ellipse, line, polyline, polygon) {
-  fill: var(--vlaina-editor-block-selection-fg) !important;
-  stroke: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror .mermaid-block:is(
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .ProseMirror-selectednode,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike
-) :is(text, tspan, .nodeLabel, .nodeLabel *, .label, .label *, .edgeLabel, .edgeLabel *) {
-  color: var(--vlaina-markdown-color-text) !important;
-  -webkit-text-fill-color: var(--vlaina-markdown-color-text) !important;
-  fill: var(--vlaina-markdown-color-text) !important;
-}
-
 .milkdown .ProseMirror.editor-atomic-block-keyboard-selected :is(
   [data-type='math-block'].math-block-wrapper,
   [data-type='html-block'].md-htmlblock-container:not(.md-htmlblock-literal-text):not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->']),

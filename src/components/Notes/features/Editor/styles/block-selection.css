@@ -31,7 +31,6 @@
   border-radius: var(--vlaina-radius-8px);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  color: var(--vlaina-editor-block-selection-fg);
   transition: none !important;
 }
 
@@ -48,21 +47,6 @@ body.editor-block-drag-active .milkdown .ProseMirror .ProseMirror-selectednode,
   box-shadow: var(--vlaina-block-selection-shadow) !important;
   border-radius: var(--vlaina-radius-8px);
   transition: opacity var(--vlaina-duration-120) var(--vlaina-ease-css-default);
-}
-
-body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected:not(.code-block-container):not(.mermaid-block):not(.milkdown-table-block),
-body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *),
-.milkdown .ProseMirror .editor-block-drag-source-textlike,
-.milkdown .ProseMirror .editor-block-drag-source-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-body.editor-block-drag-active .milkdown .ProseMirror li.editor-block-selected::marker,
-body.editor-block-drag-active .milkdown .ProseMirror li.editor-block-selected-parent-marker::marker,
-.milkdown .ProseMirror li.editor-block-drag-source::marker,
-.milkdown .ProseMirror li.editor-block-drag-source-parent-marker::marker {
-  color: var(--vlaina-editor-block-selection-fg);
 }
 
 /* Text-like Markdown blocks use an inset fill so adjacent selected rows keep a visible gap. */
@@ -83,7 +67,6 @@ body.editor-block-drag-active .milkdown .ProseMirror li.editor-block-selected-pa
   border-radius: var(--vlaina-radius-8px);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
-  color: var(--vlaina-editor-block-selection-fg);
   transition: none !important;
 }
 
@@ -108,9 +91,7 @@ body.editor-block-drag-active .milkdown .ProseMirror li.editor-block-selected-pa
   box-shadow: none !important;
   box-decoration-break: slice;
   -webkit-box-decoration-break: slice;
-  color: var(--vlaina-editor-block-selection-fg);
   contain: paint;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg);
 }
 
 .milkdown .ProseMirror.editor-block-selection-large .editor-block-selected::before,
@@ -225,23 +206,7 @@ body.editor-block-drag-active .milkdown .ProseMirror .editor-native-selected-tex
   --vlaina-block-selection-bleed-y: var(--vlaina-block-selection-bleed-y-rich);
 }
 
-/* Selection foreground for text-like blocks and their inline descendants. */
-.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike,
-.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
 .milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike > *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.heading-toggle-btn):not(.editor-collapse-btn):not(.ProseMirror-widget) {
   position: relative;
   z-index: var(--vlaina-z-1);
-}
-
-.milkdown .ProseMirror .editor-native-selected-textlike *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.milkdown-table-block):not(.milkdown-table-block *):not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror li.editor-block-selected::marker {
-  color: var(--vlaina-editor-block-selection-fg);
 }

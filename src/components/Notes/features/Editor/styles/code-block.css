@@ -80,15 +80,6 @@
   pointer-events: none;
 }
 
-.milkdown .code-block-container.editor-block-selected,
-.milkdown .code-block-container.editor-block-selected *,
-.milkdown .code-block-container.ProseMirror-selectednode,
-.milkdown .code-block-container.ProseMirror-selectednode *,
-.milkdown .code-block-container.editor-block-drag-source,
-.milkdown .code-block-container.editor-block-drag-source * {
-  -webkit-text-fill-color: currentColor;
-}
-
 .milkdown .code-block-container.editor-block-selected-contained {
   background: var(--vlaina-markdown-color-code-block-bg);
   background-color: var(--vlaina-markdown-color-code-block-bg);
@@ -282,20 +273,7 @@
 .milkdown .ProseMirror .editor-block-selected .code-block-container {
   background: var(--vlaina-markdown-color-code-block-bg);
   background-color: var(--vlaina-markdown-color-code-block-bg);
-  color: var(--vlaina-markdown-color-code-text);
   transition: none;
-}
-
-.milkdown .ProseMirror .editor-block-selected .code-block-container,
-.milkdown .ProseMirror .editor-block-selected .code-block-container * {
-  -webkit-text-fill-color: currentColor;
-}
-
-.milkdown .ProseMirror .editor-block-selected .code-block-container .code-block-chrome-language,
-.milkdown .ProseMirror .editor-block-selected .code-block-container .code-block-chrome-language-label,
-.milkdown .ProseMirror .editor-block-selected .code-block-container .code-block-chrome-copy-button {
-  color: var(--vlaina-markdown-color-code-muted);
-  -webkit-text-fill-color: currentColor;
 }
 
 .milkdown .ProseMirror .editor-block-selected .code-block-container .cm-gutters,
@@ -366,44 +344,6 @@
 ) {
   background: transparent !important;
   background-color: transparent !important;
-}
-
-.milkdown .ProseMirror.editor-block-selection-enabled :is(
-  .code-block-container.editor-block-selected,
-  .code-block-container.editor-block-drag-source,
-  .editor-block-selected .code-block-container,
-  .code-block-container.editor-block-selected-contained
-),
-.milkdown .ProseMirror.editor-block-selection-enabled :is(
-  .code-block-container.editor-block-selected,
-  .code-block-container.editor-block-drag-source,
-  .editor-block-selected .code-block-container,
-  .code-block-container.editor-block-selected-contained
-) :is(
-  .code-block-chrome-header,
-  .code-block-chrome-language,
-  .code-block-chrome-language-label,
-  .code-block-chrome-copy-button,
-  .code-block-editable,
-  .code-block-lazy-preview,
-  .code-block-lazy-preview *,
-  .code-block-lazy-line-numbers,
-  .code-block-lazy-line-numbers *,
-  .cm-editor,
-  .cm-scroller,
-  .cm-content,
-  .cm-line,
-  .cm-line *,
-  .cm-s-inner,
-  .cm-s-inner *,
-  .cm-gutters,
-  .cm-gutter,
-  .cm-gutterElement,
-  .cm-lineNumbers,
-  .cm-gutter-filler
-) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .editor-block-drag-preview .code-block-container {

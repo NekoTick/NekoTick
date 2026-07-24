@@ -813,8 +813,8 @@ async function installBlockSelectionConflictTheme(page: Page) {
     '#write { color: var(--text-color); background: var(--bg-color); }',
     '#write strong,',
     '#write strong * {',
-    '  color: transparent !important;',
-    '  -webkit-text-fill-color: transparent !important;',
+    '  color: #b42318 !important;',
+    '  -webkit-text-fill-color: #b42318 !important;',
     '}',
     '#write .ProseMirror.editor-block-selection-pending .code-block-chrome-header,',
     '#write .ProseMirror.editor-block-selection-pending .code-block-chrome-language,',
@@ -1592,9 +1592,8 @@ test.describe("notes block selection regressions", () => {
       }, EDITOR_SELECTOR);
       expect(htmlForeground, JSON.stringify({ htmlMetrics, htmlForeground }, null, 2)).not.toBeNull();
       expect(htmlForeground!.childInlineStyle, JSON.stringify(htmlForeground, null, 2)).toContain('color');
-      expect(htmlForeground!.childColor, JSON.stringify(htmlForeground, null, 2)).toBe(htmlForeground!.blockColor);
-      expect(htmlForeground!.childTextFillColor, JSON.stringify(htmlForeground, null, 2)).toBe(htmlForeground!.blockTextFillColor);
-      expect(htmlForeground!.childColor, JSON.stringify(htmlForeground, null, 2)).not.toBe('rgb(221, 34, 34)');
+      expect(htmlForeground!.childColor, JSON.stringify(htmlForeground, null, 2)).toBe('rgb(221, 34, 34)');
+      expect(htmlForeground!.childTextFillColor, JSON.stringify(htmlForeground, null, 2)).toBe('rgb(221, 34, 34)');
       await expectSelectedAtomicBleedPixels(page, htmlMetrics!, 'html block');
 
       await clearSelectedNoteBlocks(page);
@@ -1753,6 +1752,19 @@ test.describe("notes block selection regressions", () => {
       expect(selectionPlan.mathIndex, JSON.stringify(selectionPlan, null, 2)).toBeLessThan(selectionPlan.selectedIndexes.length);
       expect(selectionPlan.mermaidIndex, JSON.stringify(selectionPlan, null, 2)).toBeLessThan(selectionPlan.selectedIndexes.length);
 
+      const markerColorBaseline = await page.evaluate((editorSelector) => {
+        const quote = Array.from(document.querySelectorAll<HTMLElement>(`${editorSelector} blockquote`))
+          .find((element) => element.textContent?.includes('Large selection quote rail sentinel')) ?? null;
+        const task = Array.from(document.querySelectorAll<HTMLElement>(`${editorSelector} li[data-item-type="task"]`))
+          .find((element) => element.textContent?.includes('Large selection task checkbox sentinel')) ?? null;
+        if (!quote || !task) return null;
+        return {
+          quoteRailColor: getComputedStyle(quote, '::before').backgroundColor,
+          taskCheckboxBorderColor: getComputedStyle(task, '::before').borderTopColor,
+        };
+      }, EDITOR_SELECTOR);
+      expect(markerColorBaseline, 'large selection marker color baseline').not.toBeNull();
+
       const selectedCount = await selectNoteBlocksByIndexes(page, selectionPlan.selectedIndexes);
       expect(selectedCount, JSON.stringify(selectionPlan, null, 2)).toBe(selectionPlan.selectedIndexes.length);
       await expect.poll(() => page.evaluate((editorSelector) => {
@@ -1772,12 +1784,6 @@ test.describe("notes block selection regressions", () => {
           .find((element) => element.textContent?.includes('Large selection quote rail sentinel'));
         if (!quote) return null;
 
-        const probe = document.createElement('span');
-        probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-        quote.appendChild(probe);
-        const expectedForeground = getComputedStyle(probe).color;
-        probe.remove();
-
         const style = getComputedStyle(quote, '::before');
         const parsePx = (value: string) => {
           const parsed = Number.parseFloat(value);
@@ -1790,7 +1796,6 @@ test.describe("notes block selection regressions", () => {
           beforeHeightPx: parsePx(style.height),
           beforeWidthPx: parsePx(style.width),
           className: quote.className,
-          expectedForeground,
         };
       }, EDITOR_SELECTOR);
       expect(quoteRail, 'large selected blockquote rail metrics').not.toBeNull();
@@ -1799,7 +1804,7 @@ test.describe("notes block selection regressions", () => {
       expect(quoteRail!.beforeDisplay, JSON.stringify(quoteRail, null, 2)).not.toBe('none');
       expect(quoteRail!.beforeWidthPx, JSON.stringify(quoteRail, null, 2)).toBeGreaterThan(0);
       expect(quoteRail!.beforeHeightPx, JSON.stringify(quoteRail, null, 2)).toBeGreaterThan(0);
-      expect(quoteRail!.beforeBackgroundColor, JSON.stringify(quoteRail, null, 2)).toBe(quoteRail!.expectedForeground);
+      expect(quoteRail!.beforeBackgroundColor, JSON.stringify(quoteRail, null, 2)).toBe(markerColorBaseline!.quoteRailColor);
 
       const taskCheckbox = await page.evaluate((editorSelector) => {
         const task = Array.from(document.querySelectorAll<HTMLElement>(`${editorSelector} li[data-item-type="task"].editor-block-selected`))
@@ -1826,7 +1831,7 @@ test.describe("notes block selection regressions", () => {
       expect(taskCheckbox!.beforeDisplay, JSON.stringify(taskCheckbox, null, 2)).not.toBe('none');
       expect(taskCheckbox!.beforeWidthPx, JSON.stringify(taskCheckbox, null, 2)).toBeGreaterThan(0);
       expect(taskCheckbox!.beforeHeightPx, JSON.stringify(taskCheckbox, null, 2)).toBeGreaterThan(0);
-      expect(taskCheckbox!.beforeBorderColor, JSON.stringify(taskCheckbox, null, 2)).not.toBe('rgba(0, 0, 0, 0)');
+      expect(taskCheckbox!.beforeBorderColor, JSON.stringify(taskCheckbox, null, 2)).toBe(markerColorBaseline!.taskCheckboxBorderColor);
 
       const hrLine = await page.evaluate((editorSelector) => {
         const block = document.querySelector<HTMLElement>(
@@ -2513,7 +2518,7 @@ test.describe("notes block selection regressions", () => {
     }
   });
 
-  test('keeps inline-mark text visible when selecting a hard-break paragraph block', async () => {
+  test('keeps inline-mark theme colors when selecting a hard-break paragraph block', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-block-selection-inline-mark-hard-break');
 
     try {
@@ -2626,11 +2631,11 @@ test.describe("notes block selection regressions", () => {
         expect.arrayContaining([
           expect.objectContaining({
             text: expect.stringContaining('现在来安装'),
-            textFillColor: 'rgb(254, 251, 249)',
+            textFillColor: 'rgb(180, 35, 24)',
           }),
           expect.objectContaining({
             text: expect.stringContaining('zsh + oh-my-zsh'),
-            textFillColor: 'rgb(254, 251, 249)',
+            textFillColor: 'rgb(180, 35, 24)',
           }),
         ]),
       );
@@ -2726,7 +2731,9 @@ test.describe("notes block selection regressions", () => {
 
       await expect(page.locator(`${EDITOR_SELECTOR} .code-block-container`, { hasText: 'install zsh' })).toBeVisible();
       await expect(page.locator(`${EDITOR_SELECTOR} .code-block-chrome-language-label`).first()).toBeVisible();
-      const initialLabelText = await page.locator(`${EDITOR_SELECTOR} .code-block-chrome-language-label`).first().textContent();
+      const languageLabel = page.locator(`${EDITOR_SELECTOR} .code-block-chrome-language-label`).first();
+      const initialLabelText = await languageLabel.textContent();
+      const initialLabelColor = await languageLabel.evaluate((element) => getComputedStyle(element).color);
       expect(initialLabelText?.trim()).toBeTruthy();
 
       const dragTarget = await getBlankAreaDragTarget(page, 'Drag selection anchor paragraph sentinel');
@@ -2801,6 +2808,7 @@ test.describe("notes block selection regressions", () => {
         sample.labelVisibility !== 'hidden' &&
         sample.labelOpacity !== '0' &&
         sample.labelText === initialLabelText?.trim() &&
+        sample.labelColor === initialLabelColor &&
         sample.copyOpacity === '0' &&
         sample.copyPointerEvents === 'none'
       )), JSON.stringify(samples, null, 2)).toBe(true);

@@ -27,8 +27,6 @@
   background-color: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;
   outline: none;
   box-shadow: var(--vlaina-highlight-selected-border-shadow);
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 /* Tags */
@@ -191,7 +189,6 @@
   .editor-native-selected-textlike
 ) .footnote-def {
   position: relative;
-  border-left-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown .footnote-def:is(
@@ -228,26 +225,10 @@
   z-index: var(--vlaina-z-2, 2) !important;
   display: block !important;
   box-sizing: border-box !important;
-  border-left: var(--vlaina-size-3px) solid var(--vlaina-editor-block-selection-fg) !important;
+  border-left: inherit !important;
   border-radius: inherit !important;
   background: transparent !important;
   pointer-events: none !important;
-}
-
-.milkdown .footnote-def:is(
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .ProseMirror-selectednode,
-  .editor-native-selected-textlike
-) .footnote-def-label,
-.milkdown :is(
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .ProseMirror-selectednode,
-  .editor-native-selected-textlike
-) .footnote-def-label {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown .footnote-def-content {

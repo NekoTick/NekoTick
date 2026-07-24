@@ -58,7 +58,6 @@ export type DragVisualGeometry = {
   expectedCodeSyntaxMuted: string;
   expectedCodeSyntaxKeyword: string;
   expectedCodeBlockSelectedBorderColor: string;
-  expectedSelectionForeground: string;
   previewExists: boolean;
   previewWidth: number | null;
   previewHeight: number | null;
