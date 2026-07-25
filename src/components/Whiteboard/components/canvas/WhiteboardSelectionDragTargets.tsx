@@ -1,3 +1,4 @@
+import { memo, useMemo, type PointerEvent } from 'react';
 import { themeIconTokens, themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardMovePreview } from '../../model/whiteboardInteractions';
 import type { WhiteboardStroke } from '../../model/whiteboardModel';
@@ -6,19 +7,44 @@ import { getCenterStrokePath, getStrokeRenderWidth } from '../../model/whiteboar
 interface WhiteboardSelectionDragTargetsProps {
   movePreview: WhiteboardMovePreview | null;
   movingStrokeIds: Set<string>;
+  onPointerDown: (event: PointerEvent<SVGElement>) => void;
   strokes: WhiteboardStroke[];
 }
 
 export function WhiteboardSelectionDragTargets({
   movePreview,
   movingStrokeIds,
+  onPointerDown,
   strokes,
 }: WhiteboardSelectionDragTargetsProps) {
   const cursor = movePreview ? 'grabbing' : 'grab';
+  const [movingStrokes, staticStrokes] = useMemo(() => {
+    const moving: WhiteboardStroke[] = [];
+    const stationary: WhiteboardStroke[] = [];
+    strokes.forEach((stroke) => (movingStrokeIds.has(stroke.id) ? moving : stationary).push(stroke));
+    return [moving, stationary];
+  }, [movingStrokeIds, strokes]);
+  const transform = movePreview ? `translate(${movePreview.dx} ${movePreview.dy})` : undefined;
+  return (
+    <>
+      <WhiteboardSelectionDragTargetList cursor={cursor} strokes={staticStrokes} onPointerDown={onPointerDown} />
+      <g transform={transform}>
+        <WhiteboardSelectionDragTargetList cursor={cursor} strokes={movingStrokes} onPointerDown={onPointerDown} />
+      </g>
+    </>
+  );
+}
+
+const WhiteboardSelectionDragTargetList = memo(function WhiteboardSelectionDragTargetList({
+  cursor,
+  onPointerDown,
+  strokes,
+}: {
+  cursor: 'grab' | 'grabbing';
+  onPointerDown: (event: PointerEvent<SVGElement>) => void;
+  strokes: WhiteboardStroke[];
+}) {
   return strokes.map((stroke) => {
-    const transform = movingStrokeIds.has(stroke.id) && movePreview
-      ? `translate(${movePreview.dx} ${movePreview.dy})`
-      : undefined;
     if (stroke.points.length === 1) {
       const point = stroke.points[0];
       return (
@@ -31,7 +57,7 @@ export function WhiteboardSelectionDragTargets({
           r={themeWhiteboardTokens.selectionResizeEdgeHitSizePx / 2}
           fill="transparent"
           style={{ cursor }}
-          transform={transform}
+          onPointerDown={onPointerDown}
         />
       );
     }
@@ -47,9 +73,9 @@ export function WhiteboardSelectionDragTargets({
         strokeLinejoin="round"
         strokeWidth={Math.max(getStrokeRenderWidth(stroke), themeWhiteboardTokens.selectionResizeEdgeHitSizePx)}
         style={{ cursor }}
-        transform={transform}
         vectorEffect="non-scaling-stroke"
+        onPointerDown={onPointerDown}
       />
     );
   });
-}
+});

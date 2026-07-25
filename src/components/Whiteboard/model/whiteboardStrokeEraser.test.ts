@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getStrokesInLasso } from './whiteboardSelection';
 import { eraseWhiteboardStrokes } from './whiteboardStrokeEraser';
 
@@ -58,6 +58,32 @@ describe('whiteboard stroke eraser', () => {
     const result = eraseWhiteboardStrokes([nearby, distant], [{ point: { x: 50, y: 0 }, size: 1 }]);
 
     expect(result.find((stroke) => stroke.id === distant.id)).toBe(distant);
+  });
+
+  it('does not traverse distant stroke points outside the indexed candidates', () => {
+    const distant = {
+      color: '#111111',
+      id: 'distant',
+      points: [{ pressure: 0.5, x: 1000, y: 1000 }, { pressure: 0.5, x: 1100, y: 1000 }],
+      size: 1,
+      tool: 'pen' as const,
+    };
+    const nearby = {
+      color: '#111111',
+      id: 'nearby',
+      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+      size: 1,
+      tool: 'pen' as const,
+    };
+    const distantTraversal = vi.spyOn(distant.points, 'forEach');
+
+    eraseWhiteboardStrokes(
+      [nearby, distant],
+      [{ point: { x: 50, y: 0 }, size: 1 }],
+      new Set([nearby.id]),
+    );
+
+    expect(distantTraversal).not.toHaveBeenCalled();
   });
 
   it('keeps segment ids unique across repeated partial erases', () => {

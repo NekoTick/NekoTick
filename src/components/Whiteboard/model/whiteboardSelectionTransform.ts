@@ -52,10 +52,16 @@ export function getElementBounds(element: WhiteboardElement): WhiteboardSelectio
 export function getBoundsUnion(bounds: WhiteboardSelectionRect[]): WhiteboardSelectionRect | null {
   if (bounds.length === 0) return null;
   const padding = themeWhiteboardTokens.strokeSelectionPaddingPx;
-  const minX = Math.min(...bounds.map((rect) => rect.x));
-  const minY = Math.min(...bounds.map((rect) => rect.y));
-  const maxX = Math.max(...bounds.map((rect) => rect.x + rect.width));
-  const maxY = Math.max(...bounds.map((rect) => rect.y + rect.height));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  bounds.forEach((rect) => {
+    minX = Math.min(minX, rect.x);
+    minY = Math.min(minY, rect.y);
+    maxX = Math.max(maxX, rect.x + rect.width);
+    maxY = Math.max(maxY, rect.y + rect.height);
+  });
   return {
     height: maxY - minY + padding * 2,
     width: maxX - minX + padding * 2,

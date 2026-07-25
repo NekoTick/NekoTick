@@ -1,5 +1,7 @@
 import {
   useCallback,
+  useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type PointerEvent,
@@ -35,6 +37,7 @@ import { useWhiteboardPointerSamples } from './useWhiteboardPointerSamples';
 
 interface WhiteboardPointerActionsOptions {
   activePenPointerRef: MutableRefObject<number | null>;
+  addPointer: (pointerId: number, clientX: number, clientY: number) => WhiteboardPoint;
   appendDraftPoints: (tool: WhiteboardDrawingTool, points: WhiteboardStrokePoint[], minDistance?: number) => void;
   brushColors: WhiteboardBrushColors;
   brushSizes: WhiteboardBrushSizes;
@@ -55,19 +58,20 @@ interface WhiteboardPointerActionsOptions {
   setBrushCursorPoint: (point: WhiteboardPoint | null) => void;
   setDragState: Dispatch<SetStateAction<WhiteboardDragState | null>>;
   setDraftStroke: (stroke: WhiteboardStroke | null) => void;
-  setPointer: (pointerId: number, clientX: number, clientY: number) => WhiteboardPoint;
   setSelectedElementId: Dispatch<SetStateAction<string | null>>;
   setSelectedStrokeIds: Dispatch<SetStateAction<string[]>>;
   spacePressedRef: MutableRefObject<boolean>;
   startStrokeSelection: (point: WhiteboardPoint, event: PointerEvent<HTMLDivElement>) => void;
   strokeIdRef: MutableRefObject<number>;
   tool: WhiteboardTool;
+  updatePointer: (pointerId: number, clientX: number, clientY: number) => WhiteboardPoint | null;
   viewport: WhiteboardViewport;
   viewportRef: RefObject<HTMLDivElement | null>;
 }
 
 export function useWhiteboardPointerActions({
   activePenPointerRef,
+  addPointer,
   appendDraftPoints,
   brushColors,
   brushSizes,
@@ -81,7 +85,6 @@ export function useWhiteboardPointerActions({
   setBrushCursorPoint,
   setDragState,
   setDraftStroke,
-  setPointer,
   setSelectedElementId,
   setSelectedStrokeIds,
   spacePressedRef,
@@ -89,14 +92,26 @@ export function useWhiteboardPointerActions({
   strokeEraserActions,
   strokeIdRef,
   tool,
+  updatePointer,
   viewport,
   viewportRef,
 }: WhiteboardPointerActionsOptions) {
+  const activePointerRectRef = useRef<DOMRectReadOnly | null>(null);
   const scheduleMoveDragPoint = useWhiteboardMoveDragScheduler(setDragState);
   const scheduleLassoPoint = useWhiteboardLassoDragScheduler(setDragState);
   const { collectEraserSamples, collectStrokePoints, resetStrokeInput } = useWhiteboardPointerSamples({
     brushSizes, getBoardPointFromRect, tool, viewport, viewportRef,
   });
+
+  useEffect(() => {
+    const viewportElement = viewportRef.current;
+    if (!viewportElement || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      activePointerRectRef.current = null;
+    });
+    observer.observe(viewportElement);
+    return () => observer.disconnect();
+  }, [viewportRef]);
 
   const startPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -124,7 +139,8 @@ export function useWhiteboardPointerActions({
   const handleViewportPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 && event.button !== 1) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    setPointer(event.pointerId, event.clientX, event.clientY);
+    activePointerRectRef.current = viewportRef.current?.getBoundingClientRect() ?? null;
+    if (event.pointerType === 'touch') addPointer(event.pointerId, event.clientX, event.clientY);
     if (event.pointerType === 'pen') activePenPointerRef.current = event.pointerId;
     if (event.pointerType === 'touch' && activePenPointerRef.current !== null) return;
     if (event.pointerType === 'touch' && startPinch()) return;
@@ -136,7 +152,7 @@ export function useWhiteboardPointerActions({
       startPan(event);
       return;
     }
-    const rect = viewportRef.current?.getBoundingClientRect();
+    const rect = activePointerRectRef.current ?? viewportRef.current?.getBoundingClientRect();
     const point = rect ? getBoardPointFromRect(event.clientX, event.clientY, rect) : { x: 0, y: 0 };
     if (isDrawingTool(tool) && event.button === 0) {
       setSelectedElementId(null);
@@ -167,14 +183,15 @@ export function useWhiteboardPointerActions({
     }
   }, [
     activePenPointerRef, brushColors, brushSizes, collectEraserSamples, collectStrokePoints,
-    eraserActions, getBoardPointFromRect, setDraftStroke, setDragState, setPointer,
+    addPointer, eraserActions, getBoardPointFromRect, setDraftStroke, setDragState,
     resetStrokeInput, setSelectedElementId, setSelectedStrokeIds, spacePressedRef, startPan, startPinch,
     startStrokeSelection, strokeEraserActions, strokeIdRef, tool, viewportRef,
   ]);
 
   const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    setPointer(event.pointerId, event.clientX, event.clientY);
-    const rect = viewportRef.current?.getBoundingClientRect();
+    if (event.pointerType === 'touch') updatePointer(event.pointerId, event.clientX, event.clientY);
+    if (!activePointerRectRef.current) activePointerRectRef.current = viewportRef.current?.getBoundingClientRect() ?? null;
+    const rect = activePointerRectRef.current;
     const point = rect ? getBoardPointFromRect(event.clientX, event.clientY, rect) : { x: 0, y: 0 };
     if (!dragState || dragState.kind === 'draw') setBrushCursorPoint(point);
     if (!dragState) return;
@@ -225,7 +242,7 @@ export function useWhiteboardPointerActions({
   }, [
     appendDraftPoints, collectEraserSamples, collectStrokePoints, dragState, eraserActions, getBoardPointFromRect,
     getPinchMetrics, resizeSelection, scheduleLassoPoint, scheduleMoveDragPoint,
-    scheduleViewport, setBrushCursorPoint, setDragState, setPointer, strokeEraserActions, tool, viewport.zoom,
+    scheduleViewport, setBrushCursorPoint, setDragState, strokeEraserActions, tool, updatePointer, viewport.zoom,
     viewportRef,
   ]);
 

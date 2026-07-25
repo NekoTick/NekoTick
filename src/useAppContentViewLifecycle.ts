@@ -40,32 +40,36 @@ function isPrewarmedAppViewMode(viewMode: AppViewMode): viewMode is ReadyAppView
   return PREWARMED_APP_VIEW_MODES.includes(viewMode as ReadyAppViewMode);
 }
 
+function preloadInBackground(load: () => Promise<unknown>) {
+  void load().catch(() => undefined);
+}
+
 function preloadActiveViewModule(viewMode: AppViewMode) {
   if (viewMode === 'notes') {
-    void preloadNotesViewModule();
+    preloadInBackground(preloadNotesViewModule);
     return;
   }
 
   if (viewMode === 'chat') {
-    void preloadChatViewModule();
+    preloadInBackground(preloadChatViewModule);
     return;
   }
 
   if (viewMode === 'whiteboard') {
-    void preloadWhiteboardViewModule();
+    preloadInBackground(preloadWhiteboardViewModule);
     return;
   }
 
   if (viewMode === 'graph') {
-    void preloadGraphViewModule();
+    preloadInBackground(preloadGraphViewModule);
   }
 }
 
 function preloadPrewarmedViewModules() {
-  void preloadNotesViewModule();
-  void preloadChatViewModule();
-  void preloadWhiteboardViewModule();
-  void preloadGraphViewModule();
+  preloadInBackground(preloadNotesViewModule);
+  preloadInBackground(preloadChatViewModule);
+  preloadInBackground(preloadWhiteboardViewModule);
+  preloadInBackground(preloadGraphViewModule);
 }
 
 function addPrewarmedAppViews(views: Set<AppViewMode>): Set<AppViewMode> {
@@ -222,12 +226,12 @@ export function useAppContentViewLifecycle({
     if (!isPrewarmedAppViewMode(effectiveAppViewMode)) return;
 
     preloadPrewarmedViewModules();
-    void preloadNotesSidebarModule();
-    void preloadChatSidebarModule();
-    void preloadNotesTabRowModule();
-    void preloadModelSelectorModule();
-    void preloadTemporaryChatToggleModule();
-    void preloadGitTitleBarActionModule();
+    preloadInBackground(preloadNotesSidebarModule);
+    preloadInBackground(preloadChatSidebarModule);
+    preloadInBackground(preloadNotesTabRowModule);
+    preloadInBackground(preloadModelSelectorModule);
+    preloadInBackground(preloadTemporaryChatToggleModule);
+    preloadInBackground(preloadGitTitleBarActionModule);
     if (!didPrewarmManagedModelsRef.current) {
       didPrewarmManagedModelsRef.current = true;
       void preloadAIStoreModule()

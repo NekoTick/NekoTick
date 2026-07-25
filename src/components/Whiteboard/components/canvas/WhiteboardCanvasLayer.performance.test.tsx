@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
 
 const mocks = vi.hoisted(() => ({
+  selectionOverlay: vi.fn(),
   strokeLayer: vi.fn(),
 }));
 
@@ -10,6 +11,13 @@ vi.mock('./WhiteboardStrokeLayer', () => ({
   WhiteboardDraftStrokeLayer: () => null,
   WhiteboardStrokeLayer: (props: { strokes: unknown[] }) => {
     mocks.strokeLayer(props);
+    return null;
+  },
+}));
+
+vi.mock('./WhiteboardSelectionOverlay', () => ({
+  WhiteboardSelectionOverlay: (props: { elements: unknown[]; strokes: unknown[] }) => {
+    mocks.selectionOverlay(props);
     return null;
   },
 }));
@@ -25,6 +33,7 @@ const stroke = {
   size: 1,
   tool: 'pen' as const,
 };
+const emptyStrokes = [] as typeof stroke[];
 
 const baseProps: WhiteboardCanvasLayerProps = {
   brushCursorColor: '#111111',
@@ -38,16 +47,19 @@ const baseProps: WhiteboardCanvasLayerProps = {
   selectedElementIds: [],
   selectedStrokeIds: [],
   selectionPath: null,
+  spacePressed: false,
   strokes: [stroke],
   tool: 'select',
   viewport: { x: 0, y: 0, zoom: 1 },
   viewportSize: { x: 500, y: 500 },
   onElementPointerDown: vi.fn(),
+  onSelectionMovePointerDown: vi.fn(),
   onSelectionResizePointerDown: vi.fn(),
 };
 
 describe('WhiteboardCanvasLayer performance boundaries', () => {
   beforeEach(() => {
+    mocks.selectionOverlay.mockClear();
     mocks.strokeLayer.mockClear();
   });
 
@@ -71,6 +83,24 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
         draftStroke={{
           ...draftStroke,
           points: [...draftStroke.points, { pressure: 0.5, x: 120, y: 100 }],
+        }}
+      />,
+    );
+
+    expect(mocks.strokeLayer).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rerender completed content while only the eraser trail changes', () => {
+    const { rerender } = render(<WhiteboardCanvasLayer {...baseProps} />);
+    expect(mocks.strokeLayer).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <WhiteboardCanvasLayer
+        {...baseProps}
+        eraserPreview={{
+          elementIds: baseProps.eraserPreview.elementIds,
+          strokeIds: baseProps.eraserPreview.strokeIds,
+          trail: [{ point: { x: 40, y: 50 }, size: 1 }],
         }}
       />,
     );
@@ -103,5 +133,38 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
 
     expect(secondStaticStrokes).toBe(firstStaticStrokes);
     expect(secondMovingStrokes).toBe(firstMovingStrokes);
+  });
+
+  it('keeps only selected items in the moving selection overlay', () => {
+    const elements = Array.from({ length: 1000 }, (_, index) => ({
+      height: 40, id: `image-${index}`, text: '', type: 'image' as const, width: 40,
+      x: index * 60, y: 0,
+    }));
+    const selectedElementIds = ['image-999'];
+    const movePreview = { dx: 4, dy: 6, elementIds: selectedElementIds, strokeIds: [] };
+    const { rerender } = render(
+      <WhiteboardCanvasLayer
+        {...baseProps}
+        elements={elements}
+        movePreview={movePreview}
+        selectedElementIds={selectedElementIds}
+        strokes={emptyStrokes}
+      />,
+    );
+    const firstElements = mocks.selectionOverlay.mock.calls.at(-1)?.[0].elements;
+
+    rerender(
+      <WhiteboardCanvasLayer
+        {...baseProps}
+        elements={elements}
+        movePreview={{ ...movePreview, dx: 12 }}
+        selectedElementIds={selectedElementIds}
+        strokes={emptyStrokes}
+      />,
+    );
+    const secondElements = mocks.selectionOverlay.mock.calls.at(-1)?.[0].elements;
+
+    expect(firstElements).toEqual([elements[999]]);
+    expect(secondElements).toBe(firstElements);
   });
 });

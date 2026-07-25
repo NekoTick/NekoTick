@@ -1,7 +1,8 @@
 import { useCallback, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
 import { isWhiteboardMoveDragState, type WhiteboardDragState } from '../model/whiteboardInteractions';
 import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '../model/whiteboardModel';
-import { getItemsInLasso, translateStrokesFromOriginals } from '../model/whiteboardSelection';
+import { getItemsInLasso, getLassoBounds, translateStrokesFromOriginals } from '../model/whiteboardSelection';
+import { getWhiteboardBoundsCandidates, type WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 
 interface WhiteboardPointerFinishOptions {
   activePenPointerRef: MutableRefObject<number | null>;
@@ -20,6 +21,7 @@ interface WhiteboardPointerFinishOptions {
   setSelectedElementIds: Dispatch<SetStateAction<string[]>>;
   setSelectedStrokeIds: Dispatch<SetStateAction<string[]>>;
   setStrokes: Dispatch<SetStateAction<WhiteboardStroke[]>>;
+  spatialIndex: WhiteboardEraserSpatialIndex;
   strokeIdRef: MutableRefObject<number>;
   strokes: WhiteboardStroke[];
 }
@@ -41,6 +43,7 @@ export function useWhiteboardPointerFinish({
   setSelectedElementIds,
   setSelectedStrokeIds,
   setStrokes,
+  spatialIndex,
   strokeIdRef,
   strokes,
 }: WhiteboardPointerFinishOptions) {
@@ -59,7 +62,13 @@ export function useWhiteboardPointerFinish({
     if (event?.type !== 'pointercancel' && dragState?.kind === 'lasso') {
       const finalPoint = event ? getBoardPoint(event.clientX, event.clientY) : null;
       const path = finalPoint ? [...dragState.points, finalPoint] : dragState.points;
-      const selection = getItemsInLasso(elements, strokes, path);
+      const lassoBounds = getLassoBounds(path);
+      const candidates = lassoBounds ? getWhiteboardBoundsCandidates(spatialIndex, lassoBounds) : null;
+      const selection = getItemsInLasso(
+        spatialIndex.allElements === elements ? candidates?.elements ?? elements : elements,
+        spatialIndex.allStrokes === strokes ? candidates?.strokes ?? strokes : strokes,
+        path,
+      );
       setSelectedElementIds(selection.elementIds);
       setSelectedStrokeIds(selection.strokeIds);
     }
@@ -86,5 +95,6 @@ export function useWhiteboardPointerFinish({
     elements, finishEraserGesture, finishStrokeEraserGesture, flushResizeDrags, getBoardPoint,
     getDraftStroke, pushHistory, setDragState, setElements, setSelectedElementIds,
     setSelectedStrokeIds, setStrokes, strokeIdRef, strokes,
+    spatialIndex,
   ]);
 }

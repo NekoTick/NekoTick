@@ -201,12 +201,31 @@ describe('useWhiteboardStore', () => {
       elements: [{ height: 80, id: 'stale-image', text: 'stale-root.png', type: 'image', width: 120, x: 1, y: 2 }],
     });
     await useWhiteboardStore.getState().loadForNotesRoot('/notesRootB');
+    const stringify = vi.spyOn(JSON, 'stringify');
 
     const result = await useWhiteboardStore.getState().saveActiveSnapshot(staleSnapshot, 'default', '/notesRoot');
     const secondRoot = `/app/.vlaina/whiteboards/notes-roots/${getNotesRootStorageKey('/notesRootB')}`;
 
-    expect(result?.ok).toBe(true);
+    expect(result).toEqual({ byteLength: 0, ok: true });
+    expect(stringify).not.toHaveBeenCalled();
     expect(mocks.files.get(`${secondRoot}/boards/default/board.vlwb.json`)).not.toContain('Do not copy across roots');
+    stringify.mockRestore();
+  });
+
+  it('reports the actual stored document size without serializing the runtime snapshot first', async () => {
+    await useWhiteboardStore.getState().loadForNotesRoot('/notesRoot');
+    const snapshot = normalizeWhiteboardSnapshot({
+      elements: [{ height: 80, id: 'saved-image', text: 'saved.png', type: 'image', width: 120, x: 1, y: 2 }],
+    });
+    useWhiteboardStore.getState().setActiveSnapshotDraft(snapshot);
+    const stringify = vi.spyOn(JSON, 'stringify');
+
+    const result = await useWhiteboardStore.getState().saveActiveSnapshot(snapshot);
+
+    const stored = mocks.files.get(`${SYSTEM_ROOT}/boards/default/board.vlwb.json`)!;
+    expect(result).toEqual({ byteLength: new TextEncoder().encode(stored).byteLength, ok: true });
+    expect(stringify.mock.calls.some(([value]) => value === snapshot)).toBe(false);
+    stringify.mockRestore();
   });
 
   it('ignores a delayed save after switching to another board', async () => {
@@ -229,7 +248,7 @@ describe('useWhiteboardStore', () => {
     expect(useWhiteboardStore.getState().activeBoardId).not.toBe('default');
   });
 
-  it('keeps concurrent saves ordered so the latest snapshot stays on disk', async () => {
+  it('coalesces waiting saves so only the latest snapshot stays on disk', async () => {
     await useWhiteboardStore.getState().loadForNotesRoot('/notesRoot');
     const boardPath = `${SYSTEM_ROOT}/boards/default/board.vlwb.json`;
     let releaseFirstWrite: () => void = () => undefined;
@@ -247,20 +266,26 @@ describe('useWhiteboardStore', () => {
     const olderSnapshot = normalizeWhiteboardSnapshot({
       elements: [{ height: 80, id: 'older-image', text: 'older.png', type: 'image', width: 120, x: 1, y: 2 }],
     });
+    const middleSnapshot = normalizeWhiteboardSnapshot({
+      elements: [{ height: 80, id: 'middle-image', text: 'middle.png', type: 'image', width: 120, x: 1, y: 2 }],
+    });
     const newerSnapshot = normalizeWhiteboardSnapshot({
       elements: [{ height: 80, id: 'newer-image', text: 'newer.png', type: 'image', width: 120, x: 1, y: 2 }],
     });
     useWhiteboardStore.getState().setActiveSnapshotDraft(olderSnapshot);
     const firstSave = useWhiteboardStore.getState().saveActiveSnapshot(olderSnapshot);
     await firstWriteStarted;
+    useWhiteboardStore.getState().setActiveSnapshotDraft(middleSnapshot);
+    const middleSave = useWhiteboardStore.getState().saveActiveSnapshot(middleSnapshot);
     useWhiteboardStore.getState().setActiveSnapshotDraft(newerSnapshot);
     const secondSave = useWhiteboardStore.getState().saveActiveSnapshot(newerSnapshot);
     releaseFirstWrite();
 
-    await Promise.all([firstSave, secondSave]);
+    await Promise.all([firstSave, middleSave, secondSave]);
 
     expect(mocks.files.get(boardPath)).toContain('newer.png');
     expect(mocks.files.get(boardPath)).not.toContain('older.png');
+    expect(mocks.storage.writeFile.mock.calls.some(([, content]) => content.includes('middle.png'))).toBe(false);
   });
 
   it('does not attach a delayed image asset after switching notes roots', async () => {

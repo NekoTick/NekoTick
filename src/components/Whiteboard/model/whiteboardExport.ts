@@ -133,21 +133,31 @@ interface ExportBounds {
 }
 
 function getExportBounds(elements: WhiteboardElement[], strokes: WhiteboardStroke[]): ExportBounds {
-  const strokeBounds = strokes.flatMap((stroke) => {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const includeBounds = (x: number, y: number, width: number, height: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + width);
+    maxY = Math.max(maxY, y + height);
+  };
+  elements.forEach((element) => includeBounds(element.x, element.y, element.width, element.height));
+  strokes.forEach((stroke) => {
     const bounds = getStrokeBounds(stroke);
-    return bounds ? [bounds] : [];
+    if (bounds) includeBounds(bounds.x, bounds.y, bounds.width, bounds.height);
   });
-  const elementBounds = elements.map((element) => ({ height: element.height, width: element.width, x: element.x, y: element.y }));
-  const allBounds = [...strokeBounds, ...elementBounds];
-  if (allBounds.length === 0) {
+  if (!Number.isFinite(minX)) {
     return { height: themeWhiteboardTokens.exportEmptyHeightPx, width: themeWhiteboardTokens.exportEmptyWidthPx, x: 0, y: 0 };
   }
   const padding = themeWhiteboardTokens.exportPaddingPx;
-  const minX = Math.min(...allBounds.map((bounds) => bounds.x)) - padding;
-  const minY = Math.min(...allBounds.map((bounds) => bounds.y)) - padding;
-  const maxX = Math.max(...allBounds.map((bounds) => bounds.x + bounds.width)) + padding;
-  const maxY = Math.max(...allBounds.map((bounds) => bounds.y + bounds.height)) + padding;
-  return { height: Math.ceil(maxY - minY), width: Math.ceil(maxX - minX), x: minX, y: minY };
+  return {
+    height: Math.ceil(maxY - minY + padding * 2),
+    width: Math.ceil(maxX - minX + padding * 2),
+    x: minX - padding,
+    y: minY - padding,
+  };
 }
 
 async function loadSvgImage(svg: string): Promise<HTMLImageElement> {

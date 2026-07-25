@@ -1,18 +1,21 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 import { useWhiteboardStrokeEraserGesture } from './useWhiteboardStrokeEraserGesture';
 
 function createOptions() {
+  const strokes = [{
+    color: '#111111',
+    id: 'stroke',
+    points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+    size: 1,
+    tool: 'pen' as const,
+  }];
   return {
     pushHistory: vi.fn(),
     setStrokes: vi.fn(),
-    strokes: [{
-      color: '#111111',
-      id: 'stroke',
-      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
-      size: 1,
-      tool: 'pen' as const,
-    }],
+    spatialIndex: createWhiteboardEraserSpatialIndex([], strokes),
+    strokes,
   };
 }
 

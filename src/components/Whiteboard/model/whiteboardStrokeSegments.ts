@@ -1,15 +1,15 @@
 import type { WhiteboardStroke, WhiteboardStrokePoint } from './whiteboardModel';
 
-export function splitWhiteboardStrokeSegments(strokes: WhiteboardStroke[]): WhiteboardStroke[] {
+export function splitWhiteboardStrokeSegments(
+  strokes: WhiteboardStroke[],
+  candidateIds?: ReadonlySet<string>,
+): WhiteboardStroke[] {
   const usedIds = new Set(strokes.map((stroke) => stroke.id));
   let changed = false;
   const result = strokes.flatMap((stroke) => {
+    if (candidateIds && !candidateIds.has(stroke.id)) return [stroke];
+    if (!stroke.points.some((point) => point.breakBefore)) return [stroke];
     const segments = splitStrokePoints(stroke.points);
-    if (
-      segments.length === 1 &&
-      segments[0].length === stroke.points.length &&
-      segments[0].every((point, index) => point === stroke.points[index])
-    ) return [stroke];
     changed = true;
     return segments.map((points, index) => ({
       ...stroke,

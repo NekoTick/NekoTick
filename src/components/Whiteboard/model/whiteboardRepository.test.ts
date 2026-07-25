@@ -6,6 +6,7 @@ import {
   loadWhiteboardIndex,
   normalizeWhiteboardIndex,
   readWhiteboardBoard,
+  WHITEBOARD_ASSET_HYDRATION_CONCURRENCY,
   writeWhiteboardAsset,
   writeWhiteboardBoard,
   writeWhiteboardIndex,
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => {
   return {
     dirs,
     files,
+    loadImageAsBlob: vi.fn(async (path: string) => `blob:${path}`),
     storage: {
       exists: vi.fn(async (path: string) => files.has(normalizePath(path, true)) || dirs.has(normalizePath(path, true))),
       getBasePath: vi.fn(async () => '/app'),
@@ -75,6 +77,10 @@ vi.mock('@/lib/storage/adapter', () => ({
   joinPath: async (...segments: string[]) => normalizePath(segments.filter(Boolean).join('/'), true),
 }));
 
+vi.mock('@/lib/assets/io/reader', () => ({
+  loadImageAsBlob: mocks.loadImageAsBlob,
+}));
+
 const SYSTEM_ROOT = `/app/.vlaina/whiteboards/notes-roots/${getNotesRootStorageKey('/notesRoot')}`;
 
 describe('whiteboardRepository', () => {
@@ -82,6 +88,7 @@ describe('whiteboardRepository', () => {
     mocks.files.clear();
     mocks.dirs.clear();
     vi.clearAllMocks();
+    mocks.loadImageAsBlob.mockImplementation(async (path: string) => `blob:${path}`);
   });
 
   it('loads a default index when the whiteboard index does not exist', async () => {
@@ -141,11 +148,12 @@ describe('whiteboardRepository', () => {
 
   it('writes board snapshots into the selected board folder', async () => {
     const { entry } = await createWhiteboardEntry('/notesRoot', 'Sketch');
-    await writeWhiteboardBoard('/notesRoot', entry, normalizeWhiteboardSnapshot({
+    const byteLength = await writeWhiteboardBoard('/notesRoot', entry, normalizeWhiteboardSnapshot({
       elements: [{ height: 80, id: 'image-1', text: 'hello.png', type: 'image', width: 120, x: 1, y: 2 }],
     }));
 
     const rawBoard = mocks.files.get(`${SYSTEM_ROOT}/boards/sketch/board.vlwb.json`);
+    expect(byteLength).toBe(new TextEncoder().encode(rawBoard).byteLength);
     expect(rawBoard).toContain('"format": "vlaina.whiteboard"');
     expect(rawBoard).toContain('"image-1"');
   });
@@ -229,6 +237,35 @@ describe('whiteboardRepository', () => {
     });
 
     await expect(writeWhiteboardBoard('/notesRoot', entry, oversized)).rejects.toThrow('too large');
+  });
+
+  it('bounds concurrent image hydration when opening image-heavy boards', async () => {
+    const { entry } = await createWhiteboardEntry('/notesRoot', 'Images');
+    const elements = Array.from({ length: WHITEBOARD_ASSET_HYDRATION_CONCURRENCY * 3 }, (_, index) => ({
+      height: 80,
+      id: `image-${index}`,
+      imageAssetPath: `assets/image-${index}.png`,
+      text: `image-${index}.png`,
+      type: 'image' as const,
+      width: 120,
+      x: index * 10,
+      y: 0,
+    }));
+    await writeWhiteboardBoard('/notesRoot', entry, normalizeWhiteboardSnapshot({ elements }));
+    let activeLoads = 0;
+    let maxActiveLoads = 0;
+    mocks.loadImageAsBlob.mockImplementation(async (path: string) => {
+      activeLoads += 1;
+      maxActiveLoads = Math.max(maxActiveLoads, activeLoads);
+      await Promise.resolve();
+      activeLoads -= 1;
+      return `blob:${path}`;
+    });
+
+    const snapshot = await readWhiteboardBoard('/notesRoot', entry);
+
+    expect(snapshot?.elements.every((element) => Boolean(element.imageSrc))).toBe(true);
+    expect(maxActiveLoads).toBeLessThanOrEqual(WHITEBOARD_ASSET_HYDRATION_CONCURRENCY);
   });
 
   it('writes imported images into the board assets folder', async () => {

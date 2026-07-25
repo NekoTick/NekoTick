@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type Dispatch, type PointerEvent, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
 import type { WhiteboardDragState } from '../model/whiteboardInteractions';
 import {
   type WhiteboardElement,
@@ -25,6 +25,7 @@ interface WhiteboardElementControlsOptions {
   setSelectedElementIds: Dispatch<SetStateAction<string[]>>;
   setSelectedStrokeIds: Dispatch<SetStateAction<string[]>>;
   setStrokes: Dispatch<SetStateAction<WhiteboardStroke[]>>;
+  spacePressedRef: MutableRefObject<boolean>;
   strokes: WhiteboardStroke[];
   tool: WhiteboardTool;
 }
@@ -40,6 +41,7 @@ export function useWhiteboardElementControls({
   setSelectedElementIds,
   setSelectedStrokeIds,
   setStrokes,
+  spacePressedRef,
   strokes,
   tool,
 }: WhiteboardElementControlsOptions) {
@@ -52,7 +54,7 @@ export function useWhiteboardElementControls({
   }, [setSelectedElementIds, setSelectedStrokeIds]);
 
   const handleElementPointerDown = useCallback((event: PointerEvent<HTMLDivElement>, element: WhiteboardElement) => {
-    if (tool !== 'select' || event.button !== 0) return;
+    if (tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -75,10 +77,10 @@ export function useWhiteboardElementControls({
       startPoint: point,
       strokeIds: movingStrokeIds,
     });
-  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementIds, setSelectedStrokeIds, strokes, tool]);
+  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementIds, setSelectedStrokeIds, spacePressedRef, strokes, tool]);
 
   const handleSelectionResizePointerDown = useCallback((event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => {
-    if (tool !== 'select' || event.button !== 0) return;
+    if (tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
     const bounds = getSelectionBounds(elements, strokes, selectedElementIds, selectedStrokeIds);
     if (!bounds) return;
@@ -96,7 +98,33 @@ export function useWhiteboardElementControls({
       preserveAspectRatio: event.shiftKey,
       startPoint: point,
     });
-  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, strokes, tool]);
+  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, strokes, tool]);
+
+  const handleSelectionMovePointerDown = useCallback((event: PointerEvent<SVGElement>) => {
+    if (tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
+    event.stopPropagation();
+    const point = getBoardPoint(event.clientX, event.clientY);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const originalElements = elements.filter((element) => selectedElementIds.includes(element.id));
+    const originalStrokes = strokes.filter((stroke) => selectedStrokeIds.includes(stroke.id));
+    if (originalElements.length === 0 && originalStrokes.length === 0) return;
+    pushHistory();
+    setDragState(originalElements.length > 0 ? {
+      kind: 'move-elements',
+      currentPoint: point,
+      elementIds: selectedElementIds,
+      originalElementsById: new Map(originalElements.map((element) => [element.id, element])),
+      originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+      startPoint: point,
+      strokeIds: selectedStrokeIds,
+    } : {
+      kind: 'move-strokes',
+      currentPoint: point,
+      originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+      startPoint: point,
+      strokeIds: selectedStrokeIds,
+    });
+  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, strokes, tool]);
 
   const applyPendingSelectionResize = useCallback(() => {
     const pending = pendingSelectionResizeRef.current;
@@ -131,6 +159,7 @@ export function useWhiteboardElementControls({
   return {
     flushResizeDrags,
     handleElementPointerDown,
+    handleSelectionMovePointerDown,
     handleSelectionResizePointerDown,
     resizeSelection: scheduleSelectionResize,
     selectElement,
