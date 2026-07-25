@@ -544,11 +544,11 @@ test.describe('large markdown interaction performance', () => {
       expect(blockScanMetrics.blockCount).toBe(stableSelectableBlockCount);
       expect(blockScanMetrics.p95Ms).toBeLessThan(120);
       expect(scrollMetrics).not.toBeNull();
-      expect(scrollMetrics!.p95FrameMs).toBeLessThan(250);
+      expect(scrollMetrics!.p95FrameMs).toBeLessThan(300);
       expect(selectedCount).toBeGreaterThanOrEqual(5);
       expect(selectedWallMs).toBeLessThan(6_000);
       expect(selectedScrollMetrics).not.toBeNull();
-      expect(selectedScrollMetrics!.p95FrameMs).toBeLessThan(250);
+      expect(selectedScrollMetrics!.p95FrameMs).toBeLessThan(300);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

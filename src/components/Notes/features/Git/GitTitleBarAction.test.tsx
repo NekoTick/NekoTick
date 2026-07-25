@@ -417,9 +417,10 @@ describe('GitTitleBarAction', () => {
   });
 
   it('shows a clear empty state when the repository has no commits', async () => {
+    const cleanStatus = { ...status, changes: [] };
+    mocks.git.status.mockResolvedValue(cleanStatus);
+    mocks.git.fetch.mockResolvedValue(cleanStatus);
     await openGitPopover();
-    fireEvent.click(screen.getByRole('tab', { name: 'git.history' }));
-
     expect(await screen.findByText('git.noHistory')).toBeInTheDocument();
   });
 
