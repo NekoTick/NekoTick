@@ -142,6 +142,36 @@ describe('useShortcuts', () => {
     }
   });
 
+  it('dispatches only graph search for Ctrl+F in graph mode', () => {
+    const editorFindListener = vi.fn();
+    const sidebarListener = vi.fn();
+    window.addEventListener(EDITOR_FIND_OPEN_EVENT, editorFindListener);
+    window.addEventListener(SIDEBAR_OPEN_SEARCH_EVENT, sidebarListener);
+
+    try {
+      useUIStore.setState({ appViewMode: 'graph' });
+      renderHook(() => useShortcuts());
+
+      const event = new KeyboardEvent('keydown', {
+        key: 'f',
+        code: 'KeyF',
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(sidebarListener).toHaveBeenCalledTimes(1);
+      expect((sidebarListener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ scope: 'graph' });
+      expect(editorFindListener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(EDITOR_FIND_OPEN_EVENT, editorFindListener);
+      window.removeEventListener(SIDEBAR_OPEN_SEARCH_EVENT, sidebarListener);
+    }
+  });
+
 
   it('does not dispatch find shortcuts from inside a dialog', () => {
     const editorFindListener = vi.fn();

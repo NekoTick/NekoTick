@@ -217,6 +217,19 @@ export function useShortcuts(options: UseShortcutsOptions = {}) {
         return;
       }
 
+      if (
+        appViewMode === 'graph' &&
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'f' &&
+        !isEditableShortcutTarget(e.target)
+      ) {
+        e.preventDefault();
+        dispatchSidebarOpenSearchEvent('graph');
+        return;
+      }
+
       if (shouldSkipShortcutForEditableSystemShortcut(e)) {
         return;
       }
