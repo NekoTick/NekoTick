@@ -6,7 +6,6 @@ export function useGraphCanvasGeometry(args: {
   dragPosition: { id: string; position: GraphNodePosition } | null;
   graph: PositionedNoteGraph;
   positionOverrides: GraphNodePositions;
-  selectedPath: string | null;
   simulationPositions: GraphNodePositions;
   simulationVersion: number;
 }) {
@@ -24,21 +23,14 @@ export function useGraphCanvasGeometry(args: {
     args.simulationVersion,
   ]);
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const edges = useMemo(() => args.graph.edges.flatMap((edge) => {
-    const source = nodeById.get(edge.source.id);
-    const target = nodeById.get(edge.target.id);
-    return source && target ? [{ source, target }] : [];
-  }), [args.graph.edges, nodeById]);
-  const connectedToSelected = useMemo(() => {
-    const connected = new Set<string>();
-    if (!args.selectedPath) return connected;
-    for (const edge of edges) {
-      if (edge.source.id === args.selectedPath) connected.add(edge.target.id);
-      if (edge.target.id === args.selectedPath) connected.add(edge.source.id);
-    }
-    return connected;
-  }, [args.selectedPath, edges]);
-  const nodeKey = useMemo(() => nodes.map((node) => node.id).join('\n'), [nodes]);
+  const edges = useMemo(() => args.graph.edges.map((edge) => ({
+    source: nodeById.get(edge.source.id)!,
+    target: nodeById.get(edge.target.id)!,
+  })), [args.graph.edges, nodeById]);
+  const nodeKey = useMemo(
+    () => nodes.map((node) => node.id).sort().join('\n'),
+    [nodes],
+  );
 
-  return { connectedToSelected, edges, nodeKey, nodes };
+  return { edges, nodeKey, nodes };
 }

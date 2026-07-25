@@ -1,7 +1,12 @@
 import { StrictMode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  clearEditorFocusIntent,
+  fulfillEditorFocusIntent,
+} from '@/components/Notes/features/Editor/utils/editorFocusIntent';
 import { GraphView } from './GraphView';
+import { useGraphUIStore } from './store/useGraphUIStore';
 
 const hoisted = vi.hoisted(() => ({
   notesState: {
@@ -16,6 +21,8 @@ const hoisted = vi.hoisted(() => ({
   },
   notesRootState: {
     currentNotesRoot: { name: 'Test notes', path: '/tmp/test-notes' },
+    hasInitialized: true,
+    recentNotesRoots: [{ name: 'Test notes', path: '/tmp/test-notes' }],
   },
   uiState: { setAppViewMode: vi.fn() },
 }));
@@ -25,7 +32,10 @@ vi.mock('@/lib/i18n', () => ({
 }));
 
 vi.mock('@/stores/notes/useNotesStore', () => ({
-  useNotesStore: (selector: (state: typeof hoisted.notesState) => unknown) => selector(hoisted.notesState),
+  useNotesStore: Object.assign(
+    (selector: (state: typeof hoisted.notesState) => unknown) => selector(hoisted.notesState),
+    { getState: () => hoisted.notesState },
+  ),
 }));
 
 vi.mock('@/stores/useNotesRootStore', () => ({
@@ -38,6 +48,7 @@ vi.mock('@/stores/uiSlice', () => ({
 
 describe('GraphView', () => {
   beforeEach(() => {
+    clearEditorFocusIntent();
     localStorage.clear();
     hoisted.notesState.currentNote = null;
     hoisted.notesState.noteContentsCache = new Map();
@@ -45,8 +56,15 @@ describe('GraphView', () => {
     hoisted.notesState.notesPath = '';
     hoisted.notesState.rootFolder = null;
     hoisted.notesState.rootFolderPath = null;
+    hoisted.notesRootState.currentNotesRoot = { name: 'Test notes', path: '/tmp/test-notes' };
+    hoisted.notesRootState.hasInitialized = true;
+    hoisted.notesRootState.recentNotesRoots = [{ name: 'Test notes', path: '/tmp/test-notes' }];
     hoisted.notesState.scanAllNotes.mockClear();
     hoisted.notesState.scanAllNotes.mockResolvedValue(undefined);
+    hoisted.notesState.openNote.mockClear();
+    hoisted.notesState.openNote.mockResolvedValue(undefined);
+    hoisted.uiState.setAppViewMode.mockClear();
+    useGraphUIStore.setState({ mode: 'all', searchQuery: '', selectedPath: null });
   });
 
   it('uses a stable empty position snapshot before a graph layout has been saved', () => {
@@ -79,7 +97,7 @@ describe('GraphView', () => {
     expect(screen.queryByRole('img', { name: 'app.viewGraph' })).not.toBeInTheDocument();
   });
 
-  it('does not scan notes while inactive', () => {
+  it('defers hidden graph work and refreshes when activated in StrictMode', async () => {
     hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
     hoisted.notesState.notesPath = '/tmp/test-notes';
     hoisted.notesState.rootFolderPath = '/tmp/test-notes';
@@ -96,7 +114,7 @@ describe('GraphView', () => {
       ['Alpha.md', { content: '# Alpha', modifiedAt: 1 }],
     ]);
 
-    render(
+    const view = render(
       <StrictMode>
         <GraphView active={false} />
       </StrictMode>,
@@ -105,38 +123,20 @@ describe('GraphView', () => {
     expect(document.querySelector('[data-graph-view-mode="true"]')).toHaveAttribute('data-graph-active', 'false');
     expect(screen.queryByRole('img', { name: 'app.viewGraph' })).not.toBeInTheDocument();
     expect(hoisted.notesState.scanAllNotes).not.toHaveBeenCalled();
-  });
 
-  it('mounts a populated active graph in StrictMode without an effect feedback loop', async () => {
-    hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
-    hoisted.notesState.notesPath = '/tmp/test-notes';
-    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
-    hoisted.notesState.rootFolder = {
-      children: [{
-        id: 'Alpha.md',
-        isFolder: false,
-        kind: 'note',
-        name: 'Alpha.md',
-        path: 'Alpha.md',
-      }],
-    };
-    hoisted.notesState.noteContentsCache = new Map([
-      ['Alpha.md', { content: '# Alpha', modifiedAt: 1 }],
-    ]);
-
-    render(
+    view.rerender(
       <StrictMode>
-        <GraphView />
+        <GraphView active />
       </StrictMode>,
     );
 
-    expect(await screen.findByRole('img', { name: 'app.viewGraph' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'app.viewGraph' })).toBeInTheDocument();
     await waitFor(() => expect(hoisted.notesState.scanAllNotes).toHaveBeenCalledWith(
       expect.objectContaining({ background: true, priorityPaths: ['Alpha.md'] }),
     ));
   });
 
-  it('preserves the canvas while pausing data work after deactivation', async () => {
+  it('keeps the existing canvas mounted during a background refresh', async () => {
     hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
     hoisted.notesState.notesPath = '/tmp/test-notes';
     hoisted.notesState.rootFolderPath = '/tmp/test-notes';
@@ -152,16 +152,162 @@ describe('GraphView', () => {
     hoisted.notesState.noteContentsCache = new Map([
       ['Alpha.md', { content: '# Alpha', modifiedAt: 1 }],
     ]);
-    const { rerender } = render(<GraphView />);
-    const canvas = await screen.findByRole('img', { name: 'app.viewGraph' });
-    await waitFor(() => expect(hoisted.notesState.scanAllNotes).toHaveBeenCalled());
+    const view = render(<GraphView active />);
+    const canvas = await screen.findByRole('group', { name: 'app.viewGraph' });
+
+    view.rerender(<GraphView active={false} />);
     hoisted.notesState.scanAllNotes.mockClear();
-    hoisted.notesState.rootFolder = null;
-    hoisted.notesState.noteContentsCache = new Map();
-
-    rerender(<GraphView active={false} />);
-
-    expect(screen.getByRole('img', { name: 'app.viewGraph' })).toBe(canvas);
+    expect(screen.getByRole('group', { name: 'app.viewGraph' })).toBe(canvas);
     expect(hoisted.notesState.scanAllNotes).not.toHaveBeenCalled();
+    hoisted.notesState.scanAllNotes.mockImplementation(() => new Promise(() => undefined));
+    view.rerender(<GraphView active />);
+
+    expect(screen.getByRole('group', { name: 'app.viewGraph' })).toBe(canvas);
+    expect(screen.queryByText('graph.loading')).not.toBeInTheDocument();
+    expect(await screen.findByText('graph.scanning')).toBeInTheDocument();
+  });
+
+  it('clears a stale selection after returning from another note', async () => {
+    hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
+    hoisted.notesState.notesPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolder = {
+      children: [
+        { id: 'Alpha.md', isFolder: false, kind: 'note', name: 'Alpha.md', path: 'Alpha.md' },
+        { id: 'Beta.md', isFolder: false, kind: 'note', name: 'Beta.md', path: 'Beta.md' },
+        { id: 'Gamma.md', isFolder: false, kind: 'note', name: 'Gamma.md', path: 'Gamma.md' },
+      ],
+    };
+    useGraphUIStore.setState({ selectedPath: 'Alpha.md' });
+    const view = render(<GraphView active />);
+    await waitFor(() => expect(useGraphUIStore.getState().selectedPath).toBe('Alpha.md'));
+
+    view.rerender(<GraphView active={false} />);
+    hoisted.notesState.currentNote = { content: '# Gamma', path: 'Gamma.md' };
+    view.rerender(<GraphView active />);
+
+    await waitFor(() => expect(useGraphUIStore.getState().selectedPath).toBeNull());
+  });
+
+  it('hands focus to the opened note editor after leaving the graph', async () => {
+    hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
+    hoisted.notesState.notesPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolder = {
+      children: [
+        { id: 'Alpha.md', isFolder: false, kind: 'note', name: 'Alpha.md', path: 'Alpha.md' },
+      ],
+    };
+    hoisted.notesState.noteContentsCache = new Map([
+      ['Alpha.md', { content: '# Alpha', modifiedAt: 1 }],
+    ]);
+    render(<GraphView active />);
+
+    fireEvent.doubleClick(await screen.findByRole('option', { name: 'Alpha' }));
+
+    await waitFor(() => expect(hoisted.notesState.openNote).toHaveBeenCalledWith('Alpha.md'));
+    expect(hoisted.uiState.setAppViewMode).toHaveBeenCalledWith('notes');
+    expect(fulfillEditorFocusIntent('Alpha.md', () => true)).toBe(true);
+  });
+
+  it('shows the target note on the first frame after leaving the graph', async () => {
+    let finishOpening: (() => void) | null = null;
+    hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
+    hoisted.notesState.notesPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolder = {
+      children: [
+        { id: 'Alpha.md', isFolder: false, kind: 'note', name: 'Alpha.md', path: 'Alpha.md' },
+        { id: 'Beta.md', isFolder: false, kind: 'note', name: 'Beta.md', path: 'Beta.md' },
+      ],
+    };
+    hoisted.notesState.noteContentsCache = new Map([
+      ['Alpha.md', { content: '# Alpha', modifiedAt: 1 }],
+      ['Beta.md', { content: '# Beta', modifiedAt: 1 }],
+    ]);
+    hoisted.notesState.openNote.mockImplementation(() => new Promise<void>((resolve) => {
+      finishOpening = () => {
+        hoisted.notesState.currentNote = { content: '# Beta', path: 'Beta.md' };
+        resolve();
+      };
+    }));
+    render(<GraphView active />);
+
+    fireEvent.doubleClick(await screen.findByRole('option', { name: 'Beta' }));
+
+    expect(hoisted.notesState.openNote).toHaveBeenCalledWith('Beta.md');
+    expect(hoisted.uiState.setAppViewMode).not.toHaveBeenCalled();
+    expect(fulfillEditorFocusIntent('Beta.md', () => true)).toBe(false);
+
+    const completeOpening = finishOpening as (() => void) | null;
+    completeOpening?.();
+    await waitFor(() => expect(hoisted.uiState.setAppViewMode).toHaveBeenCalledWith('notes'));
+    expect(fulfillEditorFocusIntent('Beta.md', () => true)).toBe(true);
+  });
+
+  it('clears a selection when re-entering a different notes root', async () => {
+    hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
+    hoisted.notesState.notesPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolder = {
+      children: [
+        { id: 'Alpha.md', isFolder: false, kind: 'note', name: 'Alpha.md', path: 'Alpha.md' },
+        { id: 'Beta.md', isFolder: false, kind: 'note', name: 'Beta.md', path: 'Beta.md' },
+      ],
+    };
+    useGraphUIStore.setState({ selectedPath: 'Alpha.md' });
+    const view = render(<GraphView active />);
+    await waitFor(() => expect(useGraphUIStore.getState().selectedPath).toBe('Alpha.md'));
+
+    view.rerender(<GraphView active={false} />);
+    hoisted.notesRootState.currentNotesRoot = { name: 'Other notes', path: '/tmp/other-notes' };
+    hoisted.notesState.notesPath = '/tmp/other-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/other-notes';
+    view.rerender(<GraphView active />);
+
+    await waitFor(() => expect(useGraphUIStore.getState().selectedPath).toBeNull());
+  });
+
+  it('shows a scan error instead of presenting a failed scan as an empty graph', async () => {
+    hoisted.notesState.notesPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolder = { children: [] };
+    hoisted.notesState.scanAllNotes.mockRejectedValue(new Error('scan failed'));
+
+    render(<GraphView />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('graph.scanError');
+    expect(screen.queryByText('graph.empty')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'graph.retry' })).toBeInTheDocument();
+  });
+
+  it('keeps the background scan error action inside a single compact row', async () => {
+    hoisted.notesState.currentNote = { content: '# Alpha', path: 'Alpha.md' };
+    hoisted.notesState.notesPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolderPath = '/tmp/test-notes';
+    hoisted.notesState.rootFolder = {
+      children: [{
+        id: 'Alpha.md',
+        isFolder: false,
+        kind: 'note',
+        name: 'Alpha.md',
+        path: 'Alpha.md',
+      }],
+    };
+    hoisted.notesState.noteContentsCache = new Map([
+      ['Alpha.md', { content: '# Alpha', modifiedAt: 1 }],
+    ]);
+    const view = render(<GraphView active />);
+    await screen.findByRole('group', { name: 'app.viewGraph' });
+
+    view.rerender(<GraphView active={false} />);
+    hoisted.notesState.scanAllNotes.mockRejectedValue(new Error('scan failed'));
+    view.rerender(<GraphView active />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.parentElement).toHaveClass('px-3');
+    expect(alert).toHaveClass('min-w-0', 'max-w-full', 'flex-nowrap');
+    expect(alert.querySelector('span')).toHaveClass('truncate', 'whitespace-nowrap');
+    expect(screen.getByRole('button', { name: 'graph.retry' })).toHaveClass('shrink-0');
   });
 });

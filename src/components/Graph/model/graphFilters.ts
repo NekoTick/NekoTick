@@ -83,13 +83,33 @@ function normalizeSearchText(value: string): string {
   return value.normalize('NFKC').trim().toLocaleLowerCase();
 }
 
-function getSearchRank(node: NoteGraphNode, query: string): number | null {
+interface NormalizedGraphSearchNode {
+  id: string;
+  label: string;
+  labelWords: string[];
+}
+
+const normalizedGraphSearchNodes = new WeakMap<NoteGraphNode, NormalizedGraphSearchNode>();
+
+function getNormalizedGraphSearchNode(node: NoteGraphNode): NormalizedGraphSearchNode {
+  const cached = normalizedGraphSearchNodes.get(node);
+  if (cached) return cached;
   const label = normalizeSearchText(node.label);
-  const id = normalizeSearchText(node.id);
+  const normalized = {
+    id: normalizeSearchText(node.id),
+    label,
+    labelWords: label.split(/[\s/_.-]+/u),
+  };
+  normalizedGraphSearchNodes.set(node, normalized);
+  return normalized;
+}
+
+function getSearchRank(node: NoteGraphNode, query: string): number | null {
+  const { id, label, labelWords } = getNormalizedGraphSearchNode(node);
 
   if (label === query || id === query) return 0;
   if (label.startsWith(query)) return 1;
-  if (label.split(/[\s/_.-]+/u).some((word) => word.startsWith(query))) return 2;
+  if (labelWords.some((word) => word.startsWith(query))) return 2;
   if (label.includes(query)) return 3;
   if (id.startsWith(query)) return 4;
   if (id.includes(query)) return 5;
@@ -103,11 +123,12 @@ export function rankGraphNodes(
   const query = normalizeSearchText(rawQuery);
   if (!query) return [];
 
-  return nodes
-    .flatMap((node) => {
-      const rank = getSearchRank(node, query);
-      return rank === null ? [] : [{ node, rank }];
-    })
+  const rankedNodes: { node: NoteGraphNode; rank: number }[] = [];
+  for (const node of nodes) {
+    const rank = getSearchRank(node, query);
+    if (rank !== null) rankedNodes.push({ node, rank });
+  }
+  return rankedNodes
     .sort((left, right) => (
       left.rank - right.rank
       || right.node.degree - left.node.degree

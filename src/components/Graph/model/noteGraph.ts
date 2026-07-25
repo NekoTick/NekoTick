@@ -1,21 +1,14 @@
-import { getNoteTitleFromPath } from '@/lib/notes/displayName';
-import {
-  getMarkdownLinkHref,
-  MARKDOWN_LINK_PATTERN_GLOBAL,
-} from '@/lib/notes/markdown/markdownLinkParser';
-import { collectMarkdownReferenceLinkDestinations } from '@/lib/notes/markdown/markdownReferenceLinkStyle';
 import { stripSupportedMarkdownExtension } from '@/lib/notes/markdownFile';
-import {
-  getNoteMarkdownExcludedRanges,
-  isNoteMarkdownIndexExcluded,
-} from '@/lib/notes/tags';
+import { getNoteTitleFromPath } from '@/lib/notes/displayName';
 import type { FileTreeNode, NoteContentCacheEntry } from '@/stores/notes/types';
+import { getGraphLinkReferences } from './graphLinkReferences';
+import { collectNotePaths } from './graphNotePaths';
+import { buildVisibleNoteGraph } from './graphNoteVisibility';
 
 export const MAX_GRAPH_NODES = 240;
 export const MAX_GRAPH_EDGES = 4_000;
-const MAX_GRAPH_CANDIDATE_NODES = 5_000;
+export const MAX_GRAPH_CANDIDATE_NODES = 5_000;
 
-const WIKI_LINK_PATTERN = /\[\[([^\]\n]{1,512})\]\]/g;
 const EXTERNAL_LINK_TARGET_PATTERN = /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu;
 
 export interface NoteGraphNode {
@@ -39,58 +32,36 @@ export interface NoteGraphScanInput {
   priorityPaths: string[];
 }
 
-let graphBuildCache: {
-  fileTree: readonly FileTreeNode[];
-  noteContentsCache: ReadonlyMap<string, NoteContentCacheEntry>;
-  revision: number;
-  graph: NoteGraph;
-} | null = null;
-
-function collectNotePaths(nodes: readonly FileTreeNode[], limit: number): string[] {
-  const paths: string[] = [];
-  const stack = [...nodes].reverse();
-
-  while (stack.length > 0 && paths.length < limit) {
-    const node = stack.pop()!;
-    if (node.isFolder) {
-      for (let index = node.children.length - 1; index >= 0; index -= 1) {
-        stack.push(node.children[index]!);
-      }
-      continue;
-    }
-    if (node.kind !== 'image') paths.push(node.path);
-  }
-
-  return paths.sort((left, right) => left.localeCompare(right));
+export interface NoteGraphStats {
+  totalCandidateNodes: number;
+  totalCandidateEdges: number;
+  nodesTruncated: boolean;
+  edgesTruncated: boolean;
 }
 
+export interface BuiltNoteGraph extends NoteGraph {
+  stats: NoteGraphStats;
+}
+
+let graphBuildCache: {
+  baselineGraph: BuiltNoteGraph;
+  candidateEdges: NoteGraphEdge[];
+  candidateEdgesTruncated: boolean;
+  candidatePaths: string[];
+  fileTree: readonly FileTreeNode[];
+  totalCandidateNodes: number;
+  noteContentsCache: ReadonlyMap<string, NoteContentCacheEntry>;
+  priorityKey: string;
+  revision: number;
+  graph: BuiltNoteGraph;
+} | null = null;
+
 export function createNoteGraphScanInput(nodes: readonly FileTreeNode[]): NoteGraphScanInput {
-  const candidatePaths = collectNotePaths(nodes, MAX_GRAPH_CANDIDATE_NODES);
+  const candidatePaths = collectNotePaths(nodes, MAX_GRAPH_CANDIDATE_NODES).paths;
   return {
     key: candidatePaths.join('\0'),
     priorityPaths: candidatePaths.slice(0, MAX_GRAPH_NODES),
   };
-}
-
-function selectVisibleGraphPaths(
-  paths: readonly string[],
-  edges: readonly NoteGraphEdge[],
-): string[] {
-  if (paths.length <= MAX_GRAPH_NODES) return [...paths];
-
-  const degreeByPath = new Map(paths.map((path) => [path, 0]));
-  for (const edge of edges) {
-    degreeByPath.set(edge.source, (degreeByPath.get(edge.source) ?? 0) + 1);
-    degreeByPath.set(edge.target, (degreeByPath.get(edge.target) ?? 0) + 1);
-  }
-
-  return [...paths]
-    .sort((left, right) => (
-      (degreeByPath.get(right) ?? 0) - (degreeByPath.get(left) ?? 0)
-      || left.localeCompare(right)
-    ))
-    .slice(0, MAX_GRAPH_NODES)
-    .sort((left, right) => left.localeCompare(right));
 }
 
 function normalizePath(path: string): string {
@@ -130,6 +101,7 @@ function decodeLinkTarget(value: string): string {
 function createTargetResolver(paths: readonly string[]) {
   const pathByKey = new Map(paths.map((path) => [withoutExtension(normalizePath(path)), path]));
   const pathsByTitle = new Map<string, string[]>();
+  const resolvedTargets = new Map<string, string | null>();
   for (const path of paths) {
     const title = getNoteTitleFromPath(path).toLocaleLowerCase();
     const titlePaths = pathsByTitle.get(title);
@@ -137,7 +109,7 @@ function createTargetResolver(paths: readonly string[]) {
     else pathsByTitle.set(title, [path]);
   }
 
-  return (sourcePath: string, rawTarget: string): string | null => {
+  const resolveTarget = (sourcePath: string, rawTarget: string): string | null => {
     const target = decodeLinkTarget(rawTarget);
     if (!target) return null;
 
@@ -160,116 +132,113 @@ function createTargetResolver(paths: readonly string[]) {
       return leftDepth - rightDepth || left.localeCompare(right);
     })[0] ?? null;
   };
-}
 
-function collectLinkedTargets(
-  content: string,
-  resolveTarget: (rawTarget: string) => string | null,
-): string[] {
-  const targets: string[] = [];
-  const excludedRanges = getNoteMarkdownExcludedRanges(content, { excludeFrontmatter: false });
-  let excludedRangeCursor = 0;
-  WIKI_LINK_PATTERN.lastIndex = 0;
-
-  let match: RegExpExecArray | null;
-  while ((match = WIKI_LINK_PATTERN.exec(content)) !== null) {
-    while (
-      excludedRangeCursor < excludedRanges.length &&
-      excludedRanges[excludedRangeCursor]!.to <= match.index
-    ) {
-      excludedRangeCursor += 1;
-    }
-    if (isNoteMarkdownIndexExcluded(match.index, excludedRanges, excludedRangeCursor)) continue;
-
-    const target = resolveTarget(match[1]!.split('|', 1)[0] ?? '');
-    if (target) targets.push(target);
-  }
-
-  excludedRangeCursor = 0;
-  MARKDOWN_LINK_PATTERN_GLOBAL.lastIndex = 0;
-  while ((match = MARKDOWN_LINK_PATTERN_GLOBAL.exec(content)) !== null) {
-    while (
-      excludedRangeCursor < excludedRanges.length
-      && excludedRanges[excludedRangeCursor]!.to <= match.index
-    ) {
-      excludedRangeCursor += 1;
-    }
-    if (
-      content[match.index - 1] === '!'
-      || isNoteMarkdownIndexExcluded(match.index, excludedRanges, excludedRangeCursor)
-    ) {
-      continue;
-    }
-
-    const target = resolveTarget(getMarkdownLinkHref(match[2] ?? ''));
-    if (target) targets.push(target);
-  }
-
-  for (const destination of collectMarkdownReferenceLinkDestinations(content)) {
-    const target = resolveTarget(destination);
-    if (target) targets.push(target);
-  }
-
-  return targets;
+  return (sourcePath: string, rawTarget: string): string | null => {
+    const key = `${sourcePath}\n${rawTarget}`;
+    if (resolvedTargets.has(key)) return resolvedTargets.get(key) ?? null;
+    const resolved = resolveTarget(sourcePath, rawTarget);
+    resolvedTargets.set(key, resolved);
+    return resolved;
+  };
 }
 
 export function buildNoteGraph(
   fileTree: readonly FileTreeNode[],
   noteContentsCache: ReadonlyMap<string, NoteContentCacheEntry>,
   revision?: number,
-): NoteGraph {
-  if (
+  priorityPaths: readonly string[] = [],
+): BuiltNoteGraph {
+  const priorityKey = JSON.stringify(priorityPaths);
+  const cachedSource = graphBuildCache;
+  const matchesCachedSource = (
     revision !== undefined
-    && graphBuildCache?.fileTree === fileTree
-    && graphBuildCache.noteContentsCache === noteContentsCache
-    && graphBuildCache.revision === revision
-  ) {
-    return graphBuildCache.graph;
+    && cachedSource !== null
+    && cachedSource.fileTree === fileTree
+    && cachedSource.noteContentsCache === noteContentsCache
+    && cachedSource.revision === revision
+  );
+  if (matchesCachedSource && cachedSource.priorityKey === priorityKey) {
+    return cachedSource.graph;
   }
 
-  const candidatePaths = collectNotePaths(fileTree, MAX_GRAPH_CANDIDATE_NODES);
-  const candidatePathSet = new Set(candidatePaths);
-  const resolveTargetForPath = createTargetResolver(candidatePaths);
-  const edgeKeys = new Set<string>();
-  const candidateEdges: NoteGraphEdge[] = [];
+  const cached = matchesCachedSource ? cachedSource : null;
+  const collectedPaths = cached
+    ? { paths: cached.candidatePaths, total: cached.totalCandidateNodes }
+    : collectNotePaths(fileTree, MAX_GRAPH_CANDIDATE_NODES);
+  const candidatePaths = collectedPaths.paths;
+  let candidateEdges = cached?.candidateEdges ?? [];
+  let candidateEdgesTruncated = cached?.candidateEdgesTruncated ?? false;
 
-  for (const source of candidatePaths) {
-    if (candidateEdges.length >= MAX_GRAPH_EDGES) break;
-    const content = noteContentsCache.get(source)?.content;
-    if (!content?.includes('[')) continue;
+  if (cached) {
+    const baselineIds = new Set(cached.baselineGraph.nodes.map((node) => node.id));
+    if (priorityPaths.every((path) => baselineIds.has(path))) {
+      graphBuildCache = { ...cached, graph: cached.baselineGraph, priorityKey };
+      return cached.baselineGraph;
+    }
+  } else {
+    const candidatePathSet = new Set(candidatePaths);
+    const resolveTargetForPath = createTargetResolver(candidatePaths);
+    const edgeKeys = new Set<string>();
+    candidateEdges = [];
 
-    for (const target of collectLinkedTargets(content, (rawTarget) => resolveTargetForPath(source, rawTarget))) {
-      if (target === source || !candidatePathSet.has(target)) continue;
-      const [left, right] = source < target ? [source, target] : [target, source];
-      const key = `${left}\n${right}`;
-      if (edgeKeys.has(key)) continue;
-      edgeKeys.add(key);
-      candidateEdges.push({ source: left, target: right });
-      if (candidateEdges.length >= MAX_GRAPH_EDGES) break;
+    graphScan:
+    for (const source of candidatePaths) {
+      const entry = noteContentsCache.get(source);
+      if (!entry) continue;
+
+      for (const rawTarget of getGraphLinkReferences(entry)) {
+        const target = resolveTargetForPath(source, rawTarget);
+        if (!target || target === source || !candidatePathSet.has(target)) continue;
+        const [left, right] = source < target ? [source, target] : [target, source];
+        const key = `${left}\n${right}`;
+        if (edgeKeys.has(key)) continue;
+        edgeKeys.add(key);
+        if (candidateEdges.length >= MAX_GRAPH_EDGES) {
+          candidateEdgesTruncated = true;
+          break graphScan;
+        }
+        candidateEdges.push({ source: left, target: right });
+      }
     }
   }
 
-  const paths = selectVisibleGraphPaths(candidatePaths, candidateEdges);
-  const pathSet = new Set(paths);
-  const edges = candidateEdges.filter(
-    (edge) => pathSet.has(edge.source) && pathSet.has(edge.target),
-  );
-  const degreeByPath = new Map(paths.map((path) => [path, 0]));
-  for (const edge of edges) {
-    degreeByPath.set(edge.source, (degreeByPath.get(edge.source) ?? 0) + 1);
-    degreeByPath.set(edge.target, (degreeByPath.get(edge.target) ?? 0) + 1);
-  }
-
-  const graph = {
-    nodes: paths.map((path) => ({
-      id: path,
-      label: getNoteTitleFromPath(path),
-      degree: degreeByPath.get(path) ?? 0,
-    })),
-    edges,
-  };
+  const contentIncomplete = candidateEdgesTruncated
+    || candidatePaths.length < collectedPaths.total
+    || candidatePaths.some((path) => !noteContentsCache.has(path));
+  const baselineGraph = cached?.baselineGraph ?? buildVisibleNoteGraph({
+    candidateEdges,
+    candidatePaths,
+    contentIncomplete,
+    maximumNodes: MAX_GRAPH_NODES,
+    priorityPaths: [],
+    totalCandidateNodes: collectedPaths.total,
+  });
+  const visibleCandidatePaths = priorityPaths.every((path) => candidatePaths.includes(path))
+    ? candidatePaths
+    : collectNotePaths(fileTree, MAX_GRAPH_CANDIDATE_NODES, priorityPaths).paths;
+  const graph = priorityPaths.length === 0
+    ? baselineGraph
+    : buildVisibleNoteGraph({
+      candidateEdges,
+      candidatePaths: visibleCandidatePaths,
+      contentIncomplete,
+      maximumNodes: MAX_GRAPH_NODES,
+      priorityPaths,
+      totalCandidateNodes: collectedPaths.total,
+    });
   if (revision !== undefined) {
-    graphBuildCache = { fileTree, noteContentsCache, revision, graph };
+    graphBuildCache = {
+      baselineGraph,
+      candidateEdges,
+      candidateEdgesTruncated,
+      candidatePaths: [...candidatePaths],
+      fileTree,
+      noteContentsCache,
+      priorityKey,
+      revision,
+      graph,
+      totalCandidateNodes: collectedPaths.total,
+    };
   }
   return graph;
 }

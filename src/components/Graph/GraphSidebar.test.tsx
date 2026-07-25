@@ -1,4 +1,11 @@
-import type { ChangeEvent, KeyboardEventHandler, ReactNode, Ref, UIEventHandler } from 'react';
+import type {
+  ButtonHTMLAttributes,
+  ChangeEvent,
+  KeyboardEventHandler,
+  ReactNode,
+  Ref,
+  UIEventHandler,
+} from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchSidebarOpenSearchEvent } from '@/components/layout/sidebar/sidebarEvents';
@@ -38,7 +45,7 @@ const notesStore = vi.hoisted(() => ({
 vi.mock('@/lib/i18n', () => ({
   useI18n: () => ({
     t: (key: string, values?: Record<string, string | number>) => (
-      values ? `${key}:${values.count}` : key
+      values ? `${key}:${JSON.stringify(values)}` : key
     ),
   }),
 }));
@@ -57,6 +64,13 @@ vi.mock('@/components/layout/sidebar/AppViewModeSwitch', () => ({
 
 vi.mock('@/components/layout/sidebar/SidebarPrimitives', () => ({
   SidebarActionGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SidebarActionButton: ({
+    icon,
+    label,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ReactNode; label: ReactNode }) => (
+    <button type="button" {...props}>{icon}{label}</button>
+  ),
   SidebarCapsulePanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SidebarList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SidebarScrollArea: ({
@@ -77,28 +91,43 @@ vi.mock('@/components/layout/sidebar/SidebarPrimitives', () => ({
   }) => <div ref={ref}>{children}</div>,
   SidebarSearchField: ({
     'aria-label': ariaLabel,
+    'aria-activedescendant': activeDescendant,
+    'aria-controls': ariaControls,
+    'aria-expanded': ariaExpanded,
     closeLabel,
+    disabled,
     onChange,
     onClose,
     onKeyDown,
     placeholder,
     ref,
+    role,
     value,
   }: {
     'aria-label': string;
+    'aria-activedescendant'?: string;
+    'aria-controls'?: string;
+    'aria-expanded'?: boolean;
     closeLabel: string;
+    disabled?: boolean;
     onChange: (event: ChangeEvent<HTMLInputElement>) => void;
     onClose: () => void;
     onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
     placeholder?: string;
     ref?: Ref<HTMLInputElement>;
+    role?: string;
     value: string;
   }) => (
     <div>
       <input
         ref={ref}
         aria-label={ariaLabel}
+        aria-activedescendant={activeDescendant}
+        aria-controls={ariaControls}
+        aria-expanded={ariaExpanded}
+        disabled={disabled}
         placeholder={placeholder}
+        role={role}
         value={value}
         onChange={onChange}
         onKeyDown={onKeyDown}
@@ -111,6 +140,20 @@ vi.mock('@/components/layout/sidebar/SidebarPrimitives', () => ({
 describe('GraphSidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    graphStore.mode = 'local';
+    graphStore.searchQuery = 'plan';
+    graphStore.selectedPath = 'Plan.md';
+    notesStore.noteContentsCache = new Map([
+      ['Plan.md', { content: '[[Product Plan]]', modifiedAt: 1 }],
+      ['Product Plan.md', { content: '[[Planning]]', modifiedAt: 1 }],
+      ['docs/Planning.md', { content: '', modifiedAt: 1 }],
+    ]);
+    notesStore.noteContentsCacheRevision = 1;
+    notesStore.rootFolder.children = [
+      { id: 'Plan.md', name: 'Plan.md', path: 'Plan.md', isFolder: false },
+      { id: 'Product Plan.md', name: 'Product Plan.md', path: 'Product Plan.md', isFolder: false },
+      { id: 'docs/Planning.md', name: 'Planning.md', path: 'docs/Planning.md', isFolder: false },
+    ];
   });
 
   it('shows ranked search results wired to graph controls', () => {
@@ -118,24 +161,33 @@ describe('GraphSidebar', () => {
 
     expect(screen.queryByText('app.viewGraph')).not.toBeInTheDocument();
     expect(screen.getByText('graph.modeLocal')).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('[data-graph-summary="true"]')).toHaveTextContent('graph.summary:');
     expect(document.querySelector('[data-graph-mode-indicator="true"]')).toHaveClass('translate-x-full');
-    expect(screen.queryByRole('button', { name: 'PlanPlan.md' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Plan, Plan.md' })).not.toBeInTheDocument();
 
     fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
 
-    const searchInput = screen.getByRole('textbox', { name: 'graph.searchPlaceholder' });
+    const searchInput = screen.getByRole('combobox', { name: 'graph.searchPlaceholder' });
     const modeSelector = screen.getByRole('group', { name: 'app.viewGraph' });
     expect(searchInput.compareDocumentPosition(modeSelector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const exactResult = screen.getByRole('button', { name: 'PlanPlan.md' });
-    const prefixResult = screen.getByRole('button', { name: 'Planningdocs/Planning.md' });
-    const wordResult = screen.getByRole('button', { name: 'Product PlanProduct Plan.md' });
+    const exactResult = screen.getByRole('option', { name: 'Plan, Plan.md' });
+    const prefixResult = screen.getByRole('option', { name: 'Planning, docs/Planning.md' });
+    const wordResult = screen.getByRole('option', { name: 'Product Plan, Product Plan.md' });
     expect(exactResult.compareDocumentPosition(prefixResult) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(prefixResult.compareDocumentPosition(wordResult) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(searchInput).toHaveAttribute('aria-controls', 'graph-search-results');
+    expect(searchInput).toHaveAttribute('aria-activedescendant', 'graph-search-result-0');
+    expect(exactResult).toHaveAttribute('tabindex', '-1');
+    expect(exactResult).toHaveClass('min-h-[var(--vlaina-size-44px)]');
+
+    fireEvent.keyDown(searchInput, { key: 'ArrowDown' });
+    fireEvent.keyDown(searchInput, { key: 'Enter' });
+    expect(graphStore.setSelectedPath).toHaveBeenCalledWith('docs/Planning.md');
 
     fireEvent.click(screen.getByRole('button', { name: 'graph.modeAll' }));
     expect(graphStore.setMode).toHaveBeenCalledWith('all');
 
-    fireEvent.change(screen.getByRole('textbox', { name: 'graph.searchPlaceholder' }), {
+    fireEvent.change(screen.getByRole('combobox', { name: 'graph.searchPlaceholder' }), {
       target: { value: 'product' },
     });
     expect(graphStore.setSearchQuery).toHaveBeenCalledWith('product');
@@ -148,5 +200,83 @@ describe('GraphSidebar', () => {
 
     act(() => dispatchSidebarOpenSearchEvent('graph'));
     expect(searchInput.closest('.grid')).toHaveClass('grid-rows-[1fr]');
+  });
+
+  it('shows a clear empty state for a query with no matches', () => {
+    graphStore.searchQuery = 'missing';
+    render(<GraphSidebar />);
+
+    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
+
+    expect(screen.getByText('graph.searchNoResults')).toBeInTheDocument();
+  });
+
+  it('marks local graph counts as lower bounds while link data is incomplete', () => {
+    graphStore.searchQuery = '';
+    notesStore.noteContentsCache = new Map([
+      ['Plan.md', { content: '', modifiedAt: 1 }],
+    ]);
+    notesStore.noteContentsCacheRevision += 1;
+
+    render(<GraphSidebar />);
+
+    expect(document.querySelector('[data-graph-summary="true"]')).toHaveTextContent(
+      'graph.summary:{"links":"0+","nodes":"1+"}',
+    );
+  });
+
+  it('opens search from a visible touch-sized action', () => {
+    render(<GraphSidebar />);
+
+    expect(document.querySelector('[data-sidebar-search-drawer="true"]'))
+      .toHaveAttribute('inert');
+    expect(document.querySelector('[role="combobox"]')).toBeDisabled();
+    const searchAction = screen.getByRole('button', { name: 'graph.searchPlaceholder' });
+    expect(searchAction).toHaveClass('h-[var(--vlaina-size-44px)]');
+    fireEvent.click(searchAction);
+
+    expect(screen.getByRole('combobox', { name: 'graph.searchPlaceholder' })).toBeEnabled();
+  });
+
+  it('finds and selects a note outside the graph render budget', () => {
+    notesStore.rootFolder.children = Array.from({ length: 241 }, (_, index) => ({
+      id: `Note ${index}.md`,
+      name: `Note ${index}.md`,
+      path: `Note ${index}.md`,
+      isFolder: false,
+    }));
+    notesStore.noteContentsCache = new Map(
+      notesStore.rootFolder.children.map((item) => [
+        item.path,
+        { content: '', modifiedAt: 1 },
+      ]),
+    );
+    notesStore.noteContentsCacheRevision += 1;
+    graphStore.searchQuery = 'Note 240';
+    graphStore.selectedPath = null;
+    render(<GraphSidebar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'graph.searchPlaceholder' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Note 240, Note 240.md' }));
+
+    expect(graphStore.setSelectedPath).toHaveBeenCalledWith('Note 240.md');
+  });
+
+  it('disambiguates notes with the same title by path', () => {
+    notesStore.rootFolder.children = [
+      ...notesStore.rootFolder.children,
+      { id: 'archive/Plan.md', name: 'Plan.md', path: 'archive/Plan.md', isFolder: false },
+    ];
+    notesStore.noteContentsCache = new Map([
+      ...notesStore.noteContentsCache,
+      ['archive/Plan.md', { content: '', modifiedAt: 1 }],
+    ]);
+    notesStore.noteContentsCacheRevision += 1;
+    render(<GraphSidebar />);
+
+    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
+
+    expect(screen.getByRole('option', { name: 'Plan, Plan.md' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Plan, archive/Plan.md' })).toBeInTheDocument();
   });
 });

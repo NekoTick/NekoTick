@@ -28,6 +28,10 @@ describe('useGraphViewportController', () => {
     });
     vi.spyOn(performance, 'now').mockReturnValue(1000);
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      value: 'visible',
+    });
     svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     vi.spyOn(svg, 'getBoundingClientRect').mockReturnValue({
       bottom: 600,
@@ -108,6 +112,143 @@ describe('useGraphViewportController', () => {
     expect(hook.result.current.viewport.zoom).toBeGreaterThan(1);
   });
 
+  it('cancels selected-node easing when a pointer interaction takes over', () => {
+    const svgRef = { current: svg };
+    const nodes = [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }];
+    const hook = renderHook(({ selectedPath }: { selectedPath: string | null }) => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes,
+      selectedPath,
+      svgRef,
+    }), { initialProps: { selectedPath: null as string | null } });
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: -1000, y: 0, zoom: 1 }));
+    hook.rerender({ selectedPath: 'Alpha.md' });
+    const animationFrameId = nextFrameId - 1;
+
+    act(() => hook.result.current.cancelViewportAnimation());
+
+    expect(frames.has(animationFrameId)).toBe(false);
+    act(() => runFrames(1016));
+    expect(hook.result.current.viewport.x).toBe(-1000);
+  });
+
+  it('cancels selected-node easing when the selection is cleared', () => {
+    const svgRef = { current: svg };
+    const nodes = [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }];
+    const hook = renderHook(({ selectedPath }: { selectedPath: string | null }) => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes,
+      selectedPath,
+      svgRef,
+    }), { initialProps: { selectedPath: null as string | null } });
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: -1000, y: 0, zoom: 1 }));
+    hook.rerender({ selectedPath: 'Alpha.md' });
+    const animationFrameId = nextFrameId - 1;
+
+    hook.rerender({ selectedPath: null });
+
+    expect(frames.has(animationFrameId)).toBe(false);
+    act(() => runFrames(1016));
+    expect(hook.result.current.viewport.x).toBe(-1000);
+  });
+
+  it('coalesces wheel events into one layout read per frame', () => {
+    const svgRef = { current: svg };
+    const nodes = [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }];
+    const hook = renderHook(() => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes,
+      selectedPath: null,
+      svgRef,
+    }));
+    act(() => runFrames(1000));
+    const getBoundingClientRect = vi.mocked(svg.getBoundingClientRect);
+    getBoundingClientRect.mockClear();
+    const wheel = (deltaY: number) => hook.result.current.handleWheel({
+      clientX: 400,
+      clientY: 300,
+      currentTarget: svg,
+      deltaMode: 0,
+      deltaY,
+      preventDefault: vi.fn(),
+    } as never);
+
+    act(() => {
+      wheel(-40);
+      wheel(-40);
+      wheel(-40);
+    });
+    expect(getBoundingClientRect).not.toHaveBeenCalled();
+    act(() => runFrames(1016));
+    expect(getBoundingClientRect).toHaveBeenCalledOnce();
+  });
+
+  it('preserves accumulated wheel intent while coalescing a frame', () => {
+    const svgRef = { current: svg };
+    const hook = renderHook(() => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath: null,
+      svgRef,
+    }));
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: 0, y: 0, zoom: themeGraphTokens.minZoom }));
+    const wheel = () => hook.result.current.handleWheel({
+      clientX: 400,
+      clientY: 300,
+      currentTarget: svg,
+      deltaMode: 0,
+      deltaY: -12,
+      preventDefault: vi.fn(),
+    } as never);
+
+    act(() => {
+      for (let index = 0; index < 80; index += 1) wheel();
+      runFrames(1016);
+    });
+
+    expect(hook.result.current.viewport.zoom).toBeCloseTo(
+      themeGraphTokens.minZoom * Math.exp(80 * 12 * themeGraphTokens.wheelZoomIntensity),
+    );
+  });
+
+  it('notifies after wheel zoom settles so deferred scene work can catch up once', () => {
+    vi.useFakeTimers();
+    try {
+      const onViewportSettled = vi.fn();
+      const svgRef = { current: svg };
+      const hook = renderHook(() => useGraphViewportController({
+        nodeKey: 'graph',
+        nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+        onViewportSettled,
+        selectedPath: null,
+        svgRef,
+      }));
+      act(() => runFrames(1000));
+      onViewportSettled.mockClear();
+
+      act(() => hook.result.current.handleWheel({
+        clientX: 400,
+        clientY: 300,
+        currentTarget: svg,
+        deltaMode: 0,
+        deltaY: -120,
+        preventDefault: vi.fn(),
+      } as never));
+      act(() => runFrames(1016));
+      expect(onViewportSettled).not.toHaveBeenCalled();
+
+      act(() => vi.advanceTimersByTime(themeGraphTokens.wheelSettleDelayMs - 1));
+      expect(onViewportSettled).not.toHaveBeenCalled();
+      act(() => vi.advanceTimersByTime(1));
+      expect(onViewportSettled).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('centers the selected node immediately for reduced motion', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
     const svgRef = { current: svg };
@@ -124,5 +265,195 @@ describe('useGraphViewportController', () => {
 
     expect(hook.result.current.viewport.x).toBeCloseTo(0);
     expect(frames.size).toBe(0);
+  });
+
+  it('refits when an untouched canvas is resized', () => {
+    const svgRef = { current: svg };
+    const userPositionedViewportRef = { current: false };
+    const nodes = [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 1000, y: 800 }];
+    const hook = renderHook(({ canvasSize }) => useGraphViewportController({
+      canvasSize,
+      nodeKey: 'graph',
+      nodes,
+      selectedPath: null,
+      svgRef,
+      userPositionedViewportRef,
+    }), { initialProps: { canvasSize: { x: 800, y: 600 } } });
+    act(() => runFrames(1000));
+
+    vi.mocked(svg.getBoundingClientRect).mockReturnValue({
+      bottom: 700,
+      height: 700,
+      left: 0,
+      right: 1000,
+      top: 0,
+      width: 1000,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    hook.rerender({ canvasSize: { x: 1000, y: 700 } });
+    act(() => runFrames(1016));
+
+    const usableHeight = 700
+      - themeGraphTokens.viewportControlsVerticalOffsetPx
+      - themeGraphTokens.viewportControlsHeightPx;
+    expect(hook.result.current.viewport).toEqual({
+      x: -500,
+      y: usableHeight / 2 - 800,
+      zoom: 1,
+    });
+  });
+
+  it('preserves the graph coordinate at center after a user-positioned resize', () => {
+    const svgRef = { current: svg };
+    const userPositionedViewportRef = { current: false };
+    const hook = renderHook(({ canvasSize }) => useGraphViewportController({
+      canvasSize,
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath: null,
+      svgRef,
+      userPositionedViewportRef,
+    }), { initialProps: { canvasSize: { x: 800, y: 600 } } });
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: 100, y: 50, zoom: 2 }));
+    userPositionedViewportRef.current = true;
+
+    hook.rerender({ canvasSize: { x: 1000, y: 700 } });
+
+    expect(hook.result.current.viewport).toEqual({ x: 200, y: 100, zoom: 2 });
+    expect((500 - hook.result.current.viewport.x) / 2).toBe(150);
+  });
+
+  it('ignores a collapsed canvas between visible resize measurements', () => {
+    const svgRef = { current: svg };
+    const userPositionedViewportRef = { current: false };
+    const hook = renderHook(({ canvasSize }) => useGraphViewportController({
+      canvasSize,
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath: null,
+      svgRef,
+      userPositionedViewportRef,
+    }), { initialProps: { canvasSize: { x: 800, y: 600 } } });
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: 100, y: 50, zoom: 2 }));
+    userPositionedViewportRef.current = true;
+
+    hook.rerender({ canvasSize: { x: 0, y: 0 } });
+    expect(hook.result.current.viewport).toEqual({ x: 100, y: 50, zoom: 2 });
+
+    hook.rerender({ canvasSize: { x: 1000, y: 700 } });
+    expect(hook.result.current.viewport).toEqual({ x: 200, y: 100, zoom: 2 });
+  });
+
+  it('zooms control actions around the usable canvas center', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    const svgRef = { current: svg };
+    const hook = renderHook(() => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath: null,
+      svgRef,
+    }));
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: 0, y: 0, zoom: 1 }));
+
+    act(() => hook.result.current.zoomIn());
+
+    const usableCenterY = (
+      600
+      - themeGraphTokens.viewportControlsVerticalOffsetPx
+      - themeGraphTokens.viewportControlsHeightPx
+    ) / 2;
+    expect(hook.result.current.viewport).toEqual({
+      x: -100,
+      y: usableCenterY * (1 - themeGraphTokens.zoomControlStep),
+      zoom: themeGraphTokens.zoomControlStep,
+    });
+    act(() => hook.result.current.resetZoom());
+    expect(hook.result.current.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  it('cancels every pending viewport frame when the graph becomes inactive', () => {
+    const svgRef = { current: svg };
+    const nodes = [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 1000, y: 800 }];
+    const hook = renderHook(({ active, selectedPath }: {
+      active: boolean;
+      selectedPath: string | null;
+    }) => useGraphViewportController({
+      active,
+      nodeKey: 'graph',
+      nodes,
+      selectedPath,
+      svgRef,
+    }), { initialProps: { active: true, selectedPath: null as string | null } });
+
+    const fitFrameId = nextFrameId - 1;
+    expect(frames.has(fitFrameId)).toBe(true);
+    hook.rerender({ active: false, selectedPath: null });
+    expect(frames.size).toBe(0);
+
+    hook.rerender({ active: true, selectedPath: null });
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: -1000, y: 0, zoom: 1 }));
+    hook.rerender({ active: true, selectedPath: 'Alpha.md' });
+    expect(frames.size).toBeGreaterThan(0);
+    hook.rerender({ active: false, selectedPath: 'Alpha.md' });
+    expect(frames.size).toBe(0);
+  });
+
+  it('refits an untouched viewport after returning from an inactive view', () => {
+    const svgRef = { current: svg };
+    const userPositionedViewportRef = { current: false };
+    const hook = renderHook(({ active }: { active: boolean }) => useGraphViewportController({
+      active,
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 1000, y: 800 }],
+      selectedPath: null,
+      svgRef,
+      userPositionedViewportRef,
+    }), { initialProps: { active: false } });
+
+    expect(frames.size).toBe(0);
+    hook.rerender({ active: true });
+    expect(frames.size).toBe(1);
+    act(() => runFrames(1000));
+
+    expect(hook.result.current.viewport).not.toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
+  it('cancels pending wheel and easing work when the document is hidden', () => {
+    const svgRef = { current: svg };
+    const hook = renderHook(({ selectedPath }: { selectedPath: string | null }) => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath,
+      svgRef,
+    }), { initialProps: { selectedPath: null as string | null } });
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: -1000, y: 0, zoom: 1 }));
+    hook.rerender({ selectedPath: 'Alpha.md' });
+    expect(frames.size).toBeGreaterThan(0);
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+
+    expect(frames.size).toBe(0);
+    const preventDefault = vi.fn();
+    act(() => hook.result.current.handleWheel({
+      clientX: 400,
+      clientY: 300,
+      currentTarget: svg,
+      deltaMode: 0,
+      deltaY: -120,
+      preventDefault,
+    } as never));
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
   });
 });

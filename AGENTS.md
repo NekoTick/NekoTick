@@ -110,14 +110,23 @@ For explicit commit-only requests, use the fast path:
 
 ## 7. Merge Conflicts
 
-**Prefer the latest side, but still reason through the merge.**
+Before resolving conflicts:
+- Confirm the current worktree, branch, merge direction, and common ancestor.
+- Treat the newer side as a baseline hypothesis, not an overwrite rule; do not infer precedence from timestamps or `ours`/`theirs` labels.
+- Compare both sides against the common ancestor, including callers, types, tests, and surrounding commits.
 
 When resolving conflicts:
-- Treat incoming/latest as the default baseline, not as a blind overwrite rule.
-- Compare both sides for behavior, imports, types, tests, and surrounding dependencies.
-- Preserve the latest intent unless it breaks the current main branch or drops a necessary existing fix.
-- If the latest side is stale against main, apply the smallest compatibility fix instead of keeping both versions.
-- After resolving, check for conflict markers, unmerged paths, compile or type issues, and run the most relevant tests when practical.
+- Preserve additive changes from both sides.
+- For a refactor versus a fix, port the fix onto the refactored code.
+- If behavior is incompatible and evidence is insufficient, ask the user.
+- Never blindly choose `ours` or `theirs`; do not reset, checkout, or abort unless explicitly requested.
+- Stage only resolved paths; do not use `git add .` when unrelated changes may exist. Do not commit unless explicitly requested.
+
+After resolving, verify:
+- No unmerged paths or conflict markers remain.
+- `git diff --check` passes and the staged result preserves required behavior from both sides.
+- Relevant tests pass; run type checks when shared APIs or types changed.
+- No unintended unstaged changes remain.
 
 ## 8. Local Milkdown Vendor
 

@@ -1,6 +1,6 @@
 import { themeSidebarTokens } from '@/styles/themeTokens';
 
-export const APP_VIEW_MODE_SWITCH_MIN_WIDTH = 184;
+export const APP_VIEW_MODE_SWITCH_MIN_WIDTH = 220;
 export const SIDEBAR_CAPSULE_HORIZONTAL_CHROME_WIDTH = 40;
 export const SIDEBAR_MIN_WIDTH =
   APP_VIEW_MODE_SWITCH_MIN_WIDTH + SIDEBAR_CAPSULE_HORIZONTAL_CHROME_WIDTH;

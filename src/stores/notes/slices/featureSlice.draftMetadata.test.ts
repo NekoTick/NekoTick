@@ -81,6 +81,26 @@ function createNotesStore(overrides: Partial<NotesStore> = {}) {
   }));
 }
 
+function createDeferredOneNoteScanStore() {
+  mocks.stat.mockResolvedValue({ modifiedAt: 2, isFile: true, size: 16 });
+  let resolveRead = (_content: string) => {};
+  mocks.readFile.mockImplementation(() => new Promise<string>((resolve) => {
+    resolveRead = resolve;
+  }));
+  const store = createNotesStore({
+    notesPath: '/notesRoot',
+    rootFolder: {
+      id: '',
+      name: 'Notes',
+      path: '',
+      isFolder: true,
+      expanded: true,
+      children: [{ id: 'alpha', name: 'alpha.md', path: 'alpha.md', isFolder: false }],
+    },
+  });
+  return { resolveRead: (content: string) => resolveRead(content), store };
+}
+
 describe('featureSlice draft metadata', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1057,22 +1077,7 @@ describe('featureSlice draft metadata', () => {
   });
 
   it('reuses an active foreground scan for background prewarm requests', async () => {
-    mocks.stat.mockResolvedValue({ modifiedAt: 2, isFile: true, size: 16 });
-    let resolveRead = (_content: string) => {};
-    mocks.readFile.mockImplementation(() => new Promise<string>((resolve) => {
-      resolveRead = resolve;
-    }));
-    const store = createNotesStore({
-      notesPath: '/notesRoot',
-      rootFolder: {
-        id: '',
-        name: 'Notes',
-        path: '',
-        isFolder: true,
-        expanded: true,
-        children: [{ id: 'alpha', name: 'alpha.md', path: 'alpha.md', isFolder: false }],
-      },
-    });
+    const { resolveRead, store } = createDeferredOneNoteScanStore();
 
     const foregroundScan = store.getState().scanAllNotes();
     await vi.waitFor(() => expect(mocks.readFile).toHaveBeenCalledTimes(1));
@@ -1082,6 +1087,131 @@ describe('featureSlice draft metadata', () => {
     expect(mocks.readFile).toHaveBeenCalledTimes(1);
     resolveRead('# Alpha');
     await Promise.all([foregroundScan, backgroundScan]);
+  });
+
+  it('prioritizes and notifies a joined background request without a second scan', async () => {
+    const paths = Array.from({ length: 96 }, (_, index) => `note-${index}.md`);
+    const firstBatchResolvers: Array<(content: string) => void> = [];
+    const thirdBatchResolvers: Array<(content: string) => void> = [];
+    let readCount = 0;
+    mocks.stat.mockResolvedValue({ modifiedAt: 2, isFile: true, size: 16 });
+    mocks.readFile.mockImplementation(() => {
+      const index = readCount;
+      readCount += 1;
+      if (index < 32) {
+        return new Promise<string>((resolve) => firstBatchResolvers.push(resolve));
+      }
+      if (index < 64) return Promise.resolve(`# Note ${index}`);
+      return new Promise<string>((resolve) => thirdBatchResolvers.push(resolve));
+    });
+    const store = createNotesStore({
+      notesPath: '/notesRoot',
+      rootFolder: {
+        id: '',
+        name: 'Notes',
+        path: '',
+        isFolder: true,
+        expanded: true,
+        children: paths.map((path) => ({
+          id: path,
+          name: path,
+          path,
+          isFolder: false as const,
+        })),
+      },
+    });
+    const onPriorityPathsScanned = vi.fn();
+
+    const foregroundScan = store.getState().scanAllNotes();
+    await vi.waitFor(() => expect(mocks.readFile).toHaveBeenCalledTimes(32));
+    const backgroundScan = store.getState().scanAllNotes({
+      background: true,
+      priorityPaths: ['note-95.md'],
+      onPriorityPathsScanned,
+    });
+
+    expect(onPriorityPathsScanned).not.toHaveBeenCalled();
+    firstBatchResolvers.forEach((resolve, index) => resolve(`# Note ${index}`));
+    await vi.waitFor(() => expect(onPriorityPathsScanned).toHaveBeenCalledTimes(1));
+    expect(mocks.readFile.mock.calls.slice(32, 64).map(([path]) => path)).toContain(
+      '/notesRoot/note-95.md',
+    );
+    expect(store.getState().noteContentsCache.get('note-95.md')?.content).toBeTruthy();
+    expect(mocks.readFile).toHaveBeenCalledTimes(96);
+    expect(thirdBatchResolvers).toHaveLength(32);
+
+    thirdBatchResolvers.forEach((resolve, index) => resolve(`# Note ${index + 64}`));
+    await Promise.all([foregroundScan, backgroundScan]);
+    expect(onPriorityPathsScanned).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an opted-in scan when the shared controller is cancelled', async () => {
+    const { resolveRead, store } = createDeferredOneNoteScanStore();
+
+    const scan = store.getState().scanAllNotes({ rejectOnCancel: true });
+    const rejection = expect(scan).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(mocks.readFile).toHaveBeenCalledTimes(1));
+    store.getState().cancelNoteContentScan();
+    resolveRead('# Alpha');
+
+    await rejection;
+    expect(store.getState().noteContentsCache.size).toBe(0);
+  });
+
+  it('rejects an opted-in joiner when the scan owner cancels shared work', async () => {
+    const { resolveRead, store } = createDeferredOneNoteScanStore();
+    const ownerController = new AbortController();
+    const onPriorityPathsScanned = vi.fn();
+
+    const ownerScan = store.getState().scanAllNotes({ signal: ownerController.signal });
+    await vi.waitFor(() => expect(mocks.readFile).toHaveBeenCalledTimes(1));
+    const joinedScan = store.getState().scanAllNotes({
+      background: true,
+      rejectOnCancel: true,
+      priorityPaths: ['alpha.md'],
+      onPriorityPathsScanned,
+    });
+    const rejection = expect(joinedScan).rejects.toMatchObject({ name: 'AbortError' });
+    ownerController.abort();
+
+    await rejection;
+    expect(onPriorityPathsScanned).not.toHaveBeenCalled();
+    expect(store.getState().noteContentsCache.size).toBe(0);
+
+    resolveRead('# Alpha');
+    await ownerScan;
+  });
+
+  it('settles aborted joiners immediately without cancelling shared work', async () => {
+    const { resolveRead, store } = createDeferredOneNoteScanStore();
+    const joinerController = new AbortController();
+    const resolvingJoinerController = new AbortController();
+    const onPriorityPathsScanned = vi.fn();
+
+    const ownerScan = store.getState().scanAllNotes();
+    await vi.waitFor(() => expect(mocks.readFile).toHaveBeenCalledTimes(1));
+    const joinedScan = store.getState().scanAllNotes({
+      background: true,
+      rejectOnCancel: true,
+      signal: joinerController.signal,
+      priorityPaths: ['alpha.md'],
+      onPriorityPathsScanned,
+    });
+    const resolvingJoinedScan = store.getState().scanAllNotes({
+      background: true,
+      signal: resolvingJoinerController.signal,
+    });
+    const rejection = expect(joinedScan).rejects.toMatchObject({ name: 'AbortError' });
+
+    joinerController.abort();
+    resolvingJoinerController.abort();
+    await Promise.all([rejection, resolvingJoinedScan]);
+    expect(onPriorityPathsScanned).not.toHaveBeenCalled();
+    expect(store.getState().noteContentsCache.size).toBe(0);
+
+    resolveRead('# Alpha');
+    await ownerScan;
+    expect(store.getState().noteContentsCache.get('alpha.md')?.content).toBe('# Alpha');
   });
 
   it('does not start a full-notesRoot scan when its signal is already aborted', async () => {

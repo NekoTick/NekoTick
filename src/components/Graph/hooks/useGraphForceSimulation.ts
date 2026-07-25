@@ -1,33 +1,28 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import type { Force } from 'd3-force';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { logDiagnostic } from '@/lib/diagnostics/diagnosticsLog';
 import { themeGraphTokens } from '@/styles/themeTokens';
+import { createGraphForceSimulation, type GraphForceNode } from '../model/graphForces';
+import { setGraphNodePosition } from '../model/graphPositionSnapshot';
 import {
-  createGraphForceLinks,
-  createGraphForceNodes,
-  createGraphForceSimulation,
-  type GraphForceLink,
-  type GraphForceNode,
-} from '../model/graphForces';
+  createGraphForceInitializationTracker,
+  createGraphForceRuntime,
+  restoreGraphForces,
+  suspendGraphForces,
+  type GraphForceRegistry,
+} from '../model/graphForceRuntime';
 import {
-  cloneGraphNodePositions,
-  setGraphNodePosition,
-} from '../model/graphPositionSnapshot';
-import {
-  beginGraphForceReleaseDiagnostic,
   finishGraphForceReleaseDiagnostic,
   type GraphForceReleaseDiagnostic,
 } from '../model/graphForceReleaseDiagnostics';
+import { releaseGraphForceNode } from '../model/graphForceRelease';
+import { applyGraphForceOverrides, pinGraphForceNode } from '../model/applyGraphForceOverrides';
+import { createInitialGraphForcePositions } from '../model/graphForceInitialization';
 import type { PositionedNoteGraph } from '../model/graphLayout';
+import { MAX_GRAPH_POSITION_ENTRIES } from '../model/graphPositionPersistence';
+import { getGraphTopologyKey } from '../model/graphTopology';
 import type { GraphNodePosition, GraphNodePositions } from '../store/useGraphUIStore';
-
-const GRAPH_FORCE_NAMES = ['charge', 'link', 'collision', 'x', 'y'] as const;
-
-interface SavedLayoutEntrance {
-  frameId: number | null;
-  from: GraphNodePositions;
-  targets: GraphNodePositions;
-}
+import { useGraphInitialForceLayout } from './useGraphInitialForceLayout';
+import { prefersGraphReducedMotion, useGraphSimulationActivity } from './useGraphSimulationActivity';
 
 export function useGraphForceSimulation(args: {
   active: boolean;
@@ -35,7 +30,7 @@ export function useGraphForceSimulation(args: {
   graph: PositionedNoteGraph;
   onPositionsCommit: (positions: GraphNodePositions) => void;
   onDraggedPositionFrame: (id: string, position: GraphNodePosition) => void;
-  onPositionsFrame: (positions: GraphNodePositions) => void;
+  onPositionsFrame: (positions: GraphNodePositions, forceEdgeUpdate?: boolean) => void;
   onPositionsInitialized: (positions: GraphNodePositions) => void;
   positionOverrides: GraphNodePositions;
 }) {
@@ -43,37 +38,23 @@ export function useGraphForceSimulation(args: {
   const retainedPositionsRef = useRef<GraphNodePositions>({});
   const nodesByIdRef = useRef(new Map<string, GraphForceNode>());
   const simulationRef = useRef<ReturnType<typeof createGraphForceSimulation> | null>(null);
-  const initialSimulationPendingRef = useRef(false);
-  const savedLayoutEntranceRef = useRef<SavedLayoutEntrance | null>(null);
   const previousDragIdRef = useRef<string | null>(null);
   const movedDragIdRef = useRef<string | null>(null);
   const releasedDragIdRef = useRef<string | null>(null);
-  const forcesRef = useRef(new Map<string, Force<GraphForceNode, GraphForceLink>>());
+  const forcesRef = useRef<GraphForceRegistry>(new Map());
   const forcesSuspendedRef = useRef(false);
   const releaseDiagnosticRef = useRef<GraphForceReleaseDiagnostic | null>(null);
-  const graphRef = useRef(args.graph);
-  const activeRef = useRef(args.active);
-  const overridesRef = useRef(args.positionOverrides);
+  const argsRef = useRef(args);
   const dragRef = useRef(args.dragPosition);
-  const commitRef = useRef(args.onPositionsCommit);
-  const draggedFrameRef = useRef(args.onDraggedPositionFrame);
-  const frameRef = useRef(args.onPositionsFrame);
-  const initializedRef = useRef(args.onPositionsInitialized);
-  graphRef.current = args.graph;
-  activeRef.current = args.active;
-  overridesRef.current = args.positionOverrides;
+  argsRef.current = args;
   dragRef.current = args.dragPosition;
-  commitRef.current = args.onPositionsCommit;
-  draggedFrameRef.current = args.onDraggedPositionFrame;
-  frameRef.current = args.onPositionsFrame;
-  initializedRef.current = args.onPositionsInitialized;
 
-  const graphKey = useMemo(() => [
-    args.graph.nodes.map((node) => node.id).join('\n'),
-    args.graph.edges.map((edge) => `${edge.source.id}>${edge.target.id}`).join('\n'),
-  ].join('\n--\n'), [args.graph.edges, args.graph.nodes]);
+  const graphKey = useMemo(
+    () => getGraphTopologyKey(args.graph),
+    [args.graph.edges, args.graph.nodes],
+  );
 
-  const readPositions = (): GraphNodePositions => {
+  const readPositions = useCallback((): GraphNodePositions => {
     const positions = positionsRef.current;
     const retainedPositions = retainedPositionsRef.current;
     for (const [id, node] of nodesByIdRef.current) {
@@ -81,122 +62,82 @@ export function useGraphForceSimulation(args: {
       positions[id] = retainedPositions[id]!;
     }
     return positions;
-  };
-
-  const stopSavedLayoutEntrance = () => {
-    const entrance = savedLayoutEntranceRef.current;
-    if (entrance?.frameId !== null && entrance?.frameId !== undefined) {
-      window.cancelAnimationFrame(entrance.frameId);
-      entrance.frameId = null;
-      entrance.from = cloneGraphNodePositions(positionsRef.current);
-    }
-  };
-
-  const startSavedLayoutEntrance = () => {
-    const entrance = savedLayoutEntranceRef.current;
-    if (!entrance || entrance.frameId !== null) return;
-    const startedAt = performance.now();
-    const step = (now: number) => {
-      const currentEntrance = savedLayoutEntranceRef.current;
-      if (!currentEntrance) return;
-      const progress = Math.min(1, Math.max(
-        0,
-        (now - startedAt) / themeGraphTokens.savedLayoutEntranceDurationMs,
-      ));
-      const eased = 1 - (1 - progress) ** 3;
-      for (const [id, target] of Object.entries(currentEntrance.targets)) {
-        const node = nodesByIdRef.current.get(id);
-        const from = currentEntrance.from[id];
-        if (!node || !from) continue;
-        node.x = from.x + (target.x - from.x) * eased;
-        node.y = from.y + (target.y - from.y) * eased;
-      }
-      const positions = readPositions();
-      positionsRef.current = positions;
-      frameRef.current(positions);
-      if (progress < 1) {
-        currentEntrance.frameId = window.requestAnimationFrame(step);
-        return;
-      }
-      savedLayoutEntranceRef.current = null;
-      initializedRef.current(positions);
-    };
-    entrance.frameId = window.requestAnimationFrame(step);
-  };
+  }, []);
+  const initialLayout = useGraphInitialForceLayout({
+    nodesByIdRef,
+    onPositionsCommit: args.onPositionsCommit,
+    onPositionsFrame: args.onPositionsFrame,
+    onPositionsInitialized: args.onPositionsInitialized,
+    readPositions,
+    simulationRef,
+  });
 
   const initializeSimulation = (
     useOverrides = true,
     carriedPositions: GraphNodePositions = {},
   ) => {
-    simulationRef.current?.stop();
-    stopSavedLayoutEntrance();
-    savedLayoutEntranceRef.current = null;
-    const initialPositions = useOverrides
-      ? { ...carriedPositions, ...overridesRef.current }
-      : {};
-    const nodes = createGraphForceNodes(graphRef.current.nodes.map((node) => ({
-      ...node,
-      ...(useOverrides ? initialPositions[node.id] : null),
-    })));
-    const hasCompleteLayout = useOverrides && nodes.every((node) => (
-      initialPositions[node.id] !== undefined
-    ));
-    const anchoredNodes = useOverrides
-      ? nodes.filter((node) => initialPositions[node.id] !== undefined)
-      : [];
-    const shouldAnimateSavedLayout = hasCompleteLayout
-      && Object.keys(carriedPositions).length === 0;
-    const savedLayoutTargets = shouldAnimateSavedLayout
-      ? Object.fromEntries(nodes.map((node) => [node.id, { x: node.x, y: node.y }]))
+    const interruptedDrag = dragRef.current
+      && movedDragIdRef.current === dragRef.current.id
+      ? dragRef.current
       : null;
-    if (nodes.length > 0 && (!hasCompleteLayout || shouldAnimateSavedLayout)) {
-      const centerX = themeGraphTokens.viewBoxWidthPx / 2;
-      const centerY = themeGraphTokens.viewBoxHeightPx / 2;
-      for (const node of nodes) {
-        if (!hasCompleteLayout && initialPositions[node.id] !== undefined) continue;
-        node.x = centerX + (node.x - centerX) * themeGraphTokens.forceInitialSpreadRatio;
-        node.y = centerY + (node.y - centerY) * themeGraphTokens.forceInitialSpreadRatio;
-      }
+    simulationRef.current?.stop();
+    initialLayout.cancel();
+    dragRef.current = null;
+    movedDragIdRef.current = null;
+    const graphIds = argsRef.current.graph.nodes.map((node) => node.id);
+    const retainedIds = [
+      ...new Set([...graphIds, ...Object.keys(retainedPositionsRef.current)]),
+    ];
+    for (const id of retainedIds.slice(MAX_GRAPH_POSITION_ENTRIES)) {
+      delete retainedPositionsRef.current[id];
     }
-    nodesByIdRef.current = new Map(nodes.map((node) => [node.id, node]));
-    const simulation = createGraphForceSimulation(
-      nodes,
-      createGraphForceLinks(graphRef.current.edges.map((edge) => ({
-        source: edge.source.id,
-        target: edge.target.id,
-      }))),
+    const initialPositions = createInitialGraphForcePositions({
+      carriedPositions,
+      interruptedDrag,
+      positionOverrides: argsRef.current.positionOverrides,
+      retainedPositions: retainedPositionsRef.current,
+      useOverrides,
+    });
+    const {
+      anchoredNodes,
+      forces,
+      hasCompleteLayout,
+      nodesById,
+      simulation,
+    } = createGraphForceRuntime(
+      argsRef.current.graph,
+      initialPositions,
+      useOverrides,
     );
-    forcesRef.current = new Map(GRAPH_FORCE_NAMES.flatMap((name) => {
-      const force = simulation.force(name);
-      return force ? [[name, force]] : [];
-    }));
+    nodesByIdRef.current = nodesById;
+    forcesRef.current = forces;
     forcesSuspendedRef.current = false;
-    initialSimulationPendingRef.current = !hasCompleteLayout;
+    const initializationTracker = createGraphForceInitializationTracker(nodesById);
+    const needsInitialSimulation = initialLayout.reset({
+      anchoredNodes,
+      hasCompleteLayout,
+      nodeCount: nodesById.size,
+    });
     releasedDragIdRef.current = null;
     releaseDiagnosticRef.current = null;
     simulation.on('tick', () => {
       const positions = readPositions();
       positionsRef.current = positions;
-      frameRef.current(positions);
+      argsRef.current.onPositionsFrame(positions);
+      if (
+        initialLayout.pendingRef.current
+        && !initialLayout.readyRef.current
+        && !dragRef.current
+        && initializationTracker.observe()
+      ) initialLayout.markReady(positions);
     });
     simulation.on('end', () => {
       if (dragRef.current) return;
-      const wasInitialSimulation = initialSimulationPendingRef.current;
-      initialSimulationPendingRef.current = false;
-      for (const node of anchoredNodes) {
-        node.fx = null;
-        node.fy = null;
-      }
-      const positions = readPositions();
-      positionsRef.current = positions;
-      frameRef.current(positions);
-      const releaseDiagnostic = releaseDiagnosticRef.current;
-      if (releaseDiagnostic) {
-        finishGraphForceReleaseDiagnostic(releaseDiagnostic, positions);
+      initialLayout.finish(simulation, (positions) => {
+        if (!releaseDiagnosticRef.current) return;
+        finishGraphForceReleaseDiagnostic(releaseDiagnosticRef.current, positions);
         releaseDiagnosticRef.current = null;
-      }
-      if (wasInitialSimulation) initializedRef.current(positions);
-      commitRef.current(cloneGraphNodePositions(positions));
+      });
     });
     if (!hasCompleteLayout) {
       for (const node of anchoredNodes) {
@@ -206,83 +147,73 @@ export function useGraphForceSimulation(args: {
     }
     const positions = readPositions();
     positionsRef.current = positions;
-    frameRef.current(positions);
+    argsRef.current.onPositionsFrame(positions, true);
     simulationRef.current = simulation;
-    if (savedLayoutTargets) {
-      savedLayoutEntranceRef.current = {
-        frameId: null,
-        from: cloneGraphNodePositions(positions),
-        targets: savedLayoutTargets,
-      };
-      if (activeRef.current) startSavedLayoutEntrance();
-    } else if (!hasCompleteLayout && activeRef.current) {
-      simulation.alpha(1).restart();
-    } else if (hasCompleteLayout) {
-      initializedRef.current(positions);
+    if (
+      needsInitialSimulation
+      && argsRef.current.active
+      && document.visibilityState !== 'hidden'
+    ) {
+      if (prefersGraphReducedMotion()) {
+        initialLayout.settle(simulation, nodesById.size, argsRef.current.graph.edges.length);
+      }
+      else simulation.alpha(1).restart();
+    } else if (!needsInitialSimulation) {
+      initialLayout.finishImmediate(positions, !hasCompleteLayout);
     }
   };
 
   useLayoutEffect(() => {
     previousDragIdRef.current = null;
-    movedDragIdRef.current = null;
     positionsRef.current = {};
     initializeSimulation(true, retainedPositionsRef.current);
   }, [graphKey]);
 
-  useEffect(() => {
-    if (savedLayoutEntranceRef.current) {
-      if (args.active) startSavedLayoutEntrance();
-      else stopSavedLayoutEntrance();
+  const pauseSimulation = useCallback(() => {
+    simulationRef.current?.stop();
+    initialLayout.pause();
+  }, [initialLayout.pause]);
+  const resumeSimulation = useCallback(() => {
+    const simulation = simulationRef.current;
+    if (!simulation || document.visibilityState === 'hidden') return;
+    if (initialLayout.pendingRef.current && prefersGraphReducedMotion()) {
+      initialLayout.settle(simulation, nodesByIdRef.current.size, argsRef.current.graph.edges.length);
       return;
     }
-    const simulation = simulationRef.current;
-    if (!simulation || !initialSimulationPendingRef.current || dragRef.current) return;
-    if (args.active) simulation.restart();
-    else simulation.stop();
-  }, [args.active]);
+    if (
+      initialLayout.pendingRef.current
+      || releaseDiagnosticRef.current
+      || dragRef.current
+    ) {
+      simulation.restart();
+    }
+  }, [initialLayout.pendingRef, initialLayout.settle]);
+  useGraphSimulationActivity(args.active, pauseSimulation, resumeSimulation);
 
   const releaseDragPosition = (id: string) => {
     const simulation = simulationRef.current;
-    if (!simulation || releasedDragIdRef.current === id) return;
-    const node = nodesByIdRef.current.get(id);
-    if (node) {
-      if (movedDragIdRef.current === id) {
-        node.fx = node.x;
-        node.fy = node.y;
-      } else {
-        node.fx = null;
-        node.fy = null;
-      }
-    }
+    const isCurrentDrag = previousDragIdRef.current === id
+      || movedDragIdRef.current === id
+      || dragRef.current?.id === id;
+    if (!simulation || !isCurrentDrag || releasedDragIdRef.current === id) return;
+    const moved = movedDragIdRef.current === id;
     movedDragIdRef.current = null;
-    GRAPH_FORCE_NAMES.forEach((name) => simulation.force(name, null));
-    forcesSuspendedRef.current = true;
-    const releasedNodeIds = new Set<string>([id]);
-    for (const edge of graphRef.current.edges) {
-      if (edge.source.id === id) releasedNodeIds.add(edge.target.id);
-      if (edge.target.id === id) releasedNodeIds.add(edge.source.id);
+    if (moved) {
+      suspendGraphForces(simulation);
+      forcesSuspendedRef.current = true;
     }
-    for (const [nodeId, forceNode] of nodesByIdRef.current) {
-      if (!releasedNodeIds.has(nodeId) || nodeId === id) {
-        forceNode.vx = 0;
-        forceNode.vy = 0;
-        continue;
-      }
-      const speed = Math.hypot(forceNode.vx ?? 0, forceNode.vy ?? 0);
-      if (speed <= themeGraphTokens.forceReleaseVelocityMaxPxPerFrame) continue;
-      const scale = themeGraphTokens.forceReleaseVelocityMaxPxPerFrame / speed;
-      forceNode.vx = (forceNode.vx ?? 0) * scale;
-      forceNode.vy = (forceNode.vy ?? 0) * scale;
-    }
-    simulation
-      .alphaDecay(themeGraphTokens.forceReleaseAlphaDecay)
-      .velocityDecay(themeGraphTokens.forceReleaseVelocityDecay)
-      .alphaTarget(0);
-    releaseDiagnosticRef.current = beginGraphForceReleaseDiagnostic({
-      alpha: simulation.alpha(),
+    releaseDiagnosticRef.current = releaseGraphForceNode({
+      edges: argsRef.current.graph.edges,
       id,
-      nodeIds: releasedNodeIds,
+      keepFixed: initialLayout.pendingRef.current
+        && initialLayout.anchoredNodeIdsRef.current.includes(id),
+      moved,
       nodesById: nodesByIdRef.current,
+      onPositionsCommit: argsRef.current.onPositionsCommit,
+      onPositionsFrame: argsRef.current.onPositionsFrame,
+      readPositions,
+      reducedMotion: prefersGraphReducedMotion(),
+      simulation,
     });
     releasedDragIdRef.current = id;
   };
@@ -302,7 +233,7 @@ export function useGraphForceSimulation(args: {
         releaseDiagnosticRef.current = null;
       }
       if (forcesSuspendedRef.current) {
-        forcesRef.current.forEach((force, name) => simulation.force(name, force));
+        restoreGraphForces(simulation, forcesRef.current);
         forcesSuspendedRef.current = false;
       }
       const node = nodesByIdRef.current.get(drag.id);
@@ -310,12 +241,11 @@ export function useGraphForceSimulation(args: {
         node.fx = drag.position.x;
         node.fy = drag.position.y;
       }
-      simulation
-        .alphaDecay(themeGraphTokens.forceAlphaDecay)
-        .velocityDecay(themeGraphTokens.forceVelocityDecay)
-        .alpha(Math.max(simulation.alpha(), themeGraphTokens.forceDragAlpha))
-        .alphaTarget(themeGraphTokens.forceDragAlphaTarget)
-        .restart();
+      if (argsRef.current.active && document.visibilityState !== 'hidden') {
+        simulation
+          .alphaDecay(themeGraphTokens.forceAlphaDecay)
+          .velocityDecay(themeGraphTokens.forceVelocityDecay);
+      }
     } else if (previousDragId) releaseDragPosition(previousDragId);
     previousDragIdRef.current = drag?.id ?? null;
   }, [args.dragPosition]);
@@ -329,41 +259,50 @@ export function useGraphForceSimulation(args: {
       });
       return;
     }
-    for (const [id, position] of Object.entries(args.positionOverrides)) {
-      const node = nodesByIdRef.current.get(id);
-      if (!node) continue;
-      node.x = position.x;
-      node.y = position.y;
-      node.vx = 0;
-      node.vy = 0;
-    }
+    if (applyGraphForceOverrides({
+      nodesById: nodesByIdRef.current,
+      overrides: args.positionOverrides,
+      positions: positionsRef.current,
+      retainedPositions: retainedPositionsRef.current,
+    })) argsRef.current.onPositionsFrame(positionsRef.current, true);
   }, [args.positionOverrides]);
 
   useEffect(() => () => {
-    stopSavedLayoutEntrance();
     simulationRef.current?.stop();
   }, []);
 
-  const updateDragPosition = (id: string, position: GraphNodePosition) => {
-    const node = nodesByIdRef.current.get(id);
+  const updateCommittedPosition = useCallback((id: string, position: GraphNodePosition) => {
+    pinGraphForceNode({
+      id,
+      nodesById: nodesByIdRef.current,
+      position,
+      positions: positionsRef.current,
+      retainedPositions: retainedPositionsRef.current,
+    });
+  }, []);
+
+  const updateDragPosition = useCallback((id: string, position: GraphNodePosition) => {
     const simulation = simulationRef.current;
-    if (!node || !simulation) return;
+    if (!simulation || !pinGraphForceNode({
+      id,
+      nodesById: nodesByIdRef.current,
+      position,
+      positions: positionsRef.current,
+      retainedPositions: retainedPositionsRef.current,
+    })) return;
     movedDragIdRef.current = id;
     releasedDragIdRef.current = null;
-    node.x = position.x;
-    node.y = position.y;
-    node.fx = position.x;
-    node.fy = position.y;
-    node.vx = 0;
-    node.vy = 0;
-    setGraphNodePosition(positionsRef.current, id, position);
-    setGraphNodePosition(retainedPositionsRef.current, id, position);
-    draggedFrameRef.current(id, position);
-    simulation
-      .alpha(Math.max(simulation.alpha(), themeGraphTokens.forceDragAlpha))
-      .alphaTarget(themeGraphTokens.forceDragAlphaTarget)
+    argsRef.current.onDraggedPositionFrame(id, position);
+    if (argsRef.current.active && document.visibilityState !== 'hidden') {
+      if (prefersGraphReducedMotion()) {
+        simulation.stop();
+        return;
+      }
+      simulation
+        .alpha(Math.max(simulation.alpha(), themeGraphTokens.forceDragAlpha))
+        .alphaTarget(themeGraphTokens.forceDragAlphaTarget)
       .restart();
-  };
-
-  return { positionsRef, releaseDragPosition, updateDragPosition };
+    }
+  }, []);
+  return { positionsRef, releaseDragPosition, updateCommittedPosition, updateDragPosition };
 }

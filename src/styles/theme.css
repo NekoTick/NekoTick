@@ -939,16 +939,25 @@
   --vlaina-color-row-soft: rgb(244 244 245 / 0.4);
   --vlaina-color-whiteboard-canvas: var(--vlaina-color-surface-main);
   --vlaina-color-graph-canvas: var(--vlaina-color-surface-main);
-  --vlaina-color-graph-edge: var(--vlaina-sidebar-row-selected-text-muted);
-  --vlaina-color-graph-edge-active: var(--vlaina-sidebar-row-selected-text);
-  --vlaina-color-graph-node: var(--vlaina-sidebar-row-selected-text-soft);
-  --vlaina-color-graph-node-active: var(--vlaina-sidebar-row-selected-text);
+  --vlaina-color-graph-edge: var(--vlaina-color-accent);
+  --vlaina-color-graph-edge-active: var(--vlaina-color-accent-hover);
+  --vlaina-color-graph-node: var(--vlaina-color-accent);
+  --vlaina-color-graph-node-active: var(--vlaina-color-accent-hover);
   --vlaina-color-graph-node-related: var(--vlaina-color-graph-node-active);
   --vlaina-color-graph-node-ring: var(--vlaina-color-surface-main);
-  --vlaina-color-graph-node-ring-active: var(--vlaina-sidebar-row-selected-bg);
+  --vlaina-color-graph-node-ring-active: var(--vlaina-color-accent-hover);
+  --vlaina-color-graph-current-ring: var(--vlaina-color-accent-hover);
+  --vlaina-color-graph-focus-ring: var(--vlaina-color-accent);
   --vlaina-color-graph-label: var(--vlaina-color-text-primary);
+  --vlaina-color-graph-label-halo: var(--vlaina-color-graph-canvas);
+  --vlaina-width-graph-label-halo: var(--vlaina-border-width-3);
+  --vlaina-width-graph-focus-ring: var(--vlaina-border-width-3);
   --vlaina-color-graph-controls-bg: var(--vlaina-bg-secondary);
   --vlaina-color-graph-controls-hover: var(--vlaina-hover);
+  --vlaina-size-graph-controls-width: 196px;
+  --vlaina-size-graph-controls-height: 54px;
+  --vlaina-size-graph-controls-compact-width: 98px;
+  --vlaina-size-graph-controls-compact-height: 98px;
   --vlaina-motion-graph-enter-duration: 140ms;
   --vlaina-motion-graph-enter-easing: cubic-bezier(0.22, 1, 0.36, 1);
   --vlaina-motion-graph-interaction-duration: 140ms;
@@ -1229,7 +1238,24 @@ html[data-whiteboard-color-picking='true'] * {
     transform var(--vlaina-motion-graph-interaction-duration) var(--vlaina-motion-graph-enter-easing),
     opacity var(--vlaina-motion-graph-interaction-duration) var(--vlaina-motion-graph-enter-easing),
     fill var(--vlaina-motion-graph-interaction-duration) var(--vlaina-motion-graph-enter-easing),
-    stroke var(--vlaina-motion-graph-interaction-duration) var(--vlaina-motion-graph-enter-easing);
+    stroke var(--vlaina-motion-graph-interaction-duration) var(--vlaina-motion-graph-enter-easing),
+    stroke-width var(--vlaina-motion-graph-interaction-duration) var(--vlaina-motion-graph-enter-easing);
+}
+
+.vlaina-graph-node[data-graph-selected="true"] .vlaina-graph-node-dot {
+  stroke-width: var(--vlaina-width-graph-focus-ring);
+}
+
+.vlaina-graph-node:focus-visible .vlaina-graph-node-dot {
+  stroke: var(--vlaina-color-graph-focus-ring);
+  stroke-width: var(--vlaina-width-graph-focus-ring);
+}
+
+.vlaina-graph-label-text {
+  paint-order: stroke fill;
+  stroke: var(--vlaina-color-graph-label-halo);
+  stroke-width: var(--vlaina-width-graph-label-halo);
+  stroke-linejoin: round;
 }
 
 .vlaina-graph-edge-active {

@@ -40,6 +40,81 @@ function SearchControlsHarness({
 }
 
 describe('SidebarSearchDrawer', () => {
+  it('only exposes the search popup relationship when results exist', () => {
+    const { rerender } = render(
+      <SidebarSearchDrawer
+        isSearchOpen
+        shouldShowTopActions={false}
+        searchQuery=""
+        setSearchQuery={() => {}}
+        inputRef={createRef<HTMLInputElement>()}
+        hideSearch={() => {}}
+        canSubmit={false}
+        onSubmit={() => {}}
+        placeholder="Search"
+        ariaLabel="Search"
+        activeDescendant="search-result-0"
+        closeLabel="Close search"
+        resultsId="search-results"
+        hasSearchResults={false}
+        topActions={null}
+      />,
+    );
+
+    const input = screen.getByRole('combobox', { name: 'Search' });
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    expect(input).not.toHaveAttribute('aria-controls');
+    expect(input).not.toHaveAttribute('aria-activedescendant');
+
+    rerender(
+      <SidebarSearchDrawer
+        isSearchOpen
+        shouldShowTopActions={false}
+        searchQuery="missing"
+        setSearchQuery={() => {}}
+        inputRef={createRef<HTMLInputElement>()}
+        hideSearch={() => {}}
+        canSubmit={false}
+        onSubmit={() => {}}
+        placeholder="Search"
+        ariaLabel="Search"
+        activeDescendant="search-result-0"
+        closeLabel="Close search"
+        resultsId="search-results"
+        hasSearchResults={false}
+        topActions={null}
+      />,
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Search' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('combobox', { name: 'Search' })).not.toHaveAttribute('aria-controls');
+
+    rerender(
+      <SidebarSearchDrawer
+        isSearchOpen
+        shouldShowTopActions={false}
+        searchQuery="match"
+        setSearchQuery={() => {}}
+        inputRef={createRef<HTMLInputElement>()}
+        hideSearch={() => {}}
+        canSubmit
+        onSubmit={() => {}}
+        placeholder="Search"
+        ariaLabel="Search"
+        activeDescendant="search-result-0"
+        closeLabel="Close search"
+        resultsId="search-results"
+        hasSearchResults
+        topActions={null}
+      />,
+    );
+
+    const resultInput = screen.getByRole('combobox', { name: 'Search' });
+    expect(resultInput).toHaveAttribute('aria-expanded', 'true');
+    expect(resultInput).toHaveAttribute('aria-controls', 'search-results');
+    expect(resultInput).toHaveAttribute('aria-activedescendant', 'search-result-0');
+  });
+
   it('handles arrow key selection before submit', () => {
     const onSelectPrevious = vi.fn();
     const onSelectNext = vi.fn();

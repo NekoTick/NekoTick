@@ -5,6 +5,7 @@ import {
   getOpenBridgePages,
   GRAPH_VIEW_SELECTOR,
   launchIsolatedElectron,
+  NOTES_VIEW_SELECTOR,
   openNotesRootInNotes,
   setAppViewMode,
 } from './notesE2E';
@@ -19,6 +20,49 @@ function readGraphNodePosition(node: Locator) {
 
 test.describe('graph interactions', () => {
   test.setTimeout(120_000);
+
+  test('opens the corresponding note with a single node click', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('graph-node-open');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      const fixture = await createNotesRootFilesFixture(page, {
+        name: 'graph-node-open',
+        files: [
+          { filename: 'Open Me.md', content: '# Open Me\n\n[[Linked Note]]' },
+          { filename: 'Linked Note.md', content: '# Linked Note\n\n[[Open Me]]' },
+        ],
+      });
+      await openNotesRootInNotes(page, {
+        notesRootPath: fixture.notesRootPath,
+        name: 'Graph Node Open',
+      });
+      await setAppViewMode(page, 'graph');
+
+      const graphView = page.locator(GRAPH_VIEW_SELECTOR);
+      const zoomPercentage = graphView.locator('[data-whiteboard-zoom-percentage="true"]');
+      await zoomPercentage.hover();
+      await expect.poll(() => zoomPercentage.evaluate((element) => {
+        const shadow = getComputedStyle(element.parentElement!).boxShadow;
+        return shadow === 'none' || [...shadow.matchAll(/rgba\([^)]*,\s*([\d.]+)\)/g)]
+          .every((match) => Number(match[1]) === 0);
+      })).toBe(true);
+      const nodeDot = graphView
+        .locator('[data-graph-node-hit-target="Linked Note.md"]')
+        .locator('..')
+        .locator('.vlaina-graph-node-dot');
+      await expect(nodeDot).toBeVisible({ timeout: 30_000 });
+      await nodeDot.click();
+
+      await expect(page.locator(NOTES_VIEW_SELECTOR)).toBeVisible();
+      await expect.poll(() => page.evaluate(() => (
+        (window as any).__vlainaE2E.getNotesState().currentNote?.path ?? null
+      ))).toBe('Linked Note.md');
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
 
   test('keeps a large graph draggable with a stable screen hit target', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('graph-interaction');
@@ -58,17 +102,18 @@ test.describe('graph interactions', () => {
       const nodes = graphView.locator('[data-graph-node-hit-target]');
       const renderedEdges = graphView.locator('[data-graph-edge-layer="base"]');
       await expect(graphView).toHaveAttribute('data-graph-active', 'false', { timeout: 30_000 });
+      await expect(nodes).toHaveCount(0);
+      const graphOpenedAt = Date.now();
+      await setAppViewMode(page, 'graph');
+
+      await expect(graphView).toHaveAttribute('data-graph-active', 'true');
       await expect(nodes).toHaveCount(noteCount, { timeout: 30_000 });
       await expect(renderedEdges).toHaveAttribute(
         'data-graph-edge-count',
         String(noteCount * linksPerNote),
       );
-      const graphOpenedAt = Date.now();
-      await setAppViewMode(page, 'graph');
-
-      await expect(graphView).toHaveAttribute('data-graph-active', 'true');
       const graphSidebar = page.locator('[data-graph-sidebar="true"]');
-      const graphSearchInput = graphSidebar.getByRole('textbox');
+      const graphSearchInput = graphSidebar.getByRole('combobox');
       const graphModeSelector = graphSidebar.locator('[data-graph-mode-indicator="true"]').locator('..');
       await page.keyboard.press('Control+Shift+F');
       await expect(graphSearchInput).toBeFocused();
@@ -118,14 +163,16 @@ test.describe('graph interactions', () => {
       });
       expect(edgeAppearance.stroke).not.toBe('none');
       expect(edgeAppearance.opacity).toBeGreaterThan(0);
-      expect(edgeAppearance.strokeOpacity).toBeGreaterThanOrEqual(0.8);
+      expect(edgeAppearance.strokeOpacity).toBeGreaterThan(0);
+      expect(edgeAppearance.strokeOpacity).toBeLessThan(0.8);
       expect(edgeAppearance.pathLength).toBeGreaterThan(0);
       const hoverTarget = graphView.locator(
         '[data-graph-node-hit-target="Graph Note 050.md"]',
       );
+      const hoverNodeDot = hoverTarget.locator('..').locator('.vlaina-graph-node-dot');
       const hoverEdge = graphView.locator('[data-graph-edge-layer="active"]');
       await page.mouse.move(1, 1);
-      await hoverTarget.hover();
+      await hoverNodeDot.hover();
       expect(await hoverTarget.evaluate((element) => (
         element.parentElement?.querySelectorAll('circle')[1]
           ?.getAttribute('class')
@@ -146,7 +193,10 @@ test.describe('graph interactions', () => {
         && center.y >= graphBox!.y
         && center.y <= graphBox!.y + graphBox!.height
       ))).toBe(true);
-      const zoomResult = await graphView.locator('svg[role="img"]').evaluate(async (element) => {
+      await expect.poll(() => graphView.locator('svg text').count(), {
+        timeout: 10_000,
+      }).toBeGreaterThan(0);
+      const zoomResult = await graphView.locator('svg[role="group"]').evaluate(async (element) => {
         const scene = element.querySelector(':scope > g');
         const before = scene?.getAttribute('transform');
         const startedAt = performance.now();
@@ -185,7 +235,7 @@ test.describe('graph interactions', () => {
       });
       expect(zoomResult.after).not.toBe(zoomResult.before);
       expect(zoomResult.elapsedMs).toBeLessThan(1_000);
-      expect(zoomResult.visibleLabelCount).toBe(noteCount);
+      expect(zoomResult.visibleLabelCount).toBeGreaterThan(0);
       const target = nodes.first();
       const linkedTarget = graphView.locator(
         '[data-graph-node-hit-target="Graph Note 002.md"]',
@@ -310,9 +360,22 @@ test.describe('graph interactions', () => {
       expect(distinctLinkedPositions.size).toBeGreaterThan(4);
       expect(largestLinkedStep).toBeLessThan(40);
       expect(largestDraggedStep).toBeLessThan(40);
-      expect(await graphView.locator('svg text').count()).toBeLessThanOrEqual(
-        linksPerNote * 2 + 1,
-      );
+      const labelRects = await graphView.locator('svg text').evaluateAll((elements) => (
+        elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { bottom: rect.bottom, left: rect.left, right: rect.right, top: rect.top };
+        })
+      ));
+      const labelOverlapCount = labelRects.reduce((count, rect, index) => count + labelRects
+        .slice(index + 1)
+        .filter((other) => (
+          rect.left < other.right
+          && rect.right > other.left
+          && rect.top < other.bottom
+          && rect.bottom > other.top
+        )).length, 0);
+      expect(labelRects.length).toBeLessThanOrEqual(noteCount);
+      expect(labelOverlapCount).toBe(0);
       expect(pageErrors.filter((message) => message.includes('Maximum update depth'))).toEqual([]);
       const graphDiagnosticEvents = await page.evaluate(() => (
         window.__vlainaDiagnosticsLog
@@ -326,8 +389,12 @@ test.describe('graph interactions', () => {
         'force-release',
         'force-settled',
       ]));
-      await target.click();
+      await hoverNodeDot.click();
       await expect(graphView).not.toBeVisible();
+      await expect(page.locator(NOTES_VIEW_SELECTOR)).toBeVisible();
+      await expect.poll(() => page.evaluate(() => (
+        (window as any).__vlainaE2E.getNotesState().currentNote?.path ?? null
+      ))).toBe('Graph Note 050.md');
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

@@ -84,11 +84,10 @@ export function layoutNoteGraph(graph: NoteGraph, preferredFocusPath?: string | 
 
   return {
     nodes: positionedNodes,
-    edges: graph.edges.flatMap((edge) => {
-      const source = nodeById.get(edge.source);
-      const target = nodeById.get(edge.target);
-      return source && target ? [{ source, target }] : [];
-    }),
+    edges: graph.edges.map((edge) => ({
+      source: nodeById.get(edge.source)!,
+      target: nodeById.get(edge.target)!,
+    })),
     focusNodeId: focusNode.id,
   };
 }

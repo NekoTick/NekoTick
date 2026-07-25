@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import { getStorageAdapter } from '@/lib/storage/adapter';
 import { normalizeEditorStateMarkdownDocument } from '@/lib/notes/markdown/markdownSerializationUtils';
-import type { NotesStore, ScanAllNotesOptions } from '../types';
+import type { NotesStore } from '../types';
 import { createCachedNoteContentEntry } from '../document/noteContentCache';
 import { hasInternalNotePathSegment } from '../utils/fs/internalNotePaths';
 import {
@@ -15,6 +15,11 @@ import {
   getKnownMarkdownModifiedAt,
   isSearchableMarkdownContent,
 } from './featureSliceContentUtils';
+import {
+  createNoteContentScanCoordinator,
+  type NoteContentScanOutcome,
+  type NoteContentScanRunContext,
+} from './featureSliceScanCoordinator';
 import type { FeatureSlice } from './featureSlice';
 
 interface CreateNoteContentScanActionsOptions {
@@ -63,7 +68,27 @@ interface ScannedNoteContent {
   freshUntil?: number;
   modifiedAt: number | null;
   path: string;
+  readAttempted: boolean;
+  readFailed: boolean;
   size: number | null;
+}
+
+function createUnloadedScannedNote(
+  path: string,
+  options: Partial<Pick<
+    ScannedNoteContent,
+    'modifiedAt' | 'readAttempted' | 'readFailed' | 'size'
+  >> = {},
+): ScannedNoteContent {
+  return {
+    path,
+    content: '',
+    contentLoaded: false,
+    modifiedAt: options.modifiedAt ?? null,
+    readAttempted: options.readAttempted ?? false,
+    readFailed: options.readFailed ?? false,
+    size: options.size ?? null,
+  };
 }
 
 export function createNoteContentScanActions({
@@ -71,230 +96,193 @@ export function createNoteContentScanActions({
   isActiveNotesRootRequest,
   set,
 }: CreateNoteContentScanActionsOptions) {
-  let noteContentScanController: AbortController | null = null;
-  let noteContentScanPromise: Promise<void> | null = null;
-  let noteContentScanGeneration = 0;
+  const runNoteContentScan = async (
+    scan: NoteContentScanRunContext,
+  ): Promise<NoteContentScanOutcome> => {
+    const isScanActive = scan.isActive;
+    const priorityPaths = scan.priorityPaths;
 
-  const cancelNoteContentScan = () => {
-    noteContentScanGeneration += 1;
-    noteContentScanController?.abort();
-    noteContentScanController = null;
-  };
-
-  const runNoteContentScan = async (options?: ScanAllNotesOptions) => {
-    cancelNoteContentScan();
-    const scanController = new AbortController();
-    const scanGeneration = noteContentScanGeneration;
-    noteContentScanController = scanController;
-    const externalSignal = options?.signal;
-    const abortFromExternalSignal = () => scanController.abort();
-    if (externalSignal?.aborted) {
-      scanController.abort();
-    } else {
-      externalSignal?.addEventListener('abort', abortFromExternalSignal, { once: true });
-    }
-
-    const isScanActive = () =>
-      !scanController.signal.aborted &&
-      scanGeneration === noteContentScanGeneration &&
-      noteContentScanController === scanController;
+    if (!isScanActive()) return 'cancelled';
 
     const { notesPath, rootFolder, noteContentsCache } = get();
-    if (!rootFolder || !notesPath || hasInternalNotePathSegment(notesPath) || !isScanActive()) {
-      externalSignal?.removeEventListener('abort', abortFromExternalSignal);
-      if (noteContentScanController === scanController) noteContentScanController = null;
-      return;
+    if (!rootFolder || !notesPath || hasInternalNotePathSegment(notesPath)) {
+      return 'complete';
     }
 
-    try {
-      const storage = getStorageAdapter();
-      const scanStartedAt = Date.now();
-      const scanFreshUntil = scanStartedAt + NOTE_CONTENT_SCAN_FRESH_MS;
-      const scannedCache: NotesStore['noteContentsCache'] = new Map();
-      const filePaths = collectNoteContentScanPaths(rootFolder.children, notesPath, isScanActive);
-      const priorityPaths = new Set(options?.priorityPaths);
-      if (priorityPaths.size > 0) {
-        filePaths.sort((left, right) =>
-          Number(priorityPaths.has(right.path)) - Number(priorityPaths.has(left.path))
-        );
-      }
-      if (!isScanActive()) return;
+    const storage = getStorageAdapter();
+    const scanStartedAt = Date.now();
+    const scanFreshUntil = scanStartedAt + NOTE_CONTENT_SCAN_FRESH_MS;
+    const scannedCache: NotesStore['noteContentsCache'] = new Map();
+    const filePaths = collectNoteContentScanPaths(rootFolder.children, notesPath, isScanActive);
+    if (!isScanActive()) return 'cancelled';
 
-      const pendingPriorityPaths = new Set(
-        filePaths
-          .map(({ path }) => path)
-          .filter((path) => priorityPaths.has(path)),
-      );
-      let priorityPathsPublished = false;
-
-      const publishPriorityPaths = () => {
-        if (
-          !options?.onPriorityPathsScanned
-          || priorityPathsPublished
-          || pendingPriorityPaths.size > 0
-          || !isActiveNotesRootRequest(notesPath)
-          || !isScanActive()
-        ) {
-          return;
-        }
-        priorityPathsPublished = true;
-        const latestState = get();
-        const cache = new Map(latestState.noteContentsCache);
-        scannedCache.forEach((entry, path) => cache.set(path, entry));
-        preserveLiveNoteCacheEntries(cache, latestState);
-        set({ noteContentsCache: cache });
-        options?.onPriorityPathsScanned?.();
-      };
-
-      const finishBatchPriorityPaths = (batch: Array<{ path: string }>) => {
-        batch.forEach(({ path }) => pendingPriorityPaths.delete(path));
-        publishPriorityPaths();
-      };
-
-      publishPriorityPaths();
-
-      let scannedContentChars = 0;
-      const addScannedEntry = (
-        path: string,
-        content: string,
-        contentLoaded: boolean,
-        modifiedAt: number | null,
-        options: { baselineContent?: string; freshUntil?: number; size?: number | null } = {},
-      ) => {
-        if (
-          !contentLoaded ||
-          !isSearchableMarkdownContent(content) ||
-          scannedContentChars + content.length > MAX_SCANNED_NOTE_CONTENT_CHARS
-        ) {
-          return;
-        }
-
-        scannedContentChars += content.length;
-        scannedCache.set(path, createCachedNoteContentEntry(content, modifiedAt, {
-          ...options,
-          freshUntil: options.freshUntil ?? scanFreshUntil,
-        }));
-      };
-
-      for (let i = 0; i < filePaths.length; i += NOTE_CONTENT_SCAN_BATCH_SIZE) {
-        if (!isScanActive()) return;
-
-        const batch = filePaths.slice(i, i + NOTE_CONTENT_SCAN_BATCH_SIZE);
-        if (scannedContentChars >= MAX_SCANNED_NOTE_CONTENT_CHARS) {
-          finishBatchPriorityPaths(batch);
-          continue;
-        }
-
-        const results = await Promise.allSettled(
-          batch.map(async ({ path, fullPath }): Promise<ScannedNoteContent> => {
-            if (!isScanActive()) return { path, content: '', contentLoaded: false, modifiedAt: null, size: null };
-
-            const cachedEntry = noteContentsCache.get(path);
-            if (cachedEntry?.freshUntil !== undefined && cachedEntry.freshUntil >= scanStartedAt) {
-              return {
-                path,
-                content: cachedEntry.content,
-                contentLoaded: true,
-                baselineContent: cachedEntry.savedContent ?? cachedEntry.content,
-                freshUntil: cachedEntry.freshUntil,
-                modifiedAt: cachedEntry.modifiedAt,
-                size: cachedEntry.size ?? null,
-              };
-            }
-
-            const fileInfo = await storage.stat(fullPath).catch(() => null);
-            if (!isScanActive()) return { path, content: '', contentLoaded: false, modifiedAt: null, size: null };
-            const modifiedAt = getKnownMarkdownModifiedAt(fileInfo);
-            const size = getKnownMarkdownFileSize(fileInfo);
-            if (cachedEntry && canReuseScannedNoteCacheEntry(cachedEntry, fileInfo)) {
-              return {
-                path,
-                content: cachedEntry.content,
-                contentLoaded: true,
-                baselineContent: cachedEntry.savedContent ?? cachedEntry.content,
-                freshUntil: scanFreshUntil,
-                modifiedAt,
-                size,
-              };
-            }
-
-            if (!canReadBoundedMarkdownFile(fileInfo, MAX_SEARCHABLE_NOTE_BYTES)) {
-              return { path, content: '', contentLoaded: false, modifiedAt, size };
-            }
-
-            try {
-              const rawContent = await storage.readFile(fullPath, MAX_SEARCHABLE_NOTE_BYTES);
-              if (!isSearchableMarkdownContent(rawContent)) {
-                return { path, content: '', contentLoaded: false, modifiedAt, size };
-              }
-
-              const content = normalizeEditorStateMarkdownDocument(rawContent);
-              if (!isScanActive()) return { path, content: '', contentLoaded: false, modifiedAt: null, size: null };
-              return { path, content, contentLoaded: true, baselineContent: rawContent, freshUntil: scanFreshUntil, modifiedAt, size };
-            } catch {
-              return { path, content: '', contentLoaded: false, modifiedAt: null, size: null };
-            }
-          })
-        );
-
-        if (!isScanActive()) return;
-
-        results.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            addScannedEntry(
-              result.value.path,
-              result.value.content,
-              result.value.contentLoaded,
-              result.value.modifiedAt,
-              {
-                baselineContent: result.value.baselineContent,
-                freshUntil: result.value.freshUntil,
-                size: result.value.size,
-              },
-            );
-          }
-        });
-        finishBatchPriorityPaths(batch);
-      }
-
-      if (!isActiveNotesRootRequest(notesPath) || !isScanActive()) return;
-
+    scan.initializePriorityRequests(filePaths.map(({ path }) => path), () => {
+      if (!isActiveNotesRootRequest(notesPath) || !isScanActive()) return false;
+      if (scannedCache.size === 0) return false;
       const latestState = get();
-      const cache = new Map(scannedCache);
+      const cache = new Map(latestState.noteContentsCache);
+      scannedCache.forEach((entry, path) => cache.set(path, entry));
       preserveLiveNoteCacheEntries(cache, latestState);
+      set({ noteContentsCache: cache });
+      return true;
+    });
 
-      if (isScanActive()) {
-        set({ noteContentsCache: cache });
+    let scannedContentChars = 0;
+    let attemptedReadCount = 0;
+    let failedReadCount = 0;
+    const addScannedEntry = (
+      path: string,
+      content: string,
+      contentLoaded: boolean,
+      modifiedAt: number | null,
+      options: { baselineContent?: string; freshUntil?: number; size?: number | null } = {},
+    ) => {
+      if (
+        !contentLoaded ||
+        !isSearchableMarkdownContent(content) ||
+        scannedContentChars + content.length > MAX_SCANNED_NOTE_CONTENT_CHARS
+      ) {
+        return;
       }
-    } finally {
-      externalSignal?.removeEventListener('abort', abortFromExternalSignal);
-      if (noteContentScanController === scanController) {
-        noteContentScanController = null;
+
+      scannedContentChars += content.length;
+      scannedCache.set(path, createCachedNoteContentEntry(content, modifiedAt, {
+        ...options,
+        freshUntil: options.freshUntil ?? scanFreshUntil,
+      }));
+    };
+
+    let sortedPriorityPathCount = -1;
+    for (let i = 0; i < filePaths.length; i += NOTE_CONTENT_SCAN_BATCH_SIZE) {
+      if (!isScanActive()) return 'cancelled';
+
+      if (sortedPriorityPathCount !== priorityPaths.size) {
+        const remainingPaths = filePaths.slice(i);
+        remainingPaths.sort((left, right) => (
+          Number(priorityPaths.has(right.path)) - Number(priorityPaths.has(left.path))
+        ));
+        filePaths.splice(i, remainingPaths.length, ...remainingPaths);
+        sortedPriorityPathCount = priorityPaths.size;
       }
+
+      const batch = filePaths.slice(i, i + NOTE_CONTENT_SCAN_BATCH_SIZE);
+      if (scannedContentChars >= MAX_SCANNED_NOTE_CONTENT_CHARS) {
+        scan.finishPriorityPaths(batch.map(({ path }) => path));
+        continue;
+      }
+
+      const results = await Promise.allSettled(
+        batch.map(async ({ path, fullPath }): Promise<ScannedNoteContent> => {
+          if (!isScanActive()) return createUnloadedScannedNote(path);
+
+          const cachedEntry = noteContentsCache.get(path);
+          if (cachedEntry?.freshUntil !== undefined && cachedEntry.freshUntil >= scanStartedAt) {
+            return {
+              path,
+              content: cachedEntry.content,
+              contentLoaded: true,
+              baselineContent: cachedEntry.savedContent ?? cachedEntry.content,
+              freshUntil: cachedEntry.freshUntil,
+              modifiedAt: cachedEntry.modifiedAt,
+              readAttempted: false,
+              readFailed: false,
+              size: cachedEntry.size ?? null,
+            };
+          }
+
+          const fileInfo = await storage.stat(fullPath).catch(() => null);
+          if (!isScanActive()) return createUnloadedScannedNote(path);
+          const modifiedAt = getKnownMarkdownModifiedAt(fileInfo);
+          const size = getKnownMarkdownFileSize(fileInfo);
+          if (cachedEntry && canReuseScannedNoteCacheEntry(cachedEntry, fileInfo)) {
+            return {
+              path,
+              content: cachedEntry.content,
+              contentLoaded: true,
+              baselineContent: cachedEntry.savedContent ?? cachedEntry.content,
+              freshUntil: scanFreshUntil,
+              modifiedAt,
+              readAttempted: false,
+              readFailed: false,
+              size,
+            };
+          }
+
+          if (!canReadBoundedMarkdownFile(fileInfo, MAX_SEARCHABLE_NOTE_BYTES)) {
+            return createUnloadedScannedNote(path, { modifiedAt, size });
+          }
+
+          try {
+            const rawContent = await storage.readFile(fullPath, MAX_SEARCHABLE_NOTE_BYTES);
+            if (!isSearchableMarkdownContent(rawContent)) {
+              return createUnloadedScannedNote(path, {
+                modifiedAt,
+                readAttempted: true,
+                size,
+              });
+            }
+
+            const content = normalizeEditorStateMarkdownDocument(rawContent);
+            if (!isScanActive()) {
+              return createUnloadedScannedNote(path, { readAttempted: true });
+            }
+            return {
+              path,
+              content,
+              contentLoaded: true,
+              baselineContent: rawContent,
+              freshUntil: scanFreshUntil,
+              modifiedAt,
+              readAttempted: true,
+              readFailed: false,
+              size,
+            };
+          } catch {
+            return createUnloadedScannedNote(path, {
+              readAttempted: true,
+              readFailed: true,
+            });
+          }
+        })
+      );
+
+      if (!isScanActive()) return 'cancelled';
+
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.readAttempted) attemptedReadCount += 1;
+          if (result.value.readFailed) failedReadCount += 1;
+          addScannedEntry(
+            result.value.path,
+            result.value.content,
+            result.value.contentLoaded,
+            result.value.modifiedAt,
+            {
+              baselineContent: result.value.baselineContent,
+              freshUntil: result.value.freshUntil,
+              size: result.value.size,
+            },
+          );
+        }
+      });
+      scan.finishPriorityPaths(batch.map(({ path }) => path));
     }
+
+    if (attemptedReadCount > 0 && failedReadCount === attemptedReadCount) {
+      throw new Error('Unable to read any scannable notes');
+    }
+
+    if (!isActiveNotesRootRequest(notesPath) || !isScanActive()) return 'cancelled';
+
+    const latestState = get();
+    const cache = new Map(scannedCache);
+    preserveLiveNoteCacheEntries(cache, latestState);
+
+    if (isScanActive()) {
+      set({ noteContentsCache: cache });
+    }
+    return 'complete';
   };
 
-  const scanAllNotes = (options?: ScanAllNotesOptions): Promise<void> => {
-    if (
-      options?.background
-      && noteContentScanPromise
-      && noteContentScanController
-      && !noteContentScanController.signal.aborted
-    ) {
-      return noteContentScanPromise;
-    }
-    const promise = runNoteContentScan(options);
-    noteContentScanPromise = promise;
-    void promise.then(
-      () => {
-        if (noteContentScanPromise === promise) noteContentScanPromise = null;
-      },
-      () => {
-        if (noteContentScanPromise === promise) noteContentScanPromise = null;
-      },
-    );
-    return promise;
-  };
-
-  return { cancelNoteContentScan, scanAllNotes };
+  return createNoteContentScanCoordinator(runNoteContentScan);
 }

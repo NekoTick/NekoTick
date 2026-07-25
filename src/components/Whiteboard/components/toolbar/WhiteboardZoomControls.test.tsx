@@ -25,8 +25,13 @@ describe('WhiteboardZoomControls', () => {
 
     expect(container.firstElementChild).toHaveClass('absolute', 'bottom-4', 'left-3');
     expect(screen.getByRole('button', { name: 'whiteboard.fitView' })).toBeInTheDocument();
+    const percentage = screen.getByRole('button', { name: '100%' });
+    expect(percentage).toHaveClass('shadow-none', 'hover:shadow-none');
+    expect(percentage.parentElement).toHaveClass(
+      '[&:has([data-whiteboard-zoom-percentage]:hover)]:!shadow-none',
+      '[&:has([data-whiteboard-zoom-percentage]:hover)]:!transition-none',
+    );
     expect(screen.queryByText('whiteboard.fitView')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '100%' })).toBeInTheDocument();
   });
 
   it('adjusts zoom by one step when the percentage is scrolled', () => {

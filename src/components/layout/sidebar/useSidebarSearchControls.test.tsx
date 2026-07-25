@@ -19,12 +19,14 @@ function setScrollableMetrics(
 }
 
 function SidebarSearchControlsHarness({
+  enabled = true,
   isOpen,
   query,
   onOpen,
   onClose,
   scrollTop = 0,
 }: {
+  enabled?: boolean;
   isOpen: boolean;
   query: string;
   onOpen: () => void;
@@ -33,6 +35,7 @@ function SidebarSearchControlsHarness({
 }) {
   const interactionScopeRef = useRef<HTMLDivElement | null>(null);
   const { inputRef, scrollRootRef } = useSidebarSearchControls({
+    enabled,
     isOpen,
     query,
     onOpen,
@@ -153,6 +156,77 @@ describe('useSidebarSearchControls', () => {
     );
 
     expect(document.activeElement).not.toBe(input);
+  });
+
+  it('returns focus to the opener when the drawer closes', () => {
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+
+    const { rerender } = render(
+      <SidebarSearchControlsHarness
+        isOpen={false}
+        query=""
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+    const opener = screen.getByTestId('scope-button');
+    opener.focus();
+
+    rerender(
+      <SidebarSearchControlsHarness
+        isOpen
+        query="alpha"
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+    rerender(
+      <SidebarSearchControlsHarness
+        isOpen={false}
+        query=""
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('does not restore focus into a pane that became inactive', () => {
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+
+    const { rerender } = render(
+      <SidebarSearchControlsHarness
+        isOpen={false}
+        query=""
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+    const opener = screen.getByTestId('scope-button');
+    opener.focus();
+    rerender(
+      <SidebarSearchControlsHarness
+        isOpen
+        query="alpha"
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+    screen.getByLabelText('outside-editor').focus();
+    rerender(
+      <SidebarSearchControlsHarness
+        enabled={false}
+        isOpen={false}
+        query=""
+        onOpen={onOpen}
+        onClose={onClose}
+      />,
+    );
+
+    expect(document.activeElement).not.toBe(opener);
   });
 
   it('closes the open search drawer on Escape from non-editable sidebar focus', () => {

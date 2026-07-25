@@ -25,7 +25,6 @@ describe('useGraphCanvasGeometry', () => {
         dragPosition: null,
         graph,
         positionOverrides: {},
-        selectedPath: null,
         simulationPositions,
         simulationVersion,
       }),

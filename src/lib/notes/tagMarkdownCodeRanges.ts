@@ -144,48 +144,43 @@ function isFenceCloser(
 }
 
 export function collectInlineCodeRanges(content: string, ranges: NoteMarkdownExcludedRange[]): void {
-  for (let index = 0; index < content.length && ranges.length < MAX_EXCLUDED_RANGES; index += 1) {
-    if (content[index] !== '`') {
-      continue;
-    }
+  let searchStart = 0;
+  while (searchStart < content.length && ranges.length < MAX_EXCLUDED_RANGES) {
+    const index = content.indexOf('`', searchStart);
+    if (index < 0) break;
     const markerEnd = scanRepeatedChar(content, index, '`');
     const markerLength = markerEnd - index;
+    searchStart = markerEnd;
     if (markerLength === 1 && content[index + 1] === '`') {
       continue;
     }
     const closeIndex = findClosingInlineCodeMarker(content, markerEnd, markerLength);
     if (closeIndex === -1 || rangeContainsNewline(content, markerEnd, closeIndex)) {
-      index = markerEnd - 1;
       continue;
     }
     pushExcludedRange(ranges, { from: index, to: closeIndex + markerLength });
-    index = closeIndex + markerLength - 1;
+    searchStart = closeIndex + markerLength;
   }
 }
 
 function findClosingInlineCodeMarker(content: string, start: number, markerLength: number): number {
-  for (let index = start; index < content.length; index += 1) {
-    if (content[index] !== '`') {
-      continue;
-    }
-
+  let searchStart = start;
+  while (searchStart < content.length) {
+    const index = content.indexOf('`', searchStart);
+    if (index < 0) return -1;
     const markerEnd = scanRepeatedChar(content, index, '`');
     if (markerEnd - index === markerLength) {
       return index;
     }
-    index = markerEnd - 1;
+    searchStart = markerEnd;
   }
 
   return -1;
 }
 
 function rangeContainsNewline(content: string, from: number, to: number): boolean {
-  for (let index = from; index < to; index += 1) {
-    if (content.charCodeAt(index) === 10) {
-      return true;
-    }
-  }
-  return false;
+  const newlineIndex = content.indexOf('\n', from);
+  return newlineIndex >= 0 && newlineIndex < to;
 }
 
 export function collectAutolinkRanges(content: string, ranges: NoteMarkdownExcludedRange[]): void {

@@ -1,9 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearDiagnosticsLog, getDiagnosticsLogText } from '@/lib/diagnostics/diagnosticsLog';
+import { themeGraphTokens } from '@/styles/themeTokens';
 import { GraphCanvas } from './GraphCanvas';
-import { GraphCanvasScene } from './canvas/GraphCanvasScene';
-import type { PositionedNoteGraph } from './model/graphLayout';
+import {
+  getGraphLabelExclusionBounds,
+  GraphCanvasScene,
+} from './canvas/GraphCanvasScene';
+import type { PositionedGraphNode, PositionedNoteGraph } from './model/graphLayout';
 
 vi.mock('@/components/ui/icons', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
@@ -33,9 +37,29 @@ function readNodePosition(element: Element) {
   };
 }
 
+function mockAnimationFrameQueue() {
+  const frames = new Map<number, FrameRequestCallback>();
+  let nextFrameId = 100_000;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    const id = nextFrameId;
+    nextFrameId += 1;
+    frames.set(id, callback);
+    return id;
+  });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+    frames.delete(id);
+  });
+  return (now: number) => {
+    const pending = [...frames.values()];
+    frames.clear();
+    pending.forEach((callback) => callback(now));
+  };
+}
+
 describe('GraphCanvas', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
     clearDiagnosticsLog();
     Object.defineProperty(SVGSVGElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -77,9 +101,9 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
+    const node = screen.getByRole('option', { name: 'Alpha' });
     const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const edge = canvas.querySelector('[data-graph-edge-layer="base"]')!;
     const activeEdge = canvas.querySelector('[data-graph-edge-layer="active"]')!;
     const visibleNode = node.querySelectorAll('circle')[1]!;
@@ -90,13 +114,16 @@ describe('GraphCanvas', () => {
     expect(Number(edge.getAttribute('stroke-opacity'))).toBeGreaterThan(0);
     expect(edge).toHaveAttribute('vector-effect', 'non-scaling-stroke');
     expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+    const startPosition = readNodePosition(hitTarget);
     fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
     expect(visibleNode).toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
     expect(activeEdge).toHaveAttribute('opacity', '1');
     expect(activeEdge.getAttribute('d')).not.toBe('');
     fireEvent.pointerMove(canvas, { clientX: 140, clientY: 120, pointerId: 1 });
     fireEvent.pointerUp(canvas, { clientX: 140, clientY: 120, pointerId: 1 });
-    expect(edge.getAttribute('d')).toContain('M140,120');
+    expect(edge.getAttribute('d')).toContain(
+      `M${startPosition.x + 40},${startPosition.y + 20}`,
+    );
 
     expect(onPositionCommit).toHaveBeenCalledWith('Alpha.md', expect.objectContaining({
       x: expect.any(Number),
@@ -121,11 +148,12 @@ describe('GraphCanvas', () => {
         onSelectPath={vi.fn()}
       />,
     );
-    const child = screen.getByRole('button', { name: 'Beta, 1' });
+    const child = screen.getByRole('option', { name: 'Beta' });
     const hitTarget = child.querySelector('[data-graph-node-hit-target="Beta.md"]')!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const baseEdge = canvas.querySelector('[data-graph-edge-layer="base"]')!;
     const activeEdge = canvas.querySelector('[data-graph-edge-layer="active"]')!;
+    const startPosition = readNodePosition(hitTarget);
 
     fireEvent.pointerDown(hitTarget, { button: 0, clientX: 300, clientY: 100, pointerId: 11 });
     expect(baseEdge).toHaveAttribute('stroke-opacity', '0');
@@ -134,7 +162,9 @@ describe('GraphCanvas', () => {
     fireEvent.pointerUp(canvas, { clientX: 340, clientY: 120, pointerId: 11 });
 
     expect(baseEdge).toHaveAttribute('stroke-opacity', '0.14');
-    expect(baseEdge.getAttribute('d')).toContain('L340,120');
+    expect(baseEdge.getAttribute('d')).toContain(
+      `L${startPosition.x + 40},${startPosition.y + 20}`,
+    );
   });
 
   it('cancels an interrupted node drag without opening or committing it', () => {
@@ -151,13 +181,48 @@ describe('GraphCanvas', () => {
         onSelectPath={vi.fn()}
       />,
     );
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
+    const node = screen.getByRole('option', { name: 'Alpha' });
     const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
 
     fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 10 });
     fireEvent.pointerCancel(canvas, { clientX: 0, clientY: 0, pointerId: 10 });
 
+    expect(onOpenPath).not.toHaveBeenCalled();
+    expect(onPositionCommit).not.toHaveBeenCalled();
+  });
+
+  it('restores a moved node when pointer capture is lost', () => {
+    const onOpenPath = vi.fn();
+    const onPositionCommit = vi.fn();
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={onOpenPath}
+        onPositionCommit={onPositionCommit}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+    let scheduledFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      scheduledFrame = callback;
+      return 100_043;
+    });
+    const node = screen.getByRole('option', { name: 'Alpha' });
+    const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    const startPosition = readNodePosition(hitTarget);
+
+    fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 12 });
+    fireEvent.pointerMove(canvas, { clientX: 140, clientY: 120, pointerId: 12 });
+    act(() => scheduledFrame?.(performance.now()));
+    expect(readNodePosition(hitTarget)).not.toEqual(startPosition);
+    fireEvent.lostPointerCapture(canvas, { pointerId: 12 });
+
+    expect(readNodePosition(hitTarget)).toEqual(startPosition);
     expect(onOpenPath).not.toHaveBeenCalled();
     expect(onPositionCommit).not.toHaveBeenCalled();
   });
@@ -177,11 +242,11 @@ describe('GraphCanvas', () => {
     let scheduledFrame: FrameRequestCallback | null = null;
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       scheduledFrame = callback;
-      return 42;
+      return 100_042;
     });
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
+    const node = screen.getByRole('option', { name: 'Alpha' });
     const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
 
     fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 4 });
     for (let offset = 1; offset <= 20; offset += 1) {
@@ -193,9 +258,10 @@ describe('GraphCanvas', () => {
     expect(readNodePosition(hitTarget).x).toBeGreaterThan(100);
   });
 
-  it('opens on click and supports keyboard nudging', () => {
+  it('opens on click and reserves plain arrows for navigation', () => {
     const onOpenPath = vi.fn();
     const onPositionCommit = vi.fn();
+    const onSelectPath = vi.fn();
     render(
       <GraphCanvas
         graph={graph}
@@ -204,24 +270,224 @@ describe('GraphCanvas', () => {
         onOpenPath={onOpenPath}
         onPositionCommit={onPositionCommit}
         onPositionsCommit={vi.fn()}
+        onSelectPath={onSelectPath}
+      />,
+    );
+
+    const node = screen.getByRole('option', { name: 'Alpha' });
+    const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 5 });
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 5 });
+    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    fireEvent.doubleClick(node);
+    fireEvent.keyDown(node, { key: 'Enter' });
+    expect(onOpenPath).toHaveBeenCalledTimes(3);
+    expect(onOpenPath).toHaveBeenLastCalledWith('Alpha.md');
+
+    const currentPosition = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
+    const { x: currentX, y: currentY } = readNodePosition(currentPosition);
+    const betaPosition = readNodePosition(screen.getByRole('option', { name: 'Beta' }));
+    fireEvent.keyDown(node, { key: 'ArrowRight' });
+    expect(onSelectPath).toHaveBeenLastCalledWith('Beta.md');
+    expect(onPositionCommit).not.toHaveBeenCalled();
+    fireEvent.keyDown(node, { altKey: true, key: 'ArrowRight' });
+    fireEvent.keyDown(node, { altKey: true, key: 'ArrowRight' });
+    expect(onPositionCommit).toHaveBeenLastCalledWith('Alpha.md', {
+      x: currentX + 4,
+      y: currentY,
+    });
+    expect(readNodePosition(currentPosition)).toEqual({ x: currentX + 4, y: currentY });
+    expect(canvas.querySelector('[data-graph-edge-layer="base"]')).toHaveAttribute(
+      'd',
+      `M${currentX + 4},${currentY}L${betaPosition.x},${betaPosition.y}`,
+    );
+  });
+
+  it('ignores pointer events from a different active pointer', () => {
+    const onOpenPath = vi.fn();
+    const onSelectPath = vi.fn();
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={onOpenPath}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={onSelectPath}
+      />,
+    );
+
+    const node = screen.getByRole('option', { name: 'Alpha' });
+    const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 21 });
+    fireEvent.pointerMove(canvas, { clientX: 160, clientY: 100, pointerId: 22 });
+    fireEvent.pointerUp(canvas, { clientX: 160, clientY: 100, pointerId: 22 });
+
+    expect(onOpenPath).not.toHaveBeenCalled();
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 21 });
+    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    expect(onSelectPath).not.toHaveBeenCalled();
+  });
+
+  it('cancels an active drag when the graph topology changes', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    const expandedNodes = [
+      { ...graph.nodes[0]! },
+      { ...graph.nodes[1]!, degree: 2 },
+      { ...graph.nodes[2]! },
+      { id: 'Delta.md', label: 'Delta', degree: 1, x: 700, y: 100 },
+    ];
+    const expandedGraph: PositionedNoteGraph = {
+      focusNodeId: 'Alpha.md',
+      nodes: expandedNodes,
+      edges: [
+        { source: expandedNodes[0]!, target: expandedNodes[1]! },
+        { source: expandedNodes[1]!, target: expandedNodes[3]! },
+      ],
+    };
+    const onOpenPath = vi.fn();
+    const onPositionCommit = vi.fn();
+    const onPositionsCommit = vi.fn();
+    const view = render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={onOpenPath}
+        onPositionCommit={onPositionCommit}
+        onPositionsCommit={onPositionsCommit}
+        onSelectPath={vi.fn()}
+      />,
+    );
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    const hitTarget = screen.getByRole('option', { name: 'Alpha' })
+      .querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
+    const startPosition = readNodePosition(hitTarget);
+    onPositionsCommit.mockClear();
+    let pointerFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      pointerFrame = callback;
+      return 100_044;
+    });
+
+    fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 23 });
+    expect(canvas.querySelector('[data-graph-edge-layer="base"]'))
+      .toHaveAttribute('stroke-opacity', '0');
+    fireEvent.pointerMove(canvas, { clientX: 140, clientY: 120, pointerId: 23 });
+    act(() => pointerFrame?.(performance.now()));
+    expect(readNodePosition(hitTarget)).not.toEqual(startPosition);
+
+    view.rerender(
+      <GraphCanvas
+        graph={expandedGraph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={onOpenPath}
+        onPositionCommit={onPositionCommit}
+        onPositionsCommit={onPositionsCommit}
         onSelectPath={vi.fn()}
       />,
     );
 
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
-    const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
-    fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 5 });
-    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 5 });
-    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    expect(canvas.querySelector('[data-graph-edge-layer="base"]'))
+      .toHaveAttribute('stroke-opacity', String(themeGraphTokens.edgeOpacity));
+    expect(readNodePosition(hitTarget)).toEqual(startPosition);
+    expect(onPositionsCommit).toHaveBeenCalled();
+    expect(onPositionsCommit.mock.lastCall?.[0]?.['Alpha.md']).toEqual(startPosition);
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 23 });
+    expect(onOpenPath).not.toHaveBeenCalled();
+    expect(onPositionCommit).not.toHaveBeenCalled();
+  });
 
-    const currentPosition = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const { x: currentX, y: currentY } = readNodePosition(currentPosition);
-    fireEvent.keyDown(node, { key: 'ArrowRight' });
-    expect(onPositionCommit).toHaveBeenCalledWith('Alpha.md', {
-      x: currentX + 2,
-      y: currentY,
-    });
+  it('preserves a user-positioned viewport while the graph view is inactive', () => {
+    const runFrames = mockAnimationFrameQueue();
+    const positionOverrides = {
+      'Alpha.md': { x: 100, y: 100 },
+      'Beta.md': { x: 300, y: 100 },
+      'Gamma.md': { x: 500, y: 100 },
+    };
+    const renderCanvas = (active: boolean) => (
+      <GraphCanvas
+        active={active}
+        graph={graph}
+        positionOverrides={positionOverrides}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />
+    );
+    const view = render(renderCanvas(true));
+    act(() => runFrames(performance.now()));
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    const scene = canvas.querySelector(':scope > g')!;
+
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 20, pointerId: 24 });
+    fireEvent.pointerMove(canvas, { clientX: 100, clientY: 70, pointerId: 24 });
+    act(() => runFrames(performance.now()));
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 70, pointerId: 24 });
+    const positionedTransform = scene.getAttribute('transform');
+
+    view.rerender(renderCanvas(false));
+    act(() => runFrames(performance.now()));
+    view.rerender(renderCanvas(true));
+    act(() => runFrames(performance.now()));
+
+    expect(scene).toHaveAttribute('transform', positionedTransform);
+  });
+
+  it('preserves a user-positioned viewport across background topology updates', () => {
+    const runFrames = mockAnimationFrameQueue();
+    const positionOverrides = {
+      'Alpha.md': { x: 100, y: 100 },
+      'Beta.md': { x: 300, y: 100 },
+      'Gamma.md': { x: 500, y: 100 },
+    };
+    const view = render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={positionOverrides}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+    act(() => runFrames(performance.now()));
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    const scene = canvas.querySelector(':scope > g')!;
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 20, pointerId: 25 });
+    fireEvent.pointerMove(canvas, { clientX: 90, clientY: 60, pointerId: 25 });
+    act(() => runFrames(performance.now()));
+    fireEvent.pointerUp(canvas, { clientX: 90, clientY: 60, pointerId: 25 });
+    const positionedTransform = scene.getAttribute('transform');
+    const nextGraph: PositionedNoteGraph = {
+      ...graph,
+      edges: [
+        ...graph.edges,
+        { source: graph.nodes[1]!, target: graph.nodes[2]! },
+      ],
+    };
+
+    view.rerender(
+      <GraphCanvas
+        graph={nextGraph}
+        positionOverrides={positionOverrides}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+    act(() => runFrames(performance.now()));
+
+    expect(scene).toHaveAttribute('transform', positionedTransform);
   });
 
   it('highlights a hovered node and its incident edges', () => {
@@ -237,10 +503,10 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const alpha = screen.getByRole('button', { name: 'Alpha, 1' });
-    const gamma = screen.getByRole('button', { name: 'Gamma, 0' });
+    const alpha = screen.getByRole('option', { name: 'Alpha' });
+    const gamma = screen.getByRole('option', { name: 'Gamma' });
     const visibleNode = alpha.querySelectorAll('circle')[1]!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const edge = canvas.querySelector('[data-graph-edge-layer="base"]')!;
     const activeEdge = canvas.querySelector('[data-graph-edge-layer="active"]')!;
     expect(visibleNode).toHaveClass('fill-[var(--vlaina-color-graph-node)]');
@@ -253,30 +519,86 @@ describe('GraphCanvas', () => {
     fireEvent.mouseEnter(alpha);
 
     expect(visibleNode).toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
-    expect(screen.getByRole('button', { name: 'Beta, 1' }).querySelectorAll('circle')[1]).toHaveStyle({ opacity: '1' });
+    expect(screen.getByRole('option', { name: 'Beta' }).querySelectorAll('circle')[1]).toHaveStyle({ opacity: '1' });
     expect(activeEdge).toHaveAttribute('stroke', 'var(--vlaina-color-graph-edge-active)');
     expect(activeEdge.getAttribute('d')).not.toBe('');
     expect(activeEdge).toHaveAttribute('opacity', '1');
   });
 
-  it('shows hovered and directly connected labels below the global label zoom', () => {
+  it('clears hover state when a graph changes and does not resurrect it when returning', () => {
+    const alternateGraph: PositionedNoteGraph = {
+      focusNodeId: 'Alpha.md',
+      nodes: [
+        { id: 'Alpha.md', label: 'Alpha', degree: 0, x: 100, y: 100 },
+        { id: 'Delta.md', label: 'Delta', degree: 0, x: 300, y: 100 },
+      ],
+      edges: [],
+    };
+    const view = render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+    expect(screen.getByRole('option', { name: 'Alpha' }).querySelectorAll('circle')[1])
+      .toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
+
+    view.rerender(
+      <GraphCanvas
+        graph={alternateGraph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+    view.rerender(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('option', { name: 'Alpha' }).querySelectorAll('circle')[1])
+      .toHaveClass('fill-[var(--vlaina-color-graph-node)]');
+  });
+
+  it('shows hovered and directly connected labels while zoomed out', () => {
     render(
       <svg>
         <GraphCanvasScene
-          connectedToSelected={new Set()}
+          currentPath={null}
           dragPositionId={null}
           edges={graph.edges}
+          focusablePath="Alpha.md"
           hoveredPath="Alpha.md"
+          labelLayoutRevision={0}
           labelsReady
           nodes={graph.nodes}
           onHoverChange={vi.fn()}
           onFocusChange={vi.fn()}
+          onNavigate={vi.fn()}
           onOpen={vi.fn()}
-          onPositionCommit={vi.fn()}
+          onPositionNudge={vi.fn()}
           onSelect={vi.fn()}
           onStartDrag={vi.fn()}
           selectedPath={null}
           viewport={{ x: 0, y: 0, zoom: 0.5 }}
+          viewportSize={{ x: 800, y: 600 }}
         />
       </svg>,
     );
@@ -286,7 +608,51 @@ describe('GraphCanvas', () => {
     expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
   });
 
-  it('shows high-degree overview labels at an intermediate zoom', () => {
+  it('limits context labels without dropping highlighted edges for a high-degree node', () => {
+    const hub = { id: 'Hub.md', label: 'Hub', degree: 24, x: 0, y: 0 };
+    const neighbors = Array.from({ length: 24 }, (_, index) => ({
+      id: `Neighbor-${index}.md`,
+      label: `Neighbor ${index}`,
+      degree: index + 1,
+      x: index * 20 + 20,
+      y: 100,
+    }));
+    const nodes = [hub, ...neighbors];
+    const edges = neighbors.map((neighbor) => ({ source: hub, target: neighbor }));
+    const view = render(
+      <svg>
+        <GraphCanvasScene
+          currentPath={null}
+          dragPositionId={null}
+          edges={edges}
+          focusablePath="Hub.md"
+          hoveredPath="Hub.md"
+          labelLayoutRevision={0}
+          labelsReady
+          nodes={nodes}
+          onHoverChange={vi.fn()}
+          onFocusChange={vi.fn()}
+          onNavigate={vi.fn()}
+          onOpen={vi.fn()}
+          onPositionNudge={vi.fn()}
+          onSelect={vi.fn()}
+          onStartDrag={vi.fn()}
+          selectedPath={null}
+          viewport={{ x: 0, y: 0, zoom: 0.5 }}
+          viewportSize={{ x: 800, y: 600 }}
+        />
+      </svg>,
+    );
+
+    const labelCount = view.container.querySelectorAll('[data-graph-node-label="true"]').length;
+    expect(labelCount).toBeGreaterThan(1);
+    expect(labelCount).toBeLessThan(8);
+    const activePath = view.container.querySelector('[data-graph-edge-layer="active"]')
+      ?.getAttribute('d') ?? '';
+    expect(activePath.match(/M/g)).toHaveLength(edges.length);
+  });
+
+  it('uses free space for lower-degree labels at an intermediate zoom', () => {
     const overviewNodes = graph.nodes.map((node, index) => ({
       ...node,
       degree: [6, 3, 1][index]!,
@@ -294,27 +660,96 @@ describe('GraphCanvas', () => {
     render(
       <svg>
         <GraphCanvasScene
-          connectedToSelected={new Set()}
+          currentPath={null}
           dragPositionId={null}
           edges={[{ source: overviewNodes[0]!, target: overviewNodes[1]! }]}
+          focusablePath="Alpha.md"
           hoveredPath={null}
+          labelLayoutRevision={0}
           labelsReady
           nodes={overviewNodes}
           onHoverChange={vi.fn()}
           onFocusChange={vi.fn()}
+          onNavigate={vi.fn()}
           onOpen={vi.fn()}
-          onPositionCommit={vi.fn()}
+          onPositionNudge={vi.fn()}
           onSelect={vi.fn()}
           onStartDrag={vi.fn()}
           selectedPath={null}
           viewport={{ x: 0, y: 0, zoom: 0.6 }}
+          viewportSize={{ x: 800, y: 600 }}
         />
       </svg>,
     );
 
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('Beta')).toBeInTheDocument();
-    expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+    expect(screen.getByText('Gamma')).toBeInTheDocument();
+  });
+
+  it('recomputes label visibility when the viewport is panned', () => {
+    const edgeNode: PositionedGraphNode = {
+      id: 'Edge.md',
+      label: 'Edge',
+      degree: 1,
+      x: 100,
+      y: 100,
+    };
+    const sceneProps = {
+      currentPath: null,
+      dragPositionId: null,
+      edges: [],
+      focusablePath: 'Edge.md',
+      labelsReady: true,
+      nodes: [edgeNode],
+      onHoverChange: vi.fn(),
+      onFocusChange: vi.fn(),
+      onNavigate: vi.fn(),
+      onOpen: vi.fn(),
+      onPositionNudge: vi.fn(),
+      onSelect: vi.fn(),
+      onStartDrag: vi.fn(),
+      selectedPath: null,
+      viewportSize: { x: 200, y: 200 },
+    };
+    const view = render(
+      <svg>
+        <GraphCanvasScene
+          {...sceneProps}
+          hoveredPath={null}
+          labelLayoutRevision={0}
+          viewport={{ x: 0, y: 0, zoom: 1 }}
+        />
+      </svg>,
+    );
+
+    expect(screen.getByText('Edge')).toBeInTheDocument();
+
+    view.rerender(
+      <svg>
+        <GraphCanvasScene
+          {...sceneProps}
+          hoveredPath={null}
+          labelLayoutRevision={0}
+          viewport={{ x: 0, y: -130, zoom: 1 }}
+        />
+      </svg>,
+    );
+
+    expect(screen.getByText('Edge')).toBeInTheDocument();
+
+    view.rerender(
+      <svg>
+        <GraphCanvasScene
+          {...sceneProps}
+          hoveredPath={null}
+          labelLayoutRevision={1}
+          viewport={{ x: 0, y: -130, zoom: 1 }}
+        />
+      </svg>,
+    );
+
+    expect(screen.queryByText('Edge')).not.toBeInTheDocument();
   });
 
   it('focuses the selected node and its direct connections', () => {
@@ -330,10 +765,10 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
-    const alphaDot = screen.getByRole('button', { name: 'Alpha, 1' }).querySelectorAll('circle')[1]!;
-    const betaDot = screen.getByRole('button', { name: 'Beta, 1' }).querySelectorAll('circle')[1]!;
-    const gammaDot = screen.getByRole('button', { name: 'Gamma, 0' }).querySelectorAll('circle')[1]!;
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    const alphaDot = screen.getByRole('option', { name: 'Alpha' }).querySelectorAll('circle')[1]!;
+    const betaDot = screen.getByRole('option', { name: 'Beta' }).querySelectorAll('circle')[1]!;
+    const gammaDot = screen.getByRole('option', { name: 'Gamma' }).querySelectorAll('circle')[1]!;
     const baseEdge = canvas.querySelector('[data-graph-edge-layer="base"]')!;
     const activeEdge = canvas.querySelector('[data-graph-edge-layer="active"]')!;
 
@@ -345,6 +780,45 @@ describe('GraphCanvas', () => {
     expect(baseEdge).toHaveAttribute('stroke-opacity', '0.14');
     expect(activeEdge.getAttribute('d')).not.toBe('');
     expect(activeEdge).toHaveAttribute('opacity', '1');
+  });
+
+  it('keeps the selected node prominent while another branch is hovered', () => {
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath="Gamma.md"
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+
+    const selectedDot = screen.getByRole('option', { name: 'Gamma' }).querySelectorAll('circle')[1]!;
+    expect(selectedDot).toHaveStyle({ opacity: '1' });
+  });
+
+  it('keeps the current note prominent while another branch is hovered', () => {
+    render(
+      <GraphCanvas
+        currentPath="Gamma.md"
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+
+    const currentDot = screen.getByRole('option', { name: 'Gamma' }).querySelectorAll('circle')[1]!;
+    expect(currentDot).toHaveStyle({ opacity: '1' });
   });
 
   it('keeps a partial saved position fixed during initial stabilization', () => {
@@ -360,7 +834,7 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
+    const node = screen.getByRole('option', { name: 'Alpha' });
     const position = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
     expect(readNodePosition(position)).toEqual({ x: 180, y: 160 });
   });
@@ -379,7 +853,7 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
+    const node = screen.getByRole('option', { name: 'Alpha' });
     const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
     const clusteredPosition = readNodePosition(hitTarget);
     expect(clusteredPosition).not.toEqual({ x: 100, y: 100 });
@@ -397,16 +871,49 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    await waitFor(() => expect(readNodePosition(hitTarget)).not.toEqual(clusteredPosition));
+    await waitFor(
+      () => expect(readNodePosition(hitTarget)).not.toEqual(clusteredPosition),
+      { timeout: 3_000 },
+    );
   });
 
-  it('moves saved nodes and their edges outward in the same animation frames', () => {
-    const frames: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      frames.push(callback);
-      return frames.length;
-    });
+  it('accepts the first hover after returning from an inactive view', () => {
     const view = render(
+      <GraphCanvas
+        active={false}
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+    view.rerender(
+      <GraphCanvas
+        active
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    const alpha = screen.getByRole('option', { name: 'Alpha' });
+    fireEvent.mouseEnter(alpha);
+
+    expect(alpha.querySelectorAll('circle')[1]).toHaveClass(
+      'fill-[var(--vlaina-color-graph-node-active)]',
+    );
+  });
+
+  it('renders a complete saved layout directly without replaying spatial motion', () => {
+    const runFrames = mockAnimationFrameQueue();
+    render(
       <GraphCanvas
         active={false}
         graph={graph}
@@ -423,17 +930,19 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const alpha = screen.getByRole('button', { name: 'Alpha, 1' });
+    const alpha = screen.getByRole('option', { name: 'Alpha' });
     const hitTarget = alpha.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const edge = screen.getByRole('img', { name: 'app.viewGraph' })
+    const edge = screen.getByRole('group', { name: 'app.viewGraph' })
       .querySelector('[data-graph-edge-layer="base"]')!;
-    const clusteredPosition = readNodePosition(hitTarget);
-    const clusteredEdge = edge.getAttribute('d');
-    expect(clusteredPosition).not.toEqual({ x: 100, y: 100 });
+    expect(readNodePosition(hitTarget)).toEqual({ x: 100, y: 100 });
+    expect(edge).toHaveAttribute('d', 'M100,100L300,100');
+    act(() => runFrames(performance.now() + 1_000));
+    expect(readNodePosition(hitTarget)).toEqual({ x: 100, y: 100 });
+  });
 
-    view.rerender(
+  it('synchronizes node and edge geometry when saved positions change in place', () => {
+    const view = render(
       <GraphCanvas
-        active
         graph={graph}
         positionOverrides={{
           'Alpha.md': { x: 100, y: 100 },
@@ -448,20 +957,35 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    act(() => {
-      const now = performance.now() + 100;
-      frames.splice(0).forEach((callback) => callback(now));
+    view.rerender(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{
+          'Alpha.md': { x: 180, y: 160 },
+          'Beta.md': { x: 300, y: 100 },
+          'Gamma.md': { x: 500, y: 100 },
+        }}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    expect(readNodePosition(screen.getByRole('option', { name: 'Alpha' }))).toEqual({
+      x: 180,
+      y: 160,
     });
-    expect(readNodePosition(hitTarget)).not.toEqual(clusteredPosition);
-    expect(edge.getAttribute('d')).not.toBe(clusteredEdge);
+    expect(canvas.querySelector('[data-graph-edge-layer="base"]')).toHaveAttribute(
+      'd',
+      'M180,160L300,100',
+    );
   });
 
   it('keeps shared node positions when switching to a local graph', () => {
-    const frames: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      frames.push(callback);
-      return frames.length;
-    });
+    const runFrames = mockAnimationFrameQueue();
     const positionOverrides = {
       'Alpha.md': { x: 100, y: 100 },
       'Beta.md': { x: 300, y: 100 },
@@ -480,7 +1004,7 @@ describe('GraphCanvas', () => {
     );
     act(() => {
       const now = performance.now() + 1_000;
-      frames.splice(0).forEach((callback) => callback(now));
+      runFrames(now);
     });
 
     const localGraph: PositionedNoteGraph = {
@@ -500,8 +1024,8 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    expect(readNodePosition(screen.getByRole('button', { name: 'Alpha, 1' }))).toEqual({ x: 100, y: 100 });
-    expect(readNodePosition(screen.getByRole('button', { name: 'Beta, 1' }))).toEqual({ x: 300, y: 100 });
+    expect(readNodePosition(screen.getByRole('option', { name: 'Alpha' }))).toEqual({ x: 100, y: 100 });
+    expect(readNodePosition(screen.getByRole('option', { name: 'Beta' }))).toEqual({ x: 300, y: 100 });
 
     view.rerender(
       <GraphCanvas
@@ -515,9 +1039,9 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    expect(readNodePosition(screen.getByRole('button', { name: 'Alpha, 1' }))).toEqual({ x: 100, y: 100 });
-    expect(readNodePosition(screen.getByRole('button', { name: 'Beta, 1' }))).toEqual({ x: 300, y: 100 });
-    expect(readNodePosition(screen.getByRole('button', { name: 'Gamma, 0' }))).toEqual({ x: 500, y: 100 });
+    expect(readNodePosition(screen.getByRole('option', { name: 'Alpha' }))).toEqual({ x: 100, y: 100 });
+    expect(readNodePosition(screen.getByRole('option', { name: 'Beta' }))).toEqual({ x: 300, y: 100 });
+    expect(readNodePosition(screen.getByRole('option', { name: 'Gamma' }))).toEqual({ x: 500, y: 100 });
   });
 
   it('pans the canvas and zooms around the pointer', () => {
@@ -533,7 +1057,7 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const content = canvas.querySelector('g')!;
     const before = content.getAttribute('transform');
     fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 20, pointerId: 2 });
@@ -545,7 +1069,7 @@ describe('GraphCanvas', () => {
     const zoomFrames: FrameRequestCallback[] = [];
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       zoomFrames.push(callback);
-      return 84 + zoomFrames.length;
+      return 100_084 + zoomFrames.length;
     });
     fireEvent.wheel(canvas, { clientX: 400, clientY: 300, deltaY: -120 });
     const framesAfterFirstWheel = requestFrame.mock.calls.length;
@@ -553,6 +1077,33 @@ describe('GraphCanvas', () => {
     expect(requestFrame).toHaveBeenCalledTimes(framesAfterFirstWheel);
     act(() => zoomFrames.forEach((callback) => callback(performance.now())));
     expect(content.getAttribute('transform')).not.toBe(afterPan);
+  });
+
+  it('clears stale node hover when wheel zoom moves the graph', () => {
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    const node = screen.getByRole('option', { name: 'Alpha' });
+    const dot = node.querySelectorAll('circle')[1]!;
+    fireEvent.mouseEnter(node);
+    expect(dot).toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
+
+    fireEvent.wheel(screen.getByRole('group', { name: 'app.viewGraph' }), {
+      clientX: 400,
+      clientY: 300,
+      deltaY: -120,
+    });
+
+    expect(dot).toHaveClass('fill-[var(--vlaina-color-graph-node)]');
   });
 
   it('clears the selection when the canvas is clicked', () => {
@@ -569,7 +1120,7 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 20, pointerId: 8 });
     fireEvent.pointerUp(canvas, { clientX: 20, clientY: 20, pointerId: 8 });
 
@@ -589,9 +1140,9 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const node = screen.getByRole('button', { name: 'Alpha, 1' });
+    const node = screen.getByRole('option', { name: 'Alpha' });
     const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
-    const canvas = screen.getByRole('img', { name: 'app.viewGraph' });
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const baseEdge = canvas.querySelector('[data-graph-edge-layer="base"]')!;
     fireEvent.mouseEnter(node);
     fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 9 });
@@ -615,7 +1166,7 @@ describe('GraphCanvas', () => {
         onSelectPath={vi.fn()}
       />,
     );
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Alpha, 1' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
 
     const replacementGraph: PositionedNoteGraph = {
       focusNodeId: 'Delta.md',
@@ -641,11 +1192,244 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    const dots = screen.getByRole('img', { name: 'app.viewGraph' })
+    const dots = screen.getByRole('group', { name: 'app.viewGraph' })
       .querySelectorAll('.vlaina-graph-node-dot');
     expect(dots).toHaveLength(2);
     expect(dots[0]).toHaveStyle({ opacity: '1' });
     expect(dots[1]).toHaveStyle({ opacity: '1' });
+  });
+
+  it('marks the current note and exposes one roving tab stop', () => {
+    render(
+      <GraphCanvas
+        currentPath="Beta.md"
+        graph={graph}
+        positionOverrides={{
+          'Alpha.md': { x: 100, y: 100 },
+          'Beta.md': { x: 300, y: 100 },
+          'Gamma.md': { x: 500, y: 100 },
+        }}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    const nodes = screen.getAllByRole('option');
+    expect(nodes.filter((node) => node.getAttribute('tabindex') === '0')).toHaveLength(1);
+    expect(screen.getByRole('option', { name: 'Beta' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('option', { name: 'Beta' })
+      .querySelector('[data-graph-current-note="true"]')).toBeInTheDocument();
+  });
+
+  it('keeps the current-note ring visible around an active high-degree node', () => {
+    const highDegreeGraph: PositionedNoteGraph = {
+      focusNodeId: 'Current.md',
+      nodes: [{ id: 'Current.md', label: 'Current', degree: 100, x: 400, y: 300 }],
+      edges: [],
+    };
+    render(
+      <GraphCanvas
+        currentPath="Current.md"
+        graph={highDegreeGraph}
+        positionOverrides={{ 'Current.md': { x: 400, y: 300 } }}
+        selectedPath="Current.md"
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    const graphNode = screen.getByRole('option', { name: 'Current' });
+    const dot = graphNode.querySelector('.vlaina-graph-node-dot')!;
+    const ring = graphNode.querySelector('[data-graph-current-note="true"]')!;
+    expect(dot.compareDocumentPosition(ring) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ring).toHaveAttribute('r', String(themeGraphTokens.currentNodeRingRadiusPx));
+  });
+
+  it('opens a node for an assistive-technology click and toggles keyboard selection', () => {
+    const onOpenPath = vi.fn();
+    const onSelectPath = vi.fn();
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{}}
+        selectedPath="Alpha.md"
+        onOpenPath={onOpenPath}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={onSelectPath}
+      />,
+    );
+    const node = screen.getByRole('option', { name: 'Alpha' });
+
+    fireEvent.click(node, { detail: 0 });
+    fireEvent.keyDown(node, { key: ' ' });
+    fireEvent.keyDown(node, { key: 'Escape' });
+
+    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    expect(onSelectPath).toHaveBeenCalledWith(null);
+  });
+
+  it('treats a visible label as part of the node hit target', () => {
+    const onOpenPath = vi.fn();
+    const onSelectPath = vi.fn();
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{
+          'Alpha.md': { x: 100, y: 100 },
+          'Beta.md': { x: 300, y: 100 },
+          'Gamma.md': { x: 500, y: 100 },
+        }}
+        selectedPath={null}
+        onOpenPath={onOpenPath}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={onSelectPath}
+      />,
+    );
+
+    const label = screen.getByText('Alpha');
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    fireEvent.pointerDown(label, { button: 0, clientX: 100, clientY: 100, pointerId: 31 });
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 31 });
+
+    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    expect(onSelectPath).not.toHaveBeenCalled();
+  });
+
+  it('opens the closest node when low-zoom hit targets overlap', () => {
+    const closeGraph: PositionedNoteGraph = {
+      focusNodeId: 'Alpha.md',
+      nodes: [
+        { id: 'Alpha.md', label: 'Alpha', degree: 1, x: 100, y: 100 },
+        { id: 'Beta.md', label: 'Beta', degree: 1, x: 118, y: 100 },
+      ],
+      edges: [],
+    };
+    const onOpenPath = vi.fn();
+    const onSelectPath = vi.fn();
+    render(
+      <GraphCanvas
+        graph={closeGraph}
+        positionOverrides={{
+          'Alpha.md': { x: 100, y: 100 },
+          'Beta.md': { x: 118, y: 100 },
+        }}
+        selectedPath={null}
+        onOpenPath={onOpenPath}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={onSelectPath}
+      />,
+    );
+
+    const betaHitTarget = document.querySelector('[data-graph-node-hit-target="Beta.md"]')!;
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    fireEvent.mouseEnter(betaHitTarget, { clientX: 100, clientY: 100 });
+    expect(screen.getByRole('option', { name: 'Alpha' }).querySelectorAll('circle')[1])
+      .toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
+
+    fireEvent.pointerDown(betaHitTarget, {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+      pointerId: 32,
+    });
+    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 32 });
+
+    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    expect(onOpenPath).not.toHaveBeenCalledWith('Beta.md');
+    expect(onSelectPath).not.toHaveBeenCalled();
+  });
+
+  it('reuses the whiteboard viewport controls at the bottom-left', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 600,
+      height: 600,
+      left: 0,
+      right: 200,
+      top: 0,
+      width: 200,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{
+          'Alpha.md': { x: 100, y: 100 },
+          'Beta.md': { x: 300, y: 100 },
+          'Gamma.md': { x: 500, y: 100 },
+        }}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.zoomIn' }));
+    const percentage = screen.getByRole('button', { name: '125%' });
+    const controls = percentage.closest('.absolute');
+    const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
+    expect(controls).toHaveClass('bottom-4', 'left-3');
+    expect(controls?.querySelectorAll('button')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: 'whiteboard.fitView' })).toBeInTheDocument();
+    expect(canvas).toHaveClass('active:cursor-grabbing');
+    fireEvent.click(percentage);
+    const resetPercentage = screen.getByRole('button', { name: '100%' });
+    fireEvent.wheel(resetPercentage, { deltaY: -1 });
+    expect(screen.getByRole('button', { name: '125%' })).toBeInTheDocument();
+  });
+
+  it('does not move the viewport when a transient scan overlay appears', () => {
+    const runFrames = mockAnimationFrameQueue();
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: true }));
+    const sharedProps = {
+      graph,
+      positionOverrides: {
+        'Alpha.md': { x: 100, y: 100 },
+        'Beta.md': { x: 300, y: 100 },
+        'Gamma.md': { x: 500, y: 100 },
+      },
+      selectedPath: null,
+      onOpenPath: vi.fn(),
+      onPositionCommit: vi.fn(),
+      onPositionsCommit: vi.fn(),
+      onSelectPath: vi.fn(),
+    };
+    const view = render(<GraphCanvas {...sharedProps} topOverlayVisible={false} />);
+    act(() => runFrames(1000));
+    const scene = screen.getByRole('listbox');
+    const initialTransform = scene.getAttribute('transform');
+
+    view.rerender(<GraphCanvas {...sharedProps} topOverlayVisible />);
+    act(() => runFrames(1016));
+
+    expect(scene).toHaveAttribute('transform', initialTransform);
+  });
+
+  it('reserves the reused whiteboard controls area on the lower left for labels', () => {
+    expect(getGraphLabelExclusionBounds({ x: 200, y: 600 }, false)).toEqual([{
+      bottom: 600 - themeGraphTokens.viewportControlsVerticalOffsetPx,
+      left: themeGraphTokens.viewportControlsHorizontalOffsetPx,
+      right: Math.min(
+        200,
+        themeGraphTokens.viewportControlsHorizontalOffsetPx
+          + themeGraphTokens.viewportControlsWidthPx,
+      ),
+      top: 600
+        - themeGraphTokens.viewportControlsVerticalOffsetPx
+        - themeGraphTokens.viewportControlsHeightPx,
+    }]);
   });
 
 });

@@ -117,6 +117,7 @@ export interface NoteContentCacheEntry {
 
 export interface ScanAllNotesOptions {
   background?: boolean;
+  rejectOnCancel?: boolean;
   signal?: AbortSignal;
   priorityPaths?: readonly string[];
   onPriorityPathsScanned?: () => void;

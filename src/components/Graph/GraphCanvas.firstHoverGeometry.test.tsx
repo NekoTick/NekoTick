@@ -79,9 +79,9 @@ describe('GraphCanvas first hover geometry', () => {
     latestPositions['Beta.md'] = { x: 460, y: 260 };
     act(() => forceMock.onPositionsFrame?.(latestPositions));
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Alpha, 1' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
 
-    const activeEdge = screen.getByRole('img', { name: 'app.viewGraph' })
+    const activeEdge = screen.getByRole('group', { name: 'app.viewGraph' })
       .querySelector('[data-graph-edge-layer="active"]');
     expect(activeEdge).toHaveAttribute('opacity', '1');
     expect(activeEdge).toHaveAttribute('d', 'M220,180L460,260');

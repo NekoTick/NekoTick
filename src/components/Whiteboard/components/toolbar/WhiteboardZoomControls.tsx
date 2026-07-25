@@ -38,7 +38,7 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
     <div className="app-no-drag pointer-events-auto absolute bottom-4 left-3 z-[var(--vlaina-z-50)]">
       <WhiteboardToolbarGroup
         className={cn(
-          'h-10 gap-1 rounded-[var(--vlaina-radius-8px)] px-1',
+          'h-10 gap-1 rounded-[var(--vlaina-radius-8px)] px-1 [&:has([data-whiteboard-zoom-percentage]:hover)]:!shadow-none [&:has([data-whiteboard-zoom-percentage]:hover)]:!transition-none',
           whiteboardFloatingPanelClassName,
         )}
       >
@@ -46,10 +46,11 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
         <WhiteboardToolbarButton icon="common.remove" label={t('whiteboard.zoomOut')} onClick={() => onZoomChange(-themeWhiteboardTokens.zoomStep)} />
         <button
           type="button"
+          data-whiteboard-zoom-percentage="true"
           aria-label={`${Math.round(viewport.zoom * 100)}%`}
           onClick={onResetView}
           onWheel={handleZoomWheel}
-          className="h-8 min-w-[var(--vlaina-size-48px)] cursor-pointer rounded-[var(--vlaina-radius-4px)] px-1 text-center text-[var(--vlaina-font-13)] font-medium tabular-nums text-[var(--vlaina-color-text-secondary)] hover:bg-[var(--vlaina-color-control-hover-bg)] hover:text-[var(--vlaina-color-control-hover-fg)]"
+          className="h-8 min-w-[var(--vlaina-size-48px)] cursor-pointer rounded-[var(--vlaina-radius-4px)] px-1 text-center text-[var(--vlaina-font-13)] font-medium tabular-nums text-[var(--vlaina-color-text-secondary)] shadow-none hover:bg-[var(--vlaina-color-control-hover-bg)] hover:text-[var(--vlaina-color-control-hover-fg)] hover:shadow-none"
         >
           {Math.round(viewport.zoom * 100)}%
         </button>
@@ -57,4 +58,10 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
       </WhiteboardToolbarGroup>
     </div>
   );
-});
+}, (previous, next) => (
+  previous.active === next.active
+  && previous.onFitView === next.onFitView
+  && previous.onResetView === next.onResetView
+  && previous.onZoomChange === next.onZoomChange
+  && Math.round(previous.viewport.zoom * 100) === Math.round(next.viewport.zoom * 100)
+));

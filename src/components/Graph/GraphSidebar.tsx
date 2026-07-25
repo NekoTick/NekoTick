@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
+import { Icon } from '@/components/ui/icons';
 import { AppViewModeSwitch } from '@/components/layout/sidebar/AppViewModeSwitch';
 import {
   SidebarSearchDrawer,
@@ -7,6 +8,7 @@ import {
 } from '@/components/layout/sidebar/SidebarSearchDrawer';
 import {
   SidebarActionGroup,
+  SidebarActionButton,
   SidebarCapsulePanel,
   SidebarList,
   SidebarScrollArea,
@@ -25,6 +27,7 @@ import { useGraphUIStore, type GraphMode } from './store/useGraphUIStore';
 
 const GRAPH_MODES: GraphMode[] = ['all', 'local'];
 const MAX_GRAPH_SEARCH_RESULTS = 80;
+const GRAPH_SEARCH_RESULTS_ID = 'graph-search-results';
 
 export function GraphSidebar({ active = true }: { active?: boolean }) {
   const { t } = useI18n();
@@ -32,8 +35,15 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
   const setMode = useGraphUIStore((state) => state.setMode);
   const setSearchQuery = useGraphUIStore((state) => state.setSearchQuery);
   const setSelectedPath = useGraphUIStore((state) => state.setSelectedPath);
-  const { focusPath, fullGraph, mode } = useNoteGraphModel(active);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const {
+    focusPath,
+    fullGraph,
+    mode,
+    searchNodes,
+    visibleGraph,
+  } = useNoteGraphModel(active, { includeSearchNodes: isSearchOpen });
+  const [searchResultIndex, setSearchResultIndex] = useState(0);
   const sidebarRootRef = useRef<HTMLDivElement | null>(null);
   const openSearch = useCallback(() => setIsSearchOpen(true), []);
   const closeSearch = useCallback(() => {
@@ -66,9 +76,65 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
     scopeRef: sidebarRootRef,
   });
   const searchResults = useMemo(
-    () => rankGraphNodes(fullGraph.nodes, searchQuery).slice(0, MAX_GRAPH_SEARCH_RESULTS),
-    [fullGraph.nodes, searchQuery],
+    () => rankGraphNodes(searchNodes, searchQuery).slice(0, MAX_GRAPH_SEARCH_RESULTS),
+    [searchNodes, searchQuery],
   );
+  const selectedSearchResultIndex = Math.min(
+    searchResultIndex,
+    Math.max(0, searchResults.length - 1),
+  );
+  const selectedSearchResult = searchResults[selectedSearchResultIndex] ?? null;
+  const activeSearchResultId = selectedSearchResult
+    ? `graph-search-result-${selectedSearchResultIndex}`
+    : undefined;
+  const graphIsLimited = (
+    fullGraph.stats.nodesTruncated
+    || fullGraph.stats.edgesTruncated
+    || fullGraph.edges.length < fullGraph.stats.totalCandidateEdges
+  );
+  const localGraphIsIncomplete = fullGraph.stats.edgesTruncated
+    || fullGraph.edges.length < fullGraph.stats.totalCandidateEdges;
+  const graphSummary = mode === 'local'
+    ? t('graph.summary', {
+      links: `${visibleGraph.edges.length}${localGraphIsIncomplete ? '+' : ''}`,
+      nodes: `${visibleGraph.nodes.length}${localGraphIsIncomplete ? '+' : ''}`,
+    })
+    : graphIsLimited
+    ? t('graph.summaryLimited', {
+      links: fullGraph.edges.length,
+      nodes: fullGraph.nodes.length,
+      totalLinks: `${fullGraph.stats.totalCandidateEdges}${fullGraph.stats.edgesTruncated ? '+' : ''}`,
+      totalNodes: fullGraph.stats.totalCandidateNodes,
+    })
+    : t('graph.summary', {
+      links: fullGraph.edges.length,
+      nodes: fullGraph.nodes.length,
+    });
+
+  useEffect(() => {
+    setSearchResultIndex(0);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!shouldShowSearchResults) return;
+    const result = sidebarRootRef.current?.querySelector<HTMLElement>(
+      `[data-graph-search-index="${selectedSearchResultIndex}"]`,
+    );
+    result?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedSearchResultIndex, shouldShowSearchResults]);
+
+  const selectPreviousSearchResult = useCallback(() => {
+    setSearchResultIndex((current) => (
+      searchResults.length === 0
+        ? 0
+        : (current - 1 + searchResults.length) % searchResults.length
+    ));
+  }, [searchResults.length]);
+  const selectNextSearchResult = useCallback(() => {
+    setSearchResultIndex((current) => (
+      searchResults.length === 0 ? 0 : (current + 1) % searchResults.length
+    ));
+  }, [searchResults.length]);
 
   return (
     <SidebarSurface
@@ -79,6 +145,13 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
       <SidebarCapsulePanel>
         <SidebarActionGroup>
           <AppViewModeSwitch />
+          <SidebarActionButton
+            aria-label={t('graph.searchPlaceholder')}
+            className="h-[var(--vlaina-size-44px)]"
+            icon={<Icon name="common.search" size="sm" />}
+            label={t('graph.searchPlaceholder')}
+            onClick={openSearch}
+          />
         </SidebarActionGroup>
         <div className="flex min-h-0 flex-1 flex-col pt-3">
           <SidebarSearchDrawer
@@ -88,21 +161,28 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
             setSearchQuery={setSearchQuery}
             inputRef={inputRef}
             hideSearch={hideSearch}
-            canSubmit={searchResults.length > 0}
+            canSubmit={Boolean(selectedSearchResult)}
             onSubmit={() => {
-              const result = searchResults[0];
+              const result = selectedSearchResult;
               if (result) setSelectedPath(result.id);
             }}
+            canSelectPrevious={searchResults.length > 0}
+            canSelectNext={searchResults.length > 0}
+            onSelectPrevious={selectPreviousSearchResult}
+            onSelectNext={selectNextSearchResult}
             placeholder={t('graph.searchPlaceholder')}
             ariaLabel={t('graph.searchPlaceholder')}
+            activeDescendant={shouldShowSearchResults ? activeSearchResultId : undefined}
             closeLabel={t('graph.clearSearch')}
+            hasSearchResults={shouldShowSearchResults && searchResults.length > 0}
+            resultsId={GRAPH_SEARCH_RESULTS_ID}
             topActions={null}
           />
           <div
             role="group"
             aria-label={t('app.viewGraph')}
             className={cn(
-              'relative mx-2 grid h-9 grid-cols-2 rounded-full p-1',
+              'relative mx-2 grid h-[var(--vlaina-size-48px)] grid-cols-2 rounded-full p-[var(--vlaina-space-2px)]',
               isSearchOpen ? 'mt-1' : 'mt-3',
               raisedPillSurfaceClass,
             )}
@@ -124,7 +204,7 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
                   aria-pressed={active}
                   onClick={() => setMode(graphMode)}
                   className={cn(
-                    'relative z-[var(--vlaina-z-10)] h-7 cursor-pointer rounded-full text-[length:var(--vlaina-font-13)] font-medium transition-colors duration-[var(--vlaina-duration-200)]',
+                    'relative z-[var(--vlaina-z-10)] h-[var(--vlaina-size-44px)] cursor-pointer rounded-full text-[length:var(--vlaina-font-13)] font-medium transition-colors duration-[var(--vlaina-duration-200)]',
                     active
                       ? 'text-[var(--vlaina-sidebar-row-selected-text)]'
                       : 'text-[var(--vlaina-sidebar-notes-text-soft)] hover:text-[var(--vlaina-sidebar-row-selected-text)]',
@@ -135,38 +215,64 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
               );
             })}
           </div>
+          <p
+            data-graph-summary="true"
+            className="px-3 pt-2 text-[length:var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)]"
+          >
+            {graphSummary}
+          </p>
           <SidebarScrollArea
             ref={scrollRootRef}
             className="min-h-0 flex-1 pt-0"
             onScroll={handleScroll}
           >
             {shouldShowSearchResults ? (
-              <SidebarList>
-                {searchResults.map((node) => {
-                  const selected = node.id === focusPath;
-                  return (
-                    <button
-                      key={node.id}
-                      type="button"
-                      aria-current={selected ? 'true' : undefined}
-                      onClick={() => setSelectedPath(node.id)}
-                      className={[
-                        'flex min-h-[var(--vlaina-size-36px)] w-full cursor-pointer flex-col justify-center px-2.5 py-1.5 text-left',
-                        selected
-                          ? getSidebarSelectedRowSurfaceClass('notes')
-                          : getSidebarIdleRowSurfaceClass('notes'),
-                      ].join(' ')}
-                    >
-                      <span className="w-full truncate text-[length:var(--vlaina-font-sm)] font-medium">
-                        {node.label}
-                      </span>
-                      <span className="w-full truncate text-[length:var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)]">
-                        {node.id}
-                      </span>
-                    </button>
-                  );
-                })}
-              </SidebarList>
+              searchResults.length === 0 ? (
+                <p role="status" className="px-1 text-[length:var(--vlaina-font-13)] leading-relaxed text-[var(--vlaina-sidebar-notes-text-soft)]">
+                  {t('graph.searchNoResults')}
+                </p>
+              ) : (
+                <SidebarList
+                  id={GRAPH_SEARCH_RESULTS_ID}
+                  role="listbox"
+                  aria-label={t('graph.searchResults')}
+                >
+                  {searchResults.map((node, index) => {
+                    const selected = node.id === focusPath;
+                    const highlighted = index === selectedSearchResultIndex;
+                    return (
+                      <button
+                        key={node.id}
+                        id={`graph-search-result-${index}`}
+                        type="button"
+                        role="option"
+                        tabIndex={-1}
+                        aria-label={`${node.label}, ${node.id}`}
+                        aria-current={selected ? 'true' : undefined}
+                        aria-selected={highlighted}
+                        data-graph-search-index={index}
+                        onClick={() => {
+                          setSearchResultIndex(index);
+                          setSelectedPath(node.id);
+                        }}
+                        className={[
+                          'flex min-h-[var(--vlaina-size-44px)] w-full cursor-pointer flex-col justify-center px-2.5 py-1.5 text-left',
+                          selected || highlighted
+                            ? getSidebarSelectedRowSurfaceClass('notes')
+                            : getSidebarIdleRowSurfaceClass('notes'),
+                        ].join(' ')}
+                      >
+                        <span className="w-full truncate text-[length:var(--vlaina-font-sm)] font-medium">
+                          {node.label}
+                        </span>
+                        <span className="w-full truncate text-[length:var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)]">
+                          {node.id}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </SidebarList>
+              )
             ) : (
               <p className="px-1 text-[length:var(--vlaina-font-13)] leading-relaxed text-[var(--vlaina-sidebar-notes-text-soft)]">
                 {t('graph.sidebarHint')}
