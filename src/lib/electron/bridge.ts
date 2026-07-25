@@ -133,12 +133,15 @@ export interface ElectronGitChange {
 
 export interface ElectronGitStatus {
   rootPath: string;
+  head: string | null;
   branch: string | null;
   detached: boolean;
   upstream: string | null;
   ahead: number;
   behind: number;
   remoteUrl: string | null;
+  remoteConfigured: boolean;
+  remoteProtocolSupported: boolean;
   changes: ElectronGitChange[];
 }
 
@@ -153,7 +156,7 @@ export interface ElectronGitCommit {
 export interface ElectronGitApi {
   status(rootPath: string): Promise<ElectronGitStatus | null>;
   fetch(rootPath: string): Promise<ElectronGitStatus>;
-  workingDiff(rootPath: string, filePath: string): Promise<string>;
+  workingDiff(rootPath: string, filePaths: string[]): Promise<string>;
   history(rootPath: string, limit?: number): Promise<ElectronGitCommit[]>;
   commitDiff(rootPath: string, hash: string): Promise<string>;
   commit(

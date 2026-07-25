@@ -859,5 +859,17 @@
   "git.pushSuccess": "Modifiche inviate.",
   "git.operationFailed": "Operazione Git non riuscita. Controlla il repository e riprova.",
   "git.saveBeforeOperationFailed": "Impossibile salvare tutte le note aperte. Git non è stato modificato.",
-  "git.diffEmpty": "Nessuna differenza testuale disponibile per questo elemento."
+  "git.detachedHead": "HEAD scollegato",
+  "git.detachedUnavailable": "Passa a un branch prima di eseguire commit o sincronizzazione.",
+  "git.conflicted": "Conflitto",
+  "git.conflicts": "Risolvi tutti i conflitti di merge prima di eseguire commit o sincronizzazione.",
+  "git.diverged": "Le cronologie locale e remota sono divergenti. Risolvi la divergenza con Git prima di sincronizzare qui.",
+  "git.unsupportedRemote": "Questo remote è bloccato. Configura un remote HTTPS o SSH.",
+  "git.authenticationFailed": "Autenticazione remota non riuscita. Controlla le credenziali Git e riprova.",
+  "git.identityMissing": "Configura nome utente ed e-mail Git prima di eseguire il commit.",
+  "git.networkUnavailable": "Impossibile raggiungere il remote. Controlla la connessione e riprova.",
+  "git.diffTooLarge": "Il diff è troppo grande per l’anteprima.",
+  "git.retry": "Riprova",
+  "git.diffEmpty": "Nessuna differenza testuale disponibile per questo elemento.",
+  "git.resizePopover": "Ridimensiona pannello Git"
 }

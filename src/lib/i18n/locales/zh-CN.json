@@ -859,5 +859,17 @@
   "git.pushSuccess": "已推送到远程仓库。",
   "git.operationFailed": "Git 操作失败，请检查仓库状态后重试。",
   "git.saveBeforeOperationFailed": "无法保存所有已打开的笔记，因此没有执行 Git 操作。",
-  "git.diffEmpty": "此项目没有可显示的文本差异。"
+  "git.detachedHead": "游离 HEAD",
+  "git.detachedUnavailable": "请先切换到一个分支，再提交或同步。",
+  "git.conflicted": "冲突",
+  "git.conflicts": "请先解决所有合并冲突，再提交或同步。",
+  "git.diverged": "本地与远程提交历史已分叉，请先使用 Git 解决分叉再在此同步。",
+  "git.unsupportedRemote": "此远程地址已被阻止，请配置 HTTPS 或 SSH 远程地址。",
+  "git.authenticationFailed": "远程身份验证失败，请检查 Git 凭据后重试。",
+  "git.identityMissing": "请先配置 Git 用户名和邮箱，再进行提交。",
+  "git.networkUnavailable": "无法连接远程仓库，请检查网络后重试。",
+  "git.diffTooLarge": "差异内容过大，无法预览。",
+  "git.retry": "重试",
+  "git.diffEmpty": "此项目没有可显示的文本差异。",
+  "git.resizePopover": "调整 Git 面板大小"
 }

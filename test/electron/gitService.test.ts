@@ -24,10 +24,12 @@ import {
   getGitHistory,
   getGitStatus,
   getGitWorkingDiff,
+  getGitWorkingDiffs,
   pullGitChanges,
   pushGitChanges,
 } from '../../electron/gitService.mjs';
 import { authorizeFsPath, resetAuthorizedFsPathsForTests } from '../../electron/fsAccess.mjs';
+import { requireAllowedRemoteUrl, sanitizeRemoteUrl } from '../../electron/gitValidation.mjs';
 
 async function git(cwd: string, args: string[], env: Record<string, string> = {}) {
   return execFileAsync('git', args, {
@@ -82,6 +84,7 @@ describe('desktop Git service', () => {
     const status = await getGitStatus(repositoryPath);
     expect(status).toMatchObject({
       rootPath: repositoryPath,
+      head: expect.stringMatching(/^[0-9a-f]{40,64}$/),
       branch: 'main',
       detached: false,
       upstream: null,
@@ -114,6 +117,9 @@ describe('desktop Git service', () => {
     });
 
     await expect(getGitWorkingDiff(repositoryPath, 'README.md')).resolves.toContain('+changed');
+    await expect(getGitWorkingDiffs(repositoryPath, ['README.md', 'untracked.md'])).resolves.toEqual(
+      expect.stringContaining('+changed'),
+    );
     await expect(getGitWorkingDiff(repositoryPath, 'untracked.md')).resolves.toContain('+untracked');
     await expect(getGitWorkingDiff(repositoryPath, '-literal.md')).resolves.toContain('+literal');
 
@@ -170,6 +176,33 @@ describe('desktop Git service', () => {
 
   });
 
+  it('reports and commits an untracked binary image', async () => {
+    const repositoryPath = await createRepository(tempDir);
+    const imagePath = path.join(repositoryPath, 'assets', 'cover.png');
+    await mkdir(path.dirname(imagePath), { recursive: true });
+    await writeFile(imagePath, Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]));
+    await authorizeFsPath(repositoryPath, 'root');
+
+    const status = await getGitStatus(repositoryPath);
+    expect(status?.changes).toContainEqual(expect.objectContaining({
+      path: 'assets/cover.png',
+      status: 'untracked',
+    }));
+    await expect(getGitWorkingDiff(repositoryPath, 'assets/cover.png'))
+      .resolves.toContain('Binary files');
+
+    const committed = await commitGitChanges(repositoryPath, {
+      message: 'Add cover image',
+      paths: ['assets/cover.png'],
+    });
+    expect(committed.changes).toEqual([]);
+    expect((await git(repositoryPath, ['show', '--format=', '--name-only', 'HEAD'])).stdout.trim())
+      .toBe('assets/cover.png');
+  });
+
   it('commits only selected paths and preserves unrelated staged changes', async () => {
     const repositoryPath = await createRepository(tempDir);
     await authorizeFsPath(repositoryPath, 'root');
@@ -212,6 +245,38 @@ describe('desktop Git service', () => {
     ]);
   });
 
+  it('blocks commits from detached HEAD and unresolved merge conflicts', async () => {
+    const repositoryPath = await createRepository(tempDir);
+    await authorizeFsPath(repositoryPath, 'root');
+    await git(repositoryPath, ['checkout', '--detach']);
+    await writeFile(path.join(repositoryPath, 'README.md'), 'detached change\n', 'utf8');
+    await expect(commitGitChanges(repositoryPath, {
+      message: 'Detached commit',
+      paths: ['README.md'],
+    })).rejects.toThrow('attached branch');
+
+    await git(repositoryPath, ['checkout', 'main']);
+    await git(repositoryPath, ['checkout', '-b', 'conflicting-change']);
+    await writeFile(path.join(repositoryPath, 'README.md'), 'branch change\n', 'utf8');
+    await git(repositoryPath, ['add', 'README.md']);
+    await git(repositoryPath, ['commit', '-m', 'Branch change']);
+    await git(repositoryPath, ['checkout', 'main']);
+    await writeFile(path.join(repositoryPath, 'README.md'), 'main change\n', 'utf8');
+    await git(repositoryPath, ['add', 'README.md']);
+    await git(repositoryPath, ['commit', '-m', 'Main change']);
+    await expect(git(repositoryPath, ['merge', 'conflicting-change'])).rejects.toThrow();
+
+    const conflictedStatus = await getGitStatus(repositoryPath);
+    expect(conflictedStatus?.changes).toContainEqual(expect.objectContaining({
+      path: 'README.md',
+      status: 'conflicted',
+    }));
+    await expect(commitGitChanges(repositoryPath, {
+      message: 'Conflict commit',
+      paths: ['README.md'],
+    })).rejects.toThrow('merge conflicts remain');
+  });
+
   it('rejects missing and out-of-repository commit paths before staging', async () => {
     const repositoryPath = await createRepository(tempDir);
     await authorizeFsPath(repositoryPath, 'root');
@@ -248,6 +313,14 @@ describe('desktop Git service', () => {
     const status = await getGitStatus(repositoryPath);
     expect(status?.remoteUrl).toBe('https://github.com/example/repository.git');
     expect(JSON.stringify(status)).not.toContain('secret-token');
+    expect(status?.remoteConfigured).toBe(true);
+    expect(status?.remoteProtocolSupported).toBe(false);
+
+    await git(repositoryPath, ['remote', 'set-url', 'origin', 'ssh://secret-user@github.com/example/repository.git']);
+    expect(sanitizeRemoteUrl('ssh://secret-user:secret-token@github.com/example/repository.git'))
+      .toBe('ssh://github.com/example/repository.git');
+    expect(sanitizeRemoteUrl('git@github.com:example/repository.git'))
+      .toBe('github.com:example/repository.git');
 
     const localRemotePath = path.join(tempDir, 'local-remote.git');
     await git(tempDir, ['init', '--bare', localRemotePath]);
@@ -261,5 +334,21 @@ describe('desktop Git service', () => {
     await expect(pullGitChanges(repositoryPath)).rejects.toThrow('must use HTTPS or SSH');
     await expect(pushGitChanges(repositoryPath)).rejects.toThrow('must use HTTPS or SSH');
     await expect(readFile(path.join(repositoryPath, 'README.md'), 'utf8')).resolves.toBe('first\n');
+  });
+
+  it('rejects URL-like, local, and extended Git transports while accepting HTTPS and SSH', () => {
+    expect(() => requireAllowedRemoteUrl('https://github.com/example/repository.git')).not.toThrow();
+    expect(() => requireAllowedRemoteUrl('ssh://git@github.com/example/repository.git')).not.toThrow();
+    expect(() => requireAllowedRemoteUrl('git@github.com:example/repository.git')).not.toThrow();
+    for (const remote of [
+      'http://github.com/example/repository.git',
+      'git://github.com/example/repository.git',
+      'ftp://github.com/example/repository.git',
+      'file:///tmp/repository.git',
+      'ext::sh -c whoami',
+      '/tmp/repository.git',
+    ]) {
+      expect(() => requireAllowedRemoteUrl(remote)).toThrow('must use HTTPS or SSH');
+    }
   });
 });

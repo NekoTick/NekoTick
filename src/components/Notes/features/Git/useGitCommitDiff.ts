@@ -13,7 +13,7 @@ export function useGitCommitDiff({
   rootPath,
 }: {
   git: GitBridge;
-  reportFailure: () => void;
+  reportFailure: (error: unknown) => void;
   rootPath: string;
 }) {
   const requestRef = useRef(0);
@@ -53,10 +53,10 @@ export function useGitCommitDiff({
         if (requestRef.current === pending.requestId && rootPathRef.current === pending.rootPath) {
           startTransition(() => setDiff(nextDiff));
         }
-      }).catch(() => {
+      }).catch((error) => {
         if (requestRef.current === pending.requestId && rootPathRef.current === pending.rootPath) {
           setDiff('');
-          reportFailure();
+          reportFailure(error);
         }
       }).finally(() => {
         inFlightRef.current = false;

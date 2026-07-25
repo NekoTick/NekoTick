@@ -27,8 +27,10 @@ const change = {
   status: 'modified', staged: false, unstaged: true,
 };
 const status = {
-  rootPath: '/repo', branch: 'main', detached: false, upstream: 'origin/main',
-  ahead: 0, behind: 0, remoteUrl: 'https://example.invalid/repo.git', changes: [change],
+  rootPath: '/repo', head: '0123456789abcdef', branch: 'main', detached: false,
+  upstream: 'origin/main', ahead: 0, behind: 0,
+  remoteUrl: 'https://example.invalid/repo.git', remoteConfigured: true,
+  remoteProtocolSupported: true, changes: [change],
 };
 const historyItem = {
   hash: '0123456789abcdef', shortHash: '0123456', subject: 'Initial notes',
@@ -122,10 +124,14 @@ describe('Git sync operations', () => {
 
   it('saves before pull, while push only sends committed work', async () => {
     await openGitPopover();
+    mocks.flushTitle.mockClear();
+    mocks.flushEditorSave.mockClear();
+    mocks.saveDirtyTabs.mockClear();
 
     fireEvent.click(screen.getByTestId('git-pull-button'));
     await waitFor(() => expect(mocks.git.pull).toHaveBeenCalledWith('/repo'));
-    expect(mocks.flushTitle).toHaveBeenCalledTimes(2);
+    expect(mocks.flushTitle).toHaveBeenCalledTimes(1);
+    expect(mocks.flushEditorSave).toHaveBeenCalledTimes(1);
     expect(mocks.saveDirtyTabs).toHaveBeenCalledTimes(1);
     await waitUntilEnabled('git-push-button');
 
@@ -167,22 +173,12 @@ describe('Git sync operations', () => {
     await waitFor(() => expect(pushButton).toHaveAttribute('aria-busy', 'false'));
   });
 
-  it('waits for the automatic remote check before pulling', async () => {
-    let resolveFetch: (nextStatus: typeof status) => void = () => undefined;
-    mocks.git.fetch.mockReturnValue(new Promise((resolve) => {
-      resolveFetch = resolve;
-    }));
+  it('pulls directly without an automatic remote preflight', async () => {
     await openGitPopover();
 
     fireEvent.click(screen.getByTestId('git-pull-button'));
-    await waitFor(() => expect(screen.getByTestId('git-pull-button')).toHaveAttribute(
-      'aria-busy',
-      'true',
-    ));
-    expect(mocks.git.pull).not.toHaveBeenCalled();
-
-    resolveFetch(status);
     await waitFor(() => expect(mocks.git.pull).toHaveBeenCalledWith('/repo'));
+    expect(mocks.git.fetch).not.toHaveBeenCalled();
   });
 
   it('blocks a pull when pending notes cannot be saved', async () => {
@@ -204,10 +200,67 @@ describe('Git sync operations', () => {
     fireEvent.click(screen.getByTestId('git-pull-button'));
 
     await waitFor(() => expect(mocks.addToast).toHaveBeenCalledWith(
-      'git.operationFailed',
+      'git.networkUnavailable',
       'error',
     ));
     expect(screen.getByTestId('git-pull-button')).not.toBeDisabled();
+  });
+
+  it('does not retry a failed history request on every render', async () => {
+    mocks.git.history.mockRejectedValue(new Error('history unavailable'));
+    await openGitPopover();
+    fireEvent.click(screen.getByRole('tab', { name: 'git.history' }));
+
+    await waitFor(() => expect(mocks.git.history).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('git.operationFailed')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mocks.git.history).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a history response from a closed panel session', async () => {
+    const staleHistory = { ...historyItem, subject: 'Stale history' };
+    const currentHistory = {
+      ...historyItem,
+      hash: 'fedcba9876543210',
+      subject: 'Current history',
+    };
+    let resolveStaleHistory: (history: typeof historyItem[]) => void = () => undefined;
+    mocks.git.history
+      .mockImplementationOnce(() => new Promise<typeof historyItem[]>((resolve) => {
+        resolveStaleHistory = resolve;
+      }))
+      .mockResolvedValueOnce([currentHistory]);
+    await openGitPopover();
+    fireEvent.click(screen.getByRole('tab', { name: 'git.history' }));
+    await waitFor(() => expect(mocks.git.history).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('git-close-button'));
+    fireEvent.click(screen.getByTestId('git-sync-button'));
+    await screen.findByTestId('git-change-row');
+    fireEvent.click(screen.getByRole('tab', { name: 'git.history' }));
+    expect(await screen.findByText('Current history')).toBeInTheDocument();
+
+    resolveStaleHistory([staleHistory]);
+    await waitFor(() => expect(screen.queryByText('Stale history')).not.toBeInTheDocument());
+  });
+
+  it('invalidates history when another process advances HEAD', async () => {
+    const nextHistory = {
+      ...historyItem,
+      hash: 'fedcba9876543210',
+      subject: 'External commit',
+    };
+    await openGitPopover();
+    fireEvent.click(screen.getByRole('tab', { name: 'git.history' }));
+    await screen.findByTestId('git-history-row');
+    mocks.git.status.mockClear();
+    mocks.git.history.mockResolvedValue([nextHistory]);
+    mocks.git.status.mockResolvedValue({ ...status, head: 'fedcba9876543210' });
+
+    window.dispatchEvent(new Event('focus'));
+
+    await waitFor(() => expect(mocks.git.history).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('External commit')).toBeInTheDocument();
   });
 
   it('loads commit history and opens the latest commit diff', async () => {
@@ -262,7 +315,7 @@ describe('Git sync operations', () => {
     expect(files[0]).toHaveTextContent('-1');
     expect(files[1]).toHaveAttribute('data-path', 'docs/setup.md');
     expect(files[1]).toHaveTextContent('+2');
-    expect(files[1]).toHaveTextContent('-0');
+    expect(files[1]).not.toHaveTextContent('-0');
     fireEvent.click(screen.getAllByTestId('git-open-diff-file')[1]);
     expect(mocks.openNote).toHaveBeenCalledWith('docs/setup.md');
     expect(screen.queryByText('git.selectCommit')).not.toBeInTheDocument();

@@ -872,6 +872,14 @@ export const themeEditorLayoutTokens = {
   restoreScrollFallbackDelayMs: 80,
 } as const;
 
+export const themeGitTokens = {
+  defaultPopoverHeightPx: 600,
+  defaultPopoverViewportInsetPx: 64,
+  keyboardResizeStepPx: 32,
+  minPopoverHeightPx: 320,
+  viewportInsetPx: 24,
+} as const;
+
 export const themeCoverLayerTokens = {
   objectFitFill: 'fill',
   sizeAuto: 'auto',

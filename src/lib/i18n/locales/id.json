@@ -859,5 +859,17 @@
   "git.pushSuccess": "Perubahan telah di-push.",
   "git.operationFailed": "Operasi Git gagal. Periksa repositori lalu coba lagi.",
   "git.saveBeforeOperationFailed": "Tidak dapat menyimpan semua catatan yang terbuka. Git tidak diubah.",
-  "git.diffEmpty": "Tidak ada diff teks untuk item ini."
+  "git.detachedHead": "HEAD terlepas",
+  "git.detachedUnavailable": "Beralihlah ke branch sebelum commit atau sinkronisasi.",
+  "git.conflicted": "Konflik",
+  "git.conflicts": "Selesaikan semua konflik penggabungan sebelum commit atau sinkronisasi.",
+  "git.diverged": "Riwayat lokal dan remote telah menyimpang. Selesaikan dengan Git sebelum menyinkronkan di sini.",
+  "git.unsupportedRemote": "Remote ini diblokir. Konfigurasikan remote HTTPS atau SSH.",
+  "git.authenticationFailed": "Autentikasi remote gagal. Periksa kredensial Git Anda.",
+  "git.identityMissing": "Konfigurasikan nama pengguna dan email Git sebelum commit.",
+  "git.networkUnavailable": "Remote tidak dapat dijangkau. Periksa koneksi lalu coba lagi.",
+  "git.diffTooLarge": "Diff terlalu besar untuk dipratinjau.",
+  "git.retry": "Coba lagi",
+  "git.diffEmpty": "Tidak ada diff teks untuk item ini.",
+  "git.resizePopover": "Ubah ukuran panel Git"
 }

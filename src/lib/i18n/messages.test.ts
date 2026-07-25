@@ -94,7 +94,19 @@ describe('i18n messages', () => {
       'git.pushSuccess',
       'git.operationFailed',
       'git.saveBeforeOperationFailed',
+      'git.detachedHead',
+      'git.detachedUnavailable',
+      'git.conflicted',
+      'git.conflicts',
+      'git.diverged',
+      'git.unsupportedRemote',
+      'git.authenticationFailed',
+      'git.identityMissing',
+      'git.networkUnavailable',
+      'git.diffTooLarge',
+      'git.retry',
       'git.diffEmpty',
+      'git.resizePopover',
     ] as const;
 
     expectLocalizedOutsideEnglish(gitWorkflowKeys);

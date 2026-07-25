@@ -8,12 +8,13 @@ import {
   secondaryPillButtonClass,
   raisedPopoverSurfaceClass,
 } from '@/components/ui/surfaceStyles';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, type MessageKey } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { themeDomStyleTokens } from '@/styles/themeTokens';
 import type { useGitPanelController } from './useGitPanelController';
 import { GitChangesView } from './GitChangesView';
 import { GitHistoryView } from './GitHistoryView';
+import { useGitPopoverResize } from './useGitPopoverResize';
 
 type GitPanelController = ReturnType<typeof useGitPanelController>;
 
@@ -25,34 +26,56 @@ export function GitSyncPopover({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const resize = useGitPopoverResize();
   const status = controller.status;
   const busy = controller.operation !== null;
-  const remoteUnavailable = !status?.remoteUrl;
-  const pullUnavailable = remoteUnavailable || !status?.upstream;
+  const panelUnavailable = !controller.panelReady || Boolean(controller.panelError);
+  const remoteConfigured = status?.remoteConfigured ?? Boolean(status?.remoteUrl);
+  const remoteSupported = status?.remoteProtocolSupported ?? Boolean(status?.remoteUrl);
+  const remoteUnavailable = !remoteConfigured;
+  const remoteUnsupported = remoteConfigured && !remoteSupported;
+  const hasConflicts = status?.changes.some((change) => change.status === 'conflicted') ?? false;
+  const diverged = Boolean(status && status.ahead > 0 && status.behind > 0);
+  const unsafeSyncState = Boolean(status?.detached || hasConflicts || diverged);
+  const pullUnavailable = panelUnavailable || remoteUnavailable || remoteUnsupported
+    || !status?.upstream || unsafeSyncState;
+  const pushUnavailable = panelUnavailable || remoteUnavailable || remoteUnsupported || unsafeSyncState;
+  const commitUnavailable = panelUnavailable || controller.workingDiffLoading
+    || Boolean(controller.workingDiffError || status?.detached || hasConflicts);
   const changeCount = status?.changes.length ?? 0;
   const commitsToPull = status?.behind ?? 0;
   const commitsToPush = status?.ahead ?? 0;
   const pulling = controller.operation === 'pull';
   const pushing = controller.operation === 'push';
+  const statusMessage: MessageKey | null = (controller.panelReady ? controller.panelError : null)
+    ?? (status?.detached ? 'git.detachedUnavailable' : null)
+    ?? (hasConflicts ? 'git.conflicts' : null)
+    ?? (diverged ? 'git.diverged' : null)
+    ?? (remoteUnsupported ? 'git.unsupportedRemote' : null)
+    ?? (status && remoteUnavailable ? 'git.noRemote' : null);
 
   return (
     <PopoverContent
+      ref={resize.popoverRef}
       data-testid="git-sync-popover"
       aria-label={t('git.sync')}
       align="center"
       side="bottom"
       sideOffset={themeDomStyleTokens.editorPopupAnchorOffsetPx}
       className={cn(
-        'app-no-drag flex h-[var(--vlaina-height-git-popover)] w-[var(--vlaina-width-git-popover)] flex-col overflow-hidden rounded-[var(--vlaina-notes-ui-radius-panel)] p-0 backdrop-blur-[var(--vlaina-backdrop-blur-lg)] data-[state=open]:duration-[var(--vlaina-duration-200)] data-[state=closed]:duration-[var(--vlaina-duration-75)]',
+        'app-no-drag flex h-[var(--vlaina-height-git-popover)] w-[var(--vlaina-width-git-popover)] flex-col overflow-hidden rounded-[var(--vlaina-notes-ui-radius-panel)] p-0 backdrop-blur-[var(--vlaina-backdrop-blur-lg)] data-[state=open]:duration-[var(--vlaina-duration-100)] data-[state=closed]:duration-[var(--vlaina-duration-75)]',
+        resize.isDragging && 'will-change-[height]',
+        resize.isDragging && 'backdrop-blur-none',
         raisedPopoverSurfaceClass,
       )}
+      style={resize.style}
     >
         <div className="select-none border-b border-[var(--border)] p-4">
           <div className="flex min-w-0 flex-wrap items-center gap-2 text-[var(--vlaina-font-13)] text-[var(--vlaina-text-secondary)]">
             <span data-testid="git-branch" className="max-w-full truncate font-medium">
-              {controller.statusLoading
+              {controller.statusLoading && !status
                 ? t('git.loading')
-                : status?.branch || '—'}
+                : status?.branch || (status?.detached ? t('git.detachedHead') : '—')}
             </span>
             <Button
               type="button"
@@ -75,7 +98,7 @@ export function GitSyncPopover({
               className={commitsToPush > 0
                 ? "h-9 rounded-full bg-[var(--primary)] px-4 text-[var(--primary-foreground)] shadow-[var(--vlaina-shadow-md)] transition-[background-color,color,box-shadow,transform] duration-[var(--vlaina-duration-200)] hover:scale-[var(--vlaina-scale-105)] hover:bg-[var(--vlaina-color-accent-hover)] hover:text-[var(--primary-foreground)] active:scale-[var(--vlaina-scale-95)] disabled:bg-[var(--vlaina-bg-secondary)] disabled:text-[var(--vlaina-color-text-disabled)] disabled:shadow-[var(--vlaina-shadow-none)] disabled:hover:scale-[var(--vlaina-scale-100)]"
                 : secondaryPillButtonClass}
-              disabled={busy || controller.statusLoading || remoteUnavailable}
+              disabled={busy || controller.statusLoading || pushUnavailable}
               aria-busy={pushing}
               onClick={controller.push}
             >
@@ -89,14 +112,34 @@ export function GitSyncPopover({
             />
           </div>
 
-          {status && remoteUnavailable ? (
-            <p className="mt-1 text-[var(--vlaina-font-11)] text-[var(--vlaina-color-status-warning-fg)]">
-              {t('git.noRemote')}
-            </p>
+          {statusMessage ? (
+            <div className="mt-2 flex items-center gap-2">
+              <p className={cn(
+                'min-w-0 flex-1 text-[var(--vlaina-font-11)]',
+                controller.panelError
+                  ? 'text-[var(--vlaina-color-status-danger-fg)]'
+                  : 'text-[var(--vlaina-color-status-warning-fg)]',
+              )}>
+                {t(statusMessage)}
+              </p>
+              {controller.panelError ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={secondaryPillButtonClass}
+                  disabled={controller.statusLoading}
+                  onClick={controller.retry}
+                >
+                  <Icon name="common.refresh" />
+                  {t('git.retry')}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
-        {changeCount > 0 ? (
+        {controller.panelReady && changeCount > 0 ? (
           <div
             role="tablist"
             className={cn(
@@ -136,15 +179,34 @@ export function GitSyncPopover({
           </div>
         ) : null}
 
-        <OverlayScrollArea data-testid="git-popover-scroll" className="min-h-0 flex-1">
+        {!controller.panelReady ? (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-[var(--vlaina-font-13)] text-[var(--vlaina-text-tertiary)]">
+            <span>{controller.panelError ? t(controller.panelError) : t('git.loading')}</span>
+            {controller.panelError ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={secondaryPillButtonClass}
+                onClick={controller.retry}
+              >
+                <Icon name="common.refresh" />
+                {t('git.retry')}
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <OverlayScrollArea data-testid="git-popover-scroll" className="min-h-0 flex-1">
           {changeCount > 0 && controller.activeTab === 'changes' ? (
             <GitChangesView
               changes={status?.changes ?? []}
-              diffByPath={controller.workingDiffByPath}
+              diffs={controller.workingDiffs}
               diffLoading={controller.workingDiffLoading}
+              diffError={controller.workingDiffError}
               commitMessage={controller.commitMessage}
               selectedCommitPaths={controller.selectedCommitPaths}
               busy={busy}
+              commitUnavailable={commitUnavailable}
               onCommitMessageChange={controller.setCommitMessage}
               onUseCurrentTime={controller.useCurrentTimeAsMessage}
               onToggleCommitPath={controller.toggleCommitPath}
@@ -155,13 +217,39 @@ export function GitSyncPopover({
             <GitHistoryView
               history={controller.history}
               historyLoading={controller.historyLoading}
+              historyError={controller.historyError}
               selectedHash={controller.selectedCommitHash}
               diff={controller.selectedCommitDiff}
               diffLoading={controller.commitDiffLoading}
               onSelectCommit={controller.selectCommit}
             />
           )}
-        </OverlayScrollArea>
+          </OverlayScrollArea>
+        )}
+        <div
+          role="separator"
+          aria-orientation="horizontal"
+          aria-valuemin={resize.minHeight}
+          aria-valuemax={resize.maxHeight}
+          aria-valuenow={resize.height}
+          aria-label={t('git.resizePopover')}
+          tabIndex={0}
+          ref={resize.handleRef}
+          data-testid="git-popover-resize-handle"
+          data-no-editor-drag-box="true"
+          className={cn(
+            'app-no-drag relative z-[var(--vlaina-z-10)] h-[var(--vlaina-size-8px)] shrink-0 cursor-row-resize touch-none select-none',
+            'after:absolute after:bottom-1 after:left-1/2 after:h-[var(--vlaina-size-2px)] after:w-[var(--vlaina-size-32px)] after:-translate-x-1/2 after:rounded-full after:bg-[var(--border)]',
+            resize.isDragging && 'after:bg-[var(--primary)]',
+          )}
+          onPointerDown={resize.handlePointerDown}
+          onKeyDown={resize.handleKeyDown}
+          onDoubleClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            resize.resetToDefaultSize();
+          }}
+        />
     </PopoverContent>
   );
 }

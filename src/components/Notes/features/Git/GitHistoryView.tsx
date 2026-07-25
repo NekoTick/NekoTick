@@ -1,6 +1,7 @@
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { useI18n } from '@/lib/i18n';
+import type { MessageKey } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useNotesStore } from '@/stores/useNotesStore';
 import type { GitHistoryItem } from './gitUiTypes';
@@ -9,15 +10,17 @@ import { GitUnifiedDiff } from './GitUnifiedDiff';
 interface GitHistoryViewProps {
   history: GitHistoryItem[];
   historyLoading: boolean;
+  historyError: MessageKey | null;
   selectedHash: string | null;
   diff: string;
   diffLoading: boolean;
   onSelectCommit: (commit: GitHistoryItem) => void;
 }
 
-export function GitHistoryView({
+export const GitHistoryView = memo(function GitHistoryView({
   history,
   historyLoading,
+  historyError,
   selectedHash,
   diff,
   diffLoading,
@@ -38,6 +41,10 @@ export function GitHistoryView({
         {historyLoading ? (
           <p className="text-[var(--vlaina-font-13)] text-[var(--vlaina-text-tertiary)]">
             {t('git.loading')}
+          </p>
+        ) : historyError ? (
+          <p className="text-[var(--vlaina-font-13)] text-[var(--vlaina-color-status-danger-fg)]">
+            {t(historyError)}
           </p>
         ) : history.length === 0 ? (
           <p className="text-[var(--vlaina-font-13)] text-[var(--vlaina-text-tertiary)]">
@@ -80,10 +87,11 @@ export function GitHistoryView({
           diff={diff}
           loading={diffLoading && !diff}
           emptyLabel={diff ? t('git.diffEmpty') : diffLabel}
+          tooLargeLabel={t('git.diffTooLarge')}
           showFileHeaders
           onOpenFile={handleOpenFile}
         />
       </div>
     </div>
   );
-}
+});
