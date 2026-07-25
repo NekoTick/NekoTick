@@ -516,13 +516,41 @@ describe('GraphCanvas', () => {
     expect(activeEdge).toHaveAttribute('d', '');
     expect(activeEdge).toHaveAttribute('opacity', '0');
 
-    fireEvent.mouseEnter(alpha);
+    fireEvent.mouseEnter(alpha.querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
 
     expect(visibleNode).toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
     expect(screen.getByRole('option', { name: 'Beta' }).querySelectorAll('circle')[1]).toHaveStyle({ opacity: '1' });
     expect(activeEdge).toHaveAttribute('stroke', 'var(--vlaina-color-graph-edge-active)');
     expect(activeEdge.getAttribute('d')).not.toBe('');
     expect(activeEdge).toHaveAttribute('opacity', '1');
+  });
+
+  it('does not highlight a node when only its label is hovered', () => {
+    render(
+      <GraphCanvas
+        graph={graph}
+        positionOverrides={{
+          'Alpha.md': { x: 100, y: 100 },
+          'Beta.md': { x: 300, y: 100 },
+          'Gamma.md': { x: 500, y: 100 },
+        }}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    const alpha = screen.getByRole('option', { name: 'Alpha' });
+    const visibleNode = alpha.querySelectorAll('circle')[1]!;
+    const activeEdge = screen.getByRole('group', { name: 'app.viewGraph' })
+      .querySelector('[data-graph-edge-layer="active"]')!;
+
+    fireEvent.mouseEnter(screen.getByText('Alpha'));
+
+    expect(visibleNode).toHaveClass('fill-[var(--vlaina-color-graph-node)]');
+    expect(activeEdge).toHaveAttribute('opacity', '0');
   });
 
   it('clears hover state when a graph changes and does not resurrect it when returning', () => {
@@ -546,7 +574,8 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' })
+      .querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
     expect(screen.getByRole('option', { name: 'Alpha' }).querySelectorAll('circle')[1])
       .toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
 
@@ -795,7 +824,8 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' })
+      .querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
 
     const selectedDot = screen.getByRole('option', { name: 'Gamma' }).querySelectorAll('circle')[1]!;
     expect(selectedDot).toHaveStyle({ opacity: '1' });
@@ -815,7 +845,8 @@ describe('GraphCanvas', () => {
       />,
     );
 
-    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' })
+      .querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
 
     const currentDot = screen.getByRole('option', { name: 'Gamma' }).querySelectorAll('circle')[1]!;
     expect(currentDot).toHaveStyle({ opacity: '1' });
@@ -904,7 +935,7 @@ describe('GraphCanvas', () => {
     );
 
     const alpha = screen.getByRole('option', { name: 'Alpha' });
-    fireEvent.mouseEnter(alpha);
+    fireEvent.mouseEnter(alpha.querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
 
     expect(alpha.querySelectorAll('circle')[1]).toHaveClass(
       'fill-[var(--vlaina-color-graph-node-active)]',
@@ -1094,7 +1125,7 @@ describe('GraphCanvas', () => {
 
     const node = screen.getByRole('option', { name: 'Alpha' });
     const dot = node.querySelectorAll('circle')[1]!;
-    fireEvent.mouseEnter(node);
+    fireEvent.mouseEnter(node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
     expect(dot).toHaveClass('fill-[var(--vlaina-color-graph-node-active)]');
 
     fireEvent.wheel(screen.getByRole('group', { name: 'app.viewGraph' }), {
@@ -1144,7 +1175,7 @@ describe('GraphCanvas', () => {
     const hitTarget = node.querySelector('[data-graph-node-hit-target="Alpha.md"]')!;
     const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const baseEdge = canvas.querySelector('[data-graph-edge-layer="base"]')!;
-    fireEvent.mouseEnter(node);
+    fireEvent.mouseEnter(hitTarget);
     fireEvent.pointerDown(hitTarget, { button: 0, clientX: 100, clientY: 100, pointerId: 9 });
     fireEvent.pointerMove(canvas, { clientX: 140, clientY: 120, pointerId: 9 });
     fireEvent.pointerUp(canvas, { clientX: 140, clientY: 120, pointerId: 9 });
@@ -1166,7 +1197,8 @@ describe('GraphCanvas', () => {
         onSelectPath={vi.fn()}
       />,
     );
-    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' })
+      .querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
 
     const replacementGraph: PositionedNoteGraph = {
       focusNodeId: 'Delta.md',
@@ -1274,8 +1306,9 @@ describe('GraphCanvas', () => {
     expect(onSelectPath).toHaveBeenCalledWith(null);
   });
 
-  it('treats a visible label as part of the node hit target', () => {
+  it('pans from a visible label without activating the node', () => {
     const onOpenPath = vi.fn();
+    const onPositionCommit = vi.fn();
     const onSelectPath = vi.fn();
     render(
       <GraphCanvas
@@ -1287,18 +1320,29 @@ describe('GraphCanvas', () => {
         }}
         selectedPath={null}
         onOpenPath={onOpenPath}
-        onPositionCommit={vi.fn()}
+        onPositionCommit={onPositionCommit}
         onPositionsCommit={vi.fn()}
         onSelectPath={onSelectPath}
       />,
     );
 
     const label = screen.getByText('Alpha');
+    expect(label.closest('[data-graph-node-label="true"]')).toHaveClass('pointer-events-none');
     const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
-    fireEvent.pointerDown(label, { button: 0, clientX: 100, clientY: 100, pointerId: 31 });
-    fireEvent.pointerUp(canvas, { clientX: 100, clientY: 100, pointerId: 31 });
+    const content = canvas.querySelector('g')!;
+    const initialTransform = content.getAttribute('transform');
+    expect(fireEvent.pointerDown(label, {
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+      pointerId: 31,
+    })).toBe(false);
+    fireEvent.pointerMove(canvas, { clientX: 140, clientY: 120, pointerId: 31 });
+    fireEvent.pointerUp(canvas, { clientX: 140, clientY: 120, pointerId: 31 });
 
-    expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
+    expect(content.getAttribute('transform')).not.toBe(initialTransform);
+    expect(onOpenPath).not.toHaveBeenCalled();
+    expect(onPositionCommit).not.toHaveBeenCalled();
     expect(onSelectPath).not.toHaveBeenCalled();
   });
 

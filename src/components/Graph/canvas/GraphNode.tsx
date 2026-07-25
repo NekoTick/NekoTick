@@ -76,7 +76,14 @@ export const GraphNode = memo(function GraphNode(props: GraphNodeProps) {
       onClick={(event) => {
         if (event.detail === 0) props.onOpen(node.id);
       }}
-      onPointerDown={(event) => props.onStartDrag(event, node.id, { x: node.x, y: node.y })}
+      onPointerDown={(event) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest('[data-graph-node-label]')) {
+          event.preventDefault();
+          return;
+        }
+        props.onStartDrag(event, node.id, { x: node.x, y: node.y });
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') { event.preventDefault(); props.onOpen(node.id); return; }
         if (event.key === ' ') {
@@ -111,71 +118,72 @@ export const GraphNode = memo(function GraphNode(props: GraphNodeProps) {
         event.stopPropagation();
         props.onOpen(node.id);
       }}
-      onMouseEnter={(event) => {
-        if (props.onHoverStart) {
-          props.onHoverStart(event, node.id, { x: node.x, y: node.y });
-        } else {
-          props.onHoverChange(node.id);
-        }
-      }}
-      onMouseLeave={() => props.onHoverChange(null)}
       onFocus={() => props.onFocusChange(node.id)}
       onBlur={() => props.onHoverChange(null)}
     >
-      <circle
-        data-graph-node-hit-target={node.id}
-        cx={0}
-        cy={0}
-        r={themeGraphTokens.nodeHitRadiusPx}
-        style={{
-          r: `calc(${themeGraphTokens.nodeHitRadiusPx}px * var(--vlaina-graph-inverse-zoom))`,
-        } as CSSProperties}
-        className="fill-transparent"
-        pointerEvents="all"
-      />
-      <circle
-        cx={0}
-        cy={0}
-        r={nodeRadius}
-        style={{
-          r: `calc(${nodeRadius}px * var(--vlaina-graph-inverse-zoom))`,
-          transform: `scale(${props.selected || props.hovered
-            ? themeGraphTokens.nodeActiveScale
-            : themeGraphTokens.nodeDefaultScale})`,
-          opacity: props.dimmed ? themeGraphTokens.dimmedNodeOpacity : 1,
-        } as CSSProperties}
-        className={cn(
-          'vlaina-graph-node-dot',
-          props.selected || props.hovered
-            ? 'fill-[var(--vlaina-color-graph-node-active)] stroke-[var(--vlaina-color-graph-node-ring-active)]'
-            : props.related
-              ? 'fill-[var(--vlaina-color-graph-node-related)] stroke-[var(--vlaina-color-graph-node-ring)]'
-              : 'fill-[var(--vlaina-color-graph-node)] stroke-[var(--vlaina-color-graph-node-ring)]',
-        )}
-        strokeWidth={themeGraphTokens.nodeRingWidthPx}
-        vectorEffect="non-scaling-stroke"
-      />
-      {props.current ? (
+      <g
+        onMouseEnter={(event) => {
+          if (props.onHoverStart) {
+            props.onHoverStart(event, node.id, { x: node.x, y: node.y });
+          } else {
+            props.onHoverChange(node.id);
+          }
+        }}
+        onMouseLeave={() => props.onHoverChange(null)}
+      >
         <circle
-          aria-hidden="true"
-          data-graph-current-note="true"
+          data-graph-node-hit-target={node.id}
           cx={0}
           cy={0}
-          r={themeGraphTokens.currentNodeRingRadiusPx}
+          r={themeGraphTokens.nodeHitRadiusPx}
           style={{
-            r: `calc(${themeGraphTokens.currentNodeRingRadiusPx}px * var(--vlaina-graph-inverse-zoom))`,
+            r: `calc(${themeGraphTokens.nodeHitRadiusPx}px * var(--vlaina-graph-inverse-zoom))`,
           } as CSSProperties}
-          className="pointer-events-none fill-none stroke-[var(--vlaina-color-graph-current-ring)]"
+          className="fill-transparent"
+          pointerEvents="all"
+        />
+        <circle
+          cx={0}
+          cy={0}
+          r={nodeRadius}
+          style={{
+            r: `calc(${nodeRadius}px * var(--vlaina-graph-inverse-zoom))`,
+            transform: `scale(${props.selected || props.hovered
+              ? themeGraphTokens.nodeActiveScale
+              : themeGraphTokens.nodeDefaultScale})`,
+            opacity: props.dimmed ? themeGraphTokens.dimmedNodeOpacity : 1,
+          } as CSSProperties}
+          className={cn(
+            'vlaina-graph-node-dot',
+            props.selected || props.hovered
+              ? 'fill-[var(--vlaina-color-graph-node-active)] stroke-[var(--vlaina-color-graph-node-ring-active)]'
+              : props.related
+                ? 'fill-[var(--vlaina-color-graph-node-related)] stroke-[var(--vlaina-color-graph-node-ring)]'
+                : 'fill-[var(--vlaina-color-graph-node)] stroke-[var(--vlaina-color-graph-node-ring)]',
+          )}
           strokeWidth={themeGraphTokens.nodeRingWidthPx}
           vectorEffect="non-scaling-stroke"
         />
-      ) : null}
+        {props.current ? (
+          <circle
+            aria-hidden="true"
+            data-graph-current-note="true"
+            cx={0}
+            cy={0}
+            r={themeGraphTokens.currentNodeRingRadiusPx}
+            style={{
+              r: `calc(${themeGraphTokens.currentNodeRingRadiusPx}px * var(--vlaina-graph-inverse-zoom))`,
+            } as CSSProperties}
+            className="pointer-events-none fill-none stroke-[var(--vlaina-color-graph-current-ring)]"
+            strokeWidth={themeGraphTokens.nodeRingWidthPx}
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
+      </g>
       {props.labelPlacement ? (
         <g
           data-graph-node-label="true"
-          data-graph-node-label-hit-target={node.id}
-          className="vlaina-graph-label-enter"
-          pointerEvents="bounding-box"
+          className="pointer-events-none vlaina-graph-label-enter"
         >
           <g style={{
             opacity: props.dimmed ? themeGraphTokens.dimmedNodeOpacity : 1,

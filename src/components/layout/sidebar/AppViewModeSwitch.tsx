@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n } from '@/lib/i18n';
 import { APP_VIEW_MODE_SWITCH_MIN_WIDTH } from '@/lib/layout/sidebarWidth';
 import { cn } from '@/lib/utils';
@@ -146,68 +145,62 @@ export function AppViewModeSwitch() {
         const selected = visualAppViewMode === option.key;
         const highlighted = selected || highlightedAppViewMode === option.key;
         return (
-          <Tooltip key={option.key}>
-            <TooltipTrigger asChild>
-              <button
-                ref={(element) => {
-                  viewModeButtonRefs.current[option.key] = element;
-                }}
-                type="button"
-                role="tab"
-                aria-label={option.label}
-                aria-selected={selected}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => handleSelectViewMode(option.key)}
-                onKeyDown={(event) => {
-                  if (event.altKey || event.ctrlKey || event.metaKey) return;
-                  const direction = event.key === 'ArrowRight'
-                    ? 'next'
-                    : event.key === 'ArrowLeft'
-                      ? 'previous'
-                      : event.key === 'Home'
-                        ? 'first'
-                        : event.key === 'End'
-                          ? 'last'
-                          : null;
-                  if (!direction) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  handleNavigateViewMode(optionIndex, direction, options);
-                }}
-                onPointerEnter={() => setHighlightedAppViewMode(option.key)}
-                onPointerLeave={() => setHighlightedAppViewMode(null)}
-                onFocus={() => setHighlightedAppViewMode(option.key)}
-                onBlur={() => setHighlightedAppViewMode(null)}
-                className={cn(
-                  'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] basis-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[flex-grow,gap,padding] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
-                  selected
-                    ? 'gap-2 px-3'
-                    : 'gap-0 px-0',
-                )}
-                style={{
-                  flexGrow: selected ? 1 : 0,
-                  color: highlighted ? 'var(--vlaina-sidebar-row-selected-text)' : 'var(--vlaina-sidebar-notes-text)',
-                }}
-              >
-                <span className="relative flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center leading-none">
-                  {option.icon}
-                </span>
-                <span
-                  className={cn(
-                    'relative inline-flex min-w-0 items-center truncate whitespace-nowrap leading-none transition-[max-width,opacity,transform] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
-                    selected
-                      ? 'max-w-[var(--vlaina-size-128px)] translate-x-0 opacity-[var(--vlaina-opacity-100)]'
-                      : 'max-w-0 -translate-x-1 opacity-[var(--vlaina-opacity-0)]',
-                  )}
-                >
-                  {option.label}
-                </span>
-              </button>
-            </TooltipTrigger>
-            {!selected ? (
-              <TooltipContent side="right" sideOffset={6}>{option.label}</TooltipContent>
-            ) : null}
-          </Tooltip>
+          <button
+            key={option.key}
+            ref={(element) => {
+              viewModeButtonRefs.current[option.key] = element;
+            }}
+            type="button"
+            role="tab"
+            aria-label={option.label}
+            aria-selected={selected}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => handleSelectViewMode(option.key)}
+            onKeyDown={(event) => {
+              if (event.altKey || event.ctrlKey || event.metaKey) return;
+              const direction = event.key === 'ArrowRight'
+                ? 'next'
+                : event.key === 'ArrowLeft'
+                  ? 'previous'
+                  : event.key === 'Home'
+                    ? 'first'
+                    : event.key === 'End'
+                      ? 'last'
+                      : null;
+              if (!direction) return;
+              event.preventDefault();
+              event.stopPropagation();
+              handleNavigateViewMode(optionIndex, direction, options);
+            }}
+            onPointerEnter={() => setHighlightedAppViewMode(option.key)}
+            onPointerLeave={() => setHighlightedAppViewMode(null)}
+            onFocus={() => setHighlightedAppViewMode(option.key)}
+            onBlur={() => setHighlightedAppViewMode(null)}
+            className={cn(
+              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] basis-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[flex-grow,gap,padding] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
+              selected
+                ? 'gap-2 px-3'
+                : 'gap-0 px-0',
+            )}
+            style={{
+              flexGrow: selected ? 1 : 0,
+              color: highlighted ? 'var(--vlaina-sidebar-row-selected-text)' : 'var(--vlaina-sidebar-notes-text)',
+            }}
+          >
+            <span className="relative flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center leading-none">
+              {option.icon}
+            </span>
+            <span
+              className={cn(
+                'relative inline-flex min-w-0 items-center truncate whitespace-nowrap leading-none transition-[max-width,opacity,transform] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
+                selected
+                  ? 'max-w-[var(--vlaina-size-128px)] translate-x-0 opacity-[var(--vlaina-opacity-100)]'
+                  : 'max-w-0 -translate-x-1 opacity-[var(--vlaina-opacity-0)]',
+              )}
+            >
+              {option.label}
+            </span>
+          </button>
         );
       })}
     </div>
