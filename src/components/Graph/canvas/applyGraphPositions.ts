@@ -1,4 +1,5 @@
 import type { GraphNodePositions } from '../store/useGraphUIStore';
+import { createGraphEdgePathSegment } from './graphEdgePath';
 
 interface GraphNodeElements {
   element: SVGGElement;
@@ -13,6 +14,7 @@ interface GraphEdgeDefinition {
 interface GraphEdgeLayer {
   edges: GraphEdgeDefinition[];
   element: SVGPathElement;
+  path: string;
 }
 
 interface GraphPositionElements {
@@ -33,21 +35,24 @@ export function registerGraphEdgeLayer(
   const svg = element?.ownerSVGElement;
   if (!element || !svg) return;
   const layers = edgeLayersBySvg.get(svg) ?? new Map<string, GraphEdgeLayer>();
-  layers.set(layerId, { edges, element });
+  layers.set(layerId, { edges, element, path: element.getAttribute('d') ?? '' });
   edgeLayersBySvg.set(svg, layers);
+  const positions = elementsBySvg.get(svg)?.positionsById;
+  if (positions?.size) {
+    updateEdgePaths(svg, positions, (registeredLayerId) => registeredLayerId === layerId);
+  }
 }
 
-export function clearGraphPositionElements(svg: SVGSVGElement | null) {
+export function clearGraphNodePositionElements(svg: SVGSVGElement | null) {
   if (!svg) return;
   elementsBySvg.delete(svg);
-  edgeLayersBySvg.delete(svg);
 }
 
 function getGraphPositionElements(svg: SVGSVGElement): GraphPositionElements {
   const cached = elementsBySvg.get(svg);
   if (
     cached
-    && (cached.nodes.length === 0 || cached.nodes[0]!.element.isConnected)
+    && (cached.nodes.length === 0 || cached.nodes[0]!.element.ownerSVGElement === svg)
   ) {
     return cached;
   }
@@ -72,15 +77,33 @@ function updateEdgePaths(
 ) {
   for (const [layerId, layer] of edgeLayersBySvg.get(svg)?.entries() ?? []) {
     if (!shouldUpdate(layerId)) continue;
-    if (!layer.element.isConnected) continue;
-    const path: string[] = [];
+    if (layer.element.ownerSVGElement !== svg) continue;
+    let path = '';
     for (const edge of layer.edges) {
       const source = positions.get(edge.sourceId);
       const target = positions.get(edge.targetId);
-      if (source && target) path.push(`M${source.x},${source.y}L${target.x},${target.y}`);
+      if (source && target) path += createGraphEdgePathSegment(source, target);
     }
-    layer.element.setAttribute('d', path.join(''));
+    if (path === layer.path) continue;
+    layer.path = path;
+    layer.element.setAttribute('d', path);
   }
+}
+
+function updateCachedPosition(
+  positions: Map<string, { x: number; y: number }>,
+  id: string,
+  next: { x: number; y: number },
+): boolean {
+  const current = positions.get(id);
+  if (current?.x === next.x && current.y === next.y) return false;
+  if (current) {
+    current.x = next.x;
+    current.y = next.y;
+  } else {
+    positions.set(id, { x: next.x, y: next.y });
+  }
+  return true;
 }
 
 export function applyDraggedGraphNodePosition(
@@ -91,7 +114,7 @@ export function applyDraggedGraphNodePosition(
   if (!svg) return;
   const elements = getGraphPositionElements(svg);
   const node = elements.nodesById.get(id);
-  elements.positionsById.set(id, position);
+  if (!updateCachedPosition(elements.positionsById, id, position)) return;
   node?.element.setAttribute('transform', `translate(${position.x} ${position.y})`);
   updateEdgePaths(svg, elements.positionsById, (layerId) => layerId === 'active');
 }
@@ -106,7 +129,7 @@ export function applyGraphPositions(
   for (const node of elements.nodes) {
     const position = positions[node.id];
     if (!position) continue;
-    elements.positionsById.set(node.id, position);
+    if (!updateCachedPosition(elements.positionsById, node.id, position)) continue;
     node.element.setAttribute('transform', `translate(${position.x} ${position.y})`);
   }
   if (edgeUpdateMode === 'none') return;

@@ -22,6 +22,10 @@ import { focusCurrentEditorAtViewportPoint } from './utils/focusEditorAtPoint';
 import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
 import { HEADING_PLACEHOLDER_I18N_REFRESH_META } from './plugins/heading/headingPlugin';
 import { syncEditorSelectionFromDOM } from './utils/editorSelection';
+import {
+  fulfillEditorFocusIntent,
+  subscribeEditorFocusIntent,
+} from './utils/editorFocusIntent';
 
 export { createLargePlainMarkdownDocJSON, shouldUseLazyBlockVisibility } from './milkdownLargePlainMarkdown';
 export {
@@ -209,6 +213,26 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     reportEditorReady,
     shouldSerializeEditorMarkdown,
   });
+
+  const fulfillFocusIntent = useCallback((path: string) => {
+    if (!active || path !== currentNotePath) return;
+    fulfillEditorFocusIntent(path, () => {
+      try {
+        const editor = get?.() as ActiveMilkdownEditor | undefined;
+        if (!editor || editor.status !== 'Created') return false;
+        const view = editor.ctx.get(editorViewCtx) as EditorView;
+        view.focus();
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  }, [active, currentNotePath, get]);
+
+  useEffect(() => {
+    fulfillFocusIntent(currentNotePath ?? '');
+    return subscribeEditorFocusIntent(fulfillFocusIntent);
+  }, [activatedRevision, currentNotePath, fulfillFocusIntent]);
 
   useEffect(() => {
     hasAutoFocused.current = false;

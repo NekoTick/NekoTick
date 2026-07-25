@@ -12,15 +12,21 @@ import { publishLiveMarkdownPreview } from './hooks/pendingMarkdownLivePreview';
 import { registerCurrentEditorSaveFlusher } from './utils/editorSaveRegistry';
 import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
 import { useEditorSave } from './hooks/useEditorSave';
+import {
+  fulfillEditorFocusIntent,
+  subscribeEditorFocusIntent,
+} from './utils/editorFocusIntent';
 
 const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
 
 export function MarkdownSourceEditor({
+  active = true,
   currentNotePath,
   showBodyLineNumbers,
   saveNote,
   mode,
 }: {
+  active?: boolean;
   currentNotePath: string;
   showBodyLineNumbers: boolean;
   saveNote: (options?: { explicit?: boolean }) => Promise<void>;
@@ -49,6 +55,21 @@ export function MarkdownSourceEditor({
   const textareaResizeFrameRef = useRef<number | null>(null);
   const contentCommitFrameRef = useRef<number | null>(null);
   const { debouncedSave: scheduleSave, flushSave: flushQueuedSave } = useEditorSave(saveNote);
+
+  const fulfillFocusIntent = useCallback((path: string) => {
+    if (!active || path !== currentNotePath) return;
+    fulfillEditorFocusIntent(path, () => {
+      const textarea = textareaRef.current;
+      if (!textarea) return false;
+      textarea.focus({ preventScroll: true });
+      return document.activeElement === textarea;
+    });
+  }, [active, currentNotePath]);
+
+  useEffect(() => {
+    fulfillFocusIntent(currentNotePath);
+    return subscribeEditorFocusIntent(fulfillFocusIntent);
+  }, [active, currentNotePath, fulfillFocusIntent]);
 
   useEffect(() => {
     if (currentNoteIsDirty) scheduleSave();
@@ -266,7 +287,7 @@ export function MarkdownSourceEditor({
         data-note-source-editor="true"
         data-native-caret-overlay-disabled="true"
         defaultValue={currentNoteContent}
-        autoFocus={mode === 'source'}
+        autoFocus={mode === 'source' && active}
         onCompositionStart={() => {
           isComposingRef.current = true;
         }}

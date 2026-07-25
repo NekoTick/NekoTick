@@ -32,7 +32,10 @@ interface SidebarSearchDrawerProps {
   onSelectNext?: () => void;
   placeholder: string;
   ariaLabel?: string;
+  activeDescendant?: string;
   closeLabel: string;
+  resultsId?: string;
+  hasSearchResults?: boolean;
   topActions?: ReactNode;
 }
 
@@ -90,7 +93,10 @@ export function SidebarSearchDrawer({
   onSelectNext,
   placeholder,
   ariaLabel,
+  activeDescendant,
   closeLabel,
+  resultsId,
+  hasSearchResults = false,
   topActions,
 }: SidebarSearchDrawerProps) {
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -129,6 +135,7 @@ export function SidebarSearchDrawer({
         data-sidebar-search-drawer="true"
         data-state={isSearchOpen ? 'open' : 'closed'}
         aria-hidden={!isSearchOpen}
+        inert={isSearchOpen ? undefined : true}
         className={cn(
           'grid transition-[grid-template-rows,opacity] duration-[var(--vlaina-duration-200)] ease-out',
           isSearchOpen ? 'grid-rows-[1fr] opacity-[var(--vlaina-opacity-100)]' : 'grid-rows-[0fr] opacity-[var(--vlaina-opacity-0)]',
@@ -138,6 +145,12 @@ export function SidebarSearchDrawer({
           <SidebarSearchField
             ref={inputRef}
             type="text"
+            role={resultsId ? 'combobox' : undefined}
+            aria-autocomplete={resultsId ? 'list' : undefined}
+            aria-expanded={resultsId ? hasSearchResults : undefined}
+            aria-controls={resultsId && hasSearchResults ? resultsId : undefined}
+            aria-activedescendant={hasSearchResults ? activeDescendant : undefined}
+            disabled={!isSearchOpen}
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={handleKeyDown}

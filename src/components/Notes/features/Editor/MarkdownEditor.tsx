@@ -241,6 +241,7 @@ export function MarkdownEditor({
               <Suspense fallback={null}>
                 {isSourceMode ? (
                   <MarkdownSourceEditor
+                    active={hasActiveNote}
                     currentNotePath={currentNotePath ?? ''}
                     showBodyLineNumbers={showBodyLineNumbers}
                     saveNote={saveNote}
@@ -248,6 +249,7 @@ export function MarkdownEditor({
                   />
                 ) : shouldUseSourceFallback ? (
                   <MarkdownSourceEditor
+                    active={hasActiveNote}
                     currentNotePath={currentNotePath ?? ''}
                     showBodyLineNumbers={showBodyLineNumbers}
                     saveNote={saveNote}
@@ -258,6 +260,7 @@ export function MarkdownEditor({
                     key={currentNotePath ?? 'empty'}
                     fallback={(
                       <MarkdownSourceEditor
+                        active={hasActiveNote}
                         currentNotePath={currentNotePath ?? ''}
                         showBodyLineNumbers={showBodyLineNumbers}
                         saveNote={saveNote}

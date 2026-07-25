@@ -318,6 +318,63 @@ describe('featureSlice scan cache validation', () => {
     expect(store.getState().noteContentsCache.size).toBe(40);
   });
 
+  it('rejects without publishing an empty priority snapshot when every readable note fails', async () => {
+    const paths = ['alpha.md', 'beta.md'];
+    const store = createNotesStore({
+      rootFolder: {
+        id: '',
+        name: 'Notes',
+        path: '',
+        isFolder: true,
+        expanded: true,
+        children: paths.map((path) => ({
+          id: path,
+          name: path,
+          path,
+          isFolder: false as const,
+        })),
+      },
+    });
+    const onPriorityPathsScanned = vi.fn();
+    mocks.readFile.mockRejectedValue(new Error('storage unavailable'));
+
+    await expect(store.getState().scanAllNotes({
+      priorityPaths: paths,
+      onPriorityPathsScanned,
+    })).rejects.toThrow('Unable to read any scannable notes');
+
+    expect(onPriorityPathsScanned).not.toHaveBeenCalled();
+    expect(store.getState().noteContentsCache.size).toBe(0);
+  });
+
+  it('keeps successfully read notes when only part of a scan fails', async () => {
+    const paths = ['alpha.md', 'beta.md'];
+    const store = createNotesStore({
+      rootFolder: {
+        id: '',
+        name: 'Notes',
+        path: '',
+        isFolder: true,
+        expanded: true,
+        children: paths.map((path) => ({
+          id: path,
+          name: path,
+          path,
+          isFolder: false as const,
+        })),
+      },
+    });
+    mocks.readFile.mockImplementation(async (path: string) => {
+      if (path.endsWith('/beta.md')) throw new Error('missing');
+      return '# Alpha';
+    });
+
+    await store.getState().scanAllNotes();
+
+    expect(store.getState().noteContentsCache.get('alpha.md')?.content).toBe('# Alpha');
+    expect(store.getState().noteContentsCache.has('beta.md')).toBe(false);
+  });
+
   it('does not spend full-notesRoot scan traversal priority on non-markdown siblings before markdown notes', async () => {
     const store = createNotesStore({
       rootFolder: {

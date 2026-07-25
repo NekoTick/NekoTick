@@ -54,6 +54,8 @@ export function useSidebarSearchControls({
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const overscrollDistanceRef = useRef(0);
   const shouldResetScrollTopOnCloseRef = useRef(false);
+  const returnFocusElementRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   const blurFocusedInput = useCallback(() => {
     const input = inputRef.current;
@@ -62,9 +64,39 @@ export function useSidebarSearchControls({
     }
   }, []);
 
+  const captureReturnFocus = useCallback(() => {
+    const activeElement = document.activeElement;
+    if (
+      !(activeElement instanceof HTMLElement)
+      || activeElement === inputRef.current
+      || activeElement === document.body
+      || activeElement.closest('[aria-hidden="true"], [inert]')
+    ) {
+      returnFocusElementRef.current = null;
+      return;
+    }
+    returnFocusElementRef.current = activeElement;
+  }, []);
+
+  const restoreReturnFocus = useCallback(() => {
+    const target = returnFocusElementRef.current;
+    returnFocusElementRef.current = null;
+    if (
+      !target
+      || !target.isConnected
+      || target.hasAttribute('disabled')
+      || target.closest('[aria-hidden="true"], [inert]')
+    ) {
+      return;
+    }
+    target.focus({ preventScroll: true });
+  }, []);
+
   useLayoutEffect(() => {
     if (!enabled || !isOpen) {
       blurFocusedInput();
+      if (wasOpenRef.current && enabled) restoreReturnFocus();
+      wasOpenRef.current = false;
       if (shouldResetScrollTopOnCloseRef.current) {
         const scrollRoot = scrollRootRef.current;
         if (scrollRoot) {
@@ -80,12 +112,17 @@ export function useSidebarSearchControls({
       return;
     }
 
+    if (!wasOpenRef.current) {
+      captureReturnFocus();
+      wasOpenRef.current = true;
+    }
+
     const frameId = window.requestAnimationFrame(() => {
       inputRef.current?.focus({ preventScroll: true });
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [blurFocusedInput, enabled, isOpen]);
+  }, [blurFocusedInput, captureReturnFocus, enabled, isOpen, restoreReturnFocus]);
 
   const hideSearch = useCallback(() => {
     overscrollDistanceRef.current = 0;

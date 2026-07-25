@@ -43,13 +43,22 @@ export function getNoteMarkdownExcludedRanges(
     }
   }
 
-  collectFencedCodeRanges(content, ranges);
-  collectInlineCodeRanges(content, ranges);
-  collectAutolinkRanges(content, ranges);
-  collectRawTextHtmlRanges(content, ranges);
-  collectMarkdownHtmlBlockRanges(content, ranges);
-  collectHtmlTagRanges(content, ranges);
-  collectMarkdownLinkTargetRanges(content, ranges);
+  // Each scanner is independent; avoid a full pass when its opening marker is absent.
+  if (content.includes('```') || content.includes('~~~')) {
+    collectFencedCodeRanges(content, ranges);
+  }
+  if (content.includes('`')) {
+    collectInlineCodeRanges(content, ranges);
+  }
+  if (content.includes('<')) {
+    collectAutolinkRanges(content, ranges);
+    collectRawTextHtmlRanges(content, ranges);
+    collectMarkdownHtmlBlockRanges(content, ranges);
+    collectHtmlTagRanges(content, ranges);
+  }
+  if (content.includes('](')) {
+    collectMarkdownLinkTargetRanges(content, ranges);
+  }
 
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
 

@@ -5,6 +5,8 @@ import {
   clampGraphZoom,
   clientPointToGraphPoint,
   fitGraphViewportToNodes,
+  getGraphViewportContentBounds,
+  getGraphViewportOverlayBounds,
   zoomGraphViewportAtPoint,
 } from './graphViewport';
 
@@ -82,8 +84,50 @@ describe('fitGraphViewportToNodes', () => {
     expect(viewport.y).toBeCloseTo((400 - (760 + nodeDiameter) * expectedZoom) / 2 + themeGraphTokens.activeNodeRadiusPx * expectedZoom);
   });
 
+  it('keeps representative graph bounds within the fit padding on a 200px viewport', () => {
+    const viewportSize = { x: 200, y: 680 };
+    const nodes = [{ x: 0, y: 0 }, { x: 650, y: 420 }];
+    const viewport = fitGraphViewportToNodes(nodes, viewportSize);
+    const radius = themeGraphTokens.activeNodeRadiusPx;
+    const left = viewport.x - radius * viewport.zoom;
+    const right = viewport.x + (nodes[1]!.x + radius) * viewport.zoom;
+
+    expect(left).toBeCloseTo(themeGraphTokens.fitViewPaddingPx);
+    expect(right).toBeCloseTo(viewportSize.x - themeGraphTokens.fitViewPaddingPx);
+  });
+
   it('returns the initial viewport when fitting is not possible', () => {
     expect(fitGraphViewportToNodes([], { x: 1000, y: 700 })).toEqual(GRAPH_INITIAL_VIEWPORT);
     expect(fitGraphViewportToNodes([{ x: 1, y: 1 }], { x: 0, y: 700 })).toEqual(GRAPH_INITIAL_VIEWPORT);
+  });
+
+  it('fits inside the content area when viewport controls occupy the bottom edge', () => {
+    const viewportSize = { x: 800, y: 600 };
+    const viewport = fitGraphViewportToNodes(
+      [{ x: 0, y: 0 }, { x: 1000, y: 1000 }],
+      viewportSize,
+      getGraphViewportContentBounds(viewportSize, false),
+    );
+    const bottomRight = {
+      x: viewport.x + 1000 * viewport.zoom,
+      y: viewport.y + 1000 * viewport.zoom,
+    };
+    const content = getGraphViewportContentBounds(viewportSize, false);
+
+    expect(bottomRight.y).toBeLessThanOrEqual(content.bottom - themeGraphTokens.fitViewPaddingPx);
+  });
+});
+
+describe('getGraphViewportOverlayBounds', () => {
+  it('reserves the reused whiteboard controls at the bottom-left', () => {
+    expect(getGraphViewportOverlayBounds({ x: 800, y: 600 }, false)[0]).toEqual({
+      bottom: 600 - themeGraphTokens.viewportControlsVerticalOffsetPx,
+      left: themeGraphTokens.viewportControlsHorizontalOffsetPx,
+      right: themeGraphTokens.viewportControlsHorizontalOffsetPx
+        + themeGraphTokens.viewportControlsWidthPx,
+      top: 600
+        - themeGraphTokens.viewportControlsVerticalOffsetPx
+        - themeGraphTokens.viewportControlsHeightPx,
+    });
   });
 });

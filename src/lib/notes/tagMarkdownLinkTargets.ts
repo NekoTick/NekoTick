@@ -4,13 +4,16 @@ import { isEscaped, pushExcludedRange } from './tagMarkdownExcludedRanges';
 
 export function collectMarkdownLinkTargetRanges(content: string, ranges: NoteMarkdownExcludedRange[]): void {
   let remainingFailedPartScanChars = MAX_FAILED_MARKDOWN_LINK_PART_SCAN_CHARS;
-  for (let index = 0; index < content.length && ranges.length < MAX_EXCLUDED_RANGES; index += 1) {
-    if (content[index] !== '[' || isEscaped(content, index)) {
-      continue;
-    }
-    if (remainingFailedPartScanChars <= 0) {
-      break;
-    }
+  let searchStart = 0;
+  while (
+    searchStart < content.length
+    && ranges.length < MAX_EXCLUDED_RANGES
+    && remainingFailedPartScanChars > 0
+  ) {
+    const index = content.indexOf('[', searchStart);
+    if (index < 0) break;
+    searchStart = index + 1;
+    if (isEscaped(content, index)) continue;
 
     const labelScanEnd = getMarkdownLinkPartScanEnd(content, index);
     const labelEnd = scanBalancedLabelEnd(content, index);
@@ -25,7 +28,7 @@ export function collectMarkdownLinkTargetRanges(content: string, ranges: NoteMar
       continue;
     }
     pushExcludedRange(ranges, { from: labelEnd + 1, to: targetEnd + 1 });
-    index = targetEnd;
+    searchStart = targetEnd + 1;
   }
 }
 

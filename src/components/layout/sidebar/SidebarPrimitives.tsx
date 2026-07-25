@@ -142,6 +142,7 @@ export const SidebarSearchField = forwardRef<HTMLInputElement, SidebarSearchFiel
     {
       onClose,
       closeLabel,
+      disabled,
       containerClassName,
       inputClassName,
       closeButtonClassName,
@@ -154,7 +155,7 @@ export const SidebarSearchField = forwardRef<HTMLInputElement, SidebarSearchFiel
       <div className={cn('px-2 pt-2', className)}>
         <div
           className={cn(
-            'flex h-[var(--vlaina-size-40px)] items-center gap-2 rounded-full pl-3 pr-1',
+            'flex h-[var(--vlaina-size-44px)] items-center gap-2 rounded-full pl-3 pr-1',
             raisedPillSurfaceClass,
             containerClassName,
           )}
@@ -166,19 +167,21 @@ export const SidebarSearchField = forwardRef<HTMLInputElement, SidebarSearchFiel
           />
           <input
             ref={ref}
+            disabled={disabled}
             spellCheck={false}
             className={cn(
-              'h-8 min-w-0 flex-1 bg-transparent py-0 text-[var(--vlaina-font-base)] leading-5 text-[var(--vlaina-color-text-soft)] outline-none placeholder:text-[var(--vlaina-color-text-soft)]',
+              'h-[var(--vlaina-size-44px)] min-w-0 flex-1 bg-transparent py-0 text-[var(--vlaina-font-base)] leading-5 text-[var(--vlaina-color-text-soft)] outline-none placeholder:text-[var(--vlaina-color-text-soft)]',
               inputClassName,
             )}
             {...props}
           />
           <button
             type="button"
+            disabled={disabled}
             onClick={onClose}
             aria-label={closeLabel}
             className={cn(
-              'inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-[var(--vlaina-color-text-soft)] transition-colors hover:bg-transparent hover:text-[var(--vlaina-sidebar-row-selected-text)]',
+              'inline-flex size-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--vlaina-color-text-soft)] transition-colors hover:bg-transparent hover:text-[var(--vlaina-sidebar-row-selected-text)]',
               closeButtonClassName,
             )}
           >

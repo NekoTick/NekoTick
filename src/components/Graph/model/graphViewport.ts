@@ -9,6 +9,13 @@ export interface GraphViewport extends GraphPoint {
   zoom: number;
 }
 
+export interface GraphViewportBounds {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+}
+
 export const GRAPH_INITIAL_VIEWPORT: GraphViewport = {
   x: 0,
   y: 0,
@@ -47,9 +54,57 @@ export function zoomGraphViewportAtPoint(
   };
 }
 
+export function getGraphViewportOverlayBounds(
+  viewportSize: GraphPoint,
+  topOverlayVisible: boolean,
+): readonly GraphViewportBounds[] {
+  if (viewportSize.x <= 0 || viewportSize.y <= 0) return [];
+  const controlsLeft = themeGraphTokens.viewportControlsHorizontalOffsetPx;
+  const controlsRight = Math.min(
+    viewportSize.x,
+    controlsLeft + themeGraphTokens.viewportControlsWidthPx,
+  );
+  const bounds: GraphViewportBounds[] = [{
+    bottom: viewportSize.y - themeGraphTokens.viewportControlsVerticalOffsetPx,
+    left: controlsLeft,
+    right: controlsRight,
+    top: Math.max(
+      0,
+      viewportSize.y
+        - themeGraphTokens.viewportControlsVerticalOffsetPx
+        - themeGraphTokens.viewportControlsHeightPx,
+    ),
+  }];
+  if (topOverlayVisible) {
+    bounds.push({
+      bottom: Math.min(viewportSize.y, themeGraphTokens.statusOverlayReservedHeightPx),
+      left: 0,
+      right: viewportSize.x,
+      top: 0,
+    });
+  }
+  return bounds;
+}
+
+export function getGraphViewportContentBounds(
+  viewportSize: GraphPoint,
+  topOverlayVisible: boolean,
+): GraphViewportBounds {
+  const overlays = getGraphViewportOverlayBounds(viewportSize, topOverlayVisible);
+  const controls = overlays[0];
+  const status = overlays[1];
+  return {
+    bottom: controls?.top ?? viewportSize.y,
+    left: 0,
+    right: viewportSize.x,
+    top: status?.bottom ?? 0,
+  };
+}
+
 export function fitGraphViewportToNodes(
   nodes: readonly GraphPoint[],
   viewportSize: GraphPoint,
+  contentBounds?: GraphViewportBounds,
 ): GraphViewport {
   if (nodes.length === 0 || viewportSize.x <= 0 || viewportSize.y <= 0) {
     return GRAPH_INITIAL_VIEWPORT;
@@ -62,8 +117,18 @@ export function fitGraphViewportToNodes(
   const maxY = Math.max(...nodes.map((node) => node.y)) + radius;
   const width = Math.max(1, maxX - minX);
   const height = Math.max(1, maxY - minY);
-  const availableWidth = Math.max(1, viewportSize.x - themeGraphTokens.fitViewPaddingPx * 2);
-  const availableHeight = Math.max(1, viewportSize.y - themeGraphTokens.fitViewPaddingPx * 2);
+  const contentLeft = contentBounds?.left ?? 0;
+  const contentTop = contentBounds?.top ?? 0;
+  const contentWidth = Math.max(
+    1,
+    (contentBounds?.right ?? viewportSize.x) - contentLeft,
+  );
+  const contentHeight = Math.max(
+    1,
+    (contentBounds?.bottom ?? viewportSize.y) - contentTop,
+  );
+  const availableWidth = Math.max(1, contentWidth - themeGraphTokens.fitViewPaddingPx * 2);
+  const availableHeight = Math.max(1, contentHeight - themeGraphTokens.fitViewPaddingPx * 2);
   const zoom = clampGraphZoom(Math.min(
     themeGraphTokens.defaultZoom,
     availableWidth / width,
@@ -71,8 +136,8 @@ export function fitGraphViewportToNodes(
   ));
 
   return {
-    x: (viewportSize.x - width * zoom) / 2 - minX * zoom,
-    y: (viewportSize.y - height * zoom) / 2 - minY * zoom,
+    x: contentLeft + (contentWidth - width * zoom) / 2 - minX * zoom,
+    y: contentTop + (contentHeight - height * zoom) / 2 - minY * zoom,
     zoom,
   };
 }

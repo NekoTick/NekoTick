@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppViewModeSwitch } from './AppViewModeSwitch';
+import { clearAppViewModeFocusIntent } from './appViewModeFocusIntent';
 
 const hoisted = vi.hoisted(() => ({
   uiState: {
@@ -37,6 +38,7 @@ describe('AppViewModeSwitch', () => {
 
   afterEach(() => {
     cleanup();
+    clearAppViewModeFocusIntent();
   });
 
   it('optimistically expands only the selected view while switching', () => {
@@ -45,12 +47,26 @@ describe('AppViewModeSwitch', () => {
     const boardTab = screen.getByRole('tab', { name: 'Board' });
     const chatTab = screen.getByRole('tab', { name: 'Chat' });
     const graphTab = screen.getByRole('tab', { name: 'Graph' });
+    const tabList = screen.getByRole('tablist', { name: 'Switch app view' });
 
     expect(screen.getAllByRole('tab')).toEqual([notesTab, graphTab, boardTab, chatTab]);
+    expect(tabList).toHaveAttribute('aria-orientation', 'horizontal');
+    expect(tabList).toHaveClass('h-14');
     expect(screen.getByTestId('icon-graph.network')).toBeInTheDocument();
 
     expect(chatTab).toHaveAttribute('aria-selected', 'true');
+    expect(chatTab).toHaveAttribute('tabindex', '0');
     expect(boardTab).toHaveAttribute('aria-selected', 'false');
+    expect(notesTab).toHaveAttribute('tabindex', '-1');
+    expect(graphTab).toHaveAttribute('tabindex', '-1');
+    expect(boardTab).toHaveAttribute('tabindex', '-1');
+    for (const tab of [notesTab, graphTab, boardTab, chatTab]) {
+      expect(tab).toHaveClass(
+        'h-[var(--vlaina-size-44px)]',
+        'min-w-[var(--vlaina-size-44px)]',
+        'basis-[var(--vlaina-size-44px)]',
+      );
+    }
     expect(chatTab).toHaveStyle({ flexGrow: 1 });
     const activeBackground = container.querySelector('[aria-hidden="true"]');
     expect(activeBackground).toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
@@ -62,13 +78,82 @@ describe('AppViewModeSwitch', () => {
 
     expect(hoisted.uiState.setAppViewMode).toHaveBeenCalledWith('notes');
     expect(notesTab).toHaveAttribute('aria-selected', 'true');
+    expect(notesTab).toHaveAttribute('tabindex', '0');
     expect(notesTab.className).toContain('text-[length:var(--vlaina-font-15)]');
     expect(notesTab.className).not.toContain('transition-colors');
     expect(notesTab).toHaveStyle({ color: 'var(--vlaina-sidebar-row-selected-text)' });
     expect(notesTab).toHaveStyle({ flexGrow: 1 });
     expect(screen.getByText('Notes')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(chatTab).toHaveAttribute('aria-selected', 'false');
+    expect(chatTab).toHaveAttribute('tabindex', '-1');
     expect(chatTab).toHaveStyle({ flexGrow: 0 });
     expect(container.querySelector('[aria-hidden="true"]')).toBe(activeBackground);
+  });
+
+  it('activates and focuses view tabs with roving navigation keys', () => {
+    render(<AppViewModeSwitch />);
+    const notesTab = screen.getByRole('tab', { name: 'Notes' });
+    const graphTab = screen.getByRole('tab', { name: 'Graph' });
+    const boardTab = screen.getByRole('tab', { name: 'Board' });
+    const chatTab = screen.getByRole('tab', { name: 'Chat' });
+
+    act(() => chatTab.focus());
+    fireEvent.keyDown(chatTab, { key: 'ArrowRight' });
+    expect(notesTab).toHaveFocus();
+    expect(notesTab).toHaveAttribute('tabindex', '0');
+    expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('notes');
+
+    fireEvent.keyDown(notesTab, { key: 'ArrowRight' });
+    expect(graphTab).toHaveFocus();
+    expect(graphTab).toHaveAttribute('tabindex', '0');
+    expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('graph');
+
+    fireEvent.keyDown(graphTab, { key: 'End' });
+    expect(chatTab).toHaveFocus();
+    expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('chat');
+
+    fireEvent.keyDown(chatTab, { key: 'Home' });
+    expect(notesTab).toHaveFocus();
+    expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('notes');
+
+    fireEvent.keyDown(notesTab, { key: 'ArrowLeft' });
+    expect(chatTab).toHaveFocus();
+    expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('chat');
+    expect(boardTab).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('moves focus to the matching switch in the newly visible pane', () => {
+    const view = render(
+      <>
+        <div aria-hidden="false">
+          <AppViewModeSwitch />
+        </div>
+        <div aria-hidden="true">
+          <AppViewModeSwitch />
+        </div>
+      </>,
+    );
+    const visibleNotesTab = screen.getAllByRole('tab', { name: 'Notes', hidden: true })[0];
+    act(() => {
+      visibleNotesTab.focus();
+      fireEvent.click(visibleNotesTab);
+    });
+
+    act(() => {
+      hoisted.uiState.appViewMode = 'notes';
+      view.rerender(
+        <>
+          <div aria-hidden="true">
+            <AppViewModeSwitch />
+          </div>
+          <div aria-hidden="false">
+            <AppViewModeSwitch />
+          </div>
+        </>,
+      );
+    });
+
+    const newlyVisibleNotesTab = screen.getAllByRole('tab', { name: 'Notes', hidden: true })[1];
+    expect(newlyVisibleNotesTab).toHaveFocus();
   });
 });
