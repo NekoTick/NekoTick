@@ -1,23 +1,27 @@
-import { useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icon } from '@/components/ui/icons';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { secondaryPillButtonClass } from '@/components/ui/surfaceStyles';
 import { SettingsTextarea } from '@/components/Settings/components/SettingsFields';
+import { isImageFilename } from '@/lib/assets/core/naming';
 import { useI18n } from '@/lib/i18n';
+import type { MessageKey } from '@/lib/i18n';
 import { useNotesStore } from '@/stores/useNotesStore';
 import type { GitChange } from './gitUiTypes';
 import { getGitChangeKind } from './gitUiTypes';
-import { getGitDiffLineStats, GitUnifiedDiff } from './GitUnifiedDiff';
+import { getGitDiffStatsByPath, GitUnifiedDiff } from './GitUnifiedDiff';
 
 interface GitChangesViewProps {
   changes: GitChange[];
-  diffByPath: Record<string, string>;
+  diffs: string[];
   diffLoading: boolean;
+  diffError: MessageKey | null;
   commitMessage: string;
   selectedCommitPaths: Set<string>;
   busy: boolean;
+  commitUnavailable: boolean;
   onCommitMessageChange: (message: string) => void;
   onUseCurrentTime: () => void;
   onToggleCommitPath: (path: string) => void;
@@ -25,13 +29,15 @@ interface GitChangesViewProps {
   onCommit: () => void;
 }
 
-export function GitChangesView({
+export const GitChangesView = memo(function GitChangesView({
   changes,
-  diffByPath,
+  diffs,
   diffLoading,
+  diffError,
   commitMessage,
   selectedCommitPaths,
   busy,
+  commitUnavailable,
   onCommitMessageChange,
   onUseCurrentTime,
   onToggleCommitPath,
@@ -40,29 +46,23 @@ export function GitChangesView({
 }: GitChangesViewProps) {
   const { t } = useI18n();
   const openNote = useNotesStore((state) => state.openNote);
-  const fileDiffs = useMemo(
-    () => changes.map((change) => diffByPath[change.path] ?? ''),
-    [changes, diffByPath],
-  );
+  const conflictLabel = t('git.conflicted');
+  const controlsDisabled = busy || commitUnavailable || Boolean(diffError) || diffLoading;
   const selectedCount = useMemo(
     () => changes.filter((change) => selectedCommitPaths.has(change.path)).length,
     [changes, selectedCommitPaths],
   );
-  const statsByPath = useMemo(
-    () => Object.fromEntries(changes.map((change) => [
-      change.path,
-      getGitDiffLineStats(diffByPath[change.path] ?? ''),
-    ])),
-    [changes, diffByPath],
-  );
+  const statsByPath = useMemo(() => getGitDiffStatsByPath(diffs), [diffs]);
   const handleOpenFile = useCallback((path: string) => {
     void openNote(path).catch(() => undefined);
   }, [openNote]);
-  const hasLoadedDiff = useMemo(() => fileDiffs.some(Boolean), [fileDiffs]);
+  const hasLoadedDiff = useMemo(() => diffs.some(Boolean), [diffs]);
   const changeRows = useMemo(() => changes.map((change) => {
     const kind = getGitChangeKind(change);
+    const canOpenFile = kind !== 'deleted' && !isImageFilename(change.path);
     const selectedForCommit = selectedCommitPaths.has(change.path);
     const stats = statsByPath[change.path];
+    const hasStats = Boolean(stats && (stats.additions > 0 || stats.deletions > 0));
     return (
       <div
         key={`${change.previousPath ?? ''}:${change.path}`}
@@ -74,35 +74,55 @@ export function GitChangesView({
           data-testid="git-change-checkbox"
           data-path={change.path}
           checked={selectedForCommit}
+          disabled={controlsDisabled}
           onCheckedChange={() => onToggleCommitPath(change.path)}
           aria-label={change.path}
         />
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <button
-            type="button"
-            data-testid="git-open-file"
-            disabled={kind === 'deleted'}
-            onClick={() => handleOpenFile(change.path)}
-            className="min-w-0 truncate text-left font-mono text-[var(--vlaina-font-13)] hover:text-[var(--vlaina-sidebar-row-selected-text)] disabled:cursor-default disabled:hover:text-inherit"
-          >
-            {change.previousPath ? `${change.previousPath} → ${change.path}` : change.path}
-          </button>
-          <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[var(--vlaina-font-xs)]">
-            <span className="text-[var(--vlaina-color-status-success-fg)]">+{stats.additions}</span>
-            <span className="text-[var(--vlaina-color-status-danger-fg)]">-{stats.deletions}</span>
-          </span>
+          {canOpenFile ? (
+            <button
+              type="button"
+              data-testid="git-open-file"
+              onClick={() => handleOpenFile(change.path)}
+              className="min-w-0 truncate text-left font-mono text-[var(--vlaina-font-13)] hover:text-[var(--vlaina-sidebar-row-selected-text)]"
+            >
+              {change.previousPath ? `${change.previousPath} → ${change.path}` : change.path}
+            </button>
+          ) : (
+            <span
+              data-testid="git-change-file-label"
+              className="min-w-0 truncate font-mono text-[var(--vlaina-font-13)]"
+            >
+              {change.previousPath ? `${change.previousPath} → ${change.path}` : change.path}
+            </span>
+          )}
+          {kind === 'conflicted' ? (
+            <span className="shrink-0 text-[var(--vlaina-font-11)] font-medium text-[var(--vlaina-color-status-danger-fg)]">
+              {conflictLabel}
+            </span>
+          ) : null}
+          {hasStats && stats ? (
+            <span className="ml-auto flex shrink-0 items-center gap-2 font-mono text-[var(--vlaina-font-xs)]">
+              {stats.additions > 0 ? (
+                <span className="text-[var(--vlaina-color-status-success-fg)]">+{stats.additions}</span>
+              ) : null}
+              {stats.deletions > 0 ? (
+                <span className="text-[var(--vlaina-color-status-danger-fg)]">-{stats.deletions}</span>
+              ) : null}
+            </span>
+          ) : null}
         </span>
       </div>
     );
-  }), [changes, handleOpenFile, onToggleCommitPath, selectedCommitPaths, statsByPath]);
+  }), [changes, conflictLabel, controlsDisabled, handleOpenFile, onToggleCommitPath, selectedCommitPaths, statsByPath]);
   if (changes.length === 0) {
     return <div data-testid="git-changes-empty" />;
   }
 
   const allSelected = changes.length > 0 && selectedCount === changes.length;
   const selectionState = allSelected ? true : selectedCount > 0 ? 'indeterminate' : false;
-  const canCommit = selectedCount > 0 && commitMessage.trim().length > 0 && !busy;
-  const diffLabel = diffLoading ? t('git.loading') : t('git.diffEmpty');
+  const canCommit = selectedCount > 0 && commitMessage.trim().length > 0 && !controlsDisabled;
+  const diffLabel = diffError ? t(diffError) : diffLoading ? t('git.loading') : t('git.diffEmpty');
 
   return (
     <div className="flex flex-col">
@@ -119,6 +139,7 @@ export function GitChangesView({
             data-testid="git-commit-message"
             data-git-selectable="true"
             value={commitMessage}
+            disabled={controlsDisabled}
             onChange={(event) => onCommitMessageChange(event.target.value)}
             placeholder={t('git.commitMessagePlaceholder')}
             rows={2}
@@ -133,6 +154,7 @@ export function GitChangesView({
             variant="ghost"
             size="sm"
             className={secondaryPillButtonClass}
+            disabled={controlsDisabled}
             onClick={onUseCurrentTime}
           >
             <Icon name="misc.clock" />
@@ -156,11 +178,13 @@ export function GitChangesView({
                 <Checkbox
                   data-testid="git-select-all"
                   checked={selectionState}
+                  disabled={controlsDisabled}
                   onCheckedChange={onToggleAllCommitPaths}
                   aria-label={t('git.selectAll')}
                 />
                 <button
                   type="button"
+                  disabled={controlsDisabled}
                   onClick={onToggleAllCommitPaths}
                   className="text-[var(--vlaina-font-13)] font-medium text-[var(--vlaina-text-secondary)] hover:text-[var(--vlaina-text-primary)]"
                 >
@@ -177,13 +201,14 @@ export function GitChangesView({
 
       <div className="flex p-4">
         <GitUnifiedDiff
-          diff={fileDiffs}
+          diff={diffs}
           loading={diffLoading && !hasLoadedDiff}
           emptyLabel={diffLabel}
+          tooLargeLabel={t('git.diffTooLarge')}
           showFileHeaders
           onOpenFile={handleOpenFile}
         />
       </div>
     </div>
   );
-}
+});

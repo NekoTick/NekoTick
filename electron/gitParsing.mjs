@@ -28,6 +28,7 @@ function createChange(path, indexStatus, workTreeStatus, previousPath = null, co
 export function parsePorcelainV2Status(output) {
   const records = String(output ?? '').split('\0');
   const result = {
+    head: null,
     branch: null,
     detached: false,
     upstream: null,
@@ -44,6 +45,11 @@ export function parsePorcelainV2Status(output) {
       const branch = record.slice('# branch.head '.length);
       result.detached = branch === '(detached)';
       result.branch = result.detached ? null : branch;
+      continue;
+    }
+    if (record.startsWith('# branch.oid ')) {
+      const head = record.slice('# branch.oid '.length);
+      result.head = head === '(initial)' ? null : head || null;
       continue;
     }
     if (record.startsWith('# branch.upstream ')) {

@@ -39,12 +39,15 @@ const change = {
 
 const status = {
   rootPath: '/repo',
+  head: '0123456789abcdef',
   branch: 'main',
   detached: false,
   upstream: 'origin/main',
   ahead: 0,
   behind: 0,
   remoteUrl: 'https://example.invalid/repo.git',
+  remoteConfigured: true,
+  remoteProtocolSupported: true,
   changes: [change],
 };
 
@@ -188,6 +191,17 @@ describe('GitTitleBarAction', () => {
       'text-[var(--vlaina-sidebar-chat-text)]',
     );
     expect(screen.getByTestId('git-sync-tooltip')).toHaveTextContent('git.sync');
+    expect(button).toHaveClass('text-[var(--vlaina-sidebar-row-selected-text)]');
+  });
+
+  it('uses the normal titlebar color when the repository has no committable changes', async () => {
+    mocks.git.status.mockResolvedValue({ ...status, changes: [] });
+
+    render(<GitTitleBarAction />);
+
+    const button = await screen.findByTestId('git-sync-button');
+    expect(button).toHaveClass('text-[var(--vlaina-color-titlebar-button)]');
+    expect(button).not.toHaveClass('text-[var(--vlaina-sidebar-row-selected-text)]');
   });
 
   it('stays hidden when the loaded folder is not a valid Git repository', async () => {
@@ -199,7 +213,15 @@ describe('GitTitleBarAction', () => {
     expect(screen.queryByTestId('git-sync-button')).not.toBeInTheDocument();
   });
 
-  it('opens the popover and automatically loads every working-tree diff', async () => {
+  it('keeps the Git entry available when repository detection fails', async () => {
+    mocks.git.status.mockRejectedValue(new Error('Git command timed out.'));
+
+    render(<GitTitleBarAction />);
+
+    expect(await screen.findByTestId('git-sync-button')).toBeInTheDocument();
+  });
+
+  it('opens the popover and loads the working-tree diff in one batch', async () => {
     await openGitPopover();
 
     expect(mocks.git.status).toHaveBeenCalledWith('/repo');
@@ -226,14 +248,14 @@ describe('GitTitleBarAction', () => {
     expect(screen.queryByText('git.syncNow')).not.toBeInTheDocument();
     expect(screen.getByTestId('git-close-button')).toHaveClass('h-8', 'w-8', 'rounded-full');
     expect(screen.getByTestId('git-sync-popover')).toHaveClass(
-      'data-[state=closed]:duration-[var(--vlaina-duration-75)]',
+      'data-[state=open]:duration-[var(--vlaina-duration-100)]',
     );
     expect(screen.getByTestId('git-sync-popover')).not.toHaveClass(
-      'data-[state=closed]:duration-[var(--vlaina-duration-150)]',
+      'data-[state=open]:duration-[var(--vlaina-duration-200)]',
     );
     await screen.findByTestId('git-change-row');
-    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledWith('/repo', 'notes/today.md'));
-    expect(screen.getByTestId('git-diff')).toHaveTextContent('+new');
+    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledWith('/repo', ['notes/today.md']));
+    await waitFor(() => expect(screen.getByTestId('git-diff')).toHaveTextContent('+new'));
     expect(screen.queryByText(/diff --git/)).not.toBeInTheDocument();
     expect(screen.queryByText(/index 1111111/)).not.toBeInTheDocument();
     expect(screen.queryByText('--- a/notes/today.md')).not.toBeInTheDocument();
@@ -248,6 +270,68 @@ describe('GitTitleBarAction', () => {
     fireEvent.click(screen.getByTestId('git-close-button'));
     await act(async () => undefined);
     expect(document.body).not.toHaveAttribute('data-git-selection-active');
+  });
+
+  it('keeps an untracked binary image in the selectable change list', async () => {
+    const imageChange = {
+      ...change,
+      path: 'assets/cover.png',
+      indexStatus: '?',
+      workTreeStatus: '?',
+      status: 'untracked',
+    };
+    mocks.git.status.mockResolvedValue({ ...status, changes: [imageChange] });
+    mocks.git.workingDiff.mockResolvedValue([
+      'diff --git a/assets/cover.png b/assets/cover.png',
+      'new file mode 100644',
+      'index 0000000..1234567',
+      'Binary files /dev/null and b/assets/cover.png differ',
+    ].join('\n'));
+
+    await openGitPopover();
+
+    const row = await screen.findByTestId('git-change-row');
+    expect(row).toHaveTextContent('assets/cover.png');
+    expect(row).not.toHaveTextContent('+0');
+    expect(row).not.toHaveTextContent('-0');
+    expect(screen.getByTestId('git-change-checkbox')).toHaveAttribute('data-state', 'checked');
+    expect(screen.queryByTestId('git-open-file')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('git-change-file-label'));
+    expect(mocks.openNote).not.toHaveBeenCalled();
+    expect(await screen.findByTestId('git-diff-file')).toHaveAttribute('data-path', 'assets/cover.png');
+    expect(screen.queryByTestId('git-open-diff-file')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('git-diff-file-label'));
+    expect(mocks.openNote).not.toHaveBeenCalled();
+    expect(screen.getByTestId('git-diff')).toHaveTextContent('Binary files');
+  });
+
+  it('resizes the Git panel from its bottom edge and resets on double click', async () => {
+    await openGitPopover();
+    await screen.findByTestId('git-change-row');
+    await waitFor(() => expect(screen.getByTestId('git-diff')).toHaveTextContent('+new'));
+
+    const popover = screen.getByTestId('git-sync-popover');
+    const handle = screen.getByTestId('git-popover-resize-handle');
+    expect(handle).toHaveAttribute('role', 'separator');
+    expect(handle).toHaveAttribute('aria-label', 'git.resizePopover');
+    expect(handle).toHaveAttribute('tabindex', '0');
+
+    fireEvent.pointerDown(handle, { button: 0, clientY: 600, pointerId: 1 });
+    const translationsAfterDragStart = mocks.t.mock.calls.length;
+    for (let clientY = 620; clientY <= 700; clientY += 20) {
+      fireEvent.pointerMove(window, { clientY, pointerId: 1 });
+    }
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+    expect(popover).toHaveStyle({ height: '700px' });
+    expect(handle).toHaveAttribute('aria-valuenow', '700');
+    expect(mocks.t).toHaveBeenCalledTimes(translationsAfterDragStart);
+    fireEvent.pointerUp(window, { pointerId: 1 });
+
+    fireEvent.doubleClick(handle);
+    expect((popover as HTMLElement).style.height).toBe('');
+    expect(handle).toHaveAttribute('aria-valuenow', '600');
   });
 
   it('saves pending notes before loading Git data on open', async () => {
@@ -266,17 +350,93 @@ describe('GitTitleBarAction', () => {
     expect(mocks.git.fetch).not.toHaveBeenCalled();
 
     resolveSave();
+    await waitFor(() => expect(mocks.saveDirtyTabs).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.git.status).toHaveBeenCalledWith('/repo'));
-    await waitFor(() => expect(mocks.git.fetch).toHaveBeenCalledWith('/repo'));
+    expect(mocks.git.fetch).not.toHaveBeenCalled();
     expect(mocks.addToast).not.toHaveBeenCalledWith('git.saveBeforeOperationFailed', 'error');
   });
 
-  it('shows incoming and outgoing commit counts and highlights pushable commits in blue', async () => {
-    mocks.git.fetch.mockResolvedValue({ ...status, ahead: 3, behind: 2 });
+  it('blocks stale controls when saving on open fails and supports retry', async () => {
+    render(<GitTitleBarAction />);
+    const syncButton = await screen.findByTestId('git-sync-button');
+    mocks.git.status.mockClear();
+    mocks.saveDirtyTabs.mockResolvedValue(false);
+
+    fireEvent.click(syncButton);
+    expect(await screen.findByText('git.saveBeforeOperationFailed')).toBeInTheDocument();
+    expect(screen.getByTestId('git-pull-button')).toBeDisabled();
+    expect(screen.getByTestId('git-push-button')).toBeDisabled();
+    expect(screen.queryByTestId('git-change-row')).not.toBeInTheDocument();
+    expect(mocks.git.status).not.toHaveBeenCalled();
+
+    mocks.saveDirtyTabs.mockResolvedValue(true);
+    fireEvent.click(screen.getByRole('button', { name: 'git.retry' }));
+    expect(await screen.findByTestId('git-change-row')).toBeInTheDocument();
+    expect(mocks.git.status).toHaveBeenCalledTimes(1);
+  });
+
+  it('explains and blocks detached, conflicted, and diverged states', async () => {
+    mocks.git.status.mockResolvedValue({ ...status, branch: null, detached: true });
+    const detachedView = render(<GitTitleBarAction />);
+    fireEvent.click(await screen.findByTestId('git-sync-button'));
+    expect(await screen.findByText('git.detachedUnavailable')).toBeInTheDocument();
+    expect(screen.getByTestId('git-commit-button')).toBeDisabled();
+    expect(screen.getByTestId('git-pull-button')).toBeDisabled();
+    expect(screen.getByTestId('git-push-button')).toBeDisabled();
+    detachedView.unmount();
+
+    const conflictedChange = {
+      ...change,
+      indexStatus: 'U',
+      workTreeStatus: 'U',
+      status: 'conflicted',
+    };
+    mocks.git.status.mockResolvedValue({ ...status, changes: [conflictedChange] });
+    const conflictedView = render(<GitTitleBarAction />);
+    fireEvent.click(await screen.findByTestId('git-sync-button'));
+    expect(await screen.findByText('git.conflicts')).toBeInTheDocument();
+    expect(screen.getByText('git.conflicted')).toBeInTheDocument();
+    expect(screen.getByTestId('git-commit-button')).toBeDisabled();
+    conflictedView.unmount();
+
+    mocks.git.status.mockResolvedValue({ ...status, ahead: 1, behind: 1 });
+    render(<GitTitleBarAction />);
+    fireEvent.click(await screen.findByTestId('git-sync-button'));
+    expect(await screen.findByText('git.diverged')).toBeInTheDocument();
+    expect(screen.getByTestId('git-pull-button')).toBeDisabled();
+    expect(screen.getByTestId('git-push-button')).toBeDisabled();
+  });
+
+  it('blocks a configured remote that is not HTTPS or SSH', async () => {
+    mocks.git.status.mockResolvedValue({
+      ...status,
+      remoteUrl: null,
+      remoteConfigured: true,
+      remoteProtocolSupported: false,
+    });
 
     await openGitPopover();
 
-    await waitFor(() => expect(mocks.git.fetch).toHaveBeenCalledWith('/repo'));
+    expect(screen.getByText('git.unsupportedRemote')).toBeInTheDocument();
+    expect(screen.getByTestId('git-pull-button')).toBeDisabled();
+    expect(screen.getByTestId('git-push-button')).toBeDisabled();
+  });
+
+  it('bounds aggregate diff rendering and blocks an incomplete review', async () => {
+    mocks.git.workingDiff.mockResolvedValue('x'.repeat(4 * 1024 * 1024 + 1));
+
+    await openGitPopover();
+
+    expect(await screen.findByText('git.diffTooLarge')).toBeInTheDocument();
+    expect(screen.getByTestId('git-commit-button')).toBeDisabled();
+    expect(mocks.addToast).toHaveBeenCalledWith('git.diffTooLarge', 'error');
+  });
+
+  it('shows incoming and outgoing commit counts and highlights pushable commits in blue', async () => {
+    mocks.git.status.mockResolvedValue({ ...status, ahead: 3, behind: 2 });
+
+    await openGitPopover();
+
     await waitFor(() => expect(screen.getByTestId('git-pull-button')).toHaveTextContent('git.pull (2)'));
     expect(screen.getByTestId('git-push-button')).toHaveTextContent('git.push (3)');
     expect(screen.getByTestId('git-push-button')).toHaveClass(
@@ -285,7 +445,7 @@ describe('GitTitleBarAction', () => {
   });
 
   it('loads working diffs in bounded batches', async () => {
-    const changes = Array.from({ length: 6 }, (_, index) => ({
+    const changes = Array.from({ length: 206 }, (_, index) => ({
       ...change,
       path: `notes/note-${index + 1}.md`,
     }));
@@ -298,19 +458,29 @@ describe('GitTitleBarAction', () => {
     }));
 
     await openGitPopover();
-    await screen.findAllByTestId('git-change-row');
-    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledTimes(4));
-
-    resolvers.slice(0, 4).forEach((resolve, index) => resolve(`diff:${index}`));
-    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledTimes(6));
-    await waitFor(() => expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:0'));
-    resolvers.slice(4).forEach((resolve, index) => resolve(`diff:${index + 4}`));
-    await waitFor(() => expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:5'));
+    const rows = await screen.findAllByTestId('git-change-row');
+    rows.forEach((row) => {
+      expect(row).not.toHaveTextContent('+0');
+      expect(row).not.toHaveTextContent('-0');
+    });
+    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledTimes(1));
+    expect(mocks.git.workingDiff.mock.calls[0][1]).toHaveLength(100);
+    resolvers[0]('@@ -0,0 +1 @@\n+batch:1');
+    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledTimes(2));
+    expect(mocks.git.workingDiff.mock.calls[1][1]).toHaveLength(100);
+    resolvers[1]('@@ -0,0 +1 @@\n+batch:2');
+    await waitFor(() => expect(mocks.git.workingDiff).toHaveBeenCalledTimes(3));
+    expect(mocks.git.workingDiff.mock.calls[2][1]).toHaveLength(6);
+    resolvers[2]('@@ -0,0 +1 @@\n+batch:3');
+    await waitFor(() => expect(screen.getByTestId('git-diff')).toHaveTextContent('batch:3'));
   });
 
-  it('saves pending notes before committing selected changes', async () => {
+  it('commits the reviewed disk snapshot without saving again', async () => {
     await openGitPopover();
     await screen.findByTestId('git-change-row');
+    mocks.flushTitle.mockClear();
+    mocks.flushEditorSave.mockClear();
+    mocks.saveDirtyTabs.mockClear();
     fireEvent.change(screen.getByTestId('git-commit-message'), { target: { value: 'Update notes' } });
     fireEvent.click(screen.getByTestId('git-commit-button'));
 
@@ -318,14 +488,22 @@ describe('GitTitleBarAction', () => {
       message: 'Update notes',
       paths: ['notes/today.md'],
     }));
-    expect(mocks.flushTitle).toHaveBeenCalledTimes(2);
-    expect(mocks.saveDirtyTabs).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('git-sync-button')).toHaveClass(
+      'text-[var(--vlaina-color-titlebar-button)]',
+    ));
+    expect(screen.getByTestId('git-sync-button')).not.toHaveClass(
+      'text-[var(--vlaina-sidebar-row-selected-text)]',
+    );
+    expect(mocks.flushTitle).not.toHaveBeenCalled();
+    expect(mocks.flushEditorSave).not.toHaveBeenCalled();
+    expect(mocks.saveDirtyTabs).not.toHaveBeenCalled();
   });
 
   it('fills the commit message with the current local time', async () => {
     await openGitPopover();
 
     const currentTimeButton = screen.getByTestId('git-use-current-time');
+    await waitFor(() => expect(currentTimeButton).not.toBeDisabled());
     expect(currentTimeButton).toHaveClass(
       'rounded-full',
       'bg-[var(--vlaina-bg-tertiary)]',
@@ -342,13 +520,15 @@ describe('GitTitleBarAction', () => {
     const statusWithTwoChanges = { ...status, changes: [change, secondChange] };
     mocks.git.status.mockResolvedValue(statusWithTwoChanges);
     mocks.git.fetch.mockResolvedValue(statusWithTwoChanges);
-    mocks.git.workingDiff.mockImplementation(async (_rootPath, filePath) => [
-      `diff --git a/${filePath} b/${filePath}`,
-      `--- a/${filePath}`,
-      `+++ b/${filePath}`,
-      '@@ -0,0 +1 @@',
-      `+diff:${filePath}`,
-    ].join('\n'));
+    mocks.git.workingDiff.mockImplementation(async (_rootPath, filePaths: string[]) => (
+      filePaths.map((filePath) => [
+        `diff --git a/${filePath} b/${filePath}`,
+        `--- a/${filePath}`,
+        `+++ b/${filePath}`,
+        '@@ -0,0 +1 @@',
+        `+diff:${filePath}`,
+      ].join('\n')).join('\n')
+    ));
     await openGitPopover();
 
     const checkboxes = await screen.findAllByTestId('git-change-checkbox');
@@ -356,8 +536,10 @@ describe('GitTitleBarAction', () => {
     expect(checkboxes[0]).toHaveAttribute('aria-checked', 'true');
     expect(checkboxes[1]).toHaveAttribute('aria-checked', 'true');
     await waitFor(() => {
-      expect(mocks.git.workingDiff).toHaveBeenCalledWith('/repo', 'notes/today.md');
-      expect(mocks.git.workingDiff).toHaveBeenCalledWith('/repo', 'notes/later.md');
+      expect(mocks.git.workingDiff).toHaveBeenCalledWith(
+        '/repo',
+        ['notes/today.md', 'notes/later.md'],
+      );
     });
     expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:notes/today.md');
     expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:notes/later.md');
@@ -379,17 +561,11 @@ describe('GitTitleBarAction', () => {
       'bg-[var(--vlaina-color-setting-field)]',
       'shadow-[var(--vlaina-shadow-control-active)]',
     );
-    const fileScrollAreas = screen.getAllByTestId('git-diff-file-scroll');
-    expect(fileScrollAreas).toHaveLength(2);
-    fileScrollAreas.forEach((scrollArea) => {
-      expect(scrollArea).toHaveClass(
-        'h-[var(--vlaina-size-180px)]',
-        'flex-none',
-        'overflow-auto',
-        'app-scrollbar',
-      );
-    });
-    expect(screen.queryByTestId('git-diff-scroll')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('git-diff-file-scroll')).not.toBeInTheDocument();
+    expect(screen.getByTestId('git-diff-scroll')).toHaveClass(
+      'h-[var(--vlaina-size-180px)]',
+      'flex-none',
+    );
     fireEvent.click(checkboxes[1]);
     fireEvent.change(screen.getByTestId('git-commit-message'), { target: { value: 'Selected note' } });
     fireEvent.click(screen.getByTestId('git-commit-button'));

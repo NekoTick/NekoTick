@@ -123,7 +123,7 @@ describe('preload filesystem budgets', () => {
 
     await api.git.status('/repo');
     await api.git.fetch('/repo');
-    await api.git.workingDiff('/repo', 'docs/note.md');
+    await api.git.workingDiff('/repo', ['docs/note.md']);
     await api.git.history('/repo', 25);
     await api.git.commitDiff('/repo', '0123456789abcdef');
     await api.git.commit('/repo', commitOptions);
@@ -136,7 +136,7 @@ describe('preload filesystem budgets', () => {
       3,
       'desktop:git:working-diff',
       '/repo',
-      'docs/note.md',
+      ['docs/note.md'],
     );
     expect(ipcRenderer.invoke).toHaveBeenNthCalledWith(4, 'desktop:git:history', '/repo', 25);
     expect(ipcRenderer.invoke).toHaveBeenNthCalledWith(

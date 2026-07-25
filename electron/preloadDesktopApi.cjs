@@ -158,8 +158,8 @@ function createDesktopApi(deps) {
       fetch(rootPath) {
         return ipcRenderer.invoke('desktop:git:fetch', rootPath);
       },
-      workingDiff(rootPath, filePath) {
-        return ipcRenderer.invoke('desktop:git:working-diff', rootPath, filePath);
+      workingDiff(rootPath, filePaths) {
+        return ipcRenderer.invoke('desktop:git:working-diff', rootPath, filePaths);
       },
       history(rootPath, limit) {
         return ipcRenderer.invoke('desktop:git:history', rootPath, limit);

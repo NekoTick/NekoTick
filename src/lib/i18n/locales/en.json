@@ -859,5 +859,17 @@
   "git.pushSuccess": "Changes pushed.",
   "git.operationFailed": "Git operation failed. Check the repository and try again.",
   "git.saveBeforeOperationFailed": "Could not save all open notes. Git was not changed.",
-  "git.diffEmpty": "No text diff is available for this item."
+  "git.detachedHead": "Detached HEAD",
+  "git.detachedUnavailable": "Switch to a branch before committing or syncing.",
+  "git.conflicted": "Conflict",
+  "git.conflicts": "Resolve all merge conflicts before committing or syncing.",
+  "git.diverged": "Local and remote history have diverged. Resolve the divergence with Git before syncing here.",
+  "git.unsupportedRemote": "This remote is blocked. Configure an HTTPS or SSH remote.",
+  "git.authenticationFailed": "Remote authentication failed. Check your Git credentials and try again.",
+  "git.identityMissing": "Configure your Git user name and email before committing.",
+  "git.networkUnavailable": "The remote could not be reached. Check your connection and try again.",
+  "git.diffTooLarge": "The diff is too large to preview.",
+  "git.retry": "Retry",
+  "git.diffEmpty": "No text diff is available for this item.",
+  "git.resizePopover": "Resize Git panel"
 }

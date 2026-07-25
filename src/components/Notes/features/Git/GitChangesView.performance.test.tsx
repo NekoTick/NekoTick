@@ -6,14 +6,14 @@ import { GitChangesView } from './GitChangesView';
 const mocks = vi.hoisted(() => ({
   changeRowRender: vi.fn(),
   diffRender: vi.fn(),
-  getDiffStats: vi.fn(() => ({ additions: 1, deletions: 1 })),
+  getDiffStats: vi.fn(() => ({ 'notes/today.md': { additions: 1, deletions: 1 } })),
   openNote: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./GitUnifiedDiff', async () => {
   const { memo } = await import('react');
   return {
-    getGitDiffLineStats: mocks.getDiffStats,
+    getGitDiffStatsByPath: mocks.getDiffStats,
     GitUnifiedDiff: memo((props: { diff: string[]; onOpenFile: (path: string) => void }) => {
       mocks.diffRender(props);
       return <div data-testid="git-diff" />;
@@ -52,7 +52,7 @@ const changes = [{
   staged: false,
   unstaged: true,
 }];
-const diffByPath = { 'notes/today.md': '-Old\n+New' };
+const diffs = ['-Old\n+New'];
 const selectedCommitPaths = new Set(['notes/today.md']);
 const doNothing = () => undefined;
 
@@ -61,11 +61,13 @@ function TestView() {
   return (
     <GitChangesView
       changes={changes}
-      diffByPath={diffByPath}
+      diffs={diffs}
       diffLoading={false}
+      diffError={null}
       commitMessage={commitMessage}
       selectedCommitPaths={selectedCommitPaths}
       busy={false}
+      commitUnavailable={false}
       onCommitMessageChange={setCommitMessage}
       onUseCurrentTime={doNothing}
       onToggleCommitPath={doNothing}

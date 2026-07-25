@@ -859,5 +859,17 @@
   "git.pushSuccess": "已推送至遠端儲存庫。",
   "git.operationFailed": "Git 操作失敗，請檢查儲存庫狀態後再試一次。",
   "git.saveBeforeOperationFailed": "無法儲存所有已開啟的筆記，因此沒有執行 Git 操作。",
-  "git.diffEmpty": "此項目沒有可顯示的文字差異。"
+  "git.detachedHead": "游離 HEAD",
+  "git.detachedUnavailable": "請先切換至分支，再提交或同步。",
+  "git.conflicted": "衝突",
+  "git.conflicts": "請先解決所有合併衝突，再提交或同步。",
+  "git.diverged": "本機與遠端提交記錄已分歧，請先使用 Git 解決後再於此同步。",
+  "git.unsupportedRemote": "此遠端位址已被阻擋，請設定 HTTPS 或 SSH 遠端位址。",
+  "git.authenticationFailed": "遠端驗證失敗，請檢查 Git 認證後再試一次。",
+  "git.identityMissing": "請先設定 Git 使用者名稱與電子郵件，再進行提交。",
+  "git.networkUnavailable": "無法連線至遠端儲存庫，請檢查網路後再試一次。",
+  "git.diffTooLarge": "差異內容過大，無法預覽。",
+  "git.retry": "重試",
+  "git.diffEmpty": "此項目沒有可顯示的文字差異。",
+  "git.resizePopover": "調整 Git 面板大小"
 }

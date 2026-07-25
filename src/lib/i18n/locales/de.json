@@ -859,5 +859,17 @@
   "git.pushSuccess": "Änderungen wurden gepusht.",
   "git.operationFailed": "Git-Vorgang fehlgeschlagen. Prüfe das Repository und versuche es erneut.",
   "git.saveBeforeOperationFailed": "Nicht alle geöffneten Notizen konnten gespeichert werden. Git wurde nicht verändert.",
-  "git.diffEmpty": "Für dieses Element ist kein Text-Diff verfügbar."
+  "git.detachedHead": "Losgelöster HEAD",
+  "git.detachedUnavailable": "Wechsle vor dem Committen oder Synchronisieren zu einem Branch.",
+  "git.conflicted": "Konflikt",
+  "git.conflicts": "Löse vor dem Committen oder Synchronisieren alle Merge-Konflikte.",
+  "git.diverged": "Lokaler und entfernter Verlauf sind auseinandergegangen. Löse dies zuerst mit Git.",
+  "git.unsupportedRemote": "Dieses Remote ist gesperrt. Konfiguriere ein HTTPS- oder SSH-Remote.",
+  "git.authenticationFailed": "Remote-Authentifizierung fehlgeschlagen. Prüfe deine Git-Zugangsdaten.",
+  "git.identityMissing": "Konfiguriere vor dem Committen deinen Git-Benutzernamen und deine E-Mail-Adresse.",
+  "git.networkUnavailable": "Das Remote ist nicht erreichbar. Prüfe deine Verbindung und versuche es erneut.",
+  "git.diffTooLarge": "Der Diff ist zu groß für eine Vorschau.",
+  "git.retry": "Erneut versuchen",
+  "git.diffEmpty": "Für dieses Element ist kein Text-Diff verfügbar.",
+  "git.resizePopover": "Größe des Git-Bedienfelds ändern"
 }

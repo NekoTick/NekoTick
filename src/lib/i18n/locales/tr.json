@@ -859,5 +859,17 @@
   "git.pushSuccess": "Değişiklikler gönderildi.",
   "git.operationFailed": "Git işlemi başarısız oldu. Depoyu kontrol edip yeniden deneyin.",
   "git.saveBeforeOperationFailed": "Açık notların tümü kaydedilemedi. Git değiştirilmedi.",
-  "git.diffEmpty": "Bu öğe için metin farkı yok."
+  "git.detachedHead": "Ayrılmış HEAD",
+  "git.detachedUnavailable": "Commit veya eşitlemeden önce bir dala geçin.",
+  "git.conflicted": "Çakışma",
+  "git.conflicts": "Commit veya eşitlemeden önce tüm birleştirme çakışmalarını çözün.",
+  "git.diverged": "Yerel ve uzak geçmiş ayrıştı. Burada eşitlemeden önce Git ile çözün.",
+  "git.unsupportedRemote": "Bu uzak depo engellendi. HTTPS veya SSH uzak deposu yapılandırın.",
+  "git.authenticationFailed": "Uzak kimlik doğrulaması başarısız oldu. Git kimlik bilgilerinizi kontrol edin.",
+  "git.identityMissing": "Commit etmeden önce Git kullanıcı adınızı ve e-postanızı yapılandırın.",
+  "git.networkUnavailable": "Uzak depoya ulaşılamadı. Bağlantınızı kontrol edip yeniden deneyin.",
+  "git.diffTooLarge": "Fark önizleme için çok büyük.",
+  "git.retry": "Yeniden dene",
+  "git.diffEmpty": "Bu öğe için metin farkı yok.",
+  "git.resizePopover": "Git panelini yeniden boyutlandır"
 }

@@ -11,14 +11,15 @@ import {
   resolveRelativeGitPath,
   sanitizeRemoteUrl,
 } from './gitValidation.mjs';
+import { readGitWorkingDiff } from './gitWorkingDiff.mjs';
 
 const MAX_COMMIT_MESSAGE_CHARS = 16 * 1024;
 const MAX_HISTORY_ENTRIES = 100;
 const MAX_SELECTED_PATHS = 2000;
 const REMOTE_CHECK_TIMEOUT_MS = 30_000;
 const MUTATION_TIMEOUT_MS = 120_000;
+const NETWORK_MUTATION_TIMEOUT_MS = 30_000;
 const DIFF_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
-const nullDevicePath = process.platform === 'win32' ? 'NUL' : '/dev/null';
 
 function samePath(left, right) {
   const normalize = (value) => process.platform === 'win32' ? value.toLowerCase() : value;
@@ -40,15 +41,18 @@ async function resolveRepositoryRoot(rootPath, nullable = false) {
     throw new Error('Git repository root must be an existing directory.');
   }
 
-  let topLevelResult;
+  let repositoryInfo;
   try {
-    topLevelResult = await runGit(resolvedRoot, ['rev-parse', '--show-toplevel']);
+    repositoryInfo = await runGit(resolvedRoot, [
+      'rev-parse', '--show-toplevel', '--is-inside-work-tree',
+    ]);
   } catch (error) {
     if (nullable && isNotRepositoryError(error)) return null;
     throw error;
   }
 
-  const topLevel = path.resolve(topLevelResult.stdout.replace(/\r?\n$/, ''));
+  const [topLevelLine, workTreeLine] = repositoryInfo.stdout.trim().split(/\r?\n/);
+  const topLevel = path.resolve(topLevelLine ?? '');
   const authorizedTopLevel = await assertAuthorizedFsPath(topLevel);
   const [realRoot, realTopLevel] = await Promise.all([
     realpath(resolvedRoot),
@@ -58,8 +62,7 @@ async function resolveRepositoryRoot(rootPath, nullable = false) {
     throw new Error('Git operations require the exact authorized repository root.');
   }
 
-  const workTree = await runGit(resolvedRoot, ['rev-parse', '--is-inside-work-tree']);
-  if (workTree.stdout.trim() !== 'true') {
+  if (workTreeLine?.trim() !== 'true') {
     if (nullable) return null;
     throw new Error('Git repository must have a working tree.');
   }
@@ -72,8 +75,12 @@ async function readOptionalConfig(rootPath, key) {
 }
 
 async function readTracking(rootPath, branch, { allowOriginFallback = false, push = false } = {}) {
-  let remote = await readOptionalConfig(rootPath, `branch.${branch}.remote`);
-  let mergeRef = await readOptionalConfig(rootPath, `branch.${branch}.merge`);
+  const [remoteResult, mergeResult] = await Promise.all([
+    readOptionalConfig(rootPath, `branch.${branch}.remote`),
+    readOptionalConfig(rootPath, `branch.${branch}.merge`),
+  ]);
+  let remote = remoteResult;
+  let mergeRef = mergeResult;
   let setUpstream = false;
   if ((!remote || !mergeRef) && allowOriginFallback) {
     remote = 'origin';
@@ -101,14 +108,26 @@ async function readStatus(rootPath) {
         allowOriginFallback: true,
       })
     : null;
+  let remoteProtocolSupported = false;
+  if (tracking?.remoteUrl) {
+    try {
+      requireAllowedRemoteUrl(tracking.remoteUrl);
+      remoteProtocolSupported = true;
+    } catch {
+      // Status remains available so the renderer can explain the blocked remote.
+    }
+  }
   return {
     rootPath,
+    head: parsed.head,
     branch: parsed.branch,
     detached: parsed.detached,
     upstream: parsed.upstream,
     ahead: parsed.ahead,
     behind: parsed.behind,
     remoteUrl: sanitizeRemoteUrl(tracking?.remoteUrl),
+    remoteConfigured: Boolean(tracking?.remoteUrl),
+    remoteProtocolSupported,
     changes: parsed.changes,
   };
 }
@@ -131,34 +150,13 @@ export async function fetchGitStatus(rootPath) {
   return readStatus(resolvedRoot);
 }
 
-export async function getGitWorkingDiff(rootPath, filePath) {
+export async function getGitWorkingDiffs(rootPath, filePaths) {
   const resolvedRoot = await resolveRepositoryRoot(rootPath);
-  const relativePath = resolveRelativeGitPath(resolvedRoot, filePath);
-  const head = await runGit(resolvedRoot, ['rev-parse', '--verify', 'HEAD'], { allowedExitCodes: [128] });
-  let patch;
-  if (head.code === 0) {
-    patch = (await runGit(resolvedRoot, [
-      '--literal-pathspecs', 'diff', '--no-ext-diff', '--no-textconv', '--no-color', 'HEAD', '--', relativePath,
-    ], { maxBuffer: DIFF_MAX_BUFFER_BYTES })).stdout;
-  } else {
-    const staged = await runGit(resolvedRoot, [
-      '--literal-pathspecs', 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--no-color', '--', relativePath,
-    ], { maxBuffer: DIFF_MAX_BUFFER_BYTES });
-    const unstaged = await runGit(resolvedRoot, [
-      '--literal-pathspecs', 'diff', '--no-ext-diff', '--no-textconv', '--no-color', '--', relativePath,
-    ], { maxBuffer: DIFF_MAX_BUFFER_BYTES });
-    patch = [staged.stdout, unstaged.stdout].filter(Boolean).join('\n');
-  }
-  if (patch) return patch;
+  return readGitWorkingDiff(resolvedRoot, filePaths);
+}
 
-  const tracked = await runGit(resolvedRoot, [
-    '--literal-pathspecs', 'ls-files', '--error-unmatch', '--', relativePath,
-  ], { allowedExitCodes: [1] });
-  const fileInfo = tracked.code === 1 ? await stat(path.join(resolvedRoot, relativePath)).catch(() => null) : null;
-  if (!fileInfo?.isFile()) return '';
-  return (await runGit(resolvedRoot, [
-    'diff', '--no-index', '--no-ext-diff', '--no-textconv', '--no-color', '--', nullDevicePath, relativePath,
-  ], { allowedExitCodes: [1], maxBuffer: DIFF_MAX_BUFFER_BYTES })).stdout;
+export async function getGitWorkingDiff(rootPath, filePath) {
+  return getGitWorkingDiffs(rootPath, [filePath]);
 }
 
 export async function getGitHistory(rootPath, limit = 10) {
@@ -205,6 +203,13 @@ export async function commitGitChanges(rootPath, options) {
   const selectedPaths = Array.from(new Set(await Promise.all(
     paths.map((filePath) => resolveRelativeGitPath(resolvedRoot, filePath)),
   )));
+  const status = await readStatus(resolvedRoot);
+  if (!status.branch || status.detached) {
+    throw new Error('Git commit requires an attached branch.');
+  }
+  if (status.changes.some((change) => change.status === 'conflicted')) {
+    throw new Error('Git commit is unavailable while merge conflicts remain.');
+  }
   const head = await runGit(resolvedRoot, ['rev-parse', '--verify', 'HEAD'], {
     allowedExitCodes: [128],
   });
@@ -221,6 +226,9 @@ export async function commitGitChanges(rootPath, options) {
     const stageablePaths = selectedPaths.filter((filePath) => (
       trackedPaths.has(filePath) || existingPaths.includes(filePath)
     ));
+    if (stageablePaths.length === 0) {
+      throw new Error('No selected Git changes remain.');
+    }
     if (stageablePaths.length > 0) {
       await runGit(resolvedRoot, ['--literal-pathspecs', 'add', '--all', '--', ...stageablePaths], {
         timeout: MUTATION_TIMEOUT_MS,
@@ -258,12 +266,18 @@ export async function pullGitChanges(rootPath) {
   const resolvedRoot = await resolveRepositoryRoot(rootPath);
   const status = await readStatus(resolvedRoot);
   if (!status.branch || status.detached) throw new Error('Git pull requires an attached branch.');
+  if (status.changes.some((change) => change.status === 'conflicted')) {
+    throw new Error('Git pull is unavailable while merge conflicts remain.');
+  }
+  if (status.ahead > 0 && status.behind > 0) {
+    throw new Error('Git pull is unavailable because local and remote history have diverged.');
+  }
   const tracking = await readTracking(resolvedRoot, status.branch);
   if (!tracking) throw new Error('Git pull requires an upstream branch.');
   requireAllowedRemoteUrl(tracking.remoteUrl);
   await runGit(resolvedRoot, [
     ...networkGitConfig, 'pull', '--ff-only', tracking.remote, tracking.mergeRef,
-  ], { timeout: MUTATION_TIMEOUT_MS });
+  ], { timeout: NETWORK_MUTATION_TIMEOUT_MS });
   return readStatus(resolvedRoot);
 }
 
@@ -271,14 +285,21 @@ export async function pushGitChanges(rootPath) {
   const resolvedRoot = await resolveRepositoryRoot(rootPath);
   const status = await readStatus(resolvedRoot);
   if (!status.branch || status.detached) throw new Error('Git push requires an attached branch.');
+  if (status.changes.some((change) => change.status === 'conflicted')) {
+    throw new Error('Git push is unavailable while merge conflicts remain.');
+  }
+  if (status.ahead > 0 && status.behind > 0) {
+    throw new Error('Git push is unavailable because local and remote history have diverged.');
+  }
   const tracking = await readTracking(resolvedRoot, status.branch, {
     allowOriginFallback: true,
     push: true,
   });
+  if (!tracking?.remoteUrl) throw new Error('Git push requires a remote repository.');
   requireAllowedRemoteUrl(tracking?.remoteUrl);
   const args = tracking.setUpstream
     ? ['push', '--set-upstream', tracking.remote, 'HEAD']
     : ['push', tracking.remote, `HEAD:${tracking.mergeRef}`];
-  await runGit(resolvedRoot, [...networkGitConfig, ...args], { timeout: MUTATION_TIMEOUT_MS });
+  await runGit(resolvedRoot, [...networkGitConfig, ...args], { timeout: NETWORK_MUTATION_TIMEOUT_MS });
   return readStatus(resolvedRoot);
 }

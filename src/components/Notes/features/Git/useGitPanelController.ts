@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useI18n } from '@/lib/i18n';
+import { useI18n, type MessageKey } from '@/lib/i18n';
 import { useToastStore } from '@/stores/useToastStore';
-import { flushCurrentTitleCommit } from '../Editor/utils/titleCommitRegistry';
-import { flushCurrentEditorSave } from '../Editor/utils/editorSaveRegistry';
 import type {
   GitBridge,
-  GitHistoryItem,
   GitPanelTab,
   GitStatus,
 } from './gitUiTypes';
 import { createLocalDateTimeValue } from './gitUiTypes';
+import { getGitErrorMessageKey } from './gitErrorMessages';
+import { saveOpenNotesBeforeGit } from './gitNotePreparation';
 import { useGitOperationRunner } from './useGitOperationRunner';
 import { useGitWorkingDiff } from './useGitWorkingDiff';
-import { useGitCommitDiff } from './useGitCommitDiff';
+import { useGitHistory } from './useGitHistory';
 
 export function useGitPanelController({
   git,
@@ -28,47 +27,69 @@ export function useGitPanelController({
   const rootPathRef = useRef(rootPath);
   const statusRef = useRef<GitStatus | null>(null);
   const statusRefreshInFlightRef = useRef(false);
-  const remoteCheckPromiseRef = useRef<Promise<void> | null>(null);
   const openPreparationRef = useRef(0);
+  const openRef = useRef(open);
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [panelReady, setPanelReady] = useState(false);
+  const [panelError, setPanelError] = useState<MessageKey | null>(null);
+  const [preparationAttempt, setPreparationAttempt] = useState(0);
   const [activeTab, setActiveTab] = useState<GitPanelTab>('changes');
-  const [history, setHistory] = useState<GitHistoryItem[] | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [selectedCommitPaths, setSelectedCommitPaths] = useState<Set<string>>(new Set());
-  const [panelReady, setPanelReady] = useState(false);
 
   rootPathRef.current = rootPath;
+  openRef.current = open;
 
-  const reportOperationFailure = useCallback(() => {
-    addToast(t('git.operationFailed'), 'error');
-  }, [addToast, t]);
-  const saveBeforePanelOpen = useCallback(() => (
-    flushCurrentTitleCommit().then(() => flushCurrentEditorSave()).catch(() => undefined)
+  const isActiveSession = useCallback((requestRoot: string, sessionId: number) => (
+    openRef.current
+    && openPreparationRef.current === sessionId
+    && rootPathRef.current === requestRoot
   ), []);
+
+  const reportOperationFailure = useCallback((error: unknown, fallback?: MessageKey) => {
+    const key = getGitErrorMessageKey(error, fallback);
+    addToast(t(key), 'error');
+    return key;
+  }, [addToast, t]);
   const workingDiff = useGitWorkingDiff({
-    git, open: open && panelReady, reportFailure: reportOperationFailure, rootPath, status,
+    git,
+    open: open && panelReady && !panelError,
+    reportFailure: reportOperationFailure,
+    rootPath,
+    status,
   });
-  const {
-    clear: clearCommitDiff,
-    diff: selectedCommitDiff,
-    loading: commitDiffLoading,
-    select: selectCommit,
-    selectedHash: selectedCommitHash,
-  } = useGitCommitDiff({ git, reportFailure: reportOperationFailure, rootPath });
+  const historyVisible = activeTab === 'history' || status?.changes.length === 0;
+  const gitHistory = useGitHistory({
+    enabled: open && panelReady && historyVisible,
+    git,
+    reportFailure: reportOperationFailure,
+    rootPath,
+  });
 
   const clearSelections = useCallback(() => {
     workingDiff.clear();
-    clearCommitDiff();
-  }, [clearCommitDiff, workingDiff.clear]);
+    gitHistory.clear();
+  }, [gitHistory.clear, workingDiff.clear]);
+
+  const resetPanelState = useCallback((loading = false) => {
+    statusRef.current = null;
+    setStatus(null);
+    setStatusLoading(loading);
+    setPanelReady(false);
+    setPanelError(null);
+    setSelectedCommitPaths(new Set());
+    setActiveTab('changes');
+    setCommitMessage('');
+    clearSelections();
+  }, [clearSelections]);
 
   const applyMutationStatus = useCallback((requestRoot: string, nextStatus: GitStatus) => {
-    if (rootPathRef.current !== requestRoot) return;
+    if (!openRef.current || rootPathRef.current !== requestRoot) return;
     statusRef.current = nextStatus;
     setStatus(nextStatus);
+    setPanelError(null);
     setSelectedCommitPaths(new Set(nextStatus.changes.map((change) => change.path)));
-    setHistory(null);
     clearSelections();
   }, [clearSelections]);
   const { operation, runMutation } = useGitOperationRunner({
@@ -78,9 +99,13 @@ export function useGitPanelController({
   });
 
   const applyRefreshedStatus = useCallback((requestRoot: string, nextStatus: GitStatus | null) => {
-    if (rootPathRef.current !== requestRoot) return;
+    if (!openRef.current || rootPathRef.current !== requestRoot) return;
     const previousStatus = statusRef.current;
+    setPanelError(null);
     if (JSON.stringify(previousStatus) === JSON.stringify(nextStatus)) return;
+    if (previousStatus && previousStatus.head !== nextStatus?.head) {
+      gitHistory.clear();
+    }
     statusRef.current = nextStatus;
     setStatus(nextStatus);
     setSelectedCommitPaths((current) => {
@@ -89,77 +114,92 @@ export function useGitPanelController({
         !previousPaths.has(change.path) || current.has(change.path)
       )).map((change) => change.path) ?? []);
     });
-  }, []);
+  }, [gitHistory.clear]);
 
   const refreshStatus = useCallback(async (silent = false) => {
-    if (statusRefreshInFlightRef.current) return;
+    if (statusRefreshInFlightRef.current) return false;
     const requestRoot = rootPath;
+    const sessionId = openPreparationRef.current;
     statusRefreshInFlightRef.current = true;
     if (!silent) setStatusLoading(true);
     try {
       const nextStatus = await git.status(requestRoot);
+      if (!nextStatus) throw new Error('Git repository is no longer available.');
+      if (!isActiveSession(requestRoot, sessionId)) return false;
       applyRefreshedStatus(requestRoot, nextStatus);
-    } catch {
-      if (rootPathRef.current === requestRoot) reportOperationFailure();
+      return true;
+    } catch (error) {
+      if (isActiveSession(requestRoot, sessionId)) {
+        const key = getGitErrorMessageKey(error);
+        setPanelError(key);
+        if (!silent) reportOperationFailure(error);
+      }
+      return false;
     } finally {
       statusRefreshInFlightRef.current = false;
-      if (!silent && rootPathRef.current === requestRoot) setStatusLoading(false);
+      if (!silent && isActiveSession(requestRoot, sessionId)) {
+        setStatusLoading(false);
+      }
     }
-  }, [applyRefreshedStatus, git, reportOperationFailure, rootPath]);
-
-  const loadHistory = useCallback(async () => {
-    const requestRoot = rootPath;
-    setHistoryLoading(true);
-    try {
-      const nextHistory = await git.history(requestRoot, 30);
-      if (rootPathRef.current === requestRoot) setHistory(nextHistory);
-    } catch {
-      if (rootPathRef.current === requestRoot) reportOperationFailure();
-    } finally {
-      if (rootPathRef.current === requestRoot) setHistoryLoading(false);
-    }
-  }, [git, reportOperationFailure, rootPath]);
+  }, [applyRefreshedStatus, git, isActiveSession, reportOperationFailure, rootPath]);
 
   useEffect(() => {
-    statusRef.current = null;
-    setStatus(null);
-    setSelectedCommitPaths(new Set());
-    setHistory(null);
-    setActiveTab('changes');
-    setPanelReady(false);
-    clearSelections();
-  }, [clearSelections, rootPath]);
+    resetPanelState();
+  }, [resetPanelState, rootPath]);
 
   useEffect(() => {
     const requestId = ++openPreparationRef.current;
     if (!open) {
-      setPanelReady(false);
-      clearSelections();
+      resetPanelState();
       return;
     }
+
     const requestRoot = rootPath;
-    setPanelReady(false);
-    workingDiff.clear();
-    void saveBeforePanelOpen().then(() => {
-      if (openPreparationRef.current !== requestId) return;
-      setPanelReady(true);
-      if (remoteCheckPromiseRef.current) return;
-      const remoteCheck = refreshStatus().then(async () => {
-        try {
-          const nextStatus = await git.fetch(requestRoot);
-          applyRefreshedStatus(requestRoot, nextStatus);
-        } catch {
-          // Remote availability must not block local Git workflows.
+    resetPanelState(true);
+
+    void (async () => {
+      try {
+        if (!await saveOpenNotesBeforeGit()) {
+          throw new Error('Open notes could not be saved before Git status was read.');
         }
-      }).finally(() => {
-        if (remoteCheckPromiseRef.current === remoteCheck) remoteCheckPromiseRef.current = null;
-      });
-      remoteCheckPromiseRef.current = remoteCheck;
-    });
+      } catch {
+        if (!isActiveSession(requestRoot, requestId)) return;
+        setPanelError('git.saveBeforeOperationFailed');
+        addToast(t('git.saveBeforeOperationFailed'), 'error');
+        setStatusLoading(false);
+        return;
+      }
+
+      try {
+        const nextStatus = await git.status(requestRoot);
+        if (!nextStatus) throw new Error('Git repository is no longer available.');
+        if (!isActiveSession(requestRoot, requestId)) return;
+        applyRefreshedStatus(requestRoot, nextStatus);
+        setPanelReady(true);
+      } catch (error) {
+        if (!isActiveSession(requestRoot, requestId)) return;
+        setPanelError(reportOperationFailure(error));
+      } finally {
+        if (isActiveSession(requestRoot, requestId)) {
+          setStatusLoading(false);
+        }
+      }
+    })();
     return () => {
       if (openPreparationRef.current === requestId) openPreparationRef.current += 1;
     };
-  }, [applyRefreshedStatus, clearSelections, git, open, refreshStatus, rootPath, saveBeforePanelOpen, workingDiff.clear]);
+  }, [
+    addToast,
+    applyRefreshedStatus,
+    git,
+    isActiveSession,
+    open,
+    preparationAttempt,
+    reportOperationFailure,
+    resetPanelState,
+    rootPath,
+    t,
+  ]);
 
   useEffect(() => {
     if (!open || !panelReady) return;
@@ -175,33 +215,22 @@ export function useGitPanelController({
     };
   }, [open, panelReady, refreshStatus]);
 
-  useEffect(() => {
-    const historyVisible = activeTab === 'history' || status?.changes.length === 0;
-    if (!open || !panelReady || !historyVisible || history !== null || historyLoading) return;
-    void loadHistory();
-  }, [activeTab, history, historyLoading, loadHistory, open, panelReady, status?.changes.length]);
-
-  useEffect(() => {
-    const historyVisible = activeTab === 'history' || status?.changes.length === 0;
-    if (!open || !panelReady || !historyVisible || !history?.length || selectedCommitHash) return;
-    selectCommit(history[0]);
-  }, [activeTab, history, open, panelReady, selectCommit, selectedCommitHash, status?.changes.length]);
-
   const commit = useCallback(() => {
     const message = commitMessage.trim();
+    const hasConflicts = status?.changes.some((change) => change.status === 'conflicted');
+    if (!panelReady || panelError || status?.detached || hasConflicts) return;
     const selectedChanges = status?.changes.filter((change) => selectedCommitPaths.has(change.path)) ?? [];
     const paths = Array.from(new Set(selectedChanges.flatMap((change) => (
       change.previousPath ? [change.previousPath, change.path] : [change.path]
     ))));
     if (!message || paths.length === 0) return;
-    void runMutation('commit', true, (requestRoot) => git.commit(requestRoot, {
+    void runMutation('commit', false, (requestRoot) => git.commit(requestRoot, {
       message,
       paths,
     }), 'git.commitSuccess').then((committed) => {
-      if (!committed) return;
-      setCommitMessage('');
+      if (committed) setCommitMessage('');
     });
-  }, [commitMessage, git, runMutation, selectedCommitPaths, status?.changes]);
+  }, [commitMessage, git, panelError, panelReady, runMutation, selectedCommitPaths, status]);
 
   const toggleCommitPath = useCallback((path: string) => {
     setSelectedCommitPaths((current) => {
@@ -220,24 +249,26 @@ export function useGitPanelController({
   }, [status?.changes]);
 
   const pull = useCallback(() => {
-    void runMutation('pull', true, async (requestRoot) => {
-      await remoteCheckPromiseRef.current;
-      return git.pull(requestRoot);
-    }, 'git.pullSuccess');
+    void runMutation('pull', true, (requestRoot) => git.pull(requestRoot), 'git.pullSuccess');
   }, [git, runMutation]);
 
   const push = useCallback(() => {
-    void runMutation('push', false, async (requestRoot) => {
-      await remoteCheckPromiseRef.current;
-      return git.push(requestRoot);
-    }, 'git.pushSuccess');
+    void runMutation('push', false, (requestRoot) => git.push(requestRoot), 'git.pushSuccess');
   }, [git, runMutation]);
 
+  const retry = useCallback(() => {
+    if (panelReady) void refreshStatus();
+    else setPreparationAttempt((attempt) => attempt + 1);
+  }, [panelReady, refreshStatus]);
+
   return {
-    status, statusLoading, operation, activeTab, setActiveTab, refreshStatus,
-    workingDiffByPath: workingDiff.diffByPath, workingDiffLoading: workingDiff.loading,
-    history: history ?? [], historyLoading, selectedCommitHash, selectedCommitDiff,
-    commitDiffLoading, selectCommit, commitMessage, setCommitMessage,
+    status, statusLoading, panelReady, panelError, retry, operation, activeTab, setActiveTab,
+    refreshStatus, workingDiffs: workingDiff.diffs, workingDiffLoading: workingDiff.loading,
+    workingDiffError: workingDiff.error,
+    history: gitHistory.items, historyLoading: gitHistory.loading, historyError: gitHistory.error,
+    selectedCommitHash: gitHistory.selectedHash, selectedCommitDiff: gitHistory.diff,
+    commitDiffLoading: gitHistory.diffLoading, selectCommit: gitHistory.select,
+    commitMessage, setCommitMessage,
     useCurrentTimeAsMessage: () => setCommitMessage(createLocalDateTimeValue()),
     selectedCommitPaths, toggleCommitPath, toggleAllCommitPaths,
     commit, pull, push,

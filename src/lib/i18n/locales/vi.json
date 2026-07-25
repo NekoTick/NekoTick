@@ -859,5 +859,17 @@
   "git.pushSuccess": "Đã đẩy thay đổi.",
   "git.operationFailed": "Thao tác Git thất bại. Hãy kiểm tra kho lưu trữ rồi thử lại.",
   "git.saveBeforeOperationFailed": "Không thể lưu tất cả ghi chú đang mở. Git không bị thay đổi.",
-  "git.diffEmpty": "Không có phần khác biệt văn bản cho mục này."
+  "git.detachedHead": "HEAD tách rời",
+  "git.detachedUnavailable": "Hãy chuyển sang một nhánh trước khi commit hoặc đồng bộ.",
+  "git.conflicted": "Xung đột",
+  "git.conflicts": "Hãy giải quyết tất cả xung đột hợp nhất trước khi commit hoặc đồng bộ.",
+  "git.diverged": "Lịch sử cục bộ và từ xa đã phân kỳ. Hãy xử lý bằng Git trước khi đồng bộ tại đây.",
+  "git.unsupportedRemote": "Kho từ xa này bị chặn. Hãy cấu hình kho từ xa HTTPS hoặc SSH.",
+  "git.authenticationFailed": "Xác thực từ xa thất bại. Hãy kiểm tra thông tin đăng nhập Git.",
+  "git.identityMissing": "Hãy cấu hình tên người dùng và email Git trước khi commit.",
+  "git.networkUnavailable": "Không thể kết nối kho từ xa. Hãy kiểm tra mạng rồi thử lại.",
+  "git.diffTooLarge": "Phần khác biệt quá lớn để xem trước.",
+  "git.retry": "Thử lại",
+  "git.diffEmpty": "Không có phần khác biệt văn bản cho mục này.",
+  "git.resizePopover": "Đổi kích thước bảng Git"
 }

@@ -30,7 +30,8 @@ function createGitEnvironment(overrides = {}) {
 
 export function sanitizeGitOutput(value) {
   return String(value ?? '')
-    .replace(/\b(https?:\/\/)([^/\s@]+)@/gi, '$1[redacted]@')
+    .replace(/\b((?:https?|ssh):\/\/)([^/\s@]+)@/gi, '$1[redacted]@')
+    .replace(/(^|[\s'"(])([^/\s:@]+)@([^\s/:]+):/g, '$1[redacted]@$3:')
     .slice(0, MAX_ERROR_TEXT_CHARS);
 }
 

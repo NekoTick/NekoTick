@@ -859,5 +859,17 @@
   "git.pushSuccess": "변경 사항을 푸시했습니다.",
   "git.operationFailed": "Git 작업에 실패했습니다. 저장소를 확인한 후 다시 시도하세요.",
   "git.saveBeforeOperationFailed": "열린 노트를 모두 저장하지 못했습니다. Git은 변경되지 않았습니다.",
-  "git.diffEmpty": "이 항목에는 표시할 텍스트 차이가 없습니다."
+  "git.detachedHead": "분리된 HEAD",
+  "git.detachedUnavailable": "커밋하거나 동기화하기 전에 브랜치로 전환하세요.",
+  "git.conflicted": "충돌",
+  "git.conflicts": "커밋하거나 동기화하기 전에 모든 병합 충돌을 해결하세요.",
+  "git.diverged": "로컬과 원격 기록이 갈라졌습니다. Git에서 해결한 후 동기화하세요.",
+  "git.unsupportedRemote": "이 원격 주소는 차단되었습니다. HTTPS 또는 SSH 원격 주소를 설정하세요.",
+  "git.authenticationFailed": "원격 인증에 실패했습니다. Git 자격 증명을 확인하세요.",
+  "git.identityMissing": "커밋하기 전에 Git 사용자 이름과 이메일을 설정하세요.",
+  "git.networkUnavailable": "원격 저장소에 연결할 수 없습니다. 네트워크를 확인하고 다시 시도하세요.",
+  "git.diffTooLarge": "차이가 너무 커서 미리 볼 수 없습니다.",
+  "git.retry": "다시 시도",
+  "git.diffEmpty": "이 항목에는 표시할 텍스트 차이가 없습니다.",
+  "git.resizePopover": "Git 패널 크기 조정"
 }

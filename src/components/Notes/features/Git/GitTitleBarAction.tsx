@@ -12,15 +12,38 @@ import { cn } from '@/lib/utils';
 import { useNotesStore } from '@/stores/useNotesStore';
 import { useNotesRootStore } from '@/stores/useNotesRootStore';
 import { themeDomStyleTokens } from '@/styles/themeTokens';
-import type { GitBridge } from './gitUiTypes';
+import type { GitBridge, GitStatus } from './gitUiTypes';
 import { getGitBridge } from './gitUiTypes';
 import { GitSyncPopover } from './GitSyncPopover';
 import { useGitPanelController } from './useGitPanelController';
 
-function ConnectedGitTitleBarAction({ git, rootPath }: { git: GitBridge; rootPath: string }) {
+function hasCommittableChanges(status: GitStatus | null) {
+  return Boolean(
+    status
+    && !status.detached
+    && status.changes.length > 0
+    && status.changes.every((change) => change.status !== 'conflicted'),
+  );
+}
+
+function ConnectedGitTitleBarAction({
+  git,
+  initialStatus,
+  rootPath,
+}: {
+  git: GitBridge;
+  initialStatus: GitStatus | null;
+  rootPath: string;
+}) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [lastStatus, setLastStatus] = useState(initialStatus);
   const controller = useGitPanelController({ git, rootPath, open });
+  const showPendingChanges = hasCommittableChanges(lastStatus);
+
+  useEffect(() => {
+    if (controller.status) setLastStatus(controller.status);
+  }, [controller.status]);
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +63,10 @@ function ConnectedGitTitleBarAction({ git, rootPath }: { git: GitBridge; rootPat
               data-testid="git-sync-button"
               aria-label={t('git.sync')}
               className={cn(
-                'app-no-drag flex size-[var(--vlaina-size-28px)] items-center justify-center text-[var(--vlaina-color-titlebar-button)] hover:text-[var(--vlaina-color-titlebar-button-hover)]',
+                'app-no-drag flex size-[var(--vlaina-size-28px)] items-center justify-center hover:text-[var(--vlaina-color-titlebar-button-hover)]',
+                showPendingChanges
+                  ? 'text-[var(--vlaina-sidebar-row-selected-text)]'
+                  : 'text-[var(--vlaina-color-titlebar-button)]',
                 ghostIconButtonClass,
               )}
             >
@@ -74,23 +100,32 @@ function ConnectedGitTitleBarAction({ git, rootPath }: { git: GitBridge; rootPat
 }
 
 function DetectedGitTitleBarAction({ git, rootPath }: { git: GitBridge; rootPath: string }) {
-  const [isRepository, setIsRepository] = useState(false);
+  const [detection, setDetection] = useState<{
+    available: boolean;
+    complete: boolean;
+    status: GitStatus | null;
+  }>({
+    available: false,
+    complete: false,
+    status: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
-    setIsRepository(false);
+    setDetection({ available: false, complete: false, status: null });
     void git.status(rootPath).then((status) => {
-      if (!cancelled) setIsRepository(Boolean(status));
+      if (!cancelled) setDetection({ available: Boolean(status), complete: true, status });
     }).catch(() => {
-      if (!cancelled) setIsRepository(false);
+      if (!cancelled) setDetection({ available: true, complete: true, status: null });
     });
     return () => {
       cancelled = true;
     };
   }, [git, rootPath]);
 
-  if (!isRepository) return null;
-  return <ConnectedGitTitleBarAction git={git} rootPath={rootPath} />;
+  if (!detection.complete) return null;
+  if (!detection.available) return null;
+  return <ConnectedGitTitleBarAction git={git} initialStatus={detection.status} rootPath={rootPath} />;
 }
 
 export function GitTitleBarAction() {

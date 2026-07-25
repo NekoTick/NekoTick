@@ -44,6 +44,8 @@ test.describe('notes Git sync', () => {
     const notePath = path.join(repoPath, ...noteRelativePath.split('/'));
     const remainingRelativePath = 'docs/guides/remaining.md';
     const remainingPath = path.join(repoPath, ...remainingRelativePath.split('/'));
+    const imageRelativePath = 'assets/cover.png';
+    const imagePath = path.join(repoPath, ...imageRelativePath.split('/'));
     const identityId = randomUUID();
     const isolationEnv = {
       GIT_CONFIG_GLOBAL: gitConfigPath,
@@ -98,6 +100,11 @@ test.describe('notes Git sync', () => {
         'utf8',
       );
       await fs.writeFile(remainingPath, '# Remaining\n\nStill uncommitted.\n', 'utf8');
+      await fs.mkdir(path.dirname(imagePath), { recursive: true });
+      await fs.writeFile(imagePath, Buffer.from([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+        0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+      ]));
 
       launched = await launchIsolatedElectron('notes-git-sync', {
         args: [notePath],
@@ -128,6 +135,7 @@ test.describe('notes Git sync', () => {
       const syncButton = page.getByTestId('git-sync-button');
       await expect(syncButton).toBeVisible({ timeout: 30_000 });
       await expect(syncButton).toHaveAttribute('aria-label', 'Git 同步');
+      await expect(syncButton).toHaveClass(/text-\[var\(--vlaina-sidebar-row-selected-text\)\]/);
       await syncButton.click();
 
       const popover = page.getByTestId('git-sync-popover');
@@ -142,13 +150,28 @@ test.describe('notes Git sync', () => {
       await expect(changeRow).toBeVisible({ timeout: 30_000 });
 
       const changeCheckboxes = popover.getByTestId('git-change-checkbox');
-      await expect(changeCheckboxes).toHaveCount(2);
+      await expect(changeCheckboxes).toHaveCount(3);
       await expect(popover.getByTestId('git-select-all')).toHaveAttribute('data-state', 'checked');
       const remainingCheckboxByPath = popover.locator(
         '[data-testid="git-change-checkbox"][data-path="docs/guides/remaining.md"]',
       );
       await remainingCheckboxByPath.click();
       await expect(remainingCheckboxByPath).toHaveAttribute('data-state', 'unchecked');
+      const imageRow = popover.getByTestId('git-change-row').filter({ hasText: imageRelativePath });
+      await expect(imageRow).toBeVisible();
+      await expect(imageRow).not.toContainText('+0');
+      await expect(imageRow).not.toContainText('-0');
+      const imageCheckboxByPath = popover.locator(
+        `[data-testid="git-change-checkbox"][data-path="${imageRelativePath}"]`,
+      );
+      await expect(imageCheckboxByPath).toHaveAttribute('data-state', 'checked');
+      await expect(imageRow.getByTestId('git-open-file')).toHaveCount(0);
+      await imageRow.getByTestId('git-change-file-label').click();
+      await expect.poll(async () => page.evaluate(() => (
+        (window as any).__vlainaE2E.getNotesState().error ?? null
+      ))).toBeNull();
+      await imageCheckboxByPath.click();
+      await expect(imageCheckboxByPath).toHaveAttribute('data-state', 'unchecked');
 
       const workingDiff = popover.getByTestId('git-diff');
       await expect(workingDiff).toContainText('Initial tracked line.');
@@ -160,7 +183,9 @@ test.describe('notes Git sync', () => {
       await expect(workingDiff).not.toContainText(`--- a/${noteRelativePath}`);
       await expect(workingDiff).not.toContainText(`+++ b/${noteRelativePath}`);
       await expect(workingDiff).not.toContainText('@@ ');
-      await expect(workingDiff.getByTestId('git-diff-file')).toHaveCount(2);
+      await expect(workingDiff.getByTestId('git-diff-file')).toHaveCount(3);
+      await expect(workingDiff.getByTestId('git-diff-file').filter({ hasText: imageRelativePath }))
+        .toContainText('Binary files');
       const commitMessageBox = await popover.getByTestId('git-commit-message').boundingBox();
       const changeRowBox = await changeRow.boundingBox();
       const diffBox = await workingDiff.boundingBox();
@@ -183,6 +208,26 @@ test.describe('notes Git sync', () => {
       await popoverScroll.hover();
       await page.mouse.wheel(0, 600);
       await expect.poll(() => popoverScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+
+      const resizeHandle = popover.getByTestId('git-popover-resize-handle');
+      const initialPopoverHeight = await popover.evaluate((element) => element.getBoundingClientRect().height);
+      const resizeHandleBox = await resizeHandle.boundingBox();
+      expect(resizeHandleBox).not.toBeNull();
+      await page.mouse.move(
+        resizeHandleBox!.x + resizeHandleBox!.width / 2,
+        resizeHandleBox!.y + resizeHandleBox!.height / 2,
+      );
+      await page.mouse.down();
+      await page.mouse.move(
+        resizeHandleBox!.x + resizeHandleBox!.width / 2,
+        resizeHandleBox!.y + resizeHandleBox!.height / 2 + 100,
+      );
+      await page.mouse.up();
+      await expect.poll(() => popover.evaluate((element) => element.getBoundingClientRect().height))
+        .toBeGreaterThan(initialPopoverHeight + 50);
+      await resizeHandle.dblclick();
+      await expect.poll(() => popover.evaluate((element) => element.getBoundingClientRect().height))
+        .toBeCloseTo(initialPopoverHeight, -1);
 
       await page.setViewportSize({ width: 800, height: 700 });
       await expect(popover.getByTestId('git-commit-message')).toBeVisible();
@@ -213,12 +258,14 @@ test.describe('notes Git sync', () => {
         await runGit(['-C', repoPath, 'show', '--format=', '--name-only', 'HEAD'], isolationEnv)
       ).trim(), { timeout: 30_000 }).toBe(noteRelativePath);
       await expect.poll(async () => (
-        await runGit(['-C', repoPath, 'status', '--porcelain'], isolationEnv)
-      ).trim(), { timeout: 30_000 }).toBe(`M ${remainingRelativePath}`);
-      await expect(popover.getByTestId('git-change-row')).toHaveCount(1, { timeout: 30_000 });
-      await expect(popover.getByTestId('git-change-row')).toContainText(remainingRelativePath);
-      await expect(popover.getByTestId('git-change-row')).toContainText('+1');
-      await expect(popover.getByTestId('git-change-row')).toContainText('-1');
+        await runGit(['-C', repoPath, 'status', '--porcelain', '--untracked-files=all'], isolationEnv)
+      ).trim(), { timeout: 30_000 }).toContain(`?? ${imageRelativePath}`);
+      await expect(popover.getByTestId('git-change-row')).toHaveCount(2, { timeout: 30_000 });
+      const remainingRow = popover.getByTestId('git-change-row').filter({ hasText: remainingRelativePath });
+      await expect(remainingRow).toContainText('+1');
+      await expect(remainingRow).toContainText('-1');
+      await expect(popover.getByTestId('git-change-row').filter({ hasText: imageRelativePath }))
+        .toBeVisible();
 
       await popover.getByTestId('git-history-tab').click();
       const historyRow = popover.getByTestId('git-history-row').filter({ hasText: commitSubject });
@@ -235,12 +282,12 @@ test.describe('notes Git sync', () => {
       const historyFiles = historyDiff.getByTestId('git-diff-file');
       await expect(historyFiles).toHaveCount(2);
       await expect(historyFiles.filter({ hasText: noteRelativePath })).toContainText('+5');
-      await expect(historyFiles.filter({ hasText: noteRelativePath })).toContainText('-0');
+      await expect(historyFiles.filter({ hasText: noteRelativePath })).not.toContainText('-0');
       await expect(historyFiles.filter({ hasText: remainingRelativePath })).toContainText('+3');
-      await expect(historyFiles.filter({ hasText: remainingRelativePath })).toContainText('-0');
+      await expect(historyFiles.filter({ hasText: remainingRelativePath })).not.toContainText('-0');
 
       await popover.getByTestId('git-changes-tab').click();
-      await popover.getByTestId('git-open-file').click();
+      await remainingRow.getByTestId('git-open-file').click();
       await expect.poll(async () => page.evaluate(() => (
         (window as any).__vlainaE2E.getNotesState().currentNote?.path ?? null
       ))).toBe(remainingRelativePath);

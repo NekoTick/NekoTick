@@ -859,5 +859,17 @@
   "git.pushSuccess": "変更をプッシュしました。",
   "git.operationFailed": "Git 操作に失敗しました。リポジトリを確認して再試行してください。",
   "git.saveBeforeOperationFailed": "開いているノートをすべて保存できなかったため、Git は変更されませんでした。",
-  "git.diffEmpty": "この項目には表示できるテキスト差分がありません。"
+  "git.detachedHead": "切り離された HEAD",
+  "git.detachedUnavailable": "コミットまたは同期する前にブランチへ切り替えてください。",
+  "git.conflicted": "競合",
+  "git.conflicts": "コミットまたは同期する前に、すべてのマージ競合を解決してください。",
+  "git.diverged": "ローカルとリモートの履歴が分岐しています。Git で解決してから同期してください。",
+  "git.unsupportedRemote": "このリモートは使用できません。HTTPS または SSH リモートを設定してください。",
+  "git.authenticationFailed": "リモート認証に失敗しました。Git の認証情報を確認してください。",
+  "git.identityMissing": "コミットする前に Git のユーザー名とメールアドレスを設定してください。",
+  "git.networkUnavailable": "リモートに接続できません。ネットワークを確認して再試行してください。",
+  "git.diffTooLarge": "差分が大きすぎるためプレビューできません。",
+  "git.retry": "再試行",
+  "git.diffEmpty": "この項目には表示できるテキスト差分がありません。",
+  "git.resizePopover": "Git パネルのサイズを変更"
 }

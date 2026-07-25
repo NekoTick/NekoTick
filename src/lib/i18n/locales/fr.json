@@ -859,5 +859,17 @@
   "git.pushSuccess": "Modifications poussées.",
   "git.operationFailed": "L’opération Git a échoué. Vérifiez le dépôt et réessayez.",
   "git.saveBeforeOperationFailed": "Impossible d’enregistrer toutes les notes ouvertes. Git n’a pas été modifié.",
-  "git.diffEmpty": "Aucune différence textuelle n’est disponible pour cet élément."
+  "git.detachedHead": "HEAD détachée",
+  "git.detachedUnavailable": "Basculez sur une branche avant de valider ou de synchroniser.",
+  "git.conflicted": "Conflit",
+  "git.conflicts": "Résolvez tous les conflits de fusion avant de valider ou de synchroniser.",
+  "git.diverged": "Les historiques local et distant ont divergé. Résolvez la divergence avec Git avant de synchroniser ici.",
+  "git.unsupportedRemote": "Ce dépôt distant est bloqué. Configurez un dépôt distant HTTPS ou SSH.",
+  "git.authenticationFailed": "L’authentification distante a échoué. Vérifiez vos identifiants Git et réessayez.",
+  "git.identityMissing": "Configurez votre nom d’utilisateur et votre adresse e-mail Git avant de valider.",
+  "git.networkUnavailable": "Le dépôt distant est inaccessible. Vérifiez votre connexion et réessayez.",
+  "git.diffTooLarge": "La différence est trop volumineuse pour être prévisualisée.",
+  "git.retry": "Réessayer",
+  "git.diffEmpty": "Aucune différence textuelle n’est disponible pour cet élément.",
+  "git.resizePopover": "Redimensionner le panneau Git"
 }

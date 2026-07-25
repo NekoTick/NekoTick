@@ -32,37 +32,79 @@ export function requireSafeRemoteName(remoteName) {
 
 export function sanitizeRemoteUrl(remoteUrl) {
   const value = sanitizeGitOutput(remoteUrl).trim();
-  if (!/^https?:\/\//i.test(value)) return value || null;
-  try {
-    const parsed = new URL(value);
-    parsed.username = '';
-    parsed.password = '';
-    return parsed.toString();
-  } catch {
-    return value || null;
+  if (!value) return null;
+
+  if (/^https:\/\//i.test(value) || /^ssh:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      parsed.username = '';
+      parsed.password = '';
+      return parsed.toString();
+    } catch {
+      return null;
+    }
   }
+
+  try {
+    requireAllowedRemoteUrl(value);
+  } catch {
+    return null;
+  }
+  const scpRemote = /^(?:[^@\s/:]+@)?([^\s/:]+):(.+)$/.exec(value);
+  if (scpRemote) {
+    return `${scpRemote[1]}:${scpRemote[2]}`;
+  }
+  return null;
+}
+
+function requireRemoteText(remoteUrl) {
+  const value = String(remoteUrl ?? '').trim();
+  if (!value || /[\u0000-\u0020\u007F]/.test(value)) {
+    throw new Error('Git remote must use HTTPS or SSH.');
+  }
+  return value;
+}
+
+function requireHttpsRemote(value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('Git HTTPS remote URL is invalid.');
+  }
+  if (parsed.protocol !== 'https:' || !parsed.hostname) {
+    throw new Error('Git HTTPS remote URL is invalid.');
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('Git HTTPS remote URL must not contain credentials.');
+  }
+  return value;
 }
 
 export function requireAllowedRemoteUrl(remoteUrl) {
-  const value = String(remoteUrl ?? '').trim();
+  const value = requireRemoteText(remoteUrl);
   if (/^[a-z]:/i.test(value)) {
     throw new Error('Git remote must use HTTPS or SSH.');
   }
   if (/^https:\/\//i.test(value)) {
-    const parsed = new URL(value);
-    if (!parsed.hostname || parsed.username || parsed.password) {
-      throw new Error('Git HTTPS remote URL must not contain credentials.');
-    }
-    return value;
+    return requireHttpsRemote(value);
   }
   if (/^ssh:\/\//i.test(value)) {
-    const parsed = new URL(value);
-    if (!parsed.hostname || parsed.password) {
+    let parsed;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new Error('Git SSH remote URL is invalid.');
+    }
+    if (parsed.protocol !== 'ssh:' || !parsed.hostname || parsed.password) {
       throw new Error('Git SSH remote URL is invalid.');
     }
     return value;
   }
-  if (/^(?:[^@\s/:]+@)?[^\s/:]+:.+$/.test(value)) {
+  if (/^[a-z][a-z\d+.-]*:\/\//i.test(value) || /^[a-z][a-z\d+.-]*::/i.test(value)) {
+    throw new Error('Git remote must use HTTPS or SSH.');
+  }
+  if (/^(?:[^@\s/:]+@)?[^\s/:]+:(?!:).+$/.test(value)) {
     return value;
   }
   throw new Error('Git remote must use HTTPS or SSH.');

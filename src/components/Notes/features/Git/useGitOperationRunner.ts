@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import { useI18n } from '@/lib/i18n';
-import { saveDirtyRegularOpenTabs } from '@/stores/notes/dirtyOpenTabs';
 import { useToastStore } from '@/stores/useToastStore';
-import { flushCurrentTitleCommit } from '../Editor/utils/titleCommitRegistry';
 import type { GitOperation, GitStatus } from './gitUiTypes';
+import { saveOpenNotesBeforeGit } from './gitNotePreparation';
 
 type GitOperationSuccessKey = 'git.commitSuccess' | 'git.pullSuccess' | 'git.pushSuccess';
 
@@ -13,7 +12,7 @@ export function useGitOperationRunner({
   rootPath,
 }: {
   applyStatus: (requestRoot: string, status: GitStatus) => void;
-  reportFailure: () => void;
+  reportFailure: (error: unknown) => void;
   rootPath: string;
 }) {
   const { t } = useI18n();
@@ -26,8 +25,7 @@ export function useGitOperationRunner({
 
   const prepareSavedNotes = useCallback(async () => {
     try {
-      await flushCurrentTitleCommit();
-      if (await saveDirtyRegularOpenTabs()) return true;
+      if (await saveOpenNotesBeforeGit()) return true;
     } catch {
       // Thrown and reported save failures share the same user-facing message.
     }
@@ -51,8 +49,8 @@ export function useGitOperationRunner({
       applyStatus(requestRoot, nextStatus);
       if (rootPathRef.current === requestRoot) addToast(t(successKey), 'success');
       return true;
-    } catch {
-      if (rootPathRef.current === requestRoot) reportFailure();
+    } catch (error) {
+      if (rootPathRef.current === requestRoot) reportFailure(error);
       return false;
     } finally {
       operationRef.current = null;
