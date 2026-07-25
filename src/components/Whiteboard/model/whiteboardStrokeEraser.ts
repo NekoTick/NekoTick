@@ -18,18 +18,28 @@ interface StrokeEraserSweep {
 export function eraseWhiteboardStrokes(
   strokes: WhiteboardStroke[],
   samples: WhiteboardEraserSample[],
+  candidateIds?: ReadonlySet<string>,
+  candidateStrokes?: WhiteboardStroke[],
 ): WhiteboardStroke[] {
   const sweeps = getSweeps(samples);
   if (sweeps.length === 0) return strokes;
-  let changed = false;
-  const next = strokes.flatMap((stroke) => {
-    if (!strokeMayIntersectSweep(stroke, sweeps)) return [stroke];
+  const changedStrokeIds = new Set<string>();
+  const changedStrokes = new Map<string, WhiteboardStroke>();
+  for (const stroke of candidateStrokes ?? strokes) {
+    if (candidateIds && !candidateIds.has(stroke.id)) continue;
+    if (!strokeMayIntersectSweep(stroke, sweeps)) continue;
     const erased = eraseStroke(stroke, sweeps);
-    if (erased === stroke) return [stroke];
-    changed = true;
+    if (erased === stroke) continue;
+    changedStrokeIds.add(stroke.id);
+    changedStrokes.set(stroke.id, erased);
+  }
+  if (changedStrokes.size === 0) return strokes;
+  const next = strokes.flatMap((stroke) => {
+    const erased = changedStrokes.get(stroke.id);
+    if (!erased) return [stroke];
     return erased.points.length > 0 ? [erased] : [];
   });
-  return changed ? splitWhiteboardStrokeSegments(next) : strokes;
+  return splitWhiteboardStrokeSegments(next, changedStrokeIds);
 }
 
 function strokeMayIntersectSweep(stroke: WhiteboardStroke, sweeps: StrokeEraserSweep[]): boolean {

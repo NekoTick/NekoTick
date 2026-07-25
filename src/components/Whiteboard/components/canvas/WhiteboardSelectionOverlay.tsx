@@ -20,7 +20,9 @@ interface WhiteboardSelectionOverlayProps {
   selectedElementIds: string[];
   selectedStrokeIds: string[];
   selectionPath: WhiteboardLassoPath | null;
+  spacePressed: boolean;
   strokes: WhiteboardStroke[];
+  onSelectionMovePointerDown: (event: PointerEvent<SVGElement>) => void;
   onSelectionResizePointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
 }
 
@@ -30,7 +32,9 @@ export const WhiteboardSelectionOverlay = memo(function WhiteboardSelectionOverl
   selectedElementIds,
   selectedStrokeIds,
   selectionPath,
+  spacePressed,
   strokes,
+  onSelectionMovePointerDown,
   onSelectionResizePointerDown,
 }: WhiteboardSelectionOverlayProps) {
   if (selectionPath) {
@@ -43,7 +47,9 @@ export const WhiteboardSelectionOverlay = memo(function WhiteboardSelectionOverl
       movePreview={movePreview}
       selectedElementIds={selectedElementIds}
       selectedStrokeIds={selectedStrokeIds}
+      spacePressed={spacePressed}
       strokes={strokes}
+      onSelectionMovePointerDown={onSelectionMovePointerDown}
       onSelectionResizePointerDown={onSelectionResizePointerDown}
     />
   );
@@ -111,7 +117,9 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
   movePreview,
   selectedElementIds,
   selectedStrokeIds,
+  spacePressed,
   strokes,
+  onSelectionMovePointerDown,
   onSelectionResizePointerDown,
 }: Omit<WhiteboardSelectionOverlayProps, 'selectionPath'>) {
   const elementById = useMemo(() => new Map(elements.map((element) => [element.id, element])), [elements]);
@@ -147,9 +155,23 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
 
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-visible">
+      {resizeBounds ? (
+        <rect
+          data-whiteboard-selection-move-target="true"
+          className="pointer-events-auto"
+          x={resizeBounds.x}
+          y={resizeBounds.y}
+          width={resizeBounds.width}
+          height={resizeBounds.height}
+          fill="transparent"
+          style={{ cursor: movePreview ? 'grabbing' : 'grab' }}
+          onPointerDown={onSelectionMovePointerDown}
+        />
+      ) : null}
       <WhiteboardSelectionDragTargets
         movePreview={movePreview}
         movingStrokeIds={movingStrokeIdSet}
+        onPointerDown={onSelectionMovePointerDown}
         strokes={selectedStrokes}
       />
       {strokeBounds.map((bounds) => (
@@ -182,7 +204,7 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
         />
       ) : null}
       {resizeBounds ? (
-        <SelectionResizeHandles bounds={resizeBounds} onPointerDown={onSelectionResizePointerDown} />
+        <SelectionResizeHandles bounds={resizeBounds} disabled={spacePressed} onPointerDown={onSelectionResizePointerDown} />
       ) : null}
     </svg>
   );
@@ -190,9 +212,11 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
 
 function SelectionResizeHandles({
   bounds,
+  disabled,
   onPointerDown,
 }: {
   bounds: WhiteboardSelectionRect;
+  disabled: boolean;
   onPointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
 }) {
   const edge = themeWhiteboardTokens.selectionResizeEdgeHitSizePx;
@@ -217,20 +241,22 @@ function SelectionResizeHandles({
       {edgeHandles.map(({ cursor, handle, rect }) => (
         <rect
           key={handle}
-          className="pointer-events-auto"
+          data-whiteboard-selection-resize-handle={handle}
+          className={disabled ? 'pointer-events-none' : 'pointer-events-auto'}
           x={rect.x}
           y={rect.y}
           width={rect.width}
           height={rect.height}
           fill="transparent"
-          style={{ cursor }}
+          style={disabled ? undefined : { cursor }}
           onPointerDown={(event) => onPointerDown(event, handle)}
         />
       ))}
       {cornerHandles.map(({ cursor, handle, x, y }) => (
         <rect
           key={handle}
-          className="pointer-events-auto"
+          data-whiteboard-selection-resize-handle={handle}
+          className={disabled ? 'pointer-events-none' : 'pointer-events-auto'}
           x={x - halfSize}
           y={y - halfSize}
           width={size}
@@ -239,7 +265,7 @@ function SelectionResizeHandles({
           rx={themeWhiteboardTokens.brushCursorStrokeWidthPx}
           stroke="var(--vlaina-color-whiteboard-selected)"
           strokeWidth={themeWhiteboardTokens.strokeSelectionWidthPx}
-          style={{ cursor }}
+          style={disabled ? undefined : { cursor }}
           vectorEffect="non-scaling-stroke"
           onPointerDown={(event) => onPointerDown(event, handle)}
         />

@@ -9,7 +9,14 @@ interface WhiteboardPinchMetrics {
 export function useWhiteboardTouchPointers(getViewportPoint: (clientX: number, clientY: number) => WhiteboardPoint) {
   const pointersRef = useRef(new Map<number, WhiteboardPoint>());
 
-  const setPointer = useCallback((pointerId: number, clientX: number, clientY: number) => {
+  const addPointer = useCallback((pointerId: number, clientX: number, clientY: number) => {
+    const point = getViewportPoint(clientX, clientY);
+    pointersRef.current.set(pointerId, point);
+    return point;
+  }, [getViewportPoint]);
+
+  const updatePointer = useCallback((pointerId: number, clientX: number, clientY: number) => {
+    if (!pointersRef.current.has(pointerId)) return null;
     const point = getViewportPoint(clientX, clientY);
     pointersRef.current.set(pointerId, point);
     return point;
@@ -31,5 +38,5 @@ export function useWhiteboardTouchPointers(getViewportPoint: (clientX: number, c
     };
   }, []);
 
-  return { deletePointer, getPinchMetrics, setPointer };
+  return { addPointer, deletePointer, getPinchMetrics, updatePointer };
 }

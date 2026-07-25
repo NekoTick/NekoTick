@@ -13,10 +13,12 @@ import {
 } from '../../model/whiteboardModel';
 import {
   WhiteboardToolbarButton,
+  WhiteboardDockSlot,
   WhiteboardToolbarGroup,
   whiteboardFloatingPanelClassName,
 } from './WhiteboardToolbarPrimitives';
 import { WhiteboardColorPicker } from './WhiteboardColorPicker';
+import { useWhiteboardDockMagnification } from './useWhiteboardDockMagnification';
 
 export type WhiteboardToolPanelName = 'brush' | 'eraser';
 
@@ -32,21 +34,33 @@ interface WhiteboardToolPanelProps {
 
 export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
   const { t } = useI18n();
+  const dock = useWhiteboardDockMagnification({
+    activationResponseMs: themeWhiteboardTokens.toolPanelDockActivationResponseMs,
+    maxScale: themeWhiteboardTokens.toolPanelDockMagnificationMax,
+    pointerResponseMs: themeWhiteboardTokens.toolPanelDockPointerResponseMs,
+    radiusPx: themeWhiteboardTokens.toolPanelDockMagnificationRadiusPx,
+  });
   const drawingTool = isDrawingTool(props.tool) ? props.tool : 'pen';
   const sizeTool = props.tool === 'stroke-eraser' ? props.tool : drawingTool;
   const tools = props.panel === 'brush' ? WHITEBOARD_DRAWING_TOOLS : WHITEBOARD_ERASER_TOOLS;
 
   return (
     <div
+      ref={dock.ref}
       data-whiteboard-tool-panel="true"
+      onPointerCancel={dock.onPointerCancel}
+      onPointerEnter={dock.onPointerEnter}
+      onPointerLeave={dock.onPointerLeave}
+      onPointerMove={dock.onPointerMove}
       className={cn(
-        'flex h-[var(--vlaina-size-56px)] max-w-full items-center gap-3 overflow-x-auto rounded-[var(--vlaina-radius-16px)] px-2 py-1.5',
+        'flex h-[var(--vlaina-size-56px)] max-w-full items-center gap-3 overflow-x-auto rounded-[var(--vlaina-radius-16px)] px-2 py-1.5 sm:overflow-visible',
         whiteboardFloatingPanelClassName,
       )}
     >
       <WhiteboardToolbarGroup>
         {tools.map((item) => (
           <WhiteboardToolbarButton
+            dock
             key={item.id}
             active={props.tool === item.id}
             icon={item.icon}
@@ -72,7 +86,6 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
           <SizeChoices sizes={props.brushSizes} tool="stroke-eraser" onChange={props.onBrushSizeSelect} />
         </>
       ) : null}
-
     </div>
   );
 }
@@ -82,23 +95,29 @@ function ColorChoices({ colors, tool, onChange }: {
   tool: WhiteboardDrawingTool;
   onChange: (tool: WhiteboardDrawingTool, color: string) => void;
 }) {
+  const selectedColor = colors[tool].toLowerCase();
   return (
     <WhiteboardToolbarGroup>
       {themeWhiteboardTokens.brushColorSwatches.map((color) => (
-        <button
-          key={color}
-          type="button"
-          aria-label={color}
-          aria-pressed={colors[tool] === color}
-          onClick={() => onChange(tool, color)}
-          className={cn(
-            'size-[var(--vlaina-size-24px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border transition-transform',
-            colors[tool] === color
-              ? 'border-[var(--vlaina-color-whiteboard-selected)] scale-[var(--vlaina-scale-110)] shadow-[var(--vlaina-shadow-selection-soft)]'
-              : 'border-[var(--vlaina-color-subtle-border-strong)] hover:scale-[var(--vlaina-scale-105)]',
-          )}
-          style={{ backgroundColor: color }}
-        />
+        <WhiteboardDockSlot key={color} size="small">
+          <button
+            type="button"
+            aria-label={color}
+            aria-pressed={selectedColor === color.toLowerCase()}
+            data-whiteboard-dock-visual="true"
+            onClick={() => onChange(tool, color)}
+            className="relative size-[var(--vlaina-size-24px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
+            style={{ backgroundColor: color }}
+          >
+            {selectedColor === color.toLowerCase() ? (
+              <span
+                aria-hidden="true"
+                data-whiteboard-color-selection-ring="true"
+                className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
+              />
+            ) : null}
+          </button>
+        </WhiteboardDockSlot>
       ))}
       <WhiteboardColorPicker color={colors[tool]} onChange={(color) => onChange(tool, color)} />
     </WhiteboardToolbarGroup>
@@ -114,26 +133,28 @@ function SizeChoices({ sizes, tool, onChange }: {
   return (
     <WhiteboardToolbarGroup>
       {themeWhiteboardTokens.brushSizePresets.map((size) => (
-        <button
-          key={size}
-          type="button"
-          aria-label={`${t('whiteboard.brushSize')} ${Math.round(size * 100)}%`}
-          aria-pressed={sizes[tool] === size}
-          onClick={() => onChange(tool, size)}
-          className={cn(
-            'flex size-[var(--vlaina-size-28px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] border transition-colors',
-            sizes[tool] === size
-              ? 'border-[var(--vlaina-color-whiteboard-selected)] bg-[var(--vlaina-accent-light)]'
-              : 'border-transparent hover:bg-[var(--vlaina-color-control-hover-bg)]',
-          )}
-        >
-          <span
-            data-whiteboard-size-preview={size}
-            aria-hidden="true"
-            className="rounded-[var(--vlaina-radius-circle)] bg-[var(--vlaina-color-text-primary)]"
-            style={{ height: size * themeWhiteboardTokens.brushSizePreviewBasePx, width: size * themeWhiteboardTokens.brushSizePreviewBasePx }}
-          />
-        </button>
+        <WhiteboardDockSlot key={size} size="compact">
+          <button
+            type="button"
+            aria-label={`${t('whiteboard.brushSize')} ${Math.round(size * 100)}%`}
+            aria-pressed={sizes[tool] === size}
+            data-whiteboard-dock-visual="true"
+            onClick={() => onChange(tool, size)}
+            className={cn(
+              'flex size-[var(--vlaina-size-28px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] transition-colors',
+              sizes[tool] === size
+                ? 'bg-[var(--vlaina-accent-light)]'
+                : 'hover:bg-[var(--vlaina-color-control-hover-bg)]',
+            )}
+          >
+            <span
+              data-whiteboard-size-preview={size}
+              aria-hidden="true"
+              className="rounded-[var(--vlaina-radius-circle)] bg-[var(--vlaina-color-text-primary)]"
+              style={{ height: size * themeWhiteboardTokens.brushSizePreviewBasePx, width: size * themeWhiteboardTokens.brushSizePreviewBasePx }}
+            />
+          </button>
+        </WhiteboardDockSlot>
       ))}
     </WhiteboardToolbarGroup>
   );

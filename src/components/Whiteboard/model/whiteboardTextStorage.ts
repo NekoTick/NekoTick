@@ -23,8 +23,9 @@ export async function readRecoverableText<T>(
   return backup;
 }
 
-export async function writeRecoverableText(path: string, content: string, maxBytes: number): Promise<void> {
-  if (encoder.encode(content).byteLength > maxBytes) {
+export async function writeRecoverableText(path: string, content: string, maxBytes: number): Promise<number> {
+  const byteLength = encoder.encode(content).byteLength;
+  if (byteLength > maxBytes) {
     throw new Error('Whiteboard file is too large');
   }
 
@@ -36,6 +37,7 @@ export async function writeRecoverableText(path: string, content: string, maxByt
       await storage.copyFile(path, `${path}.bak`);
     }
     await storage.rename(tempPath, path);
+    return byteLength;
   } catch (error) {
     await storage.deleteFile(tempPath).catch(() => undefined);
     throw error;

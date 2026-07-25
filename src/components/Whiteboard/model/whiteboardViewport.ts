@@ -36,21 +36,21 @@ export function getVisibleBoardRect(
 }
 
 function getContentBounds(elements: WhiteboardElement[], strokes: WhiteboardStroke[]): WhiteboardSelectionRect | null {
-  const elementBounds = elements.map((element) => ({
-    height: element.height,
-    width: element.width,
-    x: element.x,
-    y: element.y,
-  }));
-  const strokeBounds = strokes.flatMap((stroke) => {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const includeBounds = (x: number, y: number, width: number, height: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + width);
+    maxY = Math.max(maxY, y + height);
+  };
+  elements.forEach((element) => includeBounds(element.x, element.y, element.width, element.height));
+  strokes.forEach((stroke) => {
     const bounds = getStrokeBounds(stroke);
-    return bounds ? [bounds] : [];
+    if (bounds) includeBounds(bounds.x, bounds.y, bounds.width, bounds.height);
   });
-  const bounds = [...elementBounds, ...strokeBounds];
-  if (bounds.length === 0) return null;
-  const minX = Math.min(...bounds.map((item) => item.x));
-  const minY = Math.min(...bounds.map((item) => item.y));
-  const maxX = Math.max(...bounds.map((item) => item.x + item.width));
-  const maxY = Math.max(...bounds.map((item) => item.y + item.height));
+  if (!Number.isFinite(minX)) return null;
   return { height: maxY - minY, width: maxX - minX, x: minX, y: minY };
 }

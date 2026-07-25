@@ -6,7 +6,7 @@ import { Icon } from '@/components/ui/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { clampRgbChannel, hexToRgb, hsvToRgb, rgbToHex, rgbToHsv, type HsvColor } from '../../model/whiteboardColor';
-import { whiteboardFloatingPanelClassName } from './WhiteboardToolbarPrimitives';
+import { WhiteboardDockSlot, whiteboardFloatingPanelClassName } from './WhiteboardToolbarPrimitives';
 
 interface WhiteboardColorPickerProps {
   color: string;
@@ -170,15 +170,18 @@ export function WhiteboardColorPicker({ color, onChange }: WhiteboardColorPicker
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <button
-        type="button"
-        aria-label={t('whiteboard.customColor')}
-        aria-pressed={open}
-        className="flex size-[var(--vlaina-size-24px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)] transition-transform hover:scale-[var(--vlaina-scale-105)]"
-        style={{ backgroundImage: 'var(--vlaina-color-picker-rainbow)' }}
-        />
-      </PopoverTrigger>
+      <WhiteboardDockSlot size="small">
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label={t('whiteboard.customColor')}
+            aria-pressed={open}
+            data-whiteboard-dock-visual="true"
+            className="flex size-[var(--vlaina-size-24px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)]"
+            style={{ backgroundImage: 'var(--vlaina-color-picker-rainbow)' }}
+          />
+        </PopoverTrigger>
+      </WhiteboardDockSlot>
 
       <PopoverContent side="top" align="center" sideOffset={8} role="dialog" aria-busy={appColorPicking} aria-label={t('whiteboard.customColor')} className={cn('max-h-[var(--vlaina-whiteboard-color-picker-max-height)] w-[var(--vlaina-size-560px)] max-w-[var(--vlaina-whiteboard-panel-max-width)] overflow-y-auto rounded-[var(--vlaina-radius-26px)] p-3', whiteboardFloatingPanelClassName)}>
 

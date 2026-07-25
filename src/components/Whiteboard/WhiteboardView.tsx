@@ -38,6 +38,7 @@ export function WhiteboardView({
         selectedStrokeIds={board.selectedStrokeIds}
         selectionPath={board.selectionPath}
         spacePressed={board.spacePressed}
+        spatialIndex={board.spatialIndex}
         strokes={board.strokes}
         tool={board.tool}
         viewport={board.viewport}
@@ -49,6 +50,7 @@ export function WhiteboardView({
         onPointerLeave={() => board.setBrushCursorPoint(null)}
         onPointerMove={board.handlePointerMove}
         onPointerUp={board.finishPointerAction}
+        onSelectionMovePointerDown={board.handleSelectionMovePointerDown}
         onSelectionResizePointerDown={board.handleSelectionResizePointerDown}
         onWheel={board.handleWheel}
       />

@@ -15,7 +15,7 @@ import {
 } from '../../model/whiteboardModel';
 import type { WhiteboardLassoPath } from '../../model/whiteboardSelection';
 import type { WhiteboardResizeHandle } from '../../model/whiteboardSelection';
-import type { WhiteboardEraserPreview } from '../../model/whiteboardEraser';
+import type { WhiteboardEraserPreview, WhiteboardEraserSpatialIndex } from '../../model/whiteboardEraser';
 import type { WhiteboardMovePreview } from '../../model/whiteboardInteractions';
 
 interface WhiteboardSurfaceProps {
@@ -33,6 +33,7 @@ interface WhiteboardSurfaceProps {
   selectedStrokeIds: string[];
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
+  spatialIndex: WhiteboardEraserSpatialIndex;
   strokes: WhiteboardStroke[];
   tool: WhiteboardTool;
   viewport: WhiteboardViewport;
@@ -44,6 +45,7 @@ interface WhiteboardSurfaceProps {
   onPointerMove: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerLeave: () => void;
   onPointerUp: (event: PointerEvent<HTMLDivElement>) => void;
+  onSelectionMovePointerDown: (event: PointerEvent<SVGElement>) => void;
   onSelectionResizePointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
   onWheel: (event: WheelEvent<HTMLDivElement>) => void;
 }
@@ -63,6 +65,7 @@ export function WhiteboardSurface({
   selectedStrokeIds,
   selectionPath,
   spacePressed,
+  spatialIndex,
   strokes,
   tool,
   viewport,
@@ -74,6 +77,7 @@ export function WhiteboardSurface({
   onPointerMove,
   onPointerLeave,
   onPointerUp,
+  onSelectionMovePointerDown,
   onSelectionResizePointerDown,
   onWheel,
 }: WhiteboardSurfaceProps) {
@@ -154,11 +158,14 @@ export function WhiteboardSurface({
         selectedElementIds={selectedElementIds}
         selectedStrokeIds={selectedStrokeIds}
         selectionPath={selectionPath}
+        spacePressed={spacePressed}
+        spatialIndex={spatialIndex}
         strokes={strokes}
         tool={tool}
         viewport={viewport}
         viewportSize={viewportSize}
         onElementPointerDown={onElementPointerDown}
+        onSelectionMovePointerDown={onSelectionMovePointerDown}
         onSelectionResizePointerDown={onSelectionResizePointerDown}
       />
       {imageDragActive ? (

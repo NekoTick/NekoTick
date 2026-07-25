@@ -959,6 +959,7 @@
   --vlaina-whiteboard-toolbar-max-width: calc(100% - var(--vlaina-size-56px));
   --vlaina-whiteboard-panel-max-width: calc(100vw - var(--vlaina-size-24px));
   --vlaina-whiteboard-color-picker-max-height: calc(100vh - var(--vlaina-size-32px));
+  --vlaina-whiteboard-color-selection-ring-offset: calc(var(--vlaina-size-4px) * -1);
   --vlaina-color-whiteboard-pen: #27272a;
   --vlaina-color-whiteboard-pencil: #52525b;
   --vlaina-color-whiteboard-marker: #f59e0b;
@@ -1193,6 +1194,18 @@
 html[data-whiteboard-color-picking='true'],
 html[data-whiteboard-color-picking='true'] * {
   cursor: var(--vlaina-cursor-whiteboard-eyedropper) !important;
+}
+
+.whiteboard-dock-slot {
+  contain: layout;
+  transform-origin: center bottom;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whiteboard-dock-slot {
+    will-change: auto;
+  }
 }
 
 @keyframes vlaina-graph-enter {

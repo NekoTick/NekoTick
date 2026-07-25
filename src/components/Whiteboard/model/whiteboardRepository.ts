@@ -26,6 +26,7 @@ const WHITEBOARD_INDEX_MAX_BYTES = 256 * 1024;
 export const WHITEBOARD_BOARD_MAX_BYTES = 16 * 1024 * 1024;
 const WHITEBOARD_ASSET_MAX_BYTES = 50 * 1024 * 1024;
 const WHITEBOARD_CONFIG_MAX_BYTES = 64 * 1024;
+export const WHITEBOARD_ASSET_HYDRATION_CONCURRENCY = 8;
 const WHITEBOARD_BOARDS_DIR = 'boards';
 const WHITEBOARD_INDEX_FILE = 'index.json';
 const WHITEBOARD_CONFIG_FILE = 'config.json';
@@ -83,13 +84,13 @@ export async function writeWhiteboardBoard(
   notesRootPath: string,
   board: WhiteboardIndexEntry,
   snapshot: WhiteboardSnapshot,
-): Promise<void> {
+): Promise<number> {
   const storage = getStorageAdapter();
   const { configPath } = await getWhiteboardStorageTree(notesRootPath);
   await ensureWhiteboardConfig(notesRootPath, configPath);
   const boardPath = await getWhiteboardBoardPath(notesRootPath, board);
   await storage.mkdir(await getWhiteboardAssetsPath(notesRootPath, board), true);
-  await writeRecoverableText(
+  return writeRecoverableText(
     boardPath,
     JSON.stringify(createWhiteboardDocument(snapshot), null, 2),
     WHITEBOARD_BOARD_MAX_BYTES,
@@ -195,22 +196,34 @@ export async function refreshWhiteboardAssetUrls(
   board: WhiteboardIndexEntry,
   elements: WhiteboardElement[],
 ): Promise<WhiteboardElement[]> {
-  return Promise.all(elements.map(async (element) => {
-    if (
-      element.type !== 'image' ||
-      !element.imageAssetPath ||
-      (element.imageSrc && !element.imageSrc.startsWith('blob:'))
-    ) return element;
-    const fileName = getAssetFileName(element.imageAssetPath);
-    if (!fileName) return element;
-    try {
-      const fullPath = await joinPath(await getWhiteboardAssetsPath(notesRootPath, board), fileName);
-      return { ...element, imageSrc: await loadImageAsBlob(fullPath) };
-    } catch {
-      const { imageSrc: _staleImageSrc, ...elementWithoutStaleSrc } = element;
-      return elementWithoutStaleSrc;
+  const refreshedElements = [...elements];
+  let nextIndex = 0;
+  const hydrateNext = async () => {
+    while (nextIndex < refreshedElements.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const element = refreshedElements[index];
+      if (
+        element.type !== 'image' ||
+        !element.imageAssetPath ||
+        (element.imageSrc && !element.imageSrc.startsWith('blob:'))
+      ) continue;
+      const fileName = getAssetFileName(element.imageAssetPath);
+      if (!fileName) continue;
+      try {
+        const fullPath = await joinPath(await getWhiteboardAssetsPath(notesRootPath, board), fileName);
+        refreshedElements[index] = { ...element, imageSrc: await loadImageAsBlob(fullPath) };
+      } catch {
+        const { imageSrc: _staleImageSrc, ...elementWithoutStaleSrc } = element;
+        refreshedElements[index] = elementWithoutStaleSrc;
+      }
     }
-  }));
+  };
+  await Promise.all(Array.from(
+    { length: Math.min(WHITEBOARD_ASSET_HYDRATION_CONCURRENCY, refreshedElements.length) },
+    hydrateNext,
+  ));
+  return refreshedElements;
 }
 
 function getAssetFileName(assetPath: string): string | null {

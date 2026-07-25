@@ -2,6 +2,7 @@ import { createRef, type ComponentProps } from 'react';
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { EMPTY_WHITEBOARD_ERASER_PREVIEW } from '../../model/whiteboardEraser';
+import { createWhiteboardEraserSpatialIndex } from '../../model/whiteboardEraser';
 import { WhiteboardSurface } from './WhiteboardSurface';
 
 function createProps(): ComponentProps<typeof WhiteboardSurface> {
@@ -20,6 +21,7 @@ function createProps(): ComponentProps<typeof WhiteboardSurface> {
     selectedStrokeIds: [],
     selectionPath: null,
     spacePressed: false,
+    spatialIndex: createWhiteboardEraserSpatialIndex([], []),
     strokes: [],
     tool: 'select',
     viewport: { x: 0, y: 0, zoom: 1 },
@@ -31,6 +33,7 @@ function createProps(): ComponentProps<typeof WhiteboardSurface> {
     onPointerLeave: vi.fn(),
     onPointerMove: vi.fn(),
     onPointerUp: vi.fn(),
+    onSelectionMovePointerDown: vi.fn(),
     onSelectionResizePointerDown: vi.fn(),
     onWheel: vi.fn(),
   };
