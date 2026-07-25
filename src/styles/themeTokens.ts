@@ -67,7 +67,6 @@ export const themeTyporaBaseTokens = {
 export const themeTyporaFixedLightAppFallbackDeclarations = [
   '--vlaina-color-soft-placeholder: #e1e1e1;',
   '--vlaina-color-editor-block-selection: var(--vlaina-color-accent);',
-  '--vlaina-color-editor-block-selection-fg: #fefbf9;',
   '--vlaina-color-editor-block-selection-drag-box: rgb(190 223 254 / 0.42);',
   '--vlaina-color-brand-pink: #f08aa6;',
   '--vlaina-color-brand-pink-soft: rgb(240 138 166 / 0.12);',

@@ -8,8 +8,6 @@ async function readDragVisual(page: Page): Promise<DragVisualGeometry> {
     probe.style.backgroundColor = 'var(--vlaina-block-selection-color-default)';
     document.body.appendChild(probe);
     const expectedBackground = getComputedStyle(probe).backgroundColor;
-    probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-    const expectedSelectionForeground = getComputedStyle(probe).color;
     probe.style.color = 'var(--vlaina-color-white)';
     const expectedCodeBlockSelectedBorderColor = getComputedStyle(probe).color;
     probe.remove();
@@ -101,7 +99,6 @@ async function readDragVisual(page: Page): Promise<DragVisualGeometry> {
       expectedCodeSyntaxMuted,
       expectedCodeSyntaxKeyword,
       expectedCodeBlockSelectedBorderColor,
-      expectedSelectionForeground,
       previewExists: preview !== null,
       previewWidth: previewRect ? Math.round(previewRect.width * 10) / 10 : null,
       previewHeight: previewRect ? Math.round(previewRect.height * 10) / 10 : null,
@@ -205,8 +202,14 @@ export function expectCodeBlockDragSourceSelectionSurface(
     | 'sourceOutlineWidth'
     | 'sourceAfterBackgroundColor'
     | 'sourceClassName'
+    | 'sourceCodeLanguageColor'
+    | 'sourceCodeLineColor'
+    | 'sourceCodeKeywordColor'
     | 'expectedBackground'
     | 'expectedCodeBlockSelectedBorderColor'
+    | 'expectedCodeSyntaxForeground'
+    | 'expectedCodeSyntaxKeyword'
+    | 'expectedCodeSyntaxMuted'
   >,
 ): void {
   expect(visual.sourceClassName ?? '', `${label}: code block source class`).toContain('code-block-container');
@@ -218,6 +221,9 @@ export function expectCodeBlockDragSourceSelectionSurface(
       visual.sourceAfterBackgroundColor === visual.expectedBackground,
     `${label}: code block source should keep selection surface`,
   ).toBe(true);
+  expect(visual.sourceCodeLineColor, `${label}: code line color`).toBe(visual.expectedCodeSyntaxForeground);
+  expect(visual.sourceCodeLanguageColor, `${label}: code language color`).toBe(visual.expectedCodeSyntaxMuted);
+  expect(visual.sourceCodeKeywordColor, `${label}: code keyword color`).toBe(visual.expectedCodeSyntaxKeyword);
 }
 
 export function expectCodeBlockDragPreviewFrame(

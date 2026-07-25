@@ -1,3 +1,4 @@
+import postcss from 'postcss';
 import { describe, expect, it } from "vitest";
 import {
   readStyleFile,
@@ -6,9 +7,38 @@ import {
   readThemeStyle,
   extractCssRule,
   extractSelectorListsContaining,
+  readEditorStyleSourceFiles,
 } from "./selectionStylesTestUtils";
 
 describe("editor block selection styles", () => {
+  it('keeps block selection rules free of foreground declarations', () => {
+    const selectionSelector = /(?:editor-block-selection|editor-block-selected|editor-block-drag-active|editor-block-drag-source|editor-native-selected|ProseMirror-selectednode|editor-atomic-block-keyboard-selected|body-line-number-selected)/;
+    const foregroundProperties = new Set(['color', '-webkit-text-fill-color', 'fill', 'stroke']);
+    const violations: string[] = [];
+
+    for (const { path, source } of readEditorStyleSourceFiles()) {
+      postcss.parse(source, { from: path }).walkRules((rule) => {
+        const selectedContentSelectors = rule.selectors.filter((selector) =>
+          selectionSelector.test(selector) &&
+          !selector.includes('::selection') &&
+          !selector.includes('::-moz-selection')
+        );
+        if (selectedContentSelectors.length === 0) return;
+
+        rule.walkDecls((declaration) => {
+          if (!foregroundProperties.has(declaration.prop)) return;
+          violations.push([
+            `${path}:${declaration.source?.start?.line ?? 0}`,
+            selectedContentSelectors.join(', '),
+            declaration.toString(),
+          ].join(' '));
+        });
+      });
+    }
+
+    expect(violations).toEqual([]);
+  });
+
   it('keeps nested list block selection overlays from stacking darker backgrounds', () => {
     const css = readBlockSelectionStyle();
 
@@ -26,25 +56,22 @@ describe("editor block selection styles", () => {
     expect(css).not.toContain('list-style-type: none !important;');
   });
 
-  it('tints native list markers only when the list item itself carries selection', () => {
+  it('keeps native list marker colors unchanged during block selection', () => {
     const css = readBlockSelectionStyle();
 
-    expect(css).toContain('.milkdown .ProseMirror li.editor-block-selected::marker {');
-    expect(css).toContain('color: var(--vlaina-editor-block-selection-fg);');
+    expect(css).not.toContain('.milkdown .ProseMirror li.editor-block-selected::marker {');
     expect(css).not.toContain('.milkdown .ProseMirror li.editor-block-selected-parent-marker::marker {');
     expect(css).not.toContain('li:has(> p.editor-block-selected)::marker');
     expect(css).not.toContain('li:has(> .code-block-container.editor-block-selected)::marker');
   });
 
-  it('tints task checkboxes with the selected block foreground', () => {
+  it('keeps task checkbox colors unchanged during block selection', () => {
     const css = readBlockSelectionStyle();
     const markdownCss = readStyleFile('markdown.css');
 
-    expect(css).toContain('.milkdown .ProseMirror li[data-item-type="task"].editor-block-selected::before,');
-    expect(css).toContain('.milkdown .ProseMirror li[data-item-type="task"].editor-block-selected-parent-marker::before,');
-    expect(css).toContain('.milkdown .ProseMirror .editor-block-selected li[data-item-type="task"]::before {');
-    expect(css).toContain('border-color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(css).toContain('background-color: transparent !important;');
+    expect(css).not.toContain('li[data-item-type="task"].editor-block-selected::before');
+    expect(css).not.toContain('li[data-item-type="task"].editor-block-selected-parent-marker::before');
+    expect(css).not.toContain('.editor-block-selected li[data-item-type="task"]::before');
     const largeRule = extractCssRule(
       css,
       '.milkdown .ProseMirror.editor-block-selection-large li[data-item-type="task"].editor-block-selected.editor-block-selected-large-item::before {'
@@ -52,54 +79,26 @@ describe("editor block selection styles", () => {
     expect(largeRule).toContain("content: '';");
     expect(largeRule).toContain('display: inline-block !important;');
     expect(css).not.toContain('li[data-item-type="task"]:has(> p.editor-block-selected)::before');
-    expect(css).toContain('.milkdown .ProseMirror li[data-item-type="task"][data-checked="true"] > .editor-block-selected {');
-    expect(css).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(css).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(markdownCss).toContain('.milkdown li[data-item-type="task"][data-checked="true"]::before {');
+    expect(markdownCss).toContain('background-color: var(--vlaina-markdown-color-task-checked-bg);');
+    expect(markdownCss).toContain('color: var(--vlaina-markdown-color-task-checked-text);');
     expect(markdownCss).not.toContain('.milkdown .ProseMirror li[data-item-type="task"][data-checked="true"] > .editor-block-selected {');
   });
 
   it('keeps hashtag tokens at their tag color inside block selections', () => {
     const css = readBlockSelectionStyle();
-    const tagRule = extractCssRule(
-      css,
-      '.milkdown .ProseMirror .editor-block-selected .editor-tag-token,'
-    );
+    const extendedCss = readStyleFile('extended.css');
 
-    expect(tagRule).toContain('.milkdown .ProseMirror .editor-block-selected.editor-tag-token,');
-    expect(tagRule).toContain('.milkdown .ProseMirror .editor-block-selected-textlike.editor-tag-token,');
-    expect(tagRule).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike.editor-tag-token,');
-    expect(tagRule).toContain('.milkdown .ProseMirror .editor-native-selected-textlike.editor-tag-token,');
-    expect(tagRule).toContain('.milkdown .ProseMirror .editor-block-selected-large-textlike.editor-tag-token,');
-    expect(tagRule).toContain('.milkdown .ProseMirror .editor-tag-token :is(');
-    expect(tagRule).toContain('color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent)) !important;');
-    expect(tagRule).toContain('-webkit-text-fill-color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent)) !important;');
+    expect(css).not.toContain('.editor-tag-token');
+    expect(extendedCss).toContain('.milkdown .editor-tag-token {');
+    expect(extendedCss).toContain('color: var(--vlaina-markdown-color-link);');
   });
 
   it('keeps links at their link color inside block selections', () => {
     const css = readBlockSelectionStyle();
     const themeCompatibilityCss = readThemeCompatibilityStyle();
-    const linkColor = 'var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent))))';
-    const linkRule = extractCssRule(
-      css,
-      '.milkdown .ProseMirror :is(\n  .editor-block-selected,'
-    );
-    const linkExclusion = ':not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *)';
-
-    expect(linkRule).toContain('.editor-block-selected-textlike,');
-    expect(linkRule).toContain('.editor-block-drag-source-textlike,');
-    expect(linkRule).toContain('.editor-native-selected-textlike,');
-    expect(linkRule).toContain('.editor-block-selected-large-textlike');
-    expect(linkRule).toContain(') :is(a, .external-link, .internal-link),');
-    expect(linkRule).toContain(') :is(.editor-raw-markdown-link-text),');
-    expect(linkRule).toContain('):is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) {');
-    expect(linkRule).toContain(`color: ${linkColor} !important;`);
-    expect(linkRule).toContain(`-webkit-text-fill-color: ${linkColor} !important;`);
-    expect(css).toContain(linkExclusion);
-    expect(themeCompatibilityCss).toContain(linkExclusion);
-    expect(themeCompatibilityCss).toContain(".milkdown-editor[data-markdown-compat-layer='external'] .ProseMirror.editor-block-selection-enabled :is(");
-    expect(themeCompatibilityCss).toContain("):is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) {");
-    expect(themeCompatibilityCss).toContain(`color: ${linkColor} !important;`);
-    expect(themeCompatibilityCss).toContain(`-webkit-text-fill-color: ${linkColor} !important;`);
+    expect(css).not.toContain(':is(a, .external-link, .internal-link, .editor-raw-markdown-link-text)');
+    expect(themeCompatibilityCss).not.toContain(':is(a, .external-link, .internal-link, .editor-raw-markdown-link-text)');
   });
 
   it('hides editable list gap placeholder text while keeping the caret visible', () => {
@@ -152,23 +151,21 @@ describe("editor block selection styles", () => {
     expect(markdownCss).not.toContain('.milkdown .ProseMirror li.editor-list-gap-placeholder-item.editor-block-selected,');
   });
 
-  it('tints blockquote rails with the selected block foreground', () => {
+  it('keeps blockquote rails on their existing color during selection', () => {
     const css = readBlockSelectionStyle();
 
-    expect(css).toContain('.milkdown .ProseMirror blockquote.editor-block-selected::before,');
-    expect(css).toContain('.milkdown .ProseMirror blockquote.editor-block-selected-parent-marker::before,');
-    expect(css).toContain('.milkdown .ProseMirror .editor-block-selected blockquote::before {');
-    expect(css).toContain('background: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(css).not.toContain('blockquote.editor-block-selected::before');
+    expect(css).not.toContain('blockquote.editor-block-selected-parent-marker::before');
+    expect(css).not.toContain('.editor-block-selected blockquote::before');
     const largeRule = extractCssRule(
       css,
       '.milkdown .ProseMirror.editor-block-selection-large blockquote.editor-block-selected.editor-block-selected-large-item::before {'
     );
     expect(largeRule).toContain("content: '';");
     expect(largeRule).toContain('display: block !important;');
-    expect(largeRule).toContain('background: var(--vlaina-editor-block-selection-fg) !important;');
   });
 
-  it('tints footnote definition rails and labels with the selected block foreground', () => {
+  it('keeps footnote definition rails and labels on their existing colors', () => {
     const css = readStyleFile('extended.css');
 
     expect(css).toContain('.milkdown .footnote-def:is(');
@@ -178,15 +175,13 @@ describe("editor block selection styles", () => {
     expect(css).toContain('.editor-native-selected-textlike');
     expect(css).toContain(') .footnote-def {');
     expect(css).toContain('position: relative;');
-    expect(css).toContain('border-left-color: var(--vlaina-editor-block-selection-fg) !important;');
     expect(css).toContain('--vlaina-block-selection-fill-top: var(--vlaina-space-0) !important;');
     expect(css).toContain('--vlaina-block-selection-fill-bottom: var(--vlaina-space-0) !important;');
     expect(css).toContain(') .footnote-def::before {');
-    expect(css).toContain('border-left: var(--vlaina-size-3px) solid var(--vlaina-editor-block-selection-fg) !important;');
+    expect(css).toContain('border-left: inherit !important;');
     expect(css).toContain('border-radius: inherit !important;');
-    expect(css).toContain(') .footnote-def-label,');
-    expect(css).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(css).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(css).not.toContain('.footnote-def-label,');
+    expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');
   });
 
   it('keeps selected text block backgrounds separated by the shared vertical gap token', () => {
@@ -235,9 +230,8 @@ describe("editor block selection styles", () => {
     expect(textBlockRule).toContain('position: relative;');
     expect(textBlockRule).toContain('background-color: transparent;');
     expect(textBlockRule).toContain('box-shadow: none;');
-    expect(textBlockRule).toContain('color: var(--vlaina-editor-block-selection-fg);');
-    expect(css).toContain('color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(css).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
+    expect(textBlockRule).not.toContain('\n  color:');
+    expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');
     expect(css).not.toContain([
       '.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike {',
       '  background-color: var(--vlaina-block-selection-color);',
@@ -294,7 +288,8 @@ describe("editor block selection styles", () => {
     expect(largeSelectionRule).toContain('box-shadow: none !important;');
     expect(largeSelectionRule).toContain('box-decoration-break: slice;');
     expect(largeSelectionRule).toContain('contain: paint;');
-    expect(largeSelectionRule).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg);');
+    expect(largeSelectionRule).not.toContain('\n  color:');
+    expect(largeSelectionRule).not.toContain('\n  -webkit-text-fill-color:');
     expect(largeSelectionFillRule).toContain('display: none !important;');
     expect(largeTextlikeSelectionRule).toContain('background-color: transparent;');
     expect(largeTextlikeSelectionRule).toContain('box-decoration-break: clone;');
@@ -319,7 +314,7 @@ describe("editor block selection styles", () => {
     expect(largeRichSelectionFillRule).toContain('left: calc(-1 * var(--vlaina-block-selection-bleed-x-start));');
     expect(largeRichSelectionFillRule).toContain('display: block !important;');
     expect(largeRichSelectionFillRule).toContain('background: var(--vlaina-block-selection-color);');
-    expect(css).toContain('.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike,');
+    expect(css).toContain('.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike > *:not(');
   });
 
   it('uses explicit native selected text-like classes instead of repeated selector lists', () => {

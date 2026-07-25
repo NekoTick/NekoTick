@@ -61,13 +61,11 @@ test.describe("notes block selection list handles", () => {
           : null;
         if (!item || !selected) return null;
 
-        const colorProbe = document.createElement('span');
-        colorProbe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-        colorProbe.style.backgroundColor = 'var(--vlaina-block-selection-color-default)';
-        document.body.appendChild(colorProbe);
-        const selectedForeground = getComputedStyle(colorProbe).color;
-        const selectedBackground = getComputedStyle(colorProbe).backgroundColor;
-        colorProbe.remove();
+        const backgroundProbe = document.createElement('span');
+        backgroundProbe.style.backgroundColor = 'var(--vlaina-block-selection-color-default)';
+        document.body.appendChild(backgroundProbe);
+        const selectedBackground = getComputedStyle(backgroundProbe).backgroundColor;
+        backgroundProbe.remove();
 
         const bleedProbe = document.createElement('span');
         bleedProbe.style.marginLeft = 'calc(-1 * var(--vlaina-block-selection-bleed-x-start))';
@@ -81,8 +79,8 @@ test.describe("notes block selection list handles", () => {
           resolvedSelectionBleedLeft,
           selectedBackground,
           selectedBackgroundColor: getComputedStyle(selected).backgroundColor,
-          selectedForeground,
           selectedTagName: selected.tagName,
+          selectedTextColor: getComputedStyle(selected).color,
           selectedText: selected.textContent?.trim() ?? '',
         };
       });
@@ -91,7 +89,7 @@ test.describe("notes block selection list handles", () => {
       expect(visual!.itemText).toContain('YAML Front Matter parent marker sentinel');
       expect(visual!.selectedText).toBe('frontmatter metadata continuation sentinel');
       expect(visual!.selectedTagName).toBe('P');
-      expect(visual!.markerColor).not.toBe(visual!.selectedForeground);
+      expect(visual!.markerColor).toBe(visual!.selectedTextColor);
       expect(visual!.selectedBackgroundColor).toBe(visual!.selectedBackground);
       expect(Math.abs(visual!.resolvedSelectionBleedLeft)).toBeGreaterThanOrEqual(72);
     } finally {

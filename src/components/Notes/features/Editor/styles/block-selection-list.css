@@ -2,33 +2,14 @@
  * Markdown list and text block selection details.
  */
 
-.milkdown .ProseMirror li[data-item-type="task"].editor-block-selected::before,
-.milkdown .ProseMirror li[data-item-type="task"].editor-block-selected-parent-marker::before,
-.milkdown .ProseMirror .editor-block-selected li[data-item-type="task"]::before {
-  border-color: var(--vlaina-editor-block-selection-fg) !important;
-  background-color: transparent !important;
-}
-
 .milkdown .ProseMirror.editor-block-selection-large li[data-item-type="task"].editor-block-selected.editor-block-selected-large-item::before {
   content: '';
   display: inline-block !important;
 }
 
-.milkdown .ProseMirror li[data-item-type="task"][data-checked="true"] > .editor-block-selected {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror blockquote.editor-block-selected::before,
-.milkdown .ProseMirror blockquote.editor-block-selected-parent-marker::before,
-.milkdown .ProseMirror .editor-block-selected blockquote::before {
-  background: var(--vlaina-editor-block-selection-fg) !important;
-}
-
 .milkdown .ProseMirror.editor-block-selection-large blockquote.editor-block-selected.editor-block-selected-large-item::before {
   content: '';
   display: block !important;
-  background: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown .ProseMirror hr.ProseMirror-selectednode,
@@ -68,55 +49,6 @@
 
 .milkdown .ProseMirror p.editor-block-selected {
   --vlaina-block-selection-bleed-y: var(--vlaina-block-selection-bleed-y-default);
-}
-
-.milkdown .ProseMirror .editor-block-selected .editor-tag-token,
-.milkdown .ProseMirror .editor-block-selected.editor-tag-token,
-.milkdown .ProseMirror .editor-block-selected-textlike.editor-tag-token,
-.milkdown .ProseMirror .editor-block-drag-source-textlike.editor-tag-token,
-.milkdown .ProseMirror .editor-native-selected-textlike.editor-tag-token,
-.milkdown .ProseMirror .editor-block-selected-large-textlike.editor-tag-token,
-.milkdown .ProseMirror .editor-tag-token :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-) {
-  color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent)) !important;
-  -webkit-text-fill-color: var(--vlaina-sidebar-row-selected-text, var(--vlaina-accent)) !important;
-}
-
-.milkdown .ProseMirror :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-) :is(a, .external-link, .internal-link),
-.milkdown .ProseMirror :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-) :is(.editor-raw-markdown-link-text),
-.milkdown .ProseMirror :is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-),
-.milkdown .ProseMirror :is(
-  .editor-block-selected,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike,
-  .editor-block-selected-large-textlike
-):is(a, .external-link, .internal-link, .editor-raw-markdown-link-text) {
-  color: var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent)))) !important;
-  -webkit-text-fill-color: var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent)))) !important;
 }
 
 .milkdown .ProseMirror > :is(

@@ -427,6 +427,16 @@ test.describe('notes block selection performance', () => {
         { timeout: 30_000 },
       ).toBeGreaterThan(200);
 
+      const lineNumberColorBaseline = await page.evaluate(() => {
+        const lineNumber = document.querySelector<HTMLElement>('.body-line-number');
+        const style = lineNumber ? getComputedStyle(lineNumber) : null;
+        return {
+          color: style?.color ?? null,
+          textFillColor: style?.getPropertyValue('-webkit-text-fill-color') ?? null,
+        };
+      });
+      expect(lineNumberColorBaseline.color).not.toBeNull();
+
       const dragTarget = await getBlankAreaDragTarget(page, 'Typora compatibility item 0');
       expect(dragTarget, 'blank-area drag target').not.toBeNull();
       if (!dragTarget) return;
@@ -510,8 +520,8 @@ test.describe('notes block selection performance', () => {
       expect(metrics.selectableCount).toBeGreaterThanOrEqual(900);
       expect(autoScrollReached).toBe(true);
       expect(midDragLineNumberSelection.count).toBeGreaterThan(0);
-      expect(midDragLineNumberSelection.color).toBe('rgb(255, 255, 255)');
-      expect(midDragLineNumberSelection.textFillColor).toBe('rgb(255, 255, 255)');
+      expect(midDragLineNumberSelection.color).toBe(lineNumberColorBaseline.color);
+      expect(midDragLineNumberSelection.textFillColor).toBe(lineNumberColorBaseline.textFillColor);
       expect(metrics.scrollTop).toBeGreaterThan(80);
       expect(metrics.selectedDomCount).toBeGreaterThan(20);
       expect(frameProbe.p95FrameMs).toBeLessThan(100);

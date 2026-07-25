@@ -25,14 +25,6 @@
   background-color: transparent !important;
   border-radius: var(--vlaina-radius-8px);
   box-shadow: none !important;
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror .milkdown-table-block:is(.editor-block-selected, .ProseMirror-selectednode, .editor-block-drag-source) .table-content-host,
-.milkdown .ProseMirror .milkdown-table-block:is(.editor-block-selected, .ProseMirror-selectednode, .editor-block-drag-source) .table-content-host :not(.editor-tag-token):not(.editor-tag-token *) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown .ProseMirror .milkdown-table-block.editor-block-selected.editor-table-block-zero-min-width,

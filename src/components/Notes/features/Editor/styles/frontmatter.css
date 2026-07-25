@@ -94,36 +94,3 @@
   background-color: var(--vlaina-block-selection-color);
   box-shadow: var(--vlaina-block-selection-shadow);
 }
-
-.milkdown .frontmatter-block-container:is(
-  .ProseMirror-selectednode,
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike
-),
-.milkdown .frontmatter-block-container:is(
-  .ProseMirror-selectednode,
-  .editor-block-selected,
-  .editor-block-drag-source,
-  .editor-block-selected-textlike,
-  .editor-block-drag-source-textlike,
-  .editor-native-selected-textlike
-) :is(
-  .cm-editor,
-  .cm-scroller,
-  .cm-content,
-  .cm-line,
-  .cm-line *,
-  .cm-s-inner,
-  .cm-s-inner *,
-  .cm-gutters,
-  .cm-gutter,
-  .cm-gutterElement,
-  .cm-lineNumbers,
-  .cm-gutter-filler
-) {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}

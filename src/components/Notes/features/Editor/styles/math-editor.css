@@ -54,8 +54,6 @@
     0 calc(-1 * var(--vlaina-math-hover-bleed-y)) 0 0 var(--vlaina-math-hover-color),
     calc(-1 * var(--vlaina-math-hover-bleed-x-start)) 0 0 0 var(--vlaina-math-hover-color) !important;
   border-radius: var(--vlaina-radius-0);
-  color: inherit !important;
-  -webkit-text-fill-color: inherit !important;
 }
 
 .milkdown .ProseMirror :is(
@@ -195,66 +193,6 @@
   [data-type='math-inline']
 ).editor-block-selected:is(:hover, :focus-visible) {
   background: transparent !important;
-}
-
-.milkdown .ProseMirror .editor-block-selected :is(
-  [data-type='math-inline'],
-  [data-type='math-block'],
-  [data-type='html-block']:not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->']),
-  .mermaid-block
-):not(.editor-block-selected):not(.editor-block-drag-source):not(.ProseMirror-selectednode):is(:hover, :focus-visible, .editor-preview-context-menu-active),
-.milkdown .ProseMirror .editor-block-selected :is(
-  [data-type='math-inline'],
-  [data-type='math-block'],
-  [data-type='html-block']:not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->']),
-  .mermaid-block
-):not(.editor-block-selected):not(.editor-block-drag-source):not(.ProseMirror-selectednode):is(:hover, :focus-visible, .editor-preview-context-menu-active) * {
-  color: var(--vlaina-markdown-color-text) !important;
-  -webkit-text-fill-color: var(--vlaina-markdown-color-text) !important;
-}
-
-.milkdown .ProseMirror :is(
-  [data-type='math-inline'],
-  [data-type='math-block'],
-  [data-type='html-block']:not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->'])
-):is(.editor-block-selected, .editor-block-drag-source, .ProseMirror-selectednode):is(:hover, :focus-visible, .ProseMirror-selectednode, .editor-preview-context-menu-active),
-.milkdown .ProseMirror :is(
-  [data-type='math-inline'],
-  [data-type='math-block'],
-  [data-type='html-block']:not([data-value='<!--vlaina-markdown-blank-line-->']):not([data-value='<!--vlaina-rendered-html-boundary-blank-line-->']):not([data-value='<!--vlaina-markdown-tight-heading-->'])
-):is(.editor-block-selected, .editor-block-drag-source, .ProseMirror-selectednode):is(:hover, :focus-visible, .ProseMirror-selectednode, .editor-preview-context-menu-active) * {
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror .editor-block-selected :is(
-  [data-type='math-inline'],
-  [data-type='math-block']
-):not(.editor-block-selected):not(.editor-block-drag-source):not(.ProseMirror-selectednode):is(:hover, :focus-visible, .editor-preview-context-menu-active) :is(svg, svg *, .katex, .katex *, text, tspan, path, rect, circle, ellipse, line, polyline, polygon) {
-  fill: var(--vlaina-markdown-color-text) !important;
-  stroke: var(--vlaina-markdown-color-text) !important;
-}
-
-.milkdown .ProseMirror :is(
-  [data-type='math-inline'],
-  [data-type='math-block']
-):is(.editor-block-selected, .editor-block-drag-source, .ProseMirror-selectednode):is(:hover, :focus-visible, .ProseMirror-selectednode, .editor-preview-context-menu-active) :is(svg, svg *, .katex, .katex *, text, tspan, path, rect, circle, ellipse, line, polyline, polygon) {
-  fill: var(--vlaina-editor-block-selection-fg) !important;
-  stroke: var(--vlaina-editor-block-selection-fg) !important;
-}
-
-.milkdown .ProseMirror .editor-block-selected :is(
-  .mermaid-block
-):not(.editor-block-selected):not(.editor-block-drag-source):not(.ProseMirror-selectednode):is(:hover, :focus-visible, .editor-preview-context-menu-active) :is(text, tspan, .nodeLabel, .label, .edgeLabel) {
-  fill: var(--vlaina-markdown-color-text) !important;
-}
-
-.milkdown .ProseMirror :is(
-  .mermaid-block
-):is(.editor-block-selected, .editor-block-drag-source, .ProseMirror-selectednode):is(:hover, :focus-visible, .ProseMirror-selectednode, .editor-preview-context-menu-active) :is(text, tspan, .nodeLabel, .nodeLabel *, .label, .label *, .edgeLabel, .edgeLabel *) {
-  color: var(--vlaina-markdown-color-text) !important;
-  -webkit-text-fill-color: var(--vlaina-markdown-color-text) !important;
-  fill: var(--vlaina-markdown-color-text) !important;
 }
 
 .milkdown [data-type='math-block'].math-block-wrapper {

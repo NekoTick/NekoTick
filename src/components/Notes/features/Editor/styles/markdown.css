@@ -197,8 +197,6 @@
   background-color: var(--vlaina-block-selection-color, var(--vlaina-block-selection-color-default)) !important;
   outline: none;
   box-shadow: var(--vlaina-inline-code-selected-border-shadow);
-  color: var(--vlaina-editor-block-selection-fg) !important;
-  -webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;
 }
 
 .milkdown .ProseMirror .md-html-source-text {

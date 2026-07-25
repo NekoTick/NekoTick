@@ -1,3 +1,4 @@
+import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
 import { buildImportedMarkdownThemePostBridgeCss } from './postBridge';
 
@@ -23,16 +24,23 @@ describe('imported markdown theme post bridge', () => {
     expect(css).toContain('.vlook-column-list');
     expect(css).toContain('#write).ProseMirror,');
     expect(css).toContain(':not(.heading-toggle-btn):not(.editor-collapse-btn):not(.ProseMirror-widget)');
-    expect(css).toContain(':not(.editor-tag-token):not(.editor-raw-markdown-link-text)');
-    expect(css).toContain('.ProseMirror):is(.editor-block-selection-active, .editor-block-selection-pending) .editor-block-selected *:not(.code-block-container)');
-    expect(css).toContain(':not(.editor-tag-token):not(.editor-tag-token *):not(a):not(a *):not(.external-link):not(.external-link *):not(.internal-link):not(.internal-link *):not(.editor-raw-markdown-link-text):not(.editor-raw-markdown-link-text *)');
-    expect(css).toContain('-webkit-text-fill-color: var(--vlaina-editor-block-selection-fg) !important;');
-    expect(css).toContain(':is(.editor-block-selected, .editor-block-selected-textlike, .editor-block-drag-source-textlike, .editor-native-selected-textlike, .editor-block-selected-large-textlike) :is(a, .external-link, .internal-link, .editor-raw-markdown-link-text)');
-    expect(css).toContain('color: var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent)))) !important;');
-    expect(css).toContain('-webkit-text-fill-color: var(--typora-link-color, var(--primary-color, var(--text-accent, var(--vlaina-accent)))) !important;');
+    expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');
+    expect(css).not.toContain('.ProseMirror):is(.editor-block-selection-active, .editor-block-selection-pending) .editor-block-selected');
     expect(css).toContain('.ProseMirror).editor-block-selection-pending .code-block-chrome-language-label');
     expect(css).toContain('display: inline !important;');
     expect(css).toContain('opacity: var(--vlaina-opacity-0) !important;');
+
+    const foregroundProperties = new Set(['color', '-webkit-text-fill-color', 'fill', 'stroke']);
+    const selectionForegroundDeclarations: string[] = [];
+    postcss.parse(css).walkRules((rule) => {
+      if (!/(?:editor-block-selection|editor-block-selected|editor-block-drag-source|ProseMirror-selectednode)/.test(rule.selector)) return;
+      rule.walkDecls((declaration) => {
+        if (foregroundProperties.has(declaration.prop)) {
+          selectionForegroundDeclarations.push(declaration.toString());
+        }
+      });
+    });
+    expect(selectionForegroundDeclarations).toEqual([]);
   });
 
   it('skips non-Typora themes', () => {

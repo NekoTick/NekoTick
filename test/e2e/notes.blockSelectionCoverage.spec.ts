@@ -82,7 +82,9 @@ type DraggedCodeBlockPaintSample = {
   codeLineTextFillColor: string | null;
   codeSelected: boolean;
   expectedBorderColor: string;
-  expectedForegroundColor: string;
+  expectedCodeLineColor: string;
+  expectedLanguageColor: string;
+  expectedTokenColor: string;
   innerBackgroundColor: string | null;
   languageColor: string | null;
   languageTextFillColor: string | null;
@@ -548,7 +550,7 @@ test.describe('notes block selection visual coverage', () => {
       expect(draggingSample.codeSelected).toBe(true);
       expect(draggingSample.codeBackgroundColor).toBe(draggingSample.selectionColor);
       expect(draggingSample.innerBackgroundColor).toBe('rgba(0, 0, 0, 0)');
-      expectSelectedCodeBlockForeground(draggingSample, 'dragging code block');
+      expectSelectedCodeBlockColors(draggingSample, 'dragging code block');
       const draggingPixels = await measureRenderedSelectionPixels(page, {
         selector: '.code-block-container',
         targetText: 'dragCodeSentinel',
@@ -564,7 +566,7 @@ test.describe('notes block selection visual coverage', () => {
       expect(settledSample!.largeActive).toBe(true);
       expect(settledSample!.codeBackgroundColor).toBe(settledSample!.selectionColor);
       expect(settledSample!.innerBackgroundColor).toBe('rgba(0, 0, 0, 0)');
-      expectSelectedCodeBlockForeground(settledSample!, 'settled code block');
+      expectSelectedCodeBlockColors(settledSample!, 'settled code block');
       const settledPixels = await measureRenderedSelectionPixels(page, {
         selector: '.code-block-container',
         targetText: 'dragCodeSentinel',
@@ -816,14 +818,16 @@ async function waitForDraggedCodeBlockPaint(
       sample.pendingActive &&
       sample.largeActive &&
       sample.selectedCount >= 128 &&
-      sample.expectedForegroundColor !== '' &&
+      sample.expectedCodeLineColor !== '' &&
+      sample.expectedLanguageColor !== '' &&
+      sample.expectedTokenColor !== '' &&
       hasSelectedCodeBlockBorder(sample) &&
-      sample.languageColor === sample.expectedForegroundColor &&
-      sample.languageTextFillColor === sample.expectedForegroundColor &&
-      sample.codeLineColor === sample.expectedForegroundColor &&
-      sample.codeLineTextFillColor === sample.expectedForegroundColor &&
-      sample.tokenColor === sample.expectedForegroundColor &&
-      sample.tokenTextFillColor === sample.expectedForegroundColor
+      sample.languageColor === sample.expectedLanguageColor &&
+      sample.languageTextFillColor === sample.expectedLanguageColor &&
+      sample.codeLineColor === sample.expectedCodeLineColor &&
+      sample.codeLineTextFillColor === sample.expectedCodeLineColor &&
+      sample.tokenColor === sample.expectedTokenColor &&
+      sample.tokenTextFillColor === sample.expectedTokenColor
       ? 'ready'
       : JSON.stringify(sample);
   }, { timeout: 30_000 }).toBe('ready');
@@ -865,7 +869,9 @@ async function measureDraggedCodeBlockPaint(
         codeLineTextFillColor: null,
         codeSelected: false,
         expectedBorderColor: '',
-        expectedForegroundColor: '',
+        expectedCodeLineColor: '',
+        expectedLanguageColor: '',
+        expectedTokenColor: '',
         innerBackgroundColor: null,
         languageColor: null,
         languageTextFillColor: null,
@@ -891,25 +897,22 @@ async function measureDraggedCodeBlockPaint(
     ].join(','));
     const language = selected.querySelector<HTMLElement>('.code-block-chrome-language-label, .code-block-chrome-language');
     const codeLine = selected.querySelector<HTMLElement>('.cm-content .cm-line, .code-block-editable .cm-line, .code-block-lazy-preview');
-    const token = selected.querySelector<HTMLElement>([
-      '.cm-content .cm-line span[class]',
-      '.code-block-editable .cm-line span[class]',
-      '.code-block-lazy-preview span[class]',
-      '.cm-content .cm-line span',
-      '.code-block-editable .cm-line span',
-      '.code-block-lazy-preview span',
-    ].join(','));
+    const token = selected.querySelector<HTMLElement>('.cm-keyword, .token.keyword');
     const probe = document.createElement('span');
     probe.style.position = 'absolute';
     probe.style.pointerEvents = 'none';
     probe.style.backgroundColor = 'var(--vlaina-block-selection-color)';
     probe.style.borderColor = 'var(--vlaina-color-white)';
-    probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
     selected.appendChild(probe);
     const probeStyle = getComputedStyle(probe);
     const expectedBorderColor = probeStyle.borderColor;
     const selectionColor = probeStyle.backgroundColor;
-    const expectedForegroundColor = probeStyle.color;
+    probe.style.color = 'var(--vlaina-code-syntax-foreground)';
+    const expectedCodeLineColor = getComputedStyle(probe).color;
+    probe.style.color = 'var(--vlaina-code-syntax-muted)';
+    const expectedLanguageColor = getComputedStyle(probe).color;
+    probe.style.color = 'var(--vlaina-code-syntax-keyword)';
+    const expectedTokenColor = getComputedStyle(probe).color;
     probe.remove();
     const languageStyle = language ? getComputedStyle(language) : null;
     const codeLineStyle = codeLine ? getComputedStyle(codeLine) : null;
@@ -931,7 +934,9 @@ async function measureDraggedCodeBlockPaint(
       codeLineTextFillColor: codeLineStyle?.getPropertyValue('-webkit-text-fill-color') || null,
       codeSelected: true,
       expectedBorderColor,
-      expectedForegroundColor,
+      expectedCodeLineColor,
+      expectedLanguageColor,
+      expectedTokenColor,
       innerBackgroundColor: inner ? getComputedStyle(inner).backgroundColor : null,
       languageColor: languageStyle?.color ?? null,
       languageTextFillColor: languageStyle?.getPropertyValue('-webkit-text-fill-color') || null,
@@ -948,17 +953,16 @@ async function measureDraggedCodeBlockPaint(
   }, { editorSelector: EDITOR_SELECTOR, targetText });
 }
 
-function expectSelectedCodeBlockForeground(sample: DraggedCodeBlockPaintSample, label: string): void {
-  expect(sample.expectedForegroundColor, `${label}: expected block selection foreground`).not.toBe('');
+function expectSelectedCodeBlockColors(sample: DraggedCodeBlockPaintSample, label: string): void {
   expectSelectedCodeBlockBorder(sample, label);
-  expect(sample.languageColor, `${label}: language label color`).toBe(sample.expectedForegroundColor);
-  expect(sample.languageTextFillColor, `${label}: language label text fill`).toBe(sample.expectedForegroundColor);
-  expect(sample.codeLineColor, `${label}: CodeMirror line color`).toBe(sample.expectedForegroundColor);
-  expect(sample.codeLineTextFillColor, `${label}: CodeMirror line text fill`).toBe(sample.expectedForegroundColor);
+  expect(sample.languageColor, `${label}: language label color`).toBe(sample.expectedLanguageColor);
+  expect(sample.languageTextFillColor, `${label}: language label text fill`).toBe(sample.expectedLanguageColor);
+  expect(sample.codeLineColor, `${label}: CodeMirror line color`).toBe(sample.expectedCodeLineColor);
+  expect(sample.codeLineTextFillColor, `${label}: CodeMirror line text fill`).toBe(sample.expectedCodeLineColor);
   expect(sample.tokenClassName, `${label}: syntax token class`).not.toBeNull();
   expect(sample.tokenText, `${label}: syntax token text`).not.toBeNull();
-  expect(sample.tokenColor, `${label}: syntax token color`).toBe(sample.expectedForegroundColor);
-  expect(sample.tokenTextFillColor, `${label}: syntax token text fill`).toBe(sample.expectedForegroundColor);
+  expect(sample.tokenColor, `${label}: syntax token color`).toBe(sample.expectedTokenColor);
+  expect(sample.tokenTextFillColor, `${label}: syntax token text fill`).toBe(sample.expectedTokenColor);
 }
 
 function hasSelectedCodeBlockBorder(sample: DraggedCodeBlockPaintSample): boolean {

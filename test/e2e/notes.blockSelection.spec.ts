@@ -266,7 +266,7 @@ test.describe("notes block selection", () => {
     }
   });
 
-  test('uses the block selection foreground for selected table text in single and large selections', async () => {
+  test('keeps table text colors unchanged in single and large block selections', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-block-selection-table-text-color');
 
     try {
@@ -306,23 +306,15 @@ test.describe("notes block selection", () => {
         const cell = Array.from(document.querySelectorAll<HTMLElement>('.milkdown-table-block :is(th, td)'))
           .find((element) => element.textContent?.includes('Table alpha')) ?? null;
         if (!editor || !table || !cell) return null;
-        const probe = document.createElement('span');
-        probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-        probe.style.setProperty('-webkit-text-fill-color', 'var(--vlaina-editor-block-selection-fg)');
-        document.body.append(probe);
-        const probeStyle = getComputedStyle(probe);
         const style = getComputedStyle(cell);
         const result = {
           color: style.color,
           largeActive: editor.classList.contains('editor-block-selection-large'),
-          selectionColor: probeStyle.color,
-          selectionTextFillColor: probeStyle.getPropertyValue('-webkit-text-fill-color'),
           selectedCount: editor.querySelectorAll('.editor-block-selected').length,
           tableClassName: table.className,
           tableSelected: table.classList.contains('editor-block-selected'),
           textFillColor: style.getPropertyValue('-webkit-text-fill-color'),
         };
-        probe.remove();
         return result;
       });
 
@@ -346,8 +338,8 @@ test.describe("notes block selection", () => {
       expect(singleSelection).not.toBeNull();
       expect(singleSelection!.tableSelected, JSON.stringify(singleSelection, null, 2)).toBe(true);
       expect(singleSelection!.largeActive, JSON.stringify(singleSelection, null, 2)).toBe(false);
-      expect(singleSelection!.color, JSON.stringify({ baseline, singleSelection }, null, 2)).toBe(singleSelection!.selectionColor);
-      expect(singleSelection!.textFillColor, JSON.stringify({ baseline, singleSelection }, null, 2)).toBe(singleSelection!.selectionTextFillColor);
+      expect(singleSelection!.color, JSON.stringify({ baseline, singleSelection }, null, 2)).toBe(baseline!.color);
+      expect(singleSelection!.textFillColor, JSON.stringify({ baseline, singleSelection }, null, 2)).toBe(baseline!.textFillColor);
 
       const largeSelectedCount = await page.evaluate(async (index) => {
         const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks() as Array<{ text: string }>;
@@ -364,8 +356,8 @@ test.describe("notes block selection", () => {
       expect(largeSelection).not.toBeNull();
       expect(largeSelection!.tableSelected, JSON.stringify(largeSelection, null, 2)).toBe(true);
       expect(largeSelection!.largeActive, JSON.stringify(largeSelection, null, 2)).toBe(true);
-      expect(largeSelection!.color, JSON.stringify({ baseline, largeSelection }, null, 2)).toBe(largeSelection!.selectionColor);
-      expect(largeSelection!.textFillColor, JSON.stringify({ baseline, largeSelection }, null, 2)).toBe(largeSelection!.selectionTextFillColor);
+      expect(largeSelection!.color, JSON.stringify({ baseline, largeSelection }, null, 2)).toBe(baseline!.color);
+      expect(largeSelection!.textFillColor, JSON.stringify({ baseline, largeSelection }, null, 2)).toBe(baseline!.textFillColor);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }
@@ -399,11 +391,6 @@ test.describe("notes block selection", () => {
         const paragraph = link?.closest('p') as HTMLElement | null;
         if (!editor || !link || !paragraph) return null;
 
-        const probe = document.createElement('span');
-        probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-        probe.style.setProperty('-webkit-text-fill-color', 'var(--vlaina-editor-block-selection-fg)');
-        document.body.append(probe);
-        const selectionProbeStyle = getComputedStyle(probe);
         const linkStyle = getComputedStyle(link);
         const paragraphStyle = getComputedStyle(paragraph);
         const result = {
@@ -416,11 +403,8 @@ test.describe("notes block selection", () => {
           paragraphClassName: paragraph.className,
           paragraphColor: paragraphStyle.color,
           paragraphTextFillColor: paragraphStyle.getPropertyValue('-webkit-text-fill-color'),
-          selectionColor: selectionProbeStyle.color,
-          selectionTextFillColor: selectionProbeStyle.getPropertyValue('-webkit-text-fill-color'),
           selected: paragraph.classList.contains('editor-block-selected'),
         };
-        probe.remove();
         return result;
       });
       const readMixedInlineLinkColors = () => page.evaluate(() => {
@@ -429,12 +413,8 @@ test.describe("notes block selection", () => {
         const paragraph = link?.closest('p') as HTMLElement | null;
         if (!editor || !link || !paragraph) return null;
 
-        const probe = document.createElement('span');
-        probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-        probe.style.setProperty('-webkit-text-fill-color', 'var(--vlaina-editor-block-selection-fg)');
-        document.body.append(probe);
-        const selectionProbeStyle = getComputedStyle(probe);
         const linkStyle = getComputedStyle(link);
+        const paragraphStyle = getComputedStyle(paragraph);
         const selectedInlineRows = Array.from(paragraph.querySelectorAll<HTMLElement>('.editor-block-selected'))
           .map((element) => {
             const style = getComputedStyle(element);
@@ -451,14 +431,13 @@ test.describe("notes block selection", () => {
             row.text.includes('Inline selected link')
           ) ?? null,
           linkTextFillColor: linkStyle.getPropertyValue('-webkit-text-fill-color'),
+          paragraphColor: paragraphStyle.color,
+          paragraphTextFillColor: paragraphStyle.getPropertyValue('-webkit-text-fill-color'),
           plainSelectedInline: selectedInlineRows.find((row) =>
             row.text.includes('Plain')
           ) ?? null,
-          selectionColor: selectionProbeStyle.color,
-          selectionTextFillColor: selectionProbeStyle.getPropertyValue('-webkit-text-fill-color'),
           selectedInlineRows,
         };
-        probe.remove();
         return result;
       });
       const expectSelectedMixedInlineLinkColors = (
@@ -474,19 +453,16 @@ test.describe("notes block selection", () => {
         expect(snapshot.plainSelectedInline, JSON.stringify(snapshot, null, 2)).not.toBeNull();
         expect(snapshot.plainSelectedInline!.className, JSON.stringify(snapshot, null, 2))
           .not.toContain('editor-raw-markdown-link-text');
-        expect(snapshot.plainSelectedInline!.color, JSON.stringify(snapshot, null, 2)).toBe(snapshot.selectionColor);
+        expect(snapshot.plainSelectedInline!.color, JSON.stringify(snapshot, null, 2)).toBe(expected.paragraphColor);
         expect(snapshot.plainSelectedInline!.textFillColor, JSON.stringify(snapshot, null, 2))
-          .toBe(snapshot.selectionTextFillColor);
+          .toBe(expected.paragraphTextFillColor);
       };
 
       const baseline = await readLinkColors();
       expect(baseline).not.toBeNull();
-      expect(baseline!.linkColor, JSON.stringify(baseline, null, 2)).not.toBe(baseline!.selectionColor);
       expect(baseline!.linkTextFillColor, JSON.stringify(baseline, null, 2)).toBe(baseline!.linkColor);
       const mixedInlineBaseline = await readMixedInlineLinkColors();
       expect(mixedInlineBaseline).not.toBeNull();
-      expect(mixedInlineBaseline!.linkColor, JSON.stringify(mixedInlineBaseline, null, 2))
-        .not.toBe(mixedInlineBaseline!.selectionColor);
 
       const linkBlockIndex = await page.evaluate(() => {
         const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks() as Array<{ text: string }>;
@@ -613,8 +589,8 @@ test.describe("notes block selection", () => {
       expect(selected!.selected, JSON.stringify(selected, null, 2)).toBe(true);
       expect(selected!.linkChildOverlayCount, JSON.stringify(selected, null, 2)).toBe(0);
       expect(selected!.overlayCount, JSON.stringify(selected, null, 2)).toBe(0);
-      expect(selected!.paragraphColor, JSON.stringify({ baseline, selected }, null, 2)).toBe(selected!.selectionColor);
-      expect(selected!.paragraphTextFillColor, JSON.stringify({ baseline, selected }, null, 2)).toBe(selected!.selectionTextFillColor);
+      expect(selected!.paragraphColor, JSON.stringify({ baseline, selected }, null, 2)).toBe(baseline!.paragraphColor);
+      expect(selected!.paragraphTextFillColor, JSON.stringify({ baseline, selected }, null, 2)).toBe(baseline!.paragraphTextFillColor);
       expect(selected!.linkColor, JSON.stringify({ baseline, selected }, null, 2)).toBe(baseline!.linkColor);
       expect(selected!.linkTextFillColor, JSON.stringify({ baseline, selected }, null, 2)).toBe(baseline!.linkTextFillColor);
 
@@ -672,11 +648,6 @@ test.describe("notes block selection", () => {
         const rawParagraph = rawLinkText?.closest('p') as HTMLElement | null;
         if (!rawLinkText || !rawParagraph) return null;
 
-        const probe = document.createElement('span');
-        probe.style.color = 'var(--vlaina-editor-block-selection-fg)';
-        probe.style.setProperty('-webkit-text-fill-color', 'var(--vlaina-editor-block-selection-fg)');
-        document.body.append(probe);
-        const selectionProbeStyle = getComputedStyle(probe);
         const rawLinkTextStyle = getComputedStyle(rawLinkText);
         const rawParagraphStyle = getComputedStyle(rawParagraph);
         const result = {
@@ -688,17 +659,14 @@ test.describe("notes block selection", () => {
           rawParagraphColor: rawParagraphStyle.color,
           rawParagraphTextFillColor: rawParagraphStyle.getPropertyValue('-webkit-text-fill-color'),
           rawSelected: rawParagraph.classList.contains('editor-block-selected'),
-          selectionColor: selectionProbeStyle.color,
-          selectionTextFillColor: selectionProbeStyle.getPropertyValue('-webkit-text-fill-color'),
         };
-        probe.remove();
         return result;
       });
       expect(rawSelected).not.toBeNull();
       expect(rawSelected!.rawSelected, JSON.stringify(rawSelected, null, 2)).toBe(true);
       expect(rawSelected!.rawLinkText, JSON.stringify(rawSelected, null, 2)).toBe('xs');
-      expect(rawSelected!.rawParagraphColor, JSON.stringify({ baseline, rawSelected }, null, 2)).toBe(rawSelected!.selectionColor);
-      expect(rawSelected!.rawParagraphTextFillColor, JSON.stringify({ baseline, rawSelected }, null, 2)).toBe(rawSelected!.selectionTextFillColor);
+      expect(rawSelected!.rawParagraphColor, JSON.stringify({ baseline, rawSelected }, null, 2)).toBe(baseline!.paragraphColor);
+      expect(rawSelected!.rawParagraphTextFillColor, JSON.stringify({ baseline, rawSelected }, null, 2)).toBe(baseline!.paragraphTextFillColor);
       expect(rawSelected!.rawLinkColor, JSON.stringify({ baseline, rawSelected }, null, 2)).toBe(baseline!.linkColor);
       expect(rawSelected!.rawLinkTextFillColor, JSON.stringify({ baseline, rawSelected }, null, 2)).toBe(baseline!.linkTextFillColor);
     } finally {
@@ -1623,8 +1591,8 @@ test.describe("notes block selection", () => {
       await page.addStyleTag({
         content: `
           .milkdown .ProseMirror strong * {
-            color: transparent !important;
-            -webkit-text-fill-color: transparent !important;
+            color: #b42318 !important;
+            -webkit-text-fill-color: #b42318 !important;
           }
         `,
       });
@@ -1671,8 +1639,7 @@ test.describe("notes block selection", () => {
         expect(label.display, JSON.stringify(report, null, 2)).not.toBe('none');
         expect(label.visibility, JSON.stringify(report, null, 2)).not.toBe('hidden');
         expect(label.opacity, JSON.stringify(report, null, 2)).not.toBe('0');
-        expect(label.textFillColor || label.color, JSON.stringify(report, null, 2)).not.toBe('rgba(0, 0, 0, 0)');
-        expect(label.textFillColor || label.color, JSON.stringify(report, null, 2)).toBe('rgb(254, 251, 249)');
+        expect(label.textFillColor || label.color, JSON.stringify(report, null, 2)).toBe('rgb(180, 35, 24)');
       }
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
