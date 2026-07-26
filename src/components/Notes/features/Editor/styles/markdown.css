@@ -141,10 +141,18 @@
   display: none !important;
 }
 
-.markdown-surface .milkdown a,
-.markdown-surface .milkdown a:hover {
+.markdown-surface .milkdown :is(a, .wiki-link),
+.markdown-surface .milkdown :is(a, .wiki-link):hover {
   border-bottom: none;
   transition: none;
+}
+
+.markdown-surface .milkdown .wiki-link-expanded {
+  color: var(--vlaina-markdown-color-link);
+}
+
+.markdown-surface .milkdown .wiki-link-source-hidden {
+  display: none;
 }
 
 .milkdown .ProseMirror {

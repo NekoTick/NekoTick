@@ -157,16 +157,25 @@ describe("editor markdown presentation styles", () => {
     expect(css).not.toContain('text-decoration: underline;');
   });
 
-  it('keeps notes editor links from drawing shared markdown hover borders', () => {
+  it('gives wiki links the shared link color without editor hover borders', () => {
     const commonCss = readCommonMarkdownSurfaceStyle();
     const notesCss = readStyleFile('markdown.css');
 
+    expect(commonCss).toContain('.markdown-surface :is(a, .wiki-link) {');
+    expect(commonCss).toContain('color: var(--vlaina-markdown-color-link);');
     expect(commonCss).toContain('border-bottom: var(--vlaina-border-width-1) solid transparent;');
+    expect(commonCss).toContain('.markdown-surface :is(a, .wiki-link):hover {');
     expect(commonCss).toContain('border-bottom-color: var(--vlaina-markdown-color-link-hover);');
-    expect(notesCss).toContain('.markdown-surface .milkdown a,');
-    expect(notesCss).toContain('.markdown-surface .milkdown a:hover {');
+    expect(notesCss).toContain('.markdown-surface .milkdown :is(a, .wiki-link),');
+    expect(notesCss).toContain('.markdown-surface .milkdown :is(a, .wiki-link):hover {');
     expect(notesCss).toContain('border-bottom: none;');
     expect(notesCss).toContain('transition: none;');
+    expect(notesCss).toContain('.markdown-surface .milkdown .wiki-link-expanded {');
+    expect(notesCss).toContain('color: var(--vlaina-markdown-color-link);');
+    expect(notesCss).toContain('.markdown-surface .milkdown .wiki-link-source-hidden {');
+    expect(notesCss).toContain('display: none;');
+    expect(notesCss).not.toContain('.wiki-link-expanded::before');
+    expect(notesCss).not.toContain('.wiki-link-expanded::after');
   });
 
   it('keeps external-theme readonly heading-to-rich-block spacing aligned with the editor', () => {

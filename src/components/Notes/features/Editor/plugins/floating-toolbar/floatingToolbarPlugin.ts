@@ -142,7 +142,7 @@ export const floatingToolbarPlugin = $prose(() => {
                 return mappedState;
               }
 
-              if (selectionIsEmpty && mappedState.selectionRange) {
+              if (selectionIsEmpty && mappedState.selectionRange && !tr.docChanged) {
                 return mappedState;
               }
 

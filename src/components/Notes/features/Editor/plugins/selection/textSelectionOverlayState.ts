@@ -1,4 +1,5 @@
 import { AllSelection, PluginKey, TextSelection, type EditorState } from '@milkdown/kit/prose/state';
+import type { EditorView } from '@milkdown/kit/prose/view';
 import { DecorationSet } from '@milkdown/kit/prose/view';
 import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT } from '../shared/boundedProseNodeScan';
@@ -57,12 +58,16 @@ export function getNativeSelectionMetrics() {
   };
 }
 
-export function clearNativeSelectionRange(): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.getSelection()?.removeAllRanges();
+export function clearNativeSelectionRange(view: EditorView): void {
+  const domObserver = (view as unknown as {
+    domObserver?: {
+      setCurSelection: () => void;
+      suppressSelectionUpdates: () => void;
+    };
+  }).domObserver;
+  domObserver?.suppressSelectionUpdates();
+  view.dom.ownerDocument.defaultView?.getSelection()?.removeAllRanges();
+  domObserver?.setCurSelection();
 }
 
 export function isTextSelectionOverlayEligible(state: EditorState): boolean {

@@ -1047,9 +1047,31 @@ describe('textSelectionOverlayPlugin', () => {
       expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
       expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
 
+      const setCurSelection = vi.spyOn(
+        (view as unknown as {
+          domObserver: {
+            setCurSelection: () => void;
+            suppressSelectionUpdates: () => void;
+          };
+        }).domObserver,
+        'setCurSelection',
+      );
+      const suppressSelectionUpdates = vi.spyOn(
+        (view as unknown as {
+          domObserver: {
+            setCurSelection: () => void;
+            suppressSelectionUpdates: () => void;
+          };
+        }).domObserver,
+        'suppressSelectionUpdates',
+      );
+      setCurSelection.mockClear();
+      suppressSelectionUpdates.mockClear();
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
       expect(removeAllRanges).toHaveBeenCalled();
+      expect(suppressSelectionUpdates).toHaveBeenCalled();
+      expect(setCurSelection).toHaveBeenCalled();
       expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
       expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
     } finally {
