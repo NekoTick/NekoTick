@@ -7,9 +7,11 @@ import {
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import {
+  floatingToolbarPlugin,
   moveSelectionForArrowNavigation,
   shouldHideToolbarForArrowNavigation,
 } from './floatingToolbarPlugin';
+import { floatingToolbarKey } from './floatingToolbarKey';
 import { resolveDocumentHistoryShortcut } from './floatingToolbarPluginViewUtils';
 
 async function createTextSelection(from: number, to: number) {
@@ -103,6 +105,28 @@ describe('floating toolbar keyboard handling', () => {
       selection,
       new KeyboardEvent('keydown', { key: 'ArrowRight' })
     )).toBe(false);
+  });
+
+  it('does not restore a replaced text selection around the inserted text', async () => {
+    const editor = Editor.make()
+      .config((ctx) => {
+        ctx.set(defaultValueCtx, 'hello world');
+      })
+      .use(commonmark)
+      .use(floatingToolbarPlugin);
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+    expect(floatingToolbarKey.getState(view.state)?.isVisible).toBe(true);
+
+    view.dispatch(view.state.tr.insertText('P', 1, 6));
+
+    expect(view.state.selection.empty).toBe(true);
+    expect(view.state.selection.from).toBe(2);
+    expect(floatingToolbarKey.getState(view.state)?.isVisible).toBe(false);
+
+    await editor.destroy();
   });
 
   it('moves a vertical arrow target past an atomic block without creating a structural text selection', async () => {

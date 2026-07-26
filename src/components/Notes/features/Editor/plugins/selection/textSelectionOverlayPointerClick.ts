@@ -114,7 +114,7 @@ export function clearTextSelectionFromBlankPointerDown(context: TextSelectionOve
     });
   }
   view.dispatch(tr);
-  clearNativeSelectionRange();
+  clearNativeSelectionRange(view);
   session.syncActiveClass();
 }
 

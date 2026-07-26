@@ -89,6 +89,9 @@ export const wikiLinkStringifyPlugin: MilkdownPlugin = (ctx) => {
           const label = state.containerPhrasing(node, info).trim();
           return label === target ? `[[${target}]]` : `[[${target}|${label}]]`;
         },
+        wikiLinkSource: (node: MdastNode) => (
+          node.children?.map((child) => child.value ?? '').join('') ?? ''
+        ),
       },
     }));
   };

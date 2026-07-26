@@ -48,7 +48,7 @@ export function scheduleClearNativeSelection({ session, view }: TextSelectionOve
       !textSelectionOverlayPluginKey.getState(view.state)?.usePointerNativeSelection;
 
     if (shouldClearNativeRangeForOverlay) {
-      clearNativeSelectionRange();
+      clearNativeSelectionRange(view);
     }
   });
 }

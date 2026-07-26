@@ -131,7 +131,7 @@
   text-align: right;
 }
 
-.markdown-surface a {
+.markdown-surface :is(a, .wiki-link) {
   color: var(--vlaina-markdown-color-link);
   text-decoration: none;
   border-bottom: var(--vlaina-border-width-1) solid transparent;
@@ -139,7 +139,7 @@
   cursor: pointer;
 }
 
-.markdown-surface a:hover {
+.markdown-surface :is(a, .wiki-link):hover {
   border-bottom-color: var(--vlaina-markdown-color-link-hover);
 }
 

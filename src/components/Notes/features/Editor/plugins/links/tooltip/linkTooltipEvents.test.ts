@@ -3,6 +3,7 @@ import { installLinkTooltipEvents } from './linkTooltipEvents';
 import { floatingToolbarKey } from '../../floating-toolbar/floatingToolbarKey';
 import { TOOLBAR_ACTIONS } from '../../floating-toolbar/types';
 import { openEditorLinkHref } from '../utils/openEditorLinkHref';
+import { WIKI_LINK_POINTER_SELECTION_META } from '../wiki-link/wikiLinkInteraction';
 
 const stateMocks = vi.hoisted(() => ({
     selectionNear: vi.fn(),
@@ -186,6 +187,198 @@ describe('installLinkTooltipEvents', () => {
         expect(handlers.view.dispatch).toHaveBeenCalled();
         expect(handlers.hide).not.toHaveBeenCalled();
         expect(tr.setMeta).not.toHaveBeenCalledWith(floatingToolbarKey, { type: TOOLBAR_ACTIONS.HIDE });
+        expect(openEditorLinkHref).not.toHaveBeenCalled();
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('keeps wiki links editable after a plain click and supports drag selection', async () => {
+        const { editorDom, handlers } = createHandlers();
+        const link = document.createElement('span');
+        link.className = 'wiki-link';
+        link.dataset.wikiLinkTarget = 'Project Beta';
+        link.textContent = 'the beta note';
+        editorDom.appendChild(link);
+        const { doc, tr } = useTextSelectionCapableView(
+            editorDom,
+            handlers,
+            ({ left }) => left < 50 ? 5 : 15,
+        );
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const mouseDown = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            buttons: 1,
+            clientX: 10,
+            clientY: 10,
+        });
+        const mouseMove = new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            buttons: 1,
+            clientX: 100,
+            clientY: 10,
+        });
+        const mouseUp = new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            clientX: 100,
+            clientY: 10,
+        });
+        const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            detail: 1,
+            clientX: 100,
+            clientY: 10,
+        });
+
+        link.dispatchEvent(mouseDown);
+        document.dispatchEvent(mouseMove);
+        document.dispatchEvent(mouseUp);
+        link.dispatchEvent(click);
+        await flushAsyncHandlers();
+
+        expect(mouseDown.defaultPrevented).toBe(true);
+        expect(mouseMove.defaultPrevented).toBe(true);
+        expect(mouseUp.defaultPrevented).toBe(true);
+        expect(click.defaultPrevented).toBe(true);
+        expect(stateMocks.textSelectionCreate).toHaveBeenCalledWith(doc, 5, 5);
+        expect(stateMocks.textSelectionCreate).toHaveBeenCalledWith(doc, 5, 15);
+        expect(tr.setMeta).toHaveBeenCalledWith(floatingToolbarKey, { type: TOOLBAR_ACTIONS.HIDE });
+        expect(tr.setMeta).toHaveBeenCalledWith(WIKI_LINK_POINTER_SELECTION_META, true);
+        expect(openEditorLinkHref).not.toHaveBeenCalled();
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('places a wiki-link caret at the resolved right edge instead of the previous character', async () => {
+        const { editorDom, handlers } = createHandlers();
+        const link = document.createElement('span');
+        link.className = 'wiki-link';
+        link.dataset.wikiLinkTarget = 'Project Beta';
+        link.textContent = 'the beta note';
+        editorDom.appendChild(link);
+        const { doc } = useTextSelectionCapableView(editorDom, handlers, () => 15);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            detail: 1,
+            clientX: 100,
+            clientY: 10,
+        });
+
+        link.dispatchEvent(click);
+        await flushAsyncHandlers();
+
+        expect(click.defaultPrevented).toBe(true);
+        expect(stateMocks.textSelectionCreate).toHaveBeenCalledWith(doc, 15, 15);
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('does not replay a wiki-link click after its pointer session expands the source', async () => {
+        const { editorDom, handlers } = createHandlers();
+        const link = document.createElement('span');
+        link.className = 'wiki-link';
+        link.dataset.wikiLinkTarget = 'Project Beta';
+        link.textContent = 'the beta note';
+        editorDom.appendChild(link);
+        const { doc } = useTextSelectionCapableView(
+            editorDom,
+            handlers,
+            ({ left }) => left < 50 ? 15 : 31,
+        );
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        link.dispatchEvent(new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            buttons: 1,
+            clientX: 10,
+            clientY: 10,
+        }));
+        document.dispatchEvent(new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+        }));
+        const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            detail: 1,
+            clientX: 100,
+            clientY: 10,
+        });
+        link.dispatchEvent(click);
+        await flushAsyncHandlers();
+
+        expect(click.defaultPrevented).toBe(true);
+        expect(stateMocks.textSelectionCreate).toHaveBeenCalledWith(doc, 15, 15);
+        expect(stateMocks.textSelectionCreate).not.toHaveBeenCalledWith(doc, 31, 31);
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('leaves expanded wiki-link source drag selection to the browser', () => {
+        const { editorDom, handlers } = createHandlers();
+        const source = document.createElement('span');
+        source.className = 'wiki-link-expanded';
+        source.dataset.wikiLinkExpanded = 'true';
+        source.dataset.wikiLinkTarget = 'Project Beta';
+        source.textContent = '[[Project Beta|the beta note]]';
+        editorDom.appendChild(source);
+        useTextSelectionCapableView(editorDom, handlers);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const mouseDown = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            buttons: 1,
+            clientX: 10,
+            clientY: 10,
+        });
+        source.dispatchEvent(mouseDown);
+
+        expect(mouseDown.defaultPrevented).toBe(false);
+        expect(handlers.view.dispatch).not.toHaveBeenCalled();
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('leaves wiki double-click selection to the browser', () => {
+        const { editorDom, handlers } = createHandlers();
+        const link = document.createElement('span');
+        link.className = 'wiki-link';
+        link.dataset.wikiLinkTarget = 'Project Beta';
+        link.textContent = 'the beta note';
+        editorDom.appendChild(link);
+        useTextSelectionCapableView(editorDom, handlers);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const doubleClick = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            detail: 2,
+        });
+
+        link.dispatchEvent(doubleClick);
+
+        expect(doubleClick.defaultPrevented).toBe(false);
         expect(openEditorLinkHref).not.toHaveBeenCalled();
 
         cleanup();
