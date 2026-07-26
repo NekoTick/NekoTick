@@ -25,7 +25,7 @@ interface SessionStatusResponse {
 }
 
 export async function probeWebSession(): Promise<WebAccountStatus> {
-  const response = await fetchAccount(`${API_BASE}/auth/session`, {
+  const response = await fetchAccount(`${API_BASE}/auth/session?include_budget=1`, {
     method: 'GET',
     cache: 'no-store',
     credentials: 'include',

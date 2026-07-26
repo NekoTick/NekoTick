@@ -5,6 +5,7 @@ const MAX_MANAGED_BINARY_BODY_BASE64_CHARS = Math.ceil(MAX_MANAGED_BINARY_BODY_B
 const MAX_MANAGED_BINARY_HEADER_VALUE_CHARS = 16 * 1024;
 const ALLOWED_MANAGED_BINARY_HEADERS = new Set(['content-type']);
 const MANAGED_STREAM_CHUNK_FLUSH_DELAY_MS = 16;
+const MAX_MANAGED_STREAM_CONTENT_CHARS = 4 * 1024 * 1024;
 
 export function normalizeManagedBinaryPayload(payload) {
   if (typeof payload?.bodyBase64 !== 'string') {
@@ -111,6 +112,27 @@ export function createManagedStreamAccumulator(onChunk) {
         return true;
       }
 
+      let nextLength = fullContent.length;
+      let nextHasStartedReasoning = hasStartedReasoning;
+      let nextHasFinishedReasoning = hasFinishedReasoning;
+      if (reasoningText) {
+        if (!nextHasStartedReasoning || nextHasFinishedReasoning) {
+          nextLength += '<think>'.length;
+          nextHasStartedReasoning = true;
+          nextHasFinishedReasoning = false;
+        }
+        nextLength += reasoningText.length;
+      }
+      if (contentText) {
+        if (nextHasStartedReasoning && !nextHasFinishedReasoning) {
+          nextLength += '</think>'.length;
+        }
+        nextLength += contentText.length;
+      }
+      if (nextLength > MAX_MANAGED_STREAM_CONTENT_CHARS) {
+        throw new Error('Managed stream content is too large.');
+      }
+
       if (reasoningText) {
         if (!hasStartedReasoning || hasFinishedReasoning) {
           fullContent += '<think>';
@@ -132,6 +154,9 @@ export function createManagedStreamAccumulator(onChunk) {
     },
     finish() {
       if (hasStartedReasoning && !hasFinishedReasoning) {
+        if (fullContent.length + '</think>'.length > MAX_MANAGED_STREAM_CONTENT_CHARS) {
+          throw new Error('Managed stream content is too large.');
+        }
         fullContent += '</think>';
         hasFinishedReasoning = true;
       }

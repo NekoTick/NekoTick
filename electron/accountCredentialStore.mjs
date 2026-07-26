@@ -107,17 +107,21 @@ export function createAccountCredentialStore({
   platform = process.platform,
 }) {
   let memoryStoredAccountCredentials = null;
-  let credentialMutationQueue = Promise.resolve();
+  let persistentStoredAccountCredentials = null;
+  let credentialOperationQueue = Promise.resolve();
 
-  function queueCredentialMutation(operation) {
-    const result = credentialMutationQueue.then(operation, operation);
-    credentialMutationQueue = result.then(() => undefined, () => undefined);
+  function queueCredentialOperation(operation) {
+    const result = credentialOperationQueue.then(operation, operation);
+    credentialOperationQueue = result.then(() => undefined, () => undefined);
     return result;
   }
 
   async function readStoredAccountCredentialsNow() {
     if (memoryStoredAccountCredentials) {
       return memoryStoredAccountCredentials;
+    }
+    if (persistentStoredAccountCredentials) {
+      return persistentStoredAccountCredentials;
     }
 
     const { metaPath, secretsPath } = await getAccountStorePaths();
@@ -164,12 +168,12 @@ export function createAccountCredentialStore({
           ? meta.authenticatedAt
           : null,
     };
+    persistentStoredAccountCredentials = credentials;
     return credentials;
   }
 
   async function readStoredAccountCredentials() {
-    await credentialMutationQueue;
-    return await readStoredAccountCredentialsNow();
+    return await queueCredentialOperation(readStoredAccountCredentialsNow);
   }
 
   async function writeStoredAccountCredentialsNow(credentials) {
@@ -195,12 +199,14 @@ export function createAccountCredentialStore({
         ...normalizedCredentials,
         persistent: false,
       };
+      persistentStoredAccountCredentials = null;
       await rm(metaPath, { force: true });
       await rm(secretsPath, { force: true });
       return false;
     }
 
     memoryStoredAccountCredentials = null;
+    persistentStoredAccountCredentials = null;
     await writePrivateFile(
       metaPath,
       JSON.stringify(
@@ -221,15 +227,19 @@ export function createAccountCredentialStore({
       secretsPath,
       JSON.stringify(encodedSecrets, null, 2)
     );
+    persistentStoredAccountCredentials = {
+      ...normalizedCredentials,
+      persistent: true,
+    };
     return true;
   }
 
   async function writeStoredAccountCredentials(credentials) {
-    return await queueCredentialMutation(() => writeStoredAccountCredentialsNow(credentials));
+    return await queueCredentialOperation(() => writeStoredAccountCredentialsNow(credentials));
   }
 
   async function writeStoredAccountCredentialsIfCurrent(credentials, expectedToken) {
-    return await queueCredentialMutation(async () => {
+    return await queueCredentialOperation(async () => {
       const current = await readStoredAccountCredentialsNow();
       if (!current || current.appSessionToken !== expectedToken) {
         return false;
@@ -241,17 +251,18 @@ export function createAccountCredentialStore({
 
   async function clearStoredAccountCredentialsNow() {
     memoryStoredAccountCredentials = null;
+    persistentStoredAccountCredentials = null;
     const { metaPath, secretsPath } = await getAccountStorePaths();
     await rm(metaPath, { force: true });
     await rm(secretsPath, { force: true });
   }
 
   async function clearStoredAccountCredentials() {
-    return await queueCredentialMutation(clearStoredAccountCredentialsNow);
+    return await queueCredentialOperation(clearStoredAccountCredentialsNow);
   }
 
   async function clearStoredAccountCredentialsIfCurrent(expectedToken) {
-    return await queueCredentialMutation(async () => {
+    return await queueCredentialOperation(async () => {
       const current = await readStoredAccountCredentialsNow();
       if (!current || current.appSessionToken !== expectedToken) {
         return false;
@@ -267,7 +278,7 @@ export function createAccountCredentialStore({
       return;
     }
 
-    return await queueCredentialMutation(async () => {
+    return await queueCredentialOperation(async () => {
       const current = await readStoredAccountCredentialsNow();
       if (!current || (expectedToken && current.appSessionToken !== expectedToken)) {
         return;

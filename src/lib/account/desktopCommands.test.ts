@@ -224,7 +224,7 @@ describe('desktop account commands', () => {
     expect(cleanupChunk).toHaveBeenCalledTimes(1);
     expect(cleanupDone).toHaveBeenCalledTimes(1);
     expect(cleanupError).toHaveBeenCalledTimes(1);
-    expect(mocks.account.cancelManagedChatCompletionStream).not.toHaveBeenCalled();
+    expect(mocks.account.cancelManagedChatCompletionStream).toHaveBeenCalledWith('req-chunk-throw');
   });
 
   it('cancels managed chat completions when the signal aborts', async () => {

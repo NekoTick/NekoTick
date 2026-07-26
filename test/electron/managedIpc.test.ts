@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { registerManagedIpc } from '../../electron/managedIpc.mjs';
 import { normalizeManagedErrorPayload } from '../../electron/managedIpcErrors.mjs';
+import { createManagedStreamAccumulator } from '../../electron/managedIpcPayloads.mjs';
 
 const MAX_MANAGED_IPC_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_MANAGED_STREAM_LINE_CHARS = 1024 * 1024;
+const MAX_MANAGED_STREAM_CONTENT_CHARS = 4 * 1024 * 1024;
 const MANAGED_STREAM_TIMEOUT_MS = 300_000;
 
 function registerHarness(overrides: Partial<Parameters<typeof registerManagedIpc>[0]> = {}) {
@@ -54,6 +56,15 @@ async function waitForSenderCall(
 }
 
 describe('managed ipc stream bridge', () => {
+  it('bounds cumulative managed stream content', () => {
+    const accumulator = createManagedStreamAccumulator(() => true);
+
+    expect(() => accumulator.pushDelta({
+      reasoning: null,
+      content: 'x'.repeat(MAX_MANAGED_STREAM_CONTENT_CHARS + 1),
+    })).toThrow('Managed stream content is too large.');
+  });
+
   it('preserves the stable unsupported tool capability error', () => {
     expect(normalizeManagedErrorPayload({
       error: 'UNSUPPORTED_TOOL_CALLING',
