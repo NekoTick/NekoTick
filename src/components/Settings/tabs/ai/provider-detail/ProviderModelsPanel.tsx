@@ -210,7 +210,7 @@ export function ProviderModelsPanel(props: ProviderModelsPanelProps) {
           {props.quickAddError ? (
             <div className="text-[var(--vlaina-font-xs)] text-[var(--vlaina-color-status-danger-fg)] px-1">{props.quickAddError}</div>
           ) : null}
-          {hasFetchedModels ? (
+          {hasFetchedModels || selectedModels.length > 0 ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,var(--vlaina-size-300px)),1fr))] gap-6">
               <div className="space-y-3">
                 <SectionHeader
@@ -238,32 +238,34 @@ export function ProviderModelsPanel(props: ProviderModelsPanelProps) {
                 />
               </div>
 
-              <div className="space-y-3">
-                <SectionHeader
-                  label={t('settings.ai.availableModels')}
-                  disabled={!props.canBenchmarkAvailable}
-                  busy={props.availableBenchmarkActive}
-                  onBenchmark={props.onBenchmarkAvailable}
-                  actionLabel={hasActiveQuery ? t('settings.ai.addVisible') : t('settings.ai.addAll')}
-                  actionDisabled={availableModels.length === 0}
-                  onAction={handleAddVisibleAvailableModels}
-                />
-                <VirtualModelList
-                  items={availableModels}
-                  getKey={(modelId) => modelId}
-                  renderItem={(modelId) => (
-                    <ModelRow
-                      model={modelId}
-                      health={props.healthStatus[buildScopedModelId(props.providerId, modelId)]}
-                      onClick={() => {
-                        props.onAddModel(modelId);
-                      }}
-                      trailing={renderBenchmarkButton(buildScopedModelId(props.providerId, modelId))}
-                    />
-                  )}
-                  emptyState={t('settings.ai.noAvailableModels')}
-                />
-              </div>
+              {hasFetchedModels ? (
+                <div className="space-y-3">
+                  <SectionHeader
+                    label={t('settings.ai.availableModels')}
+                    disabled={!props.canBenchmarkAvailable}
+                    busy={props.availableBenchmarkActive}
+                    onBenchmark={props.onBenchmarkAvailable}
+                    actionLabel={hasActiveQuery ? t('settings.ai.addVisible') : t('settings.ai.addAll')}
+                    actionDisabled={availableModels.length === 0}
+                    onAction={handleAddVisibleAvailableModels}
+                  />
+                  <VirtualModelList
+                    items={availableModels}
+                    getKey={(modelId) => modelId}
+                    renderItem={(modelId) => (
+                      <ModelRow
+                        model={modelId}
+                        health={props.healthStatus[buildScopedModelId(props.providerId, modelId)]}
+                        onClick={() => {
+                          props.onAddModel(modelId);
+                        }}
+                        trailing={renderBenchmarkButton(buildScopedModelId(props.providerId, modelId))}
+                      />
+                    )}
+                    emptyState={t('settings.ai.noAvailableModels')}
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

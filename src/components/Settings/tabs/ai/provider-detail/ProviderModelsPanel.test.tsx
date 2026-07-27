@@ -123,9 +123,9 @@ function setScrollMetrics(
 }
 
 describe('ProviderModelsPanel', () => {
-  it('allows a model id to be added before a provider model catalog is fetched', () => {
+  it.each(['Enter', 'add button'])('shows a model added with %s before a provider model catalog is fetched', (trigger) => {
     const onAddAllVisible = vi.fn();
-    render(
+    const { rerender } = render(
       <ProviderModelsPanel
         {...buildProps({
           providerModels: [],
@@ -139,9 +139,29 @@ describe('ProviderModelsPanel', () => {
       />,
     );
 
-    fireEvent.keyDown(screen.getByPlaceholderText('Add a model ID'), { key: 'Enter' });
+    if (trigger === 'Enter') {
+      fireEvent.keyDown(screen.getByPlaceholderText('Add a model ID'), { key: 'Enter' });
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: 'Add models' }));
+    }
 
     expect(onAddAllVisible).toHaveBeenCalledWith(['manual-model']);
+
+    const manualModel = buildModel('provider-1::manual-model', 'manual-model');
+    rerender(
+      <ProviderModelsPanel
+        {...buildProps({
+          providerModels: [manualModel],
+          filteredProviderModels: [manualModel],
+          sortedFetchedModels: [],
+          filteredFetchedModels: [],
+          providerModelIdSet: new Set(['manual-model']),
+          quickAddModelId: '',
+        })}
+      />,
+    );
+
+    expect(screen.getByText('manual-model')).toBeInTheDocument();
   });
 
   it('shows empty states when an active query matches nothing', () => {

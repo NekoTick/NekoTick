@@ -19,7 +19,6 @@ import { focusComposerInput } from '@/lib/ui/composerFocusRegistry';
 import type { NoteMentionReference } from '@/lib/ai/noteMentions';
 import { useUIStore } from '@/stores/uiSlice';
 import { useHeldPageScroll } from '@/hooks/useHeldPageScroll';
-import { useAIUIStore } from '@/stores/ai/chatState';
 import { useI18n } from '@/lib/i18n';
 import {
   clearChatStorageStatus,
@@ -65,8 +64,6 @@ export function ChatView({
   const models = useUnifiedStore((s) => s.data.ai?.models || EMPTY_MODELS);
   const selectedModelId = useUnifiedStore((s) => s.data.ai?.selectedModelId || null);
   const managedBudget = useManagedAIStore((state) => state.budget);
-  const error = useAIUIStore((state) => state.error);
-  const setError = useAIUIStore((state) => state.setError);
   const chatStorageStatuses = useSyncExternalStore(
     subscribeChatStorageStatus,
     getChatStorageStatusSnapshot,
@@ -299,22 +296,13 @@ export function ChatView({
           <div 
             className="w-full max-w-[var(--vlaina-size-850px)] mx-auto px-4 pointer-events-auto"
           >
-              {(error || hasStorageError) && (
-                <div className="mb-2 flex flex-col gap-2">
-                  {error && (
-                    <ChatErrorNotice
-                      closeLabel={t('common.close')}
-                      message={error}
-                      onDismiss={() => setError(null)}
-                    />
-                  )}
-                  {hasStorageError && currentSessionId && (
-                    <ChatErrorNotice
-                      closeLabel={t('common.close')}
-                      message={t('storage.saveFailed')}
-                      onDismiss={() => clearChatStorageStatus(currentSessionId)}
-                    />
-                  )}
+              {hasStorageError && currentSessionId && (
+                <div className="mb-2">
+                  <ChatErrorNotice
+                    closeLabel={t('common.close')}
+                    message={t('storage.saveFailed')}
+                    onDismiss={() => clearChatStorageStatus(currentSessionId)}
+                  />
                 </div>
               )}
               <ChatInput 

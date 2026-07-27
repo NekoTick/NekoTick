@@ -251,6 +251,7 @@ test.describe('chat conversation audit', () => {
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
         hasText: HTTP_ERROR_SENTINEL,
       })).toBeVisible({ timeout: 30_000 });
+      await expect(page.locator('[data-chat-input-region="true"] [role="alert"]')).toHaveCount(0);
       await expect(page.locator(CHAT_VIEW_SELECTOR)).not.toContainText('Unable to reach the AI service');
       await expect(page.locator(CHAT_VIEW_SELECTOR)).not.toContainText('upstream_unavailable');
 
