@@ -78,4 +78,23 @@ describe('useWhiteboardStrokeSelection', () => {
 
     expect(setSelectedStrokeIds).toHaveBeenCalledWith(['upper']);
   });
+
+  it('does not scan all board items when there is no active selection', () => {
+    const elements = Array.from({ length: 1000 }, (_, index) => ({
+      height: 40, id: `image-${index}`, text: '', type: 'image' as const, width: 40,
+      x: 10_000 + index * 60, y: 10_000,
+    }));
+    const strokes: never[] = [];
+    const spatialIndex = createWhiteboardEraserSpatialIndex(elements, strokes);
+    const elementScan = vi.spyOn(elements, 'flatMap');
+    const { result } = renderHook(() => useWhiteboardStrokeSelection({
+      elements, pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [],
+      setDragState: vi.fn(), setSelectedElementId: vi.fn(), setSelectedStrokeIds: vi.fn(),
+      spatialIndex, strokes, zoom: 1,
+    }));
+
+    act(() => result.current({ x: 20, y: 20 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
+
+    expect(elementScan).not.toHaveBeenCalled();
+  });
 });

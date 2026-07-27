@@ -48,6 +48,8 @@ describe('whiteboard export appearance', () => {
           { color: '#111111', id: 'pencil', points, size: 1, tool: 'pencil' },
           { color: '#22aa44', id: 'marker', points: points.map((point) => ({ ...point, y: point.y + 30 })), size: 1, tool: 'marker' },
           { color: '#3344aa', id: 'fountain', points: points.map((point) => ({ ...point, y: point.y + 60 })), size: 1, tool: 'fountain' },
+          { color: '#1e96eb', id: 'colored-pencil', points: points.map((point) => ({ ...point, y: point.y + 90 })), size: 1, tool: 'colored-pencil' },
+          { color: '#ef4444', id: 'crayon', points: points.map((point) => ({ ...point, y: point.y + 120 })), size: 1, tool: 'crayon' },
           { color: '#ffaa00', id: 'marker-dot', points: [{ pressure: 0.7, x: 80, y: 20 }], size: 1, tool: 'marker' },
         ],
       }, 'svg');
@@ -58,6 +60,9 @@ describe('whiteboard export appearance', () => {
       expect(svg).toContain('data-whiteboard-brush="marker"');
       expect(svg).toContain('stroke-linecap="butt"');
       expect(svg).toContain('data-whiteboard-brush="fountain"');
+      expect(svg).toContain('data-whiteboard-brush="colored-pencil"');
+      expect(svg).toContain('data-whiteboard-brush="crayon"');
+      expect(svg?.match(/data-whiteboard-grain-group=/g)).toHaveLength(4);
       expect(svg).toContain('data-whiteboard-brush-dab="marker"');
       expect(svg).toContain('transform="rotate(90 80 20)"');
       expect(svg?.match(/d="M 0 0 L 30 10"/g)?.length).toBeGreaterThan(1);

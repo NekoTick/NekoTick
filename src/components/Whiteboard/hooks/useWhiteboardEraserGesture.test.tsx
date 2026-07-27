@@ -28,6 +28,26 @@ describe('useWhiteboardEraserGesture', () => {
     });
     expect(options.pushHistory).toHaveBeenCalledTimes(1);
     expect(options.setElements.mock.calls[0][0](options.elements)).toEqual([options.elements[1]]);
+    expect(options.setStrokes).not.toHaveBeenCalled();
+  });
+
+  it('does not replace the element array when only a stroke is erased', () => {
+    const options = createOptions();
+    options.strokes = [{
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: 500, y: 0 }, { pressure: 0.5, x: 600, y: 0 }],
+      size: 1, tool: 'pen' as const,
+    }];
+    options.spatialIndex = createWhiteboardEraserSpatialIndex(options.elements, options.strokes);
+    const { result } = renderHook(() => useWhiteboardEraserGesture(options));
+
+    act(() => {
+      result.current.begin([{ point: { x: 550, y: 0 }, size: 1 }]);
+      result.current.finish();
+    });
+
+    expect(options.setElements).not.toHaveBeenCalled();
+    expect(options.setStrokes).toHaveBeenCalledOnce();
   });
 
   it('does not delete when the gesture is cancelled', () => {
@@ -41,14 +61,15 @@ describe('useWhiteboardEraserGesture', () => {
     expect(options.setElements).not.toHaveBeenCalled();
   });
 
-  it('rebuilds a stale shared index when an erase gesture starts immediately after content changes', () => {
+  it('finishes an erase after a stale shared index is rebuilt asynchronously', async () => {
     const options = createOptions();
     options.spatialIndex = createWhiteboardEraserSpatialIndex([], []);
     const { result } = renderHook(() => useWhiteboardEraserGesture(options));
 
-    act(() => {
+    await act(async () => {
       result.current.begin([{ point: { x: 20, y: 20 }, size: 1 }]);
       result.current.finish();
+      await Promise.resolve();
     });
 
     expect(options.setElements).toHaveBeenCalledOnce();

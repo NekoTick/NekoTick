@@ -1,6 +1,7 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
 import { isEditableTarget } from '../model/whiteboardInteractions';
 import type { WhiteboardElement, WhiteboardStroke } from '../model/whiteboardModel';
+import { removeWhiteboardItems } from '../model/whiteboardCollection';
 
 interface WhiteboardSelectionDeletionOptions {
   active: boolean;
@@ -28,12 +29,12 @@ export function useWhiteboardSelectionDeletion({
     pushHistory();
     if (selectedElementIds.length > 0) {
       const selectedIds = new Set(selectedElementIds);
-      setElements((current) => current.filter((element) => !selectedIds.has(element.id)));
+      setElements((current) => removeWhiteboardItems(current, selectedIds));
       setSelectedElementIds([]);
     }
     if (selectedStrokeIds.length > 0) {
       const selectedIds = new Set(selectedStrokeIds);
-      setStrokes((current) => current.filter((stroke) => !selectedIds.has(stroke.id)));
+      setStrokes((current) => removeWhiteboardItems(current, selectedIds));
       setSelectedStrokeIds([]);
     }
   }, [

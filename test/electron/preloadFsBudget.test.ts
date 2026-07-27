@@ -7,8 +7,13 @@ import { describe, expect, it, vi } from 'vitest';
 const MAX_DESKTOP_FS_WRITE_BYTES = 64 * 1024 * 1024;
 
 interface PreloadFsApi {
+  copyFile(sourcePath: string, targetPath: string, maxBytes?: number | null): Promise<unknown>;
   writeBinaryFile(filePath: string, bytes: Uint8Array | ArrayLike<number>): Promise<unknown>;
-  writeTextFile(filePath: string, content: string, options?: { recursive?: boolean; append?: boolean }): Promise<unknown>;
+  writeTextFile(
+    filePath: string,
+    content: string,
+    options?: { recursive?: boolean; append?: boolean; maxBytes?: number | null },
+  ): Promise<unknown>;
   watch(
     filePath: string,
     callback: (payload: unknown) => void | Promise<void>,
@@ -216,6 +221,26 @@ describe('preload filesystem budgets', () => {
       '/tmp/note.md',
       'hello',
       { append: true },
+    );
+  });
+
+  it('forwards explicit unbounded text writes to the desktop filesystem handler', async () => {
+    const { fs, ipcRenderer } = await loadPreloadApi();
+
+    await fs.writeTextFile('/tmp/board.json', 'content', { maxBytes: null, recursive: true });
+    await fs.copyFile('/tmp/board.json', '/tmp/board.json.bak', null);
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'desktop:fs:write-text',
+      '/tmp/board.json',
+      'content',
+      { maxBytes: null, recursive: true },
+    );
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      'desktop:fs:copy-file',
+      '/tmp/board.json',
+      '/tmp/board.json.bak',
+      null,
     );
   });
 

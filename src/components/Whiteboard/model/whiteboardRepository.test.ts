@@ -12,7 +12,7 @@ import {
   writeWhiteboardBoard,
   writeWhiteboardIndex,
 } from './whiteboardRepository';
-import { normalizeWhiteboardSnapshot } from './whiteboardDocument';
+import { deserializeWhiteboardSnapshot, normalizeWhiteboardSnapshot } from './whiteboardDocument';
 
 const mocks = vi.hoisted(() => {
   const files = new Map<string, string>();
@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
       mkdir: vi.fn(async (path: string) => {
         dirs.add(normalizePath(path, true));
       }),
+      platform: 'electron' as 'electron' | 'web',
       readFile: vi.fn(async (path: string) => files.get(normalizePath(path, true)) ?? ''),
       listDir: vi.fn(async (path: string) => {
         const normalized = normalizePath(path, true).replace(/\/$/, '');
@@ -69,6 +70,9 @@ const mocks = vi.hoisted(() => {
       writeFile: vi.fn(async (path: string, content: string) => {
         files.set(normalizePath(path, true), content);
       }),
+      writeFileBlob: vi.fn(async (path: string, content: Blob) => {
+        files.set(normalizePath(path, true), await content.text());
+      }),
     },
   };
 });
@@ -89,6 +93,7 @@ describe('whiteboardRepository', () => {
     mocks.files.clear();
     mocks.dirs.clear();
     vi.clearAllMocks();
+    mocks.storage.platform = 'electron';
     mocks.loadImageAsBlob.mockImplementation(async (path: string) => `blob:${path}`);
   });
 
@@ -155,8 +160,25 @@ describe('whiteboardRepository', () => {
 
     const rawBoard = mocks.files.get(`${SYSTEM_ROOT}/boards/sketch/board.vlwb.json`);
     expect(byteLength).toBe(new TextEncoder().encode(rawBoard).byteLength);
-    expect(rawBoard).toContain('"format": "vlaina.whiteboard"');
+    expect(rawBoard).toContain('"format":"vlaina.whiteboard"');
     expect(rawBoard).toContain('"image-1"');
+    expect(rawBoard).not.toContain('\n');
+    expect(deserializeWhiteboardSnapshot(rawBoard!)).toMatchObject({
+      elements: [expect.objectContaining({ id: 'image-1' })],
+    });
+  });
+
+  it('writes web board snapshots as prebuilt blobs', async () => {
+    mocks.storage.platform = 'web';
+    const { entry } = await createWhiteboardEntry('/notesRoot', 'Web Sketch');
+
+    expect(mocks.storage.writeFileBlob).toHaveBeenCalledWith(
+      `${SYSTEM_ROOT}/boards/web-sketch/board.vlwb.json`,
+      expect.any(Blob),
+      { maxBytes: null, recursive: true },
+    );
+    expect(mocks.files.get(`${SYSTEM_ROOT}/boards/web-sketch/board.vlwb.json`))
+      .toContain('"format":"vlaina.whiteboard"');
   });
 
   it('refreshes revoked whiteboard Blob URLs without replacing element edits', async () => {
@@ -281,13 +303,25 @@ describe('whiteboardRepository', () => {
     expect(Array.from(mocks.files.keys()).some((path) => path.endsWith('.tmp'))).toBe(false);
   });
 
-  it('rejects board payloads larger than the 16 MB read limit', async () => {
+  it('reads and writes board payloads larger than 16 MB without a byte limit', async () => {
     const { entry } = await createWhiteboardEntry('/notesRoot', 'Sketch');
-    const oversized = normalizeWhiteboardSnapshot({
-      elements: [{ height: 80, id: 'large', text: 'x'.repeat(16 * 1024 * 1024), type: 'image', width: 120, x: 1, y: 2 }],
+    const largeSnapshot = normalizeWhiteboardSnapshot({
+      elements: [{ height: 80, id: 'large', text: 'x'.repeat(16 * 1024 * 1024 + 1), type: 'image', width: 120, x: 1, y: 2 }],
     });
 
-    await expect(writeWhiteboardBoard('/notesRoot', entry, oversized)).rejects.toThrow('too large');
+    await expect(writeWhiteboardBoard('/notesRoot', entry, largeSnapshot)).resolves.toBeGreaterThan(16 * 1024 * 1024);
+    await expect(readWhiteboardBoard('/notesRoot', entry)).resolves.toMatchObject({
+      elements: [expect.objectContaining({ id: 'large' })],
+    });
+    expect(mocks.storage.writeFile).toHaveBeenCalledWith(
+      expect.stringMatching(/board\.vlwb\.json\..+\.tmp$/),
+      expect.any(String),
+      expect.objectContaining({ maxBytes: null }),
+    );
+    expect(mocks.storage.readFile).toHaveBeenCalledWith(
+      `${SYSTEM_ROOT}/boards/sketch/board.vlwb.json`,
+      null,
+    );
   });
 
   it('bounds concurrent image hydration when opening image-heavy boards', async () => {

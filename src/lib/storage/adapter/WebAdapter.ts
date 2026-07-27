@@ -13,13 +13,12 @@ import {
 } from './webAdapterDirs';
 import {
   assertWritableWebByteLength,
+  createStoredTextFile,
   createStoredFileInfo,
-  decodeStoredFileAsText,
   deleteStoredFile,
   encodeStoredFileAsBytes,
   getStoredFileByteLength,
   getStoredFileCreatedAt,
-  getTextByteLength,
   normalizeReadByteLimit,
   putStoredFile,
   readStoredFileAsBytes,
@@ -49,7 +48,7 @@ export class WebAdapter implements StorageAdapter {
     return this.database.getDB();
   }
 
-  async readFile(path: string, maxBytes?: number): Promise<string> {
+  async readFile(path: string, maxBytes?: number | null): Promise<string> {
     const readLimit = normalizeReadByteLimit(maxBytes, path);
     const file = await this.readStoredFile(path);
     if (!file) throw new Error(`File not found: ${path}`);
@@ -61,6 +60,10 @@ export class WebAdapter implements StorageAdapter {
   }
 
   private async writeStoredFile(path: string, file: StoredFile): Promise<void> {
+    if (file.content instanceof Blob) {
+      await putStoredFile(await this.getDB(), { ...file, path });
+      return;
+    }
     if (file.isBinary) {
       await this.writeBinaryFile(path, new Uint8Array(file.content as Uint8Array));
     } else {
@@ -76,29 +79,19 @@ export class WebAdapter implements StorageAdapter {
   }
 
   async writeFile(path: string, content: string, options?: WriteOptions): Promise<void> {
+    return this.writeTextFile(path, content, options);
+  }
+
+  async writeFileBlob(path: string, content: Blob, options?: WriteOptions): Promise<void> {
+    return this.writeTextFile(path, content, options);
+  }
+
+  private async writeTextFile(path: string, content: string | Blob, options?: WriteOptions): Promise<void> {
     const normalizedPath = this.normalizePath(path);
-    const incomingByteLength = getTextByteLength(content);
-    assertWritableWebByteLength(incomingByteLength, normalizedPath);
-
     const existingFile = await this.readStoredFile(normalizedPath);
-    let finalContent = content;
-    let finalByteLength = incomingByteLength;
-    if (options?.append && existingFile) {
-      assertWritableWebByteLength(getStoredFileByteLength(existingFile) + incomingByteLength, normalizedPath);
-      finalContent = decodeStoredFileAsText(existingFile) + content;
-      finalByteLength = getTextByteLength(finalContent);
-      assertWritableWebByteLength(finalByteLength, normalizedPath);
-    }
-
+    const file = await createStoredTextFile(normalizedPath, content, existingFile, options);
     if (options?.recursive) await this.ensureParentDir(normalizedPath);
-    await putStoredFile(await this.getDB(), {
-      path: normalizedPath,
-      content: finalContent,
-      isBinary: false,
-      size: finalByteLength,
-      modifiedAt: Date.now(),
-      createdAt: getStoredFileCreatedAt(existingFile) ?? Date.now(),
-    });
+    await putStoredFile(await this.getDB(), file);
   }
 
   async writeBinaryFile(path: string, content: Uint8Array, options?: WriteOptions): Promise<void> {
@@ -109,7 +102,7 @@ export class WebAdapter implements StorageAdapter {
     let finalContent = new Uint8Array(content);
     if (options?.append && existingFile) {
       assertWritableWebByteLength(getStoredFileByteLength(existingFile) + finalContent.byteLength, normalizedPath);
-      const existing = encodeStoredFileAsBytes(existingFile);
+      const existing = await encodeStoredFileAsBytes(existingFile);
       const combined = new Uint8Array(existing.byteLength + finalContent.byteLength);
       combined.set(existing);
       combined.set(finalContent, existing.byteLength);
@@ -225,7 +218,7 @@ export class WebAdapter implements StorageAdapter {
     await this.deleteFile(normalizedOld);
   }
 
-  async copyFile(src: string, dest: string): Promise<void> {
+  async copyFile(src: string, dest: string, _maxBytes?: number | null): Promise<void> {
     const file = await this.readStoredFile(src);
     if (!file) throw new Error(`File not found: ${src}`);
     await this.writeStoredFile(dest, file);

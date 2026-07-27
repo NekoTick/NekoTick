@@ -10,16 +10,21 @@ import { getElementBounds, getStrokeBounds, type WhiteboardSelectionRect } from 
 
 export {
   getBoundsUnion,
+  extendSelectedOverlayGeometry,
   getElementBounds,
   getResizedSelectionBounds,
+  getSelectedOverlayGeometry,
   getSelectionBounds,
   getStrokeBounds,
   resizeSelectionElements,
+  resizeSelectionElement,
+  resizeSelectionStroke,
   resizeSelectionStrokes,
+  translateElementsFromOriginals,
   translateStroke,
   translateStrokesFromOriginals,
 } from './whiteboardSelectionTransform';
-export type { WhiteboardResizeHandle, WhiteboardSelectionRect } from './whiteboardSelectionTransform';
+export type { WhiteboardResizeHandle, WhiteboardSelectedOverlayGeometry, WhiteboardSelectionRect } from './whiteboardSelectionTransform';
 
 export type WhiteboardLassoPath = WhiteboardPoint[];
 type WhiteboardLassoSegment = [WhiteboardPoint, WhiteboardPoint];

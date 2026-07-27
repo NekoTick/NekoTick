@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
-  createWhiteboardEraserSpatialIndex,
+  createWhiteboardEraserSpatialIndexAsync,
   getWhiteboardStrokeEraserCandidates,
   type WhiteboardEraserSample,
   type WhiteboardEraserSpatialIndex,
 } from '../model/whiteboardEraser';
 import type { WhiteboardStroke } from '../model/whiteboardModel';
-import { eraseWhiteboardStrokes } from '../model/whiteboardStrokeEraser';
+import type { WhiteboardMutableIdSet } from '../model/whiteboardStrokeSegments';
+import { markWhiteboardSpliceUpdate, type WhiteboardSpliceEdit } from '../model/whiteboardCollection';
+import {
+  eraseWhiteboardStrokes,
+  type WhiteboardStrokeEraserPreview,
+} from '../model/whiteboardStrokeEraser';
 
 interface WhiteboardStrokeEraserGestureOptions {
   pushHistory: () => void;
@@ -21,15 +26,18 @@ export function useWhiteboardStrokeEraserGesture({
   spatialIndex,
   strokes,
 }: WhiteboardStrokeEraserGestureOptions) {
-  const [preview, setPreview] = useState<WhiteboardStroke[] | null>(null);
+  const [preview, setPreview] = useState<WhiteboardStrokeEraserPreview | null>(null);
   const changedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
+  const finishRequestedRef = useRef<boolean | null>(null);
+  const gestureTokenRef = useRef<object | null>(null);
+  const indexReadyRef = useRef(false);
   const lastSampleRef = useRef<WhiteboardEraserSample | null>(null);
   const pendingSamplesRef = useRef<WhiteboardEraserSample[]>([]);
-  const sourceStrokeIdsRef = useRef(new Map<string, string>());
+  const replacementsRef = useRef(new Map<string, WhiteboardStroke[]>());
+  const sourceStrokesRef = useRef<WhiteboardStroke[]>([]);
   const spatialIndexRef = useRef(spatialIndex);
-  const workingStrokesBySourceIdRef = useRef(new Map<string, WhiteboardStroke[]>());
-  const workingStrokesRef = useRef<WhiteboardStroke[]>([]);
+  const usedStrokeIdsRef = useRef<WhiteboardMutableIdSet>(createUsedStrokeIds());
 
   const applyPendingSamples = useCallback(() => {
     const pending = pendingSamplesRef.current;
@@ -37,18 +45,24 @@ export function useWhiteboardStrokeEraserGesture({
     if (pending.length === 0) return;
     const samples = lastSampleRef.current ? [lastSampleRef.current, ...pending] : pending;
     lastSampleRef.current = pending.at(-1) ?? lastSampleRef.current;
-    const candidateStrokes = getWhiteboardStrokeEraserCandidates(spatialIndexRef.current, samples).flatMap(
-      (stroke) => workingStrokesBySourceIdRef.current.get(stroke.id) ?? [],
-    );
-    const candidateIds = new Set(candidateStrokes.map((stroke) => stroke.id));
-    const next = eraseWhiteboardStrokes(workingStrokesRef.current, samples, candidateIds, candidateStrokes);
-    if (next === workingStrokesRef.current) return;
-    const sourceStrokeIds = updateSourceStrokeIds(sourceStrokeIdsRef.current, candidateIds, next);
-    sourceStrokeIdsRef.current = sourceStrokeIds;
-    workingStrokesBySourceIdRef.current = groupStrokesBySourceId(next, sourceStrokeIds);
+    let nextReplacements: Map<string, WhiteboardStroke[]> | null = null;
+    for (const source of getWhiteboardStrokeEraserCandidates(spatialIndexRef.current, samples)) {
+      const current = replacementsRef.current.get(source.id) ?? [source];
+      const next = eraseWhiteboardStrokes(
+        current,
+        samples,
+        undefined,
+        undefined,
+        usedStrokeIdsRef.current,
+      );
+      if (next === current) continue;
+      nextReplacements ??= new Map(replacementsRef.current);
+      nextReplacements.set(source.id, next);
+    }
+    if (!nextReplacements) return;
+    replacementsRef.current = nextReplacements;
     changedRef.current = true;
-    workingStrokesRef.current = next;
-    setPreview(next);
+    setPreview({ replacements: nextReplacements });
   }, []);
 
   const publishPendingSamples = useCallback(() => {
@@ -58,72 +72,106 @@ export function useWhiteboardStrokeEraserGesture({
 
   const update = useCallback((samples: WhiteboardEraserSample[]) => {
     pendingSamplesRef.current.push(...samples);
-    if (frameRef.current === null) frameRef.current = window.requestAnimationFrame(publishPendingSamples);
+    if (indexReadyRef.current && frameRef.current === null) {
+      frameRef.current = window.requestAnimationFrame(publishPendingSamples);
+    }
   }, [publishPendingSamples]);
 
   const reset = useCallback(() => {
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     changedRef.current = false;
     frameRef.current = null;
+    finishRequestedRef.current = null;
+    gestureTokenRef.current = null;
+    indexReadyRef.current = false;
     lastSampleRef.current = null;
     pendingSamplesRef.current = [];
-    sourceStrokeIdsRef.current = new Map();
-    workingStrokesBySourceIdRef.current = new Map();
-    workingStrokesRef.current = [];
+    replacementsRef.current = new Map();
+    sourceStrokesRef.current = [];
+    usedStrokeIdsRef.current = createUsedStrokeIds();
     setPreview(null);
   }, []);
 
-  const begin = useCallback((samples: WhiteboardEraserSample[]) => {
-    reset();
-    spatialIndexRef.current = spatialIndex.allStrokes === strokes
-      ? spatialIndex
-      : createWhiteboardEraserSpatialIndex([], strokes);
-    sourceStrokeIdsRef.current = new Map(strokes.map((stroke) => [stroke.id, stroke.id]));
-    workingStrokesBySourceIdRef.current = new Map(strokes.map((stroke) => [stroke.id, [stroke]]));
-    workingStrokesRef.current = strokes;
-    update(samples);
-  }, [reset, spatialIndex, strokes, update]);
-
-  const finish = useCallback((cancelled = false) => {
+  const complete = useCallback((cancelled: boolean) => {
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
-    applyPendingSamples();
+    if (!cancelled) applyPendingSamples();
     if (!cancelled && changedRef.current) {
       pushHistory();
-      setStrokes(workingStrokesRef.current);
+      setStrokes(applyStrokeReplacements(sourceStrokesRef.current, replacementsRef.current));
     }
     reset();
   }, [applyPendingSamples, pushHistory, reset, setStrokes]);
+
+  const begin = useCallback((samples: WhiteboardEraserSample[]) => {
+    reset();
+    const token = {};
+    gestureTokenRef.current = token;
+    sourceStrokesRef.current = strokes;
+    if (spatialIndex.allStrokes === strokes || (spatialIndex.allStrokes.length === 0 && strokes.length === 0)) {
+      spatialIndexRef.current = spatialIndex;
+      usedStrokeIdsRef.current = createUsedStrokeIds(spatialIndex.strokeOrder);
+      indexReadyRef.current = true;
+    } else {
+      void createWhiteboardEraserSpatialIndexAsync([], strokes, () => gestureTokenRef.current === token)
+        .then((index) => {
+          if (!index || gestureTokenRef.current !== token) return;
+          spatialIndexRef.current = index;
+          usedStrokeIdsRef.current = createUsedStrokeIds(index.strokeOrder);
+          indexReadyRef.current = true;
+          const finishRequested = finishRequestedRef.current;
+          if (finishRequested !== null) complete(finishRequested);
+          else if (pendingSamplesRef.current.length > 0 && frameRef.current === null) {
+            frameRef.current = window.requestAnimationFrame(publishPendingSamples);
+          }
+        });
+    }
+    update(samples);
+  }, [complete, publishPendingSamples, reset, spatialIndex, strokes, update]);
+
+  const finish = useCallback((cancelled = false) => {
+    if (!cancelled && gestureTokenRef.current && !indexReadyRef.current) {
+      finishRequestedRef.current = false;
+      return;
+    }
+    complete(cancelled);
+  }, [complete]);
 
   useEffect(() => reset, [reset]);
 
   return { begin, finish, preview, update };
 }
 
-function updateSourceStrokeIds(
-  previous: Map<string, string>,
-  candidateIds: Set<string>,
+function applyStrokeReplacements(
   strokes: WhiteboardStroke[],
-): Map<string, string> {
-  const candidates = [...candidateIds].sort((first, second) => second.length - first.length);
-  return new Map(strokes.map((stroke) => {
-    const existingSource = previous.get(stroke.id);
-    if (existingSource) return [stroke.id, existingSource];
-    const parentId = candidates.find((id) => stroke.id.startsWith(`${id}-part-`));
-    return [stroke.id, parentId ? previous.get(parentId) ?? parentId : stroke.id];
-  }));
+  replacements: ReadonlyMap<string, WhiteboardStroke[]>,
+): WhiteboardStroke[] {
+  let nextLength = strokes.length;
+  for (const replacement of replacements.values()) nextLength += replacement.length - 1;
+  const next = new Array<WhiteboardStroke>(nextLength);
+  const edits: WhiteboardSpliceEdit<WhiteboardStroke>[] = [];
+  let writeIndex = 0;
+  for (let index = 0; index < strokes.length; index += 1) {
+    const stroke = strokes[index];
+    const replacement = replacements.get(stroke.id);
+    if (!replacement) {
+      next[writeIndex] = stroke;
+      writeIndex += 1;
+      continue;
+    }
+    edits.push({ index, items: replacement });
+    for (const fragment of replacement) {
+      next[writeIndex] = fragment;
+      writeIndex += 1;
+    }
+  }
+  return markWhiteboardSpliceUpdate(strokes, next, edits);
 }
 
-function groupStrokesBySourceId(
-  strokes: WhiteboardStroke[],
-  sourceStrokeIds: Map<string, string>,
-): Map<string, WhiteboardStroke[]> {
-  const groups = new Map<string, WhiteboardStroke[]>();
-  strokes.forEach((stroke) => {
-    const sourceId = sourceStrokeIds.get(stroke.id) ?? stroke.id;
-    const group = groups.get(sourceId);
-    if (group) group.push(stroke);
-    else groups.set(sourceId, [stroke]);
-  });
-  return groups;
+function createUsedStrokeIds(order?: { get: (id: string) => number | undefined }): WhiteboardMutableIdSet {
+  const additions = new Set<string>();
+  return {
+    add: (id) => { additions.add(id); },
+    has: (id) => additions.has(id) || order?.get(id) !== undefined,
+  };
 }

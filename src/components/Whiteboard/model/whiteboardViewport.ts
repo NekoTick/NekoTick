@@ -3,6 +3,11 @@ import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke, WhiteboardVi
 import { getStrokeBounds, type WhiteboardSelectionRect } from './whiteboardSelection';
 import { WHITEBOARD_INITIAL_VIEWPORT, clampWhiteboardZoom } from './whiteboardModel';
 
+export interface WhiteboardCullingWindow {
+  rect: WhiteboardSelectionRect | null;
+  zoom: number;
+}
+
 export function fitViewportToContent(
   elements: WhiteboardElement[],
   strokes: WhiteboardStroke[],
@@ -33,6 +38,41 @@ export function getVisibleBoardRect(
     x: -viewport.x / viewport.zoom - overscan,
     y: -viewport.y / viewport.zoom - overscan,
   };
+}
+
+export function getWhiteboardCullingWindow(
+  current: WhiteboardCullingWindow | null,
+  viewport: WhiteboardViewport,
+  viewportSize: WhiteboardPoint,
+): WhiteboardCullingWindow {
+  const viewportRect = getViewportBoardRect(viewport, viewportSize);
+  if (!viewportRect) return current?.rect === null ? current : { rect: null, zoom: viewport.zoom };
+  const zoomRatio = current ? Math.max(current.zoom / viewport.zoom, viewport.zoom / current.zoom) : Infinity;
+  if (
+    current?.rect &&
+    zoomRatio < themeWhiteboardTokens.viewportCullingZoomRatio &&
+    rectContains(current.rect, viewportRect)
+  ) return current;
+  return { rect: getVisibleBoardRect(viewport, viewportSize), zoom: viewport.zoom };
+}
+
+function getViewportBoardRect(
+  viewport: WhiteboardViewport,
+  viewportSize: WhiteboardPoint,
+): WhiteboardSelectionRect | null {
+  if (viewportSize.x <= 0 || viewportSize.y <= 0) return null;
+  return {
+    height: viewportSize.y / viewport.zoom,
+    width: viewportSize.x / viewport.zoom,
+    x: -viewport.x / viewport.zoom,
+    y: -viewport.y / viewport.zoom,
+  };
+}
+
+function rectContains(outer: WhiteboardSelectionRect, inner: WhiteboardSelectionRect): boolean {
+  return inner.x >= outer.x && inner.y >= outer.y
+    && inner.x + inner.width <= outer.x + outer.width
+    && inner.y + inner.height <= outer.y + outer.height;
 }
 
 function getContentBounds(elements: WhiteboardElement[], strokes: WhiteboardStroke[]): WhiteboardSelectionRect | null {

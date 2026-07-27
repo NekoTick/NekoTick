@@ -67,8 +67,17 @@
       return id;
     }
     
-    function assertDesktopFsWritePayloadBytes(byteLength) {
-      if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_DESKTOP_FS_WRITE_BYTES) {
+    function assertDesktopFsWritePayloadBytes(byteLength, maxBytes = MAX_DESKTOP_FS_WRITE_BYTES) {
+      if (
+        !Number.isSafeInteger(byteLength) ||
+        byteLength < 0 ||
+        (maxBytes !== null && (
+          !Number.isSafeInteger(maxBytes) ||
+          maxBytes < 0 ||
+          maxBytes > MAX_DESKTOP_FS_WRITE_BYTES ||
+          byteLength > maxBytes
+        ))
+      ) {
         throw new Error('Desktop content is too large to write.');
       }
     }
@@ -95,15 +104,18 @@
       return normalized;
     }
     
-    function normalizeDesktopTextWritePayload(content) {
+    function normalizeDesktopTextWritePayload(content, maxBytes) {
       const text = primitiveToString(content);
       if (text === null) {
         throw new Error('Desktop text content must be a primitive value.');
       }
-      if (text.length > MAX_DESKTOP_FS_WRITE_BYTES) {
+      const resolvedMaxBytes = maxBytes === undefined ? MAX_DESKTOP_FS_WRITE_BYTES : maxBytes;
+      if (resolvedMaxBytes !== null && text.length > resolvedMaxBytes) {
         throw new Error('Desktop content is too large to write.');
       }
-      assertDesktopFsWritePayloadBytes(Buffer.byteLength(text, 'utf8'));
+      if (resolvedMaxBytes !== null) {
+        assertDesktopFsWritePayloadBytes(Buffer.byteLength(text, 'utf8'), resolvedMaxBytes);
+      }
       return text;
     }
     
@@ -375,7 +387,12 @@
             return ipcRenderer.invoke('desktop:fs:write-binary', filePath, normalizeDesktopBinaryWritePayload(bytes));
           },
           writeTextFile(filePath, content, options) {
-            return ipcRenderer.invoke('desktop:fs:write-text', filePath, normalizeDesktopTextWritePayload(content), options);
+            return ipcRenderer.invoke(
+              'desktop:fs:write-text',
+              filePath,
+              normalizeDesktopTextWritePayload(content, options?.maxBytes),
+              options,
+            );
           },
           writeTextFileIfUnchanged(filePath, expectedContent, content) {
             return ipcRenderer.invoke(
@@ -403,8 +420,11 @@
           rename(oldPath, newPath) {
             return ipcRenderer.invoke('desktop:fs:rename', oldPath, newPath);
           },
-          copyFile(sourcePath, targetPath) {
-            return ipcRenderer.invoke('desktop:fs:copy-file', sourcePath, targetPath);
+          copyFile(sourcePath, targetPath, maxBytes) {
+            if (maxBytes === undefined) {
+              return ipcRenderer.invoke('desktop:fs:copy-file', sourcePath, targetPath);
+            }
+            return ipcRenderer.invoke('desktop:fs:copy-file', sourcePath, targetPath, maxBytes);
           },
           stat(filePath) {
             return ipcRenderer.invoke('desktop:fs:stat', filePath);

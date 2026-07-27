@@ -15,8 +15,10 @@ import {
 } from '../../model/whiteboardModel';
 import type { WhiteboardLassoPath } from '../../model/whiteboardSelection';
 import type { WhiteboardResizeHandle } from '../../model/whiteboardSelection';
-import type { WhiteboardEraserPreview, WhiteboardEraserSpatialIndex } from '../../model/whiteboardEraser';
-import type { WhiteboardMovePreview } from '../../model/whiteboardInteractions';
+import type { WhiteboardEraserPreview } from '../../model/whiteboardEraser';
+import type { WhiteboardMovePreview, WhiteboardResizePreview } from '../../model/whiteboardInteractions';
+import type { WhiteboardStrokeEraserPreview } from '../../model/whiteboardStrokeEraser';
+import type { WhiteboardRenderData } from '../../model/whiteboardRenderData';
 
 interface WhiteboardSurfaceProps {
   brushCursorColor: string;
@@ -24,17 +26,15 @@ interface WhiteboardSurfaceProps {
   brushCursorSize: number;
   brushCursorTool: WhiteboardBrushTool | null;
   draftStroke: WhiteboardStroke | null;
-  elements: WhiteboardElement[];
   eraserPreview: WhiteboardEraserPreview;
   isPanning: boolean;
   movePreview: WhiteboardMovePreview | null;
   paperStyle: WhiteboardPaperStyle;
-  selectedElementIds: string[];
-  selectedStrokeIds: string[];
+  renderData: WhiteboardRenderData;
+  resizePreview?: WhiteboardResizePreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
-  spatialIndex: WhiteboardEraserSpatialIndex;
-  strokes: WhiteboardStroke[];
+  strokeEraserPreview?: WhiteboardStrokeEraserPreview | null;
   tool: WhiteboardTool;
   viewport: WhiteboardViewport;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -56,17 +56,15 @@ export function WhiteboardSurface({
   brushCursorSize,
   brushCursorTool,
   draftStroke,
-  elements,
   eraserPreview,
   isPanning,
   movePreview,
   paperStyle,
-  selectedElementIds,
-  selectedStrokeIds,
+  renderData,
+  resizePreview = null,
   selectionPath,
   spacePressed,
-  spatialIndex,
-  strokes,
+  strokeEraserPreview = null,
   tool,
   viewport,
   viewportRef,
@@ -152,15 +150,13 @@ export function WhiteboardSurface({
         brushCursorSize={brushCursorSize}
         brushCursorTool={brushCursorTool}
         draftStroke={draftStroke}
-        elements={elements}
         eraserPreview={eraserPreview}
         movePreview={movePreview}
-        selectedElementIds={selectedElementIds}
-        selectedStrokeIds={selectedStrokeIds}
+        resizePreview={resizePreview}
+        renderData={renderData}
         selectionPath={selectionPath}
         spacePressed={spacePressed}
-        spatialIndex={spatialIndex}
-        strokes={strokes}
+        strokeEraserPreview={strokeEraserPreview}
         tool={tool}
         viewport={viewport}
         viewportSize={viewportSize}

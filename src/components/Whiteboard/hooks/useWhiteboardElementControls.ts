@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
 import type { WhiteboardDragState } from '../model/whiteboardInteractions';
+import type { WhiteboardEraserSpatialIndex, WhiteboardItemOrder } from '../model/whiteboardEraser';
+import { isWhiteboardFullSelection } from '../model/whiteboardCollection';
+import { createWhiteboardIndexedSelectionMap } from '../model/whiteboardIndexedSelectionMap';
 import {
   type WhiteboardElement,
   type WhiteboardPoint,
@@ -9,23 +12,24 @@ import {
 import {
   getResizedSelectionBounds,
   getSelectionBounds,
-  resizeSelectionElements,
-  resizeSelectionStrokes,
   type WhiteboardResizeHandle,
 } from '../model/whiteboardSelection';
 
 interface WhiteboardElementControlsOptions {
   elements: WhiteboardElement[];
   getBoardPoint: (clientX: number, clientY: number) => WhiteboardPoint;
+  interactionLocked?: boolean;
   pushHistory: () => void;
   selectedElementIds: string[];
   selectedStrokeIds: string[];
+  selectionBounds?: ReturnType<typeof getSelectionBounds>;
   setDragState: Dispatch<SetStateAction<WhiteboardDragState | null>>;
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>;
   setSelectedElementIds: Dispatch<SetStateAction<string[]>>;
   setSelectedStrokeIds: Dispatch<SetStateAction<string[]>>;
   setStrokes: Dispatch<SetStateAction<WhiteboardStroke[]>>;
   spacePressedRef: MutableRefObject<boolean>;
+  spatialIndex: WhiteboardEraserSpatialIndex;
   strokes: WhiteboardStroke[];
   tool: WhiteboardTool;
 }
@@ -33,15 +37,16 @@ interface WhiteboardElementControlsOptions {
 export function useWhiteboardElementControls({
   elements,
   getBoardPoint,
+  interactionLocked = false,
   pushHistory,
   selectedElementIds,
   selectedStrokeIds,
+  selectionBounds = null,
   setDragState,
-  setElements,
   setSelectedElementIds,
   setSelectedStrokeIds,
-  setStrokes,
   spacePressedRef,
+  spatialIndex,
   strokes,
   tool,
 }: WhiteboardElementControlsOptions) {
@@ -54,7 +59,7 @@ export function useWhiteboardElementControls({
   }, [setSelectedElementIds, setSelectedStrokeIds]);
 
   const handleElementPointerDown = useCallback((event: PointerEvent<HTMLDivElement>, element: WhiteboardElement) => {
-    if (tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
+    if (interactionLocked || tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -66,65 +71,71 @@ export function useWhiteboardElementControls({
     if (nextIds.length === 0) return;
     pushHistory();
     const movingStrokeIds = keepStrokeSelection ? selectedStrokeIds : [];
-    const originalElements = elements.filter((item) => nextIds.includes(item.id));
-    const originalStrokes = strokes.filter((stroke) => movingStrokeIds.includes(stroke.id));
+    const originalElementsById = getSelectedItemMap(elements, nextIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
+    const originalStrokesById = getSelectedItemMap(strokes, movingStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
     setDragState({
       kind: 'move-elements',
       elementIds: nextIds,
       currentPoint: point,
-      originalElementsById: new Map(originalElements.map((item) => [item.id, item])),
-      originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+      originalElementsById,
+      originalStrokesById,
       startPoint: point,
       strokeIds: movingStrokeIds,
     });
-  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementIds, setSelectedStrokeIds, spacePressedRef, strokes, tool]);
+  }, [elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementIds, setSelectedStrokeIds, spacePressedRef, spatialIndex, strokes, tool]);
 
   const handleSelectionResizePointerDown = useCallback((event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => {
-    if (tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
+    if (interactionLocked || tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
-    const bounds = getSelectionBounds(elements, strokes, selectedElementIds, selectedStrokeIds);
+    const originalElementsById = getSelectedItemMap(elements, selectedElementIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
+    const originalStrokesById = getSelectedItemMap(strokes, selectedStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
+    const bounds = selectionBounds ?? getSelectionBounds(
+      [...originalElementsById.values()],
+      [...originalStrokesById.values()],
+      selectedElementIds,
+      selectedStrokeIds,
+    );
     if (!bounds) return;
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
     pushHistory();
-    const originalElements = elements.filter((item) => selectedElementIds.includes(item.id));
-    const originalStrokes = strokes.filter((stroke) => selectedStrokeIds.includes(stroke.id));
     setDragState({
       bounds,
+      currentBounds: bounds,
       handle,
       kind: 'resize-selection',
-      originalElementsById: new Map(originalElements.map((item) => [item.id, item])),
-      originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+      originalElementsById,
+      originalStrokesById,
       preserveAspectRatio: event.shiftKey,
       startPoint: point,
     });
-  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, strokes, tool]);
+  }, [elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, selectionBounds, setDragState, spacePressedRef, spatialIndex, strokes, tool]);
 
   const handleSelectionMovePointerDown = useCallback((event: PointerEvent<SVGElement>) => {
-    if (tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
+    if (interactionLocked || tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
-    const originalElements = elements.filter((element) => selectedElementIds.includes(element.id));
-    const originalStrokes = strokes.filter((stroke) => selectedStrokeIds.includes(stroke.id));
-    if (originalElements.length === 0 && originalStrokes.length === 0) return;
+    const originalElementsById = getSelectedItemMap(elements, selectedElementIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
+    const originalStrokesById = getSelectedItemMap(strokes, selectedStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
+    if (originalElementsById.size === 0 && originalStrokesById.size === 0) return;
     pushHistory();
-    setDragState(originalElements.length > 0 ? {
+    setDragState(originalElementsById.size > 0 ? {
       kind: 'move-elements',
       currentPoint: point,
       elementIds: selectedElementIds,
-      originalElementsById: new Map(originalElements.map((element) => [element.id, element])),
-      originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+      originalElementsById,
+      originalStrokesById,
       startPoint: point,
       strokeIds: selectedStrokeIds,
     } : {
       kind: 'move-strokes',
       currentPoint: point,
-      originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+      originalStrokesById,
       startPoint: point,
       strokeIds: selectedStrokeIds,
     });
-  }, [elements, getBoardPoint, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, strokes, tool]);
+  }, [elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, spatialIndex, strokes, tool]);
 
   const applyPendingSelectionResize = useCallback(() => {
     const pending = pendingSelectionResizeRef.current;
@@ -132,9 +143,12 @@ export function useWhiteboardElementControls({
     if (!pending) return;
     const { point, state } = pending;
     const nextBounds = getResizedSelectionBounds(state.bounds, state.startPoint, point, state.handle, state.preserveAspectRatio);
-    setElements((current) => resizeSelectionElements(current, state.originalElementsById, state.bounds, nextBounds));
-    setStrokes((current) => resizeSelectionStrokes(current, state.originalStrokesById, state.bounds, nextBounds));
-  }, [setElements, setStrokes]);
+    setDragState((current) => (
+      current?.kind === 'resize-selection' && current.originalStrokesById === state.originalStrokesById
+        ? { ...current, currentBounds: nextBounds }
+        : current
+    ));
+  }, [setDragState]);
 
   const publishSelectionResize = useCallback(() => {
     selectionResizeFrameRef.current = null;
@@ -164,6 +178,28 @@ export function useWhiteboardElementControls({
     resizeSelection: scheduleSelectionResize,
     selectElement,
   };
+}
+
+function getSelectedItemMap<T extends { id: string }>(
+  items: T[],
+  ids: string[],
+  order: WhiteboardItemOrder | null,
+): ReadonlyMap<string, T> {
+  if (ids.length === 0) return new Map();
+  if (order) {
+    return createWhiteboardIndexedSelectionMap(
+      items,
+      ids,
+      order,
+      isWhiteboardFullSelection(ids, items),
+    );
+  }
+  const selectedIds = new Set(ids);
+  const selectedItems = new Map<string, T>();
+  for (const item of items) {
+    if (selectedIds.has(item.id)) selectedItems.set(item.id, item);
+  }
+  return selectedItems;
 }
 
 function getNextElementSelection(selectedIds: string[], id: string, additive: boolean): string[] {

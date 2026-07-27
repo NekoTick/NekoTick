@@ -6,6 +6,18 @@ export interface WhiteboardStrokeDashStyle {
   dashOffset: number;
 }
 
+export interface WhiteboardStrokeGrainGroup {
+  laneParity: number;
+  path: string;
+}
+
+export function groupWhiteboardStrokeGrainPaths(paths: string[]): WhiteboardStrokeGrainGroup[] {
+  return [0, 1].flatMap((laneParity) => {
+    const path = paths.filter((_, index) => index % 2 === laneParity).join(' ');
+    return path ? [{ laneParity, path }] : [];
+  });
+}
+
 export function getWhiteboardStrokeDashStyle(
   stroke: WhiteboardStroke,
   pattern: string,

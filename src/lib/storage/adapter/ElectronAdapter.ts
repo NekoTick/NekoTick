@@ -20,18 +20,40 @@ function getPathApi() {
   return bridge.path;
 }
 
-function assertElectronWriteBytes(byteLength: number): void {
-  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_ELECTRON_WRITE_BYTES) {
+function assertElectronWriteBytes(
+  byteLength: number,
+  maxBytes: number | null | undefined = MAX_ELECTRON_WRITE_BYTES,
+): void {
+  const resolvedMaxBytes = maxBytes === undefined ? MAX_ELECTRON_WRITE_BYTES : maxBytes;
+  if (
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    (resolvedMaxBytes !== null && (
+      !Number.isSafeInteger(resolvedMaxBytes) ||
+      resolvedMaxBytes < 0 ||
+      resolvedMaxBytes > MAX_ELECTRON_WRITE_BYTES ||
+      byteLength > resolvedMaxBytes
+    ))
+  ) {
     throw new Error('Electron file content is too large to write.');
   }
 }
 
-function assertElectronTextWriteBytes(content: string): void {
-  if (content.length > MAX_ELECTRON_WRITE_BYTES) {
+function assertElectronTextWriteBytes(
+  content: string,
+  byteLength?: number,
+  maxBytes?: number | null,
+): void {
+  const resolvedMaxBytes = maxBytes === undefined ? MAX_ELECTRON_WRITE_BYTES : maxBytes;
+  if (resolvedMaxBytes !== null && content.length > resolvedMaxBytes) {
     throw new Error('Electron file content is too large to write.');
   }
 
-  assertElectronWriteBytes(new Blob([content]).size);
+  const resolvedByteLength = byteLength ?? new Blob([content]).size;
+  if (resolvedByteLength < content.length) {
+    throw new Error('Invalid precomputed text byte length.');
+  }
+  assertElectronWriteBytes(resolvedByteLength, maxBytes);
 }
 
 export class ElectronAdapter implements StorageAdapter {
@@ -39,7 +61,7 @@ export class ElectronAdapter implements StorageAdapter {
 
   private basePath: string | null = null;
 
-  async readFile(path: string, maxBytes?: number): Promise<string> {
+  async readFile(path: string, maxBytes?: number | null): Promise<string> {
     return getFs().readTextFile(path, maxBytes);
   }
 
@@ -48,8 +70,9 @@ export class ElectronAdapter implements StorageAdapter {
   }
 
   async writeFile(path: string, content: string, options?: WriteOptions): Promise<void> {
-    assertElectronTextWriteBytes(content);
-    await getFs().writeTextFile(path, content, options);
+    assertElectronTextWriteBytes(content, options?.byteLength, options?.maxBytes);
+    const { byteLength: _byteLength, ...writeOptions } = options ?? {};
+    await getFs().writeTextFile(path, content, writeOptions);
   }
 
   async writeFileIfUnchanged(path: string, expectedContent: string | null, content: string): Promise<boolean> {
@@ -135,8 +158,12 @@ export class ElectronAdapter implements StorageAdapter {
     await getFs().rename(oldPath, newPath);
   }
 
-  async copyFile(src: string, dest: string): Promise<void> {
-    await getFs().copyFile(src, dest);
+  async copyFile(src: string, dest: string, maxBytes?: number | null): Promise<void> {
+    if (maxBytes === undefined) {
+      await getFs().copyFile(src, dest);
+      return;
+    }
+    await getFs().copyFile(src, dest, maxBytes);
   }
 
   async stat(path: string): Promise<FileInfo | null> {

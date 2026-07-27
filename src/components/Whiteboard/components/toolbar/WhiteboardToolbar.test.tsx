@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WHITEBOARD_DEFAULT_BRUSH_COLORS, WHITEBOARD_DEFAULT_BRUSH_SIZES } from '../../model/whiteboardModel';
@@ -83,6 +83,26 @@ describe('WhiteboardToolbar', () => {
 
     expect(screen.getByRole('button', { name: 'whiteboard.tool.eraser' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'whiteboard.tool.strokeEraser' })).toBeInTheDocument();
+  });
+
+  it('shows colored pencil fourth and keeps crayon sixth in the brush panel', () => {
+    const { container } = renderToolbar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const toolLabels = within(panel).getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'))
+      .filter((label) => label?.startsWith('whiteboard.tool.'));
+
+    expect(toolLabels).toEqual([
+      'whiteboard.tool.pen',
+      'whiteboard.tool.pencil',
+      'whiteboard.tool.marker',
+      'whiteboard.tool.coloredPencil',
+      'whiteboard.tool.watercolor',
+      'whiteboard.tool.crayon',
+    ]);
+    expect(screen.queryByRole('button', { name: 'whiteboard.tool.fountain' })).not.toBeInTheDocument();
   });
 
   it('opens the active lasso details when the whiteboard first appears', () => {

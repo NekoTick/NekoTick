@@ -1,6 +1,7 @@
 import type { PointerEvent } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 import { useWhiteboardElementControls } from './useWhiteboardElementControls';
 
 describe('useWhiteboardElementControls', () => {
@@ -9,7 +10,7 @@ describe('useWhiteboardElementControls', () => {
     const setSelectedStrokeIds = vi.fn();
     const { result } = renderHook(() => useWhiteboardElementControls({
       elements: [], getBoardPoint: vi.fn(), pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: ['stroke'],
-      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds, setSelectedStrokeIds, setStrokes: vi.fn(), spacePressedRef: { current: false }, strokes: [], tool: 'select',
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds, setSelectedStrokeIds, setStrokes: vi.fn(), spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokes: [], tool: 'select',
     }));
 
     act(() => result.current.selectElement('image'));
@@ -22,7 +23,7 @@ describe('useWhiteboardElementControls', () => {
     const stopPropagation = vi.fn();
     const { result } = renderHook(() => useWhiteboardElementControls({
       elements: [], getBoardPoint: vi.fn(), pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [],
-      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(), spacePressedRef: { current: false }, strokes: [], tool: 'pen',
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(), spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokes: [], tool: 'pen',
     }));
 
     act(() => result.current.handleElementPointerDown({ button: 0, stopPropagation } as unknown as PointerEvent<HTMLDivElement>, {
@@ -40,7 +41,7 @@ describe('useWhiteboardElementControls', () => {
       elements: [{ height: 80, id: 'image', text: '', type: 'image', width: 160, x: 20, y: 40 }],
       getBoardPoint: vi.fn(), pushHistory: vi.fn(), selectedElementIds: ['image'], selectedStrokeIds: [],
       setDragState, setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(),
-      setStrokes: vi.fn(), spacePressedRef: { current: true }, strokes: [], tool: 'select',
+      setStrokes: vi.fn(), spacePressedRef: { current: true }, spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokes: [], tool: 'select',
     }));
     const event = { button: 0, currentTarget: { setPointerCapture }, stopPropagation } as unknown as PointerEvent<SVGRectElement>;
 
@@ -71,7 +72,7 @@ describe('useWhiteboardElementControls', () => {
       elements: [element], getBoardPoint: vi.fn(() => ({ x: 25, y: 30 })), pushHistory,
       selectedElementIds: [element.id], selectedStrokeIds: [stroke.id], setDragState,
       setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(),
-      setStrokes: vi.fn(), spacePressedRef: { current: false }, strokes: [stroke], tool: 'select',
+      setStrokes: vi.fn(), spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokes: [stroke], tool: 'select',
     }));
 
     act(() => result.current.handleSelectionMovePointerDown({
@@ -107,7 +108,7 @@ describe('useWhiteboardElementControls', () => {
       elements: [], getBoardPoint: vi.fn(() => ({ x: 50, y: 0 })), pushHistory: vi.fn(),
       selectedElementIds: [], selectedStrokeIds: [middle.id], setDragState, setElements: vi.fn(),
       setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
-      spacePressedRef: { current: false }, strokes, tool: 'select',
+      spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokes, tool: 'select',
     }));
 
     act(() => result.current.handleSelectionMovePointerDown({
@@ -117,5 +118,72 @@ describe('useWhiteboardElementControls', () => {
     expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'move-strokes', originalStrokesById: new Map([[middle.id, middle]]), strokeIds: [middle.id],
     }));
+  });
+
+  it('resolves a small selection from the spatial index on a large board', () => {
+    const elements = Array.from({ length: 1000 }, (_, index) => ({
+      height: 40, id: `image-${index}`, text: '', type: 'image' as const, width: 40, x: index * 60, y: 0,
+    }));
+    const strokes = Array.from({ length: 1000 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: index * 60, y: 80 }], size: 1, tool: 'pen' as const,
+    }));
+    const spatialIndex = createWhiteboardEraserSpatialIndex(elements, strokes);
+    const elementScan = vi.spyOn(elements, 'filter');
+    const strokeScan = vi.spyOn(strokes, 'filter');
+    const setDragState = vi.fn();
+    const { result } = renderHook(() => useWhiteboardElementControls({
+      elements, getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), pushHistory: vi.fn(),
+      selectedElementIds: ['image-999'], selectedStrokeIds: ['stroke-999'], setDragState,
+      setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
+      spacePressedRef: { current: false }, spatialIndex, strokes, tool: 'select',
+    }));
+
+    act(() => result.current.handleSelectionMovePointerDown({
+      button: 0, currentTarget: { setPointerCapture: vi.fn() }, pointerId: 1, stopPropagation: vi.fn(),
+    } as unknown as PointerEvent<SVGElement>));
+
+    expect(elementScan).not.toHaveBeenCalled();
+    expect(strokeScan).not.toHaveBeenCalled();
+    expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
+      elementIds: ['image-999'], strokeIds: ['stroke-999'],
+    }));
+  });
+
+  it('publishes resize bounds without rewriting document arrays during the drag', () => {
+    let publishFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      publishFrame = callback;
+      return 1;
+    });
+    const stroke = {
+      color: '#111111', id: 'stroke', points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 100 }],
+      size: 1, tool: 'pen' as const,
+    };
+    const setDragState = vi.fn();
+    const setElements = vi.fn();
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardElementControls({
+      elements: [], getBoardPoint: vi.fn(), pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [stroke.id],
+      setDragState, setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokes: [stroke], tool: 'select',
+    }));
+    const state = {
+      bounds: { height: 100, width: 100, x: 0, y: 0 },
+      currentBounds: { height: 100, width: 100, x: 0, y: 0 },
+      handle: 'se' as const,
+      kind: 'resize-selection' as const,
+      originalElementsById: new Map(),
+      originalStrokesById: new Map([[stroke.id, stroke]]),
+      preserveAspectRatio: false,
+      startPoint: { x: 100, y: 100 },
+    };
+
+    act(() => result.current.resizeSelection(state, { x: 150, y: 140 }));
+    act(() => publishFrame?.(0));
+
+    expect(setElements).not.toHaveBeenCalled();
+    expect(setStrokes).not.toHaveBeenCalled();
+    expect(setDragState).toHaveBeenCalledOnce();
   });
 });

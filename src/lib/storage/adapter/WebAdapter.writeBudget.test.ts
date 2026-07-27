@@ -69,6 +69,63 @@ describe('WebAdapter write budgets', () => {
     await expect(adapter.exists('/write-budget/new')).resolves.toBe(false);
   });
 
+  it('reuses a precomputed UTF-8 byte length for text writes', async () => {
+    const originalBlob = globalThis.Blob;
+    vi.stubGlobal('Blob', class {
+      constructor() {
+        throw new Error('text byte length was recomputed');
+      }
+    } as unknown as typeof Blob);
+
+    try {
+      await adapter.writeFile('/write-budget/known.md', 'hello', {
+        byteLength: 5,
+        recursive: true,
+      });
+    } finally {
+      vi.stubGlobal('Blob', originalBlob);
+    }
+
+    await expect(adapter.readFile('/write-budget/known.md')).resolves.toBe('hello');
+  });
+
+  it('allows explicitly unbounded text writes while retaining the default write limit', async () => {
+    await expect(adapter.writeFile('/write-budget/board.json', 'content', {
+      byteLength: MAX_WEB_ADAPTER_FILE_BYTES + 1,
+      maxBytes: null,
+      recursive: true,
+    })).resolves.toBeUndefined();
+
+    await expect(adapter.readFile('/write-budget/board.json', null)).resolves.toBe('content');
+  });
+
+  it('requires an explicit null to read past the default web file limit', async () => {
+    const restore = replaceReadStoredFile(async () => ({
+      path: '/write-budget/large-board.json',
+      content: 'content',
+      isBinary: false,
+      size: MAX_WEB_ADAPTER_FILE_BYTES + 1,
+      modifiedAt: 1,
+      createdAt: 1,
+    }));
+
+    try {
+      await expect(adapter.readFile('/write-budget/large-board.json')).rejects.toThrow('File is too large to read');
+      await expect(adapter.readFile('/write-budget/large-board.json', null)).resolves.toBe('content');
+    } finally {
+      restore();
+    }
+  });
+
+  it('stores prebuilt text blobs without materializing a large string', async () => {
+    await adapter.writeFileBlob('/write-budget/board-blob.json', new Blob(['content']), {
+      maxBytes: null,
+      recursive: true,
+    });
+
+    await expect(adapter.readFile('/write-budget/board-blob.json', null)).resolves.toBe('content');
+  });
+
   it('rejects appending binary data past the web write limit before storing a replacement', async () => {
     const restore = replaceReadStoredFile(async () => ({
       path: '/write-budget/huge.bin',

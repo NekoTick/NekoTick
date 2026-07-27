@@ -45,6 +45,7 @@ interface WhiteboardPointerActionsOptions {
   dragState: WhiteboardDragState | null;
   getBoardPointFromRect: (clientX: number, clientY: number, rect: DOMRectReadOnly) => WhiteboardPoint;
   getPinchMetrics: () => { center: WhiteboardPoint; distance: number } | null;
+  interactionLocked?: boolean;
   eraserActions: {
     begin: (points: WhiteboardEraserSample[]) => void;
     update: (points: WhiteboardEraserSample[]) => void;
@@ -80,6 +81,7 @@ export function useWhiteboardPointerActions({
   eraserActions,
   getBoardPointFromRect,
   getPinchMetrics,
+  interactionLocked = false,
   resizeSelection,
   scheduleViewport,
   setBrushCursorPoint,
@@ -137,6 +139,7 @@ export function useWhiteboardPointerActions({
   }, [clearDraftStroke, getPinchMetrics, setDragState, viewport]);
 
   const handleViewportPointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (interactionLocked) return;
     if (event.button !== 0 && event.button !== 1) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     activePointerRectRef.current = viewportRef.current?.getBoundingClientRect() ?? null;
@@ -183,12 +186,13 @@ export function useWhiteboardPointerActions({
     }
   }, [
     activePenPointerRef, brushColors, brushSizes, collectEraserSamples, collectStrokePoints,
-    addPointer, eraserActions, getBoardPointFromRect, setDraftStroke, setDragState,
+    addPointer, eraserActions, getBoardPointFromRect, interactionLocked, setDraftStroke, setDragState,
     resetStrokeInput, setSelectedElementId, setSelectedStrokeIds, spacePressedRef, startPan, startPinch,
     startStrokeSelection, strokeEraserActions, strokeIdRef, tool, viewportRef,
   ]);
 
   const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (interactionLocked) return;
     if (event.pointerType === 'touch') updatePointer(event.pointerId, event.clientX, event.clientY);
     if (!activePointerRectRef.current) activePointerRectRef.current = viewportRef.current?.getBoundingClientRect() ?? null;
     const rect = activePointerRectRef.current;
@@ -241,6 +245,7 @@ export function useWhiteboardPointerActions({
     }
   }, [
     appendDraftPoints, collectEraserSamples, collectStrokePoints, dragState, eraserActions, getBoardPointFromRect,
+    interactionLocked,
     getPinchMetrics, resizeSelection, scheduleLassoPoint, scheduleMoveDragPoint,
     scheduleViewport, setBrushCursorPoint, setDragState, strokeEraserActions, tool, updatePointer, viewport.zoom,
     viewportRef,

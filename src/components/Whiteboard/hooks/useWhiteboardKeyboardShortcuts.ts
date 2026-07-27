@@ -2,21 +2,21 @@ import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { isEditableTarget } from '../model/whiteboardInteractions';
 import type { WhiteboardBrushTool, WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
 import { translateStroke } from '../model/whiteboardSelection';
+import { markWhiteboardSparseUpdate } from '../model/whiteboardCollection';
+import type { WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 
 interface WhiteboardKeyboardShortcutsOptions {
   active: boolean;
-  elements: WhiteboardElement[];
   pushHistory: () => void;
   resizeBrush: (tool: WhiteboardBrushTool, deltaY: number) => void;
+  selectAll: () => void;
   selectedBrushTool: WhiteboardBrushTool | null;
   selectedElementIds: string[];
   selectedStrokeIds: string[];
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>;
-  setSelectedElementIds: (ids: string[]) => void;
-  setSelectedStrokeIds: (ids: string[]) => void;
   setStrokes: Dispatch<SetStateAction<WhiteboardStroke[]>>;
   setTool: (tool: WhiteboardTool) => void;
-  strokes: WhiteboardStroke[];
+  spatialIndex: WhiteboardEraserSpatialIndex;
   viewportZoom: number;
 }
 
@@ -36,18 +36,16 @@ const TOOL_KEYS: Partial<Record<string, WhiteboardTool>> = {
 
 export function useWhiteboardKeyboardShortcuts({
   active,
-  elements,
   pushHistory,
   resizeBrush,
+  selectAll,
   selectedBrushTool,
   selectedElementIds,
   selectedStrokeIds,
   setElements,
-  setSelectedElementIds,
-  setSelectedStrokeIds,
   setStrokes,
   setTool,
-  strokes,
+  spatialIndex,
   viewportZoom,
 }: WhiteboardKeyboardShortcutsOptions) {
   useEffect(() => {
@@ -59,14 +57,12 @@ export function useWhiteboardKeyboardShortcuts({
       if (nudge && (selectedElementIds.length > 0 || selectedStrokeIds.length > 0)) {
         event.preventDefault();
         if (!event.repeat) pushHistory();
-        nudgeSelection(selectedElementIds, selectedStrokeIds, setElements, setStrokes, nudge.x, nudge.y);
+        nudgeSelection(selectedElementIds, selectedStrokeIds, setElements, setStrokes, spatialIndex, nudge.x, nudge.y);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && key === 'a') {
         event.preventDefault();
-        setSelectedElementIds(elements.map((element) => element.id));
-        setSelectedStrokeIds(strokes.map((stroke) => stroke.id));
-        setTool('select');
+        selectAll();
         return;
       }
       if (!event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -85,9 +81,8 @@ export function useWhiteboardKeyboardShortcuts({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    active, elements, pushHistory, resizeBrush, selectedBrushTool,
-    selectedElementIds, selectedStrokeIds, setElements, setSelectedElementIds,
-    setSelectedStrokeIds, setStrokes, setTool, strokes, viewportZoom,
+    active, pushHistory, resizeBrush, selectAll, selectedBrushTool,
+    selectedElementIds, selectedStrokeIds, setElements, setStrokes, setTool, spatialIndex, viewportZoom,
   ]);
 }
 
@@ -105,11 +100,56 @@ function nudgeSelection(
   selectedStrokeIds: string[],
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>,
   setStrokes: Dispatch<SetStateAction<WhiteboardStroke[]>>,
+  spatialIndex: WhiteboardEraserSpatialIndex,
   dx: number,
   dy: number,
 ) {
-  const elementIds = new Set(selectedElementIds);
-  const strokeIds = new Set(selectedStrokeIds);
-  if (elementIds.size > 0) setElements((current) => current.map((element) => (elementIds.has(element.id) ? { ...element, x: element.x + dx, y: element.y + dy } : element)));
-  if (strokeIds.size > 0) setStrokes((current) => current.map((stroke) => (strokeIds.has(stroke.id) ? translateStroke(stroke, dx, dy) : stroke)));
+  if (selectedElementIds.length > 0) setElements((current) => {
+    const changedItems: WhiteboardElement[] = [];
+    const next = current.slice();
+    if (spatialIndex.allElements === current) {
+      for (const id of selectedElementIds) {
+        const index = spatialIndex.elementOrder.get(id);
+        const element = index === undefined ? undefined : current[index];
+        if (!element || element.id !== id) continue;
+        const moved = { ...element, x: element.x + dx, y: element.y + dy };
+        next[index] = moved;
+        changedItems.push(moved);
+      }
+    } else {
+      const selectedIds = new Set(selectedElementIds);
+      for (let index = 0; index < current.length; index += 1) {
+        const element = current[index];
+        if (!selectedIds.has(element.id)) continue;
+        const moved = { ...element, x: element.x + dx, y: element.y + dy };
+        next[index] = moved;
+        changedItems.push(moved);
+      }
+    }
+    return markWhiteboardSparseUpdate(current, next, changedItems);
+  });
+  if (selectedStrokeIds.length > 0) setStrokes((current) => {
+    const changedItems: WhiteboardStroke[] = [];
+    const next = current.slice();
+    if (spatialIndex.allStrokes === current) {
+      for (const id of selectedStrokeIds) {
+        const index = spatialIndex.strokeOrder.get(id);
+        const stroke = index === undefined ? undefined : current[index];
+        if (!stroke || stroke.id !== id) continue;
+        const moved = translateStroke(stroke, dx, dy);
+        next[index] = moved;
+        changedItems.push(moved);
+      }
+    } else {
+      const selectedIds = new Set(selectedStrokeIds);
+      for (let index = 0; index < current.length; index += 1) {
+        const stroke = current[index];
+        if (!selectedIds.has(stroke.id)) continue;
+        const moved = translateStroke(stroke, dx, dy);
+        next[index] = moved;
+        changedItems.push(moved);
+      }
+    }
+    return markWhiteboardSparseUpdate(current, next, changedItems);
+  });
 }

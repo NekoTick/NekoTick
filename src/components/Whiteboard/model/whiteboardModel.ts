@@ -8,6 +8,7 @@ export type WhiteboardTool =
   | 'pen'
   | 'pencil'
   | 'marker'
+  | 'colored-pencil'
   | 'fountain'
   | 'watercolor'
   | 'crayon'
@@ -15,7 +16,7 @@ export type WhiteboardTool =
   | 'stroke-eraser';
 export type WhiteboardElementType = 'image';
 export type WhiteboardPaperStyle = 'blank' | 'dots' | 'grid' | 'ruled';
-export type WhiteboardDrawingTool = Extract<WhiteboardTool, 'pen' | 'pencil' | 'marker' | 'fountain' | 'watercolor' | 'crayon'>;
+export type WhiteboardDrawingTool = Extract<WhiteboardTool, 'pen' | 'pencil' | 'marker' | 'colored-pencil' | 'fountain' | 'watercolor' | 'crayon'>;
 export type WhiteboardBrushTool = WhiteboardDrawingTool | 'stroke-eraser';
 export type WhiteboardBrushColors = Record<WhiteboardDrawingTool, string>;
 export type WhiteboardBrushSizes = Record<WhiteboardBrushTool, number>;
@@ -79,7 +80,7 @@ export const WHITEBOARD_DRAWING_TOOLS: WhiteboardToolConfig[] = [
   { id: 'pen', labelKey: 'whiteboard.tool.pen', icon: 'whiteboard.pen' },
   { id: 'pencil', labelKey: 'whiteboard.tool.pencil', icon: 'whiteboard.pencil' },
   { id: 'marker', labelKey: 'whiteboard.tool.marker', icon: 'whiteboard.marker' },
-  { id: 'fountain', labelKey: 'whiteboard.tool.fountain', icon: 'whiteboard.fountain' },
+  { id: 'colored-pencil', labelKey: 'whiteboard.tool.coloredPencil', icon: 'whiteboard.coloredPencil' },
   { id: 'watercolor', labelKey: 'whiteboard.tool.watercolor', icon: 'whiteboard.watercolor' },
   { id: 'crayon', labelKey: 'whiteboard.tool.crayon', icon: 'whiteboard.crayon' },
 ];
@@ -109,6 +110,12 @@ export const WHITEBOARD_BRUSHES: Record<WhiteboardDrawingTool, WhiteboardBrush> 
     opacity: themeWhiteboardTokens.markerOpacity,
     pressureWidth: themeWhiteboardTokens.markerPressureWidthPx,
   },
+  'colored-pencil': {
+    color: 'var(--vlaina-color-whiteboard-colored-pencil)',
+    baseWidth: themeWhiteboardTokens.coloredPencilBaseWidthPx,
+    opacity: themeWhiteboardTokens.coloredPencilOpacity,
+    pressureWidth: themeWhiteboardTokens.coloredPencilPressureWidthPx,
+  },
   fountain: {
     color: 'var(--vlaina-color-whiteboard-pen)',
     baseWidth: themeWhiteboardTokens.fountainBaseWidthPx,
@@ -135,6 +142,7 @@ export const WHITEBOARD_DEFAULT_BRUSH_SIZES: WhiteboardBrushSizes = {
   pen: 1,
   pencil: 1,
   marker: 1,
+  'colored-pencil': 1,
   fountain: 1,
   watercolor: 1,
   crayon: 1,
@@ -144,6 +152,7 @@ export const WHITEBOARD_DEFAULT_BRUSH_COLORS: WhiteboardBrushColors = {
   pen: themeWhiteboardTokens.brushColorSwatches[6],
   pencil: themeWhiteboardTokens.brushColorSwatches[1],
   marker: themeWhiteboardTokens.brushColorSwatches[2],
+  'colored-pencil': themeWhiteboardTokens.brushColorSwatches[0],
   fountain: themeWhiteboardTokens.brushColorSwatches[6],
   watercolor: themeWhiteboardTokens.brushColorSwatches[2],
   crayon: themeWhiteboardTokens.brushColorSwatches[4],
@@ -202,7 +211,7 @@ export function resizeWhiteboardElement(
 }
 
 export function isDrawingTool(tool: WhiteboardTool): tool is WhiteboardDrawingTool {
-  return tool === 'pen' || tool === 'pencil' || tool === 'marker' || tool === 'fountain' || tool === 'watercolor' || tool === 'crayon';
+  return tool === 'pen' || tool === 'pencil' || tool === 'marker' || tool === 'colored-pencil' || tool === 'fountain' || tool === 'watercolor' || tool === 'crayon';
 }
 
 export function isBrushTool(tool: WhiteboardTool): tool is WhiteboardBrushTool {

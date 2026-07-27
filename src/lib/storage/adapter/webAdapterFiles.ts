@@ -1,15 +1,14 @@
-import type { FileInfo } from './types';
+import type { FileInfo, WriteOptions } from './types';
 import {
   MAX_WEB_ADAPTER_FILE_BYTES,
   WEB_ADAPTER_STORE_FILES,
 } from './webAdapterConstants';
 import type { StoredFile } from './webAdapterTypes';
 
-export function normalizeReadByteLimit(maxBytes: number | undefined, path: string): number | null {
-  if (maxBytes === undefined) {
-    return null;
-  }
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+export function normalizeReadByteLimit(maxBytes: number | null | undefined, path: string): number | null {
+  if (maxBytes === undefined) return MAX_WEB_ADAPTER_FILE_BYTES;
+  if (maxBytes === null) return null;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > MAX_WEB_ADAPTER_FILE_BYTES) {
     throw new Error(`Invalid binary read limit for ${path}`);
   }
   return maxBytes;
@@ -19,8 +18,22 @@ export function getTextByteLength(content: string): number {
   return new Blob([content]).size;
 }
 
-export function assertWritableWebByteLength(byteLength: number, path: string): void {
-  if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > MAX_WEB_ADAPTER_FILE_BYTES) {
+export function assertWritableWebByteLength(
+  byteLength: number,
+  path: string,
+  maxBytes: number | null | undefined = MAX_WEB_ADAPTER_FILE_BYTES,
+): void {
+  const resolvedMaxBytes = maxBytes === undefined ? MAX_WEB_ADAPTER_FILE_BYTES : maxBytes;
+  if (
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    (resolvedMaxBytes !== null && (
+      !Number.isSafeInteger(resolvedMaxBytes) ||
+      resolvedMaxBytes < 0 ||
+      resolvedMaxBytes > MAX_WEB_ADAPTER_FILE_BYTES ||
+      byteLength > resolvedMaxBytes
+    ))
+  ) {
     throw new Error(`Web content is too large to write: ${path}`);
   }
 }
@@ -31,9 +44,11 @@ export function getStoredFileByteLength(file: StoredFile): number {
   }
 
   if (file.isBinary) {
+    if (file.content instanceof Blob) return file.content.size;
     return new Uint8Array(file.content as Uint8Array).byteLength;
   }
 
+  if (file.content instanceof Blob) return file.content.size;
   return getTextByteLength(file.content as string);
 }
 
@@ -61,7 +76,8 @@ export function createStoredFileInfo(file: StoredFile, path = file.path): FileIn
   };
 }
 
-export function decodeStoredFileAsText(file: StoredFile): string {
+export async function decodeStoredFileAsText(file: StoredFile): Promise<string> {
+  if (file.content instanceof Blob) return file.content.text();
   if (!file.isBinary) {
     return file.content as string;
   }
@@ -69,12 +85,54 @@ export function decodeStoredFileAsText(file: StoredFile): string {
   return new TextDecoder().decode(new Uint8Array(file.content as Uint8Array));
 }
 
-export function encodeStoredFileAsBytes(file: StoredFile): Uint8Array {
+export async function encodeStoredFileAsBytes(file: StoredFile): Promise<Uint8Array> {
+  if (file.content instanceof Blob) return new Uint8Array(await file.content.arrayBuffer());
   if (file.isBinary) {
     return new Uint8Array(file.content as Uint8Array);
   }
 
   return new TextEncoder().encode(file.content as string);
+}
+
+export async function createStoredTextFile(
+  path: string,
+  content: string | Blob,
+  existingFile: StoredFile | undefined,
+  options?: WriteOptions,
+): Promise<StoredFile> {
+  const incomingByteLength = content instanceof Blob
+    ? content.size
+    : options?.byteLength ?? getTextByteLength(content);
+  assertWritableWebByteLength(incomingByteLength, path, options?.maxBytes);
+  if (typeof content === 'string' && incomingByteLength < content.length) {
+    throw new Error(`Invalid precomputed text byte length for ${path}`);
+  }
+
+  let finalContent = content;
+  let finalByteLength = incomingByteLength;
+  if (options?.append && existingFile) {
+    assertWritableWebByteLength(
+      getStoredFileByteLength(existingFile) + incomingByteLength,
+      path,
+      options.maxBytes,
+    );
+    const appendedContent = content instanceof Blob ? await content.text() : content;
+    finalContent = await decodeStoredFileAsText(existingFile) + appendedContent;
+    finalByteLength = getTextByteLength(finalContent);
+    assertWritableWebByteLength(finalByteLength, path, options.maxBytes);
+  }
+
+  if (!(finalContent instanceof Blob) && options?.maxBytes === null) {
+    finalContent = new Blob([finalContent]);
+  }
+  return {
+    path,
+    content: finalContent,
+    isBinary: false,
+    size: finalByteLength,
+    modifiedAt: Date.now(),
+    createdAt: getStoredFileCreatedAt(existingFile) ?? Date.now(),
+  };
 }
 
 export async function readStoredFile(db: IDBDatabase, normalizedPath: string): Promise<StoredFile | undefined> {
@@ -109,10 +167,21 @@ export async function putStoredFile(db: IDBDatabase, file: StoredFile): Promise<
   });
 }
 
-export function readStoredFileAsText(file: StoredFile, path: string, readLimit: number | null): string {
+export async function readStoredFileAsText(
+  file: StoredFile,
+  path: string,
+  readLimit: number | null,
+): Promise<string> {
   const declaredByteLength = getDeclaredStoredFileByteLength(file);
   if (readLimit !== null && declaredByteLength !== null && declaredByteLength > readLimit) {
     throw new Error(`File is too large to read: ${path}`);
+  }
+
+  if (file.content instanceof Blob) {
+    if (readLimit !== null && file.content.size > readLimit) {
+      throw new Error(`File is too large to read: ${path}`);
+    }
+    return file.content.text();
   }
 
   if (file.isBinary) {
@@ -130,13 +199,19 @@ export function readStoredFileAsText(file: StoredFile, path: string, readLimit: 
   return content;
 }
 
-export function readStoredFileAsBytes(file: StoredFile, path: string, readLimit: number | null): Uint8Array {
+export async function readStoredFileAsBytes(
+  file: StoredFile,
+  path: string,
+  readLimit: number | null,
+): Promise<Uint8Array> {
   const declaredByteLength = getDeclaredStoredFileByteLength(file);
   if (readLimit !== null && declaredByteLength !== null && declaredByteLength > readLimit) {
     throw new Error(`File is too large to read: ${path}`);
   }
 
-  const bytes = file.isBinary
+  const bytes = file.content instanceof Blob
+    ? new Uint8Array(await file.content.arrayBuffer())
+    : file.isBinary
     ? new Uint8Array(file.content as Uint8Array)
     : new TextEncoder().encode(file.content as string);
   if (readLimit !== null && bytes.byteLength > readLimit) {

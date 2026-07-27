@@ -7,17 +7,18 @@ export type WhiteboardDragState =
     kind: 'move-elements';
     elementIds: string[];
     currentPoint: WhiteboardPoint;
-    originalElementsById: Map<string, WhiteboardElement>;
-    originalStrokesById: Map<string, WhiteboardStroke>;
+    originalElementsById: ReadonlyMap<string, WhiteboardElement>;
+    originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
     startPoint: WhiteboardPoint;
     strokeIds: string[];
   }
   | {
     bounds: WhiteboardSelectionRect;
+    currentBounds: WhiteboardSelectionRect;
     handle: WhiteboardResizeHandle;
     kind: 'resize-selection';
-    originalElementsById: Map<string, WhiteboardElement>;
-    originalStrokesById: Map<string, WhiteboardStroke>;
+    originalElementsById: ReadonlyMap<string, WhiteboardElement>;
+    originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
     preserveAspectRatio: boolean;
     startPoint: WhiteboardPoint;
   }
@@ -36,7 +37,7 @@ export type WhiteboardDragState =
   | {
     kind: 'move-strokes';
     currentPoint: WhiteboardPoint;
-    originalStrokesById: Map<string, WhiteboardStroke>;
+    originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
     startPoint: WhiteboardPoint;
     strokeIds: string[];
   }
@@ -52,8 +53,13 @@ export type WhiteboardDragState =
 export interface WhiteboardMovePreview {
   dx: number;
   dy: number;
-  elementIds: string[];
-  strokeIds: string[];
+}
+
+export interface WhiteboardResizePreview {
+  nextBounds: WhiteboardSelectionRect;
+  originalElementsById: ReadonlyMap<string, WhiteboardElement>;
+  originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
+  startBounds: WhiteboardSelectionRect;
 }
 
 export type WhiteboardMoveDragState = Extract<WhiteboardDragState, { kind: 'move-elements' | 'move-strokes' }>;
@@ -67,8 +73,16 @@ export function getWhiteboardMovePreview(state: WhiteboardDragState | null): Whi
   return {
     dx: state.currentPoint.x - state.startPoint.x,
     dy: state.currentPoint.y - state.startPoint.y,
-    elementIds: state.kind === 'move-elements' ? state.elementIds : [],
-    strokeIds: state.strokeIds,
+  };
+}
+
+export function getWhiteboardResizePreview(state: WhiteboardDragState | null): WhiteboardResizePreview | null {
+  if (state?.kind !== 'resize-selection') return null;
+  return {
+    nextBounds: state.currentBounds,
+    originalElementsById: state.originalElementsById,
+    originalStrokesById: state.originalStrokesById,
+    startBounds: state.bounds,
   };
 }
 

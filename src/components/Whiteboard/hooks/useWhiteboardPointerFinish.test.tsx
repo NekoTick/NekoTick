@@ -42,6 +42,29 @@ describe('useWhiteboardPointerFinish', () => {
     expect(setStrokes).not.toHaveBeenCalled();
   });
 
+  it('preserves the draft stroke ID when the state update is deferred', () => {
+    const draft = {
+      color: '#ef4444', id: 'wb-stroke-1',
+      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.6, x: 20, y: 10 }],
+      size: 1, tool: 'crayon' as const,
+    };
+    const setStrokes = vi.fn();
+    const strokeIdRef = { current: 1 };
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: 7 as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(), dragState: { kind: 'draw' }, elements: [],
+      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => draft), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef, strokes: [],
+    }));
+
+    act(() => result.current({ pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    expect(strokeIdRef.current).toBe(2);
+    const update = setStrokes.mock.calls[0][0] as (strokes: typeof draft[]) => typeof draft[];
+    expect(update([])[0].id).toBe(draft.id);
+  });
+
   it('keeps the last valid move position when pointer cancellation coordinates are invalid', () => {
     const element = { height: 10, id: 'image', text: '', type: 'image' as const, width: 10, x: 5, y: 5 };
     const setElements = vi.fn();
@@ -150,5 +173,146 @@ describe('useWhiteboardPointerFinish', () => {
       { pressure: 0.5, x: 55, y: 5 }, { pressure: 0.5, x: 75, y: 5 },
     ]);
     expect(translated[2]).toBe(upper);
+  });
+
+  it('updates a small stroke selection by index instead of scanning every stroke', () => {
+    const strokes = Array.from({ length: 1000 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: index * 100, y: 0 }], size: 1, tool: 'pen' as const,
+    }));
+    const selected = new Map([[strokes[500].id, strokes[500]]]);
+    const lookup = vi.spyOn(selected, 'get');
+    const setStrokes = vi.fn();
+    const spatialIndex = createWhiteboardEraserSpatialIndex([], strokes);
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: {
+        currentPoint: { x: 0, y: 0 }, kind: 'move-strokes', originalStrokesById: selected,
+        startPoint: { x: 0, y: 0 }, strokeIds: [strokes[500].id],
+      },
+      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 15, y: 5 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex, strokeIdRef: { current: 1 }, strokes,
+    }));
+
+    act(() => result.current({ clientX: 15, clientY: 5, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+    const update = setStrokes.mock.calls[0][0] as (current: typeof strokes) => typeof strokes;
+    const translated = update(strokes);
+
+    expect(lookup).not.toHaveBeenCalled();
+    expect(translated[499]).toBe(strokes[499]);
+    expect(translated[500].points[0]).toMatchObject({ x: 50_015, y: 5 });
+    expect(translated[501]).toBe(strokes[501]);
+  });
+
+  it('keeps the move preview while a large move is prepared asynchronously', () => {
+    const stroke = {
+      color: '#111111', id: 'stroke', points: [{ pressure: 0.5, x: 0, y: 0 }], size: 1, tool: 'pen' as const,
+    };
+    const dragState = {
+      currentPoint: { x: 0, y: 0 }, kind: 'move-strokes' as const,
+      originalStrokesById: new Map([[stroke.id, stroke]]), startPoint: { x: 0, y: 0 }, strokeIds: [stroke.id],
+    };
+    const prepareMoveCommit = vi.fn(() => true);
+    const setDragState = vi.fn();
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState, elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 15, y: 5 })), getDraftStroke: vi.fn(() => null), prepareMoveCommit,
+      pushHistory: vi.fn(), setDragState, setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(),
+      setStrokes, spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokeIdRef: { current: 1 }, strokes: [stroke],
+    }));
+
+    act(() => result.current({ clientX: 15, clientY: 5, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    expect(prepareMoveCommit).toHaveBeenCalledWith(dragState, { x: 15, y: 5 });
+    expect(setStrokes).not.toHaveBeenCalled();
+    expect(setDragState).not.toHaveBeenCalled();
+  });
+
+  it('commits a selection resize once at the final pointer position', () => {
+    const stroke = {
+      color: '#111111', id: 'stroke', points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 100 }],
+      size: 1, tool: 'pen' as const,
+    };
+    const setElements = vi.fn();
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: {
+        bounds: { height: 100, width: 100, x: 0, y: 0 },
+        currentBounds: { height: 140, width: 140, x: 0, y: 0 },
+        handle: 'se', kind: 'resize-selection', originalElementsById: new Map(),
+        originalStrokesById: new Map([[stroke.id, stroke]]), preserveAspectRatio: false,
+        startPoint: { x: 100, y: 100 },
+      },
+      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 150, y: 160 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokeIdRef: { current: 1 }, strokes: [stroke],
+    }));
+
+    act(() => result.current({ clientX: 150, clientY: 160, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    const update = setStrokes.mock.calls[0][0] as (current: typeof stroke[]) => typeof stroke[];
+    expect(update([stroke])[0].points.at(-1)).toMatchObject({ x: 150, y: 160 });
+    expect(setElements).not.toHaveBeenCalled();
+  });
+
+  it('does not replace strokes when resizing only an element', () => {
+    const element = { height: 100, id: 'image', text: '', type: 'image' as const, width: 100, x: 0, y: 0 };
+    const setElements = vi.fn();
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: {
+        bounds: { height: 100, width: 100, x: 0, y: 0 },
+        currentBounds: { height: 140, width: 140, x: 0, y: 0 },
+        handle: 'se', kind: 'resize-selection', originalElementsById: new Map([[element.id, element]]),
+        originalStrokesById: new Map(), preserveAspectRatio: false, startPoint: { x: 100, y: 100 },
+      },
+      elements: [element], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 150, y: 160 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex: createWhiteboardEraserSpatialIndex([element], []), strokeIdRef: { current: 1 }, strokes: [],
+    }));
+
+    act(() => result.current({ clientX: 150, clientY: 160, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    const update = setElements.mock.calls[0][0] as (current: typeof element[]) => typeof element[];
+    expect(update([element])[0]).toMatchObject({ height: 160, width: 150 });
+    expect(setStrokes).not.toHaveBeenCalled();
+  });
+
+  it('does not commit a selection resize when the pointer is cancelled', () => {
+    const stroke = {
+      color: '#111111', id: 'stroke', points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 100 }],
+      size: 1, tool: 'pen' as const,
+    };
+    const pushHistory = vi.fn();
+    const setElements = vi.fn();
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: {
+        bounds: { height: 100, width: 100, x: 0, y: 0 },
+        currentBounds: { height: 140, width: 140, x: 0, y: 0 },
+        handle: 'se', kind: 'resize-selection', originalElementsById: new Map(),
+        originalStrokesById: new Map([[stroke.id, stroke]]), preserveAspectRatio: false,
+        startPoint: { x: 100, y: 100 },
+      },
+      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 150, y: 160 })), getDraftStroke: vi.fn(() => null), pushHistory,
+      setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokeIdRef: { current: 1 }, strokes: [stroke],
+    }));
+
+    act(() => result.current({ clientX: 150, clientY: 160, pointerId: 7, type: 'pointercancel' } as PointerEvent<HTMLDivElement>));
+
+    expect(pushHistory).not.toHaveBeenCalled();
+    expect(setElements).not.toHaveBeenCalled();
+    expect(setStrokes).not.toHaveBeenCalled();
   });
 });

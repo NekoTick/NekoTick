@@ -83,6 +83,29 @@ describe('ElectronAdapter', () => {
     expect(mocks.bridge.fs.readTextFile).toHaveBeenCalledWith('/tmp/a.md', 2);
   });
 
+  it('delegates explicit unbounded text reads and writes through the electron bridge', async () => {
+    const adapter = new ElectronAdapter();
+
+    await expect(adapter.readFile('/tmp/board.json', null)).resolves.toBe('hello');
+    await adapter.writeFile('/tmp/board.json', 'content', {
+      byteLength: MAX_ELECTRON_WRITE_BYTES + 1,
+      maxBytes: null,
+      recursive: true,
+    });
+    await adapter.copyFile('/tmp/board.json', '/tmp/board.json.bak', null);
+
+    expect(mocks.bridge.fs.readTextFile).toHaveBeenCalledWith('/tmp/board.json', null);
+    expect(mocks.bridge.fs.writeTextFile).toHaveBeenCalledWith('/tmp/board.json', 'content', {
+      maxBytes: null,
+      recursive: true,
+    });
+    expect(mocks.bridge.fs.copyFile).toHaveBeenCalledWith(
+      '/tmp/board.json',
+      '/tmp/board.json.bak',
+      null,
+    );
+  });
+
   it('creates parent directories before recursive binary writes', async () => {
     const adapter = new ElectronAdapter();
 
