@@ -33,7 +33,7 @@ export {
   MAX_CHAT_ATTACHMENT_TRANSFER_ITEM_SCAN,
 };
 
-export function useChatAttachments() {
+export function useChatAttachments(active = true) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,12 +53,21 @@ export function useChatAttachments() {
     attachmentsRef.current = attachments;
   }, [attachments]);
 
-  useEffect(() => () => {
-    flushRemovedAttachmentUndoStack();
-    isMountedRef.current = false;
-    attachmentGenerationRef.current += 1;
-    attachmentsRef.current = [];
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      flushRemovedAttachmentUndoStack();
+      isMountedRef.current = false;
+      attachmentGenerationRef.current += 1;
+      attachmentsRef.current = [];
+    };
   }, [flushRemovedAttachmentUndoStack]);
+
+  useEffect(() => {
+    if (active) return;
+    dragDepthRef.current = 0;
+    setIsDragging(false);
+  }, [active]);
 
   const hasFileTransfer = useCallback(
     (transfer: DataTransfer | null | undefined) => hasChatAttachmentFileTransfer(transfer),
@@ -151,6 +160,7 @@ export function useChatAttachments() {
   }, [flushRemovedAttachmentUndoStack]);
 
   useChatAttachmentWindowDrop({
+    active,
     dragDepthRef,
     hasFileTransfer,
     processFiles,

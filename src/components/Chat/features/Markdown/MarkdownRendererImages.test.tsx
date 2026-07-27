@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type React from 'react';
 import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/components/Chat/common/messageClipboard';
 
@@ -178,7 +178,7 @@ describe('MarkdownRenderer images', () => {
     expect(container.innerHTML).not.toContain('javascript:alert');
   });
 
-  it('keeps GitHub-supported raw HTML media tags while sanitizing loadable URLs', () => {
+  it('loads sanitized raw HTML iframes only after explicit user action', () => {
     const { container } = render(
       <MarkdownRenderer
         content={[
@@ -196,8 +196,13 @@ describe('MarkdownRenderer images', () => {
     expect(container.querySelector('figure figcaption')).toHaveTextContent('Caption');
     expect(container.querySelector('time')).toHaveAttribute('datetime', '2026-05-06');
     expect(container.querySelector('wbr')).toBeInTheDocument();
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(container.innerHTML).not.toContain('https://example.com/embed');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load remote content' }));
+
     expect(container.querySelector('iframe[src="https://example.com/embed"]')).toHaveAttribute('sandbox', 'allow-scripts');
-    expect(container.querySelector('iframe[src="https://example.com/embed"]')).toHaveAttribute('allow', 'fullscreen; clipboard-write');
+    expect(container.querySelector('iframe[src="https://example.com/embed"]')).toHaveAttribute('allow', 'fullscreen');
     expect(container.querySelector('iframe[src="https://example.com/embed"]')).toHaveAttribute('referrerpolicy', 'no-referrer');
     expect(container.querySelector('iframe[src^="http://127.0.0.1"]')).toBeNull();
     expect(container.querySelector('video')).toHaveAttribute('src', 'https://example.com/movie.mp4');
@@ -264,7 +269,7 @@ describe('MarkdownRenderer images', () => {
     expect(container.querySelector('audio')).toHaveAttribute('src', './media/demo.mp3');
   });
 
-  it('drops document-relative raw HTML iframe sources in read-only markdown', () => {
+  it('drops document-relative raw HTML iframe sources and gates protocol-relative sources', () => {
     const { container } = render(
       <MarkdownRenderer
         content={[
@@ -277,6 +282,8 @@ describe('MarkdownRenderer images', () => {
       />
     );
 
+    expect(container.querySelectorAll('iframe')).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Load remote content' }));
     expect(container.querySelectorAll('iframe')).toHaveLength(1);
     expect(container.querySelector('iframe')).toHaveAttribute('src', 'https://example.com/embed');
     expect(container.innerHTML).not.toContain('#self');

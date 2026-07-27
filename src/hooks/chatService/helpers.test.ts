@@ -268,6 +268,27 @@ describe('chat service helpers', () => {
     ].join('\n'));
   });
 
+  it('finds text attachments after the leading image attachment slots', async () => {
+    const images = Array.from({ length: MAX_CHAT_MESSAGE_IMAGE_ATTACHMENTS }, (_value, index) =>
+      createAttachment({ id: `image-${index}` })
+    );
+    const textAttachment = createAttachment({
+      id: 'late-text',
+      path: '/home/user/.vlaina/chat/attachments/late.txt',
+      previewUrl: '',
+      assetUrl: '',
+      name: 'late.txt',
+      type: 'text/plain',
+      textContent: 'Late but still included.',
+    });
+
+    const context = await buildMessageFileAttachmentContext([...images, textAttachment]);
+    const mentionText = buildMessageFileAttachmentMentionText([...images, textAttachment]);
+
+    expect(context).toContain('Late but still included.');
+    expect(mentionText).toBe('@late.txt');
+  });
+
   it('builds @ references for text files stored in user messages', () => {
     const mentionText = buildMessageFileAttachmentMentionText([
       createAttachment({

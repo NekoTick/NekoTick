@@ -131,6 +131,7 @@ export async function sendAnthropicMessage({
   const headers = buildAnthropicHeaders(apiKey, true)
   if (options?.computerUseEnabled) {
     return await runAnthropicAgentToolLoop({
+      approvalContext: options.computerUseApprovalContext,
       body,
       defaultCwd: options.computerUseCwd,
       onChunk,

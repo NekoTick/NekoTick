@@ -126,9 +126,9 @@ export class OpenAICompatibleClient implements AIClient {
 
     if (isImageModel) {
       if (editImageUrl) {
-        return sendImageEdit(`${baseUrl}/images/edits`, headers, { model: resolveApiModelId(model), prompt: imagePrompt, imageUrl: editImageUrl }, onChunk || (() => { }), signal)
+        return sendImageEdit(`${baseUrl}/images/edits`, headers, { model: resolveApiModelId(model), prompt: imagePrompt, imageUrl: editImageUrl }, onChunk || (() => { }), signal, this.timeout)
       }
-      return sendImageGeneration(`${baseUrl}/images/generations`, headers, { model: resolveApiModelId(model), prompt: imagePrompt, n: 1 }, onChunk || (() => { }), signal)
+      return sendImageGeneration(`${baseUrl}/images/generations`, headers, { model: resolveApiModelId(model), prompt: imagePrompt, n: 1 }, onChunk || (() => { }), signal, this.timeout)
     }
 
     if (provider.endpointType === 'anthropic') {
@@ -154,6 +154,7 @@ export class OpenAICompatibleClient implements AIClient {
         onChunk,
         options,
         retryDelayMs: this.webSearchRequestRetryDelayMs,
+        timeoutMs: this.timeout,
         signal,
         url,
       })
@@ -233,6 +234,7 @@ export class OpenAICompatibleClient implements AIClient {
         signal,
         scope: 'web-search-model',
         retryDelayMs: this.webSearchRequestRetryDelayMs,
+        timeoutMs: this.timeout,
       })
     const loopOptions = {
       body,
@@ -277,6 +279,7 @@ export class OpenAICompatibleClient implements AIClient {
           signal,
           scope: 'web-search-text-protocol-model',
           retryDelayMs: this.webSearchRequestRetryDelayMs,
+          timeoutMs: this.timeout,
         }),
       })
     }

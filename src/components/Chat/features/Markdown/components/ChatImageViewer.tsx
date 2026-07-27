@@ -14,6 +14,7 @@ import {
 import { ChatImageViewerDialog } from "./ChatImageViewerDialog";
 import { useChatImageViewerGallery } from "./useChatImageViewerGallery";
 import { useChatImageViewerViewport } from "./useChatImageViewerViewport";
+import { useChatModalFocus } from "@/components/Chat/hooks/useChatModalFocus";
 
 export { RESOLVED_VIEWER_IMAGE_CACHE_CHAR_LIMIT } from "./chatImageViewerSource";
 
@@ -56,6 +57,9 @@ export function ChatImageViewer({
   const [mediaSize, setMediaSize] = useState<{ width: number; height: number; naturalWidth: number; naturalHeight: number } | null>(null);
   const [mediaReady, setMediaReady] = useState(false);
   const imageElementRef = useRef<HTMLImageElement | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeViewer = useCallback(() => onOpenChange(false), [onOpenChange]);
+  useChatModalFocus({ modalRef: dialogRef, onClose: closeViewer, open });
   const viewportSize = useChatImageViewerViewport(open);
   const {
     activeSrc,
@@ -67,7 +71,6 @@ export function ChatImageViewer({
   } = useChatImageViewerGallery({
     currentImageId,
     gallery,
-    onOpenChange,
     open,
     previewSrc,
     src,
@@ -249,6 +252,7 @@ export function ChatImageViewer({
       crop={crop}
       cropperImageSrc={cropperImageSrc}
       cropperViewportSize={cropperViewportSize}
+      dialogRef={dialogRef}
       handleCopy={() => {
         void handleCopy();
       }}

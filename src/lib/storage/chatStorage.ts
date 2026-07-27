@@ -13,6 +13,10 @@ import { parseSessionMessagesPayload } from './chatStorageNormalization';
 import { isWithinSessionMessagesByteLimit, serializeSessionMessages } from './chatStorageSerialization';
 import { assertSafeChatSessionId } from './chatStorageSessionId';
 import { createPersistenceQueue, type PersistenceQueue } from './persistenceEngine';
+import {
+  clearChatStorageStatus,
+  reportChatStorageSaveFailure,
+} from './chatStorageStatus';
 
 export {
   registerChatStorageAutoSyncTrigger,
@@ -35,7 +39,16 @@ export {
 } from './chatStorageNormalization';
 export { serializeSessionMessages } from './chatStorageSerialization';
 
-const sessionQueues = new Map<string, PersistenceQueue<ChatMessage[]>>();
+interface SessionWriteRequest {
+  messages: ChatMessage[];
+  mergePersisted: boolean;
+}
+
+export interface SaveSessionJsonOptions {
+  mergePersisted?: boolean;
+}
+
+const sessionQueues = new Map<string, PersistenceQueue<SessionWriteRequest>>();
 const deletingSessionJsons = new Set<string>();
 const deletedSessionJsons = new Set<string>();
 
@@ -53,18 +66,20 @@ function rememberDeletedSessionJson(sessionId: string): void {
   }
 }
 
-function getSessionQueue(sessionId: string): PersistenceQueue<ChatMessage[]> {
+function getSessionQueue(sessionId: string): PersistenceQueue<SessionWriteRequest> {
   assertSafeChatSessionId(sessionId);
   const existing = sessionQueues.get(sessionId);
   if (existing) return existing;
 
-  let queue: PersistenceQueue<ChatMessage[]>;
-  queue = createPersistenceQueue<ChatMessage[]>({
+  let queue: PersistenceQueue<SessionWriteRequest>;
+  queue = createPersistenceQueue<SessionWriteRequest>({
     debounceMs: DEFAULT_CHAT_SESSION_SAVE_DEBOUNCE_MS,
-    write: async (messages) => {
-      await writeSessionJsonRaw(sessionId, messages);
+    write: async (request) => {
+      await writeSessionJsonRaw(sessionId, request);
+      clearChatStorageStatus(sessionId);
     },
-    onError: (_error) => {
+    onError: () => {
+      reportChatStorageSaveFailure(sessionId);
     },
     onIdle: () => {
       if (sessionQueues.get(sessionId) === queue) {
@@ -77,7 +92,7 @@ function getSessionQueue(sessionId: string): PersistenceQueue<ChatMessage[]> {
   return queue;
 }
 
-async function writeSessionJsonRaw(sessionId: string, messages: ChatMessage[]) {
+async function writeSessionJsonRaw(sessionId: string, request: SessionWriteRequest) {
   assertSafeChatSessionId(sessionId);
   const storage = getStorageAdapter();
   const base = await getStorageBasePath();
@@ -92,15 +107,15 @@ async function writeSessionJsonRaw(sessionId: string, messages: ChatMessage[]) {
     await storage.mkdir(dir, true);
   }
 
-  let messagesToWrite = messages;
-  if (await storage.exists(path)) {
+  let messagesToWrite = request.messages;
+  if (request.mergePersisted && await storage.exists(path)) {
     const content = await readSessionJsonContent(path);
     if (content !== null) {
       try {
         const parsed: unknown = JSON.parse(content);
         const persistedMessages = parseSessionMessagesPayload(sessionId, parsed);
         if (persistedMessages) {
-          messagesToWrite = mergeSessionMessages(messages, persistedMessages, {
+          messagesToWrite = mergeSessionMessages(request.messages, persistedMessages, {
             preferredSource: 'incoming',
           });
         }
@@ -149,10 +164,17 @@ async function readSessionJsonContent(path: string): Promise<string | null> {
   return isWithinSessionMessagesByteLimit(content) ? content : null;
 }
 
-export async function saveSessionJson(sessionId: string, messages: ChatMessage[]) {
+export async function saveSessionJson(
+  sessionId: string,
+  messages: ChatMessage[],
+  options: SaveSessionJsonOptions = {},
+) {
   assertSafeChatSessionId(sessionId);
   if (isSessionJsonDeleteBlocked(sessionId)) return;
-  await getSessionQueue(sessionId).saveNow(messages);
+  await getSessionQueue(sessionId).saveNow({
+    messages,
+    mergePersisted: options.mergePersisted !== false,
+  });
 }
 
 export function scheduleSessionJsonSave(
@@ -162,7 +184,7 @@ export function scheduleSessionJsonSave(
 ) {
   assertSafeChatSessionId(sessionId);
   if (isSessionJsonDeleteBlocked(sessionId)) return;
-  getSessionQueue(sessionId).schedule(messages, { debounceMs });
+  getSessionQueue(sessionId).schedule({ messages, mergePersisted: true }, { debounceMs });
 }
 
 export function cancelSessionJsonSave(sessionId: string) {
@@ -264,6 +286,7 @@ export async function deleteSessionJson(sessionId: string): Promise<void> {
     deletingSessionJsons.delete(sessionId);
     if (deleted) {
       rememberDeletedSessionJson(sessionId);
+      clearChatStorageStatus(sessionId);
     }
   }
 }

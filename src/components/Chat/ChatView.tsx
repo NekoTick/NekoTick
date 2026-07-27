@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { actions as aiActions } from '@/stores/useAIStore';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
@@ -19,6 +19,13 @@ import { focusComposerInput } from '@/lib/ui/composerFocusRegistry';
 import type { NoteMentionReference } from '@/lib/ai/noteMentions';
 import { useUIStore } from '@/stores/uiSlice';
 import { useHeldPageScroll } from '@/hooks/useHeldPageScroll';
+import { useAIUIStore } from '@/stores/ai/chatState';
+import { useI18n } from '@/lib/i18n';
+import {
+  clearChatStorageStatus,
+  getChatStorageStatusSnapshot,
+  subscribeChatStorageStatus,
+} from '@/lib/storage/chatStorageStatus';
 
 import { ChatInput } from '@/components/Chat/features/Input/ChatInput';
 import { MessageList } from '@/components/Chat/features/Messages/MessageList';
@@ -32,6 +39,8 @@ import { useManagedAIStore } from '@/stores/useManagedAIStore';
 import { ChatEmbeddedHeader } from './ChatEmbeddedHeader';
 import { ChatEmbeddedSidebarOverlay } from './ChatEmbeddedSidebarOverlay';
 import { EMPTY_MODELS, EMPTY_PROVIDERS, type ChatViewProps } from './ChatViewState';
+import { ChatErrorNotice } from './common/ChatErrorNotice';
+import type { ChatMessageNavigationHandler } from './features/Messages/MessageListTypes';
 
 export function ChatView({
   mode = 'full',
@@ -41,8 +50,10 @@ export function ChatView({
   onStartupReady,
   onPrimaryContentReady,
 }: ChatViewProps) {
+  const { t } = useI18n();
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [focusInputTrigger, setFocusInputTrigger] = useState(0); 
+  const messageNavigationRef = useRef<ChatMessageNavigationHandler | null>(null);
   const isEmbedded = mode === 'embedded';
   const {
     currentSessionId,
@@ -54,6 +65,14 @@ export function ChatView({
   const models = useUnifiedStore((s) => s.data.ai?.models || EMPTY_MODELS);
   const selectedModelId = useUnifiedStore((s) => s.data.ai?.selectedModelId || null);
   const managedBudget = useManagedAIStore((state) => state.budget);
+  const error = useAIUIStore((state) => state.error);
+  const setError = useAIUIStore((state) => state.setError);
+  const chatStorageStatuses = useSyncExternalStore(
+    subscribeChatStorageStatus,
+    getChatStorageStatusSnapshot,
+    getChatStorageStatusSnapshot,
+  );
+  const hasStorageError = !!currentSessionId && chatStorageStatuses[currentSessionId] === 'saveFailed';
 
   const loaded = useUnifiedStore(s => s.loaded);
   const pendingComposerInsert = useUIStore((state) => state.pendingNotesChatComposerInsert);
@@ -117,21 +136,36 @@ export function ChatView({
   });
 
   useEmbeddedComposerInsert({
+    active,
     consumePendingComposerInsert,
     isEmbedded,
     pendingComposerInsert,
   });
 
+  const handleFocusInput = useCallback(() => {
+    if (!focusComposerInput()) {
+      setFocusInputTrigger(n => n + 1);
+    }
+  }, []);
+  const handleNavigateMessages = useCallback((direction: 'prev' | 'next') => {
+    messageNavigationRef.current?.(direction);
+  }, []);
+  const handleToggleShortcuts = useCallback(() => {
+    setIsShortcutsOpen(prev => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      setIsShortcutsOpen(false);
+    }
+  }, [active]);
+
   useChatShortcuts({
-    onFocusInput: () => {
-      if (!focusComposerInput()) {
-        setFocusInputTrigger(n => n + 1);
-      }
-    },
-    onToggleShortcuts: () => setIsShortcutsOpen(prev => !prev),
+    onFocusInput: handleFocusInput,
+    onNavigateMessages: handleNavigateMessages,
+    onToggleShortcuts: handleToggleShortcuts,
     onStopGeneration: stop,
     isGenerating: isSessionActive,
-    scrollRef: containerRef,
   }, active && !isEmbedded);
 
   const {
@@ -152,11 +186,27 @@ export function ChatView({
   });
 
   const handleSend = useCallback(async (text: string, attachments: Attachment[], noteMentions: NoteMentionReference[]) => {
-      const accepted = await sendMessage(text, attachments, noteMentions);
-      if (accepted !== false) {
-        handleNewUserMessage();
-      }
-      return accepted;
+      return new Promise<boolean>((resolve) => {
+        let settled = false;
+        const settle = (accepted: boolean) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          if (accepted) {
+            handleNewUserMessage();
+          }
+          resolve(accepted);
+        };
+
+        void sendMessage(text, attachments, noteMentions, settle)
+          .then((started) => {
+            if (started === false) {
+              settle(false);
+            }
+          })
+          .catch(() => settle(false));
+      });
   }, [handleNewUserMessage, sendMessage]);
 
   const handleChatAreaMouseDownCapture = useComposerClickFocus({
@@ -171,6 +221,7 @@ export function ChatView({
     isEmbeddedSidebarOpen,
     openEmbeddedSidebar,
   } = useChatEmbeddedSidebar({
+    active,
     isEmbedded,
     isSessionActive,
     stop,
@@ -186,7 +237,7 @@ export function ChatView({
       className="h-full w-full flex flex-col relative overflow-hidden"
       onMouseDownCapture={handleChatAreaMouseDownCapture}
     >
-      {isEmbedded && (
+      {isEmbedded && active && (
         <ChatEmbeddedHeader
           onCloseEmbeddedPanel={onCloseEmbeddedPanel}
           onOpenEmbeddedSidebar={openEmbeddedSidebar}
@@ -228,6 +279,7 @@ export function ChatView({
           currentTurnTopSpacerHeight={currentTurnTopSpacerHeight}
           spacerHeight={spacerHeight}
           containerRef={containerRef}
+          navigationRef={messageNavigationRef}
           onCopy={copyToClipboard}
           onFork={handleFork}
           onRegenerate={handleRegenerate}
@@ -247,6 +299,24 @@ export function ChatView({
           <div 
             className="w-full max-w-[var(--vlaina-size-850px)] mx-auto px-4 pointer-events-auto"
           >
+              {(error || hasStorageError) && (
+                <div className="mb-2 flex flex-col gap-2">
+                  {error && (
+                    <ChatErrorNotice
+                      closeLabel={t('common.close')}
+                      message={error}
+                      onDismiss={() => setError(null)}
+                    />
+                  )}
+                  {hasStorageError && currentSessionId && (
+                    <ChatErrorNotice
+                      closeLabel={t('common.close')}
+                      message={t('storage.saveFailed')}
+                      onDismiss={() => clearChatStorageStatus(currentSessionId)}
+                    />
+                  )}
+                </div>
+              )}
               <ChatInput 
                 active={active}
                 onSend={handleSend} 
@@ -265,13 +335,13 @@ export function ChatView({
           </div>
       </div>
       
-      {!isEmbedded && (
+      {!isEmbedded && active && (
         <ChatShortcutsDialog
           isOpen={isShortcutsOpen}
           onOpenChange={setIsShortcutsOpen}
         />
       )}
-      {!isEmbedded && <SelectionInsertButton />}
+      {!isEmbedded && active && <SelectionInsertButton />}
     </div>
   );
 }

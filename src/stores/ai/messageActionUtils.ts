@@ -24,6 +24,7 @@ export function createMessageVersion(
   kind: MessageVersion['kind'],
   apiTranscript?: ApiTranscriptMessage[],
   webSearchStatuses?: ChatMessage['webSearchStatuses'],
+  requestContext?: ChatMessage['requestContext'],
 ): MessageVersion {
   const normalizedApiTranscript = normalizeApiTranscriptMessages(apiTranscript)
   const normalizedWebSearchStatuses = sanitizeWebSearchStatuses(webSearchStatuses)
@@ -34,6 +35,7 @@ export function createMessageVersion(
     subsequentMessages: [],
     ...(normalizedApiTranscript ? { apiTranscript: normalizedApiTranscript } : {}),
     ...(normalizedWebSearchStatuses.length > 0 ? { webSearchStatuses: normalizedWebSearchStatuses } : {}),
+    ...(requestContext ? { requestContext } : {}),
   }
 }
 
@@ -42,7 +44,14 @@ export function getSafeMessageVersions(message: ChatMessage): MessageVersion[] {
     return [...message.versions]
   }
 
-  return [createMessageVersion(message.content || '', message.timestamp || Date.now(), 'original', message.apiTranscript)]
+  return [createMessageVersion(
+    message.content || '',
+    message.timestamp || Date.now(),
+    'original',
+    message.apiTranscript,
+    message.webSearchStatuses,
+    message.requestContext,
+  )]
 }
 
 export function getSafeCurrentVersionIndex(message: ChatMessage, versions: MessageVersion[]): number {
@@ -160,8 +169,15 @@ export function createUniqueMessageId(messages: ChatMessage[], preferredId?: str
   return fallbackId
 }
 
-export function saveSessionJsonInBackground(sessionId: string, messages: ChatMessage[]) {
-  void saveSessionJson(sessionId, messages).catch(() => {})
+export function saveSessionJsonInBackground(
+  sessionId: string,
+  messages: ChatMessage[],
+  options?: { mergePersisted?: boolean },
+) {
+  const request = options
+    ? saveSessionJson(sessionId, messages, options)
+    : saveSessionJson(sessionId, messages)
+  void request.catch(() => {})
 }
 
 export function limitMessageVersions(

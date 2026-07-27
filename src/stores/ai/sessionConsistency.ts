@@ -79,6 +79,7 @@ function areMessagesEqual(left: ChatMessage[], right: ChatMessage[]) {
         leftVersion.createdAt !== rightVersion.createdAt ||
         leftVersion.kind !== rightVersion.kind ||
         !areWebSearchStatusesEquivalent(leftVersion.webSearchStatuses, rightVersion.webSearchStatuses) ||
+        !areRequestContextsEqual(leftVersion.requestContext, rightVersion.requestContext) ||
         !areTranscriptsEqual(leftVersion.apiTranscript, rightVersion.apiTranscript) ||
         !areMessagesEqualInternal(leftVersion.subsequentMessages, rightVersion.subsequentMessages)
       ) {
@@ -105,6 +106,7 @@ function areMessagesEqual(left: ChatMessage[], right: ChatMessage[]) {
         leftMessage.currentVersionIndex !== rightMessage.currentVersionIndex ||
         !areStringArraysEqual(leftMessage.imageSources, rightMessage.imageSources) ||
         !areWebSearchStatusesEquivalent(leftMessage.webSearchStatuses, rightMessage.webSearchStatuses) ||
+        !areRequestContextsEqual(leftMessage.requestContext, rightMessage.requestContext) ||
         !areTranscriptsEqual(leftMessage.apiTranscript, rightMessage.apiTranscript) ||
         !areVersionsEqual(leftMessage.versions, rightMessage.versions)
       ) {
@@ -115,6 +117,16 @@ function areMessagesEqual(left: ChatMessage[], right: ChatMessage[]) {
   };
 
   return areMessagesEqualInternal(left, right);
+}
+
+function areRequestContextsEqual(
+  left: ChatMessage['requestContext'],
+  right: ChatMessage['requestContext'],
+): boolean {
+  if (left === right) return true;
+  if (!left || !right || left.text !== right.text) return false;
+  return areStringArraysEqual(left.imageSources, right.imageSources)
+    && areStringArraysEqual(left.attachmentSources, right.attachmentSources);
 }
 
 function areStringArraysEqual(left: string[] | undefined, right: string[] | undefined): boolean {

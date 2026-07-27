@@ -78,12 +78,22 @@ describe('desktop computer command client', () => {
       command: 'uname -a',
       purpose: 'Inspect the system',
     }, {
+      approvalContext: {
+        sessionId: 'session-1',
+        messageId: 'assistant-1',
+      },
       defaultCwd: '/tmp/project',
     });
 
     await vi.waitFor(() => {
       expect(getPendingComputerCommandApprovalsSnapshot()).toEqual([
-        expect.objectContaining({ command: 'uname -a', canAlwaysAllow: true }),
+        expect.objectContaining({
+          sessionId: 'session-1',
+          messageId: 'assistant-1',
+          commandId: 'call-1',
+          command: 'uname -a',
+          canAlwaysAllow: true,
+        }),
       ]);
     });
     finishCommand({ status: 'denied', command: 'uname -a', cwd: '/tmp/project' });

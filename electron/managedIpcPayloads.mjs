@@ -5,6 +5,7 @@ const MAX_MANAGED_BINARY_BODY_BASE64_CHARS = Math.ceil(MAX_MANAGED_BINARY_BODY_B
 const MAX_MANAGED_BINARY_HEADER_VALUE_CHARS = 16 * 1024;
 const ALLOWED_MANAGED_BINARY_HEADERS = new Set(['content-type']);
 const MANAGED_STREAM_CHUNK_FLUSH_DELAY_MS = 16;
+const MAX_MANAGED_STREAM_CONTENT_BYTES = 4 * 1024 * 1024;
 
 export function normalizeManagedBinaryPayload(payload) {
   if (typeof payload?.bodyBase64 !== 'string') {
@@ -100,8 +101,19 @@ export function sanitizeManagedChatCompletionBody(body) {
 
 export function createManagedStreamAccumulator(onChunk) {
   let fullContent = '';
+  let contentBytes = 0;
   let hasStartedReasoning = false;
   let hasFinishedReasoning = false;
+
+  const appendContent = (content) => {
+    const nextBytes = Buffer.byteLength(content, 'utf8');
+    if (contentBytes + nextBytes > MAX_MANAGED_STREAM_CONTENT_BYTES) {
+      throw new Error('Managed stream content is too large.');
+    }
+    contentBytes += nextBytes;
+    fullContent += content;
+    return onChunk(content);
+  };
 
   return {
     pushDelta({ reasoning, content }) {
@@ -111,38 +123,39 @@ export function createManagedStreamAccumulator(onChunk) {
         return true;
       }
 
+      let nextContent = '';
       if (reasoningText) {
         if (!hasStartedReasoning || hasFinishedReasoning) {
-          fullContent += '<think>';
+          nextContent += '<think>';
           hasStartedReasoning = true;
           hasFinishedReasoning = false;
         }
-        fullContent += reasoningText;
+        nextContent += reasoningText;
       }
 
       if (contentText) {
         if (hasStartedReasoning && !hasFinishedReasoning) {
-          fullContent += '</think>';
+          nextContent += '</think>';
           hasFinishedReasoning = true;
         }
-        fullContent += contentText;
+        nextContent += contentText;
       }
 
-      return onChunk(fullContent);
+      return appendContent(nextContent);
     },
     finish() {
+      let shouldContinue = true;
       if (hasStartedReasoning && !hasFinishedReasoning) {
-        fullContent += '</think>';
+        shouldContinue = appendContent('</think>') !== false;
         hasFinishedReasoning = true;
       }
-      return fullContent;
+      return { content: fullContent, shouldContinue };
     },
   };
 }
 
 export function createManagedStreamChunkScheduler(onFlush) {
-  let pendingContent = null;
-  let lastFlushedContent = null;
+  let pendingContent = '';
   let timeoutId = null;
   let hasFlushedOnce = false;
   let cancelled = false;
@@ -156,23 +169,20 @@ export function createManagedStreamChunkScheduler(onFlush) {
 
   const flush = () => {
     clearScheduledFlush();
-    if (cancelled || pendingContent === null) {
+    if (cancelled || !pendingContent) {
       return !cancelled;
     }
     const content = pendingContent;
-    pendingContent = null;
-    if (content === lastFlushedContent) {
-      return true;
-    }
+    pendingContent = '';
     hasFlushedOnce = true;
-    lastFlushedContent = content;
     return onFlush(content) !== false;
   };
 
   return {
     push(content) {
       if (cancelled) return false;
-      pendingContent = content;
+      if (!content) return true;
+      pendingContent += content;
       if (!hasFlushedOnce) {
         return flush();
       }
@@ -184,13 +194,13 @@ export function createManagedStreamChunkScheduler(onFlush) {
     flushNow(content) {
       if (cancelled) return false;
       if (typeof content === 'string') {
-        pendingContent = content;
+        pendingContent += content;
       }
       return flush();
     },
     cancel() {
       cancelled = true;
-      pendingContent = null;
+      pendingContent = '';
       clearScheduledFlush();
     },
   };

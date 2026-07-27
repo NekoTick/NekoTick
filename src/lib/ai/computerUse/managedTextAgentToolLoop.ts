@@ -19,13 +19,14 @@ import { translate } from '@/lib/i18n';
 import { executeAgentToolCall } from './agentToolRuntime';
 import { COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDefinitions';
 import { serializeComputerCommandStatus } from './toolResult';
-import type { ComputerCommandStatus } from './types';
+import type { ComputerCommandApprovalContext, ComputerCommandStatus } from './types';
 
 const MAX_AGENT_TOOL_LOOPS = 8;
 const MAX_AGENT_TOOL_CALLS = 16;
 const DSML_MARKER_RE = /<[|｜]{2}\s*DSML\s*[|｜]{2}/i;
 
 interface ManagedTextAgentLoopOptions {
+  approvalContext?: ComputerCommandApprovalContext;
   body: ChatCompletionRequest;
   defaultCwd?: string;
   onChunk: (chunk: string) => void;
@@ -165,6 +166,7 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
         tool_calls: [toolCall],
       }, toolMessage);
       const execution = await executeAgentToolCall(toolCall, {
+        approvalContext: options.approvalContext,
         commandApprovalCount,
         deniedCommandKeys,
         defaultCwd: options.defaultCwd,

@@ -82,7 +82,10 @@ export function LocalImage({ src, alt, className, onClick, onResolvedSrc, style,
     const { t } = useI18n();
     const [displaySrc, setDisplaySrc] = useState<string | null>(null);
     const [error, setError] = useState(false);
+    const [approvedRemoteSrc, setApprovedRemoteSrc] = useState<string | null>(null);
     const onResolvedSrcRef = useRef(onResolvedSrc);
+    const directSrc = normalizeDirectChatImageSource(src);
+    const isRemoteImage = directSrc !== null && /^https?:\/\//i.test(directSrc);
 
     useEffect(() => {
         onResolvedSrcRef.current = onResolvedSrc;
@@ -97,8 +100,10 @@ export function LocalImage({ src, alt, className, onClick, onResolvedSrc, style,
 
         const loadLocalImage = async () => {
             try {
-                const directSrc = normalizeDirectChatImageSource(src);
                 if (directSrc) {
+                    if (isRemoteImage && approvedRemoteSrc !== src) {
+                        return;
+                    }
                     const nextSrc = await normalizeDisplaySrc(directSrc);
                     if (!active) return;
                     if (!nextSrc) {
@@ -159,7 +164,24 @@ export function LocalImage({ src, alt, className, onClick, onResolvedSrc, style,
             active = false;
             abortController.abort();
         };
-    }, [src]);
+    }, [approvedRemoteSrc, directSrc, isRemoteImage, src]);
+
+    if (isRemoteImage && approvedRemoteSrc !== src) {
+        return (
+            <button
+                type="button"
+                className={cn(
+                    'inline-flex min-h-[var(--vlaina-size-96px)] min-w-[var(--vlaina-size-120px)] items-center justify-center rounded-[var(--vlaina-radius-8px)] border border-[var(--vlaina-color-subtle-border)] bg-[var(--vlaina-color-overlay-weak)] px-3 py-2 text-[var(--vlaina-font-xs)] font-medium text-[var(--vlaina-text-secondary)]',
+                    className,
+                )}
+                style={style}
+                onClick={() => setApprovedRemoteSrc(src)}
+                data-chat-load-remote-image="true"
+            >
+                {t('chat.loadRemoteContent')}
+            </button>
+        );
+    }
 
     if (error) {
         return (
@@ -193,16 +215,30 @@ export function LocalImage({ src, alt, className, onClick, onResolvedSrc, style,
         );
     }
 
-    return (
-        <img 
+    const image = (
+        <img
             src={displaySrc} 
             alt={alt} 
             className={cn(className, onClick && 'cursor-pointer')} 
-            onClick={onClick}
             onError={() => setError(true)}
             style={style}
             data-vlaina-crop={cropData}
             referrerPolicy="no-referrer"
         />
+    );
+
+    if (!onClick) {
+        return image;
+    }
+
+    return (
+        <button
+            type="button"
+            aria-label={alt || t('common.preview')}
+            className="inline-block max-w-full border-0 bg-transparent p-0 align-top focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vlaina-color-sidebar-focus-ring)]"
+            onClick={onClick}
+        >
+            {image}
+        </button>
     );
 }

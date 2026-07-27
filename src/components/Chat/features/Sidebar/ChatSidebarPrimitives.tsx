@@ -90,6 +90,7 @@ export function ChatSidebarRow({
       isActive={isActive}
       isHighlighted={isHighlighted}
       showActionsByDefault={showActionsByDefault}
+      showActionsOnFocusWithin
       className={className}
       activeClassName={styles.activeRow}
       highlightClassName={styles.highlightRow}

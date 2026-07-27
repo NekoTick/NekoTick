@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useDeferredValue, useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { actions as aiActions } from '@/stores/useAIStore'
@@ -15,12 +15,9 @@ import { useModelSelectorOptions } from './hooks/useModelSelectorOptions'
 import { useModelSelectorScroll } from './hooks/useModelSelectorScroll'
 import { MODEL_SELECTOR_LABEL_HEIGHT, MODEL_SELECTOR_ROW_HEIGHT } from './modelSelectorLayout'
 import { MODEL_SELECTOR_THEME_STYLES } from './modelSelectorTheme'
-import type { ModelSelectorTheme } from './modelSelectorTypes'
+import type { ModelSelectorAccessibility, ModelSelectorTheme } from './modelSelectorTypes'
 
-export {
-  compareModelSelectorProviderIds,
-  createModelSelectorProviderOrder,
-} from './modelSelectorProviders'
+export { compareModelSelectorProviderIds, createModelSelectorProviderOrder } from './modelSelectorProviders'
 
 const EMPTY_MODELS: AIModel[] = []
 const EMPTY_PROVIDERS: Provider[] = []
@@ -61,8 +58,25 @@ export function ModelSelector({
   const dropdownContentRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const isKeyboardNavigating = useRef(false)
+  const selectorId = useId()
   const { inputRef, focusSearchInput, focusComposerInput } = useModelSelectorFocus(composerInputRef)
   const styles = MODEL_SELECTOR_THEME_STYLES[theme]
+  const accessibility = useMemo<ModelSelectorAccessibility>(() => {
+    const enabled = theme === 'chat'
+    const listboxId = `${selectorId}-listbox`
+    const optionIdPrefix = `${listboxId}-option-`
+    return {
+      activeOptionId: enabled && focusedModelId ? `${optionIdPrefix}${encodeURIComponent(focusedModelId)}` : undefined,
+      addFavoriteLabel: t('chat.addToFavorites'),
+      enabled,
+      listboxId,
+      optionIdPrefix,
+      priceTierLabel: (tier) => t('chat.priceTier', { tier }),
+      removeFavoriteLabel: t('chat.removeFromFavorites'),
+      selectModelLabel: t('chat.selectModel'),
+      settingsLabel: t('shortcut.action.openSettings'),
+    }
+  }, [focusedModelId, selectorId, t, theme])
   const {
     selectedModel,
     modelCategories,
@@ -108,9 +122,12 @@ export function ModelSelector({
       },
   })
 
-  const setKeyboardNavigating = useCallback((value: boolean) => {
-      isKeyboardNavigating.current = value
-  }, [])
+  const setKeyboardNavigating = useCallback((value: boolean) => { isKeyboardNavigating.current = value }, [])
+  const shouldHandleOpenKeyboardEvent = useCallback((target: EventTarget | null) => (
+    target instanceof Node && (
+      !!dropdownRef.current?.contains(target) || !!dropdownContentRef.current?.contains(target)
+    )
+  ), [])
 
   const openSelector = useCallback(() => {
       aiActions.refreshManagedProviderInBackground({ force: true })
@@ -144,9 +161,7 @@ export function ModelSelector({
   }, [closeSelector, isOpen, openSelector])
 
   useEffect(() => {
-      if (!isOpen) {
-          return
-      }
+      if (!isOpen) return
       const handleMouseMove = () => {
           isKeyboardNavigating.current = false
       }
@@ -175,6 +190,7 @@ export function ModelSelector({
       onSelectModel: handleSelectModel,
       requestNearestScroll,
       clearScrollMode,
+      shouldHandleOpenEvent: accessibility.enabled ? shouldHandleOpenKeyboardEvent : undefined,
   })
 
   useEffect(() => {
@@ -211,9 +227,7 @@ export function ModelSelector({
   }, [clearScrollMode, sortedFilteredModels, virtualizer])
 
   const handleListMouseLeave = useCallback(() => {
-      if (isKeyboardNavigating.current) {
-          return
-      }
+      if (isKeyboardNavigating.current) return
       clearScrollMode()
       setFocusedModelId(selectedModelId ?? null)
   }, [clearScrollMode, selectedModelId])
@@ -261,6 +275,7 @@ export function ModelSelector({
       theme={theme}
       showFamilyIcon={visibleActiveCategoryId === 'favorites'}
       closeSelector={closeSelector}
+      accessibility={accessibility}
     />
   ) : null
 
@@ -272,6 +287,7 @@ export function ModelSelector({
         styles={styles}
         isOpen={isOpen}
         selectModelLabel={t('chat.selectModel')}
+        popupId={accessibility.enabled ? accessibility.listboxId : undefined}
         onToggle={toggleSelector}
       />
 

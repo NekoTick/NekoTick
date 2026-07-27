@@ -11,6 +11,7 @@ interface UseModelSelectorKeyboardParams {
   onSelectModel: (modelId: string) => void
   requestNearestScroll: () => void
   clearScrollMode: () => void
+  shouldHandleOpenEvent?: (target: EventTarget | null) => boolean
 }
 
 export function useModelSelectorKeyboard({
@@ -24,21 +25,39 @@ export function useModelSelectorKeyboard({
   onSelectModel,
   requestNearestScroll,
   clearScrollMode,
+  shouldHandleOpenEvent,
 }: UseModelSelectorKeyboardParams) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.isComposing) {
+      if (e.defaultPrevented || e.isComposing) {
         return
       }
 
       const isMod = e.metaKey || e.ctrlKey
       if (isMod && e.key.toLowerCase() === 'm') {
+        if (e.target instanceof Element && e.target.closest('[role="dialog"], [aria-modal="true"]')) {
+          return
+        }
         e.preventDefault()
         onShortcutToggle()
         return
       }
 
       if (!isOpen) return
+      if (shouldHandleOpenEvent && !shouldHandleOpenEvent(e.target)) return
+
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+        return
+      }
+
+      if (
+        e.target instanceof Element &&
+        e.target.closest('[data-model-selector-secondary-action="true"]')
+      ) {
+        return
+      }
 
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -87,10 +106,6 @@ export function useModelSelectorKeyboard({
         return
       }
 
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -103,6 +118,7 @@ export function useModelSelectorKeyboard({
     onSelectModel,
     onShortcutToggle,
     requestNearestScroll,
+    shouldHandleOpenEvent,
     setFocusedModelId,
     setKeyboardNavigating,
     visibleModelIds,

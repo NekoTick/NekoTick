@@ -7,6 +7,7 @@ import { parseComputerCommandArguments } from './toolArguments';
 import { buildComputerCommandStatus, serializeComputerCommandStatus } from './toolResult';
 import {
   COMPUTER_COMMAND_TOOL_NAME,
+  type ComputerCommandApprovalContext,
   type ComputerCommandStatus,
 } from './types';
 
@@ -15,6 +16,7 @@ const WEB_TOOL_NAMES = new Set<string>(Object.values(WEB_SEARCH_TOOL_NAMES));
 export interface AgentToolRuntimeOptions {
   commandApprovalCount: number;
   deniedCommandKeys: Set<string>;
+  approvalContext?: ComputerCommandApprovalContext;
   defaultCwd?: string;
   signal?: AbortSignal;
   webSearchEnabled: boolean;
@@ -70,6 +72,7 @@ export async function executeAgentToolCall(
     }
 
     const result = await runDesktopComputerCommand(toolCall, args, {
+      approvalContext: options.approvalContext,
       defaultCwd: options.defaultCwd,
       signal: options.signal,
       onCommandStatus: options.onCommandStatus,

@@ -1,5 +1,7 @@
+import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ChatSidebar } from '@/components/Chat/features/Sidebar/ChatSidebar';
+import { useChatModalFocus } from '@/components/Chat/hooks/useChatModalFocus';
 import { useI18n } from '@/lib/i18n';
 import { themeChatLayoutTokens, themeMotionTokens } from '@/styles/themeTokens';
 
@@ -9,6 +11,13 @@ export function ChatEmbeddedSidebarOverlay(props: {
 }) {
   const { isOpen, onClose } = props;
   const { t } = useI18n();
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useChatModalFocus({
+    modalRef: dialogRef,
+    onClose,
+    open: isOpen,
+    restoreFocus: false,
+  });
 
   return (
     <div
@@ -33,7 +42,12 @@ export function ChatEmbeddedSidebarOverlay(props: {
         }}
       />
       <motion.div
-        className="relative h-full transform-gpu overflow-hidden rounded-r-[var(--vlaina-chat-embedded-sidebar-radius)] shadow-[var(--vlaina-shadow-none)] will-change-transform"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('app.viewChat')}
+        tabIndex={-1}
+        className="relative h-full transform-gpu overflow-hidden rounded-r-[var(--vlaina-chat-embedded-sidebar-radius)] shadow-[var(--vlaina-shadow-none)] outline-none will-change-transform"
         style={{ width: themeChatLayoutTokens.embeddedSidebarWidth }}
         initial={{ x: themeMotionTokens.chatEmbeddedSidebarHiddenX }}
         animate={{ x: themeMotionTokens.chatEmbeddedSidebarVisibleX }}

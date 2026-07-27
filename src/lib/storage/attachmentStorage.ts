@@ -211,8 +211,17 @@ export async function deleteAttachment(attachment: Attachment): Promise<void> {
         return;
     }
 
+    await deleteStoredAttachmentFile(storedFilename);
+}
+
+export async function deleteStoredAttachmentFile(filename: string): Promise<void> {
+    const safeFilename = sanitizeAttachmentFilename(filename);
+    if (!safeFilename) {
+        return;
+    }
+    const storage = getStorageAdapter();
     const basePath = await storage.getBasePath();
-    await storage.deleteFile(await getPrimaryAttachmentPath(basePath, storedFilename)).catch(() => {});
+    await storage.deleteFile(await getPrimaryAttachmentPath(basePath, safeFilename)).catch(() => {});
 }
 
 export async function persistDataUrlAttachment(dataUrl: string): Promise<string | null> {

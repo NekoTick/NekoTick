@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatMessage } from '@/lib/ai/types'
-import { saveSessionJson } from '@/lib/storage/chatStorage'
+import { deleteSessionJson, saveSessionJson } from '@/lib/storage/chatStorage'
+import { deleteStoredAttachmentFile } from '@/lib/storage/attachmentStorage'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { useAIUIStore } from './chatState'
 import { createSessionActions } from './sessionActions'
@@ -17,6 +18,7 @@ vi.mock('@/lib/storage/chatStorage', () => ({
 vi.mock('@/lib/storage/attachmentStorage', () => ({
   createStoredAttachmentFromSource: vi.fn(() => null),
   deleteAttachment: vi.fn(async () => {}),
+  deleteStoredAttachmentFile: vi.fn(async () => {}),
   persistDataUrlAttachment: vi.fn(async () => null),
 }))
 
@@ -151,6 +153,16 @@ describe('session actions conversation branching', () => {
 
   it('forks a standalone chat through the selected assistant reply', () => {
     const user = createMessage('user-1', 'user', 'Prompt')
+    user.requestContext = {
+      text: 'Prompt with attachment context',
+      imageSources: ['attachment://context.png'],
+    }
+    user.webSearchStatuses = [{ phase: 'searching' }]
+    user.versions[0] = {
+      ...user.versions[0]!,
+      requestContext: user.requestContext,
+      webSearchStatuses: user.webSearchStatuses,
+    }
     const assistant = {
       ...createMessage('assistant-1', 'assistant', 'Answer'),
       versions: [{
@@ -175,6 +187,10 @@ describe('session actions conversation branching', () => {
     expect(forkedMessages).toHaveLength(2)
     expect(forkedMessages.map((message) => message.content)).toEqual(['Prompt', 'Answer'])
     expect(forkedMessages.map((message) => message.id)).not.toEqual(['user-1', 'assistant-1'])
+    expect(forkedMessages[0]?.requestContext).toEqual(user.requestContext)
+    expect(forkedMessages[0]?.requestContext).not.toBe(user.requestContext)
+    expect(forkedMessages[0]?.versions[0]?.requestContext).toEqual(user.requestContext)
+    expect(forkedMessages[0]?.versions[0]?.webSearchStatuses).toEqual(user.webSearchStatuses)
     expect(forkedMessages[1]?.versions).toEqual([{
       content: 'Answer',
       createdAt: 10,
@@ -192,5 +208,74 @@ describe('session actions conversation branching', () => {
     const thirdForkedSessionId = createSessionActions().forkSessionFromMessage(forkedSessionId!, forkedAssistantId)
     const thirdAI = useUnifiedStore.getState().data.ai!
     expect(thirdAI.sessions.find((session) => session.id === thirdForkedSessionId)?.title).toBe('Original chat 3')
+  })
+
+  it('deletes stored attachments that are only referenced by the deleted chat', async () => {
+    seedChat([createMessage('user-1', 'user', 'Look ![image](<attachment://unique.png>)')])
+
+    await createSessionActions().deleteSession('session-1')
+
+    expect(deleteStoredAttachmentFile).toHaveBeenCalledWith('unique.png')
+  })
+
+  it('keeps stored attachments that another chat still references', async () => {
+    const sharedImage = 'Look ![image](<attachment://shared.png>)'
+    seedChat([createMessage('user-1', 'user', sharedImage)])
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          sessions: [
+            ...state.data.ai!.sessions,
+            { id: 'session-2', title: 'Retained', modelId: 'model-1', createdAt: 2, updatedAt: 2 },
+          ],
+          messages: {
+            ...state.data.ai!.messages,
+            'session-2': [createMessage('user-2', 'user', sharedImage)],
+          },
+        },
+      },
+    }))
+
+    await createSessionActions().deleteSession('session-1')
+
+    expect(deleteStoredAttachmentFile).not.toHaveBeenCalled()
+  })
+
+  it('skips attachment deletion when chat state changes during session deletion', async () => {
+    seedChat([createMessage('user-1', 'user', 'Look ![image](<attachment://shared.png>)')])
+    let finishSessionDelete!: () => void
+    vi.mocked(deleteSessionJson).mockImplementationOnce(() => new Promise((resolve) => {
+      finishSessionDelete = resolve
+    }))
+
+    const deletion = createSessionActions().deleteSession('session-1')
+    await vi.waitFor(() => expect(deleteSessionJson).toHaveBeenCalledWith('session-1'))
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          sessions: [
+            ...state.data.ai!.sessions,
+            { id: 'session-2', title: 'Retained', modelId: 'model-1', createdAt: 2, updatedAt: 2 },
+          ],
+          messages: {
+            ...state.data.ai!.messages,
+            'session-2': [createMessage(
+              'user-2',
+              'user',
+              'Still needed ![image](<attachment://shared.png>)',
+            )],
+          },
+        },
+      },
+    }))
+    finishSessionDelete()
+
+    await deletion
+
+    expect(deleteStoredAttachmentFile).not.toHaveBeenCalled()
   })
 })

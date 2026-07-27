@@ -16,6 +16,7 @@ interface ModelSelectorTriggerProps {
   isOpen: boolean
   selectModelLabel: string
   onToggle: () => void
+  popupId?: string
 }
 
 export function ModelSelectorTrigger({
@@ -25,9 +26,15 @@ export function ModelSelectorTrigger({
   isOpen,
   selectModelLabel,
   onToggle,
+  popupId,
 }: ModelSelectorTriggerProps) {
   return (
       <button
+        type={popupId ? 'button' : undefined}
+        aria-controls={popupId}
+        aria-expanded={popupId ? isOpen : undefined}
+        aria-haspopup={popupId ? 'listbox' : undefined}
+        data-model-selector-secondary-action={popupId ? 'true' : undefined}
         onClick={onToggle}
         className={cn(
           "flex h-8 cursor-pointer items-center gap-2 rounded-full px-2.5 transition-[background-color,color,box-shadow] duration-[var(--vlaina-duration-200)] group",

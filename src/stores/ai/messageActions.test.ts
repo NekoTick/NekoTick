@@ -647,7 +647,7 @@ describe('message actions API transcript handling', () => {
     const ai = useUnifiedStore.getState().data.ai!;
     expect(recalled).toBe('pending prompt');
     expect(ai.messages['session-1']).toEqual([]);
-    expect(saveSessionJson).toHaveBeenCalledWith('session-1', []);
+    expect(saveSessionJson).toHaveBeenCalledWith('session-1', [], { mergePersisted: false });
   });
 
   it('rolls an auto-created empty chat back to the new chat state after retracting its first request', () => {

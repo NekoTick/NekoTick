@@ -148,6 +148,7 @@ export const accountCommands = {
 
     return await new Promise<string>((resolve, reject) => {
       let isSettled = false;
+      let streamedContent = '';
 
       const cleanupCallbacks: Array<() => void> = [];
       const cleanup = () => {
@@ -175,17 +176,25 @@ export const accountCommands = {
 
       try {
         addCleanupCallback(
-          bridge.onManagedStreamChunk(requestId, (content) => {
+          bridge.onManagedStreamChunk(requestId, (payload) => {
             if (isSettled) return;
             try {
               throwIfAborted(signal);
-              onChunk(content);
+              if (typeof payload === 'string') {
+                streamedContent = payload;
+              } else if (payload && typeof payload.delta === 'string') {
+                streamedContent += payload.delta;
+              } else {
+                throw new Error('Invalid managed stream chunk payload.');
+              }
+              onChunk(streamedContent);
               throwIfAborted(signal);
             } catch (error) {
               if (signal?.aborted) {
                 settleAborted();
                 return;
               }
+              void bridge.cancelManagedChatCompletionStream(requestId);
               settleRejected(error);
             }
           })

@@ -50,7 +50,13 @@ export interface ComputerToolLoopCallbacks {
   onCommandStatus?: (status: ComputerCommandStatus) => void;
 }
 
+export interface ComputerCommandApprovalContext {
+  sessionId: string;
+  messageId: string;
+}
+
 export interface ComputerToolRuntimeOptions extends ComputerToolLoopCallbacks {
+  approvalContext?: ComputerCommandApprovalContext;
   defaultCwd?: string;
   signal?: AbortSignal;
 }

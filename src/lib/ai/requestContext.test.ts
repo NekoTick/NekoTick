@@ -13,6 +13,7 @@ function createMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
     timestamp,
     ...(overrides.apiTranscript !== undefined ? { apiTranscript: overrides.apiTranscript } : {}),
     ...(overrides.imageSources !== undefined ? { imageSources: overrides.imageSources } : {}),
+    ...(overrides.requestContext !== undefined ? { requestContext: overrides.requestContext } : {}),
     versions:
       overrides.versions ?? [{ content, createdAt: timestamp, kind: 'original' as const, subsequentMessages: [] }],
     currentVersionIndex: overrides.currentVersionIndex ?? 0,
@@ -102,6 +103,43 @@ describe('requestContext', () => {
 
     const sanitized = sanitizeHistory(history);
     expect(sanitized[0].content).toBe('[Image]\n\ndescribe it');
+  });
+
+  it('keeps bounded request snapshots for later chat turns', () => {
+    const history = [createMessage({
+      role: 'user',
+      content: '@notes.md\n\nSummarize this',
+      requestContext: {
+        text: 'Attached files:\n\n<attached_file name="notes.md">\nPrivate context\n</attached_file>\n\nSummarize this',
+        imageSources: ['attachment://diagram.png'],
+        attachmentSources: ['attachment://notes.md', 'attachment://diagram.png'],
+      },
+    })];
+
+    const [sanitized] = sanitizeHistory(history);
+
+    expect(sanitized.requestContext).toEqual(history[0].requestContext);
+    expect(sanitized.content).toBe('@notes.md\n\nSummarize this');
+  });
+
+  it('drops oversized rich history context when falling back to visible text', () => {
+    const result = buildRequestHistory({
+      history: [createMessage({
+        role: 'user',
+        content: 'Visible request',
+        requestContext: {
+          text: 'Visible request',
+          imageSources: [`data:image/png;base64,${'A'.repeat(32_000)}`],
+        },
+      })],
+      modelId: 'model-1',
+      timezoneOffset: 8,
+      includeTimeContext: false,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.content).toBe('Visible request');
+    expect(result[0]?.requestContext).toBeUndefined();
   });
 
   it('sanitizes markdown and HTML image tokens in history', () => {

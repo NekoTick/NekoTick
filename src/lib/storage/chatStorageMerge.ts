@@ -57,6 +57,7 @@ function createVersionFromMessage(message: ChatMessage): ChatMessage['versions']
     subsequentMessages: [],
     ...(message.apiTranscript ? { apiTranscript: message.apiTranscript } : {}),
     ...(message.webSearchStatuses ? { webSearchStatuses: message.webSearchStatuses } : {}),
+    ...(message.requestContext ? { requestContext: message.requestContext } : {}),
   };
 }
 
@@ -188,7 +189,8 @@ function isSameMessageVersion(
     (!Array.isArray(left.subsequentMessages) || left.subsequentMessages.length === 0) &&
     (!Array.isArray(right.subsequentMessages) || right.subsequentMessages.length === 0) &&
     areApiTranscriptsEquivalent(left.apiTranscript, right.apiTranscript) &&
-    areWebSearchStatusesEquivalent(left.webSearchStatuses, right.webSearchStatuses)
+    areWebSearchStatusesEquivalent(left.webSearchStatuses, right.webSearchStatuses) &&
+    areSanitizedValuesEquivalent(left.requestContext, right.requestContext)
   );
 }
 

@@ -104,7 +104,7 @@ export function ChatInputActions({
   return (
     <div className="flex items-center justify-between px-2 pb-2 pl-3">
       <div className="flex items-center gap-2">
-        <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
+        <Popover open={!disabled && actionsOpen} onOpenChange={setActionsOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"

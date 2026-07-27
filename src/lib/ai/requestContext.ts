@@ -17,6 +17,7 @@ import {
 import { formatTimeByOffset } from './requestContextTime';
 import { clipTranscriptToBudget } from './requestContextTranscriptBudget';
 import { sanitizeHistoryMessage } from './requestContextTranscriptSanitize';
+import { normalizeChatRequestContextSnapshot } from './requestContextSnapshot';
 
 export {
   MAX_CURRENT_REQUEST_CONTENT_PARTS,
@@ -49,7 +50,12 @@ function createSystemMessage(content: string, modelId: string): ChatMessage {
 function estimateHistorySize(messages: ChatMessage[], maxChars: number): number {
   let total = 0;
   for (const message of messages) {
-    total += message.content.length + REQUEST_HISTORY_MESSAGE_OVERHEAD;
+    total += REQUEST_HISTORY_MESSAGE_OVERHEAD;
+    if (message.role === 'user' && message.requestContext) {
+      total += measureRequestJsonLength(message.requestContext, maxChars - total);
+    } else {
+      total += message.content.length;
+    }
     if (message.apiTranscript) {
       total += measureRequestJsonLength(message.apiTranscript, maxChars - total);
     }
@@ -79,6 +85,9 @@ function trimHistoryToBudget(history: ChatMessage[], maxChars: number): ChatMess
     .map((message) => ({
       ...message,
       content: clipContentToBudget(message.content, MAX_REQUEST_MESSAGE_CHARS),
+      requestContext: message.role === 'user'
+        ? normalizeChatRequestContextSnapshot(message.requestContext, MAX_REQUEST_MESSAGE_CHARS)
+        : undefined,
     }))
     .map((message) => clipTranscriptToBudget(message, MAX_REQUEST_MESSAGE_CHARS));
 
@@ -92,6 +101,15 @@ function trimHistoryToBudget(history: ChatMessage[], maxChars: number): ChatMess
 
   const [latestMessage] = clippedHistory;
   const availableChars = Math.max(maxChars - REQUEST_HISTORY_MESSAGE_OVERHEAD, 0);
+  if (latestMessage.role === 'user' && latestMessage.requestContext) {
+    const requestContext = normalizeChatRequestContextSnapshot(
+      latestMessage.requestContext,
+      availableChars,
+    );
+    if (requestContext && measureRequestJsonLength(requestContext, availableChars) <= availableChars) {
+      return [clipTranscriptToBudget({ ...latestMessage, requestContext }, availableChars)];
+    }
+  }
   const trimmedLatestContent = clipContentToBudget(latestMessage.content, availableChars);
 
   if (!trimmedLatestContent) {
@@ -102,6 +120,7 @@ function trimHistoryToBudget(history: ChatMessage[], maxChars: number): ChatMess
     clipTranscriptToBudget({
       ...latestMessage,
       content: trimmedLatestContent,
+      requestContext: undefined,
     }, availableChars),
   ];
 }

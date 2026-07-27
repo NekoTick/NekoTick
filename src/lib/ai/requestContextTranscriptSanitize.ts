@@ -3,6 +3,7 @@ import { IMAGE_PLACEHOLDER } from './prompts';
 import { normalizeApiTranscriptMessages } from './apiTranscript';
 import { stripThinkingContent } from './stripThinkingContent';
 import { sanitizeRequestTextImageReferences } from './requestContextImageSanitizer';
+import { normalizeChatRequestContextSnapshot } from './requestContextSnapshot';
 import {
   COMPUTER_COMMAND_RESULT_KIND,
   COMPUTER_COMMAND_RESULT_VERSION,
@@ -137,11 +138,23 @@ export function sanitizeHistoryMessage(msg: ChatMessage): ChatMessage {
   const apiTranscript = sanitizeApiTranscriptTextReferences(normalizeApiTranscriptMessages(
     msg.apiTranscript ?? msg.versions?.[msg.currentVersionIndex]?.apiTranscript
   ));
+  const rawRequestContext = msg.role === 'user'
+    ? normalizeChatRequestContextSnapshot(
+        msg.requestContext ?? msg.versions?.[msg.currentVersionIndex]?.requestContext,
+      )
+    : undefined;
+  const requestContext = rawRequestContext
+    ? {
+        ...rawRequestContext,
+        text: sanitizeRequestTextImageReferences(rawRequestContext.text),
+      }
+    : undefined;
 
   return {
     ...msg,
     content: sanitizeRequestTextImageReferences(stripThinkingContent(contentWithoutUiErrors)),
     apiTranscript,
+    requestContext,
     versions: stripVersionApiTranscripts(msg.versions),
   };
 }

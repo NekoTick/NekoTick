@@ -14,6 +14,7 @@ interface SidebarRowProps extends HTMLAttributes<HTMLDivElement> {
   isHighlighted?: boolean;
   isDragOver?: boolean;
   showActionsByDefault?: boolean;
+  showActionsOnFocusWithin?: boolean;
   contentClassName?: string;
   actionFadeClassName?: string;
   activeClassName: string;
@@ -75,6 +76,7 @@ export function SidebarRow({
   isHighlighted = false,
   isDragOver = false,
   showActionsByDefault = false,
+  showActionsOnFocusWithin = false,
   className,
   contentClassName,
   actionFadeClassName,
@@ -135,6 +137,7 @@ export function SidebarRow({
             className={cn(
               'pointer-events-none absolute right-3 top-1/2 z-[var(--vlaina-z-10)] -translate-y-1/2 transition-opacity duration-[var(--vlaina-duration-150)]',
               hasActions && 'group-hover/sidebar-row:opacity-[var(--vlaina-opacity-0)]',
+              hasActions && showActionsOnFocusWithin && 'group-focus-within/sidebar-row:opacity-[var(--vlaina-opacity-0)]',
             )}
           >
             {trailing}
@@ -147,7 +150,10 @@ export function SidebarRow({
               'absolute right-1 top-1/2 z-[var(--vlaina-z-20)] flex -translate-y-1/2 items-center transition-opacity duration-[var(--vlaina-duration-150)]',
               showActionsByDefault
                 ? 'pointer-events-auto opacity-[var(--vlaina-opacity-100)]'
-                : 'pointer-events-none opacity-[var(--vlaina-opacity-0)] group-hover/sidebar-row:pointer-events-auto group-hover/sidebar-row:opacity-[var(--vlaina-opacity-100)]',
+                : cn(
+                  'pointer-events-none opacity-[var(--vlaina-opacity-0)] group-hover/sidebar-row:pointer-events-auto group-hover/sidebar-row:opacity-[var(--vlaina-opacity-100)]',
+                  showActionsOnFocusWithin && 'group-focus-within/sidebar-row:pointer-events-auto group-focus-within/sidebar-row:opacity-[var(--vlaina-opacity-100)]',
+                ),
             )}
           >
             <div

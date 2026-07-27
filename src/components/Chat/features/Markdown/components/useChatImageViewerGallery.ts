@@ -26,14 +26,12 @@ function normalizeComparableSrc(value: string): string {
 export function useChatImageViewerGallery({
   currentImageId,
   gallery,
-  onOpenChange,
   open,
   previewSrc,
   src,
 }: {
   currentImageId?: string;
   gallery?: Array<{ id: string; src: string }>;
-  onOpenChange: (open: boolean) => void;
   open: boolean;
   previewSrc?: string | null;
   src: string;
@@ -138,10 +136,6 @@ export function useChatImageViewerGallery({
       return;
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onOpenChange(false);
-        return;
-      }
       if (event.key === "ArrowLeft" && hasPrevious) {
         event.preventDefault();
         setActiveGalleryIndex((value) => Math.max(value - 1, 0));
@@ -156,7 +150,7 @@ export function useChatImageViewerGallery({
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [boundedGallery?.length, hasNext, hasPrevious, onOpenChange, open]);
+  }, [boundedGallery?.length, hasNext, hasPrevious, open]);
 
   return {
     activeGalleryIndex,

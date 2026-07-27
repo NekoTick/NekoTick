@@ -13,6 +13,13 @@ interface SessionMessagesFile {
   messages: ChatMessage[];
 }
 
+export class ChatSessionStorageLimitError extends Error {
+  constructor() {
+    super(`Chat session exceeds the ${MAX_SESSION_MESSAGES_BYTES} byte storage limit`);
+    this.name = 'ChatSessionStorageLimitError';
+  }
+}
+
 export function serializeSessionMessages(sessionId: string, messages: ChatMessage[]): string {
   assertSafeChatSessionId(sessionId);
   return serializeBoundedSessionMessages(sessionId, normalizeSessionMessages(messages));
@@ -66,37 +73,9 @@ export function isWithinSessionMessagesByteLimit(value: string): boolean {
 }
 
 function serializeBoundedSessionMessages(sessionId: string, messages: ChatMessage[]): string {
-  let best = stringifySessionMessagesPayload(sessionId, []);
-  if (messages.length === 0) return best;
-
-  let lastFit = 0;
-  let nextCount = 1;
-  while (nextCount <= messages.length) {
-    const candidate = stringifySessionMessagesPayload(sessionId, messages.slice(messages.length - nextCount));
-    if (!isWithinSessionMessagesByteLimit(candidate)) {
-      break;
-    }
-    best = candidate;
-    lastFit = nextCount;
-    nextCount *= 2;
+  const serialized = stringifySessionMessagesPayload(sessionId, messages);
+  if (!isWithinSessionMessagesByteLimit(serialized)) {
+    throw new ChatSessionStorageLimitError();
   }
-
-  if (lastFit === messages.length) {
-    return best;
-  }
-
-  let low = lastFit + 1;
-  let high = Math.min(nextCount - 1, messages.length);
-  while (low <= high) {
-    const mid = Math.floor((low + high) / 2);
-    const candidate = stringifySessionMessagesPayload(sessionId, messages.slice(messages.length - mid));
-    if (isWithinSessionMessagesByteLimit(candidate)) {
-      best = candidate;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return best;
+  return serialized;
 }

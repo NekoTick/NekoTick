@@ -38,6 +38,7 @@ function KeyboardHarness({
   requestNearestScroll = vi.fn(),
   clearScrollMode = vi.fn(),
   setKeyboardNavigating = vi.fn(),
+  shouldHandleOpenEvent,
 }: {
   isOpen?: boolean
   visibleModelIds?: string[]
@@ -48,6 +49,7 @@ function KeyboardHarness({
   requestNearestScroll?: () => void
   clearScrollMode?: () => void
   setKeyboardNavigating?: (value: boolean) => void
+  shouldHandleOpenEvent?: (target: EventTarget | null) => boolean
 }) {
   const [focusedModelId, setFocusedModelId] = useState<string | null>(initialFocusedId)
 
@@ -62,6 +64,7 @@ function KeyboardHarness({
     onSelectModel,
     requestNearestScroll,
     clearScrollMode,
+    shouldHandleOpenEvent,
   })
 
   return <div data-testid="focused-id">{focusedModelId ?? ''}</div>
@@ -152,6 +155,28 @@ describe('useModelSelectorKeyboard', () => {
     expect(onShortcutToggle).toHaveBeenCalledTimes(1)
   })
 
+  it('does not handle Ctrl+M from a dialog', () => {
+    const onShortcutToggle = vi.fn()
+    const dialog = document.createElement('div')
+    const button = document.createElement('button')
+    dialog.setAttribute('role', 'dialog')
+    dialog.append(button)
+    document.body.append(dialog)
+    render(<KeyboardHarness isOpen={false} onShortcutToggle={onShortcutToggle} />)
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'm',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    button.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(onShortcutToggle).not.toHaveBeenCalled()
+    dialog.remove()
+  })
+
   it('navigates by rendered model order instead of source array order', async () => {
     render(
       <KeyboardHarness
@@ -168,5 +193,32 @@ describe('useModelSelectorKeyboard', () => {
     await waitFor(() => {
       expect(screen.getByTestId('focused-id')).toHaveTextContent('model-a')
     })
+  })
+
+  it('ignores open-selector navigation events outside the Chat selector', () => {
+    const onSelectModel = vi.fn()
+    const inside = document.createElement('input')
+    const outside = document.createElement('input')
+    document.body.append(inside, outside)
+    render(
+      <KeyboardHarness
+        isOpen
+        initialFocusedId="model-a"
+        onSelectModel={onSelectModel}
+        shouldHandleOpenEvent={(target) => target === inside}
+      />,
+    )
+
+    const outsideEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    outside.dispatchEvent(outsideEvent)
+    expect(outsideEvent.defaultPrevented).toBe(false)
+    expect(onSelectModel).not.toHaveBeenCalled()
+
+    const insideEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })
+    inside.dispatchEvent(insideEvent)
+    expect(insideEvent.defaultPrevented).toBe(true)
+    expect(onSelectModel).toHaveBeenCalledWith('model-a')
+    inside.remove()
+    outside.remove()
   })
 })

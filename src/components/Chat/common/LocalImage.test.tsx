@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalImage, MAX_CONCURRENT_LOCAL_IMAGE_ATTACHMENT_READS } from './LocalImage';
 
@@ -57,6 +57,27 @@ describe('LocalImage', () => {
     expect(mocks.rasterizeSvgDataUrlToPng).toHaveBeenCalledWith('data:image/svg+xml;base64,PHN2Zz4=');
   });
 
+  it('uses native button semantics only when the rendered image is interactive', async () => {
+    const onClick = vi.fn();
+    const view = render(
+      <LocalImage
+        src="data:image/png;base64,AQI="
+        alt="Open diagram"
+        onClick={onClick}
+      />,
+    );
+
+    const button = await screen.findByRole('button', { name: 'Open diagram' });
+    const image = screen.getByAltText('Open diagram');
+    expect(image).toBe(button.firstElementChild);
+    fireEvent.click(image);
+    expect(onClick).toHaveBeenCalledTimes(1);
+
+    view.rerender(<LocalImage src="data:image/png;base64,AQI=" alt="Static diagram" />);
+    expect(await screen.findByAltText('Static diagram')).not.toHaveRole('button');
+    expect(screen.queryByRole('button', { name: 'Static diagram' })).not.toBeInTheDocument();
+  });
+
   it('rasterizes stored SVG attachments before rendering', async () => {
     render(<LocalImage src="attachment://diagram.svg" alt="diagram" />);
 
@@ -77,8 +98,11 @@ describe('LocalImage', () => {
     expect(mocks.readBinaryFile).not.toHaveBeenCalled();
   });
 
-  it('renders safe image protocols directly regardless of case', async () => {
+  it('loads public remote images only after explicit user action', async () => {
     render(<LocalImage src="HTTPS://example.com/demo.png" alt="remote" />);
+
+    expect(screen.queryByAltText('remote')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load remote content' }));
 
     const image = await screen.findByAltText('remote');
     expect(image).toHaveAttribute('src', 'HTTPS://example.com/demo.png');

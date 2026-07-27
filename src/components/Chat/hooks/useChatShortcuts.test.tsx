@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, cleanup, waitFor } from "@testing-library/react";
-import type { RefObject } from "react";
 import {
   extractLastFencedCodeBlock,
   MAX_CHAT_SHORTCUT_CODE_BLOCK_COPY_CHARS,
@@ -56,17 +55,17 @@ function TestHarness({
   onToggleShortcuts,
   onStopGeneration,
   isGenerating = false,
-  scrollRef,
+  onNavigateMessages,
   enabled = true,
 }: {
   onFocusInput: () => void;
   onToggleShortcuts: () => void;
   onStopGeneration?: () => void;
   isGenerating?: boolean;
-  scrollRef: RefObject<HTMLDivElement | null>;
+  onNavigateMessages?: (direction: 'prev' | 'next') => void;
   enabled?: boolean;
 }) {
-  useChatShortcuts({ onFocusInput, onToggleShortcuts, onStopGeneration, isGenerating, scrollRef }, enabled);
+  useChatShortcuts({ onFocusInput, onToggleShortcuts, onStopGeneration, isGenerating, onNavigateMessages }, enabled);
   return null;
 }
 
@@ -109,13 +108,13 @@ function setup(options?: {
   state?: any;
   uiState?: any;
   isGenerating?: boolean;
-  scrollRef?: RefObject<HTMLDivElement | null>;
+  onNavigateMessages?: (direction: 'prev' | 'next') => void;
   enabled?: boolean;
 }) {
   const onFocusInput = vi.fn();
   const onToggleShortcuts = vi.fn();
   const onStopGeneration = vi.fn();
-  const scrollRef = options?.scrollRef ?? ({ current: null } as RefObject<HTMLDivElement | null>);
+  const onNavigateMessages = options?.onNavigateMessages ?? vi.fn();
   mocked.getState.mockReturnValue(options?.state ?? createState());
   mocked.getUIState.mockReturnValue(options?.uiState ?? createUIState());
 
@@ -125,12 +124,12 @@ function setup(options?: {
       onToggleShortcuts={onToggleShortcuts}
       onStopGeneration={onStopGeneration}
       isGenerating={options?.isGenerating ?? false}
-      scrollRef={scrollRef}
+      onNavigateMessages={onNavigateMessages}
       enabled={options?.enabled}
     />,
   );
 
-  return { ...rendered, onFocusInput, onToggleShortcuts, onStopGeneration, scrollRef };
+  return { ...rendered, onFocusInput, onNavigateMessages, onToggleShortcuts, onStopGeneration };
 }
 
 describe("useChatShortcuts", () => {
@@ -474,48 +473,20 @@ describe("useChatShortcuts", () => {
     expect(mocked.writeText).toHaveBeenCalledWith(["```", "", "const value = 1;"].join("\n"));
   });
 
-  it("navigates to previous user message with Shift+ArrowUp", () => {
-    const container = document.createElement("div");
-    Object.defineProperty(container, "scrollTop", {
-      value: 300,
-      writable: true,
-      configurable: true,
-    });
-    const scrollToMock = vi.fn();
-    Object.defineProperty(container, "scrollTo", {
-      value: scrollToMock,
-      configurable: true,
-    });
+  it("delegates user-message navigation without scanning mounted DOM rows", () => {
+    const onNavigateMessages = vi.fn();
+    setup({ onNavigateMessages });
+    const createTreeWalkerSpy = vi.spyOn(document, 'createTreeWalker');
 
-    const user1 = document.createElement("div");
-    user1.setAttribute("data-message-item", "true");
-    user1.setAttribute("data-role", "user");
-    Object.defineProperty(user1, "offsetTop", { value: 100, configurable: true });
+    const previousEvent = fireKeydown({ key: "ArrowUp", shiftKey: true });
+    const nextEvent = fireKeydown({ key: "ArrowDown", shiftKey: true });
 
-    const user2 = document.createElement("div");
-    user2.setAttribute("data-message-item", "true");
-    user2.setAttribute("data-role", "user");
-    Object.defineProperty(user2, "offsetTop", { value: 250, configurable: true });
-
-    const user3 = document.createElement("div");
-    user3.setAttribute("data-message-item", "true");
-    user3.setAttribute("data-role", "user");
-    Object.defineProperty(user3, "offsetTop", { value: 420, configurable: true });
-
-    container.append(user1, user2, user3);
-
-    const scrollRef = { current: container } as RefObject<HTMLDivElement | null>;
-    setup({ scrollRef });
-    const querySelectorAllSpy = vi.spyOn(Element.prototype, "querySelectorAll");
-
-    const event = fireKeydown({ key: "ArrowUp", shiftKey: true });
-
-    expect(event.defaultPrevented).toBe(true);
-    expect(scrollToMock).toHaveBeenCalledWith({ top: 230, behavior: "smooth" });
-    expect(mocked.getState).not.toHaveBeenCalled();
-    expect(querySelectorAllSpy).not.toHaveBeenCalled();
-
-    querySelectorAllSpy.mockRestore();
+    expect(previousEvent.defaultPrevented).toBe(true);
+    expect(nextEvent.defaultPrevented).toBe(true);
+    expect(onNavigateMessages).toHaveBeenNthCalledWith(1, 'prev');
+    expect(onNavigateMessages).toHaveBeenNthCalledWith(2, 'next');
+    expect(createTreeWalkerSpy).not.toHaveBeenCalled();
+    createTreeWalkerSpy.mockRestore();
   });
 
   it("uses the same session order as the chat sidebar for Ctrl+Tab navigation", () => {

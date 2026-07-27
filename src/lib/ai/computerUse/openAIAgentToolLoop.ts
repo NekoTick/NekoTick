@@ -28,6 +28,7 @@ import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDe
 import { executeAgentToolCall } from './agentToolRuntime';
 import { serializeComputerCommandStatus } from './toolResult';
 import {
+  type ComputerCommandApprovalContext,
   type ComputerCommandStatus,
 } from './types';
 
@@ -35,6 +36,7 @@ const MAX_AGENT_TOOL_LOOPS = 8;
 const MAX_AGENT_TOOL_CALLS = 16;
 
 interface AgentLoopBaseOptions {
+  approvalContext?: ComputerCommandApprovalContext;
   body: ChatCompletionRequest;
   defaultCwd?: string;
   onChunk: (chunk: string) => void;
@@ -192,6 +194,7 @@ async function runAgentLoop(
         tool_calls: [toolCall],
       }, toolMessage);
       const execution = await executeAgentToolCall(toolCall, {
+        approvalContext: options.approvalContext,
         commandApprovalCount,
         deniedCommandKeys,
         defaultCwd: options.defaultCwd,

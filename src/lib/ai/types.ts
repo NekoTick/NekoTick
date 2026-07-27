@@ -1,5 +1,8 @@
 import type { WebSearchStatus } from '@/lib/ai/webSearch/types'
-import type { ComputerCommandStatus } from '@/lib/ai/computerUse/types'
+import type {
+  ComputerCommandApprovalContext,
+  ComputerCommandStatus,
+} from '@/lib/ai/computerUse/types'
 
 export interface Provider {
   id: string
@@ -78,6 +81,13 @@ export interface MessageVersion {
     subsequentMessages: ChatMessage[]; 
     apiTranscript?: ApiTranscriptMessage[];
     webSearchStatuses?: WebSearchStatus[];
+    requestContext?: ChatRequestContextSnapshot;
+}
+
+export interface ChatRequestContextSnapshot {
+  text: string;
+  imageSources?: string[];
+  attachmentSources?: string[];
 }
 
 export interface ChatMessage {
@@ -87,6 +97,7 @@ export interface ChatMessage {
   apiTranscript?: ApiTranscriptMessage[]
   webSearchStatuses?: WebSearchStatus[]
   imageSources?: string[]
+  requestContext?: ChatRequestContextSnapshot
   modelId: string
   timestamp: number
   
@@ -117,6 +128,7 @@ export interface ChatSendOptions {
   webSearchEnabled?: boolean
   computerUseEnabled?: boolean
   computerUseCwd?: string
+  computerUseApprovalContext?: ComputerCommandApprovalContext
   onWebSearchStatus?: (status: WebSearchStatus) => void
   onComputerCommandStatus?: (status: ComputerCommandStatus) => void
   onApiTranscript?: (messages: ApiTranscriptMessage[]) => void

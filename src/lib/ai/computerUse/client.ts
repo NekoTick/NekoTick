@@ -80,6 +80,9 @@ export async function runDesktopComputerCommand(
         (event.risk === 'standard' || event.risk === 'elevated')
       ) {
         publishComputerCommandApproval(requestId, {
+          sessionId: options.approvalContext?.sessionId ?? '',
+          messageId: options.approvalContext?.messageId ?? '',
+          commandId: toolCall.id,
           command: event.command,
           cwd: event.cwd,
           purpose: event.purpose,

@@ -115,6 +115,38 @@ describe('useShortcuts', () => {
     }
   });
 
+  it('dispatches Chat sidebar search from an editable Chat composer', () => {
+    const sidebarListener = vi.fn();
+    window.addEventListener(SIDEBAR_OPEN_SEARCH_EVENT, sidebarListener);
+
+    try {
+      renderHook(() => useShortcuts());
+      const chatView = document.createElement('div');
+      chatView.setAttribute('data-chat-view-mode', 'full');
+      const textarea = document.createElement('textarea');
+      chatView.appendChild(textarea);
+      document.body.appendChild(chatView);
+
+      const event = new KeyboardEvent('keydown', {
+        key: 'F',
+        code: 'KeyF',
+        ctrlKey: true,
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      });
+      textarea.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(sidebarListener).toHaveBeenCalledTimes(1);
+      expect((sidebarListener.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ scope: 'chat' });
+      chatView.remove();
+    } finally {
+      window.removeEventListener(SIDEBAR_OPEN_SEARCH_EVENT, sidebarListener);
+      document.querySelector('[data-chat-view-mode]')?.remove();
+    }
+  });
+
   it('dispatches graph sidebar search in graph mode', () => {
     const sidebarListener = vi.fn();
     window.addEventListener(SIDEBAR_OPEN_SEARCH_EVENT, sidebarListener);

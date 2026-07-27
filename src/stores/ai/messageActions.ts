@@ -61,6 +61,7 @@ export function createMessageActions() {
           'original',
           message.apiTranscript,
           message.webSearchStatuses,
+          message.requestContext,
         )],
         currentVersionIndex: 0
       }
@@ -173,6 +174,7 @@ export function createMessageActions() {
         ...targetMessage,
         content: newContent,
         apiTranscript: undefined,
+        requestContext: undefined,
         imageSources: extractStoredImageSources(newContent),
         versions: limited.versions,
         currentVersionIndex: limited.currentVersionIndex
@@ -220,6 +222,7 @@ export function createMessageActions() {
         ...targetMessage,
         content: targetVersion.content,
         apiTranscript: targetVersion.apiTranscript,
+        requestContext: targetVersion.requestContext,
         webSearchStatuses: targetVersion.webSearchStatuses,
         imageSources: extractStoredImageSources(targetVersion.content),
         currentVersionIndex: limited.currentVersionIndex,

@@ -100,7 +100,7 @@ export function retractPendingUserRequestAction(
   }, true)
 
   if (shouldPersistSession(ai, targetSessionId)) {
-    saveSessionJsonInBackground(targetSessionId, newMessages)
+    saveSessionJsonInBackground(targetSessionId, newMessages, { mergePersisted: false })
   }
 
   return userMessage.content

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { actions as aiActions } from '@/stores/useAIStore';
-import type { AIModel, Provider } from '@/lib/ai/types';
+import type { AIModel, ChatMessage, ChatMessageContent, Provider } from '@/lib/ai/types';
 import type { MessageKey, MessageValues } from '@/lib/i18n';
 import { buildRequestHistory } from '@/lib/ai/requestContext';
 import { isManagedProviderId } from '@/lib/ai/managedService';
@@ -28,6 +28,14 @@ import {
   throwIfChatRequestAborted,
 } from './requestLifecycle';
 import { shouldStopForManagedAccountState } from './managedRequestGate';
+import {
+  hydrateRequestHistoryContexts,
+  hydrateRequestHistoryForCurrentContent,
+} from './hydrateRequestHistory';
+import {
+  getHistoryMessageRequestContent,
+  getHistoryMessageRequestContext,
+} from '@/lib/ai/requestContextHistoryContent';
 
 type Translate = (key: MessageKey, values?: MessageValues) => string;
 
@@ -153,11 +161,29 @@ export function useRegenerateMessage({
           controller: requestController,
           execute: async (onChunk, signal, { isActiveRequest }) => {
             throwIfChatRequestAborted(signal);
-            const apiMessageContent = await buildStoredUserMessageContent(promptMessage.content);
+            let apiMessageContent: ChatMessageContent;
+            let hydratedRequestHistory: ChatMessage[];
+            if (getHistoryMessageRequestContext(promptMessage)) {
+              const hydratedMessages = await hydrateRequestHistoryContexts(
+                [...requestHistory, promptMessage],
+                signal,
+              );
+              const hydratedPrompt = hydratedMessages.pop()!;
+              apiMessageContent = getHistoryMessageRequestContent(hydratedPrompt);
+              hydratedRequestHistory = hydratedMessages;
+            } else {
+              apiMessageContent = await buildStoredUserMessageContent(promptMessage.content);
+              throwIfChatRequestAborted(signal);
+              hydratedRequestHistory = await hydrateRequestHistoryForCurrentContent(
+                requestHistory,
+                apiMessageContent,
+                signal,
+              );
+            }
             throwIfChatRequestAborted(signal);
             return await sendMessageWithEndpointFallback({
               content: apiMessageContent,
-              history: requestHistory,
+              history: hydratedRequestHistory,
               model: selectedModel,
               provider,
               onChunk,
@@ -166,6 +192,10 @@ export function useRegenerateMessage({
                 webSearchEnabled,
                 computerUseEnabled,
                 computerUseCwd: computerUseCwd || undefined,
+                computerUseApprovalContext: {
+                  sessionId,
+                  messageId,
+                },
                 onComputerCommandStatus: (status) => {
                   if (!isActiveRequest()) return;
                   addChatDebugLog('computer-use', `status:${status.phase}`, {

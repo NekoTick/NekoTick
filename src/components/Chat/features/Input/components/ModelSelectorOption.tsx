@@ -12,7 +12,11 @@ import {
   getSidebarSelectedRowSurfaceClass,
   type SidebarTone,
 } from '@/components/layout/sidebar/sidebarLabelStyles'
-import type { ModelSelectorTheme, ModelSelectorThemeStyles } from '../modelSelectorTypes'
+import type {
+  ModelSelectorAccessibility,
+  ModelSelectorTheme,
+  ModelSelectorThemeStyles,
+} from '../modelSelectorTypes'
 
 export const monochromeModelIconClass = 'dark:invert dark:brightness-[1.08] dark:contrast-[0.92] dark:opacity-[0.92]'
 
@@ -45,6 +49,7 @@ export const ModelOption = memo(({
     theme,
     styles,
     showFamilyIcon,
+    accessibility,
 }: {
     model: AIModel;
     isSelected: boolean;
@@ -55,6 +60,7 @@ export const ModelOption = memo(({
     theme: ModelSelectorTheme;
     styles: ModelSelectorThemeStyles;
     showFamilyIcon: boolean;
+    accessibility: ModelSelectorAccessibility;
 }) => {
     const sidebarTone: SidebarTone = theme
     const displayName = getModelPresentationName(model)
@@ -62,7 +68,9 @@ export const ModelOption = memo(({
 
     return (
         <div
-            role="button"
+            id={accessibility.enabled ? `${accessibility.optionIdPrefix}${encodeURIComponent(model.id)}` : undefined}
+            role={accessibility.enabled ? 'option' : 'button'}
+            aria-selected={accessibility.enabled ? isSelected : undefined}
             tabIndex={-1}
             data-model-id={model.id}
             onClick={() => onSelect(model.id)}
@@ -105,7 +113,7 @@ export const ModelOption = memo(({
                               ? "border-[var(--vlaina-color-sidebar-focus-ring)] text-[var(--vlaina-sidebar-row-selected-text)] opacity-[var(--vlaina-opacity-80)]"
                               : "border-[var(--vlaina-color-subtle-border)] text-[var(--vlaina-sidebar-chat-text-soft)] opacity-[var(--vlaina-opacity-60)]"
                         )}
-                        title={`Price tier ${model.priceTier}`}
+                        aria-label={accessibility.priceTierLabel(model.priceTier)}
                     >
                         {model.priceTier}
                     </span>
@@ -115,8 +123,11 @@ export const ModelOption = memo(({
             <span className="ml-3 flex flex-shrink-0 items-center gap-1">
                 <button
                     type="button"
-                    tabIndex={-1}
-                    aria-label={model.pinned ? 'Remove from favorites' : 'Add to favorites'}
+                    tabIndex={accessibility.enabled ? 0 : -1}
+                    aria-label={model.pinned
+                      ? accessibility.removeFavoriteLabel
+                      : accessibility.addFavoriteLabel}
+                    data-model-selector-secondary-action={accessibility.enabled ? 'true' : undefined}
                     onClick={(event) => {
                         event.stopPropagation()
                         onTogglePinned(model.id, !model.pinned)
@@ -133,7 +144,7 @@ export const ModelOption = memo(({
                         "flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[var(--vlaina-color-favorite-fg)] transition-opacity",
                         model.pinned
                           ? "pointer-events-auto opacity-[var(--vlaina-opacity-100)]"
-                          : "pointer-events-none opacity-[var(--vlaina-opacity-0)] text-[var(--vlaina-color-favorite-fg-muted)] hover:text-[var(--vlaina-color-favorite-fg)] group-hover/model-option:pointer-events-auto group-hover/model-option:opacity-[var(--vlaina-opacity-100)]"
+                          : "pointer-events-none opacity-[var(--vlaina-opacity-0)] text-[var(--vlaina-color-favorite-fg-muted)] hover:text-[var(--vlaina-color-favorite-fg)] focus:pointer-events-auto focus:opacity-[var(--vlaina-opacity-100)] group-hover/model-option:pointer-events-auto group-hover/model-option:opacity-[var(--vlaina-opacity-100)] group-focus-within/model-option:pointer-events-auto group-focus-within/model-option:opacity-[var(--vlaina-opacity-100)]"
                     )}
                 >
                     <Icon

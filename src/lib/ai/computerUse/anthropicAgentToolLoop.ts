@@ -18,7 +18,7 @@ import {
 import { executeAgentToolCall } from './agentToolRuntime';
 import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDefinitions';
 import { serializeComputerCommandStatus } from './toolResult';
-import type { ComputerCommandStatus } from './types';
+import type { ComputerCommandApprovalContext, ComputerCommandStatus } from './types';
 
 const MAX_ANTHROPIC_AGENT_LOOPS = 8;
 const MAX_ANTHROPIC_AGENT_TOOL_CALLS = 16;
@@ -26,6 +26,7 @@ const MAX_ANTHROPIC_CONTENT_BLOCKS = 32;
 const MAX_ANTHROPIC_TEXT_CHARS = 1024 * 1024;
 
 interface AnthropicAgentToolLoopOptions {
+  approvalContext?: ComputerCommandApprovalContext;
   body: Record<string, unknown>;
   defaultCwd?: string;
   onChunk: (content: string) => void;
@@ -238,6 +239,7 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
         tool_calls: [toolCall],
       }, toolMessage);
       const execution = await executeAgentToolCall(toolCall, {
+        approvalContext: options.approvalContext,
         commandApprovalCount,
         deniedCommandKeys,
         defaultCwd: options.defaultCwd,

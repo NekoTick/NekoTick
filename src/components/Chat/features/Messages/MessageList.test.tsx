@@ -25,6 +25,7 @@ vi.mock("@/components/Chat/features/Messages/components/ChatLoading", () => ({
 }));
 
 import { MessageList } from "./MessageList";
+import type { ChatMessageNavigationHandler } from './MessageListTypes';
 
 function createMessage(id: string, role: ChatMessage["role"]): ChatMessage {
   const content = `${role}-${id}`;
@@ -121,6 +122,7 @@ describe("MessageList", () => {
     expect(messageItemSpy.mock.calls[0][0]).toMatchObject({ isLastMessage: false });
     expect(messageItemSpy.mock.calls[1][0]).toMatchObject({ isLastMessage: false });
     expect(messageItemSpy.mock.calls[2][0]).toMatchObject({ isLastMessage: true });
+    expect(document.querySelector('[data-chat-scrollable="true"]')).toHaveAttribute('aria-busy', 'true');
   });
 
   it("passes handlers and image gallery getter through to each message item", () => {
@@ -314,6 +316,60 @@ describe("MessageList", () => {
     );
 
     expect(screen.getByTestId("chat-loading")).toBeInTheDocument();
+    expect(document.querySelector('[data-chat-scrollable="true"]')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it("navigates to virtualized user prompts using the full frame layout", () => {
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    const scrollTopDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTop');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 800 });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 400 });
+    Object.defineProperty(HTMLElement.prototype, 'scrollTop', { configurable: true, get: () => 3500 });
+
+    try {
+      const longAssistant = createMessage('a1', 'assistant');
+      longAssistant.content = 'Long response line.\n'.repeat(2500);
+      const navigationRef = createRef<ChatMessageNavigationHandler>();
+      const containerRef = createRef<HTMLDivElement>();
+      render(
+        <MessageList
+          messages={[
+            createMessage('u1', 'user'),
+            longAssistant,
+            createMessage('u2', 'user'),
+          ]}
+          getImageGallery={() => []}
+          isSessionActive={false}
+          showLoading={false}
+          spacerHeight={0}
+          containerRef={containerRef}
+          navigationRef={navigationRef}
+          onCopy={() => {}}
+          onRegenerate={() => {}}
+          onSwitchVersion={() => {}}
+        />,
+      );
+
+      expect(screen.queryByTestId('message-item-u1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('message-item-u2')).not.toBeInTheDocument();
+      const scrollTo = vi.fn();
+      Object.defineProperty(containerRef.current!, 'scrollTo', { configurable: true, value: scrollTo });
+
+      navigationRef.current?.('prev');
+      expect(scrollTo).toHaveBeenNthCalledWith(1, { top: 12, behavior: 'smooth' });
+
+      navigationRef.current?.('next');
+      expect(scrollTo.mock.calls[1]?.[0].behavior).toBe('smooth');
+      expect(scrollTo.mock.calls[1]?.[0].top).toBeGreaterThan(3500);
+    } finally {
+      if (widthDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientWidth', widthDescriptor);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');
+      if (heightDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientHeight', heightDescriptor);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'clientHeight');
+      if (scrollTopDescriptor) Object.defineProperty(HTMLElement.prototype, 'scrollTop', scrollTopDescriptor);
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTop');
+    }
   });
 
   it("keeps the row ResizeObserver stable across streaming message updates", () => {

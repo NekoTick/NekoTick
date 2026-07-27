@@ -1,8 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { getElectronBridge } from '@/lib/electron/bridge';
+import { resolveSessionIdAlias } from '@/lib/ai/sessionIdAliases';
 
 export interface ComputerCommandApprovalRequest {
   id: string;
+  sessionId: string;
+  messageId: string;
+  commandId: string;
   command: string;
   cwd: string;
   purpose: string;
@@ -49,6 +53,14 @@ export function usePendingComputerCommandApprovals(): readonly ComputerCommandAp
 
 export function getPendingComputerCommandApprovalsSnapshot(): readonly ComputerCommandApprovalRequest[] {
   return pending;
+}
+
+export function isComputerCommandApprovalForSession(
+  approval: ComputerCommandApprovalRequest,
+  sessionId: string | null | undefined,
+): boolean {
+  if (!approval.sessionId || !sessionId) return false;
+  return resolveSessionIdAlias(approval.sessionId) === resolveSessionIdAlias(sessionId);
 }
 
 export async function respondToComputerCommandApproval(

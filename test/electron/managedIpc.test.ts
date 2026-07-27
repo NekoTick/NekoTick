@@ -4,6 +4,7 @@ import { normalizeManagedErrorPayload } from '../../electron/managedIpcErrors.mj
 
 const MAX_MANAGED_IPC_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_MANAGED_STREAM_LINE_CHARS = 1024 * 1024;
+const MAX_MANAGED_STREAM_CONTENT_BYTES = 4 * 1024 * 1024;
 const MANAGED_STREAM_TIMEOUT_MS = 300_000;
 
 function registerHarness(overrides: Partial<Parameters<typeof registerManagedIpc>[0]> = {}) {
@@ -590,7 +591,10 @@ describe('managed ipc stream bridge', () => {
       channel === 'desktop:managed:stream:managed-final:done'
     );
 
-    expect(sender.send).toHaveBeenCalledWith('desktop:managed:stream:managed-final:chunk', 'final');
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-final:chunk',
+      { delta: 'final' },
+    );
     expect(sender.send).toHaveBeenCalledWith('desktop:managed:stream:managed-final:done', { content: 'final' });
   });
 
@@ -611,7 +615,44 @@ describe('managed ipc stream bridge', () => {
       channel === 'desktop:managed:stream:managed-coalesced:chunk'
     );
     expect(chunkCalls.length).toBeLessThan(deltas.length);
-    expect(chunkCalls.at(-1)?.[1]).toBe(Array.from({ length: 20 }, (_, index) => String(index)).join(''));
+    expect(chunkCalls.map(([, payload]) => payload.delta).join('')).toBe(
+      Array.from({ length: 20 }, (_, index) => String(index)).join(''),
+    );
+    expect(chunkCalls.every(([, payload]) =>
+      typeof payload === 'object' && typeof payload?.delta === 'string'
+    )).toBe(true);
+  });
+
+  it('rejects managed streams whose decoded content exceeds the total limit', async () => {
+    const content = 'x'.repeat(Math.floor(MAX_MANAGED_STREAM_CONTENT_BYTES / 5));
+    const deltas = Array.from({ length: 6 }, () =>
+      `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+    );
+    const fetchWithStoredSession = vi.fn(async () => streamResponse(deltas));
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-content-too-large',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-content-too-large:error'
+    );
+
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-content-too-large:error',
+      {
+        message: 'Managed stream content is too large.',
+        statusCode: undefined,
+        errorCode: undefined,
+      },
+    );
+    expect(sender.send).not.toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-content-too-large:done',
+      expect.anything(),
+    );
   });
 
   it('rejects managed stream buffers that grow too large before a newline arrives', async () => {
@@ -649,10 +690,11 @@ describe('managed ipc stream bridge', () => {
       channel === 'desktop:managed:stream:managed-reasoning:done'
     );
 
-    expect(sender.send).toHaveBeenCalledWith(
-      'desktop:managed:stream:managed-reasoning:chunk',
-      '<think>first</think>visible<think>second</think> answer',
-    );
+    const chunkContent = sender.send.mock.calls
+      .filter(([channel]) => channel === 'desktop:managed:stream:managed-reasoning:chunk')
+      .map(([, payload]) => payload.delta)
+      .join('');
+    expect(chunkContent).toBe('<think>first</think>visible<think>second</think> answer');
     expect(sender.send).toHaveBeenCalledWith(
       'desktop:managed:stream:managed-reasoning:done',
       { content: '<think>first</think>visible<think>second</think> answer' },

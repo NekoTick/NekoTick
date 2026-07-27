@@ -859,6 +859,41 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     });
   });
 
+  it('keeps the direct image request timeout active while reading the JSON body', async () => {
+    vi.useFakeTimers();
+    try {
+      const reader = {
+        read: vi.fn(() => new Promise<ReadableStreamReadResult<Uint8Array>>(() => undefined)),
+        cancel: vi.fn(async () => undefined),
+        releaseLock: vi.fn(),
+      };
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers(),
+        body: { getReader: () => reader },
+      }));
+      const client = new OpenAICompatibleClient();
+      (client as unknown as { timeout: number }).timeout = 10;
+
+      const request = expect(client.sendMessage(
+        'draw a house',
+        [],
+        buildModel({ apiModelId: 'gpt-image-2', name: 'GPT Image 2' }),
+        buildProvider(),
+        vi.fn(),
+      )).rejects.toThrow('The AI request timed out.');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(reader.read).toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(20);
+
+      await request;
+      expect(reader.cancel).toHaveBeenCalled();
+      expect(reader.releaseLock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('returns a localized validation error when computer control is enabled for an image model', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -3444,6 +3479,41 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     await request;
     vi.useRealTimers();
+  });
+
+  it('keeps each computer-use model request timeout active while reading its stream body', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(async (_url: string, init: RequestInit) => new Response(
+        new ReadableStream({
+          start(controller) {
+            init.signal?.addEventListener('abort', () => {
+              controller.error(new DOMException('Aborted', 'AbortError'));
+            });
+          },
+        }),
+        { status: 200 },
+      ));
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new OpenAICompatibleClient();
+      (client as unknown as { timeout: number }).timeout = 10;
+
+      const request = expect(client.sendMessage(
+        'inspect the project',
+        [],
+        buildModel({ apiModelId: 'gpt-4o-mini' }),
+        buildProvider({ endpointType: 'openai' }),
+        vi.fn(),
+        undefined,
+        { computerUseEnabled: true },
+      )).rejects.toThrow('The AI request timed out.');
+      await vi.advanceTimersByTimeAsync(20);
+
+      await request;
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps OpenAI-compatible request timeout active while reading error response bodies', async () => {

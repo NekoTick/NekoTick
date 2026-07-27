@@ -41,9 +41,12 @@ export async function buildMessageFileAttachmentContext(attachments: Attachment[
   const sections: string[] = [];
   let usedChars = 0;
 
-  for (const attachment of attachments.slice(0, MAX_CHAT_MESSAGE_FILE_ATTACHMENTS)) {
+  for (const attachment of attachments) {
     if (!isTextAttachment(attachment)) {
       continue;
+    }
+    if (sections.length >= MAX_CHAT_MESSAGE_FILE_ATTACHMENTS) {
+      break;
     }
 
     const rawContent = await readTextAttachmentContent(attachment);
@@ -76,8 +79,8 @@ export async function buildMessageFileAttachmentContext(attachments: Attachment[
 
 export function buildMessageFileAttachmentMentionText(attachments: Attachment[]): string {
   return attachments
-    .slice(0, MAX_CHAT_MESSAGE_FILE_ATTACHMENTS)
     .filter(isTextAttachment)
+    .slice(0, MAX_CHAT_MESSAGE_FILE_ATTACHMENTS)
     .map((attachment) => `@${trimString(attachment.name) || 'attachment.txt'}`)
     .join(' ');
 }

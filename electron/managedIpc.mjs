@@ -177,15 +177,15 @@ export function registerManagedIpc({
         const decoder = new TextDecoder();
         let buffer = '';
 
-        const chunkScheduler = createManagedStreamChunkScheduler((fullContent) => {
-          if (!sendStreamEvent('chunk', fullContent)) {
+        const chunkScheduler = createManagedStreamChunkScheduler((delta) => {
+          if (!sendStreamEvent('chunk', { delta })) {
             controller.abort();
             return false;
           }
           return true;
         });
-        const accumulator = createManagedStreamAccumulator((fullContent) => {
-          return chunkScheduler.push(fullContent);
+        const accumulator = createManagedStreamAccumulator((delta) => {
+          return chunkScheduler.push(delta);
         });
 
         const consumeLine = (line) => {
@@ -247,11 +247,11 @@ export function registerManagedIpc({
             }
           }
 
-          const finalContent = accumulator.finish();
-          if (!chunkScheduler.flushNow(finalContent)) {
+          const finalResult = accumulator.finish();
+          if (!finalResult.shouldContinue || !chunkScheduler.flushNow()) {
             throw new Error('Aborted');
           }
-          sendStreamEvent('done', { content: finalContent });
+          sendStreamEvent('done', { content: finalResult.content });
         } catch (error) {
           void reader.cancel(createAbortError()).catch(() => {});
           throw error;

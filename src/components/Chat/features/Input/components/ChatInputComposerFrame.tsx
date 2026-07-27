@@ -26,9 +26,13 @@ import { ManagedQuotaNotice, managedQuotaNoticeFrameClass } from './ManagedQuota
 import { NoteMentionPicker } from './NoteMentionPicker';
 import type { NoteMentionCandidate } from '../noteMentionHelpers';
 import { ComputerCommandApprovalNotice } from '@/components/Chat/features/ComputerUse/ComputerCommandApprovalNotice';
-import { usePendingComputerCommandApprovals } from '@/lib/ai/computerUse/approvalState';
+import {
+  isComputerCommandApprovalForSession,
+  usePendingComputerCommandApprovals,
+} from '@/lib/ai/computerUse/approvalState';
 
 interface ChatInputComposerFrameProps {
+  active: boolean;
   activeCandidatePath: string | null;
   applyMentionCandidate: (candidate: NoteMentionCandidate) => void;
   attachments: Attachment[];
@@ -77,6 +81,7 @@ interface ChatInputComposerFrameProps {
   onToggleWebSearch: () => void;
   showMentionPicker: boolean;
   showComputerCommandApproval: boolean;
+  sessionId?: string | null;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   textareaScrollTop: number;
   webSearchEnabled: boolean;
@@ -84,6 +89,7 @@ interface ChatInputComposerFrameProps {
 }
 
 export function ChatInputComposerFrame({
+  active,
   activeCandidatePath,
   applyMentionCandidate,
   attachments,
@@ -132,6 +138,7 @@ export function ChatInputComposerFrame({
   onToggleWebSearch,
   showMentionPicker,
   showComputerCommandApproval,
+  sessionId,
   textareaRef,
   textareaScrollTop,
   webSearchEnabled,
@@ -139,24 +146,27 @@ export function ChatInputComposerFrame({
 }: ChatInputComposerFrameProps) {
   const { t } = useI18n();
   const pendingComputerCommandApprovals = usePendingComputerCommandApprovals();
+  const sessionComputerCommandApprovals = pendingComputerCommandApprovals.filter(
+    (approval) => isComputerCommandApprovalForSession(approval, sessionId),
+  );
   const hasComputerCommandApproval = showComputerCommandApproval &&
-    pendingComputerCommandApprovals.length > 0;
+    sessionComputerCommandApprovals.length > 0;
   const hasComposerNotice = isQuotaSendBlocked || hasComputerCommandApproval;
-  const previousApprovalCountRef = useRef(pendingComputerCommandApprovals.length);
+  const previousApprovalCountRef = useRef(sessionComputerCommandApprovals.length);
 
   useEffect(() => {
     const previousApprovalCount = previousApprovalCountRef.current;
-    previousApprovalCountRef.current = pendingComputerCommandApprovals.length;
+    previousApprovalCountRef.current = sessionComputerCommandApprovals.length;
     if (
       showComputerCommandApproval &&
       previousApprovalCount > 0 &&
-      pendingComputerCommandApprovals.length === 0
+      sessionComputerCommandApprovals.length === 0
     ) {
       onRequestComposerFocus();
     }
   }, [
     onRequestComposerFocus,
-    pendingComputerCommandApprovals.length,
+    sessionComputerCommandApprovals.length,
     showComputerCommandApproval,
   ]);
 
@@ -181,7 +191,7 @@ export function ChatInputComposerFrame({
               'pointer-events-auto absolute inset-x-0 bottom-[var(--vlaina-offset-computer-command-approval)] z-[var(--vlaina-z-0)] pb-[var(--vlaina-space-12px)]',
             )}
           >
-            <ComputerCommandApprovalNotice />
+            <ComputerCommandApprovalNotice sessionId={sessionId} />
           </div>
         ) : null}
         <div className={cn(isQuotaSendBlocked && managedQuotaNoticeFrameClass)}>
@@ -282,6 +292,7 @@ export function ChatInputComposerFrame({
               onRequestComposerFocus={onRequestComposerFocus}
               onStop={handleStopButton}
               onSend={onSend}
+              disabled={!active}
             />
           </div>
           </div>

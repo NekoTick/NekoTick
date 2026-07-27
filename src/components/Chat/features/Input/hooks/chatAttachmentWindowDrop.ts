@@ -2,6 +2,7 @@ import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } 
 import { collectChatAttachmentTransferFiles } from './chatAttachmentInputFiles';
 
 interface UseChatAttachmentWindowDropOptions {
+  active: boolean;
   dragDepthRef: MutableRefObject<number>;
   hasFileTransfer: (transfer: DataTransfer | null | undefined) => boolean;
   processFiles: (files: File[]) => Promise<void>;
@@ -9,13 +10,14 @@ interface UseChatAttachmentWindowDropOptions {
 }
 
 export function useChatAttachmentWindowDrop({
+  active,
   dragDepthRef,
   hasFileTransfer,
   processFiles,
   setIsDragging,
 }: UseChatAttachmentWindowDropOptions): void {
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!active || typeof window === 'undefined') {
       return;
     }
 
@@ -62,5 +64,5 @@ export function useChatAttachmentWindowDrop({
       window.removeEventListener('drop', onWindowDrop);
       window.removeEventListener('dragleave', onWindowDragLeave);
     };
-  }, [dragDepthRef, hasFileTransfer, processFiles, setIsDragging]);
+  }, [active, dragDepthRef, hasFileTransfer, processFiles, setIsDragging]);
 }

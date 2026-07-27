@@ -3,11 +3,12 @@ import { isEventInsideDialog } from '@/lib/shortcuts/dialogGuards';
 import { blurComposerInput, focusComposerInput } from '@/lib/ui/composerFocusRegistry';
 
 export function useChatEmbeddedSidebar(args: {
+  active: boolean;
   isEmbedded: boolean;
   isSessionActive: boolean;
   stop: () => void;
 }) {
-  const { isEmbedded, isSessionActive, stop } = args;
+  const { active, isEmbedded, isSessionActive, stop } = args;
   const [isEmbeddedSidebarOpen, setIsEmbeddedSidebarOpen] = useState(false);
   const embeddedSidebarFocusFrameRef = useRef<number | null>(null);
   const focusComposerAfterEmbeddedSidebarExitRef = useRef(false);
@@ -46,7 +47,7 @@ export function useChatEmbeddedSidebar(args: {
   }, [isEmbedded, isSessionActive, stop]);
 
   useEffect(() => {
-    if (!isEmbedded || !isEmbeddedSidebarOpen) {
+    if (!active || !isEmbedded || !isEmbeddedSidebarOpen) {
       return;
     }
 
@@ -75,7 +76,7 @@ export function useChatEmbeddedSidebar(args: {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isEmbedded, isEmbeddedSidebarOpen]);
+  }, [active, isEmbedded, isEmbeddedSidebarOpen]);
 
   const openEmbeddedSidebar = useCallback(() => {
     focusComposerAfterEmbeddedSidebarExitRef.current = false;
@@ -119,7 +120,7 @@ export function useChatEmbeddedSidebar(args: {
   return {
     closeEmbeddedSidebar,
     handleEmbeddedSidebarExitComplete,
-    isEmbeddedSidebarOpen,
+    isEmbeddedSidebarOpen: active && isEmbeddedSidebarOpen,
     openEmbeddedSidebar,
   };
 }

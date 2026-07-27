@@ -30,6 +30,7 @@ export function runManagedComputerUseMessage({
     options.onWebSearchStatus?.(status);
   };
   const nativeRequest = runOpenAIJsonAgentToolLoop({
+    approvalContext: options.computerUseApprovalContext,
     body,
     defaultCwd: options.computerUseCwd,
     onChunk: onChunk || (() => {}),
@@ -53,6 +54,7 @@ export function runManagedComputerUseMessage({
     if (!unsupportedToolCalling || didHandleLocalTool) throw error;
     try {
       return await runManagedTextAgentToolLoop({
+        approvalContext: options.computerUseApprovalContext,
         body,
         defaultCwd: options.computerUseCwd,
         onChunk: onChunk || (() => {}),
@@ -84,14 +86,17 @@ export function runOpenAIComputerUseMessage({
   onChunk,
   options,
   retryDelayMs,
+  timeoutMs,
   signal,
   url,
 }: ComputerUseRequestOptions & {
   headers: Record<string, string>;
   retryDelayMs: number;
+  timeoutMs: number;
   url: string;
 }): Promise<string> {
   return runOpenAIStreamingAgentToolLoop({
+    approvalContext: options.computerUseApprovalContext,
     body,
     defaultCwd: options.computerUseCwd,
     onChunk: onChunk || (() => {}),
@@ -107,6 +112,7 @@ export function runOpenAIComputerUseMessage({
       signal,
       scope: 'computer-operation-model',
       retryDelayMs,
+      timeoutMs,
     }),
   });
 }

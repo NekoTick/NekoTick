@@ -2,14 +2,15 @@ import { useEffect } from 'react';
 import { focusComposerInput, insertTextIntoComposer } from '@/lib/ui/composerFocusRegistry';
 
 export function useEmbeddedComposerInsert(args: {
+  active: boolean;
   consumePendingComposerInsert: (id: number) => void;
   isEmbedded: boolean;
   pendingComposerInsert: { id: number; text: string } | null;
 }) {
-  const { consumePendingComposerInsert, isEmbedded, pendingComposerInsert } = args;
+  const { active, consumePendingComposerInsert, isEmbedded, pendingComposerInsert } = args;
 
   useEffect(() => {
-    if (!isEmbedded || !pendingComposerInsert) {
+    if (!active || !isEmbedded || !pendingComposerInsert) {
       return;
     }
 
@@ -45,5 +46,5 @@ export function useEmbeddedComposerInsert(args: {
         cancelAnimationFrame(frameId);
       }
     };
-  }, [consumePendingComposerInsert, isEmbedded, pendingComposerInsert]);
+  }, [active, consumePendingComposerInsert, isEmbedded, pendingComposerInsert]);
 }
