@@ -96,8 +96,8 @@ export function MarkdownImage({
             setIsViewerOpen(true);
           }}
         />
-        <span
-          className="absolute right-2 top-2 z-[var(--vlaina-z-10)] flex items-center gap-1 opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover:opacity-[var(--vlaina-opacity-100)]"
+        {resolvedImageSrc ? <span
+          className="absolute right-2 top-2 z-[var(--vlaina-z-10)] flex items-center gap-1 opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover:opacity-[var(--vlaina-opacity-100)] group-focus-within:opacity-[var(--vlaina-opacity-100)]"
           data-no-focus-input="true"
         >
           <button
@@ -129,7 +129,7 @@ export function MarkdownImage({
           >
             <Icon name="common.download" size="md" />
           </button>
-        </span>
+        </span> : null}
       </span>
       {isViewerOpen ? (
         <LazyChatImageViewer

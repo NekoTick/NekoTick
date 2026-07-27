@@ -65,6 +65,9 @@ function extractStreamText(value: unknown): string {
 
 export function extractErrorMessage(payload: Record<string, unknown>): string {
   const nestedError = payload.error
+  if (typeof nestedError === 'string') {
+    return nestedError.slice(0, MAX_OPENAI_STREAM_ERROR_FIELD_CHARS)
+  }
   if (isRecord(nestedError) && typeof nestedError.message === 'string') {
     return nestedError.message.slice(0, MAX_OPENAI_STREAM_ERROR_FIELD_CHARS)
   }

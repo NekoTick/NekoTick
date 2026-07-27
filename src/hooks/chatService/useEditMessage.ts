@@ -28,6 +28,7 @@ import {
   throwIfChatRequestAborted,
 } from './requestLifecycle';
 import { shouldStopForManagedAccountState } from './managedRequestGate';
+import { hydrateRequestHistoryForCurrentContent } from './hydrateRequestHistory';
 
 type Translate = (key: MessageKey, values?: MessageValues) => string;
 
@@ -167,9 +168,14 @@ export function useEditMessage({
             throwIfChatRequestAborted(signal);
             const apiMessageContent = await buildStoredUserMessageContent(newContent);
             throwIfChatRequestAborted(signal);
+            const hydratedRequestHistory = await hydrateRequestHistoryForCurrentContent(
+              requestHistory,
+              apiMessageContent,
+              signal,
+            );
             return await sendMessageWithEndpointFallback({
               content: apiMessageContent,
-              history: requestHistory,
+              history: hydratedRequestHistory,
               model: selectedModel,
               provider,
               onChunk,
@@ -178,6 +184,10 @@ export function useEditMessage({
                 webSearchEnabled,
                 computerUseEnabled,
                 computerUseCwd: computerUseCwd || undefined,
+                computerUseApprovalContext: {
+                  sessionId,
+                  messageId: assistantMessageId,
+                },
                 onComputerCommandStatus: (status) => {
                   if (!isActiveRequest()) return;
                   addChatDebugLog('computer-use', `status:${status.phase}`, {

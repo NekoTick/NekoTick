@@ -454,6 +454,58 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     });
   });
 
+  it('does not apply the computer-use text cap to normal Anthropic streams', async () => {
+    const block = 'x'.repeat(600 * 1024);
+    const encoder = new TextEncoder();
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const text of [block, block]) {
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({
+              type: 'content_block_delta',
+              index: 0,
+              delta: { type: 'text_delta', text },
+            })}\n\n`,
+          ));
+        }
+        controller.close();
+      },
+    }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      'hi',
+      [],
+      buildModel(),
+      buildProvider({ endpointType: 'anthropic' }),
+      vi.fn(),
+    );
+
+    expect(result).toHaveLength(block.length * 2);
+  });
+
+  it('accepts a complete Anthropic JSON response from a non-streaming compatible endpoint', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      type: 'message',
+      content: [
+        { type: 'thinking', thinking: 'plan' },
+        { type: 'text', text: 'complete reply' },
+      ],
+    }))));
+    const onChunk = vi.fn();
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      'hi',
+      [],
+      buildModel(),
+      buildProvider({ endpointType: 'anthropic' }),
+      onChunk,
+    );
+
+    expect(result).toBe('<think>plan</think>complete reply');
+    expect(onChunk).toHaveBeenLastCalledWith('<think>plan</think>complete reply');
+  });
+
   it('sends current safe image inputs to Anthropic as image content blocks', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       streamResponse('event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"seen"}}\n\n'),
@@ -857,6 +909,41 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       prompt: 'draw a house',
       n: 1,
     });
+  });
+
+  it('keeps the direct image request timeout active while reading the JSON body', async () => {
+    vi.useFakeTimers();
+    try {
+      const reader = {
+        read: vi.fn(() => new Promise<ReadableStreamReadResult<Uint8Array>>(() => undefined)),
+        cancel: vi.fn(async () => undefined),
+        releaseLock: vi.fn(),
+      };
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers(),
+        body: { getReader: () => reader },
+      }));
+      const client = new OpenAICompatibleClient();
+      (client as unknown as { timeout: number }).timeout = 10;
+
+      const request = expect(client.sendMessage(
+        'draw a house',
+        [],
+        buildModel({ apiModelId: 'gpt-image-2', name: 'GPT Image 2' }),
+        buildProvider(),
+        vi.fn(),
+      )).rejects.toThrow('The AI request timed out.');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(reader.read).toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(20);
+
+      await request;
+      expect(reader.cancel).toHaveBeenCalled();
+      expect(reader.releaseLock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('returns a localized validation error when computer control is enabled for an image model', async () => {
@@ -1938,25 +2025,26 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
   it('routes managed computer control through native tool calls', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        choices: [{
-          message: {
-            role: 'assistant',
-            content: '',
-            tool_calls: [{
-              id: 'call-disk',
-              type: 'function',
-              function: {
-                name: 'run_command',
-                arguments: '{"command":"df -h","purpose":"Inspect disk usage"}',
-              },
-            }],
-          },
-        }],
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        choices: [{ message: { role: 'assistant', content: 'Disk usage was inspected.' } }],
-      }), { status: 200 }));
+      .mockResolvedValueOnce(streamResponse([
+        `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{
+          index: 0,
+          id: 'call-disk',
+          type: 'function',
+          function: { name: 'run_command', arguments: '{"command":"df' },
+        }] } }] })}`,
+        `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{
+          index: 0,
+          function: { arguments: ' -h","purpose":"Inspect disk usage"}' },
+        }] } }] })}`,
+        'data: [DONE]',
+        '',
+      ].join('\n\n')))
+      .mockResolvedValueOnce(streamResponse([
+        'data: {"choices":[{"delta":{"content":"Disk usage"}}]}',
+        'data: {"choices":[{"delta":{"content":" was inspected."}}]}',
+        'data: [DONE]',
+        '',
+      ].join('\n\n')));
     vi.stubGlobal('fetch', fetchMock);
     mocks.bridge = {
       computer: {
@@ -1974,6 +2062,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       },
     };
 
+    const onChunk = vi.fn();
     const result = await new OpenAICompatibleClient().sendMessage(
       'Inspect disk usage',
       [],
@@ -1984,7 +2073,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
         providerId: 'vlaina-managed',
       }),
       buildProvider({ id: 'vlaina-managed', name: 'vlaina managed', apiKey: '' }),
-      vi.fn(),
+      onChunk,
       undefined,
       { computerUseEnabled: true, computerUseCwd: '/tmp/project' },
     );
@@ -1994,7 +2083,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const call of fetchMock.mock.calls) {
       const body = JSON.parse(call[1].body);
-      expect(body.stream).toBe(false);
+      expect(body.stream).toBe(true);
       expect(body.tools).toEqual(expect.arrayContaining([
         expect.objectContaining({ type: 'function', function: expect.objectContaining({ name: 'run_command' }) }),
       ]));
@@ -2005,6 +2094,93 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       expect.objectContaining({ role: 'tool', tool_call_id: 'call-disk' }),
     ]));
     expect(JSON.parse(fetchMock.mock.calls[1][1].body).messages.at(-1).content).not.toContain('fileChanges');
+    expect(onChunk.mock.calls.map(([content]) => content).filter(Boolean).slice(0, 2)).toEqual([
+      'Disk usage',
+      'Disk usage was inspected.',
+    ]);
+  });
+
+  it('keeps accepted managed DSML tool responses out of visible chunks', async () => {
+    const commandMarkup = '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="run_command"><｜｜DSML｜｜parameter name="command">pwd</｜｜DSML｜｜parameter><｜｜DSML｜｜parameter name="purpose">Inspect cwd</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>';
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(streamResponse([
+        'data: {"choices":[{"delta":{"content":"<"}}]}',
+        `data: ${JSON.stringify({ choices: [{ delta: { content: commandMarkup.slice(1) } }] })}`,
+        'data: [DONE]',
+        '',
+      ].join('\n\n')))
+      .mockResolvedValueOnce(streamResponse([
+        'data: {"choices":[{"delta":{"content":"Directory"}}]}',
+        'data: {"choices":[{"delta":{"content":" inspected."}}]}',
+        'data: [DONE]',
+        '',
+      ].join('\n\n')));
+    vi.stubGlobal('fetch', fetchMock);
+    const startCommand = vi.fn(async () => ({
+      status: 'completed',
+      command: 'pwd',
+      cwd: '/tmp/project',
+      exitCode: 0,
+      stdout: '/tmp/project\n',
+      stderr: '',
+      durationMs: 2,
+    }));
+    mocks.bridge = {
+      computer: {
+        startCommand,
+        cancelCommand: vi.fn(async () => true),
+        onCommandEvent: vi.fn(() => () => undefined),
+      },
+    };
+    const onChunk = vi.fn();
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      'Inspect the working directory',
+      [],
+      buildModel({ id: 'vlaina-managed:test-model', apiModelId: 'test-model', providerId: 'vlaina-managed' }),
+      buildProvider({ id: 'vlaina-managed', name: 'vlaina managed', apiKey: '' }),
+      onChunk,
+      undefined,
+      { computerUseEnabled: true, computerUseCwd: '/tmp/project' },
+    );
+
+    expect(result).toBe('Directory inspected.');
+    expect(startCommand).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(onChunk.mock.calls)).not.toContain('DSML');
+    expect(onChunk.mock.calls.map(([content]) => content).filter(Boolean).slice(0, 2)).toEqual([
+      'Directory',
+      'Directory inspected.',
+    ]);
+    expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).tools)).toEqual([
+      expect.any(Array),
+      expect.any(Array),
+    ]);
+  });
+
+  it('never re-emits incomplete managed DSML during finalization', async () => {
+    const malformedMarkup = '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="run_command">';
+    const fetchMock = vi.fn().mockResolvedValueOnce(streamResponse([
+      'data: {"choices":[{"delta":{"content":"<"}}]}',
+      `data: ${JSON.stringify({ choices: [{ delta: { content: malformedMarkup.slice(1) } }] })}`,
+      'data: [DONE]',
+      '',
+    ].join('\n\n')));
+    vi.stubGlobal('fetch', fetchMock);
+    const onChunk = vi.fn();
+
+    await expect(new OpenAICompatibleClient().sendMessage(
+      'Inspect the working directory',
+      [],
+      buildModel({ id: 'vlaina-managed:test-model', apiModelId: 'test-model', providerId: 'vlaina-managed' }),
+      buildProvider({ id: 'vlaina-managed', name: 'vlaina managed', apiKey: '' }),
+      onChunk,
+      undefined,
+      { computerUseEnabled: true, computerUseCwd: '/tmp/project' },
+    )).rejects.toMatchObject({ type: AIErrorType.INVALID_REQUEST });
+
+    expect(JSON.stringify(onChunk.mock.calls)).not.toContain('DSML');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to the bounded text protocol only when managed native tools are unsupported', async () => {
@@ -2054,27 +2230,26 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     const nativeBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     const fallbackBody = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(nativeBody.tools).toEqual(expect.any(Array));
-    expect(nativeBody.stream).toBe(false);
+    expect(nativeBody.stream).toBe(true);
     expect(fallbackBody.tools).toBeUndefined();
     expect(fallbackBody.stream).toBe(true);
   });
 
   it('never falls back after a managed native command has entered the local approval flow', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        choices: [{ message: {
-          role: 'assistant',
-          content: '',
-          tool_calls: [{
-            id: 'call-once',
-            type: 'function',
-            function: {
-              name: 'run_command',
-              arguments: '{"command":"pwd","purpose":"Inspect working directory"}',
-            },
-          }],
-        } }],
-      }), { status: 200 }))
+      .mockResolvedValueOnce(streamResponse([
+        `data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{
+          index: 0,
+          id: 'call-once',
+          type: 'function',
+          function: {
+            name: 'run_command',
+            arguments: '{"command":"pwd","purpose":"Inspect working directory"}',
+          },
+        }] } }] })}`,
+        'data: [DONE]',
+        '',
+      ].join('\n\n')))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         success: false,
         error: 'UNSUPPORTED_TOOL_CALLING',
@@ -2117,9 +2292,9 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
   it('uses visible text instead of native command transcripts in later managed turns with computer control on or off', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        choices: [{ message: { role: 'assistant', content: 'The second turn works.' } }],
-      }), { status: 200 }))
+      .mockResolvedValueOnce(
+        streamResponse('data: {"choices":[{"delta":{"content":"The second turn works."}}]}\n\ndata: [DONE]\n\n'),
+      )
       .mockResolvedValueOnce(
         streamResponse('data: {"choices":[{"delta":{"content":"The second turn works."}}]}\n\ndata: [DONE]\n\n'),
       );
@@ -2830,6 +3005,103 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(chunks).toEqual(['<think>plan', '<think>plan</think>answer']);
   });
 
+  it('streams Anthropic computer-use replies while keeping tool input hidden', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(streamResponse([
+        'event: content_block_start',
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool-pwd","name":"run_command","input":{}}}',
+        '',
+        'event: content_block_delta',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"command\\":\\"pwd\\","}}',
+        '',
+        'event: content_block_delta',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\"purpose\\":\\"Inspect current directory\\"}"}}',
+        '',
+      ].join('\n')))
+      .mockResolvedValueOnce(streamResponse([
+        'event: content_block_start',
+        'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+        '',
+        'event: content_block_delta',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"The"}}',
+        '',
+        'event: content_block_delta',
+        'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" command completed."}}',
+        '',
+      ].join('\n')));
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.bridge = {
+      computer: {
+        startCommand: vi.fn(async () => ({
+          status: 'completed',
+          command: 'pwd',
+          cwd: '/tmp/project',
+          exitCode: 0,
+          stdout: '/tmp/project\n',
+          stderr: '',
+          durationMs: 3,
+        })),
+        cancelCommand: vi.fn(async () => true),
+        onCommandEvent: vi.fn(() => () => undefined),
+      },
+    };
+    const onChunk = vi.fn();
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      'Inspect the current directory',
+      [],
+      buildModel({ apiModelId: 'claude-sonnet-4-5' }),
+      buildProvider({ endpointType: 'anthropic' }),
+      onChunk,
+      undefined,
+      { computerUseEnabled: true, computerUseCwd: '/tmp/project' },
+    );
+
+    expect(result).toBe('The command completed.');
+    expect(mocks.bridge.computer?.startCommand).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(onChunk.mock.calls)).not.toContain('Inspect current directory');
+    expect(onChunk.mock.calls.map(([content]) => content).filter(Boolean).slice(0, 2)).toEqual([
+      'The',
+      'The command completed.',
+    ]);
+    const requestBodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body));
+    expect(requestBodies.every((body) => body.stream === true)).toBe(true);
+    expect(requestBodies[0].tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'run_command', input_schema: expect.any(Object) }),
+    ]));
+    expect(requestBodies[1].messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'assistant', content: expect.any(Array) }),
+      expect.objectContaining({
+        role: 'user',
+        content: [expect.objectContaining({ type: 'tool_result', tool_use_id: 'tool-pwd' })],
+      }),
+    ]));
+  });
+
+  it('accepts complete Anthropic JSON replies in computer-use mode', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      type: 'message',
+      content: [
+        { type: 'thinking', thinking: 'inspect first', signature: 'signed-thinking' },
+        { type: 'text', text: 'Complete computer reply.' },
+      ],
+    }))));
+    const onChunk = vi.fn();
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      'Inspect without a tool',
+      [],
+      buildModel({ apiModelId: 'claude-sonnet-4-5' }),
+      buildProvider({ endpointType: 'anthropic' }),
+      onChunk,
+      undefined,
+      { computerUseEnabled: true },
+    );
+
+    expect(result).toBe('<think>inspect first</think>Complete computer reply.');
+    expect(onChunk).toHaveBeenLastCalledWith(result);
+  });
+
   it('replays hidden API transcript with reasoning content for DeepSeek-compatible history', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       streamResponse('data: {"choices":[{"delta":{"content":"next"}}]}\n\ndata: [DONE]\n\n'),
@@ -3444,6 +3716,41 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     await request;
     vi.useRealTimers();
+  });
+
+  it('keeps each computer-use model request timeout active while reading its stream body', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(async (_url: string, init: RequestInit) => new Response(
+        new ReadableStream({
+          start(controller) {
+            init.signal?.addEventListener('abort', () => {
+              controller.error(new DOMException('Aborted', 'AbortError'));
+            });
+          },
+        }),
+        { status: 200 },
+      ));
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new OpenAICompatibleClient();
+      (client as unknown as { timeout: number }).timeout = 10;
+
+      const request = expect(client.sendMessage(
+        'inspect the project',
+        [],
+        buildModel({ apiModelId: 'gpt-4o-mini' }),
+        buildProvider({ endpointType: 'openai' }),
+        vi.fn(),
+        undefined,
+        { computerUseEnabled: true },
+      )).rejects.toThrow('The AI request timed out.');
+      await vi.advanceTimersByTimeAsync(20);
+
+      await request;
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps OpenAI-compatible request timeout active while reading error response bodies', async () => {

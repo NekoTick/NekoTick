@@ -53,6 +53,7 @@ function renderChatInput(overrides: Partial<ChatInputProps> = {}) {
     onStop: noop,
     isLoading: false,
     hasSelectedModel: true,
+    sessionId: 'session-1',
     sentUserMessages: [],
     ...overrides,
   };
@@ -279,6 +280,9 @@ describe('ChatInput', () => {
 
   it('anchors computer command approval above the composer without changing its flow height', () => {
     publishComputerCommandApproval('approval-1', {
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
       purpose: 'Inspect the system',
@@ -322,6 +326,9 @@ describe('ChatInput', () => {
       computer: { respondToApproval },
     } as unknown as DesktopApi;
     publishComputerCommandApproval('approval-1', {
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
       purpose: 'Inspect the system',
@@ -347,6 +354,9 @@ describe('ChatInput', () => {
 
   it('keeps the approval overlay outside the quota frame clipping boundary', () => {
     publishComputerCommandApproval('approval-1', {
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
       purpose: 'Inspect the system',
@@ -370,6 +380,9 @@ describe('ChatInput', () => {
 
   it('does not show pending approval controls in an inactive chat input', () => {
     publishComputerCommandApproval('approval-1', {
+      sessionId: 'session-1',
+      messageId: 'assistant-1',
+      commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
       purpose: 'Inspect the system',
@@ -380,6 +393,27 @@ describe('ChatInput', () => {
     const { container } = renderChatInput({ active: false });
 
     expect(container.querySelector('[data-computer-command-approval-frame="true"]')).toBeNull();
+  });
+
+  it('suspends input portals when the chat becomes inactive', async () => {
+    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
+      platform: 'electron',
+    } as DesktopApi;
+    const { props, rerender } = renderChatInput();
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    rerender(<ChatInput {...props} active={false} />);
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByText('chat.uploadFile')).not.toBeInTheDocument();
+
+    rerender(<ChatInput {...props} active />);
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByText('chat.uploadFile')).not.toBeInTheDocument();
   });
 
   it('adds a note mention when a file tree item is dropped into chat', async () => {
@@ -507,5 +541,29 @@ describe('ChatInput', () => {
       expect(textarea.value).toBe('@Fallback ');
     });
     expect(document.querySelector('[data-mention-preview-token="true"]')).toHaveTextContent('@Fallback');
+  });
+
+  it('lets the active composer own external drops while an inactive Chat view stays mounted', async () => {
+    getDroppedExternalPathsMock.mockReturnValue(['/notesRoot/docs/Active.md']);
+    useNotesStore.setState({
+      notesPath: '/notesRoot',
+      getDisplayName: getTestDisplayName,
+    });
+    renderChatInput({ active: false, sessionId: 'inactive-session' });
+    const activeView = renderChatInput({ active: true, sessionId: 'active-session' });
+
+    const dropTarget = activeView.container.querySelector('[data-chat-input="true"]');
+    expect(dropTarget).not.toBeNull();
+    fireEvent.drop(dropTarget!, {
+      dataTransfer: {
+        files: [new File(['body'], 'Active.md', { type: 'text/markdown' })],
+        items: [],
+        types: ['Files'],
+      },
+    });
+
+    const textareas = screen.getAllByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement[];
+    await waitFor(() => expect(textareas[1]?.value).toBe('@Active '));
+    expect(textareas[0]?.value).toBe('');
   });
 });

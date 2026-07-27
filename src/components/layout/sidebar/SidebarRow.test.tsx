@@ -20,4 +20,18 @@ describe('SidebarRow', () => {
     expect(rowSurface).toBeTruthy();
     expect(rowSurface).not.toHaveClass('highlight-surface');
   });
+
+  it('keeps focus-based action visibility opt-in', () => {
+    render(
+      <SidebarRow
+        main={<span>Shared row</span>}
+        actions={<button type="button">More</button>}
+        activeClassName="active-surface"
+        inactiveClassName="inactive-surface"
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'More' }).parentElement?.className)
+      .not.toContain('group-focus-within/sidebar-row');
+  });
 });

@@ -19,6 +19,17 @@ import {
 } from './chatState'
 import { MAX_CHAT_SESSION_DELETE_CONCURRENCY } from './sessionInlineImageConstants'
 import { settleWithConcurrencyLimit } from './sessionInlineImagePersistence'
+import {
+  deleteStoredAttachmentFiles,
+  findUnreferencedAttachmentFilenames,
+} from './sessionAttachmentCleanup'
+
+function isAttachmentCleanupSnapshotCurrent(
+  snapshot: NonNullable<ReturnType<typeof useUnifiedStore.getState>['data']['ai']>,
+): boolean {
+  const current = useUnifiedStore.getState().data.ai
+  return current?.sessions === snapshot.sessions && current.messages === snapshot.messages
+}
 
 export async function deleteSession(id: string) {
   const state = useUnifiedStore.getState()
@@ -67,11 +78,16 @@ export async function deleteSession(id: string) {
       return
     }
 
+    const attachmentFilenames = await findUnreferencedAttachmentFilenames(latestAI, new Set([id]))
+
     try {
       await deleteSessionJson(id)
     } catch (error) {
       latestUIState.setError(translate('chat.error.deleteSessionFailed'));
       throw error
+    }
+    if (isAttachmentCleanupSnapshotCurrent(latestAI)) {
+      await deleteStoredAttachmentFiles(attachmentFilenames)
     }
 
     cancelSessionJsonSave(id)
@@ -113,6 +129,10 @@ export async function clearSessions() {
     const uiState = useAIUIStore.getState()
 
     const persistentSessions = latestAI.sessions.filter((session) => !isTemporarySession(session))
+    const attachmentFilenames = await findUnreferencedAttachmentFilenames(
+      latestAI,
+      new Set(latestAI.sessions.map((session) => session.id)),
+    )
     try {
       const deleteResults = await settleWithConcurrencyLimit(
         persistentSessions,
@@ -128,6 +148,9 @@ export async function clearSessions() {
     } catch (error) {
       uiState.setError(translate('chat.error.clearSessionsFailed'));
       throw error
+    }
+    if (isAttachmentCleanupSnapshotCurrent(latestAI)) {
+      await deleteStoredAttachmentFiles(attachmentFilenames)
     }
 
     latestAI.sessions.forEach((session) => {

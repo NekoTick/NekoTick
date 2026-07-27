@@ -280,6 +280,36 @@ describe('ModelSelector', () => {
     expect(mocks.refreshManagedProviderInBackground).toHaveBeenCalledWith({ force: true });
   });
 
+  it('exposes an owned combobox and listbox relationship in Chat', async () => {
+    render(<ModelSelector />);
+    const trigger = screen.getByRole('button', { name: /Model Alpha/ });
+
+    expect(trigger).toHaveAttribute('type', 'button');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    const listboxId = trigger.getAttribute('aria-controls');
+    expect(listboxId).toBeTruthy();
+
+    fireEvent.click(trigger);
+    const combobox = await screen.findByRole('combobox', { name: 'Find model...' });
+    const listbox = screen.getByRole('listbox', { name: 'Select Model' });
+    const option = screen.getByRole('option', { name: /Model Alpha/ });
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(listbox).toHaveAttribute('id', listboxId);
+    expect(combobox).toHaveAttribute('aria-controls', listboxId);
+    expect(combobox).toHaveAttribute('aria-activedescendant', option.id);
+    expect(option).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Open settings' })).toHaveAttribute('type', 'button');
+    expect(trigger).toHaveAttribute('data-model-selector-secondary-action', 'true');
+    expect(screen.getByRole('button', { name: 'Custom models' }))
+      .toHaveAttribute('data-model-selector-secondary-action', 'true');
+
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Custom models' }), { key: 'Enter' });
+    expect(mocks.selectModel).not.toHaveBeenCalled();
+  });
+
   it('coalesces embedded dropdown scroll repositioning into one frame', async () => {
     let pendingFrame: FrameRequestCallback | null = null;
 

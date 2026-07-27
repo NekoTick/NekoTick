@@ -9,9 +9,11 @@ import {
   cleanupIsolatedElectron,
   createChatFixture,
   createChatModelFixture,
+  createNotesRootFilesFixture,
   getChatSessionMessageStatus,
   getOpenBridgePages,
   launchIsolatedElectron,
+  openNotesRootInNotes,
   setAppViewMode,
   waitForChatSession,
 } from './notesE2E';
@@ -149,6 +151,14 @@ test.describe('chat interaction coverage', () => {
       await createChatModelFixture(page, {
         providerName: 'E2E Composer Provider',
         apiModelId: 'e2e-composer-model',
+      });
+      const notesFixture = await createNotesRootFilesFixture(page, {
+        name: 'chat-composer-coverage',
+        files: [{ filename: 'Mention Target.md', content: 'Mention target body.' }],
+      });
+      await openNotesRootInNotes(page, {
+        notesRootPath: notesFixture.notesRootPath,
+        name: 'Chat Composer Coverage NotesRoot',
       });
 
       await setAppViewMode(page, 'chat');

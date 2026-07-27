@@ -76,6 +76,22 @@ function replaceApiTranscriptSources(
   }))
 }
 
+function replaceRequestContextSources(
+  requestContext: ChatMessage['requestContext'],
+  replacements: Map<string, string>,
+  context: InlineImageReplacementContext,
+): ChatMessage['requestContext'] {
+  if (!requestContext?.imageSources?.length) {
+    return requestContext
+  }
+  const imageSources = requestContext.imageSources.map((source) => replacements.get(source) || source)
+  if (areImageSourcesEqual(requestContext.imageSources, imageSources)) {
+    return requestContext
+  }
+  context.changed = true
+  return { ...requestContext, imageSources }
+}
+
 export function applyImageSourceReplacements(
   messages: ChatMessage[],
   replacements: Map<string, string>,
@@ -103,6 +119,7 @@ export function applyImageSourceReplacements(
       content: nextContent,
       apiTranscript: replaceApiTranscriptSources(message.apiTranscript, replacements, context),
       imageSources: nextImageSources,
+      requestContext: replaceRequestContextSources(message.requestContext, replacements, context),
       versions: message.versions?.map((version, versionIndex) => {
         if (versionIndex >= MAX_INLINE_IMAGE_PERSISTENCE_VERSIONS) {
           return version
@@ -119,6 +136,7 @@ export function applyImageSourceReplacements(
           ...version,
           content: nextVersionContent,
           apiTranscript: replaceApiTranscriptSources(version.apiTranscript, replacements, context),
+          requestContext: replaceRequestContextSources(version.requestContext, replacements, context),
           subsequentMessages: depth < MAX_INLINE_IMAGE_PERSISTENCE_BRANCH_DEPTH
             ? applyImageSourceReplacements(version.subsequentMessages || [], replacements, context, depth + 1)
             : version.subsequentMessages,

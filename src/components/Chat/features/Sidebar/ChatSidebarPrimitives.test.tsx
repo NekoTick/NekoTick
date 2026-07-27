@@ -17,4 +17,18 @@ describe('ChatSidebarPrimitives', () => {
     expect(fade).toHaveClass('group-hover/sidebar-row:from-transparent');
     expect(fade?.className).not.toContain('from-[var(--vlaina-sidebar-chat-fade)]');
   });
+
+  it('reveals Chat row actions while focus is inside the row', () => {
+    render(
+      <ChatSidebarRow
+        main={<span>Keyboard chat</span>}
+        actions={<button type="button">More actions</button>}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'More actions' }).parentElement)
+      .toHaveClass('group-focus-within/sidebar-row:pointer-events-auto');
+    expect(screen.getByRole('button', { name: 'More actions' }).parentElement)
+      .toHaveClass('group-focus-within/sidebar-row:opacity-[var(--vlaina-opacity-100)]');
+  });
 });

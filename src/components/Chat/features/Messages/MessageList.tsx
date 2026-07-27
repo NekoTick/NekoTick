@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { cn } from '@/lib/utils';
 import {
@@ -28,6 +28,7 @@ export const MessageList = memo(function MessageList({
   spacerHeight,
   currentTurnTopSpacerHeight = 0,
   containerRef,
+  navigationRef,
   onCopy,
   onFork,
   onRegenerate,
@@ -108,6 +109,55 @@ export const MessageList = memo(function MessageList({
     };
   }, [currentTurnTopSpacerHeight, frameLayout]);
 
+  const navigateMessages = useCallback((direction: 'prev' | 'next') => {
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const currentScroll = container.scrollTop;
+    let hasUserMessage = false;
+    let targetTop: number | null = null;
+    for (const frame of positionedFrameLayout.items) {
+      if (renderedRows[frame.index]?.message.role !== 'user') {
+        continue;
+      }
+      hasUserMessage = true;
+      if (direction === 'prev') {
+        if (frame.top < currentScroll - 30) {
+          targetTop = frame.top;
+        }
+      } else if (frame.top > currentScroll + 30) {
+        targetTop = frame.top;
+        break;
+      }
+    }
+
+    if (!hasUserMessage) {
+      return;
+    }
+    if (targetTop !== null) {
+      container.scrollTo({ top: Math.max(0, targetTop - 20), behavior: 'smooth' });
+    } else {
+      container.scrollTo({
+        top: direction === 'prev' ? 0 : container.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [containerRef, positionedFrameLayout.items, renderedRows]);
+
+  useLayoutEffect(() => {
+    if (!navigationRef) {
+      return;
+    }
+    navigationRef.current = navigateMessages;
+    return () => {
+      if (navigationRef.current === navigateMessages) {
+        navigationRef.current = null;
+      }
+    };
+  }, [navigateMessages, navigationRef]);
+
   const trailingLayout = useMemo(
     () => buildTrailingChatLayout(positionedFrameLayout, showLoading, spacerHeight),
     [positionedFrameLayout, showLoading, spacerHeight]
@@ -175,6 +225,7 @@ export const MessageList = memo(function MessageList({
       <OverlayScrollArea
         ref={containerRef}
         data-chat-scrollable="true"
+        aria-busy={isSessionActive || showLoading || undefined}
         style={{ overflowAnchor: themeRenderingTokens.overflowAnchorNone }}
         className={cn(
           'transition-opacity duration-[var(--vlaina-duration-150)]',
@@ -192,6 +243,7 @@ export const MessageList = memo(function MessageList({
   return (
       <div
         data-chat-scrollable="true"
+        aria-busy={isSessionActive || showLoading || undefined}
         style={{ overflowAnchor: themeRenderingTokens.overflowAnchorNone }}
         className={cn(
           'flex-1 overflow-x-hidden overflow-y-auto transition-opacity duration-[var(--vlaina-duration-150)]',

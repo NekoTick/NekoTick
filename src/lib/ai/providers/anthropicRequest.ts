@@ -7,6 +7,7 @@ import {
 } from '@/lib/ai/requestContext'
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent'
 import { normalizeRenderableDataImageSrc } from '@/lib/markdown/renderableImagePolicy'
+import { getHistoryMessageRequestContent } from '@/lib/ai/requestContextHistoryContent'
 
 function extractTextContent(content: ChatMessageContent): string {
   if (typeof content === 'string') {
@@ -94,17 +95,22 @@ function buildAnthropicMessages(
   const systemParts: string[] = []
 
   history.forEach((entry) => {
-    const content = stripThinkingContent(extractTextContent(entry.content))
-    if (!content) return
+    const requestContent = getHistoryMessageRequestContent(entry)
+    const content = stripThinkingContent(extractTextContent(requestContent))
 
     if (entry.role === 'system') {
-      systemParts.push(content)
+      if (content) systemParts.push(content)
       return
     }
 
+    const messageContent = entry.role === 'assistant'
+      ? content
+      : buildAnthropicUserContent(requestContent)
+    if (!messageContent || (Array.isArray(messageContent) && messageContent.length === 0)) return
+
     messages.push({
       role: entry.role === 'assistant' ? 'assistant' : 'user',
-      content,
+      content: messageContent,
     })
   })
 

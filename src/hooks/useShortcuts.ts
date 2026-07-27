@@ -204,6 +204,19 @@ export function useShortcuts(options: UseShortcutsOptions = {}) {
       }
 
       if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 'f' &&
+        e.target instanceof Element &&
+        e.target.closest('[data-chat-view-mode]')
+      ) {
+        e.preventDefault();
+        dispatchSidebarOpenSearchEvent('chat');
+        return;
+      }
+
+      if (
         appViewMode === 'notes' &&
         (e.ctrlKey || e.metaKey) &&
         !e.shiftKey &&

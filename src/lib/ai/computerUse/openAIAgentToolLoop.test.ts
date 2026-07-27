@@ -2,14 +2,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopApi } from '@/lib/electron/bridge';
 import { normalizeApiTranscriptMessages } from '@/lib/ai/apiTranscript';
 import { AIErrorType } from '@/lib/ai/types';
-import { runOpenAIJsonAgentToolLoop } from './openAIAgentToolLoop';
+import { extractOpenAIMessageFromJson } from '@/lib/ai/webSearch/openAIToolParsing';
+import type { OpenAIStreamToolResult } from '@/lib/ai/webSearch/openAIToolTypes';
+import { runOpenAIStreamResultAgentToolLoop } from './openAIAgentToolLoop';
 import { extractComputerCommandStatuses } from './transcript';
 
-function payload(message: Record<string, unknown>): Record<string, unknown> {
-  return { choices: [{ message }] };
+function payload(message: Record<string, unknown>): OpenAIStreamToolResult {
+  const result = extractOpenAIMessageFromJson({ choices: [{ message }] });
+  return {
+    content: result.reasoningContent
+      ? `<think>${result.reasoningContent}</think>${result.content}`
+      : result.content,
+    assistantContent: result.content,
+    reasoningContent: result.reasoningContent,
+    toolCalls: result.toolCalls,
+  };
 }
 
-function toolPayload(id = 'call-1'): Record<string, unknown> {
+function toolPayload(id = 'call-1'): OpenAIStreamToolResult {
   return payload({
     role: 'assistant',
     content: '',
@@ -74,20 +84,20 @@ describe('OpenAI computer operation tool loop', () => {
 
   it('asks the desktop runtime to execute a tool and returns the result to the model', async () => {
     const { startCommand } = installComputerBridge();
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce(toolPayload())
       .mockResolvedValueOnce(payload({ role: 'assistant', content: 'The command completed.' }));
     const onApiTranscript = vi.fn();
     const onCommandStatus = vi.fn();
     const onChunk = vi.fn();
 
-    await expect(runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: false },
+    await expect(runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: true },
       defaultCwd: '/tmp/project',
       onApiTranscript,
       onCommandStatus,
       onChunk,
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).resolves.toBe('The command completed.');
 
@@ -98,8 +108,8 @@ describe('OpenAI computer operation tool loop', () => {
       timeoutSeconds: undefined,
       locale: expect.any(String),
     });
-    expect(JSON.stringify(requestJson.mock.calls[0]?.[0])).not.toContain('/tmp/project');
-    const secondRequest = requestJson.mock.calls[1]?.[0];
+    expect(JSON.stringify(requestResult.mock.calls[0]?.[0])).not.toContain('/tmp/project');
+    const secondRequest = requestResult.mock.calls[1]?.[0];
     expect(secondRequest.messages).toEqual(expect.arrayContaining([
       expect.objectContaining({ role: 'assistant', tool_calls: expect.any(Array) }),
       expect.objectContaining({ role: 'tool', tool_call_id: 'call-1' }),
@@ -121,22 +131,22 @@ describe('OpenAI computer operation tool loop', () => {
 
   it('does not repeatedly prompt for the exact command after the user denies it', async () => {
     const { startCommand } = installComputerBridge('denied');
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce(toolPayload('call-1'))
       .mockResolvedValueOnce(toolPayload('call-2'))
       .mockResolvedValueOnce(payload({ role: 'assistant', content: 'The command was not run.' }));
 
-    await expect(runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: false },
+    await expect(runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: true },
       defaultCwd: '/tmp/project',
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).resolves.toBe('The command was not run.');
 
     expect(startCommand).toHaveBeenCalledTimes(1);
-    expect(String(requestJson.mock.calls[1]?.[0]?.messages?.at(-1)?.content)).not.toContain('/tmp/project');
-    const thirdRequestMessages = requestJson.mock.calls[2]?.[0]?.messages as Array<Record<string, unknown>>;
+    expect(String(requestResult.mock.calls[1]?.[0]?.messages?.at(-1)?.content)).not.toContain('/tmp/project');
+    const thirdRequestMessages = requestResult.mock.calls[2]?.[0]?.messages as Array<Record<string, unknown>>;
     const toolResults = thirdRequestMessages.filter((message) => message.role === 'tool');
     expect(toolResults).toHaveLength(2);
     expect(String(toolResults[1]?.content)).toContain('already denied');
@@ -145,19 +155,19 @@ describe('OpenAI computer operation tool loop', () => {
 
   it('does not retry an empty model response after a local command status exists', async () => {
     installComputerBridge();
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce(toolPayload())
       .mockResolvedValueOnce(payload({ role: 'assistant', content: '' }));
 
-    await expect(runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: false },
+    await expect(runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: true },
       defaultCwd: '/tmp/project',
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).rejects.toMatchObject({ type: AIErrorType.INVALID_REQUEST });
 
-    expect(requestJson).toHaveBeenCalledTimes(2);
+    expect(requestResult).toHaveBeenCalledTimes(2);
   });
 
   it('persists the final cancelled tool result after the request signal aborts', async () => {
@@ -189,8 +199,8 @@ describe('OpenAI computer operation tool loop', () => {
     } as unknown as DesktopApi;
     const statusSnapshots: ReturnType<typeof extractComputerCommandStatuses>[] = [];
 
-    await expect(runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: false },
+    await expect(runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run it' }], stream: true },
       defaultCwd: '/tmp/project',
       onApiTranscript: (messages) => {
         statusSnapshots.push(extractComputerCommandStatuses(
@@ -199,7 +209,7 @@ describe('OpenAI computer operation tool loop', () => {
         ));
       },
       onChunk: vi.fn(),
-      requestJson: vi.fn().mockResolvedValueOnce(toolPayload()),
+      requestResult: vi.fn().mockResolvedValueOnce(toolPayload()),
       signal: controller.signal,
       webSearchEnabled: false,
     })).rejects.toMatchObject({ name: 'AbortError' });
@@ -233,7 +243,7 @@ describe('OpenAI computer operation tool loop', () => {
         }),
       },
     } as unknown as DesktopApi;
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce(payload({
         role: 'assistant',
         content: '',
@@ -249,8 +259,8 @@ describe('OpenAI computer operation tool loop', () => {
       .mockResolvedValueOnce(payload({ role: 'assistant', content: 'Both commands completed.' }));
     const statusSnapshots: ReturnType<typeof extractComputerCommandStatuses>[] = [];
 
-    await runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run both' }], stream: false },
+    await runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run both' }], stream: true },
       defaultCwd: '/tmp/project',
       onApiTranscript: (messages) => {
         statusSnapshots.push(extractComputerCommandStatuses(
@@ -259,7 +269,7 @@ describe('OpenAI computer operation tool loop', () => {
         ));
       },
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     });
 
@@ -272,7 +282,7 @@ describe('OpenAI computer operation tool loop', () => {
 
   it('allows the model to answer after using the full sixteen-call budget', async () => {
     const { startCommand } = installComputerBridge();
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce(payload({
         role: 'assistant',
         content: '',
@@ -290,35 +300,35 @@ describe('OpenAI computer operation tool loop', () => {
       }))
       .mockResolvedValueOnce(payload({ role: 'assistant', content: 'All allowed operations were handled.' }));
 
-    await expect(runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run the batch' }], stream: false },
+    await expect(runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run the batch' }], stream: true },
       defaultCwd: '/tmp/project',
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).resolves.toBe('All allowed operations were handled.');
 
     expect(startCommand).toHaveBeenCalledTimes(6);
-    expect(requestJson).toHaveBeenCalledTimes(2);
+    expect(requestResult).toHaveBeenCalledTimes(2);
   });
 
   it('allows a final answer after eight sequential tool rounds', async () => {
     const { startCommand } = installComputerBridge();
-    const requestJson = vi.fn();
+    const requestResult = vi.fn();
     for (let index = 0; index < 8; index += 1) {
-      requestJson.mockResolvedValueOnce(toolPayload(`call-${index + 1}`));
+      requestResult.mockResolvedValueOnce(toolPayload(`call-${index + 1}`));
     }
-    requestJson.mockResolvedValueOnce(payload({ role: 'assistant', content: 'The eight rounds are complete.' }));
+    requestResult.mockResolvedValueOnce(payload({ role: 'assistant', content: 'The eight rounds are complete.' }));
 
-    await expect(runOpenAIJsonAgentToolLoop({
-      body: { model: 'test', messages: [{ role: 'user', content: 'Run every round' }], stream: false },
+    await expect(runOpenAIStreamResultAgentToolLoop({
+      body: { model: 'test', messages: [{ role: 'user', content: 'Run every round' }], stream: true },
       defaultCwd: '/tmp/project',
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).resolves.toBe('The eight rounds are complete.');
 
     expect(startCommand).toHaveBeenCalledTimes(6);
-    expect(requestJson).toHaveBeenCalledTimes(9);
+    expect(requestResult).toHaveBeenCalledTimes(9);
   });
 });

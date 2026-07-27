@@ -1,9 +1,13 @@
 import {
   appendOpenAIStreamBuffer,
   assertOpenAIStreamLineLength,
-  createStreamAccumulator,
   MAX_OPENAI_STREAM_ERROR_FIELD_CHARS,
 } from '@/lib/ai/streaming'
+import {
+  createAnthropicStreamAccumulator,
+  createAnthropicTextStreamAccumulator,
+  type AnthropicStreamResult,
+} from './anthropicStreamAccumulator'
 
 export function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
@@ -17,6 +21,10 @@ function createAbortError(): DOMException {
 function throwIfAborted(signal?: AbortSignal): void {
   if (!signal?.aborted) return
   throw createAbortError()
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 async function raceWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -70,11 +78,12 @@ async function raceWithAbort<T>(promise: Promise<T>, signal?: AbortSignal): Prom
   })
 }
 
-export async function consumeAnthropicStream(
+async function consumeAnthropicEventStream(
   response: Response,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
-): Promise<string> {
+  signal?: AbortSignal,
+  collectBlocks = true,
+): Promise<AnthropicStreamResult> {
   if (!response.body) {
     throw new Error('Response body is null')
   }
@@ -82,7 +91,9 @@ export async function consumeAnthropicStream(
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
-  const accumulator = createStreamAccumulator(onChunk)
+  const accumulator = collectBlocks
+    ? createAnthropicStreamAccumulator(onChunk)
+    : createAnthropicTextStreamAccumulator(onChunk)
   let aborted = signal?.aborted ?? false
 
   const throwIfStreamAborted = () => {
@@ -106,18 +117,18 @@ export async function consumeAnthropicStream(
 
   const consumeLine = (line: string) => {
     const trimmed = line.trim()
-    if (!trimmed.startsWith('data:')) {
-      return
-    }
-
-    const payloadText = trimmed.slice(5).trim()
+    const payloadText = trimmed.startsWith('data:')
+      ? trimmed.slice(5).trim()
+      : trimmed.startsWith('{') ? trimmed : ''
     if (!payloadText || payloadText === '[DONE]') {
       return
     }
 
     let payload: Record<string, unknown>
     try {
-      payload = JSON.parse(payloadText) as Record<string, unknown>
+      const parsed: unknown = JSON.parse(payloadText)
+      if (!isRecord(parsed)) return
+      payload = parsed
     } catch {
       return
     }
@@ -129,23 +140,17 @@ export async function consumeAnthropicStream(
       }
     }
 
-    if (payload.type !== 'content_block_delta') {
+    if (
+      Array.isArray(payload.content) &&
+      (payload.type === 'message' || typeof payload.type !== 'string')
+    ) {
+      for (const [index, contentBlock] of payload.content.entries()) {
+        accumulator.consume({ type: 'content_block_start', index, content_block: contentBlock })
+      }
       return
     }
 
-    const delta = payload.delta
-    if (!delta || typeof delta !== 'object') {
-      return
-    }
-
-    if ('thinking' in delta && typeof delta.thinking === 'string') {
-      accumulator.pushDelta({ reasoning: delta.thinking })
-      return
-    }
-
-    if ('text' in delta && typeof delta.text === 'string') {
-      accumulator.pushDelta({ content: delta.text })
-    }
+    accumulator.consume(payload)
   }
 
   try {
@@ -178,9 +183,9 @@ export async function consumeAnthropicStream(
       throwIfStreamAborted()
     }
 
-    const finalContent = accumulator.finish()
+    const result = accumulator.finish()
     throwIfStreamAborted()
-    return finalContent
+    return result
   } catch (error) {
     void reader.cancel(createAbortError()).catch(() => undefined)
     if ((aborted || signal?.aborted) && !isAbortError(error)) {
@@ -191,4 +196,20 @@ export async function consumeAnthropicStream(
     signal?.removeEventListener('abort', abort)
     reader.releaseLock()
   }
+}
+
+export async function consumeAnthropicStreamResult(
+  response: Response,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<AnthropicStreamResult> {
+  return await consumeAnthropicEventStream(response, onChunk, signal)
+}
+
+export async function consumeAnthropicStream(
+  response: Response,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<string> {
+  return (await consumeAnthropicEventStream(response, onChunk, signal, false)).content
 }

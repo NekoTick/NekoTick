@@ -26,7 +26,6 @@ import {
   MAX_CHAT_SHORTCUT_CODE_BLOCK_SCAN_CHARS,
 } from './chatShortcutCodeBlocks';
 
-export const MAX_CHAT_SHORTCUT_MESSAGE_SCAN_ELEMENTS = 20_000;
 export {
   extractLastFencedCodeBlock,
   MAX_CHAT_SHORTCUT_CODE_BLOCK_COPY_CHARS,
@@ -38,7 +37,7 @@ interface UseChatShortcutsOptions {
   onToggleShortcuts: () => void;
   onStopGeneration?: () => void;
   isGenerating?: boolean;
-  scrollRef: React.RefObject<HTMLDivElement | null>;
+  onNavigateMessages?: (direction: 'prev' | 'next') => void;
 }
 
 function findLastAssistantMessage<T extends { role?: string }>(messages: T[]): T | null {
@@ -52,7 +51,7 @@ function findLastAssistantMessage<T extends { role?: string }>(messages: T[]): T
 }
 
 export function useChatShortcuts(
-  { onFocusInput, onToggleShortcuts, onStopGeneration, isGenerating = false, scrollRef }: UseChatShortcutsOptions,
+  { onFocusInput, onNavigateMessages, onToggleShortcuts, onStopGeneration, isGenerating = false }: UseChatShortcutsOptions,
   enabled: boolean = true,
 ) {
   useEffect(() => {
@@ -132,7 +131,7 @@ export function useChatShortcuts(
           return;
         }
         e.preventDefault();
-        navigateMessages('prev');
+        onNavigateMessages?.('prev');
         return;
       }
 
@@ -141,7 +140,7 @@ export function useChatShortcuts(
           return;
         }
         e.preventDefault();
-        navigateMessages('next');
+        onNavigateMessages?.('next');
         return;
       }
 
@@ -224,57 +223,7 @@ export function useChatShortcuts(
       }
     };
 
-    const navigateMessages = (dir: 'prev' | 'next') => {
-        const container = scrollRef.current;
-        if (!container) return;
-        
-        const currentScroll = container.scrollTop;
-        const buffer = 30; 
-        const ownerDocument = container.ownerDocument ?? document;
-        const walker = ownerDocument.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
-        let target: HTMLElement | undefined;
-        let hasUserMessage = false;
-        let scanned = 0;
-
-        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-            scanned += 1;
-            if (scanned > MAX_CHAT_SHORTCUT_MESSAGE_SCAN_ELEMENTS) break;
-            if (
-                !(node instanceof HTMLElement) ||
-                node.dataset.messageItem !== 'true' ||
-                node.dataset.role !== 'user'
-            ) {
-                continue;
-            }
-
-            hasUserMessage = true;
-            if (dir === 'prev') {
-                if (node.offsetTop < currentScroll - buffer) {
-                    target = node;
-                }
-                continue;
-            }
-
-            if (node.offsetTop > currentScroll + buffer) {
-                target = node;
-                break;
-            }
-        }
-
-        if (!hasUserMessage) return;
-        
-        if (target) {
-            const topPadding = 20;
-            const targetPosition = target.offsetTop - topPadding;
-            container.scrollTo({ top: targetPosition, behavior: 'smooth' });
-        } else if (dir === 'prev') {
-            container.scrollTo({ top: 0, behavior: 'smooth' });
-        } else if (dir === 'next') {
-            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-        }
-    };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [enabled, isGenerating, onFocusInput, onStopGeneration, onToggleShortcuts, scrollRef]);
+  }, [enabled, isGenerating, onFocusInput, onNavigateMessages, onStopGeneration, onToggleShortcuts]);
 }

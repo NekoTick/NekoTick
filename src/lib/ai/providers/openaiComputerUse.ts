@@ -1,7 +1,11 @@
 import { createAIError } from '@/lib/ai/errors';
-import { runManagedTextAgentToolLoop } from '@/lib/ai/computerUse/managedTextAgentToolLoop';
-import { runOpenAIJsonAgentToolLoop, runOpenAIStreamingAgentToolLoop } from '@/lib/ai/computerUse/openAIAgentToolLoop';
-import { requestManagedChatCompletion, requestManagedChatCompletionStream } from '@/lib/ai/managedService';
+import {
+  createManagedProtocolChunkHandler,
+  hasManagedProtocolMarkup,
+  runManagedTextAgentToolLoop,
+} from '@/lib/ai/computerUse/managedTextAgentToolLoop';
+import { runOpenAIStreamingAgentToolLoop, runOpenAIStreamResultAgentToolLoop } from '@/lib/ai/computerUse/openAIAgentToolLoop';
+import { requestManagedChatCompletionStream, requestManagedChatCompletionStreamWithTools } from '@/lib/ai/managedService';
 import { AIErrorType, type ChatCompletionRequest, type ChatSendOptions } from '@/lib/ai/types';
 import { translate } from '@/lib/i18n';
 import { createHtmlRejectingChunkHandler } from './openaiRuntime';
@@ -29,7 +33,8 @@ export function runManagedComputerUseMessage({
     didHandleLocalTool = true;
     options.onWebSearchStatus?.(status);
   };
-  const nativeRequest = runOpenAIJsonAgentToolLoop({
+  const nativeRequest = runOpenAIStreamResultAgentToolLoop({
+    approvalContext: options.computerUseApprovalContext,
     body,
     defaultCwd: options.computerUseCwd,
     onChunk: onChunk || (() => {}),
@@ -38,10 +43,24 @@ export function runManagedComputerUseMessage({
     onWebSearchStatus,
     signal,
     webSearchEnabled: options.webSearchEnabled === true,
-    requestJson: (nextBody) => requestManagedChatCompletion({
-      ...nextBody,
-      stream: false,
-    }, signal),
+    requestResult: async (nextBody, nextOnChunk) => {
+      const result = await requestManagedChatCompletionStreamWithTools({
+        ...nextBody,
+        stream: true,
+      }, createHtmlRejectingChunkHandler(
+        createManagedProtocolChunkHandler(nextOnChunk),
+        signal,
+      ), signal);
+      const hasRawProtocol = hasManagedProtocolMarkup(result.content);
+      if (
+        hasManagedProtocolMarkup(result.assistantContent) ||
+        hasManagedProtocolMarkup(result.reasoningContent) ||
+        (hasRawProtocol && result.toolCalls.length === 0)
+      ) {
+        throw createAIError(AIErrorType.INVALID_REQUEST, translate('chat.computerUse.invalidProtocol'));
+      }
+      return result;
+    },
   });
   return nativeRequest.catch(async (error: unknown) => {
     const errorCode = error && typeof error === 'object'
@@ -53,6 +72,7 @@ export function runManagedComputerUseMessage({
     if (!unsupportedToolCalling || didHandleLocalTool) throw error;
     try {
       return await runManagedTextAgentToolLoop({
+        approvalContext: options.computerUseApprovalContext,
         body,
         defaultCwd: options.computerUseCwd,
         onChunk: onChunk || (() => {}),
@@ -84,14 +104,17 @@ export function runOpenAIComputerUseMessage({
   onChunk,
   options,
   retryDelayMs,
+  timeoutMs,
   signal,
   url,
 }: ComputerUseRequestOptions & {
   headers: Record<string, string>;
   retryDelayMs: number;
+  timeoutMs: number;
   url: string;
 }): Promise<string> {
   return runOpenAIStreamingAgentToolLoop({
+    approvalContext: options.computerUseApprovalContext,
     body,
     defaultCwd: options.computerUseCwd,
     onChunk: onChunk || (() => {}),
@@ -107,6 +130,7 @@ export function runOpenAIComputerUseMessage({
       signal,
       scope: 'computer-operation-model',
       retryDelayMs,
+      timeoutMs,
     }),
   });
 }

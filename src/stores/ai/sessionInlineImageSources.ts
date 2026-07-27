@@ -87,6 +87,13 @@ function collectInlineImageSourcesFromApiTranscript(apiTranscript: ApiTranscript
   apiTranscript.forEach((message) => collectInlineImageSourcesFromApiContent(message.content, groups))
 }
 
+function collectInlineImageSourcesFromRequestContext(
+  requestContext: ChatMessage['requestContext'],
+  groups: InlineImageSourceGroups,
+) {
+  requestContext?.imageSources?.forEach((source) => addInlineImageSource(groups, source))
+}
+
 function hasMarkdownInlineDataImageHintInContent(content: ChatMessageContent | null | undefined): boolean {
   if (typeof content === 'string') {
     return MARKDOWN_INLINE_DATA_IMAGE_HINT_PATTERN.test(content)
@@ -104,11 +111,17 @@ function hasMarkdownInlineDataImageHintInContent(content: ChatMessageContent | n
 export function hasMarkdownInlineDataImageHint(messages: ChatMessage[]): boolean {
   return messages.some((message) =>
     hasMarkdownInlineDataImageHintInContent(message.content) ||
+    message.requestContext?.imageSources?.some((source) =>
+      INLINE_DATA_IMAGE_TARGET_HINT_PATTERN.test(source)
+    ) ||
     message.apiTranscript?.some((transcriptMessage) =>
       hasMarkdownInlineDataImageHintInContent(transcriptMessage.content)
     ) ||
     message.versions?.slice(0, MAX_INLINE_IMAGE_PERSISTENCE_VERSIONS).some((version) =>
       hasMarkdownInlineDataImageHintInContent(version.content) ||
+      version.requestContext?.imageSources?.some((source) =>
+        INLINE_DATA_IMAGE_TARGET_HINT_PATTERN.test(source)
+      ) ||
       version.apiTranscript?.some((transcriptMessage) =>
         hasMarkdownInlineDataImageHintInContent(transcriptMessage.content)
       )
@@ -130,11 +143,13 @@ export function collectInlineImageSources(messages: ChatMessage[], groups: Inlin
       visited += 1
 
       collectInlineImageSourcesFromContent(message.content, groups)
+      collectInlineImageSourcesFromRequestContext(message.requestContext, groups)
       collectInlineImageSourcesFromApiTranscript(message.apiTranscript, groups)
       message.versions?.slice(0, MAX_INLINE_IMAGE_PERSISTENCE_VERSIONS).forEach((version) => {
         if (version.content !== message.content) {
           collectInlineImageSourcesFromContent(version.content, groups)
         }
+        collectInlineImageSourcesFromRequestContext(version.requestContext, groups)
         collectInlineImageSourcesFromApiTranscript(version.apiTranscript, groups)
         if (
           frame.depth < MAX_INLINE_IMAGE_PERSISTENCE_BRANCH_DEPTH &&

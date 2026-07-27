@@ -11,6 +11,7 @@ import {
   type PendingRecalledComposerDraft,
   type RecalledComposerDraft,
 } from './requestLifecycle';
+import { deleteCreatedRequestContextAttachments } from './requestContextAttachmentCleanup';
 
 interface ActiveComposerRequestOptions {
   setError: (error: string | null) => void;
@@ -49,6 +50,12 @@ export function useActiveComposerRequest({
     });
   }, []);
 
+  const cleanupRetractedRequestContext = useCallback((request: ActiveComposerRequest) => {
+    const filenames = request.createdContextAttachmentFilenames;
+    request.createdContextAttachmentFilenames = [];
+    void deleteCreatedRequestContextAttachments(filenames);
+  }, []);
+
   const handleManagedQuotaErrorForComposer = useCallback((
     request: ActiveComposerRequest,
     error: unknown,
@@ -75,6 +82,9 @@ export function useActiveComposerRequest({
     }
 
     const recalledDraft = buildRecalledDraft(request, recalledFromStore ?? undefined);
+    if (recalledFromStore !== null) {
+      cleanupRetractedRequestContext(request);
+    }
     if (
       recalledFromStore !== null ||
       recalledDraft.message.trim() ||
@@ -85,7 +95,7 @@ export function useActiveComposerRequest({
     }
     clearActiveComposerRequest(request);
     return true;
-  }, [clearActiveComposerRequest, publishRecalledComposerDraft, setError]);
+  }, [cleanupRetractedRequestContext, clearActiveComposerRequest, publishRecalledComposerDraft, setError]);
 
   const handleManagedQuotaErrorForVersionRollback = useCallback((
     sessionId: string,
@@ -158,6 +168,7 @@ export function useActiveComposerRequest({
     const recalledDraft = buildRecalledDraft(activeComposerRequest, fallbackMessage);
 
     if (recalledFromStore !== null) {
+      cleanupRetractedRequestContext(activeComposerRequest);
       return recalledDraft;
     }
 
@@ -171,7 +182,7 @@ export function useActiveComposerRequest({
     }
 
     return null;
-  }, [clearActiveComposerRequest, setSessionLoading]);
+  }, [cleanupRetractedRequestContext, clearActiveComposerRequest, setSessionLoading]);
 
   return {
     activeComposerRequestRef,

@@ -5,6 +5,7 @@ import { useNotesRootStore } from '@/stores/useNotesRootStore';
 import { buildDroppedNoteMentions, isInsideChatDropRegion } from '../chatInputDropMentions';
 
 interface UseChatInputDroppedNoteMentionsOptions {
+  active: boolean;
   appendNoteMentions: (mentions: NoteMentionReference[]) => void;
   clearDragState: () => void;
   clearHistoryNavigationOnInput: () => void;
@@ -14,6 +15,7 @@ interface UseChatInputDroppedNoteMentionsOptions {
 }
 
 export function useChatInputDroppedNoteMentions({
+  active,
   appendNoteMentions,
   clearDragState,
   clearHistoryNavigationOnInput,
@@ -78,6 +80,10 @@ export function useChatInputDroppedNoteMentions({
   );
 
   useEffect(() => {
+    if (!active) {
+      return;
+    }
+
     const handleWindowDropCapture = (event: globalThis.DragEvent) => {
       if (event.defaultPrevented || !isInsideChatDropRegion(event)) {
         return;
@@ -91,7 +97,7 @@ export function useChatInputDroppedNoteMentions({
 
     window.addEventListener('drop', handleWindowDropCapture, true);
     return () => window.removeEventListener('drop', handleWindowDropCapture, true);
-  }, [applyDroppedNoteMentions]);
+  }, [active, applyDroppedNoteMentions]);
 
   return {
     handleComposerDrop,

@@ -10,6 +10,7 @@ import {
 } from '@/lib/ai/requestContext'
 import { normalizeRenderableImageSrc } from '@/lib/markdown/renderableImagePolicy'
 import { MANAGED_PROVIDER_ID } from '@/lib/ai/managedService'
+import { getHistoryMessageRequestContent } from '@/lib/ai/requestContextHistoryContent'
 
 export function isDeepSeekOpenAICompatible(provider: Provider, model: AIModel): boolean {
   const haystack = [provider.name, provider.apiHost, model.name, model.apiModelId].join(' ').toLowerCase()
@@ -161,7 +162,7 @@ export function buildOpenAIChatRequest(
       role: entry.role,
       content: entry.role === 'assistant'
         ? stripRenderedThinkingFromAssistantContent(entry.content)
-        : entry.content,
+        : getHistoryMessageRequestContent(entry),
     }]
   })
   apiMessages.push({ role: 'user', content: sanitizeCurrentMessageContent(message) })

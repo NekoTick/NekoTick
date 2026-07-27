@@ -1022,10 +1022,15 @@ describe('managedService', () => {
   it('does not return managed web stream content when aborted after stream consumption', async () => {
     hasElectronDesktopBridgeMock.mockReturnValue(false);
     const controller = new AbortController();
-    vi.doMock('@/lib/ai/streaming', () => ({
-      consumeOpenAIStream: vi.fn(async () => {
+    vi.doMock('@/lib/ai/webSearch/openAIStreamWithTools', () => ({
+      consumeOpenAIStreamWithTools: vi.fn(async () => {
         controller.abort();
-        return 'late success';
+        return {
+          content: 'late success',
+          assistantContent: 'late success',
+          reasoningContent: '',
+          toolCalls: [],
+        };
       }),
     }));
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -1046,7 +1051,7 @@ describe('managedService', () => {
         controller.signal,
       )).rejects.toMatchObject({ name: 'AbortError' });
     } finally {
-      vi.doUnmock('@/lib/ai/streaming');
+      vi.doUnmock('@/lib/ai/webSearch/openAIStreamWithTools');
     }
   });
 
@@ -1103,7 +1108,7 @@ describe('managedService', () => {
 
   it('passes the managed diagnostic request id into the desktop stream bridge', async () => {
     hasElectronDesktopBridgeMock.mockReturnValue(true);
-    managedChatCompletionStreamMock.mockResolvedValue('ok');
+    managedChatCompletionStreamMock.mockResolvedValue({ content: 'ok' });
 
     const { requestManagedChatCompletionStream } = await import('./managedService');
 
@@ -1122,6 +1127,37 @@ describe('managedService', () => {
     });
     expect(typeof managedChatCompletionStreamMock.mock.calls[0]?.[3]).toBe('string');
     expect(managedChatCompletionStreamMock.mock.calls[0]?.[3]).toContain('managed-stream-');
+  });
+
+  it('normalizes desktop managed native tool stream results', async () => {
+    hasElectronDesktopBridgeMock.mockReturnValue(true);
+    managedChatCompletionStreamMock.mockResolvedValue({
+      content: '',
+      assistantContent: '',
+      reasoningContent: 'inspect first',
+      toolCalls: [{
+        id: 'call-1',
+        type: 'function',
+        function: { name: 'run_command', arguments: '{"command":"pwd","purpose":"Inspect cwd"}' },
+      }],
+    });
+
+    const { requestManagedChatCompletionStreamWithTools } = await import('./managedService');
+    const result = await requestManagedChatCompletionStreamWithTools(
+      { model: 'gpt-5.4', messages: [{ role: 'user', content: 'inspect' }], stream: true },
+      vi.fn(),
+    );
+
+    expect(result).toEqual({
+      content: '',
+      assistantContent: '',
+      reasoningContent: 'inspect first',
+      toolCalls: [{
+        id: 'call-1',
+        type: 'function',
+        function: { name: 'run_command', arguments: '{"command":"pwd","purpose":"Inspect cwd"}' },
+      }],
+    });
   });
 
 });

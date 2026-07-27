@@ -22,6 +22,7 @@ export function ChatImageViewerDialog({
   crop,
   cropperImageSrc,
   cropperViewportSize,
+  dialogRef,
   handleCopy,
   handleDialogPointerDownCapture,
   hasNext,
@@ -50,6 +51,7 @@ export function ChatImageViewerDialog({
   crop: ViewerPoint;
   cropperImageSrc: string;
   cropperViewportSize: ViewerSize;
+  dialogRef: MutableRefObject<HTMLDivElement | null>;
   handleCopy: () => void;
   handleDialogPointerDownCapture: (event: PointerEvent<HTMLDivElement>) => void;
   hasNext: boolean;
@@ -81,9 +83,11 @@ export function ChatImageViewerDialog({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-label={activeAlt || "Image preview"}
+      aria-label={activeAlt || t('common.preview')}
+      tabIndex={-1}
       className="fixed inset-0 z-[var(--vlaina-z-121)]"
       data-no-focus-input="true"
       data-chat-image-viewer-surface="true"

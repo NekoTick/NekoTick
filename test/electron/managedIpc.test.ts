@@ -4,6 +4,7 @@ import { normalizeManagedErrorPayload } from '../../electron/managedIpcErrors.mj
 
 const MAX_MANAGED_IPC_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_MANAGED_STREAM_LINE_CHARS = 1024 * 1024;
+const MAX_MANAGED_STREAM_CONTENT_BYTES = 4 * 1024 * 1024;
 const MANAGED_STREAM_TIMEOUT_MS = 300_000;
 
 function registerHarness(overrides: Partial<Parameters<typeof registerManagedIpc>[0]> = {}) {
@@ -36,6 +37,15 @@ function streamResponse(chunks: string[]) {
       for (const chunk of chunks) {
         controller.enqueue(new TextEncoder().encode(chunk));
       }
+      controller.close();
+    },
+  }));
+}
+
+function byteStreamResponse(chunks: Uint8Array[]) {
+  return new Response(new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
       controller.close();
     },
   }));
@@ -590,8 +600,145 @@ describe('managed ipc stream bridge', () => {
       channel === 'desktop:managed:stream:managed-final:done'
     );
 
-    expect(sender.send).toHaveBeenCalledWith('desktop:managed:stream:managed-final:chunk', 'final');
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-final:chunk',
+      { delta: 'final' },
+    );
     expect(sender.send).toHaveBeenCalledWith('desktop:managed:stream:managed-final:done', { content: 'final' });
+  });
+
+  it('streams compatible top-level payloads with valid compact SSE fields', async () => {
+    const fetchWithStoredSession = vi.fn(async () => streamResponse([
+      'data:{"reasoning_content":"plan"}\n\n',
+      'data:{"type":"response.output_text.delta","delta":"normal "}\n\n',
+      'data:{"output_text":"reply"}\n\n',
+      'data:[DONE]\n\n',
+    ]));
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-compatible-payload',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-compatible-payload:done'
+    );
+
+    const streamedContent = sender.send.mock.calls
+      .filter(([channel]) => channel === 'desktop:managed:stream:managed-compatible-payload:chunk')
+      .map(([, payload]) => payload.delta)
+      .join('');
+    expect(streamedContent).toBe('<think>plan</think>normal reply');
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-compatible-payload:done',
+      { content: '<think>plan</think>normal reply' },
+    );
+  });
+
+  it('accepts a compatible complete JSON response when streaming is unavailable', async () => {
+    const fetchWithStoredSession = vi.fn(async () => streamResponse([
+      '{"choices":[{"message":{"content":"complete reply"}}]}',
+    ]));
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-json-fallback',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-json-fallback:done'
+    );
+
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-json-fallback:chunk',
+      { delta: 'complete reply' },
+    );
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-json-fallback:done',
+      { content: 'complete reply' },
+    );
+  });
+
+  it('flushes final decoder bytes before enforcing stream line limits', async () => {
+    const encoder = new TextEncoder();
+    const fetchWithStoredSession = vi.fn(async () => byteStreamResponse([
+      encoder.encode('x'.repeat(MAX_MANAGED_STREAM_LINE_CHARS)),
+      new Uint8Array([0xe2]),
+    ]));
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-final-decoder',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-final-decoder:error'
+    );
+
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-final-decoder:error',
+      { message: 'Managed stream line is too large.', statusCode: undefined, errorCode: undefined },
+    );
+  });
+
+  it('returns bounded native tool calls without emitting their arguments as chat chunks', async () => {
+    const fetchWithStoredSession = vi.fn(async () => streamResponse([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-disk","type":"function","function":{"name":"run_command","arguments":"{\\"command\\":\\"df"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":" -h\\",\\"purpose\\":\\"Draft\\"}"}}]}}]}\n\n',
+      `data: ${JSON.stringify({
+        choices: [{
+          delta: { tool_calls: [] },
+          message: {
+            tool_calls: [{
+              id: 'call-disk',
+              type: 'function',
+              function: {
+                name: 'run_command',
+                arguments: { command: 'df -h', purpose: 'Inspect disk' },
+              },
+            }],
+          },
+        }],
+      })}\n\n`,
+      'data: [DONE]\n\n',
+    ]));
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-tools',
+      { tools: [{ type: 'function' }] },
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-tools:done'
+    );
+
+    expect(sender.send.mock.calls.some(([channel]) =>
+      channel === 'desktop:managed:stream:managed-tools:chunk'
+    )).toBe(false);
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-tools:done',
+      {
+        content: '',
+        assistantContent: '',
+        reasoningContent: '',
+        toolCalls: [{
+          id: 'call-disk',
+          type: 'function',
+          function: {
+            name: 'run_command',
+            arguments: '{"command":"df -h","purpose":"Inspect disk"}',
+          },
+        }],
+      },
+    );
   });
 
   it('coalesces rapid managed stream chunks before crossing the IPC boundary', async () => {
@@ -611,7 +758,44 @@ describe('managed ipc stream bridge', () => {
       channel === 'desktop:managed:stream:managed-coalesced:chunk'
     );
     expect(chunkCalls.length).toBeLessThan(deltas.length);
-    expect(chunkCalls.at(-1)?.[1]).toBe(Array.from({ length: 20 }, (_, index) => String(index)).join(''));
+    expect(chunkCalls.map(([, payload]) => payload.delta).join('')).toBe(
+      Array.from({ length: 20 }, (_, index) => String(index)).join(''),
+    );
+    expect(chunkCalls.every(([, payload]) =>
+      typeof payload === 'object' && typeof payload?.delta === 'string'
+    )).toBe(true);
+  });
+
+  it('rejects managed streams whose decoded content exceeds the total limit', async () => {
+    const content = 'x'.repeat(Math.floor(MAX_MANAGED_STREAM_CONTENT_BYTES / 5));
+    const deltas = Array.from({ length: 6 }, () =>
+      `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`
+    );
+    const fetchWithStoredSession = vi.fn(async () => streamResponse(deltas));
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-content-too-large',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-content-too-large:error'
+    );
+
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-content-too-large:error',
+      {
+        message: 'Managed stream content is too large.',
+        statusCode: undefined,
+        errorCode: undefined,
+      },
+    );
+    expect(sender.send).not.toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-content-too-large:done',
+      expect.anything(),
+    );
   });
 
   it('rejects managed stream buffers that grow too large before a newline arrives', async () => {
@@ -649,10 +833,11 @@ describe('managed ipc stream bridge', () => {
       channel === 'desktop:managed:stream:managed-reasoning:done'
     );
 
-    expect(sender.send).toHaveBeenCalledWith(
-      'desktop:managed:stream:managed-reasoning:chunk',
-      '<think>first</think>visible<think>second</think> answer',
-    );
+    const chunkContent = sender.send.mock.calls
+      .filter(([channel]) => channel === 'desktop:managed:stream:managed-reasoning:chunk')
+      .map(([, payload]) => payload.delta)
+      .join('');
+    expect(chunkContent).toBe('<think>first</think>visible<think>second</think> answer');
     expect(sender.send).toHaveBeenCalledWith(
       'desktop:managed:stream:managed-reasoning:done',
       { content: '<think>first</think>visible<think>second</think> answer' },

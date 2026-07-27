@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { StrictMode } from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Attachment } from '@/lib/storage/attachmentStorage';
 import { deleteAttachment, saveAttachment } from '@/lib/storage/attachmentStorage';
@@ -150,6 +151,73 @@ describe('useChatAttachments', () => {
       { persist: true }
     );
     expect(result.current.attachments).toEqual([accepted]);
+  });
+
+  it('routes window attachment drops only to the active Chat instance', async () => {
+    const accepted = createAttachment({ id: 'active-drop', name: 'active-drop.png' });
+    const file = new File(['image'], 'active-drop.png', { type: 'image/png' });
+    mocks.saveAttachment.mockResolvedValueOnce(accepted);
+    const inactive = renderHook(() => useChatAttachments(false));
+    const active = renderHook(() => useChatAttachments(true));
+    const dropEvent = new Event('drop', { cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', {
+      value: {
+        files: createFileList([file]),
+        items: [],
+        types: ['Files'],
+      },
+    });
+
+    act(() => {
+      window.dispatchEvent(dropEvent);
+    });
+
+    await waitFor(() => expect(active.result.current.attachments).toEqual([accepted]));
+    expect(inactive.result.current.attachments).toEqual([]);
+    expect(saveAttachment).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps async attachments after Strict Mode replays mount effects', async () => {
+    const accepted = createAttachment({ id: 'strict-mode-attachment' });
+    mocks.saveAttachment.mockResolvedValueOnce(accepted);
+    const { result } = renderHook(() => useChatAttachments(), { wrapper: StrictMode });
+
+    await act(async () => {
+      await result.current.handleFileChange({
+        target: {
+          files: [new File(['image'], 'photo.png', { type: 'image/png' })],
+          value: 'selected',
+        },
+      } as unknown as React.ChangeEvent<HTMLInputElement>);
+    });
+
+    expect(result.current.attachments).toEqual([accepted]);
+    expect(deleteAttachment).not.toHaveBeenCalled();
+  });
+
+  it('clears a stale drag overlay when Chat becomes inactive', () => {
+    const { result, rerender } = renderHook(
+      ({ active }) => useChatAttachments(active),
+      { initialProps: { active: true } },
+    );
+    const dragEvent = new Event('dragover', { cancelable: true });
+    Object.defineProperty(dragEvent, 'dataTransfer', {
+      value: {
+        files: createFileList([]),
+        items: [],
+        types: ['Files'],
+        dropEffect: 'none',
+      },
+    });
+
+    act(() => {
+      window.dispatchEvent(dragEvent);
+    });
+    expect(result.current.isDragging).toBe(true);
+
+    rerender({ active: false });
+
+    expect(result.current.isDragging).toBe(false);
   });
 
   it('keeps temporary chat attachments in memory', async () => {

@@ -6,6 +6,7 @@ import { themeDomStyleTokens } from '@/styles/themeTokens'
 import { OPEN_SETTINGS_EVENT, type OpenSettingsDetail } from '@/components/Settings/settingsEvents'
 import type { ModelCategory, ModelCategoryId } from '../modelFamilyRegistry'
 import type {
+  ModelSelectorAccessibility,
   ModelSelectorListRow,
   ModelSelectorTheme,
   ModelSelectorThemeStyles,
@@ -16,11 +17,7 @@ import {
   MODEL_SELECTOR_LIST_HEIGHT,
 } from '../modelSelectorLayout'
 import { ghostIconButtonClass, raisedPillSurfaceClass } from '@/components/ui/surfaceStyles'
-import {
-  CustomModelIcon,
-  ModelOption,
-  monochromeModelIconClass,
-} from './ModelSelectorOption'
+import { CustomModelIcon, ModelOption, monochromeModelIconClass } from './ModelSelectorOption'
 
 interface ModelSelectorVirtualizer {
   getTotalSize: () => number
@@ -59,6 +56,7 @@ interface ModelSelectorDropdownProps {
   theme: ModelSelectorTheme
   showFamilyIcon: boolean
   closeSelector: (restoreComposerFocus?: boolean) => void
+  accessibility: ModelSelectorAccessibility
 }
 
 export function ModelSelectorDropdown({
@@ -89,6 +87,7 @@ export function ModelSelectorDropdown({
   theme,
   showFamilyIcon,
   closeSelector,
+  accessibility,
 }: ModelSelectorDropdownProps) {
   return (
         <div
@@ -120,6 +119,12 @@ export function ModelSelectorDropdown({
               <input
                 ref={inputRef}
                 type="text"
+                role={accessibility.enabled ? 'combobox' : undefined}
+                aria-activedescendant={accessibility.activeOptionId}
+                aria-controls={accessibility.enabled ? accessibility.listboxId : undefined}
+                aria-expanded={accessibility.enabled ? true : undefined}
+                aria-autocomplete={accessibility.enabled ? 'list' : undefined}
+                aria-label={accessibility.enabled ? findModelLabel : undefined}
                 spellCheck={false}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -132,6 +137,9 @@ export function ModelSelectorDropdown({
                 )}
               />
               <button
+                  type={accessibility.enabled ? 'button' : undefined}
+                  aria-label={accessibility.enabled ? accessibility.settingsLabel : undefined}
+                  data-model-selector-secondary-action={accessibility.enabled ? 'true' : undefined}
                   onClick={() => {
                       closeSelector(false)
                       const event = new CustomEvent<OpenSettingsDetail>(OPEN_SETTINGS_EVENT, { detail: { tab: 'ai' } })
@@ -169,6 +177,7 @@ export function ModelSelectorDropdown({
                       <button
                         type="button"
                         aria-label={category.name}
+                        data-model-selector-secondary-action={accessibility.enabled ? 'true' : undefined}
                         onClick={() => handleSelectCategory(category.id)}
                         className={cn(
                           "group/model-category relative flex h-12 w-12 cursor-pointer items-center justify-center transition-[background-color,color,box-shadow] duration-[var(--vlaina-duration-150)]",
@@ -214,6 +223,9 @@ export function ModelSelectorDropdown({
 
             <OverlayScrollArea
               ref={listRef}
+              id={accessibility.enabled ? accessibility.listboxId : undefined}
+              role={accessibility.enabled ? 'listbox' : undefined}
+              aria-label={accessibility.enabled ? accessibility.selectModelLabel : undefined}
               onMouseLeave={handleListMouseLeave}
               scrollbarVariant="compact"
               className="min-w-0 flex-1"
@@ -270,6 +282,7 @@ export function ModelSelectorDropdown({
                             theme={theme}
                             styles={styles}
                             showFamilyIcon={showFamilyIcon}
+                            accessibility={accessibility}
                           />
                         )}
                       </div>

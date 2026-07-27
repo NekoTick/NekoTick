@@ -6,6 +6,8 @@ export interface ChatImageGalleryItem {
 }
 
 export type ChatImageGalleryGetter = () => ChatImageGalleryItem[];
+export type ChatMessageNavigationDirection = 'prev' | 'next';
+export type ChatMessageNavigationHandler = (direction: ChatMessageNavigationDirection) => void;
 
 export interface RenderedMessageRow {
   message: ChatMessage;
@@ -31,6 +33,7 @@ export interface MessageListProps {
   spacerHeight: number;
   currentTurnTopSpacerHeight?: number;
   containerRef: React.RefObject<HTMLDivElement | null>;
+  navigationRef?: React.RefObject<ChatMessageNavigationHandler | null>;
   onCopy: (text: string) => Promise<boolean | void> | boolean | void;
   onFork?: (id: string) => void;
   onRegenerate: (id: string) => void;

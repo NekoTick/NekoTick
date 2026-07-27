@@ -146,8 +146,14 @@ export const accountCommands = {
       throw createAbortError();
     }
 
-    return await new Promise<string>((resolve, reject) => {
+    return await new Promise<{
+      content: string;
+      assistantContent?: string;
+      reasoningContent?: string;
+      toolCalls?: Array<Record<string, unknown>>;
+    }>((resolve, reject) => {
       let isSettled = false;
+      let streamedContent = '';
 
       const cleanupCallbacks: Array<() => void> = [];
       const cleanup = () => {
@@ -175,17 +181,25 @@ export const accountCommands = {
 
       try {
         addCleanupCallback(
-          bridge.onManagedStreamChunk(requestId, (content) => {
+          bridge.onManagedStreamChunk(requestId, (payload) => {
             if (isSettled) return;
             try {
               throwIfAborted(signal);
-              onChunk(content);
+              if (typeof payload === 'string') {
+                streamedContent = payload;
+              } else if (payload && typeof payload.delta === 'string') {
+                streamedContent += payload.delta;
+              } else {
+                throw new Error('Invalid managed stream chunk payload.');
+              }
+              onChunk(streamedContent);
               throwIfAborted(signal);
             } catch (error) {
               if (signal?.aborted) {
                 settleAborted();
                 return;
               }
+              void bridge.cancelManagedChatCompletionStream(requestId);
               settleRejected(error);
             }
           })
@@ -193,7 +207,7 @@ export const accountCommands = {
         if (isSettled) return;
 
         addCleanupCallback(
-          bridge.onManagedStreamDone(requestId, ({ content }) => {
+          bridge.onManagedStreamDone(requestId, (payload) => {
             if (isSettled) return;
             if (signal?.aborted) {
               settleAborted();
@@ -201,7 +215,16 @@ export const accountCommands = {
             }
             isSettled = true;
             cleanup();
-            resolve(content);
+            resolve({
+              content: payload.content,
+              ...(typeof payload.assistantContent === 'string'
+                ? { assistantContent: payload.assistantContent }
+                : {}),
+              ...(typeof payload.reasoningContent === 'string'
+                ? { reasoningContent: payload.reasoningContent }
+                : {}),
+              ...(Array.isArray(payload.toolCalls) ? { toolCalls: payload.toolCalls } : {}),
+            });
           })
         );
         if (isSettled) return;

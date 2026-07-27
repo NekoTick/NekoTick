@@ -14,6 +14,7 @@ import {
 } from './chatStorageLimits';
 import { extractActiveVersionImageSources } from './chatStorageImageSources';
 import { assertSafeChatSessionId } from './chatStorageSessionId';
+import { normalizeChatRequestContextSnapshot } from '@/lib/ai/requestContextSnapshot';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -90,6 +91,7 @@ function normalizeMessageVersion(
     : [];
   const apiTranscript = normalizeApiTranscriptMessages(value.apiTranscript);
   const webSearchStatuses = sanitizeWebSearchStatuses(value.webSearchStatuses);
+  const requestContext = normalizeChatRequestContextSnapshot(value.requestContext);
   return {
     content,
     createdAt,
@@ -97,6 +99,7 @@ function normalizeMessageVersion(
     subsequentMessages,
     ...(apiTranscript ? { apiTranscript } : {}),
     ...(webSearchStatuses.length > 0 ? { webSearchStatuses } : {}),
+    ...(requestContext ? { requestContext } : {}),
   };
 }
 
@@ -185,12 +188,15 @@ function normalizeSessionMessage(
   const topLevelMatchesActiveVersion = content === activeContent;
   const normalizedTopLevelApiTranscript = normalizeApiTranscriptMessages(value.apiTranscript);
   const normalizedTopLevelWebSearchStatuses = sanitizeWebSearchStatuses(value.webSearchStatuses);
+  const normalizedTopLevelRequestContext = normalizeChatRequestContextSnapshot(value.requestContext);
   const apiTranscript = activeVersion.apiTranscript
     ?? (topLevelMatchesActiveVersion ? normalizedTopLevelApiTranscript : undefined);
   const webSearchStatuses = activeVersion.webSearchStatuses
     ?? (topLevelMatchesActiveVersion && normalizedTopLevelWebSearchStatuses.length > 0
       ? normalizedTopLevelWebSearchStatuses
       : undefined);
+  const requestContext = activeVersion.requestContext
+    ?? (topLevelMatchesActiveVersion ? normalizedTopLevelRequestContext : undefined);
 
   if (apiTranscript && !normalizedVersions[currentVersionIndex]?.apiTranscript) {
     normalizedVersions[currentVersionIndex] = {
@@ -204,6 +210,12 @@ function normalizeSessionMessage(
       webSearchStatuses,
     };
   }
+  if (requestContext && !normalizedVersions[currentVersionIndex]?.requestContext) {
+    normalizedVersions[currentVersionIndex] = {
+      ...normalizedVersions[currentVersionIndex],
+      requestContext,
+    };
+  }
   const activeVersionImageSources = extractActiveVersionImageSources(role, activeContent);
 
   return {
@@ -212,6 +224,7 @@ function normalizeSessionMessage(
     content: activeContent,
     ...(apiTranscript ? { apiTranscript } : {}),
     ...(webSearchStatuses ? { webSearchStatuses } : {}),
+    ...(requestContext ? { requestContext } : {}),
     ...(activeVersionImageSources ? { imageSources: activeVersionImageSources } : {}),
     modelId: typeof value.modelId === 'string'
       ? value.modelId.slice(0, MAX_SESSION_MESSAGE_MODEL_ID_CHARS)

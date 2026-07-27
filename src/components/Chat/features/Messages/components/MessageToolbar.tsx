@@ -134,7 +134,7 @@ export const MessageToolbar = memo(function MessageToolbar({
               ? "opacity-[var(--vlaina-opacity-100)]"
               : isCopyClosing
                 ? "opacity-[var(--vlaina-opacity-0)]"
-                : "opacity-[var(--vlaina-opacity-0)] group-hover:opacity-[var(--vlaina-opacity-100)]"
+                : "opacity-[var(--vlaina-opacity-0)] group-hover:opacity-[var(--vlaina-opacity-100)] group-focus-within:opacity-[var(--vlaina-opacity-100)] focus-within:opacity-[var(--vlaina-opacity-100)]"
           )}
         >
             

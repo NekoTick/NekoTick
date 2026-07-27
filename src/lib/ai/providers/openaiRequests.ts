@@ -6,6 +6,12 @@ import { providerFetch } from '../providerHttp'
 import type { ChatCompletionRequest, ChatSendOptions } from '../types'
 import { buildImageEditMultipartBody, normalizeGeneratedImageMarkdown } from './openaiImages'
 import {
+  createOpenAIRequestTimeout,
+  requestTimeoutError,
+  runWithOpenAIRequestTimeout,
+  wrapResponseWithRequestTimeout,
+} from './openaiRequestTimeout'
+import {
   createAbortError,
   createHtmlRejectingChunkHandler,
   emitApiTranscript,
@@ -29,6 +35,7 @@ export async function requestOpenAIChatCompletionWithRetry({
   signal,
   scope,
   retryDelayMs,
+  timeoutMs,
 }: {
   url: string
   headers: Record<string, string>
@@ -36,6 +43,7 @@ export async function requestOpenAIChatCompletionWithRetry({
   signal?: AbortSignal
   scope: string
   retryDelayMs: number
+  timeoutMs: number
 }): Promise<Response> {
   let lastError: unknown
 
@@ -45,16 +53,22 @@ export async function requestOpenAIChatCompletionWithRetry({
       await waitForProviderRetry(retryDelayMs, signal)
     }
 
+    const timeout = createOpenAIRequestTimeout(signal, timeoutMs)
+    let responseOwnsTimeout = false
     try {
       const response = await providerFetch(url, {
         method: 'POST',
         headers,
         body: stringifyProviderJsonRequestBody(body),
-        signal,
+        signal: timeout.signal,
       })
-      if (response.ok) return response
+      if (response.ok) {
+        const timedResponse = wrapResponseWithRequestTimeout(response, timeout)
+        responseOwnsTimeout = true
+        return timedResponse
+      }
 
-      const errorText = await readResponseTextOrFallback(response, signal)
+      const errorText = await readResponseTextOrFallback(response, timeout.signal)
       let errorBody
       try {
         errorBody = JSON.parse(errorText)
@@ -71,6 +85,7 @@ export async function requestOpenAIChatCompletionWithRetry({
       }
       throw parsedError
     } catch (error) {
+      if (timeout.didTimeOut()) throw requestTimeoutError()
       if (signal?.aborted) throw error
       if (hasHttpStatus(error)) throw error
       if (attempt === 0) {
@@ -81,6 +96,8 @@ export async function requestOpenAIChatCompletionWithRetry({
         continue
       }
       throw error
+    } finally {
+      if (!responseOwnsTimeout) timeout.cleanup()
     }
   }
 
@@ -92,32 +109,35 @@ export async function sendImageGeneration(
   headers: Record<string, string>,
   body: Record<string, unknown>,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
 ): Promise<string> {
   throwIfAborted(signal)
-  const response = await providerFetch(url, {
-    method: 'POST',
-    headers,
-    body: stringifyProviderJsonRequestBody(body),
-    signal,
-  })
+  return await runWithOpenAIRequestTimeout(signal, timeoutMs, async (requestSignal) => {
+    const response = await providerFetch(url, {
+      method: 'POST',
+      headers,
+      body: stringifyProviderJsonRequestBody(body),
+      signal: requestSignal,
+    })
 
-  if (!response.ok) {
-    const errorText = await readResponseTextOrFallback(response, signal)
-    let errorBody
-    try {
-      errorBody = JSON.parse(errorText)
-    } catch {
-      errorBody = { message: errorText }
+    if (!response.ok) {
+      const errorText = await readResponseTextOrFallback(response, requestSignal)
+      let errorBody
+      try {
+        errorBody = JSON.parse(errorText)
+      } catch {
+        errorBody = { message: errorText }
+      }
+      throw parseHTTPError(response.status, errorBody)
     }
-    throw parseHTTPError(response.status, errorBody)
-  }
 
-  const payload = await readResponseJson<Record<string, unknown>>(response, signal)
-  throwIfAborted(signal)
-  const content = normalizeGeneratedImageMarkdown(payload)
-  emitChunk(onChunk, signal, content)
-  return content
+    const payload = await readResponseJson<Record<string, unknown>>(response, requestSignal)
+    throwIfAborted(requestSignal)
+    const content = normalizeGeneratedImageMarkdown(payload)
+    emitChunk(onChunk, requestSignal, content)
+    return content
+  })
 }
 
 export async function sendImageEdit(
@@ -125,36 +145,39 @@ export async function sendImageEdit(
   headers: Record<string, string>,
   input: { imageUrl: string; model: string; prompt: string },
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
 ): Promise<string> {
   throwIfAborted(signal)
   const multipart = buildImageEditMultipartBody(input)
-  const response = await providerFetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: headers.Authorization,
-      ...multipart.headers,
-    },
-    body: multipart.body,
-    signal,
-  })
+  return await runWithOpenAIRequestTimeout(signal, timeoutMs, async (requestSignal) => {
+    const response = await providerFetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: headers.Authorization,
+        ...multipart.headers,
+      },
+      body: multipart.body,
+      signal: requestSignal,
+    })
 
-  if (!response.ok) {
-    const errorText = await readResponseTextOrFallback(response, signal)
-    let errorBody
-    try {
-      errorBody = JSON.parse(errorText)
-    } catch {
-      errorBody = { message: errorText }
+    if (!response.ok) {
+      const errorText = await readResponseTextOrFallback(response, requestSignal)
+      let errorBody
+      try {
+        errorBody = JSON.parse(errorText)
+      } catch {
+        errorBody = { message: errorText }
+      }
+      throw parseHTTPError(response.status, errorBody)
     }
-    throw parseHTTPError(response.status, errorBody)
-  }
 
-  const payload = await readResponseJson<Record<string, unknown>>(response, signal)
-  throwIfAborted(signal)
-  const content = normalizeGeneratedImageMarkdown(payload)
-  emitChunk(onChunk, signal, content)
-  return content
+    const payload = await readResponseJson<Record<string, unknown>>(response, requestSignal)
+    throwIfAborted(requestSignal)
+    const content = normalizeGeneratedImageMarkdown(payload)
+    emitChunk(onChunk, requestSignal, content)
+    return content
+  })
 }
 
 export async function streamResponse({

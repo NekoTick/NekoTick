@@ -52,18 +52,10 @@ export async function makeTemporaryAttachmentsEphemeral(
         return attachment;
       }
 
-      let previewUrl: string | null = null;
-      try {
-        previewUrl = await convertToBase64(attachment, {
-          allowPath: isAllowedChatImageAttachmentPath,
-        });
-      } catch {
-      }
+      const previewUrl = await convertToBase64(attachment, {
+        allowPath: isAllowedChatImageAttachmentPath,
+      });
       throwIfChatRequestAborted(signal);
-
-      if (!previewUrl) {
-        return null;
-      }
 
       const ephemeralAttachment = {
         ...attachment,
@@ -77,5 +69,5 @@ export async function makeTemporaryAttachmentsEphemeral(
     },
   );
 
-  return ephemeralAttachments.filter((attachment): attachment is Attachment => attachment !== null);
+  return ephemeralAttachments;
 }

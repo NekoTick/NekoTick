@@ -25,8 +25,12 @@ import {
 import { makeTemporaryAttachmentsEphemeral } from './temporaryAttachments';
 import { shouldStopForManagedAccountState } from './managedRequestGate';
 import { normalizeSendMessageInput } from './sendMessageInput';
-import { buildSendMessageStorageContent } from './sendMessagePayloads';
+import {
+  buildSendMessageApiPayload,
+  buildSendMessageStorageContent,
+} from './sendMessagePayloads';
 import { runSendMessageAssistantStream } from './runSendMessageAssistantStream';
+import { deleteCreatedRequestContextAttachments } from './requestContextAttachmentCleanup';
 
 type Translate = (key: MessageKey, values?: MessageValues) => string;
 
@@ -70,7 +74,12 @@ export function useSendMessage({
   t,
 }: UseSendMessageOptions) {
   return useCallback(
-    async (text: string, attachments: Attachment[], noteMentions: NoteMentionReference[] = []) => {
+    async (
+      text: string,
+      attachments: Attachment[],
+      noteMentions: NoteMentionReference[] = [],
+      onComposerAccepted?: (accepted: boolean) => void,
+    ) => {
       const input = normalizeSendMessageInput(text, attachments, noteMentions);
       if (input.isEmpty || !selectedModel) {
         return false;
@@ -120,8 +129,25 @@ export function useSendMessage({
         submittedText: input.userMessageText,
         submittedAttachments: input.attachments,
         submittedNoteMentions: input.noteMentions,
+        createdContextAttachmentFilenames: [],
         userMessageId: null,
         assistantMessageId: null,
+      };
+      const cleanupUnownedContextAttachments = () => {
+        if (composerRequest.userMessageId || !composerRequest.createdContextAttachmentFilenames?.length) {
+          return;
+        }
+        const filenames = composerRequest.createdContextAttachmentFilenames;
+        composerRequest.createdContextAttachmentFilenames = [];
+        void deleteCreatedRequestContextAttachments(filenames);
+      };
+      let composerAcceptanceSettled = false;
+      const settleComposerAcceptance = (accepted: boolean) => {
+        if (composerAcceptanceSettled) {
+          return;
+        }
+        composerAcceptanceSettled = true;
+        onComposerAccepted?.(accepted);
       };
       activeComposerRequestRef.current = composerRequest;
       const ensureRequestActive = () => {
@@ -176,18 +202,36 @@ export function useSendMessage({
         if (!storageContent.trim()) {
           clearActiveComposerRequest(composerRequest);
           finishPreStartedChatRequest(targetSessionId, requestController, setSessionLoading);
+          settleComposerAcceptance(false);
           return;
         }
+
+        const {
+          content: apiMessageContent,
+          requestContext,
+          createdContextAttachmentFilenames,
+        } = await buildSendMessageApiPayload({
+          requestAttachments,
+          userMessageText: input.userMessageText,
+          noteMentions: input.noteMentions,
+          signal: requestController.signal,
+          persistContextImages: !isTemporaryTarget,
+        });
+        composerRequest.createdContextAttachmentFilenames = createdContextAttachmentFilenames ?? [];
+        ensureRequestActive();
 
         const userMessageId = aiActions.addMessage({
           role: 'user',
           content: storageContent,
           imageSources: messageImageSources,
+          requestContext,
           modelId: selectedModel.id,
         }, targetSessionId);
         if (!userMessageId) {
+          cleanupUnownedContextAttachments();
           clearActiveComposerRequest(composerRequest);
           finishPreStartedChatRequest(targetSessionId, requestController, setSessionLoading);
+          settleComposerAcceptance(false);
           return;
         }
         composerRequest.userMessageId = userMessageId;
@@ -203,11 +247,13 @@ export function useSendMessage({
         if (!assistantMessageId) {
           clearActiveComposerRequest(composerRequest);
           finishPreStartedChatRequest(targetSessionId, requestController, setSessionLoading);
+          settleComposerAcceptance(false);
           return;
         }
         composerRequest.assistantMessageId = assistantMessageId;
 
         ensureRequestActive();
+        settleComposerAcceptance(true);
 
         const timezoneOffset = useUnifiedStore.getState().data.settings.timezone.offset;
         const requestHistory = buildRequestHistory({
@@ -223,9 +269,8 @@ export function useSendMessage({
           assistantMessageId,
           requestController,
           requestStartedAt,
-          requestAttachments,
+          apiMessageContent,
           requestHistory,
-          input,
           selectedModel,
           provider,
           webSearchEnabled,
@@ -240,9 +285,11 @@ export function useSendMessage({
           markSessionUnread,
         });
       }).catch((error) => {
+        cleanupUnownedContextAttachments();
         const cancelled = isChatRequestCancelled(targetSessionId, requestController);
         finishPreStartedChatRequest(targetSessionId, requestController, setSessionLoading);
         clearActiveComposerRequest(composerRequest);
+        settleComposerAcceptance(false);
         if (cancelled) {
           addChatDebugLog('chat', 'sendMessage aborted before stream start', {
             sessionId: targetSessionId,

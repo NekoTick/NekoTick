@@ -39,6 +39,10 @@ import {
   setChatStorageAutoSyncTrigger,
   flushPendingSessionJsonSaves,
 } from './chatStorage';
+import {
+  clearChatStorageStatus,
+  getChatStorageStatusSnapshot,
+} from './chatStorageStatus';
 
 describe('chatStorage session message normalization', () => {
   it('serializes session files with an explicit envelope', () => {
@@ -111,6 +115,33 @@ describe('chatStorage session message normalization', () => {
     ]);
   });
 
+  it('preserves safe bounded request context snapshots', () => {
+    const serialized = serializeSessionMessages('session-1', [{
+      id: 'm1',
+      role: 'user',
+      content: '@notes.md',
+      requestContext: {
+        text: 'Attached file body',
+        imageSources: ['attachment://diagram.png', 'file:///tmp/private.png'],
+        attachmentSources: ['attachment://notes.md', '../private.txt'],
+      },
+      modelId: 'model-1',
+      timestamp: 1,
+      versions: [],
+      currentVersionIndex: 0,
+    }]);
+    const payload = JSON.parse(serialized);
+
+    expect(payload.messages[0].requestContext).toEqual({
+      text: 'Attached file body',
+      imageSources: ['attachment://diagram.png'],
+      attachmentSources: ['attachment://notes.md'],
+    });
+    expect(payload.messages[0].versions[0].requestContext).toEqual(
+      payload.messages[0].requestContext,
+    );
+  });
+
   it('does not serialize relative or bare images as session image source caches', () => {
     const payload = JSON.parse(serializeSessionMessages('session-1', [{
       id: 'm1',
@@ -129,7 +160,7 @@ describe('chatStorage session message normalization', () => {
     expect(payload.messages[0].imageSources).toBeUndefined();
   });
 
-  it('bounds serialized session message files', () => {
+  it('rejects oversized serialized session message files', () => {
     const messageContent = 'x'.repeat(1024 * 1024);
     const messages = Array.from({ length: 40 }, (_, index) => ({
       id: `m${index}`,
@@ -141,19 +172,12 @@ describe('chatStorage session message normalization', () => {
       currentVersionIndex: 0,
     }));
 
-    const serialized = serializeSessionMessages('session-1', messages);
-    const payload = JSON.parse(serialized);
-
-    expect(serialized.length).toBeLessThanOrEqual(MAX_SESSION_MESSAGES_BYTES);
-    expect(payload).toMatchObject({
-      version: 1,
-      sessionId: 'session-1',
-    });
-    expect(payload.messages.length).toBeGreaterThan(0);
-    expect(payload.messages.length).toBeLessThan(messages.length);
+    expect(() => serializeSessionMessages('session-1', messages)).toThrow(
+      `Chat session exceeds the ${MAX_SESSION_MESSAGES_BYTES} byte storage limit`,
+    );
   });
 
-  it('bounds serialized session message files by UTF-8 bytes', () => {
+  it('applies the serialized session limit to UTF-8 bytes', () => {
     const messageContent = '你'.repeat(1024 * 1024);
     const messages = Array.from({ length: 9 }, (_, index) => ({
       id: `m${index}`,
@@ -165,12 +189,9 @@ describe('chatStorage session message normalization', () => {
       currentVersionIndex: 0,
     }));
 
-    const serialized = serializeSessionMessages('session-1', messages);
-    const payload = JSON.parse(serialized);
-
-    expect(new TextEncoder().encode(serialized).byteLength).toBeLessThanOrEqual(MAX_SESSION_MESSAGES_BYTES);
-    expect(payload.messages.length).toBeGreaterThan(0);
-    expect(payload.messages.length).toBeLessThan(messages.length);
+    expect(() => serializeSessionMessages('session-1', messages)).toThrow(
+      `Chat session exceeds the ${MAX_SESSION_MESSAGES_BYTES} byte storage limit`,
+    );
   });
 
   it('loads only matching versioned session envelopes', () => {
@@ -643,6 +664,7 @@ describe('chatStorage auto sync registration', () => {
     mocks.joinPath.mockClear();
     mocks.joinPath.mockImplementation(async (...parts: string[]) => parts.join('/'));
     setChatStorageAutoSyncTrigger(null);
+    clearChatStorageStatus('session-1');
   });
 
   it('keeps the newest chat-session auto-sync trigger when an older registration is disposed', async () => {
@@ -694,6 +716,34 @@ describe('chatStorage auto sync registration', () => {
       '/appdata/.vlaina/chat/sessions/session-1/messages.json',
       expect.stringContaining('"m0"'),
     );
+  });
+
+  it('replaces persisted messages for authoritative destructive mutations', async () => {
+    mocks.storage.exists.mockImplementation(async (path: string) => (
+      path === '/appdata/.vlaina/chat/sessions/session-1/messages.json'
+    ));
+    mocks.storage.stat.mockResolvedValue({ isFile: true, size: 200 });
+    mocks.storage.readFile.mockResolvedValue(JSON.stringify({
+      version: 1,
+      sessionId: 'session-1',
+      updatedAt: 1,
+      messages: [{
+        id: 'retracted-message',
+        role: 'user',
+        content: 'do not restore',
+        modelId: 'model-1',
+        timestamp: 1,
+      }],
+    }));
+
+    await saveSessionJson('session-1', [createMessage('kept-message')], {
+      mergePersisted: false,
+    });
+
+    expect(mocks.storage.readFile).not.toHaveBeenCalled();
+    const serialized = mocks.storage.writeFile.mock.calls.at(-1)?.[1] as string;
+    expect(serialized).toContain('"kept-message"');
+    expect(serialized).not.toContain('"retracted-message"');
   });
 
   it('does not merge existing session files while saving when content exceeds the limit after read', async () => {
@@ -751,6 +801,16 @@ describe('chatStorage auto sync registration', () => {
       '/appdata/.vlaina/chat/sessions/session-1/messages.json',
       expect.stringContaining('"m1"'),
     );
+  });
+
+  it('reports failed session writes until a later save succeeds', async () => {
+    mocks.storage.writeFile.mockRejectedValueOnce(new Error('disk busy'));
+
+    await expect(saveSessionJson('session-1', [createMessage('m1')])).rejects.toThrow('disk busy');
+    expect(getChatStorageStatusSnapshot()['session-1']).toBe('saveFailed');
+
+    await expect(saveSessionJson('session-1', [createMessage('m1')])).resolves.toBeUndefined();
+    expect(getChatStorageStatusSnapshot()['session-1']).toBeUndefined();
   });
 
   it('flushes only the requested session queue', async () => {

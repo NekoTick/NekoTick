@@ -105,11 +105,15 @@ function resolveToolCallIndex(
 
 export function extractOpenAIToolCalls(payload: Record<string, unknown>, toolCalls: OpenAIToolCall[]): void {
   const choice = Array.isArray(payload.choices) ? payload.choices[0] : null;
-  if (!isRecord(choice) || !isRecord(choice.delta) || !Array.isArray(choice.delta.tool_calls)) {
+  const delta = isRecord(choice) && isRecord(choice.delta) ? choice.delta : null;
+  const message = isRecord(choice) && isRecord(choice.message) ? choice.message : null;
+  const isIncremental = Array.isArray(delta?.tool_calls) && delta.tool_calls.length > 0;
+  const source = isIncremental ? delta : Array.isArray(message?.tool_calls) ? message : null;
+  if (!source || !Array.isArray(source.tool_calls)) {
     return;
   }
 
-  for (const deltaCall of choice.delta.tool_calls.slice(0, MAX_OPENAI_TOOL_CALLS)) {
+  for (const deltaCall of source.tool_calls.slice(0, MAX_OPENAI_TOOL_CALLS)) {
     if (!isRecord(deltaCall)) continue;
     const deltaFunction = isRecord(deltaCall.function) ? deltaCall.function : {};
     const index = resolveToolCallIndex(deltaCall, deltaFunction, toolCalls);
@@ -124,7 +128,11 @@ export function extractOpenAIToolCalls(payload: Record<string, unknown>, toolCal
       type: 'function',
       function: {
         name: boundedToolString(deltaFunction.name, 128) || existing.function.name,
-        arguments: appendOpenAIToolArguments(existing.function.arguments, deltaFunction.arguments),
+        arguments: isIncremental && typeof deltaFunction.arguments === 'string'
+          ? appendOpenAIToolArguments(existing.function.arguments, deltaFunction.arguments)
+          : deltaFunction.arguments === undefined
+            ? existing.function.arguments
+            : normalizeOpenAIToolArgumentsValue(deltaFunction.arguments),
       },
     };
   }
@@ -173,26 +181,6 @@ export function extractOpenAIText(value: unknown): string {
   }
 
   return parts.join('');
-}
-
-function extractResponsesApiContentDelta(payload: Record<string, unknown>): { reasoning?: string; content?: string } | null {
-  const type = typeof payload.type === 'string' ? payload.type.toLowerCase() : '';
-  if (!type.endsWith('.delta')) {
-    return null;
-  }
-
-  const delta = extractOpenAIText(payload.delta);
-  if (!delta) {
-    return null;
-  }
-
-  if (type.includes('reasoning') || type.includes('thinking')) {
-    return { reasoning: delta };
-  }
-  if (type.includes('output_text') || type.includes('content')) {
-    return { content: delta };
-  }
-  return null;
 }
 
 function dsmlPattern(name: string): string {
@@ -252,19 +240,6 @@ function extractDsmlToolCalls(content: string): OpenAIToolCall[] {
     }
   }
   return calls;
-}
-
-export function extractOpenAIContentDelta(payload: Record<string, unknown>): { reasoning?: string; content?: string } {
-  const choice = Array.isArray(payload.choices) ? payload.choices[0] : null;
-  if (!isRecord(choice)) {
-    return extractResponsesApiContentDelta(payload) ?? {};
-  }
-  const source = isRecord(choice.delta) ? choice.delta : isRecord(choice.message) ? choice.message : null;
-  if (!source) return {};
-  return {
-    reasoning: extractOpenAIText(source.reasoning_content ?? source.reasoning) || undefined,
-    content: extractOpenAIText(source.content) || undefined,
-  };
 }
 
 export function extractOpenAIMessageFromJson(payload: Record<string, unknown>): {

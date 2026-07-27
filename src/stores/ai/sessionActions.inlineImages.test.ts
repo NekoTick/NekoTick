@@ -153,6 +153,24 @@ describe('session inline image persistence', () => {
     expect(mocked.persistDataUrlAttachment).toHaveBeenCalledTimes(1)
   })
 
+  it('persists request-context images when a temporary Chat becomes durable', async () => {
+    const source = 'data:image/png;base64,INLINE'
+    const message = createMessage('m1', 'Inspect this image')
+    message.requestContext = { text: 'Inspect this image', imageSources: [source] }
+    message.versions[0]!.requestContext = message.requestContext
+    const { createSessionActions } = await import('./sessionActions')
+    seedSession([message])
+
+    await createSessionActions().switchSession('session-2')
+    await vi.runAllTimersAsync()
+
+    const storedMessage = useUnifiedStore.getState().data.ai?.messages['session-2']?.[0]
+    expect(mocked.persistDataUrlAttachment).toHaveBeenCalledWith(source)
+    expect(storedMessage?.requestContext?.imageSources).toEqual(['attachment://persisted.png'])
+    expect(storedMessage?.versions[0]?.requestContext?.imageSources)
+      .toEqual(['attachment://persisted.png'])
+  })
+
   it('isolates parser failures from scheduled inline image persistence', async () => {
     const { createSessionActions } = await import('./sessionActions')
     mocked.parseMarkdownAndHtmlImageTokens.mockImplementationOnce(() => {

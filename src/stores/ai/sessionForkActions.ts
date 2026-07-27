@@ -73,10 +73,14 @@ function createForkMessageId(existingIds: Set<string>): string {
 function cloneMessageForFork(message: ChatMessage, existingIds: Set<string>): ChatMessage {
   const timestamp = message.timestamp || Date.now()
   const apiTranscript = cloneJsonValue(message.apiTranscript)
+  const requestContext = cloneJsonValue(message.requestContext)
+  const webSearchStatuses = cloneJsonValue(message.webSearchStatuses)
   return {
     ...message,
     id: createForkMessageId(existingIds),
     apiTranscript,
+    requestContext,
+    webSearchStatuses,
     imageSources: message.imageSources ? [...message.imageSources] : undefined,
     timestamp,
     versions: [{
@@ -85,6 +89,8 @@ function cloneMessageForFork(message: ChatMessage, existingIds: Set<string>): Ch
       kind: 'original',
       subsequentMessages: [],
       ...(apiTranscript ? { apiTranscript: cloneJsonValue(apiTranscript) } : {}),
+      ...(requestContext ? { requestContext: cloneJsonValue(requestContext) } : {}),
+      ...(webSearchStatuses ? { webSearchStatuses: cloneJsonValue(webSearchStatuses) } : {}),
     }],
     currentVersionIndex: 0,
   }

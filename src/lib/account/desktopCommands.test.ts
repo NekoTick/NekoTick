@@ -110,8 +110,14 @@ describe('desktop account commands', () => {
       return vi.fn();
     });
     mocks.account.startManagedChatCompletionStream.mockImplementationOnce(async () => {
-      listeners.chunk?.('hello');
-      listeners.done?.({ content: 'hello world' });
+      listeners.chunk?.({ delta: 'hello' });
+      listeners.chunk?.({ delta: ' world' });
+      listeners.done?.({
+        content: 'hello world',
+        assistantContent: 'hello world',
+        reasoningContent: '',
+        toolCalls: [],
+      });
     });
 
     const onChunk = vi.fn();
@@ -123,8 +129,13 @@ describe('desktop account commands', () => {
     );
 
     expect(mocks.account.startManagedChatCompletionStream).toHaveBeenCalledWith('req-1', { model: 'vlaina-managed/test' });
-    expect(onChunk).toHaveBeenCalledWith('hello');
-    expect(result).toBe('hello world');
+    expect(onChunk.mock.calls.map(([content]) => content)).toEqual(['hello', 'hello world']);
+    expect(result).toEqual({
+      content: 'hello world',
+      assistantContent: 'hello world',
+      reasoningContent: '',
+      toolCalls: [],
+    });
   });
 
   it('cancels managed streams when a chunk callback aborts the signal', async () => {
@@ -224,7 +235,7 @@ describe('desktop account commands', () => {
     expect(cleanupChunk).toHaveBeenCalledTimes(1);
     expect(cleanupDone).toHaveBeenCalledTimes(1);
     expect(cleanupError).toHaveBeenCalledTimes(1);
-    expect(mocks.account.cancelManagedChatCompletionStream).not.toHaveBeenCalled();
+    expect(mocks.account.cancelManagedChatCompletionStream).toHaveBeenCalledWith('req-chunk-throw');
   });
 
   it('cancels managed chat completions when the signal aborts', async () => {

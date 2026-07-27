@@ -7,9 +7,6 @@ import { sanitizeWebSearchStatus } from '@/lib/ai/webSearch/statusMarkup';
 import {
   consumeOpenAIStreamWithTools,
 } from '@/lib/ai/webSearch/openAIStreamWithTools';
-import {
-  extractOpenAIMessageFromJson,
-} from '@/lib/ai/webSearch/openAIToolParsing';
 import type {
   OpenAIStreamToolResult,
   OpenAIWireMessage,
@@ -28,6 +25,7 @@ import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDe
 import { executeAgentToolCall } from './agentToolRuntime';
 import { serializeComputerCommandStatus } from './toolResult';
 import {
+  type ComputerCommandApprovalContext,
   type ComputerCommandStatus,
 } from './types';
 
@@ -35,6 +33,7 @@ const MAX_AGENT_TOOL_LOOPS = 8;
 const MAX_AGENT_TOOL_CALLS = 16;
 
 interface AgentLoopBaseOptions {
+  approvalContext?: ComputerCommandApprovalContext;
   body: ChatCompletionRequest;
   defaultCwd?: string;
   onChunk: (chunk: string) => void;
@@ -49,8 +48,11 @@ interface StreamingAgentLoopOptions extends AgentLoopBaseOptions {
   request: (body: ChatCompletionRequest) => Promise<Response>;
 }
 
-interface JsonAgentLoopOptions extends AgentLoopBaseOptions {
-  requestJson: (body: ChatCompletionRequest) => Promise<Record<string, unknown>>;
+interface StreamResultAgentLoopOptions extends AgentLoopBaseOptions {
+  requestResult: (
+    body: ChatCompletionRequest,
+    onContent: (content: string) => void,
+  ) => Promise<OpenAIStreamToolResult>;
 }
 
 function appendAgentSystemInstruction(
@@ -192,6 +194,7 @@ async function runAgentLoop(
         tool_calls: [toolCall],
       }, toolMessage);
       const execution = await executeAgentToolCall(toolCall, {
+        approvalContext: options.approvalContext,
         commandApprovalCount,
         deniedCommandKeys,
         defaultCwd: options.defaultCwd,
@@ -225,19 +228,6 @@ export function runOpenAIStreamingAgentToolLoop(options: StreamingAgentLoopOptio
   });
 }
 
-export function runOpenAIJsonAgentToolLoop(options: JsonAgentLoopOptions): Promise<string> {
-  return runAgentLoop(options, async (body, onContent) => {
-    const payload = await options.requestJson({ ...body, stream: false });
-    const result = extractOpenAIMessageFromJson(payload);
-    const content = result.content;
-    if (content) onContent(content);
-    return {
-      content: result.reasoningContent
-        ? `<think>${result.reasoningContent}</think>${content}`
-        : content,
-      assistantContent: content,
-      reasoningContent: result.reasoningContent,
-      toolCalls: result.toolCalls,
-    };
-  });
+export function runOpenAIStreamResultAgentToolLoop(options: StreamResultAgentLoopOptions): Promise<string> {
+  return runAgentLoop(options, options.requestResult);
 }

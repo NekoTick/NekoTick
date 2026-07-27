@@ -47,7 +47,11 @@ const mocked = vi.hoisted(() => {
     generateAutoTitle: vi.fn(async () => {}),
     convertToBase64: vi.fn(async () => TEMPORARY_IMAGE_DATA_URL),
     deleteAttachment: vi.fn(async () => {}),
-    sendMessageWithEndpointFallback: vi.fn(async ({ onChunk }: { onChunk: (chunk: string) => void }) => {
+    deleteStoredAttachmentFile: vi.fn(async () => {}),
+    persistDataUrlAttachment: vi.fn(async () => 'attachment://created-context.png'),
+    sendMessageWithEndpointFallback: vi.fn(async ({
+      onChunk,
+    }: Parameters<typeof sendMessageWithEndpointFallback>[0]) => {
       onChunk('assistant answer');
       return 'assistant answer';
     }),
@@ -71,6 +75,8 @@ vi.mock('@/lib/storage/attachmentStorage', async (importOriginal) => {
     ...actual,
     convertToBase64: mocked.convertToBase64,
     deleteAttachment: mocked.deleteAttachment,
+    deleteStoredAttachmentFile: mocked.deleteStoredAttachmentFile,
+    persistDataUrlAttachment: mocked.persistDataUrlAttachment,
   };
 });
 
@@ -261,6 +267,8 @@ describe('useChatService session context isolation', () => {
     mocked.managedAIState.refreshBudget.mockClear();
     mocked.convertToBase64.mockResolvedValue(TEMPORARY_IMAGE_DATA_URL);
     mocked.deleteAttachment.mockResolvedValue(undefined);
+    mocked.deleteStoredAttachmentFile.mockResolvedValue(undefined);
+    mocked.persistDataUrlAttachment.mockResolvedValue('attachment://created-context.png');
     useUIStore.setState({ languagePreference: 'en' });
     useNotesStore.setState({ notesPath: '/notesRoot', starredEntries: [] });
     seedChatState();
@@ -284,7 +292,253 @@ describe('useChatService session context isolation', () => {
       'session two visible prompt',
       'session two visible answer',
     ]);
+    const assistantMessage = (useUnifiedStore.getState().data.ai?.messages['session-2'] || []).at(-1);
+    expect(request?.options?.computerUseApprovalContext).toEqual({
+      sessionId: 'session-2',
+      messageId: assistantMessage?.id,
+    });
     expect(JSON.stringify(request?.history)).not.toContain('session one private');
+  });
+
+  it('scopes edited-message computer-use approvals to the new assistant reply', async () => {
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      await result.current.editMessage('s2-user', 'edited prompt');
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    const request = vi.mocked(sendMessageWithEndpointFallback).mock.calls[0]?.[0];
+    const assistantMessage = (useUnifiedStore.getState().data.ai?.messages['session-2'] || []).at(-1);
+    expect(request?.options?.computerUseApprovalContext).toEqual({
+      sessionId: 'session-2',
+      messageId: assistantMessage?.id,
+    });
+  });
+
+  it('scopes regenerated-message computer-use approvals to the regenerated reply', async () => {
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      await result.current.regenerate('s2-assistant');
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    const request = vi.mocked(sendMessageWithEndpointFallback).mock.calls[0]?.[0];
+    expect(request?.options?.computerUseApprovalContext).toEqual({
+      sessionId: 'session-2',
+      messageId: 's2-assistant',
+    });
+  });
+
+  it('hydrates rich history context when editing a later user message', async () => {
+    const richUser = createMessage('rich-user', 'user', 'Visible rich prompt');
+    richUser.versions[0]!.requestContext = {
+      text: 'Immutable context from an earlier attachment',
+      imageSources: ['attachment://history-context.png'],
+    };
+    const targetUser = createMessage('target-user', 'user', 'Edit this prompt');
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          messages: {
+            ...state.data.ai!.messages,
+            'session-2': [
+              richUser,
+              createMessage('rich-assistant', 'assistant', 'Earlier answer'),
+              targetUser,
+              createMessage('target-assistant', 'assistant', 'Replace this answer'),
+            ],
+          },
+        },
+      },
+    }));
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      await result.current.editMessage('target-user', 'Edited prompt');
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    const request = vi.mocked(sendMessageWithEndpointFallback).mock.calls[0]?.[0];
+    const hydratedRichUser = request?.history.find((message) => message.id === 'rich-user');
+    expect(hydratedRichUser?.requestContext).toEqual({
+      text: 'Immutable context from an earlier attachment',
+      imageSources: [TEMPORARY_IMAGE_DATA_URL],
+    });
+    expect(JSON.stringify(hydratedRichUser?.requestContext)).not.toContain('attachment://');
+  });
+
+  it('replays the active rich request snapshot when regenerating a response', async () => {
+    const prompt = createMessage('rich-prompt', 'user', 'Visible prompt without expanded context');
+    prompt.versions[0]!.requestContext = {
+      text: 'Expanded note and file context\n\nUser request:\nInspect the image',
+      imageSources: ['attachment://regenerate-context.png'],
+      attachmentSources: ['attachment://regenerate-context.png'],
+    };
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          messages: {
+            ...state.data.ai!.messages,
+            'session-2': [
+              prompt,
+              createMessage('rich-response', 'assistant', 'Original answer'),
+            ],
+          },
+        },
+      },
+    }));
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      await result.current.regenerate('rich-response');
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    const request = vi.mocked(sendMessageWithEndpointFallback).mock.calls[0]?.[0];
+    expect(request?.content).toEqual([
+      {
+        type: 'text',
+        text: 'Expanded note and file context\n\nUser request:\nInspect the image',
+      },
+      { type: 'image_url', image_url: { url: TEMPORARY_IMAGE_DATA_URL } },
+    ]);
+    expect(JSON.stringify(request?.content)).not.toContain('attachment://');
+  });
+
+  it('replays immutable file context snapshots on later turns', async () => {
+    const attachment = createAttachment({
+      id: 'context-file',
+      path: '/appdata/.vlaina/chat/attachments/context.txt',
+      previewUrl: '',
+      assetUrl: '',
+      name: 'context.txt',
+      type: 'text/plain',
+      textContent: 'Context that must survive the first turn.',
+    });
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      expect(await result.current.sendMessage('Use this file', [attachment], [])).toBe(true);
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      expect(await result.current.sendMessage('What did the file say?', [], [])).toBe(true);
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(2));
+
+    const secondRequest = vi.mocked(sendMessageWithEndpointFallback).mock.calls[1]?.[0];
+    const firstTurn = secondRequest?.history.find((message) =>
+      message.role === 'user' && message.content.includes('Use this file')
+    );
+    expect(firstTurn?.requestContext?.text).toContain('Context that must survive the first turn.');
+    expect(firstTurn?.requestContext?.attachmentSources).toEqual(['attachment://context.txt']);
+  });
+
+  it('rehydrates stored image context on later turns', async () => {
+    const attachment = createAttachment({
+      id: 'context-image',
+      path: '/appdata/.vlaina/chat/attachments/context.png',
+      previewUrl: '',
+      assetUrl: '',
+      name: 'context.png',
+      type: 'image/png',
+    });
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      expect(await result.current.sendMessage('Inspect this image', [attachment], [])).toBe(true);
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      expect(await result.current.sendMessage('What was in it?', [], [])).toBe(true);
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(2));
+
+    const secondRequest = vi.mocked(sendMessageWithEndpointFallback).mock.calls[1]?.[0];
+    const firstTurn = secondRequest?.history.find((message) =>
+      message.role === 'user' && message.content.includes('Inspect this image')
+    );
+    expect(firstTurn?.requestContext?.imageSources).toEqual([TEMPORARY_IMAGE_DATA_URL]);
+    expect(firstTurn?.requestContext?.attachmentSources).toEqual(['attachment://context.png']);
+  });
+
+  it('deletes newly persisted image context after stopping and retracting the request', async () => {
+    mocked.sendMessageWithEndpointFallback.mockImplementationOnce(({ signal }) => {
+      if (!signal) throw new Error('Expected request signal');
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+          once: true,
+        });
+      });
+    });
+    const attachment = createAttachment({
+      id: 'ephemeral-context-image',
+      previewUrl: 'data:image/png;base64,AQI=',
+    });
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      expect(await result.current.sendMessage('Inspect this image', [attachment], [])).toBe(true);
+    });
+    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
+
+    let recalled: ReturnType<typeof result.current.stopAndRecallLastUserMessage> = null;
+    act(() => {
+      recalled = result.current.stopAndRecallLastUserMessage();
+    });
+
+    expect(recalled).toEqual({
+      message: 'Inspect this image',
+      attachments: [attachment],
+      noteMentions: [],
+    });
+    await waitFor(() => {
+      expect(mocked.deleteStoredAttachmentFile).toHaveBeenCalledWith('created-context.png');
+    });
+    expect(useUnifiedStore.getState().data.ai?.messages['session-2']?.map((message) => message.id))
+      .toEqual(['s2-user', 's2-assistant']);
+  });
+
+  it('confirms composer acceptance only after request messages are created', async () => {
+    let resolvePendingHydration!: () => void;
+    const pendingHydration = new Promise<void>((resolve) => {
+      resolvePendingHydration = resolve;
+    });
+    mocked.flushPendingSessionJsonSave.mockImplementationOnce(async () => {
+      await pendingHydration;
+    });
+    const onComposerAccepted = vi.fn();
+    const { result } = renderHook(() => useChatService());
+
+    await act(async () => {
+      expect(await result.current.sendMessage(
+        'keep this draft until ready',
+        [],
+        [],
+        onComposerAccepted,
+      )).toBe(true);
+    });
+
+    expect(onComposerAccepted).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolvePendingHydration();
+      await pendingHydration;
+    });
+
+    await waitFor(() => {
+      expect(onComposerAccepted).toHaveBeenCalledWith(true);
+    });
+    const messages = useUnifiedStore.getState().data.ai?.messages['session-2'] || [];
+    expect(messages.slice(-2).map((message) => message.role)).toEqual(['user', 'assistant']);
   });
 
   it('shows retry countdown status on the pending assistant message', async () => {
@@ -783,11 +1037,12 @@ describe('useChatService session context isolation', () => {
     mocked.flushPendingSessionJsonSave.mockImplementationOnce(async () => {
       await pendingHydration;
     });
+    const onComposerAccepted = vi.fn();
 
     const { result } = renderHook(() => useChatService());
 
     await act(async () => {
-      expect(await result.current.sendMessage('cancel before provider', [], [])).toBe(true);
+      expect(await result.current.sendMessage('cancel before provider', [], [], onComposerAccepted)).toBe(true);
     });
 
     await waitFor(() => {
@@ -808,6 +1063,7 @@ describe('useChatService session context isolation', () => {
     await waitFor(() => {
       expect(sendMessageWithEndpointFallback).not.toHaveBeenCalled();
       expect(useAIUIStore.getState().generatingSessions).toEqual({});
+      expect(onComposerAccepted).toHaveBeenCalledWith(false);
     });
 
     const sessionMessages = useUnifiedStore.getState().data.ai?.messages['session-2'] || [];
@@ -1428,33 +1684,34 @@ describe('useChatService session context isolation', () => {
     expect(deleteAttachment).toHaveBeenCalledTimes(attachments.length);
   });
 
-  it('drops temporary stored attachment references when conversion fails', async () => {
+  it('rejects a temporary request instead of silently dropping an image that cannot be converted', async () => {
     seedTemporaryChatState();
     vi.mocked(convertToBase64).mockRejectedValueOnce(new Error('cannot read attachment'));
     const attachment = createAttachment({
       previewUrl: 'attachment://demo.png',
       assetUrl: 'app-file://attachment/demo.png',
     });
+    const onComposerAccepted = vi.fn();
 
     const { result } = renderHook(() => useChatService());
 
     await act(async () => {
-      expect(await result.current.sendMessage('describe it', [attachment], [])).toBe(true);
+      expect(await result.current.sendMessage(
+        'describe it',
+        [attachment],
+        [],
+        onComposerAccepted,
+      )).toBe(true);
     });
 
     await waitFor(() => {
-      expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1);
+      expect(onComposerAccepted).toHaveBeenCalledWith(false);
     });
 
     expect(deleteAttachment).not.toHaveBeenCalled();
-    const messages = useUnifiedStore.getState().data.ai?.messages['temp-session-1'] || [];
-    const userMessage = messages.find((message) => message.role === 'user');
-    expect(userMessage?.content).toBe('describe it');
-    expect(userMessage?.content).not.toContain('attachment://');
-    expect(userMessage?.content).not.toContain('app-file://');
-    expect(sendMessageWithEndpointFallback).toHaveBeenCalledWith(expect.objectContaining({
-      content: 'describe it',
-    }));
+    expect(sendMessageWithEndpointFallback).not.toHaveBeenCalled();
+    expect(useUnifiedStore.getState().data.ai?.messages['temp-session-1']).toEqual([]);
+    expect(useAIUIStore.getState().error).toBeTruthy();
   });
 
   it('does not send an empty temporary request when all stored attachments fail conversion', async () => {

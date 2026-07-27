@@ -53,6 +53,21 @@ describe("MessageToolbar", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("reveals hover-only actions when keyboard focus enters the toolbar", () => {
+    const { container } = render(
+      <MessageToolbar
+        msg={createMessage()}
+        isLoading={false}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('[data-chat-message-action="copy"]')?.parentElement)
+      .toHaveClass('focus-within:opacity-[var(--vlaina-opacity-100)]');
+  });
+
   it("copies thinking-stripped content and shows temporary copied feedback", async () => {
     const onCopy = vi.fn().mockResolvedValue(undefined);
 

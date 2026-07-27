@@ -42,14 +42,18 @@ describe('Anthropic computer operation tool loop', () => {
         }),
       },
     } as unknown as DesktopApi;
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce({
-        content: [{
-          type: 'tool_use',
-          id: 'tool-1',
-          name: 'run_command',
-          input: { command: 'pwd', purpose: 'Show the current directory' },
-        }],
+        content: [
+          { type: 'thinking', thinking: 'Inspect first.', signature: 'signed-thinking' },
+          { type: 'redacted_thinking', data: 'opaque-thinking' },
+          {
+            type: 'tool_use',
+            id: 'tool-1',
+            name: 'run_command',
+            input: { command: 'pwd', purpose: 'Show the current directory' },
+          },
+        ],
       })
       .mockResolvedValueOnce({
         content: [{ type: 'text', text: 'The working directory is /tmp/project.' }],
@@ -65,15 +69,22 @@ describe('Anthropic computer operation tool loop', () => {
       defaultCwd: '/tmp/project',
       onApiTranscript,
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).resolves.toBe('The working directory is /tmp/project.');
 
     expect(startCommand).toHaveBeenCalledTimes(1);
-    expect(String(requestJson.mock.calls[0]?.[0]?.system)).not.toContain('/tmp/project');
-    const secondBody = requestJson.mock.calls[1]?.[0];
+    expect(requestResult.mock.calls[0]?.[0]?.stream).toBe(true);
+    expect(String(requestResult.mock.calls[0]?.[0]?.system)).not.toContain('/tmp/project');
+    const secondBody = requestResult.mock.calls[1]?.[0];
     expect(secondBody.messages).toEqual(expect.arrayContaining([
-      expect.objectContaining({ role: 'assistant', content: expect.any(Array) }),
+      expect.objectContaining({
+        role: 'assistant',
+        content: expect.arrayContaining([
+          { type: 'thinking', thinking: 'Inspect first.', signature: 'signed-thinking' },
+          { type: 'redacted_thinking', data: 'opaque-thinking' },
+        ]),
+      }),
       expect.objectContaining({
         role: 'user',
         content: [expect.objectContaining({ type: 'tool_result', tool_use_id: 'tool-1' })],
@@ -89,8 +100,32 @@ describe('Anthropic computer operation tool loop', () => {
     });
   });
 
+  it('keeps interleaved thinking and text in the streamed order at finalization', async () => {
+    const streamedContent = '<think>first</think>visible<think>second</think>';
+    const onChunk = vi.fn();
+
+    const result = await runAnthropicAgentToolLoop({
+      body: { model: 'claude-test', messages: [] },
+      onChunk,
+      requestResult: vi.fn(async (_body, emitContent) => {
+        emitContent(streamedContent);
+        return {
+          content: [
+            { type: 'thinking', thinking: 'first' },
+            { type: 'text', text: 'visible' },
+            { type: 'thinking', thinking: 'second' },
+          ],
+        };
+      }),
+      webSearchEnabled: false,
+    });
+
+    expect(result).toBe(streamedContent);
+    expect(onChunk).toHaveBeenLastCalledWith(streamedContent);
+  });
+
   it('does not replay oversized untrusted tool input to the provider', async () => {
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce({
         content: [{
           type: 'tool_use',
@@ -115,11 +150,11 @@ describe('Anthropic computer operation tool loop', () => {
       },
       defaultCwd: '/tmp/project',
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     })).resolves.toBe('The oversized tool request was rejected.');
 
-    const secondBody = requestJson.mock.calls[1]?.[0];
+    const secondBody = requestResult.mock.calls[1]?.[0];
     expect(secondBody.messages[1].content[0].input).toEqual({});
     expect(secondBody.messages[2].content[0].content).toContain('Invalid run_command arguments');
     expect(JSON.stringify(secondBody)).not.toContain('x'.repeat(1000));
@@ -145,7 +180,7 @@ describe('Anthropic computer operation tool loop', () => {
       name: 'run_command',
       input: { command: 'printf ok', purpose: 'Print output' },
     });
-    const requestJson = vi.fn()
+    const requestResult = vi.fn()
       .mockResolvedValueOnce({
         content: [toolUse('tool-1'), toolUse('tool-1'), toolUse('tool-2\u202E')],
       })
@@ -155,12 +190,12 @@ describe('Anthropic computer operation tool loop', () => {
       body: { model: 'claude-test', messages: [] },
       defaultCwd: '/tmp/project',
       onChunk: vi.fn(),
-      requestJson,
+      requestResult,
       webSearchEnabled: false,
     });
 
     expect(startCommand).toHaveBeenCalledTimes(1);
-    expect(requestJson.mock.calls[1]?.[0]?.messages[1].content).toHaveLength(1);
+    expect(requestResult.mock.calls[1]?.[0]?.messages[1].content).toHaveLength(1);
   });
 
   it('bounds aggregate Anthropic text across multiple content blocks', async () => {
@@ -168,7 +203,7 @@ describe('Anthropic computer operation tool loop', () => {
     const result = await runAnthropicAgentToolLoop({
       body: { model: 'claude-test', messages: [] },
       onChunk: vi.fn(),
-      requestJson: vi.fn().mockResolvedValueOnce({
+      requestResult: vi.fn().mockResolvedValueOnce({
         content: [
           { type: 'text', text: block },
           { type: 'text', text: block },

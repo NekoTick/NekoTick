@@ -46,6 +46,11 @@ export const ChatInput = memo(function ChatInput({
   const computerUseEnabled = useUnifiedStore((state) => state.data.ai?.computerUseEnabled === true);
   const computerUseAvailable = isElectronRuntime();
   useEffect(() => {
+    if (!active) {
+      setShowComputerUseEnableDialog(false);
+    }
+  }, [active]);
+  useEffect(() => {
     if (webSearchEnabled && webSearchAvailable === false) {
       aiActions.setWebSearchEnabled(false);
     }
@@ -68,7 +73,7 @@ export const ChatInput = memo(function ChatInput({
     clearAttachments,
     clearDragState,
     restoreAttachments,
-  } = useChatAttachments();
+  } = useChatAttachments(active);
 
   const {
     message,
@@ -205,6 +210,7 @@ export const ChatInput = memo(function ChatInput({
     undoLastRemovedAttachment,
   });
   const { handleComposerDrop, handleComposerDropCapture } = useChatInputDroppedNoteMentions({
+    active,
     appendNoteMentions,
     clearDragState,
     clearHistoryNavigationOnInput,
@@ -265,6 +271,7 @@ export const ChatInput = memo(function ChatInput({
   return (
     <>
       <ChatInputComposerFrame
+      active={active}
       activeCandidatePath={activeCandidatePath}
       applyMentionCandidate={applyMentionCandidate}
       attachments={attachments}
@@ -313,13 +320,14 @@ export const ChatInput = memo(function ChatInput({
       onDisableComputerUse={() => aiActions.setComputerUseEnabled(false)}
       showMentionPicker={showMentionPicker}
       showComputerCommandApproval={active}
+      sessionId={sessionId}
       textareaRef={textareaRef}
       textareaScrollTop={textareaScrollTop}
       webSearchEnabled={webSearchEnabled}
       webSearchAvailable={webSearchAvailable}
       />
       <ComputerUseEnableDialog
-        isOpen={showComputerUseEnableDialog}
+        isOpen={active && showComputerUseEnableDialog}
         onClose={() => setShowComputerUseEnableDialog(false)}
         onConfirm={() => {
           aiActions.setComputerUseEnabled(true);

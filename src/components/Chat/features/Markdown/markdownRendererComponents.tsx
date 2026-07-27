@@ -11,6 +11,7 @@ import { translate } from '@/lib/i18n';
 import { resolveCompactedChatImageSrc } from './chatInlineImageTokens';
 import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/components/Chat/common/messageClipboard';
 import { MarkdownImage, type ImageGalleryItem } from './MarkdownImage';
+import { ChatRemoteIframe } from './ChatRemoteIframe';
 
 const ReadOnlyCodeBlock = React.lazy(async () => {
   const mod = await import('@/components/common/code-block');
@@ -57,6 +58,10 @@ type MarkdownImageProps = {
   dataVlainaCrop?: string;
   src?: string;
   width?: string | number;
+};
+
+type MarkdownIframeProps = React.IframeHTMLAttributes<HTMLIFrameElement> & {
+  node?: unknown;
 };
 
 const BLOCK_LEVEL_TAGS = new Set([
@@ -271,6 +276,9 @@ export function createMarkdownComponents({
           <table {...props}>{children}</table>
         </div>
       );
+    },
+    iframe({ node: _node, ...props }: MarkdownIframeProps) {
+      return <ChatRemoteIframe {...props} />;
     },
     img({ src, alt, align, width, dataVlainaCrop: cropDataProp, 'data-vlaina-crop': cropDataAttr }: MarkdownImageProps) {
       const rawSrc = typeof src === 'string' ? src : null;

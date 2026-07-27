@@ -466,10 +466,18 @@ export interface ElectronAccountApi {
   cancelManagedImageEdit(requestId: string): Promise<void>;
   startManagedChatCompletionStream(requestId: string, body: Record<string, unknown>): Promise<void>;
   cancelManagedChatCompletionStream(requestId: string): Promise<void>;
-  onManagedStreamChunk(requestId: string, callback: (content: string) => void): () => void;
+  onManagedStreamChunk(
+    requestId: string,
+    callback: (payload: string | { delta: string }) => void
+  ): () => void;
   onManagedStreamDone(
     requestId: string,
-    callback: (payload: { content: string }) => void
+    callback: (payload: {
+      content: string;
+      assistantContent?: string;
+      reasoningContent?: string;
+      toolCalls?: Array<Record<string, unknown>>;
+    }) => void
   ): () => void;
   onManagedStreamError(
     requestId: string,

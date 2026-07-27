@@ -1,6 +1,5 @@
 import { actions as aiActions } from '@/stores/useAIStore';
-import type { AIModel, ChatMessage, Provider } from '@/lib/ai/types';
-import type { Attachment } from '@/lib/storage/attachmentStorage';
+import type { AIModel, ChatMessage, ChatMessageContent, Provider } from '@/lib/ai/types';
 import { isManagedProviderId } from '@/lib/ai/managedService';
 import { isTemporarySession, isTemporarySessionId } from '@/lib/ai/temporaryChat';
 import { useAIUIStore } from '@/stores/ai/chatState';
@@ -20,17 +19,17 @@ import {
 } from './requestLifecycle';
 import { runStreamedAssistantMessage } from './runStreamedAssistantMessage';
 import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
-import { buildSendMessageApiContent } from './sendMessagePayloads';
-import type { NormalizedSendMessageInput } from './sendMessageInput';
+import {
+  hydrateRequestHistoryForCurrentContent,
+} from './hydrateRequestHistory';
 
 interface RunSendMessageAssistantStreamOptions {
   targetSessionId: string;
   assistantMessageId: string;
   requestController: AbortController;
   requestStartedAt: number;
-  requestAttachments: Attachment[];
+  apiMessageContent: ChatMessageContent;
   requestHistory: ChatMessage[];
-  input: NormalizedSendMessageInput;
   selectedModel: AIModel;
   provider: Provider;
   webSearchEnabled: boolean;
@@ -50,9 +49,8 @@ export function runSendMessageAssistantStream({
   assistantMessageId,
   requestController,
   requestStartedAt,
-  requestAttachments,
+  apiMessageContent,
   requestHistory,
-  input,
   selectedModel,
   provider,
   webSearchEnabled,
@@ -71,15 +69,14 @@ export function runSendMessageAssistantStream({
     assistantMessageId,
     controller: requestController,
     execute: async (onChunk, signal, { isActiveRequest }) => {
-      const apiMessageContent = await buildSendMessageApiContent({
-        requestAttachments,
-        userMessageText: input.userMessageText,
-        noteMentions: input.noteMentions,
+      const hydratedRequestHistory = await hydrateRequestHistoryForCurrentContent(
+        requestHistory,
+        apiMessageContent,
         signal,
-      });
+      );
       return await sendMessageWithEndpointFallback({
         content: apiMessageContent,
-        history: requestHistory,
+        history: hydratedRequestHistory,
         model: selectedModel,
         provider,
         onChunk,
@@ -88,6 +85,10 @@ export function runSendMessageAssistantStream({
           webSearchEnabled,
           computerUseEnabled,
           computerUseCwd: computerUseCwd || undefined,
+          computerUseApprovalContext: {
+            sessionId: targetSessionId,
+            messageId: assistantMessageId,
+          },
           onComputerCommandStatus: (status) => {
             if (!isActiveRequest()) return;
             addChatDebugLog('computer-use', `status:${status.phase}`, {

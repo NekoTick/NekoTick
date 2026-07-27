@@ -393,7 +393,7 @@ function expectLatestUserVisible(sample: LatestTurnLayoutSample, id: string): vo
 
   if ((sample.userHeight ?? 0) < sample.clientHeight) {
     expect(sample.userTopOffset ?? Number.NaN, id).toBeGreaterThanOrEqual(-1);
-    expect(sample.userBottomOffset ?? 0, id).toBeGreaterThan(sample.clientHeight * 0.5);
+    expect(sample.userTopOffset ?? sample.clientHeight, id).toBeLessThan(sample.clientHeight * 0.5);
     return;
   }
 

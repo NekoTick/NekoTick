@@ -13,6 +13,7 @@ export interface ActiveComposerRequest {
   submittedText: string;
   submittedAttachments: Attachment[];
   submittedNoteMentions: NoteMentionReference[];
+  createdContextAttachmentFilenames?: string[];
   userMessageId: string | null;
   assistantMessageId: string | null;
 }
