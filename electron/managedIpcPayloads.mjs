@@ -4,8 +4,6 @@ const MAX_MANAGED_BINARY_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_MANAGED_BINARY_BODY_BASE64_CHARS = Math.ceil(MAX_MANAGED_BINARY_BODY_BYTES / 3) * 4;
 const MAX_MANAGED_BINARY_HEADER_VALUE_CHARS = 16 * 1024;
 const ALLOWED_MANAGED_BINARY_HEADERS = new Set(['content-type']);
-const MANAGED_STREAM_CHUNK_FLUSH_DELAY_MS = 16;
-const MAX_MANAGED_STREAM_CONTENT_BYTES = 4 * 1024 * 1024;
 
 export function normalizeManagedBinaryPayload(payload) {
   if (typeof payload?.bodyBase64 !== 'string') {
@@ -96,112 +94,5 @@ export function sanitizeManagedChatCompletionBody(body) {
   return {
     ...body,
     messages: body.messages.map(sanitizeManagedChatMessage),
-  };
-}
-
-export function createManagedStreamAccumulator(onChunk) {
-  let fullContent = '';
-  let contentBytes = 0;
-  let hasStartedReasoning = false;
-  let hasFinishedReasoning = false;
-
-  const appendContent = (content) => {
-    const nextBytes = Buffer.byteLength(content, 'utf8');
-    if (contentBytes + nextBytes > MAX_MANAGED_STREAM_CONTENT_BYTES) {
-      throw new Error('Managed stream content is too large.');
-    }
-    contentBytes += nextBytes;
-    fullContent += content;
-    return onChunk(content);
-  };
-
-  return {
-    pushDelta({ reasoning, content }) {
-      const reasoningText = typeof reasoning === 'string' ? reasoning : '';
-      const contentText = typeof content === 'string' ? content : '';
-      if (!reasoningText && !contentText) {
-        return true;
-      }
-
-      let nextContent = '';
-      if (reasoningText) {
-        if (!hasStartedReasoning || hasFinishedReasoning) {
-          nextContent += '<think>';
-          hasStartedReasoning = true;
-          hasFinishedReasoning = false;
-        }
-        nextContent += reasoningText;
-      }
-
-      if (contentText) {
-        if (hasStartedReasoning && !hasFinishedReasoning) {
-          nextContent += '</think>';
-          hasFinishedReasoning = true;
-        }
-        nextContent += contentText;
-      }
-
-      return appendContent(nextContent);
-    },
-    finish() {
-      let shouldContinue = true;
-      if (hasStartedReasoning && !hasFinishedReasoning) {
-        shouldContinue = appendContent('</think>') !== false;
-        hasFinishedReasoning = true;
-      }
-      return { content: fullContent, shouldContinue };
-    },
-  };
-}
-
-export function createManagedStreamChunkScheduler(onFlush) {
-  let pendingContent = '';
-  let timeoutId = null;
-  let hasFlushedOnce = false;
-  let cancelled = false;
-
-  const clearScheduledFlush = () => {
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-  };
-
-  const flush = () => {
-    clearScheduledFlush();
-    if (cancelled || !pendingContent) {
-      return !cancelled;
-    }
-    const content = pendingContent;
-    pendingContent = '';
-    hasFlushedOnce = true;
-    return onFlush(content) !== false;
-  };
-
-  return {
-    push(content) {
-      if (cancelled) return false;
-      if (!content) return true;
-      pendingContent += content;
-      if (!hasFlushedOnce) {
-        return flush();
-      }
-      if (timeoutId === null) {
-        timeoutId = setTimeout(flush, MANAGED_STREAM_CHUNK_FLUSH_DELAY_MS);
-      }
-      return true;
-    },
-    flushNow(content) {
-      if (cancelled) return false;
-      if (typeof content === 'string') {
-        pendingContent += content;
-      }
-      return flush();
-    },
-    cancel() {
-      cancelled = true;
-      pendingContent = '';
-      clearScheduledFlush();
-    },
   };
 }

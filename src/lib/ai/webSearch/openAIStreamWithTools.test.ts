@@ -88,6 +88,69 @@ describe('consumeOpenAIStreamWithTools', () => {
     expect(chunks[chunks.length - 1]).toBe('Checking done');
   });
 
+  it('preserves compatible non-choice stream content used by normal chat', async () => {
+    const chunks: string[] = [];
+
+    const result = await consumeOpenAIStreamWithTools(
+      streamResponse([
+        'data: {"output_text":"normal reply"}',
+        'data: [DONE]',
+        '',
+      ]),
+      (chunk) => chunks.push(chunk),
+    );
+
+    expect(result.content).toBe('normal reply');
+    expect(result.assistantContent).toBe('normal reply');
+    expect(chunks).toEqual(['normal reply']);
+  });
+
+  it('extracts complete tool calls from compatible message stream payloads', async () => {
+    const result = await consumeOpenAIStreamWithTools(
+      streamResponse([
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-message","function":{"name":"run_command","arguments":"{\\"command\\":"}}]}}]}',
+        `data: ${JSON.stringify({
+          choices: [{
+            delta: { tool_calls: [] },
+            message: {
+              content: '',
+              tool_calls: [{
+                id: 'call-message',
+                type: 'function',
+                function: {
+                  name: 'run_command',
+                  arguments: { command: 'pwd', purpose: 'Inspect cwd' },
+                },
+              }],
+            },
+          }],
+        })}`,
+        'data: [DONE]',
+        '',
+      ]),
+      () => {},
+    );
+
+    expect(result.toolCalls).toEqual([{
+      id: 'call-message',
+      type: 'function',
+      function: {
+        name: 'run_command',
+        arguments: '{"command":"pwd","purpose":"Inspect cwd"}',
+      },
+    }]);
+  });
+
+  it('surfaces string-valued stream errors to the managed error mapper', async () => {
+    const mappedError = new Error('mapped unsupported tools');
+
+    await expect(consumeOpenAIStreamWithTools(
+      streamResponse(['data: {"error":"unsupported","errorCode":"unsupported_tool_calling"}']),
+      () => {},
+      { mapErrorPayload: () => mappedError },
+    )).rejects.toBe(mappedError);
+  });
+
   it('accumulates Responses API output text delta event shapes', async () => {
     const chunks: string[] = [];
 

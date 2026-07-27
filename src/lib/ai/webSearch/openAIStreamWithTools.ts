@@ -2,10 +2,9 @@ import {
   appendOpenAIStreamBuffer,
   assertOpenAIStreamLineLength,
   createStreamAccumulator,
-  MAX_OPENAI_STREAM_ERROR_FIELD_CHARS,
 } from '@/lib/ai/streaming';
+import { extractErrorCode, extractErrorMessage, extractStreamDelta } from '@/lib/ai/streamingPayload';
 import {
-  extractOpenAIContentDelta,
   extractOpenAIToolCalls,
   parseOpenAIPayloadText,
 } from './openAIToolParsing';
@@ -13,6 +12,7 @@ import { filterUniqueOpenAIToolCalls } from './openAIToolCallIds';
 import type { OpenAIStreamToolResult, OpenAIToolCall } from './openAIToolTypes';
 
 interface ConsumeOpenAIStreamWithToolsOptions {
+  mapErrorPayload?: (message: string, code?: string) => Error | string;
   signal?: AbortSignal;
 }
 
@@ -99,17 +99,13 @@ export async function consumeOpenAIStreamWithTools(
   const consumeLine = (line: string) => {
     const payload = parseOpenAIPayloadText(line);
     if (!payload) return;
-    const nestedError = payload.error;
-    if (
-      nestedError &&
-      typeof nestedError === 'object' &&
-      'message' in nestedError &&
-      typeof nestedError.message === 'string'
-    ) {
-      throw new Error(nestedError.message.slice(0, MAX_OPENAI_STREAM_ERROR_FIELD_CHARS));
+    const errorMessage = extractErrorMessage(payload);
+    if (errorMessage) {
+      const mapped = options.mapErrorPayload?.(errorMessage, extractErrorCode(payload));
+      throw typeof mapped === 'string' ? new Error(mapped) : mapped || new Error(errorMessage);
     }
     extractOpenAIToolCalls(payload, toolCalls);
-    const delta = extractOpenAIContentDelta(payload);
+    const delta = extractStreamDelta(payload);
     accumulator.pushDelta(delta);
     if (delta.content) assistantContent += delta.content;
     if (delta.reasoning) reasoningContent += delta.reasoning;

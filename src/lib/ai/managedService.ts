@@ -33,6 +33,8 @@ import {
   assertProviderJsonRequestBodySize,
   stringifyProviderJsonRequestBody,
 } from './providerRequestBody';
+import type { OpenAIStreamToolResult } from './webSearch/openAIToolTypes';
+import { normalizeManagedStreamResult } from './managed/streamResult';
 
 const MAX_MANAGED_CHAT_MESSAGES = 64
 const MANAGED_MODEL_CATALOG_CACHE_TTL_MS = 60_000
@@ -262,16 +264,34 @@ export async function requestManagedImageEdit(
     : await requestManagedWebBinaryJson<Record<string, unknown>>('/images/edits', body, headers, signal)
 }
 
+async function requestManagedChatCompletionStreamResult(
+  body: Record<string, unknown>,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<OpenAIStreamToolResult> {
+  const requestId = `managed-stream-${Date.now()}-${crypto.randomUUID()}`
+  const sanitizedBody = sanitizeManagedChatCompletionBody(body)
+  if (hasElectronDesktopBridge()) {
+    assertProviderJsonRequestBodySize(sanitizedBody)
+    const result = await accountCommands.managedChatCompletionStream(sanitizedBody, onChunk, signal, requestId)
+    return normalizeManagedStreamResult(result)
+  }
+  const result = await requestManagedWebStream('/chat/completions', sanitizedBody, onChunk, signal)
+  return normalizeManagedStreamResult(result)
+}
+
 export async function requestManagedChatCompletionStream(
   body: Record<string, unknown>,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<string> {
-  const requestId = `managed-stream-${Date.now()}-${crypto.randomUUID()}`
-  const sanitizedBody = sanitizeManagedChatCompletionBody(body)
-  if (hasElectronDesktopBridge()) {
-    assertProviderJsonRequestBodySize(sanitizedBody)
-    return await accountCommands.managedChatCompletionStream(sanitizedBody, onChunk, signal, requestId)
-  }
-  return await requestManagedWebStream('/chat/completions', sanitizedBody, onChunk, signal)
+  return (await requestManagedChatCompletionStreamResult(body, onChunk, signal)).content
+}
+
+export async function requestManagedChatCompletionStreamWithTools(
+  body: Record<string, unknown>,
+  onChunk: (chunk: string) => void,
+  signal?: AbortSignal
+): Promise<OpenAIStreamToolResult> {
+  return await requestManagedChatCompletionStreamResult(body, onChunk, signal)
 }

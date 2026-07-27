@@ -16,11 +16,14 @@ import {
   readManagedErrorPayload,
 } from './managedIpcErrors.mjs';
 import {
-  createManagedStreamChunkScheduler,
-  createManagedStreamAccumulator,
   normalizeManagedBinaryPayload,
   sanitizeManagedChatCompletionBody,
 } from './managedIpcPayloads.mjs';
+import {
+  createManagedStreamAccumulator,
+  createManagedStreamChunkScheduler,
+  createManagedToolCallAccumulator,
+} from './managedIpcStreamPayloads.mjs';
 import {
   cancelManagedJsonRequest,
   parseOptionalManagedRequestId,
@@ -187,24 +190,21 @@ export function registerManagedIpc({
         const accumulator = createManagedStreamAccumulator((delta) => {
           return chunkScheduler.push(delta);
         });
+        const toolCallAccumulator = createManagedToolCallAccumulator();
 
         const consumeLine = (line) => {
           const trimmed = line.trim();
-          if (!trimmed || trimmed === 'data: [DONE]' || !trimmed.startsWith('data: ')) {
-            return true;
-          }
-
-          const payload = JSON.parse(trimmed.slice(6));
+          if (!trimmed) return true;
+          const payloadText = trimmed.startsWith('data:')
+            ? trimmed.slice(5).trim()
+            : trimmed.startsWith('{') ? trimmed : '';
+          if (!payloadText || payloadText === '[DONE]') return true;
+          const payload = JSON.parse(payloadText);
           if (payload?.error) {
             throw createManagedBackendStreamError(payload);
           }
 
-          const delta = Array.isArray(payload.choices) ? payload.choices[0]?.delta : undefined;
-          const reasoning =
-            typeof delta?.reasoning_content === 'string' ? delta.reasoning_content : null;
-          const content = typeof delta?.content === 'string' ? delta.content : null;
-
-          return accumulator.pushDelta({ reasoning, content });
+          return toolCallAccumulator.consumePayload(payload, accumulator);
         };
 
         try {
@@ -240,6 +240,11 @@ export function registerManagedIpc({
             assertManagedStreamLineLength(buffer);
           }
 
+          const finalDecoded = decoder.decode();
+          if (finalDecoded) {
+            buffer = appendManagedStreamBuffer(buffer, finalDecoded);
+          }
+
           if (buffer.trim()) {
             assertManagedStreamLineLength(buffer);
             if (!consumeLine(buffer)) {
@@ -251,7 +256,10 @@ export function registerManagedIpc({
           if (!finalResult.shouldContinue || !chunkScheduler.flushNow()) {
             throw new Error('Aborted');
           }
-          sendStreamEvent('done', { content: finalResult.content });
+          sendStreamEvent('done', toolCallAccumulator.buildResult(
+            finalResult,
+            Array.isArray(body?.tools) && body.tools.length > 0,
+          ));
         } catch (error) {
           void reader.cancel(createAbortError()).catch(() => {});
           throw error;

@@ -472,7 +472,12 @@ export interface ElectronAccountApi {
   ): () => void;
   onManagedStreamDone(
     requestId: string,
-    callback: (payload: { content: string }) => void
+    callback: (payload: {
+      content: string;
+      assistantContent?: string;
+      reasoningContent?: string;
+      toolCalls?: Array<Record<string, unknown>>;
+    }) => void
   ): () => void;
   onManagedStreamError(
     requestId: string,

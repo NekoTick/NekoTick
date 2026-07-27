@@ -25,6 +25,23 @@ const MAX_AGENT_TOOL_LOOPS = 8;
 const MAX_AGENT_TOOL_CALLS = 16;
 const DSML_MARKER_RE = /<[|｜]{2}\s*DSML\s*[|｜]{2}/i;
 
+type ManagedProtocolScanState =
+  | 'search' | 'opening_bar_one' | 'opening_bar_two'
+  | 'marker_d' | 'marker_s' | 'marker_m' | 'marker_l'
+  | 'closing_bar_one' | 'closing_bar_two';
+
+function isProtocolBar(character: string): boolean {
+  return character === '|' || character === '｜';
+}
+
+function isProtocolLetter(character: string, expected: string): boolean {
+  return character.toLowerCase() === expected;
+}
+
+export function hasManagedProtocolMarkup(content: string): boolean {
+  return DSML_MARKER_RE.test(content);
+}
+
 interface ManagedTextAgentLoopOptions {
   approvalContext?: ComputerCommandApprovalContext;
   body: ChatCompletionRequest;
@@ -84,6 +101,96 @@ function buildToolResultMessage(toolCall: OpenAIToolCall, content: string): Open
   };
 }
 
+export function createManagedProtocolChunkHandler(onChunk: (content: string) => void) {
+  let protocolDetected = false;
+  let inspectedContentLength = 0;
+  let lastVisibleContent = '';
+  let candidateStart: number | null = null;
+  let scanState: ManagedProtocolScanState = 'search';
+
+  const suppressProtocol = () => {
+    protocolDetected = true;
+    if (!lastVisibleContent) return;
+    lastVisibleContent = '';
+    onChunk('');
+  };
+
+  const restartCandidate = (character: string, index: number) => {
+    if (character === '<') {
+      candidateStart = index;
+      scanState = 'opening_bar_one';
+    } else {
+      candidateStart = null;
+      scanState = 'search';
+    }
+  };
+
+  const consumeCharacter = (character: string, index: number): boolean => {
+    switch (scanState) {
+      case 'search':
+        if (character === '<') restartCandidate(character, index);
+        return false;
+      case 'opening_bar_one':
+        if (isProtocolBar(character)) scanState = 'opening_bar_two';
+        else restartCandidate(character, index);
+        return false;
+      case 'opening_bar_two':
+        if (isProtocolBar(character)) scanState = 'marker_d';
+        else restartCandidate(character, index);
+        return false;
+      case 'marker_d':
+        if (/\s/u.test(character)) return false;
+        if (isProtocolLetter(character, 'd')) scanState = 'marker_s';
+        else restartCandidate(character, index);
+        return false;
+      case 'marker_s':
+        if (isProtocolLetter(character, 's')) scanState = 'marker_m';
+        else restartCandidate(character, index);
+        return false;
+      case 'marker_m':
+        if (isProtocolLetter(character, 'm')) scanState = 'marker_l';
+        else restartCandidate(character, index);
+        return false;
+      case 'marker_l':
+        if (isProtocolLetter(character, 'l')) scanState = 'closing_bar_one';
+        else restartCandidate(character, index);
+        return false;
+      case 'closing_bar_one':
+        if (/\s/u.test(character)) return false;
+        if (isProtocolBar(character)) scanState = 'closing_bar_two';
+        else restartCandidate(character, index);
+        return false;
+      case 'closing_bar_two':
+        if (!isProtocolBar(character)) {
+          restartCandidate(character, index);
+          return false;
+        }
+        suppressProtocol();
+        return true;
+    }
+  };
+
+  return (content: string) => {
+    if (protocolDetected) return;
+    if (content.length < inspectedContentLength) {
+      inspectedContentLength = 0;
+      candidateStart = null;
+      scanState = 'search';
+    }
+    for (let index = inspectedContentLength; index < content.length; index += 1) {
+      if (consumeCharacter(content[index], index)) return;
+    }
+    inspectedContentLength = content.length;
+
+    if (candidateStart !== null && lastVisibleContent.length === candidateStart) return;
+    const visibleContent = candidateStart === null ? content : content.slice(0, candidateStart);
+    if (visibleContent && visibleContent !== lastVisibleContent) {
+      lastVisibleContent = visibleContent;
+      onChunk(visibleContent);
+    }
+  };
+}
+
 export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopOptions): Promise<string> {
   const webStatuses: WebSearchStatus[] = [];
   const sourceUrls: string[] = [];
@@ -113,14 +220,15 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
 
   for (let loopIndex = 0; loopIndex <= MAX_AGENT_TOOL_LOOPS; loopIndex += 1) {
     throwIfAborted(options.signal);
+    const onProtocolChunk = createManagedProtocolChunkHandler(emitVisible);
     const rawContent = await options.requestText({
       ...withoutTools(options.body),
       stream: true,
       messages: messages as ChatCompletionRequest['messages'],
-    }, () => {});
+    }, onProtocolChunk);
     throwIfAborted(options.signal);
     const result = parseTextResponse(rawContent);
-    const hasProtocolMarkup = DSML_MARKER_RE.test(rawContent);
+    const hasProtocolMarkup = hasManagedProtocolMarkup(rawContent);
     const hasVisibleProtocolProse = hasVisibleAnswerContent(result.content);
     if (hasProtocolMarkup && (result.toolCalls.length === 0 || hasVisibleProtocolProse)) {
       throw createAIError(AIErrorType.INVALID_REQUEST, translate('chat.computerUse.invalidProtocol'));

@@ -10,8 +10,9 @@ import {
   throwIfExternallyAborted,
   throwIfManagedRequestAborted,
 } from './webRequestRuntime';
-import { consumeOpenAIStream } from '@/lib/ai/streaming';
 import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody';
+import { consumeOpenAIStreamWithTools } from '@/lib/ai/webSearch/openAIStreamWithTools';
+import type { OpenAIStreamToolResult } from '@/lib/ai/webSearch/openAIToolTypes';
 
 const MAX_MANAGED_STREAM_ERROR_CODE_CHARS = 512;
 const MANAGED_BACKEND_STREAM_ERROR = Symbol('managedBackendStreamError');
@@ -159,7 +160,7 @@ export async function requestManagedWebStream(
   body: Record<string, unknown>,
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
-): Promise<string> {
+): Promise<OpenAIStreamToolResult> {
   const timeoutController = new AbortController();
   const timer = setTimeout(() => timeoutController.abort(), MANAGED_STREAM_TIMEOUT_MS);
   const combinedSignal = signal
@@ -191,7 +192,7 @@ export async function requestManagedWebStream(
       throw new Error('Managed API response body is null');
     }
 
-    const content = await consumeOpenAIStream(response, onChunk, {
+    const result = await consumeOpenAIStreamWithTools(response, onChunk, {
       signal: combinedSignal,
       mapErrorPayload(message, code) {
         const error = new Error(publicManagedStreamErrorMessage(message, code)) as ManagedBackendStreamError;
@@ -204,7 +205,7 @@ export async function requestManagedWebStream(
       },
     });
     throwIfManagedRequestAborted(timeoutController, signal);
-    return content;
+    return result;
   } catch (error) {
     return normalizeManagedAbortError(error, timeoutController, signal);
   } finally {

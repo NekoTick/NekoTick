@@ -5,7 +5,7 @@ import { AIErrorType } from '@/lib/ai/types';
 import { MAX_DSML_TOOL_MARKUP_CHARS } from '@/lib/ai/webSearch/openAIToolParsing';
 import { translate } from '@/lib/i18n';
 import { extractComputerCommandStatuses } from './transcript';
-import { runManagedTextAgentToolLoop } from './managedTextAgentToolLoop';
+import { createManagedProtocolChunkHandler, runManagedTextAgentToolLoop } from './managedTextAgentToolLoop';
 
 function toolText(command = 'printf ok', purpose = 'Print a test value'): string {
   return [
@@ -85,8 +85,19 @@ describe('managed computer operation text protocol', () => {
   it('proposes an approved command without sending native tools to the managed API', async () => {
     const { startCommand } = installComputerBridge();
     const requestText = vi.fn()
-      .mockResolvedValueOnce(toolText())
-      .mockResolvedValueOnce('The command completed.');
+      .mockImplementationOnce(async (_body, onChunk) => {
+        onChunk('<');
+        onChunk('<｜｜D');
+        onChunk('<｜｜DSML｜｜');
+        onChunk(toolText());
+        return toolText();
+      })
+      .mockImplementationOnce(async (_body, onChunk) => {
+        onChunk('The');
+        onChunk('The command');
+        onChunk('The command completed.');
+        return 'The command completed.';
+      });
     const onApiTranscript = vi.fn();
     const onCommandStatus = vi.fn();
     const onChunk = vi.fn();
@@ -123,6 +134,11 @@ describe('managed computer operation text protocol', () => {
       expect.arrayContaining(['awaiting_approval', 'running', 'completed']),
     );
     expect(JSON.stringify(onChunk.mock.calls)).not.toContain('DSML');
+    expect(onChunk.mock.calls.map(([content]) => content).filter(Boolean).slice(0, 3)).toEqual([
+      'The',
+      'The command',
+      'The command completed.',
+    ]);
     expect(onChunk).toHaveBeenLastCalledWith('The command completed.');
   });
 
@@ -150,6 +166,22 @@ describe('managed computer operation text protocol', () => {
     expect(startCommand).not.toHaveBeenCalled();
   });
 
+  it('releases long false protocol prefixes without replaying visible content', () => {
+    const onChunk = vi.fn();
+    const onProtocolChunk = createManagedProtocolChunkHandler(onChunk);
+    let content = 'Visible answer<||';
+
+    onProtocolChunk('Visible answer');
+    for (let index = 0; index < 5000; index += 1) {
+      content += ' ';
+      onProtocolChunk(content);
+    }
+    onProtocolChunk(`${content}not a protocol`);
+
+    expect(onChunk).toHaveBeenCalledTimes(2);
+    expect(onChunk).toHaveBeenLastCalledWith(`${content}not a protocol`);
+  });
+
   it('rejects malformed, oversized, or prose-wrapped DSML without executing it', async () => {
     const { startCommand } = installComputerBridge();
     const malformedRequest = vi.fn().mockResolvedValue(
@@ -167,10 +199,19 @@ describe('managed computer operation text protocol', () => {
       type: AIErrorType.INVALID_REQUEST,
     });
 
-    const proseWrappedRequest = vi.fn().mockResolvedValue(`I will run it.\n${toolText()}`);
-    await expect(runManagedTextAgentToolLoop(baseOptions(proseWrappedRequest))).rejects.toMatchObject({
+    const onChunk = vi.fn();
+    const proseWrappedRequest = vi.fn(async (_body, onProtocolChunk) => {
+      onProtocolChunk('I will run it.');
+      onProtocolChunk(`I will run it.\n${toolText()}`);
+      return `I will run it.\n${toolText()}`;
+    });
+    await expect(runManagedTextAgentToolLoop({
+      ...baseOptions(proseWrappedRequest),
+      onChunk,
+    })).rejects.toMatchObject({
       type: AIErrorType.INVALID_REQUEST,
     });
+    expect(onChunk).toHaveBeenLastCalledWith('');
 
     expect(startCommand).not.toHaveBeenCalled();
     expect(malformedRequest).toHaveBeenCalledTimes(1);

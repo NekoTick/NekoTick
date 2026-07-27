@@ -1,5 +1,6 @@
 import { AIErrorType, type ChatSendOptions } from '@/lib/ai/types';
 import { createAIError } from '@/lib/ai/errors';
+import { createStreamAccumulator } from '@/lib/ai/streaming';
 import { translate } from '@/lib/i18n';
 import { buildWebSearchTools } from '@/lib/ai/webSearch/toolDefinitions';
 import { sanitizeWebSearchStatus } from '@/lib/ai/webSearch/statusMarkup';
@@ -24,6 +25,7 @@ const MAX_ANTHROPIC_AGENT_LOOPS = 8;
 const MAX_ANTHROPIC_AGENT_TOOL_CALLS = 16;
 const MAX_ANTHROPIC_CONTENT_BLOCKS = 32;
 const MAX_ANTHROPIC_TEXT_CHARS = 1024 * 1024;
+const MAX_ANTHROPIC_METADATA_CHARS = 1024 * 1024;
 
 interface AnthropicAgentToolLoopOptions {
   approvalContext?: ComputerCommandApprovalContext;
@@ -33,7 +35,10 @@ interface AnthropicAgentToolLoopOptions {
   onApiTranscript?: ChatSendOptions['onApiTranscript'];
   onCommandStatus?: (status: ComputerCommandStatus) => void;
   onWebSearchStatus?: (status: WebSearchStatus) => void;
-  requestJson: (body: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  requestResult: (
+    body: Record<string, unknown>,
+    onContent: (content: string) => void,
+  ) => Promise<Record<string, unknown>>;
   signal?: AbortSignal;
   webSearchEnabled: boolean;
 }
@@ -71,7 +76,17 @@ function parseAnthropicResult(payload: Record<string, unknown>): AnthropicParsed
   const toolCallIds = new Set<string>();
   const text: string[] = [];
   const reasoning: string[] = [];
+  const rendered = createStreamAccumulator(() => {});
   let remainingTextChars = MAX_ANTHROPIC_TEXT_CHARS;
+  let remainingMetadataChars = MAX_ANTHROPIC_METADATA_CHARS;
+  const readMetadata = (value: unknown): string => {
+    if (typeof value !== 'string') return '';
+    if (value.length > remainingMetadataChars) {
+      throw new Error('Anthropic content block metadata is too large.');
+    }
+    remainingMetadataChars -= value.length;
+    return value;
+  };
 
   for (const rawBlock of rawBlocks) {
     if (!isRecord(rawBlock) || typeof rawBlock.type !== 'string') continue;
@@ -81,14 +96,25 @@ function parseAnthropicResult(payload: Record<string, unknown>): AnthropicParsed
       remainingTextChars -= value.length;
       text.push(value);
       blocks.push({ type: 'text', text: value });
+      rendered.pushDelta({ content: value });
       continue;
     }
     if (rawBlock.type === 'thinking' && typeof rawBlock.thinking === 'string') {
       const value = rawBlock.thinking.slice(0, remainingTextChars);
-      if (!value) continue;
+      const signature = readMetadata(rawBlock.signature);
+      if (!value && !signature) continue;
       remainingTextChars -= value.length;
-      reasoning.push(value);
-      blocks.push({ type: 'thinking', thinking: value });
+      if (value) {
+        reasoning.push(value);
+        rendered.pushDelta({ reasoning: value });
+      }
+      blocks.push({ type: 'thinking', thinking: value, ...(signature ? { signature } : {}) });
+      continue;
+    }
+    if (rawBlock.type === 'redacted_thinking') {
+      const data = readMetadata(rawBlock.data);
+      if (!data) continue;
+      blocks.push({ type: 'redacted_thinking', data });
       continue;
     }
     if (
@@ -123,9 +149,7 @@ function parseAnthropicResult(payload: Record<string, unknown>): AnthropicParsed
     assistantContent,
     reasoningContent,
     toolCalls,
-    content: reasoningContent
-      ? `<think>${reasoningContent}</think>${assistantContent}`
-      : assistantContent,
+    content: rendered.finish(),
   };
 }
 
@@ -169,14 +193,14 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
 
   for (let loopIndex = 0; loopIndex <= MAX_ANTHROPIC_AGENT_LOOPS; loopIndex += 1) {
     throwIfAborted(options.signal);
-    const payload = await options.requestJson({
+    const payload = await options.requestResult({
       ...options.body,
       messages,
       system: appendAgentInstruction(options.body),
-      stream: false,
+      stream: true,
       tools: buildAnthropicAgentTools(options.webSearchEnabled),
       tool_choice: { type: 'auto' },
-    });
+    }, (content) => emitVisible(content));
     throwIfAborted(options.signal);
     const result = parseAnthropicResult(payload);
 

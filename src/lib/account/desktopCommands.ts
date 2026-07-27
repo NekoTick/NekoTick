@@ -146,7 +146,12 @@ export const accountCommands = {
       throw createAbortError();
     }
 
-    return await new Promise<string>((resolve, reject) => {
+    return await new Promise<{
+      content: string;
+      assistantContent?: string;
+      reasoningContent?: string;
+      toolCalls?: Array<Record<string, unknown>>;
+    }>((resolve, reject) => {
       let isSettled = false;
       let streamedContent = '';
 
@@ -202,7 +207,7 @@ export const accountCommands = {
         if (isSettled) return;
 
         addCleanupCallback(
-          bridge.onManagedStreamDone(requestId, ({ content }) => {
+          bridge.onManagedStreamDone(requestId, (payload) => {
             if (isSettled) return;
             if (signal?.aborted) {
               settleAborted();
@@ -210,7 +215,16 @@ export const accountCommands = {
             }
             isSettled = true;
             cleanup();
-            resolve(content);
+            resolve({
+              content: payload.content,
+              ...(typeof payload.assistantContent === 'string'
+                ? { assistantContent: payload.assistantContent }
+                : {}),
+              ...(typeof payload.reasoningContent === 'string'
+                ? { reasoningContent: payload.reasoningContent }
+                : {}),
+              ...(Array.isArray(payload.toolCalls) ? { toolCalls: payload.toolCalls } : {}),
+            });
           })
         );
         if (isSettled) return;
