@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   createWhiteboardEraserSpatialIndex,
   getWhiteboardBoundsCandidates,
   getWhiteboardEraserCandidates,
   getWhiteboardEraserTargets,
+  getWhiteboardIndexedItems,
   getWhiteboardStrokeEraserCandidates,
+  tryUpdateWhiteboardEraserSpatialIndex,
+  updateWhiteboardEraserSpatialIndex,
 } from './whiteboardEraser';
+import { markWhiteboardSpliceUpdate, removeWhiteboardItems } from './whiteboardCollection';
 
 describe('whiteboard object eraser', () => {
   it('hits images and strokes across fast pointer movement', () => {
@@ -108,5 +112,199 @@ describe('whiteboard object eraser', () => {
     const candidates = getWhiteboardBoundsCandidates(index, { height: 1_000_000, width: 1_000_000, x: 0, y: 0 });
 
     expect(candidates.elements).toBe(elements);
+  });
+
+  it('extends the spatial index when strokes are only appended', () => {
+    const first = {
+      color: '#111111', id: 'first',
+      points: [{ pressure: 0.5, x: 20, y: 20 }], size: 1, tool: 'pen' as const,
+    };
+    const appended = {
+      color: '#222222', id: 'appended',
+      points: [{ pressure: 0.5, x: 520, y: 20 }], size: 1, tool: 'pen' as const,
+    };
+    const elements: never[] = [];
+    const initial = createWhiteboardEraserSpatialIndex(elements, [first]);
+
+    const updated = updateWhiteboardEraserSpatialIndex(initial, elements, [first, appended]);
+
+    expect(updated.strokeCells).not.toBe(initial.strokeCells);
+    expect(getWhiteboardBoundsCandidates(initial, { height: 80, width: 80, x: 480, y: 0 }).strokes).toEqual([]);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 480, y: 0 }).strokes)
+      .toEqual([appended]);
+  });
+
+  it('does not copy historical index maps when a stroke is appended', () => {
+    const strokes = Array.from({ length: 1000 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: index * 300, y: 20 }], size: 1, tool: 'pen' as const,
+    }));
+    const initial = createWhiteboardEraserSpatialIndex([], strokes);
+    const iterateCells = vi.spyOn(initial.strokeCells, Symbol.iterator);
+    const iterateOrder = vi.spyOn(initial.strokeOrder as Map<string, number>, Symbol.iterator);
+    const appended = {
+      color: '#222222', id: 'appended',
+      points: [{ pressure: 0.5, x: 20, y: 520 }], size: 1, tool: 'pen' as const,
+    };
+
+    const updated = updateWhiteboardEraserSpatialIndex(initial, [], [...strokes, appended]);
+
+    expect(iterateCells).not.toHaveBeenCalled();
+    expect(iterateOrder).not.toHaveBeenCalled();
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 0, y: 480 }).strokes)
+      .toEqual([appended]);
+  });
+
+  it('promotes a bulk load before later strokes are appended', () => {
+    const strokes = Array.from({ length: 1000 }, (_, index) => ({
+      color: '#111111', id: `loaded-${index}`,
+      points: [{ pressure: 0.5, x: index * 300, y: 20 }], size: 1, tool: 'pen' as const,
+    }));
+    const bulk = updateWhiteboardEraserSpatialIndex(
+      createWhiteboardEraserSpatialIndex([], []),
+      [],
+      strokes,
+    );
+    const iterateCells = vi.spyOn(bulk.strokeCells, Symbol.iterator);
+
+    updateWhiteboardEraserSpatialIndex(bulk, [], [...strokes, {
+      color: '#222222', id: 'next',
+      points: [{ pressure: 0.5, x: 20, y: 520 }], size: 1, tool: 'pen' as const,
+    }]);
+
+    expect(iterateCells).not.toHaveBeenCalled();
+  });
+
+  it('updates the spatial index when an existing stroke changes', () => {
+    const original = {
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: 20, y: 20 }], size: 1, tool: 'pen' as const,
+    };
+    const moved = { ...original, points: [{ pressure: 0.5, x: 520, y: 20 }] };
+    const elements: never[] = [];
+    const initial = createWhiteboardEraserSpatialIndex(elements, [original]);
+
+    const updated = updateWhiteboardEraserSpatialIndex(initial, elements, [moved]);
+
+    expect(updated.strokeCells).not.toBe(initial.strokeCells);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 0, y: 0 }).strokes).toEqual([]);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 480, y: 0 }).strokes)
+      .toEqual([moved]);
+  });
+
+  it('reuses indexed cells for sparse deletions while updating source order', () => {
+    const strokes = Array.from({ length: 3 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: 20 + index * 500, y: 20 }], size: 1, tool: 'pen' as const,
+    }));
+    const initial = createWhiteboardEraserSpatialIndex([], strokes);
+    const remaining = removeWhiteboardItems(strokes, new Set([strokes[1].id]));
+
+    const updated = updateWhiteboardEraserSpatialIndex(initial, [], remaining);
+
+    expect(updated.baseIndex).toBe(initial);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 480, y: 0 }).strokes)
+      .toEqual([]);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 980, y: 0 }).strokes)
+      .toEqual([strokes[2]]);
+    expect(getWhiteboardIndexedItems(remaining, updated.strokeOrder, [strokes[2].id]))
+      .toEqual([strokes[2]]);
+  });
+
+  it('keeps sparse updates when a later stroke is appended', () => {
+    const strokes = Array.from({ length: 3 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: 20 + index * 500, y: 20 }], size: 1, tool: 'pen' as const,
+    }));
+    const initial = createWhiteboardEraserSpatialIndex([], strokes);
+    const remaining = [strokes[0], strokes[2]];
+    const sparse = updateWhiteboardEraserSpatialIndex(initial, [], remaining);
+    const iterateOrder = vi.spyOn(sparse.strokeOrder as Map<string, number>, Symbol.iterator);
+    const appended = { ...strokes[0], id: 'appended', points: [{ pressure: 0.5, x: 1520, y: 20 }] };
+
+    const updated = updateWhiteboardEraserSpatialIndex(sparse, [], [...remaining, appended]);
+
+    expect(iterateOrder).not.toHaveBeenCalled();
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 480, y: 0 }).strokes)
+      .toEqual([]);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 1480, y: 0 }).strokes)
+      .toEqual([appended]);
+  });
+
+  it('filters stale overlay items after a sparse replacement', () => {
+    const first = {
+      color: '#111111', id: 'first',
+      points: [{ pressure: 0.5, x: 20, y: 20 }], size: 1, tool: 'pen' as const,
+    };
+    const appended = { ...first, id: 'appended', points: [{ pressure: 0.5, x: 520, y: 20 }] };
+    const initial = createWhiteboardEraserSpatialIndex([], [first]);
+    const withAppend = updateWhiteboardEraserSpatialIndex(initial, [], [first, appended]);
+    const moved = { ...appended, points: [{ pressure: 0.5, x: 1020, y: 20 }] };
+
+    const updated = updateWhiteboardEraserSpatialIndex(withAppend, [], [first, moved]);
+
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 480, y: 0 }).strokes)
+      .toEqual([]);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 980, y: 0 }).strokes)
+      .toEqual([moved]);
+  });
+
+  it('compacts accumulated sparse updates before overlay cells grow without bound', () => {
+    const original = {
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: 20, y: 20 }], size: 1, tool: 'pen' as const,
+    };
+    const initial = createWhiteboardEraserSpatialIndex([], [original]);
+    let current = [original];
+    let updated = initial;
+
+    for (let update = 0; update < 300; update += 1) {
+      current = [{ ...current[0], points: [{ pressure: 0.5, x: 20 + update / 1000, y: 20 }] }];
+      updated = updateWhiteboardEraserSpatialIndex(updated, [], current);
+    }
+
+    const largestOverlayCell = Math.max(0, ...Array.from(updated.strokeCells.values(), (items) => items.length));
+    expect(largestOverlayCell).toBeLessThanOrEqual(256);
+    expect(updated.baseIndex).not.toBe(initial);
+    expect(getWhiteboardBoundsCandidates(updated, { height: 80, width: 80, x: 0, y: 0 }).strokes)
+      .toEqual(current);
+  });
+
+  it('stops inspecting an unknown bulk replacement once it exceeds the overlay budget', () => {
+    const strokes = Array.from({ length: 1000 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: index * 300, y: 20 }], size: 1, tool: 'pen' as const,
+    }));
+    const initial = createWhiteboardEraserSpatialIndex([], strokes);
+    const orderLookup = vi.spyOn(initial.strokeOrder as Map<string, number>, 'get');
+    const replacements = strokes.map((stroke) => ({ ...stroke, color: '#222222' }));
+
+    const updated = tryUpdateWhiteboardEraserSpatialIndex(initial, [], replacements);
+
+    expect(updated).toBeNull();
+    expect(orderLookup.mock.calls.length).toBeLessThan(strokes.length);
+  });
+
+  it('updates a split stroke without rebuilding the unchanged source order', () => {
+    const strokes = Array.from({ length: 1000 }, (_, index) => ({
+      color: '#111111', id: `stroke-${index}`,
+      points: [{ pressure: 0.5, x: index * 300, y: 20 }], size: 1, tool: 'pen' as const,
+    }));
+    const initial = createWhiteboardEraserSpatialIndex([], strokes);
+    const firstFragment = { ...strokes[500], points: [{ pressure: 0.5, x: 150_000, y: 10 }] };
+    const secondFragment = { ...strokes[500], id: 'stroke-500-part-2', points: [{ pressure: 0.5, x: 150_000, y: 30 }] };
+    const next = markWhiteboardSpliceUpdate(
+      strokes,
+      [...strokes.slice(0, 500), firstFragment, secondFragment, ...strokes.slice(501)],
+      [{ index: 500, items: [firstFragment, secondFragment] }],
+    );
+    const orderLookup = vi.spyOn(initial.strokeOrder as Map<string, number>, 'get');
+
+    const updated = tryUpdateWhiteboardEraserSpatialIndex(initial, [], next);
+
+    expect(updated).not.toBeNull();
+    expect(orderLookup).not.toHaveBeenCalled();
+    expect(getWhiteboardIndexedItems(next, updated!.strokeOrder, [secondFragment.id, strokes[501].id]))
+      .toEqual([secondFragment, strokes[501]]);
   });
 });

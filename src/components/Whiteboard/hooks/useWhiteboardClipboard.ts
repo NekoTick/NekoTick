@@ -3,6 +3,7 @@ import { isImageFileLike } from '@/lib/assets/core/naming';
 import { isEditableTarget } from '../model/whiteboardInteractions';
 import type { WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
 import { cloneElements, cloneStrokes } from '../model/whiteboardTransform';
+import { appendWhiteboardItems } from '../model/whiteboardCollection';
 
 interface WhiteboardClipboardPayload {
   elements: WhiteboardElement[];
@@ -63,8 +64,8 @@ export function useWhiteboardClipboard({
     const nextElements = cloneElements(payload.elements, offset, idPrefix);
     const nextStrokes = cloneStrokes(payload.strokes, offset, idPrefix);
     pushHistory();
-    setElements((current) => [...current, ...nextElements]);
-    setStrokes((current) => [...current, ...nextStrokes]);
+    setElements((current) => appendWhiteboardItems(current, nextElements));
+    setStrokes((current) => appendWhiteboardItems(current, nextStrokes));
     setSelectedElementIds(nextElements.map((element) => element.id));
     setSelectedStrokeIds(nextStrokes.map((stroke) => stroke.id));
     setTool('select');

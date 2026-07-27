@@ -1,10 +1,16 @@
 import type { WhiteboardStroke, WhiteboardStrokePoint } from './whiteboardModel';
 
+export interface WhiteboardMutableIdSet {
+  add: (id: string) => void;
+  has: (id: string) => boolean;
+}
+
 export function splitWhiteboardStrokeSegments(
   strokes: WhiteboardStroke[],
   candidateIds?: ReadonlySet<string>,
+  existingIds?: WhiteboardMutableIdSet,
 ): WhiteboardStroke[] {
-  const usedIds = new Set(strokes.map((stroke) => stroke.id));
+  const usedIds = existingIds ?? new Set(strokes.map((stroke) => stroke.id));
   let changed = false;
   const result = strokes.flatMap((stroke) => {
     if (candidateIds && !candidateIds.has(stroke.id)) return [stroke];
@@ -40,7 +46,7 @@ function removeBreakMarker(point: WhiteboardStrokePoint): WhiteboardStrokePoint 
   return cleanPoint;
 }
 
-function createSegmentId(baseId: string, usedIds: Set<string>): string {
+function createSegmentId(baseId: string, usedIds: WhiteboardMutableIdSet): string {
   let index = 2;
   let id = `${baseId}-part-${index}`;
   while (usedIds.has(id)) {

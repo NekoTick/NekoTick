@@ -1,6 +1,6 @@
 export interface StoredFile {
   path: string;
-  content: string | Uint8Array;
+  content: string | Uint8Array | Blob;
   isBinary: boolean;
   size: number;
   modifiedAt: number;

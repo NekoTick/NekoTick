@@ -132,6 +132,24 @@ describe('desktop filesystem ipc', () => {
     );
   });
 
+  it('accepts explicit unbounded text reads and writes', async () => {
+    const rootPath = path.join(tempDir, 'notesRoot');
+    const filePath = path.join(rootPath, 'board.json');
+    const backupPath = path.join(rootPath, 'board.json.bak');
+    await mkdir(rootPath, { recursive: true });
+    await authorizeFsPath(rootPath, 'root');
+    const { handlers } = registerHarness();
+
+    await handlers.get('desktop:fs:write-text')?.({}, filePath, 'content', {
+      maxBytes: null,
+      recursive: true,
+    });
+    await handlers.get('desktop:fs:copy-file')?.({}, filePath, backupPath, null);
+
+    await expect(handlers.get('desktop:fs:read-text')?.({}, filePath, null)).resolves.toBe('content');
+    await expect(readFile(backupPath, 'utf8')).resolves.toBe('content');
+  });
+
   it('rejects invalid binary write payloads through the filesystem bridge', async () => {
     const rootPath = path.join(tempDir, 'notesRoot');
     const filePath = path.join(rootPath, 'note.bin');

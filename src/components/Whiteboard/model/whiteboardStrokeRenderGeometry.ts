@@ -4,6 +4,7 @@ import { getWhiteboardStrokeNoise, getWhiteboardStrokeSeed } from './whiteboardS
 
 export interface StrokeRenderGeometry {
   centerPath: string;
+  grainPaths: string[];
   heavyPressurePath: string;
   mediumPressurePath: string;
   pressurePath: string;
@@ -58,9 +59,10 @@ export function getStrokeRenderGeometry(stroke: WhiteboardStroke): StrokeRenderG
     return cached.geometry;
   }
   const segments = getStrokePointSegments(stroke.points);
-  const hasPressureDetail = stroke.tool === 'pencil' || stroke.tool === 'marker' || stroke.tool === 'watercolor' || stroke.tool === 'crayon';
+  const hasPressureDetail = stroke.tool === 'pencil' || stroke.tool === 'marker' || stroke.tool === 'watercolor';
   const geometry = {
     centerPath: segments.map(getOpenEdgePath).join(' '),
+    grainPaths: getStrokeGrainPaths(stroke, segments),
     heavyPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(segment, themeWhiteboardTokens.pressureDetailHeavyThreshold)).join(' ') : '',
     mediumPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(segment, themeWhiteboardTokens.pressureDetailMediumThreshold)).join(' ') : '',
     pressurePath: segments.map((segment) => getPressureSegmentPath(stroke, segment)).join(' '),
@@ -159,7 +161,7 @@ function getStrokeRadius(
   pointCount: number,
 ): number {
   let radius = getStrokeWidth(stroke.tool, point.pressure, stroke.size) / 2;
-  if (stroke.tool === 'pen' || stroke.tool === 'pencil' || stroke.tool === 'fountain') {
+  if (stroke.tool === 'pen' || stroke.tool === 'pencil' || stroke.tool === 'colored-pencil' || stroke.tool === 'fountain') {
     const edgeDistance = Math.min(index + 1, pointCount - index);
     const taperProgress = Math.min(1, edgeDistance / themeWhiteboardTokens.strokeTaperPointCount);
     radius *= themeWhiteboardTokens.strokeTaperMinScale + (1 - themeWhiteboardTokens.strokeTaperMinScale) * taperProgress;
@@ -201,9 +203,62 @@ function getSmoothedStrokePoints(
 
 function getStrokeEdgeJitter(tool: WhiteboardStroke['tool']): number {
   if (tool === 'pencil') return themeWhiteboardTokens.pencilEdgeJitter;
+  if (tool === 'colored-pencil') return themeWhiteboardTokens.coloredPencilEdgeJitter;
   if (tool === 'watercolor') return themeWhiteboardTokens.watercolorEdgeJitter;
   if (tool === 'crayon') return themeWhiteboardTokens.crayonEdgeJitter;
   return 0;
+}
+
+function getStrokeGrainPaths(
+  stroke: WhiteboardStroke,
+  segments: WhiteboardStrokePoint[][],
+): string[] {
+  const material = stroke.tool === 'colored-pencil'
+    ? {
+        laneCount: themeWhiteboardTokens.coloredPencilGrainLaneCount,
+        spread: themeWhiteboardTokens.coloredPencilGrainSpreadScale,
+        wander: themeWhiteboardTokens.coloredPencilGrainWanderScale,
+      }
+    : stroke.tool === 'crayon'
+      ? {
+          laneCount: themeWhiteboardTokens.crayonGrainLaneCount,
+          spread: themeWhiteboardTokens.crayonGrainSpreadScale,
+          wander: themeWhiteboardTokens.crayonGrainWanderScale,
+        }
+      : null;
+  if (!material) return [];
+  return Array.from({ length: material.laneCount }, (_, laneIndex) => segments.map((segment, segmentIndex) => (
+    getStrokeGrainLanePath(stroke, segment, laneIndex, material.laneCount, material.spread, material.wander, segmentIndex)
+  )).join(' '));
+}
+
+function getStrokeGrainLanePath(
+  stroke: WhiteboardStroke,
+  segment: WhiteboardStrokePoint[],
+  laneIndex: number,
+  laneCount: number,
+  spread: number,
+  wander: number,
+  segmentIndex: number,
+): string {
+  const points = getSmoothedStrokePoints(segment, stroke.tool);
+  const strokeSeed = getWhiteboardStrokeSeed(stroke.id);
+  const lanePosition = laneCount === 1 ? 0 : laneIndex / (laneCount - 1) * 2 - 1;
+  return getOpenEdgePath(points.map((point, index) => {
+    const previous = points[Math.max(0, index - 1)];
+    const next = points[Math.min(points.length - 1, index + 1)];
+    const dx = next.x - previous.x;
+    const dy = next.y - previous.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const halfWidth = getStrokeWidth(stroke.tool, point.pressure, stroke.size) / 2;
+    const noise = getWhiteboardStrokeNoise(strokeSeed, index + segmentIndex * 4096, laneIndex + 40);
+    const offset = halfWidth * (lanePosition * spread + noise * wander);
+    return {
+      ...point,
+      x: point.x - dy / length * offset,
+      y: point.y + dx / length * offset,
+    };
+  }));
 }
 
 

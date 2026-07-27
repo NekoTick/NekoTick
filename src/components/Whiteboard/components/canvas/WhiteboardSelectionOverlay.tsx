@@ -1,39 +1,34 @@
 import { memo, useMemo, type PointerEvent } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
-  getBoundsUnion,
-  getElementBounds,
-  getStrokeBounds,
+  getSelectedOverlayGeometry,
   type WhiteboardLassoPath,
   type WhiteboardResizeHandle,
   type WhiteboardSelectionRect,
 } from '../../model/whiteboardSelection';
-import type { WhiteboardElement, WhiteboardStroke } from '../../model/whiteboardModel';
+import type { WhiteboardStroke } from '../../model/whiteboardModel';
 import type { WhiteboardMovePreview } from '../../model/whiteboardInteractions';
+import type { WhiteboardSelectionRenderData } from '../../model/whiteboardRenderData';
 import { WhiteboardSelectionDragTargets } from './WhiteboardSelectionDragTargets';
 
-const EMPTY_MOVING_IDS: string[] = [];
+const EMPTY_SELECTED_STROKES: WhiteboardStroke[] = [];
 
 interface WhiteboardSelectionOverlayProps {
-  elements: WhiteboardElement[];
   movePreview: WhiteboardMovePreview | null;
-  selectedElementIds: string[];
-  selectedStrokeIds: string[];
+  renderData: WhiteboardSelectionRenderData;
+  resizePreviewBounds?: WhiteboardSelectionRect | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
-  strokes: WhiteboardStroke[];
   onSelectionMovePointerDown: (event: PointerEvent<SVGElement>) => void;
   onSelectionResizePointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
 }
 
 export const WhiteboardSelectionOverlay = memo(function WhiteboardSelectionOverlay({
-  elements,
   movePreview,
-  selectedElementIds,
-  selectedStrokeIds,
+  renderData,
+  resizePreviewBounds,
   selectionPath,
   spacePressed,
-  strokes,
   onSelectionMovePointerDown,
   onSelectionResizePointerDown,
 }: WhiteboardSelectionOverlayProps) {
@@ -43,12 +38,10 @@ export const WhiteboardSelectionOverlay = memo(function WhiteboardSelectionOverl
 
   return (
     <WhiteboardSelectedItemsOverlay
-      elements={elements}
       movePreview={movePreview}
-      selectedElementIds={selectedElementIds}
-      selectedStrokeIds={selectedStrokeIds}
+      renderData={renderData}
+      resizePreviewBounds={resizePreviewBounds}
       spacePressed={spacePressed}
-      strokes={strokes}
       onSelectionMovePointerDown={onSelectionMovePointerDown}
       onSelectionResizePointerDown={onSelectionResizePointerDown}
     />
@@ -113,45 +106,40 @@ function WhiteboardActiveSelectionOverlay({
 }
 
 const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOverlay({
-  elements,
   movePreview,
-  selectedElementIds,
-  selectedStrokeIds,
+  renderData,
+  resizePreviewBounds,
   spacePressed,
-  strokes,
   onSelectionMovePointerDown,
   onSelectionResizePointerDown,
 }: Omit<WhiteboardSelectionOverlayProps, 'selectionPath'>) {
-  const elementById = useMemo(() => new Map(elements.map((element) => [element.id, element])), [elements]);
-  const strokeById = useMemo(() => new Map(strokes.map((stroke) => [stroke.id, stroke])), [strokes]);
-  const selectedStrokes = useMemo(() => selectedStrokeIds.flatMap((id) => {
-    const stroke = strokeById.get(id);
-    return stroke ? [stroke] : [];
-  }), [selectedStrokeIds, strokeById]);
-  const movingElementIds = movePreview?.elementIds ?? EMPTY_MOVING_IDS;
-  const movingStrokeIds = movePreview?.strokeIds ?? EMPTY_MOVING_IDS;
-  const movingStrokeIdSet = useMemo(() => new Set(movingStrokeIds), [movingStrokeIds]);
-  const movingIdSet = useMemo(() => new Set([...movingElementIds, ...movingStrokeIds]), [movingElementIds, movingStrokeIds]);
-  const baseSelectedStrokeBounds = useMemo(() => selectedStrokeIds.flatMap((id) => {
-    const stroke = strokeById.get(id);
-    if (!stroke) return [];
-    const bounds = getStrokeBounds(stroke);
-    return bounds ? [{ ...bounds, id: stroke.id }] : [];
-  }), [selectedStrokeIds, strokeById]);
-  const baseSelectedElementBounds = useMemo(() => selectedElementIds.flatMap((id) => {
-    const element = elementById.get(id);
-    return element ? [{ ...getElementBounds(element), id: element.id }] : [];
-  }), [elementById, selectedElementIds]);
-  const baseSelectedBounds = useMemo(() => [...baseSelectedElementBounds, ...baseSelectedStrokeBounds], [baseSelectedElementBounds, baseSelectedStrokeBounds]);
-  const baseGroupBounds = useMemo(() => (baseSelectedBounds.length > 1 ? getBoundsUnion(baseSelectedBounds) : null), [baseSelectedBounds]);
-  const groupBounds = baseGroupBounds ? offsetRect(baseGroupBounds, movePreview) : null;
-  const strokeBounds = useMemo(() => (
-    groupBounds ? [] : baseSelectedStrokeBounds.map((bounds) => offsetMovingRect(bounds, bounds.id, movingStrokeIdSet, movePreview))
-  ), [baseSelectedStrokeBounds, groupBounds, movePreview, movingStrokeIdSet]);
-  const singleBounds = baseSelectedBounds.length === 1
-    ? offsetMovingRect(baseSelectedBounds[0], baseSelectedBounds[0].id, movingIdSet, movePreview)
+  const { elements, strokes } = renderData;
+  const baseGeometry = useMemo(
+    () => renderData.geometry ?? getSelectedOverlayGeometry(elements, strokes),
+    [elements, renderData.geometry, strokes],
+  );
+  const selectedStrokes = useMemo(
+    () => baseGeometry.singleStroke && !resizePreviewBounds ? [baseGeometry.singleStroke] : EMPTY_SELECTED_STROKES,
+    [baseGeometry, resizePreviewBounds],
+  );
+  const groupBounds = baseGeometry.groupBounds
+    ? resizePreviewBounds ?? offsetRect(baseGeometry.groupBounds, movePreview)
     : null;
-  const resizeBounds = baseSelectedBounds.length > 0 ? groupBounds ?? singleBounds : null;
+  const strokeBounds = useMemo(() => (
+    baseGeometry.singleStroke && baseGeometry.singleBounds
+      ? [{
+          ...(resizePreviewBounds ?? offsetRect(baseGeometry.singleBounds, movePreview)),
+          id: baseGeometry.singleBounds.id,
+        }]
+      : []
+  ), [baseGeometry, movePreview, resizePreviewBounds]);
+  const singleBounds = baseGeometry.singleBounds
+    ? {
+        ...(resizePreviewBounds ?? offsetRect(baseGeometry.singleBounds, movePreview)),
+        id: baseGeometry.singleBounds.id,
+      }
+    : null;
+  const resizeBounds = groupBounds ?? singleBounds;
 
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-visible">
@@ -168,12 +156,13 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
           onPointerDown={onSelectionMovePointerDown}
         />
       ) : null}
-      <WhiteboardSelectionDragTargets
-        movePreview={movePreview}
-        movingStrokeIds={movingStrokeIdSet}
-        onPointerDown={onSelectionMovePointerDown}
-        strokes={selectedStrokes}
-      />
+      {groupBounds ? null : (
+        <WhiteboardSelectionDragTargets
+          movePreview={movePreview}
+          onPointerDown={onSelectionMovePointerDown}
+          strokes={selectedStrokes}
+        />
+      )}
       {strokeBounds.map((bounds) => (
         <rect
           key={bounds.id}
@@ -272,15 +261,6 @@ function SelectionResizeHandles({
       ))}
     </g>
   );
-}
-
-function offsetMovingRect<T extends WhiteboardSelectionRect>(
-  rect: T,
-  id: string,
-  movingIds: Set<string>,
-  movePreview: WhiteboardMovePreview | null,
-): T {
-  return movePreview && movingIds.has(id) ? { ...rect, x: rect.x + movePreview.dx, y: rect.y + movePreview.dy } : rect;
 }
 
 function offsetRect<T extends WhiteboardSelectionRect>(rect: T, movePreview: WhiteboardMovePreview | null): T {

@@ -8,6 +8,7 @@ import {
   type WhiteboardViewport,
 } from '../model/whiteboardModel';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
+import { appendWhiteboardItems } from '../model/whiteboardCollection';
 
 interface WhiteboardImageImportOptions {
   pushHistory: () => void;
@@ -53,7 +54,7 @@ export function useWhiteboardImageImport({
       y: Math.round(boardPoint.y - fittedSize.height / 2),
     };
     pushHistory();
-    setElements((current) => [...current, nextElement]);
+    setElements((current) => appendWhiteboardItems(current, [nextElement]));
     setSelectedElementId(nextElement.id);
     setSelectedStrokeIds([]);
     setTool('select');

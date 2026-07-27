@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardStroke } from './whiteboardModel';
 import { appendStrokePointsInPlace, getStrokePointMinDistance, getStrokeRenderGeometry } from './whiteboardStrokeGeometry';
 
@@ -114,6 +115,25 @@ describe('whiteboard stroke render geometry', () => {
 
     expect(repeated).toBe(first);
     expect(second).not.toBe(first);
+  });
+
+  it('spreads colored pencil and crayon grain across the stroke width', () => {
+    const createStroke = (tool: 'colored-pencil' | 'crayon'): WhiteboardStroke => ({
+      color: '#1e96eb',
+      id: `${tool}-grain`,
+      points: [0, 10, 20, 30].map((x) => ({ pressure: 0.7, x, y: 0 })),
+      size: 1,
+      tool,
+    });
+    const coloredPencil = getStrokeRenderGeometry(createStroke('colored-pencil')).grainPaths;
+    const crayon = getStrokeRenderGeometry(createStroke('crayon')).grainPaths;
+    const readStartY = (path: string) => Number(path.match(/^M [^ ]+ ([^ ]+)/)?.[1]);
+
+    expect(coloredPencil).toHaveLength(themeWhiteboardTokens.coloredPencilGrainLaneCount);
+    expect(crayon).toHaveLength(themeWhiteboardTokens.crayonGrainLaneCount);
+    expect(Math.min(...coloredPencil.map(readStartY))).toBeLessThan(0);
+    expect(Math.max(...coloredPencil.map(readStartY))).toBeGreaterThan(0);
+    expect(new Set(crayon).size).toBe(crayon.length);
   });
 
   it('creates bounded local pigment paths for medium and heavy pressure', () => {

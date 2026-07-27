@@ -1,7 +1,7 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { WHITEBOARD_BRUSHES, type WhiteboardStroke } from './whiteboardModel';
 import { getStrokeDabGeometry, getStrokeRenderGeometry, getStrokeRenderWidth } from './whiteboardStrokeRenderGeometry';
-import { getWhiteboardStrokeDashStyle } from './whiteboardStrokeTexture';
+import { getWhiteboardStrokeDashStyle, getWhiteboardStrokeNoise, getWhiteboardStrokeSeed, groupWhiteboardStrokeGrainPaths } from './whiteboardStrokeTexture';
 
 export function renderWhiteboardStrokeSvg(stroke: WhiteboardStroke): string {
   if (stroke.points.length === 0) return '';
@@ -11,7 +11,7 @@ export function renderWhiteboardStrokeSvg(stroke: WhiteboardStroke): string {
     const point = stroke.points[0];
     return renderStrokeDab(stroke, color, brush.opacity, point.x, point.y, getStrokeRenderWidth(stroke));
   }
-  const { centerPath, heavyPressurePath, mediumPressurePath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
+  const { centerPath, grainPaths, heavyPressurePath, mediumPressurePath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
   const pressure = renderPressurePath(pressurePath, color, brush.opacity);
   if (stroke.tool === 'watercolor') {
     return wrapBrush('watercolor', [
@@ -38,16 +38,36 @@ export function renderWhiteboardStrokeSvg(stroke: WhiteboardStroke): string {
       ...renderPressureDetails(mediumPressurePath, heavyPressurePath, color, renderWidth * themeWhiteboardTokens.markerPressureCoreWidthScale, brush.opacity * themeWhiteboardTokens.markerPressureCoreOpacityScale),
     ]);
   }
+  if (stroke.tool === 'colored-pencil') {
+    return wrapBrush('colored-pencil', [
+      renderPressurePath(pressurePath, color, brush.opacity * themeWhiteboardTokens.coloredPencilBodyOpacityScale),
+      ...renderMaterialGrainLines(
+        stroke,
+        grainPaths,
+        color,
+        Math.max(themeWhiteboardTokens.strokeEdgeFeatherWidthPx, renderWidth * themeWhiteboardTokens.coloredPencilGrainWidthScale),
+        brush.opacity * themeWhiteboardTokens.coloredPencilGrainOpacityScale,
+        themeWhiteboardTokens.coloredPencilGrainDashArray,
+        themeWhiteboardTokens.coloredPencilGrainSecondaryDashArray,
+        themeWhiteboardTokens.coloredPencilGrainDashOffsetPx,
+        40,
+      ),
+    ]);
+  }
   if (stroke.tool === 'crayon') {
-    const primaryTexture = getWhiteboardStrokeDashStyle(stroke, themeWhiteboardTokens.crayonTextureDashArray, 0, 20);
-    const secondaryTexture = getWhiteboardStrokeDashStyle(stroke, themeWhiteboardTokens.crayonTextureSecondaryDashArray, themeWhiteboardTokens.crayonTextureDashOffsetPx, 21);
-    const waxTexture = getWhiteboardStrokeDashStyle(stroke, themeWhiteboardTokens.crayonWaxDashArray, 0, 22);
     return wrapBrush('crayon', [
-      pressure,
-      renderLine(centerPath, color, renderWidth * themeWhiteboardTokens.crayonTextureWidthScale, brush.opacity * themeWhiteboardTokens.crayonTextureOpacityScale, primaryTexture.dashArray, primaryTexture.dashOffset),
-      renderLine(centerPath, color, renderWidth * themeWhiteboardTokens.crayonTextureSecondaryWidthScale, brush.opacity * themeWhiteboardTokens.crayonTextureSecondaryOpacityScale, secondaryTexture.dashArray, secondaryTexture.dashOffset),
-      renderLine(centerPath, color, Math.max(themeWhiteboardTokens.strokeEdgeFeatherWidthPx, renderWidth * themeWhiteboardTokens.crayonWaxWidthScale), brush.opacity * themeWhiteboardTokens.crayonWaxOpacityScale, waxTexture.dashArray, waxTexture.dashOffset),
-      ...renderPressureDetails(mediumPressurePath, heavyPressurePath, color, renderWidth * themeWhiteboardTokens.crayonPressureCoreWidthScale, brush.opacity * themeWhiteboardTokens.crayonPressureCoreOpacityScale),
+      renderPressurePath(pressurePath, color, brush.opacity * themeWhiteboardTokens.crayonBodyOpacityScale),
+      ...renderMaterialGrainLines(
+        stroke,
+        grainPaths,
+        color,
+        Math.max(themeWhiteboardTokens.strokeEdgeFeatherWidthPx, renderWidth * themeWhiteboardTokens.crayonGrainWidthScale),
+        brush.opacity * themeWhiteboardTokens.crayonGrainOpacityScale,
+        themeWhiteboardTokens.crayonGrainDashArray,
+        themeWhiteboardTokens.crayonGrainSecondaryDashArray,
+        themeWhiteboardTokens.crayonGrainDashOffsetPx,
+        60,
+      ),
     ]);
   }
   if (stroke.tool === 'fountain') {
@@ -71,11 +91,14 @@ function renderStrokeDab(stroke: WhiteboardStroke, color: string, opacity: numbe
   if (stroke.tool === 'watercolor') {
     return `<g data-whiteboard-brush-dab="watercolor"><circle cx="${x}" cy="${y}" r="${width * themeWhiteboardTokens.watercolorWashWidthScale / 2}" fill="${color}" opacity="${opacity * themeWhiteboardTokens.watercolorWashOpacityScale}"/><circle cx="${x}" cy="${y}" r="${width * themeWhiteboardTokens.watercolorOuterWidthScale / 2}" fill="${color}" opacity="${opacity}"/><circle cx="${x}" cy="${y}" r="${width / 2}" fill="${color}" opacity="${opacity * themeWhiteboardTokens.watercolorInnerOpacityScale}"/></g>`;
   }
-  if (stroke.tool === 'pencil' || stroke.tool === 'crayon') {
-    const dashArray = stroke.tool === 'pencil' ? themeWhiteboardTokens.pencilGrainDashArray : themeWhiteboardTokens.crayonTextureDashArray;
-    const textureOpacity = stroke.tool === 'pencil' ? themeWhiteboardTokens.pencilGrainOpacityScale : themeWhiteboardTokens.crayonTextureOpacityScale;
-    const texture = getWhiteboardStrokeDashStyle(stroke, dashArray, 0, 30);
-    return `<g data-whiteboard-brush-dab="${stroke.tool}"><circle cx="${x}" cy="${y}" r="${width / 2}" fill="${color}" opacity="${opacity}"/><circle cx="${x}" cy="${y}" r="${Math.max(0, width / 2 - themeWhiteboardTokens.strokeEdgeFeatherWidthPx)}" fill="${themeWhiteboardTokens.strokeNoFill}" opacity="${opacity * textureOpacity}" stroke="${color}" stroke-dasharray="${texture.dashArray}" stroke-dashoffset="${texture.dashOffset}" stroke-width="${themeWhiteboardTokens.strokeEdgeFeatherWidthPx}"/></g>`;
+  if (stroke.tool === 'pencil' || stroke.tool === 'colored-pencil' || stroke.tool === 'crayon') {
+    const material = stroke.tool === 'pencil'
+      ? { bodyOpacity: opacity, dashArray: themeWhiteboardTokens.pencilGrainDashArray, textureOpacity: opacity * themeWhiteboardTokens.pencilGrainOpacityScale }
+      : stroke.tool === 'colored-pencil'
+        ? { bodyOpacity: opacity * themeWhiteboardTokens.coloredPencilBodyOpacityScale, dashArray: themeWhiteboardTokens.coloredPencilGrainDashArray, textureOpacity: opacity * themeWhiteboardTokens.coloredPencilGrainOpacityScale }
+        : { bodyOpacity: opacity * themeWhiteboardTokens.crayonBodyOpacityScale, dashArray: themeWhiteboardTokens.crayonGrainDashArray, textureOpacity: opacity * themeWhiteboardTokens.crayonGrainOpacityScale };
+    const texture = getWhiteboardStrokeDashStyle(stroke, material.dashArray, 0, 30);
+    return `<g data-whiteboard-brush-dab="${stroke.tool}"><circle cx="${x}" cy="${y}" r="${width / 2}" fill="${color}" opacity="${material.bodyOpacity}"/><circle cx="${x}" cy="${y}" r="${Math.max(0, width / 2 - themeWhiteboardTokens.strokeEdgeFeatherWidthPx)}" fill="${themeWhiteboardTokens.strokeNoFill}" opacity="${material.textureOpacity}" stroke="${color}" stroke-dasharray="${texture.dashArray}" stroke-dashoffset="${texture.dashOffset}" stroke-width="${themeWhiteboardTokens.strokeEdgeFeatherWidthPx}"/></g>`;
   }
   return `<circle data-whiteboard-brush-dab="pen" cx="${x}" cy="${y}" r="${width / 2}" fill="${color}" opacity="${opacity}"/>`;
 }
@@ -94,6 +117,43 @@ function renderPressureDetails(
   return [mediumPath, heavyPath].filter(Boolean).map((path) => renderLine(path, color, width, opacity));
 }
 
+function renderMaterialGrainLines(
+  stroke: WhiteboardStroke,
+  paths: string[],
+  color: string,
+  width: number,
+  opacity: number,
+  primaryPattern: string,
+  secondaryPattern: string,
+  dashOffset: number,
+  laneStart: number,
+): string[] {
+  const strokeSeed = getWhiteboardStrokeSeed(stroke.id);
+  const widthVariation = stroke.tool === 'colored-pencil'
+    ? themeWhiteboardTokens.coloredPencilGrainWidthVariationScale
+    : themeWhiteboardTokens.crayonGrainWidthVariationScale;
+  const opacityVariation = stroke.tool === 'colored-pencil'
+    ? themeWhiteboardTokens.coloredPencilGrainOpacityVariationScale
+    : themeWhiteboardTokens.crayonGrainOpacityVariationScale;
+  return groupWhiteboardStrokeGrainPaths(paths).map(({ laneParity, path }) => {
+    const texture = getWhiteboardStrokeDashStyle(
+      stroke,
+      laneParity === 0 ? primaryPattern : secondaryPattern,
+      laneParity * dashOffset,
+      laneStart + laneParity,
+    );
+    const laneWidth = Math.max(
+      themeWhiteboardTokens.strokeEdgeFeatherWidthPx,
+      width * (1 + getWhiteboardStrokeNoise(strokeSeed, laneParity, laneStart + 100) * widthVariation),
+    );
+    const laneOpacity = Math.min(
+      1,
+      opacity * (1 + getWhiteboardStrokeNoise(strokeSeed, laneParity, laneStart + 200) * opacityVariation),
+    );
+    return renderLine(path, color, laneWidth, laneOpacity, texture.dashArray, texture.dashOffset, themeWhiteboardTokens.strokeLineCap, laneParity);
+  });
+}
+
 function renderPressurePath(d: string, color: string, opacity: number): string {
   return `<path d="${d}" fill="${color}" opacity="${opacity}" stroke="${color}" stroke-linejoin="${themeWhiteboardTokens.strokeLineJoin}" stroke-width="${themeWhiteboardTokens.strokeEdgeFeatherWidthPx}" vector-effect="non-scaling-stroke"/>`;
 }
@@ -106,10 +166,12 @@ function renderLine(
   dashArray?: string,
   dashOffset?: number,
   lineCap: string = themeWhiteboardTokens.strokeLineCap,
+  grainGroup?: number,
 ): string {
   const dash = dashArray ? ` stroke-dasharray="${dashArray}"` : '';
   const offset = dashOffset === undefined ? '' : ` stroke-dashoffset="${dashOffset}"`;
-  return `<path d="${d}" fill="${themeWhiteboardTokens.strokeNoFill}" opacity="${opacity}" stroke="${color}"${dash}${offset} stroke-linecap="${lineCap}" stroke-linejoin="${themeWhiteboardTokens.strokeLineJoin}" stroke-width="${width}"/>`;
+  const grain = grainGroup === undefined ? '' : ` data-whiteboard-grain-group="${grainGroup}"`;
+  return `<path${grain} d="${d}" fill="${themeWhiteboardTokens.strokeNoFill}" opacity="${opacity}" stroke="${color}"${dash}${offset} stroke-linecap="${lineCap}" stroke-linejoin="${themeWhiteboardTokens.strokeLineJoin}" stroke-width="${width}"/>`;
 }
 
 function escapeAttr(value: string): string {

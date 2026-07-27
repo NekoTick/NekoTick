@@ -1,13 +1,13 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { WHITEBOARD_DRAFT_PREVIEW_MAX_POINTS, useWhiteboardDraftStroke } from './useWhiteboardDraftStroke';
+import { useWhiteboardDraftStroke } from './useWhiteboardDraftStroke';
 
 describe('useWhiteboardDraftStroke', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('bounds live preview points without truncating the committed stroke', () => {
+  it('keeps the live preview in sync with the committed points during a long stroke', () => {
     const callbacks: FrameRequestCallback[] = [];
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callbacks.push(callback);
@@ -21,10 +21,10 @@ describe('useWhiteboardDraftStroke', () => {
       size: 1,
       tool: 'pen' as const,
     };
-    const points = Array.from({ length: WHITEBOARD_DRAFT_PREVIEW_MAX_POINTS * 3 }, (_, index) => ({
+    const points = Array.from({ length: 1_000 }, (_, index) => ({
       pressure: 0.5,
-      x: index + 1,
-      y: 0,
+      x: Math.cos(index) * 20,
+      y: Math.sin(index) * 20,
     }));
 
     act(() => result.current.setDraftStroke(initial));
@@ -33,9 +33,8 @@ describe('useWhiteboardDraftStroke', () => {
 
     act(() => callbacks[0](0));
 
-    expect(result.current.draftStroke?.points.length).toBeLessThanOrEqual(WHITEBOARD_DRAFT_PREVIEW_MAX_POINTS);
-    expect(result.current.draftStroke?.points.at(-1)?.x).toBe(points.at(-1)?.x);
     expect(result.current.getDraftStroke()?.points).toHaveLength(points.length + 1);
+    expect(result.current.draftStroke?.points).toBe(result.current.getDraftStroke()?.points);
   });
 
   it('does not schedule a frame when all samples are below the distance threshold', () => {

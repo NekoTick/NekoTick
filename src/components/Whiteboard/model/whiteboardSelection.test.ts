@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { WhiteboardElement, WhiteboardStroke } from './whiteboardModel';
-import { findStrokeAtPoint, getElementsInLasso, getItemsInLasso, getStrokesInLasso } from './whiteboardSelection';
+import {
+  findStrokeAtPoint,
+  getElementsInLasso,
+  getItemsInLasso,
+  getStrokeBounds,
+  getStrokesInLasso,
+  translateStroke,
+} from './whiteboardSelection';
 
 const lasso = [
   { x: 0, y: 0 },
@@ -105,5 +112,30 @@ describe('whiteboard lasso selection', () => {
     ];
 
     expect(findStrokeAtPoint(strokes, { x: 40, y: 10 }, 1)?.id).toBe('hit');
+  });
+
+  it('reuses translated stroke bounds without rescanning points', () => {
+    const stroke: WhiteboardStroke = {
+      color: '#111111',
+      id: 'translated',
+      points: [
+        { pressure: 0.5, x: 10, y: 20 },
+        { breakBefore: true, pressure: 0.5, x: 30, y: 40 },
+      ],
+      size: 1,
+      tool: 'pen',
+    };
+    const originalBounds = getStrokeBounds(stroke);
+    const translated = translateStroke(stroke, 12, 8);
+    const iteratePoints = vi.fn(Array.prototype[Symbol.iterator].bind(translated.points));
+    Object.defineProperty(translated.points, Symbol.iterator, { value: iteratePoints });
+
+    expect(getStrokeBounds(translated)).toEqual(originalBounds && {
+      ...originalBounds,
+      x: originalBounds.x + 12,
+      y: originalBounds.y + 8,
+    });
+    expect(translated.points[1]).toMatchObject({ breakBefore: true, x: 42, y: 48 });
+    expect(iteratePoints).not.toHaveBeenCalled();
   });
 });

@@ -235,7 +235,12 @@ function createDesktopApi(deps) {
         return ipcRenderer.invoke('desktop:fs:write-binary', filePath, normalizeDesktopBinaryWritePayload(bytes));
       },
       writeTextFile(filePath, content, options) {
-        return ipcRenderer.invoke('desktop:fs:write-text', filePath, normalizeDesktopTextWritePayload(content), options);
+        return ipcRenderer.invoke(
+          'desktop:fs:write-text',
+          filePath,
+          normalizeDesktopTextWritePayload(content, options?.maxBytes),
+          options,
+        );
       },
       writeTextFileIfUnchanged(filePath, expectedContent, content) {
         return ipcRenderer.invoke(
@@ -263,8 +268,11 @@ function createDesktopApi(deps) {
       rename(oldPath, newPath) {
         return ipcRenderer.invoke('desktop:fs:rename', oldPath, newPath);
       },
-      copyFile(sourcePath, targetPath) {
-        return ipcRenderer.invoke('desktop:fs:copy-file', sourcePath, targetPath);
+      copyFile(sourcePath, targetPath, maxBytes) {
+        if (maxBytes === undefined) {
+          return ipcRenderer.invoke('desktop:fs:copy-file', sourcePath, targetPath);
+        }
+        return ipcRenderer.invoke('desktop:fs:copy-file', sourcePath, targetPath, maxBytes);
       },
       stat(filePath) {
         return ipcRenderer.invoke('desktop:fs:stat', filePath);

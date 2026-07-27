@@ -3,9 +3,10 @@ import { processFilename } from '@/lib/assets/core/naming';
 import { getStorageAdapter, joinPath } from '@/lib/storage/adapter';
 import { getWhiteboardNotesRootPath } from '@/lib/storage/whiteboardStoragePaths';
 import {
-  createWhiteboardDocument,
-  deserializeWhiteboardSnapshot,
+  deserializeWhiteboardSnapshotAsync,
   normalizeWhiteboardSnapshot,
+  serializeWhiteboardSnapshotAsync,
+  serializeWhiteboardSnapshotBlobAsync,
   type WhiteboardSnapshot,
 } from './whiteboardDocument';
 import type { WhiteboardElement } from './whiteboardModel';
@@ -23,7 +24,6 @@ export { createDefaultWhiteboardIndex, normalizeWhiteboardIndex } from './whiteb
 export type { WhiteboardIndex, WhiteboardIndexEntry } from './whiteboardIndex';
 
 const WHITEBOARD_INDEX_MAX_BYTES = 256 * 1024;
-export const WHITEBOARD_BOARD_MAX_BYTES = 16 * 1024 * 1024;
 const WHITEBOARD_ASSET_MAX_BYTES = 50 * 1024 * 1024;
 const WHITEBOARD_CONFIG_MAX_BYTES = 64 * 1024;
 export const WHITEBOARD_ASSET_HYDRATION_CONCURRENCY = 8;
@@ -74,8 +74,8 @@ export async function readWhiteboardBoard(
   const boardPath = await getWhiteboardBoardPath(notesRootPath, board);
   const snapshot = await readRecoverableText(
     boardPath,
-    WHITEBOARD_BOARD_MAX_BYTES,
-    deserializeWhiteboardSnapshot,
+    null,
+    deserializeWhiteboardSnapshotAsync,
   );
   return snapshot ? hydrateWhiteboardAssets(notesRootPath, board, snapshot) : null;
 }
@@ -90,10 +90,15 @@ export async function writeWhiteboardBoard(
   await ensureWhiteboardConfig(notesRootPath, configPath);
   const boardPath = await getWhiteboardBoardPath(notesRootPath, board);
   await storage.mkdir(await getWhiteboardAssetsPath(notesRootPath, board), true);
+  if (storage.platform === 'web' && storage.writeFileBlob) {
+    const content = await serializeWhiteboardSnapshotBlobAsync(snapshot);
+    await storage.writeFileBlob(boardPath, content, { maxBytes: null, recursive: true });
+    return content.size;
+  }
   return writeRecoverableText(
     boardPath,
-    JSON.stringify(createWhiteboardDocument(snapshot), null, 2),
-    WHITEBOARD_BOARD_MAX_BYTES,
+    await serializeWhiteboardSnapshotAsync(snapshot),
+    null,
   );
 }
 

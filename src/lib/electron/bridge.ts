@@ -347,12 +347,12 @@ export interface ElectronDragDropApi {
 
 export interface ElectronFsApi {
   readBinaryFile(filePath: string, maxBytes?: number): Promise<Uint8Array>;
-  readTextFile(filePath: string, maxBytes?: number): Promise<string>;
+  readTextFile(filePath: string, maxBytes?: number | null): Promise<string>;
   writeBinaryFile(filePath: string, bytes: Uint8Array): Promise<void>;
   writeTextFile(
     filePath: string,
     content: string,
-    options?: { recursive?: boolean; append?: boolean }
+    options?: { recursive?: boolean; append?: boolean; maxBytes?: number | null }
   ): Promise<void>;
   writeTextFileIfUnchanged(
     filePath: string,
@@ -370,7 +370,7 @@ export interface ElectronFsApi {
     isFile: boolean;
   }>>;
   rename(oldPath: string, newPath: string): Promise<void>;
-  copyFile(sourcePath: string, targetPath: string): Promise<void>;
+  copyFile(sourcePath: string, targetPath: string, maxBytes?: number | null): Promise<void>;
   stat(filePath: string): Promise<{
     name: string;
     path: string;

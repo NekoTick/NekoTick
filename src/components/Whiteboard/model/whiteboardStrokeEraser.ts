@@ -8,6 +8,7 @@ import {
 import type { WhiteboardEraserSample } from './whiteboardEraser';
 import { getStrokeBounds } from './whiteboardSelectionTransform';
 import { splitWhiteboardStrokeSegments } from './whiteboardStrokeSegments';
+import type { WhiteboardMutableIdSet } from './whiteboardStrokeSegments';
 
 interface StrokeEraserSweep {
   end: WhiteboardEraserSample;
@@ -15,11 +16,16 @@ interface StrokeEraserSweep {
   start: WhiteboardEraserSample;
 }
 
+export interface WhiteboardStrokeEraserPreview {
+  replacements: ReadonlyMap<string, WhiteboardStroke[]>;
+}
+
 export function eraseWhiteboardStrokes(
   strokes: WhiteboardStroke[],
   samples: WhiteboardEraserSample[],
   candidateIds?: ReadonlySet<string>,
   candidateStrokes?: WhiteboardStroke[],
+  existingIds?: WhiteboardMutableIdSet,
 ): WhiteboardStroke[] {
   const sweeps = getSweeps(samples);
   if (sweeps.length === 0) return strokes;
@@ -39,7 +45,7 @@ export function eraseWhiteboardStrokes(
     if (!erased) return [stroke];
     return erased.points.length > 0 ? [erased] : [];
   });
-  return splitWhiteboardStrokeSegments(next, changedStrokeIds);
+  return splitWhiteboardStrokeSegments(next, changedStrokeIds, existingIds);
 }
 
 function strokeMayIntersectSweep(stroke: WhiteboardStroke, sweeps: StrokeEraserSweep[]): boolean {

@@ -1,8 +1,17 @@
 import { useCallback, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
 import { isWhiteboardMoveDragState, type WhiteboardDragState } from '../model/whiteboardInteractions';
 import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '../model/whiteboardModel';
-import { getItemsInLasso, getLassoBounds, translateStrokesFromOriginals } from '../model/whiteboardSelection';
+import {
+  getItemsInLasso,
+  getLassoBounds,
+  getResizedSelectionBounds,
+  resizeSelectionElements,
+  resizeSelectionStrokes,
+  translateElementsFromOriginals,
+  translateStrokesFromOriginals,
+} from '../model/whiteboardSelection';
 import { getWhiteboardBoundsCandidates, type WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
+import { appendWhiteboardItems } from '../model/whiteboardCollection';
 
 interface WhiteboardPointerFinishOptions {
   activePenPointerRef: MutableRefObject<number | null>;
@@ -15,6 +24,8 @@ interface WhiteboardPointerFinishOptions {
   flushResizeDrags: () => void;
   getBoardPoint: (clientX: number, clientY: number) => WhiteboardPoint;
   getDraftStroke: () => WhiteboardStroke | null;
+  prepareMoveCommit?: (state: Extract<WhiteboardDragState, { kind: 'move-elements' | 'move-strokes' }>, point: WhiteboardPoint) => boolean;
+  prepareResizeCommit?: (state: Extract<WhiteboardDragState, { kind: 'resize-selection' }>, bounds: ReturnType<typeof getResizedSelectionBounds>) => boolean;
   pushHistory: () => void;
   setDragState: Dispatch<SetStateAction<WhiteboardDragState | null>>;
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>;
@@ -37,6 +48,8 @@ export function useWhiteboardPointerFinish({
   flushResizeDrags,
   getBoardPoint,
   getDraftStroke,
+  prepareMoveCommit,
+  prepareResizeCommit,
   pushHistory,
   setDragState,
   setElements,
@@ -56,7 +69,7 @@ export function useWhiteboardPointerFinish({
     const currentDraft = getDraftStroke();
     if (event?.type !== 'pointercancel' && dragState?.kind === 'draw' && currentDraft && currentDraft.points.length > 0) {
       pushHistory();
-      setStrokes((current) => [...current, { ...currentDraft, id: `wb-stroke-${strokeIdRef.current}` }]);
+      setStrokes((current) => appendWhiteboardItems(current, [{ ...currentDraft }]));
       strokeIdRef.current += 1;
     }
     if (event?.type !== 'pointercancel' && dragState?.kind === 'lasso') {
@@ -72,20 +85,66 @@ export function useWhiteboardPointerFinish({
       setSelectedElementIds(selection.elementIds);
       setSelectedStrokeIds(selection.strokeIds);
     }
+    if (event?.type !== 'pointercancel' && dragState?.kind === 'resize-selection') {
+      const nextBounds = event
+        ? getResizedSelectionBounds(
+            dragState.bounds,
+            dragState.startPoint,
+            getBoardPoint(event.clientX, event.clientY),
+            dragState.handle,
+            dragState.preserveAspectRatio,
+          )
+        : dragState.currentBounds;
+      if (event?.type !== 'pointercancel' && prepareResizeCommit?.(dragState, nextBounds)) {
+        clearDraftStroke();
+        return;
+      }
+      if (dragState.originalElementsById.size > 0) {
+        setElements((current) => resizeSelectionElements(
+          current,
+          dragState.originalElementsById,
+          dragState.bounds,
+          nextBounds,
+          spatialIndex.allElements === current ? spatialIndex.elementOrder : null,
+        ));
+      }
+      if (dragState.originalStrokesById.size > 0) {
+        setStrokes((current) => resizeSelectionStrokes(
+          current,
+          dragState.originalStrokesById,
+          dragState.bounds,
+          nextBounds,
+          spatialIndex.allStrokes === current ? spatialIndex.strokeOrder : null,
+        ));
+      }
+    }
     if (isWhiteboardMoveDragState(dragState)) {
       const point = event && event.type !== 'pointercancel'
         ? getBoardPoint(event.clientX, event.clientY)
         : dragState.currentPoint;
       const dx = point.x - dragState.startPoint.x;
       const dy = point.y - dragState.startPoint.y;
+      if (event?.type !== 'pointercancel' && prepareMoveCommit?.(dragState, point)) {
+        clearDraftStroke();
+        return;
+      }
       if (dragState.kind === 'move-strokes' || dragState.originalStrokesById.size > 0) {
-        setStrokes((current) => translateStrokesFromOriginals(current, dragState.originalStrokesById, dx, dy));
+        setStrokes((current) => translateStrokesFromOriginals(
+          current,
+          dragState.originalStrokesById,
+          dx,
+          dy,
+          spatialIndex.allStrokes === current ? spatialIndex.strokeOrder : null,
+        ));
       }
       if (dragState.kind === 'move-elements') {
-        setElements((current) => current.map((element) => {
-          const original = dragState.originalElementsById.get(element.id);
-          return original ? { ...element, x: Math.round(original.x + dx), y: Math.round(original.y + dy) } : element;
-        }));
+        setElements((current) => translateElementsFromOriginals(
+          current,
+          dragState.originalElementsById,
+          dx,
+          dy,
+          spatialIndex.allElements === current ? spatialIndex.elementOrder : null,
+        ));
       }
     }
     clearDraftStroke();
@@ -93,7 +152,7 @@ export function useWhiteboardPointerFinish({
   }, [
     activePenPointerRef, clearDraftStroke, deletePointer, dragState,
     elements, finishEraserGesture, finishStrokeEraserGesture, flushResizeDrags, getBoardPoint,
-    getDraftStroke, pushHistory, setDragState, setElements, setSelectedElementIds,
+    getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory, setDragState, setElements, setSelectedElementIds,
     setSelectedStrokeIds, setStrokes, strokeIdRef, strokes,
     spatialIndex,
   ]);

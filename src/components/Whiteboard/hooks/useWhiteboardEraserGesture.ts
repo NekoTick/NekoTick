@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   EMPTY_WHITEBOARD_ERASER_PREVIEW,
-  createWhiteboardEraserSpatialIndex,
+  createWhiteboardEraserSpatialIndexAsync,
   getWhiteboardEraserCandidates,
   getWhiteboardEraserTargets,
   type WhiteboardEraserSpatialIndex,
@@ -10,6 +10,7 @@ import {
   type WhiteboardEraserSample,
 } from '../model/whiteboardEraser';
 import type { WhiteboardElement, WhiteboardStroke } from '../model/whiteboardModel';
+import { removeWhiteboardItems } from '../model/whiteboardCollection';
 
 interface WhiteboardEraserGestureOptions {
   elements: WhiteboardElement[];
@@ -35,6 +36,9 @@ export function useWhiteboardEraserGesture({
 }: WhiteboardEraserGestureOptions) {
   const [preview, setPreview] = useState<WhiteboardEraserPreview>(EMPTY_WHITEBOARD_ERASER_PREVIEW);
   const frameRef = useRef<number | null>(null);
+  const finishRequestedRef = useRef<boolean | null>(null);
+  const gestureTokenRef = useRef<object | null>(null);
+  const indexReadyRef = useRef(false);
   const trailFrameRef = useRef<number | null>(null);
   const lastTrailDecayRef = useRef(0);
   const lastSampleRef = useRef<WhiteboardEraserSample | null>(null);
@@ -73,7 +77,9 @@ export function useWhiteboardEraserGesture({
 
   const update = useCallback((samples: WhiteboardEraserSample[]) => {
     pendingSamplesRef.current.push(...samples);
-    if (frameRef.current === null) frameRef.current = window.requestAnimationFrame(publishPendingSamples);
+    if (indexReadyRef.current && frameRef.current === null) {
+      frameRef.current = window.requestAnimationFrame(publishPendingSamples);
+    }
   }, [publishPendingSamples]);
 
   const decayTrail = useCallback((now: number) => {
@@ -93,6 +99,9 @@ export function useWhiteboardEraserGesture({
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     if (trailFrameRef.current !== null) window.cancelAnimationFrame(trailFrameRef.current);
     frameRef.current = null;
+    finishRequestedRef.current = null;
+    gestureTokenRef.current = null;
+    indexReadyRef.current = false;
     trailFrameRef.current = null;
     lastTrailDecayRef.current = 0;
     lastSampleRef.current = null;
@@ -102,29 +111,59 @@ export function useWhiteboardEraserGesture({
     setPreview(EMPTY_WHITEBOARD_ERASER_PREVIEW);
   }, []);
 
-  const begin = useCallback((samples: WhiteboardEraserSample[]) => {
-    reset();
-    spatialIndexRef.current = spatialIndex.allElements === elements && spatialIndex.allStrokes === strokes
-      ? spatialIndex
-      : createWhiteboardEraserSpatialIndex(elements, strokes);
-    lastTrailDecayRef.current = performance.now();
-    trailFrameRef.current = window.requestAnimationFrame(decayTrail);
-    update(samples);
-  }, [decayTrail, elements, reset, spatialIndex, strokes, update]);
-
-  const finish = useCallback((cancelled = false) => {
+  const complete = useCallback((cancelled: boolean) => {
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
-    applyPendingSamples();
+    if (!cancelled) applyPendingSamples();
     const targets = targetsRef.current;
     const hasTargets = targets.elementIds.size > 0 || targets.strokeIds.size > 0;
     if (!cancelled && hasTargets) {
       pushHistory();
-      setStrokes((current) => current.filter((stroke) => !targets.strokeIds.has(stroke.id)));
-      setElements((current) => current.filter((element) => !targets.elementIds.has(element.id)));
+      if (targets.strokeIds.size > 0) {
+        setStrokes((current) => removeWhiteboardItems(current, targets.strokeIds));
+      }
+      if (targets.elementIds.size > 0) {
+        setElements((current) => removeWhiteboardItems(current, targets.elementIds));
+      }
     }
     reset();
   }, [applyPendingSamples, pushHistory, reset, setElements, setStrokes]);
+
+  const begin = useCallback((samples: WhiteboardEraserSample[]) => {
+    reset();
+    const token = {};
+    gestureTokenRef.current = token;
+    if (hasCurrentSources(spatialIndex, elements, strokes)) {
+      spatialIndexRef.current = spatialIndex;
+      indexReadyRef.current = true;
+    } else {
+      void createWhiteboardEraserSpatialIndexAsync(
+        elements,
+        strokes,
+        () => gestureTokenRef.current === token,
+      ).then((index) => {
+        if (!index || gestureTokenRef.current !== token) return;
+        spatialIndexRef.current = index;
+        indexReadyRef.current = true;
+        const finishRequested = finishRequestedRef.current;
+        if (finishRequested !== null) complete(finishRequested);
+        else if (pendingSamplesRef.current.length > 0 && frameRef.current === null) {
+          frameRef.current = window.requestAnimationFrame(publishPendingSamples);
+        }
+      });
+    }
+    lastTrailDecayRef.current = performance.now();
+    trailFrameRef.current = window.requestAnimationFrame(decayTrail);
+    update(samples);
+  }, [complete, decayTrail, elements, publishPendingSamples, reset, spatialIndex, strokes, update]);
+
+  const finish = useCallback((cancelled = false) => {
+    if (!cancelled && gestureTokenRef.current && !indexReadyRef.current) {
+      finishRequestedRef.current = false;
+      return;
+    }
+    complete(cancelled);
+  }, [complete]);
 
   useEffect(() => reset, [reset]);
 
@@ -133,4 +172,13 @@ export function useWhiteboardEraserGesture({
 
 function createMutableTargets(): MutableEraserTargets {
   return { elementIds: new Set(), strokeIds: new Set() };
+}
+
+function hasCurrentSources(
+  index: WhiteboardEraserSpatialIndex,
+  elements: WhiteboardElement[],
+  strokes: WhiteboardStroke[],
+): boolean {
+  return (index.allElements === elements || (index.allElements.length === 0 && elements.length === 0))
+    && (index.allStrokes === strokes || (index.allStrokes.length === 0 && strokes.length === 0));
 }

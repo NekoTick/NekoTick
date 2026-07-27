@@ -5,7 +5,10 @@ import {
   WHITEBOARD_DOCUMENT_MIME_TYPE,
   WHITEBOARD_DOCUMENT_VERSION,
   deserializeWhiteboardSnapshot,
+  deserializeWhiteboardSnapshotAsync,
   serializeWhiteboardSnapshot,
+  serializeWhiteboardSnapshotAsync,
+  serializeWhiteboardSnapshotBlobAsync,
   type WhiteboardSnapshot,
 } from './whiteboardDocument';
 
@@ -45,6 +48,37 @@ describe('whiteboard document format', () => {
       ...snapshot,
       elements: [persistedImage],
     });
+  });
+
+  it('uses the same document format for asynchronous persistence serialization', async () => {
+    await expect(serializeWhiteboardSnapshotAsync(snapshot)).resolves.toBe(serializeWhiteboardSnapshot(snapshot));
+    await expect((await serializeWhiteboardSnapshotBlobAsync(snapshot)).text())
+      .resolves.toBe(serializeWhiteboardSnapshot(snapshot));
+  });
+
+  it('incrementally deserializes the same stored document without trusting runtime fields', async () => {
+    const serialized = serializeWhiteboardSnapshot(snapshot);
+    const document = JSON.parse(serialized);
+    document.content.elements[0].imageSrc = 'https://example.invalid/tracker.png';
+    const stored = JSON.stringify(document);
+
+    await expect(deserializeWhiteboardSnapshotAsync(stored))
+      .resolves.toEqual(deserializeWhiteboardSnapshot(stored));
+  });
+
+  it('persists colored pencil strokes while retaining legacy fountain strokes', () => {
+    const strokes: WhiteboardSnapshot['strokes'] = [
+      { color: '#1e96eb', id: 'colored-pencil', points: [{ pressure: 0.6, x: 1, y: 2 }], size: 1, tool: 'colored-pencil' },
+      { color: '#111111', id: 'legacy-fountain', points: [{ pressure: 0.6, x: 3, y: 4 }], size: 1, tool: 'fountain' },
+    ];
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      elements: [],
+      strokes,
+      viewport: WHITEBOARD_INITIAL_VIEWPORT,
+    }));
+
+    expect(restored?.strokes.map((stroke) => stroke.tool)).toEqual(['colored-pencil', 'fountain']);
   });
 
   it('stores asset paths without duplicating preview data URLs', () => {
@@ -165,5 +199,17 @@ describe('whiteboard document format', () => {
     expect(deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
       elements: [], strokes: [], viewport: WHITEBOARD_INITIAL_VIEWPORT,
     }))).toEqual({ elements: [], strokes: [], viewport: WHITEBOARD_INITIAL_VIEWPORT });
+  });
+
+  it('rejects malformed and structurally incomplete content during incremental parsing', async () => {
+    await expect(deserializeWhiteboardSnapshotAsync('not json')).resolves.toBeNull();
+    await expect(deserializeWhiteboardSnapshotAsync(JSON.stringify({
+      content: {},
+      format: WHITEBOARD_DOCUMENT_FORMAT,
+      version: WHITEBOARD_DOCUMENT_VERSION,
+    }))).resolves.toBeNull();
+    await expect(deserializeWhiteboardSnapshotAsync(serializeWhiteboardSnapshot({
+      elements: [], strokes: [], viewport: WHITEBOARD_INITIAL_VIEWPORT,
+    }))).resolves.toEqual({ elements: [], strokes: [], viewport: WHITEBOARD_INITIAL_VIEWPORT });
   });
 });

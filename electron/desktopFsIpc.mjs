@@ -42,14 +42,14 @@ export function registerDesktopFsIpc({ handleIpc }) {
 
   handleIpc('desktop:fs:write-text', async (_event, filePath, content, options) => {
     const resolvedPath = await assertAuthorizedFsPath(filePath);
-    const text = normalizeDesktopTextWriteContent(content);
+    const text = normalizeDesktopTextWriteContent(content, options?.maxBytes);
 
     if (options?.recursive) {
       await mkdir(path.dirname(resolvedPath), { recursive: true });
     }
 
     if (options?.append) {
-      const previous = await readDesktopFileBytes(resolvedPath)
+      const previous = await readDesktopFileBytes(resolvedPath, options?.maxBytes)
         .then((bytes) => bytes.toString('utf8'))
         .catch((error) => {
           if (error && typeof error === 'object' && error.code === 'ENOENT') {
@@ -59,6 +59,7 @@ export function registerDesktopFsIpc({ handleIpc }) {
         });
       assertWritableDesktopByteLength(
         Buffer.byteLength(previous, 'utf8') + Buffer.byteLength(text, 'utf8'),
+        options?.maxBytes,
       );
       await writeFileAtomically(resolvedPath, previous + text);
       return;
@@ -141,9 +142,9 @@ export function registerDesktopFsIpc({ handleIpc }) {
     notifyDesktopWatchRename(resolvedOldPath, resolvedNewPath);
   });
 
-  handleIpc('desktop:fs:copy-file', async (_event, sourcePath, targetPath) => {
+  handleIpc('desktop:fs:copy-file', async (_event, sourcePath, targetPath, maxBytes) => {
     const resolvedSourcePath = await assertAuthorizedFsPath(sourcePath);
-    await assertCopyableDesktopFile(resolvedSourcePath);
+    await assertCopyableDesktopFile(resolvedSourcePath, maxBytes);
     await copyFile(resolvedSourcePath, await assertAuthorizedFsPath(targetPath));
   });
 

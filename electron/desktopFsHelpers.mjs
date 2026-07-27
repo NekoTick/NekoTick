@@ -18,9 +18,10 @@ const LOW_PRIORITY_DESKTOP_DIRECTORY_NAMES = new Set([
 ]);
 
 function normalizeDesktopReadByteLimit(value) {
-  if (value == null) {
+  if (value === undefined) {
     return MAX_DESKTOP_FS_READ_BYTES;
   }
+  if (value === null) return null;
   if (!Number.isSafeInteger(value) || value < 0 || value > MAX_DESKTOP_FS_READ_BYTES) {
     throw new Error('Desktop read byte limit is invalid.');
   }
@@ -32,17 +33,24 @@ async function assertReadableDesktopFile(filePath, maxBytes) {
   if (!info.isFile()) {
     throw new Error(`Desktop path must be a file: ${filePath}`);
   }
-  if (info.size > maxBytes) {
+  if (maxBytes !== null && info.size > maxBytes) {
     throw new Error(`Desktop file is too large to read: ${filePath}`);
   }
 }
 
-export async function assertCopyableDesktopFile(filePath) {
+export async function assertCopyableDesktopFile(filePath, maxBytesValue) {
   const info = await stat(filePath);
   if (!info.isFile()) {
     throw new Error(`Desktop path must be a file: ${filePath}`);
   }
-  if (info.size > MAX_DESKTOP_FS_WRITE_BYTES) {
+  const maxBytes = maxBytesValue === undefined ? MAX_DESKTOP_FS_WRITE_BYTES : maxBytesValue;
+  if (
+    maxBytes !== null &&
+    (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > MAX_DESKTOP_FS_WRITE_BYTES)
+  ) {
+    throw new Error('Desktop copy byte limit is invalid.');
+  }
+  if (maxBytes !== null && info.size > maxBytes) {
     throw new Error(`Desktop file is too large to copy: ${filePath}`);
   }
 }
@@ -55,8 +63,8 @@ export async function readDesktopFileBytes(filePath, maxBytesValue) {
   const chunks = [];
   let totalBytes = 0;
   try {
-    while (totalBytes <= maxBytes) {
-      const remainingBytes = maxBytes + 1 - totalBytes;
+    while (maxBytes === null || totalBytes <= maxBytes) {
+      const remainingBytes = maxBytes === null ? 64 * 1024 : maxBytes + 1 - totalBytes;
       const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, Math.max(1, remainingBytes)));
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
       if (bytesRead === 0) {
@@ -69,14 +77,23 @@ export async function readDesktopFileBytes(filePath, maxBytesValue) {
     await handle.close().catch(() => {});
   }
 
-  if (totalBytes > maxBytes) {
+  if (maxBytes !== null && totalBytes > maxBytes) {
     throw new Error(`Desktop file is too large to read: ${filePath}`);
   }
   return Buffer.concat(chunks, totalBytes);
 }
 
-export function assertWritableDesktopByteLength(byteLength) {
-  if (!Number.isSafeInteger(byteLength) || byteLength > MAX_DESKTOP_FS_WRITE_BYTES) {
+export function assertWritableDesktopByteLength(byteLength, maxBytes = MAX_DESKTOP_FS_WRITE_BYTES) {
+  if (
+    !Number.isSafeInteger(byteLength) ||
+    byteLength < 0 ||
+    (maxBytes !== null && (
+      !Number.isSafeInteger(maxBytes) ||
+      maxBytes < 0 ||
+      maxBytes > MAX_DESKTOP_FS_WRITE_BYTES ||
+      byteLength > maxBytes
+    ))
+  ) {
     throw new Error('Desktop content is too large to write.');
   }
 }
@@ -197,12 +214,15 @@ export function normalizeDesktopBinaryWriteBytes(bytes) {
   throw new Error('Desktop binary content must be a byte array.');
 }
 
-export function normalizeDesktopTextWriteContent(content) {
+export function normalizeDesktopTextWriteContent(content, maxBytes) {
   if (typeof content !== 'string') {
     throw new Error('Desktop text content must be a string.');
   }
   const text = content;
-  assertWritableDesktopByteLength(Buffer.byteLength(text, 'utf8'));
+  const resolvedMaxBytes = maxBytes === undefined ? MAX_DESKTOP_FS_WRITE_BYTES : maxBytes;
+  if (resolvedMaxBytes !== null) {
+    assertWritableDesktopByteLength(Buffer.byteLength(text, 'utf8'), resolvedMaxBytes);
+  }
   return text;
 }
 
