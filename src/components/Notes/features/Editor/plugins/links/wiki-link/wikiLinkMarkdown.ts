@@ -13,7 +13,7 @@ type WikiLinkNode = MdastNode & {
   target: string;
 };
 
-const WIKI_LINK_PATTERN = /\[\[([^\]|\n]{1,512})(?:\|([^\]\n]{1,512}))?\]\]/g;
+const WIKI_LINK_PATTERN = /(?<!!)\[\[([^\]|\n]{1,512})(?:\|([^\]\n]{1,512}))?\]\]/g;
 
 function createWikiLinkNode(target: string, label: string): WikiLinkNode {
   return {
@@ -23,7 +23,23 @@ function createWikiLinkNode(target: string, label: string): WikiLinkNode {
   };
 }
 
-export function transformWikiLinks(tree: MdastNode, markdown = ''): void {
+function createReadonlyWikiLinkNode(_target: string, label: string): MdastNode {
+  return {
+    type: 'link',
+    url: '',
+    data: {
+      hName: 'span',
+      hProperties: { className: ['internal-link', 'wiki-link'] },
+    },
+    children: [{ type: 'text', value: label }],
+  } as MdastNode;
+}
+
+function transformWikiLinksWithFactory(
+  tree: MdastNode,
+  markdown: string,
+  createNode: (target: string, label: string) => MdastNode,
+): void {
   const visit = (node: MdastNode): void => {
     if (node.type === 'link' || node.type === 'linkReference') return;
     if (!node.children) return;
@@ -58,7 +74,7 @@ export function transformWikiLinks(tree: MdastNode, markdown = ''): void {
         if (match.start > lastEnd) {
           replacements.push(createMarkdownTextSliceNode(child, sourceMap, lastEnd, match.start));
         }
-        replacements.push(createWikiLinkNode(target, label));
+        replacements.push(createNode(target, label));
         lastEnd = match.end;
       }
 
@@ -73,9 +89,23 @@ export function transformWikiLinks(tree: MdastNode, markdown = ''): void {
   visit(tree);
 }
 
+export function transformWikiLinks(tree: MdastNode, markdown = ''): void {
+  transformWikiLinksWithFactory(tree, markdown, createWikiLinkNode);
+}
+
+export function transformReadonlyWikiLinks(tree: MdastNode, markdown = ''): void {
+  transformWikiLinksWithFactory(tree, markdown, createReadonlyWikiLinkNode);
+}
+
 export function remarkWikiLinks() {
   return (tree: MdastNode, file?: { value?: unknown }) => {
     transformWikiLinks(tree, typeof file?.value === 'string' ? file.value : '');
+  };
+}
+
+export function remarkReadonlyWikiLinks() {
+  return (tree: MdastNode, file?: { value?: unknown }) => {
+    transformReadonlyWikiLinks(tree, typeof file?.value === 'string' ? file.value : '');
   };
 }
 

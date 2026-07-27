@@ -1,10 +1,18 @@
-import { useEffect, useState, type ImgHTMLAttributes } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   READONLY_MARKDOWN_REMARK_PLUGINS,
 } from '@/components/common/markdown/markdownPipeline';
+import {
+  ReadonlyMarkdownParagraph,
+  ReadonlyMarkdownPre,
+  type ReadonlyMarkdownImageProps,
+} from '@/components/common/markdown/ReadonlyMarkdownBlocks';
+import { ReadOnlyVideoBlock } from '@/components/common/markdown/ReadOnlyVideoBlock';
 import { remarkObsidianImageEmbeds } from '@/components/common/markdown/theme-compatibility/obsidian/imageEmbed';
 import { normalizeLeadingFrontmatterMarkdown } from '@/components/Notes/features/Editor/plugins/frontmatter/frontmatterMarkdown';
+import { remarkReadonlyWikiLinks } from '@/components/Notes/features/Editor/plugins/links/wiki-link/wikiLinkMarkdown';
+import { parseVideoUrl } from '@/lib/markdown/videoUrl';
 import { normalizeAlternativeMathBlockFences } from '@/lib/notes/markdown/markdownSerializationUtils';
 
 type MarkdownAstNode = {
@@ -55,8 +63,9 @@ function remarkReadonlyMarkdownBlankLines() {
 }
 
 export const SPLIT_PREVIEW_REMARK_PLUGINS = [
-  ...READONLY_MARKDOWN_REMARK_PLUGINS,
+  remarkReadonlyWikiLinks,
   remarkObsidianImageEmbeds,
+  ...READONLY_MARKDOWN_REMARK_PLUGINS,
   remarkReadonlyMarkdownBlankLines,
 ] as any[];
 
@@ -68,9 +77,7 @@ function isAlreadyRenderableImageSrc(src: string): boolean {
   return /^(?:https?:|data:|blob:|attachment:|app-file:|asset:)/i.test(src);
 }
 
-export interface ReactMarkdownImageProps extends ImgHTMLAttributes<HTMLImageElement> {
-  node?: unknown;
-}
+export type ReactMarkdownImageProps = ReadonlyMarkdownImageProps;
 
 interface SplitPreviewMarkdownImageProps extends ReactMarkdownImageProps {
   loadImage: (src: string) => Promise<string>;
@@ -141,4 +148,21 @@ export function SplitPreviewMarkdownImage({
       />
     </span>
   );
+}
+
+export function createSplitPreviewMarkdownComponents(
+  loadImage: (src: string) => Promise<string>,
+) {
+  return {
+    img(props: ReactMarkdownImageProps) {
+      const src = typeof props.src === 'string' ? props.src : '';
+      if (parseVideoUrl(src)) {
+        return <ReadOnlyVideoBlock src={src} title={props.alt ?? ''} />;
+      }
+
+      return <SplitPreviewMarkdownImage {...props} loadImage={loadImage} />;
+    },
+    p: ReadonlyMarkdownParagraph,
+    pre: ReadonlyMarkdownPre,
+  };
 }

@@ -9,6 +9,8 @@ import { NoteExportDocument } from './NoteExportDocument';
 import { EXPORT_DOCUMENT_CSS, EXPORT_WIDTH_PX } from './noteExportHtmlStyles';
 
 const MAX_EXPORT_IMAGE_DECODE_WAIT_COUNT = 200;
+const MAX_EXPORT_MERMAID_RENDER_WAIT_FRAMES = 120;
+const MAX_EXPORT_ANIMATION_FRAME_WAIT_MS = 50;
 export const MAX_EXPORT_IMAGE_DECODE_SCAN_ELEMENTS = 20_000;
 export const MAX_EXPORT_IMAGE_DECODE_CONCURRENCY = 8;
 export { NoteExportDocument } from './NoteExportDocument';
@@ -25,6 +27,26 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function waitForAnimationFrame(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      resolve();
+    };
+    const timeoutId = window.setTimeout(finish, MAX_EXPORT_ANIMATION_FRAME_WAIT_MS);
+    try {
+      requestAnimationFrame(finish);
+    } catch (error) {
+      settled = true;
+      window.clearTimeout(timeoutId);
+      reject(error);
+    }
+  });
 }
 
 export function collectExportDecodeWaitImages(container: HTMLElement): HTMLImageElement[] {
@@ -62,8 +84,15 @@ export function collectExportDecodeWaitImages(container: HTMLElement): HTMLImage
 }
 
 async function waitForExportRender(container: HTMLElement): Promise<void> {
-  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
-  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  await waitForAnimationFrame();
+  await waitForAnimationFrame();
+
+  for (let frame = 0; frame < MAX_EXPORT_MERMAID_RENDER_WAIT_FRAMES; frame += 1) {
+    if (!container.querySelector('.mermaid-placeholder')) {
+      break;
+    }
+    await waitForAnimationFrame();
+  }
 
   const images = collectExportDecodeWaitImages(container);
   let nextIndex = 0;

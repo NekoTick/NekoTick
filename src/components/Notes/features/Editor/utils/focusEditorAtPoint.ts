@@ -13,6 +13,25 @@ import { getCurrentEditorView } from './editorViewRegistry';
 export interface EditorViewportPoint {
   clientX: number;
   clientY: number;
+  contentOffset?: {
+    left: number;
+    top: number;
+  };
+}
+
+function resolveEditorViewportPoint(
+  view: EditorView,
+  point: EditorViewportPoint,
+): EditorViewportPoint {
+  if (!point.contentOffset) {
+    return point;
+  }
+
+  const editorRect = view.dom.getBoundingClientRect();
+  return {
+    clientX: editorRect.left + point.contentOffset.left,
+    clientY: editorRect.top + point.contentOffset.top,
+  };
 }
 
 function resolveBlankAreaActionAtViewportPoint(
@@ -77,7 +96,7 @@ export function focusCurrentEditorAtViewportPoint(point: EditorViewportPoint): b
     return false;
   }
 
-  const selection = createSelectionAtViewportPoint(view, point);
+  const selection = createSelectionAtViewportPoint(view, resolveEditorViewportPoint(view, point));
   if (selection) {
     view.dispatch(
       view.state.tr

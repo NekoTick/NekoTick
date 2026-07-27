@@ -1,11 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearReadOnlyMermaidRenderCaches,
+} from '@/components/common/markdown/ReadOnlyMermaidBlock';
+import { renderMermaid } from '@/components/common/markdown/mermaidRenderer';
+import {
   MAX_EXPORT_IMAGE_DECODE_CONCURRENCY,
   MAX_EXPORT_IMAGE_DECODE_SCAN_ELEMENTS,
   collectExportDecodeWaitImages,
   renderNoteExportElement,
   renderNoteExportHtml,
 } from './noteExportHtml';
+
+vi.mock('@/components/common/markdown/mermaidRenderer', () => ({
+  generateMermaidId: () => 'note-export-mermaid-test',
+  MAX_MERMAID_CODE_CHARS: 20_000,
+  mermaidRenderErrorMarkup: () => '<div class="mermaid-error">Mermaid Error</div>',
+  renderMermaid: vi.fn(),
+}));
 
 function parseExportHtml(html: string): Document {
   return new DOMParser().parseFromString(html, 'text/html');
@@ -14,6 +25,9 @@ function parseExportHtml(html: string): Document {
 describe('renderNoteExportHtml', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
+    clearReadOnlyMermaidRenderCaches();
+    vi.mocked(renderMermaid).mockReset();
+    vi.mocked(renderMermaid).mockResolvedValue('<svg><text>Exported diagram</text></svg>');
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       window.setTimeout(() => callback(performance.now()), 0);
       return 1;
@@ -285,6 +299,79 @@ describe('renderNoteExportHtml', () => {
     expect(html).not.toContain('assets/poster.png');
     expect(html).not.toContain('assets/audio.mp3');
     expect(html).not.toContain('assets/captions.vtt');
+  });
+
+  it('waits for Mermaid diagrams before serializing export HTML', async () => {
+    const html = await renderNoteExportHtml([
+      '```mermaid',
+      'sequenceDiagram',
+      'Alice->>Bob: Hello',
+      '```',
+    ].join('\n'), 'Mermaid');
+    const doc = parseExportHtml(html);
+
+    expect(doc.querySelector('.mermaid-block svg')).not.toBeNull();
+    expect(doc.querySelector('.mermaid-placeholder')).toBeNull();
+    expect(doc.querySelector('code.language-mermaid')).toBeNull();
+  });
+
+  it('bounds export waiting when Mermaid rendering remains pending', async () => {
+    let animationFrames = 0;
+    vi.mocked(renderMermaid).mockImplementation(() => new Promise(() => undefined));
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      animationFrames += 1;
+      window.setTimeout(() => callback(performance.now()), 0);
+      return animationFrames;
+    });
+
+    const html = await renderNoteExportHtml('```mermaid\nflowchart TD\nA --> B\n```', 'Pending');
+    const doc = parseExportHtml(html);
+
+    expect(animationFrames).toBeGreaterThanOrEqual(120);
+    expect(animationFrames).toBeLessThan(130);
+    expect(doc.querySelector('.mermaid-placeholder')).not.toBeNull();
+  });
+
+  it('exports Markdown videos as static safe links', async () => {
+    const source = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+    const html = await renderNoteExportHtml(`![Demo video](${source})`, 'Video');
+    const doc = parseExportHtml(html);
+    const videoBlock = doc.querySelector('.note-export-video');
+
+    expect(videoBlock?.closest('p')).toBeNull();
+    expect(videoBlock?.querySelector('a')?.getAttribute('href')).toBe(source);
+    expect(videoBlock?.textContent).toBe('Demo video');
+    expect(doc.querySelector('iframe, video, .note-export-video img')).toBeNull();
+  });
+
+  it('exports wiki-link aliases as text without synthetic hrefs', async () => {
+    const html = await renderNoteExportHtml(
+      String.raw`See [[Project Alpha|the project]]. Keep \[[Literal Link]] unchanged. [Manual anchor](#vlaina-wiki-link:manual).`,
+      'Wiki Link',
+    );
+    const doc = parseExportHtml(html);
+
+    expect(doc.querySelector('.note-export-body')?.textContent).toContain('See the project.');
+    expect(doc.querySelector('a[href="#vlaina-wiki-link:manual"]')?.textContent)
+      .toBe('Manual anchor');
+    expect(doc.querySelector('.note-export-body')?.textContent)
+      .toContain('Keep [[Literal Link]] unchanged.');
+  });
+
+  it('preserves generated TOC classes in exports', async () => {
+    const html = await renderNoteExportHtml([
+      '[TOC]',
+      '',
+      '# Alpha',
+      '',
+      '## Beta',
+    ].join('\n'), 'TOC');
+    const doc = parseExportHtml(html);
+
+    expect(doc.querySelector('.toc-list')).not.toBeNull();
+    expect(doc.querySelector('.toc-item.toc-level-1')).not.toBeNull();
+    expect(doc.querySelector('.toc-item.toc-level-2')).not.toBeNull();
+    expect(doc.querySelector('.toc-link')).not.toBeNull();
   });
 
   it('renders exported math with shared KaTeX settings without source annotations', async () => {

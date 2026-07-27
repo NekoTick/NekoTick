@@ -17,6 +17,8 @@ const SAFE_TOC_INDENT_STYLE_PATTERN = /^padding-left\s*:\s*(?:0|16|32|48|64|80)p
 const MAX_IMAGE_POLICY_HAST_DEPTH = 200;
 const MAX_IMAGE_POLICY_HAST_NODES = 20_000;
 
+type SanitizeAttributeDefinition = string | [string, ...unknown[]];
+
 const DATA_IMAGE_SRC_ATTRIBUTES_BY_TAG: Record<string, readonly string[]> = {
   img: ['src'],
   source: ['src'],
@@ -132,6 +134,31 @@ export function rehypeRawHtmlUrlSanitizer() {
   };
 }
 
+function extendSanitizeAttributeValues(
+  definitions: SanitizeAttributeDefinition[],
+  attributeName: string,
+  allowedValues: unknown[],
+): SanitizeAttributeDefinition[] {
+  const definitionIndex = definitions.findIndex((definition) => (
+    (Array.isArray(definition) ? definition[0] : definition) === attributeName
+  ));
+  if (definitionIndex < 0) {
+    return [...definitions, [attributeName, ...allowedValues]];
+  }
+
+  const definition = definitions[definitionIndex];
+  if (!Array.isArray(definition)) {
+    return definitions;
+  }
+
+  const nextDefinitions = [...definitions];
+  nextDefinitions[definitionIndex] = [
+    attributeName,
+    ...Array.from(new Set([...definition.slice(1), ...allowedValues])),
+  ];
+  return nextDefinitions;
+}
+
 export function createMarkdownSanitizeSchema() {
   const protocols = (defaultSchema.protocols || {}) as Record<string, string[]>;
   const hrefProtocols = protocols.href || [];
@@ -144,6 +171,12 @@ export function createMarkdownSanitizeSchema() {
   const tocIndentStyleAttribute: [string, RegExp] = ['style', SAFE_TOC_INDENT_STYLE_PATTERN];
   const generatedDivTypeAttribute: [string, 'toc', 'callout'] = ['dataType', 'toc', 'callout'];
   const alignedBlockAttributes = ['dataTextAlign', textAlignStyleAttribute] as const;
+  const tocLinkAttributes = extendSanitizeAttributeValues(attributes.a || [], 'className', ['toc-link']);
+  const tocListAttributes = extendSanitizeAttributeValues(attributes.ul || [], 'className', ['toc-list']);
+  const tocItemAttributes = extendSanitizeAttributeValues(attributes.li || [], 'className', [
+    'toc-item',
+    /^toc-level-[1-6]$/,
+  ]);
 
   return {
     ...defaultSchema,
@@ -165,12 +198,12 @@ export function createMarkdownSanitizeSchema() {
       sub: Array.from(new Set([...(attributes.sub || []), 'className'])),
       u: Array.from(new Set([...(attributes.u || []), 'className'])),
       abbr: Array.from(new Set([...(attributes.abbr || []), 'className', 'title'])),
-      a: Array.from(new Set([...(attributes.a || []), 'className'])),
+      a: tocLinkAttributes,
       span: Array.from(new Set([...(attributes.span || []), 'className', 'dataTextColor'])).concat([
         colorStyleAttribute,
       ]),
-      ul: Array.from(new Set([...(attributes.ul || []), 'className'])),
-      li: Array.from(new Set([...(attributes.li || []), 'className'])).concat([tocIndentStyleAttribute]),
+      ul: tocListAttributes,
+      li: tocItemAttributes.concat([tocIndentStyleAttribute]),
       dl: Array.from(new Set([...(attributes.dl || []), 'className'])),
       dt: Array.from(new Set([...(attributes.dt || []), 'className'])),
       dd: Array.from(new Set([...(attributes.dd || []), 'className'])),

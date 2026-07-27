@@ -74,6 +74,16 @@ function getSchemaAttributeNames(attributes: Array<string | [string, ...unknown[
   return new Set((attributes || []).map((attribute) => Array.isArray(attribute) ? attribute[0] : attribute));
 }
 
+function getSchemaAttributeValues(
+  attributes: Array<string | [string, ...unknown[]]> | undefined,
+  attributeName: string,
+): unknown[] {
+  const definition = (attributes || []).find((attribute) => (
+    (Array.isArray(attribute) ? attribute[0] : attribute) === attributeName
+  ));
+  return Array.isArray(definition) ? definition.slice(1) : [];
+}
+
 describe("normalizeRenderableImageSrc", () => {
   it("allows common renderable image schemes", () => {
     expect(normalizeRenderableImageSrc("https://example.com/a.png")).toBe("https://example.com/a.png");
@@ -286,6 +296,21 @@ describe("createMarkdownSanitizeSchema", () => {
 
       expect(missingAttributes, tagName).toEqual([]);
     }
+  });
+
+  it("preserves GFM classes while allowing generated TOC classes", () => {
+    const attributes = createMarkdownSanitizeSchema().attributes as Record<
+      string,
+      Array<string | [string, ...unknown[]]>
+    >;
+    const anchorClasses = getSchemaAttributeValues(attributes.a, "className");
+    const listClasses = getSchemaAttributeValues(attributes.ul, "className");
+    const itemClasses = getSchemaAttributeValues(attributes.li, "className");
+
+    expect(anchorClasses).toEqual(expect.arrayContaining(["data-footnote-backref", "toc-link"]));
+    expect(listClasses).toEqual(expect.arrayContaining(["contains-task-list", "toc-list"]));
+    expect(itemClasses).toEqual(expect.arrayContaining(["task-list-item", "toc-item"]));
+    expect(itemClasses.some((value) => value instanceof RegExp && value.test("toc-level-6"))).toBe(true);
   });
 });
 

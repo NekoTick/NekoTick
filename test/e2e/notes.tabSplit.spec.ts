@@ -1050,20 +1050,31 @@ async function runSplitSpacingAudit(
 
   const activationParagraph = betaPreview.locator('p', { hasText: 'Tight paragraph after h3.' });
   const activationBox = await activationParagraph.boundingBox();
-  if (!activationBox) {
+  const previewContentBox = await betaPreview
+    .locator('[data-notes-split-preview-content="true"]')
+    .boundingBox();
+  if (!activationBox || !previewContentBox) {
     throw new Error('Missing split activation paragraph geometry');
   }
   const activationPoint = {
     x: activationBox.x + activationBox.width / 2,
     y: activationBox.y + activationBox.height / 2,
   };
+  const activationContentOffset = {
+    x: activationPoint.x - previewContentBox.x,
+    y: activationPoint.y - previewContentBox.y,
+  };
   await page.mouse.click(activationPoint.x, activationPoint.y);
   await expectCurrentNotePathToMatch(page, betaPath);
   await expect(page.locator(`${EDITOR_SELECTOR} p`, { hasText: 'Tight paragraph after h3.' }))
     .toBeVisible({ timeout: 10_000 });
+  const mappedActivationPoint = await page.locator(EDITOR_SELECTOR).evaluate((element, offset) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.left + offset.x, y: rect.top + offset.y };
+  }, activationContentOffset);
   const expectedActivationPos = await page.evaluate(({ x, y }) => (
     (window as any).__vlainaE2E.getEditorPositionAtPoint(x, y)
-  ), activationPoint) as number | null;
+  ), mappedActivationPoint) as number | null;
   const activationTextRange = await page.evaluate(() => (
     (window as any).__vlainaE2E.getEditorTextRange('Tight paragraph after h3.')
   )) as { from: number; to: number } | null;
@@ -1774,6 +1785,68 @@ test.describe('notes tab split panes', () => {
       const editorMetrics = await getParagraphSpacingMetrics(page, EDITOR_SELECTOR, spacingTexts);
 
       expectSpacingMetricsToMatch(editorMetrics, previewMetrics);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('renders Notes-specific rich syntax in split previews', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-split-pane-rich-syntax');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      const fixture = await createNotesRootFilesFixture(page, {
+        name: 'split-pane-rich-syntax',
+        files: [
+          { filename: 'alpha-rich-syntax.md', content: '# Active note\n\nActive body.' },
+          {
+            filename: 'beta-rich-syntax.md',
+            content: [
+              '# Split preview rich syntax',
+              '',
+              '[TOC]',
+              '',
+              '## Diagram section',
+              '',
+              '```mermaid',
+              'flowchart TD',
+              '  A --> B',
+              '```',
+              '',
+              '![Demo clip](https://media.example.test/demo.mp4)',
+              '',
+              '![[assets/cover.png|Cover image]] See [[Project Alpha|Rich alias]].',
+            ].join('\n'),
+          },
+        ],
+      });
+      const [alphaPath, betaPath] = fixture.notePaths;
+      if (!alphaPath || !betaPath) throw new Error('Missing fixture note paths');
+
+      await openAbsoluteNote(page, alphaPath);
+      await openAbsoluteNote(page, betaPath);
+      await openAbsoluteNote(page, alphaPath);
+      await expect.poll(async () => page.locator('[data-notes-tab-path]').count(), { timeout: 10_000 })
+        .toBeGreaterThanOrEqual(2);
+      await dragTabToRightSplit(page, betaPath);
+
+      const preview = page.locator('[data-notes-split-preview-pane="true"]', {
+        hasText: 'Split preview rich syntax',
+      });
+      await expect(preview).toBeVisible({ timeout: 10_000 });
+      await expect(preview.locator('.toc-list .toc-link')).toHaveCount(2);
+      await expect(preview.locator('.toc-item.toc-level-1')).toHaveCount(1);
+      await expect(preview.locator('.toc-item.toc-level-2')).toHaveCount(1);
+      await expect(preview.locator('.mermaid-block svg')).toBeVisible({ timeout: 30_000 });
+      await expect(preview.locator('.mermaid-placeholder, code.language-mermaid')).toHaveCount(0);
+      await expect(preview.locator('.video-block video[src="https://media.example.test/demo.mp4"]'))
+        .toHaveCount(1);
+      await expect(preview.locator('img[src="https://media.example.test/demo.mp4"]')).toHaveCount(0);
+      await expect(preview.locator('.image-block-container img[alt="Cover image"]')).toHaveCount(1);
+      await expect(preview.locator('span.wiki-link')).toHaveText('Rich alias');
+      await expect(preview).not.toContainText('[[Project Alpha|Rich alias]]');
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

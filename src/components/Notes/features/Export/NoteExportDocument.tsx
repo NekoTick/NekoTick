@@ -5,6 +5,10 @@ import {
   READONLY_MARKDOWN_REMARK_PLUGINS,
 } from '@/components/common/markdown/markdownPipeline';
 import {
+  ReadonlyMarkdownParagraph,
+  ReadonlyMarkdownPre,
+} from '@/components/common/markdown/ReadonlyMarkdownBlocks';
+import {
   createMarkdownSanitizeSchema,
   normalizeRenderableDataImageSrc,
   rehypeImageSrcSanitizer,
@@ -14,7 +18,9 @@ import {
 import { rehypeNotesKatex } from '@/components/common/markdown/rehypeNotesKatex';
 import { rehypeDropUnsafeRawHtmlContent } from '@/components/common/markdown/rawHtmlSanitizer';
 import { normalizeImageWidth, serializeCropValue } from '@/components/common/markdown/imageSourceFragment';
+import { remarkReadonlyWikiLinks } from '@/components/Notes/features/Editor/plugins/links/wiki-link/wikiLinkMarkdown';
 import { hasInternalNoteAssetUrlPathSegment } from '@/lib/assets/core/internalAssetPaths';
+import { parseVideoUrl } from '@/lib/markdown/videoUrl';
 import {
   getNoteInternalImageAssetPath,
   isLocalNetworkHttpUrl,
@@ -51,6 +57,11 @@ const NOTE_EXPORT_REHYPE_PLUGINS = [
   rehypeNotesKatex,
 ] as any[];
 
+const NOTE_EXPORT_REMARK_PLUGINS = [
+  remarkReadonlyWikiLinks,
+  ...READONLY_MARKDOWN_REMARK_PLUGINS,
+] as any[];
+
 function sanitizeExportLinkHref(value: unknown): string | null {
   const safeHref = sanitizeNoteLinkHref(value);
   if (!safeHref) {
@@ -68,21 +79,39 @@ function sanitizeExportLinkHref(value: unknown): string | null {
   return safeHref;
 }
 
-function renderExportLink(props: any) {
-  const safeHref = sanitizeExportLinkHref(props.href);
+function renderExportLink({ children, href, node: _node, ...props }: any) {
+  const safeHref = sanitizeExportLinkHref(href);
   if (!safeHref) {
-    return <>{props.children}</>;
+    return <>{children}</>;
   }
 
   return (
-    <a href={safeHref}>
-      {props.children}
+    <a {...props} href={safeHref}>
+      {children}
     </a>
+  );
+}
+
+function renderExportVideoLink(src: string, title: unknown) {
+  const safeHref = sanitizeExportLinkHref(src);
+  if (!safeHref) {
+    return null;
+  }
+
+  const label = typeof title === 'string' && title.trim() ? title : safeHref;
+  return (
+    <div className="note-export-video" data-type="video">
+      <a href={safeHref}>{label}</a>
+    </div>
   );
 }
 
 function renderExportImage(props: any) {
   const rawSrc = typeof props.src === 'string' ? props.src : '';
+  if (parseVideoUrl(rawSrc)) {
+    return renderExportVideoLink(rawSrc, props.alt);
+  }
+
   const safeWidth = normalizeImageWidth(typeof props.width === 'number' ? `${props.width}px` : props.width);
   const rawCrop = props.dataVlainaCrop ?? props['data-vlaina-crop'];
   const safeCrop = serializeCropValue(rawCrop);
@@ -152,12 +181,14 @@ export function NoteExportDocument({
       <h1 className="note-export-title">{title}</h1>
       <div className="note-export-body">
         <ReactMarkdown
-          remarkPlugins={READONLY_MARKDOWN_REMARK_PLUGINS}
+          remarkPlugins={NOTE_EXPORT_REMARK_PLUGINS}
           rehypePlugins={NOTE_EXPORT_REHYPE_PLUGINS}
           urlTransform={transformExportUrl}
           components={{
             a: renderExportLink,
             img: renderExportImage,
+            p: ReadonlyMarkdownParagraph,
+            pre: ReadonlyMarkdownPre,
             source: () => null,
           }}
         >

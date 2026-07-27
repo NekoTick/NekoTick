@@ -33,9 +33,8 @@ import { getNotesSplitPaneBorderClass } from './notesSplitPaneBorders';
 import { NotesSplitPaneChrome } from './NotesSplitPaneChrome';
 import {
   SPLIT_PREVIEW_REMARK_PLUGINS,
-  SplitPreviewMarkdownImage,
+  createSplitPreviewMarkdownComponents,
   prepareSplitPreviewMarkdown,
-  type ReactMarkdownImageProps,
 } from './NotesSplitPreviewMarkdown';
 import '@/components/common/markdown/markdownSurface.css';
 import type { NoteCoverMetadata, NoteMetadataEntry } from '@/stores/notes/types';
@@ -122,10 +121,7 @@ export function NotesSplitPreviewPane({
     metadataEntry ? undefined : readNoteMetadataFromMarkdown(content)
   ), [content, metadataEntry]);
   const noteMetadata = metadataEntry ?? fallbackMetadata;
-  const previewMarkdown = useMemo(
-    () => prepareSplitPreviewMarkdown(content),
-    [content],
-  );
+  const previewMarkdown = useMemo(() => prepareSplitPreviewMarkdown(content), [content]);
   const cover = normalizeCover(noteMetadata?.cover);
   const iconSize = noteMetadata?.iconSize ?? defaultIconSize ?? DEFAULT_ICON_SIZE;
   const notesRootPath = resolveEffectiveNotesRootPath({
@@ -140,14 +136,7 @@ export function NotesSplitPreviewPane({
       replayAnimated: true,
     });
   }, [notesRootPath, path]);
-  const markdownComponents = useMemo(() => ({
-    img: (props: ReactMarkdownImageProps) => (
-      <SplitPreviewMarkdownImage
-        {...props}
-        loadImage={loadImage}
-      />
-    ),
-  }), [loadImage]);
+  const markdownComponents = useMemo(() => createSplitPreviewMarkdownComponents(loadImage), [loadImage]);
   const typoraRuntimePlatformClasses = useMemo(() => (
     importedMarkdownThemePlatform === 'typora'
       ? resolveTyporaRuntimePlatformClasses().join(' ')
@@ -189,10 +178,18 @@ export function NotesSplitPreviewPane({
       onClick={(event) => {
         if (!interactive) return;
         const target = event.target;
-        if (target instanceof Element && target.closest('button')) return;
-        if (target instanceof Element && target.closest('[data-notes-split-preview-content="true"]')) {
-          onActivate({ clientX: event.clientX, clientY: event.clientY });
-        }
+        if (!(target instanceof Element) || target.closest('button')) return;
+        const previewContent = target.closest<HTMLElement>('[data-notes-split-preview-content="true"]');
+        if (!previewContent) return;
+        const previewRect = previewContent.getBoundingClientRect();
+        onActivate({
+          clientX: event.clientX,
+          clientY: event.clientY,
+          contentOffset: {
+            left: event.clientX - previewRect.left,
+            top: event.clientY - previewRect.top,
+          },
+        });
       }}
     >
       {showChrome ? (
@@ -296,7 +293,6 @@ export function NotesSplitPreviewPane({
           </div>
         </div>
       </OverlayScrollArea>
-
     </section>
   );
 }
