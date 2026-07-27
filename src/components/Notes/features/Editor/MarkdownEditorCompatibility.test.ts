@@ -14,6 +14,7 @@ import { listener } from '@milkdown/kit/plugin/listener';
 import { tableBlock } from '@milkdown/kit/component/table-block';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { redo, undo } from '@milkdown/kit/prose/history';
+import { TextSelection } from '@milkdown/kit/prose/state';
 import { notesRemarkStringifyOptions } from './config/stringifyOptions';
 import { customPlugins } from './config/plugins';
 import { configureTheme } from './theme';
@@ -23,6 +24,7 @@ import {
 } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { normalizeLeadingFrontmatterMarkdown } from './plugins/frontmatter/frontmatterMarkdown';
 import { isEditorMarkdownEquivalentToNoteContent } from './milkdownEditorMarkdownReplacement';
+import { wikiLinkExpansionPluginKey } from './plugins/links/wiki-link/wikiLinkExpansionPlugin';
 
 function typeText(view: EditorView, input: string): void {
   for (const text of input) {
@@ -610,6 +612,143 @@ describe('MarkdownEditor compatibility', () => {
       'Before ![Local image](attachments/demo.png) after',
     );
     await destroyEditor(editor);
+  });
+
+  it('edits and reopens wiki links across combined inline and block syntax', async () => {
+    type SyntaxCase = {
+      target: string;
+      alias: string;
+      editedAlias: string;
+      ancestors: string[];
+      markdown: string[];
+      serializedSource?: string;
+    };
+    const syntaxCase = (
+      target: string,
+      alias: string,
+      render: (source: string) => string | string[],
+      ancestors: string[],
+      serializedSource?: string,
+    ): SyntaxCase => {
+      const markdown = render(`[[${target}|${alias}]]`);
+      return {
+        target,
+        alias,
+        editedAlias: `edited ${alias}`,
+        ancestors,
+        markdown: Array.isArray(markdown) ? markdown : [markdown],
+        serializedSource,
+      };
+    };
+    const cases = [
+      syntaxCase('Nested Standard Target', 'nested standard', (source) => `***${source}***`, ['strong', 'em']),
+      syntaxCase('Nested Custom Target', 'nested custom', (source) => `**==${source}==**`, ['strong', 'mark']),
+      syntaxCase('Text Color Target', 'text color', (source) => `<span style="color: #123456">${source}</span>`, ['span[data-text-color]']),
+      syntaxCase('Background Color Target', 'background color', (source) => `<mark style="background-color: #ecf6ff">${source}</mark>`, ['mark[data-bg-color]']),
+      syntaxCase('Heading Target', 'heading alias', (source) => `## Heading ${source}`, ['h2']),
+      syntaxCase('Quote Target', 'quote alias', (source) => `> Quote ${source}`, ['blockquote']),
+      syntaxCase('Bullet Target', 'bullet alias', (source) => `- Bullet ${source}`, ['ul']),
+      syntaxCase('Ordered Target', 'ordered alias', (source) => `1. Ordered ${source}`, ['ol']),
+      syntaxCase('Task Target', 'task alias', (source) => `- [ ] Task ${source}`, ['li']),
+      syntaxCase('Callout Target', 'callout alias', (source) => `> 💡 Callout ${source}`, ['.callout']),
+      syntaxCase('Table Target', 'table alias', (source) => [
+        '| Context | Link |',
+        '| --- | --- |',
+        `| Table | ${source.replace('|', '\\|')} |`,
+      ], ['td'], '[[Table Target\\|edited table alias]]'),
+      syntaxCase('Footnote Target', 'footnote alias', (source) => [
+        'Footnote reference [^wiki-audit].',
+        '',
+        `[^wiki-audit]: ${source}`,
+      ], ['.footnote-def, [data-type="footnote_definition"]']),
+      syntaxCase('Definition Term Target', 'definition term', (source) => [
+        `Term ${source}`,
+        ': Definition body',
+      ], ['dt']),
+      syntaxCase('Definition Description Target', 'definition description', (source) => [
+        'Description term',
+        `: Definition ${source}`,
+      ], ['dd']),
+      syntaxCase('Hard Break Target', 'hard break alias', (source) => [
+        `Hard break ${source}\\`,
+        'continuation',
+      ], ['p']),
+      syntaxCase('Adjacent Target', 'adjacent alias', (source) => (
+        `[ordinary](https://example.test) ${source} #combo/tag`
+      ), ['p']),
+    ];
+    const markdown = [
+      'Outside audit anchor.',
+      '',
+      ...cases.flatMap((testCase) => [...testCase.markdown, '']),
+    ].join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    const expandTarget = (target: string) => {
+      let position: number | null = null;
+      view.state.doc.nodesBetween(0, view.state.doc.content.size, (node, pos) => {
+        if (position !== null || !node.isText) return;
+        if (node.marks.some((mark) => (
+          mark.type.name === 'wiki_link' && mark.attrs.target === target
+        ))) {
+          position = pos + 1;
+        }
+      });
+      expect(position, `Expected editable wiki link for ${target}`).not.toBeNull();
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, position!)));
+    };
+
+    for (const testCase of cases) {
+      expandTarget(testCase.target);
+      const source = `[[${testCase.target}|${testCase.alias}]]`;
+      const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
+      expect(view.dom.querySelector('.wiki-link-expanded')?.textContent).toBe(source);
+      expect(expanded).not.toBeNull();
+
+      const aliasFrom = expanded!.from + `[[${testCase.target}|`.length;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(
+        view.state.doc,
+        aliasFrom,
+        aliasFrom + testCase.alias.length,
+      )));
+      typeText(view, testCase.editedAlias);
+
+      const editedSource = `[[${testCase.target}|${testCase.editedAlias}]]`;
+      expect(view.dom.querySelector('.wiki-link-expanded')?.textContent).toBe(editedSource);
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)));
+      expect(view.dom.querySelector('.wiki-link-expanded')).toBeNull();
+      const collapsed = view.dom.querySelector<HTMLElement>(
+        `[data-wiki-link-target="${testCase.target}"]`,
+      );
+      expect(collapsed?.textContent).toBe(testCase.editedAlias);
+      for (const ancestor of testCase.ancestors) {
+        expect(collapsed?.closest(ancestor), `${testCase.target} should remain inside ${ancestor}`)
+          .not.toBeNull();
+      }
+      expect(serializer(view.state.doc)).toContain(testCase.serializedSource ?? editedSource);
+    }
+
+    const serialized = serializer(view.state.doc);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(serialized);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    for (const testCase of cases) {
+      const link = reopenedView.dom.querySelector<HTMLElement>(
+        `[data-wiki-link-target="${testCase.target}"]`,
+      );
+      expect(link?.textContent).toBe(testCase.editedAlias);
+      for (const ancestor of testCase.ancestors) {
+        expect(link?.closest(ancestor), `${testCase.target} should reopen inside ${ancestor}`)
+          .not.toBeNull();
+      }
+      if (testCase.target === 'Task Target') {
+        expect(link?.closest('li')?.getAttribute('data-task')).toBe(' ');
+      }
+    }
+    await destroyEditor(reopenedEditor);
   });
 
   it.each([

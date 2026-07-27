@@ -171,9 +171,36 @@ describe('resolveTextblockLineEndPlainClick', () => {
       nodeAfter: { type: { name: 'text' } },
       before: vi.fn(() => 2),
     });
+    view.coordsAtPos.mockImplementation((pos: number) => (
+      pos === 37
+        ? { left: 420, right: 420, top: 70, bottom: 90 }
+        : { left: 480, right: 480, top: 40, bottom: 60 }
+    ));
 
     expect(resolveTextblockLineEndPlainClick(view, event)).toEqual({
       targetPos: 30,
+      bias: -1,
+      blockFrom: 2,
+    });
+    editor.remove();
+  });
+
+  it('uses the textblock end when the browser reports an interior position on its final line', () => {
+    const { editor, event, view } = createHarness();
+    view.state.doc.resolve.mockReturnValue({
+      depth: 3,
+      parent: {
+        isTextblock: true,
+        content: { size: 36 },
+        type: { name: 'paragraph' },
+      },
+      parentOffset: 29,
+      nodeAfter: { type: { name: 'text' } },
+      before: vi.fn(() => 2),
+    });
+
+    expect(resolveTextblockLineEndPlainClick(view, event)).toEqual({
+      targetPos: 37,
       bias: -1,
       blockFrom: 2,
     });
@@ -193,6 +220,25 @@ describe('resolveTextblockLineEndPlainClick', () => {
     });
 
     externalBlank.remove();
+    editor.remove();
+  });
+
+  it('leaves editable markdown blank-line placeholders to visual block resolution', () => {
+    const { editor, event, view } = createHarness();
+    view.state.doc.resolve.mockReturnValue({
+      depth: 1,
+      parent: {
+        isTextblock: true,
+        content: { size: 1 },
+        textBetween: vi.fn(() => '\u200B'),
+        type: { name: 'paragraph' },
+      },
+      parentOffset: 1,
+      before: vi.fn(() => 2),
+    });
+
+    expect(resolveTextblockLineEndPlainClick(view, event)).toBeNull();
+
     editor.remove();
   });
 

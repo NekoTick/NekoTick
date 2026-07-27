@@ -143,6 +143,27 @@ describe('blankAreaDragTargets', () => {
     }
   });
 
+  it('ignores expanded wiki-link source for blank-area drag handling', () => {
+    const { view, cleanup } = createView();
+    const source = document.createElement('span');
+    source.className = 'wiki-link-expanded';
+    source.setAttribute('data-wiki-link-expanded', 'true');
+    source.textContent = '[[Target|alias]]';
+    view.dom.append(source);
+    vi.spyOn(source, 'getClientRects').mockReturnValue(rectList(rect(40, 60)));
+
+    try {
+      expect(isIgnoredBlankAreaDragBoxTarget(source.firstChild)).toBe(true);
+      expect(isPointInsideIgnoredBlankAreaDragBoxElement(
+        view,
+        createMouseDown(view.dom, { clientX: 120, clientY: 50 }),
+      )).toBe(true);
+    } finally {
+      cleanup();
+      vi.restoreAllMocks();
+    }
+  });
+
   it('ignores pointer-through clicks whose coordinates are inside top editor chrome', () => {
     const { view, scrollRoot, cleanup } = createView();
     const headerChrome = document.createElement('div');

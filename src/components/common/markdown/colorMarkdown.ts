@@ -160,7 +160,13 @@ function parseSplitInlineColorHtmlMark(
   ) {
     return null;
   }
-  return parseInlineColorHtml(`${open.value}${text.value}${close.value}`);
+  const parsed = parseInlineColorHtml(`${open.value}${text.value}${close.value}`);
+  if (!parsed) return null;
+
+  return {
+    ...parsed,
+    children: [{ ...text, value: decodeMarkdownHtmlText(text.value) }],
+  };
 }
 
 export function replaceInlineColorHtmlMark(

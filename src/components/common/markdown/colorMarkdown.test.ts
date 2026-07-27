@@ -57,6 +57,31 @@ describe('colorMarkdown', () => {
     });
   });
 
+  it('preserves text source positions inside split inline color html', () => {
+    const position = {
+      start: { line: 1, column: 30, offset: 29 },
+      end: { line: 1, column: 34, offset: 33 },
+    };
+    const tree: ColorMarkdownMdastNode = {
+      type: 'root',
+      children: [{
+        type: 'paragraph',
+        children: [
+          { type: 'html', value: '<span style="color: #123456">' },
+          { type: 'text', value: 'text', position },
+          { type: 'html', value: '</span>' },
+        ],
+      }],
+    };
+
+    replaceInlineColorHtmlMark(tree);
+
+    expect(tree.children?.[0].children?.[0]).toMatchObject({
+      type: 'textColor',
+      children: [{ type: 'text', value: 'text', position }],
+    });
+  });
+
   it('parses underline markdown', () => {
     const tree: ColorMarkdownMdastNode = {
       type: 'root',

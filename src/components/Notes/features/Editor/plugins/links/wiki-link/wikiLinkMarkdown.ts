@@ -25,6 +25,7 @@ function createWikiLinkNode(target: string, label: string): WikiLinkNode {
 
 export function transformWikiLinks(tree: MdastNode, markdown = ''): void {
   const visit = (node: MdastNode): void => {
+    if (node.type === 'link' || node.type === 'linkReference') return;
     if (!node.children) return;
 
     for (let index = node.children.length - 1; index >= 0; index -= 1) {
@@ -87,11 +88,19 @@ export const wikiLinkStringifyPlugin: MilkdownPlugin = (ctx) => {
         wikiLink: (node: WikiLinkNode, _parent: unknown, state: any, info: any) => {
           const target = node.target.trim().slice(0, MAX_WIKI_LINK_TEXT_CHARS);
           const label = state.containerPhrasing(node, info).trim();
-          return label === target ? `[[${target}]]` : `[[${target}|${label}]]`;
+          const aliasSeparator = state.stack?.includes('tableCell') ? '\\|' : '|';
+          return label === target ? `[[${target}]]` : `[[${target}${aliasSeparator}${label}]]`;
         },
-        wikiLinkSource: (node: MdastNode) => (
-          node.children?.map((child) => child.value ?? '').join('') ?? ''
-        ),
+        wikiLinkSource: (node: MdastNode, _parent: unknown, state: any) => {
+          const source = node.children?.map((child) => child.value ?? '').join('') ?? '';
+          if (!state.stack?.includes('tableCell')) return source;
+
+          const match = WIKI_LINK_PATTERN.exec(source);
+          WIKI_LINK_PATTERN.lastIndex = 0;
+          return match?.[2] === undefined
+            ? source
+            : `[[${match[1]}\\|${match[2].replaceAll('|', '\\|')}]]`;
+        },
       },
     }));
   };

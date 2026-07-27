@@ -188,6 +188,31 @@ describe('resolveBlankAreaPlainClickAction', () => {
     });
   });
 
+  it('prefers a later block whose visible inline text overflows into the clicked row', () => {
+    expect(
+      resolveBlankAreaPlainClickAction({
+        blockRects: [
+          { from: 10, to: 18, left: 40, right: 620, top: 340, bottom: 365 },
+          {
+            from: 20,
+            to: 32,
+            left: 40,
+            right: 620,
+            contentLineRects: [{ left: 100, top: 352, right: 200, bottom: 367 }],
+            top: 365,
+            bottom: 390,
+          },
+        ],
+        clientX: 720,
+        clientY: 362,
+      })
+    ).toEqual({
+      targetPos: 31,
+      bias: -1,
+      blockFrom: 20,
+    });
+  });
+
   it('falls back to the first block when clicking above all blocks', () => {
     expect(
       resolveBlankAreaPlainClickAction({
@@ -446,6 +471,47 @@ describe('resolveInsideBlockTrailingPlainClickAction', () => {
     });
   });
 
+  it('prefers a later visible line that overflows into an earlier blank block', () => {
+    expect(
+      resolveInsideBlockTrailingPlainClickAction({
+        blockRects: [
+          {
+            from: 10,
+            to: 12,
+            left: 40,
+            right: 620,
+            contentLeft: 96,
+            contentRight: 96,
+            top: 340,
+            bottom: 365,
+            allowInsideTrailingClick: true,
+          },
+          {
+            from: 12,
+            to: 30,
+            caretRange: { from: 13, to: 29 },
+            left: 40,
+            right: 620,
+            contentLeft: 96,
+            contentRight: 220,
+            contentLineRects: [
+              { left: 96, top: 352, right: 220, bottom: 367 },
+            ],
+            top: 365,
+            bottom: 390,
+            allowInsideTrailingClick: true,
+          },
+        ],
+        clientX: 320,
+        clientY: 362,
+      })
+    ).toEqual({
+      targetPos: 29,
+      bias: -1,
+      blockFrom: 12,
+    });
+  });
+
   it('leaves left-side list item gaps to the editor native handler', () => {
     expect(
       resolveInsideBlockTrailingPlainClickAction({
@@ -574,6 +640,51 @@ describe('resolveInsideBlockTrailingPlainClickAction', () => {
       targetPos: 80,
       bias: -1,
       blockFrom: 73,
+    });
+  });
+
+  it('keeps a first hard-break line click on its own caret range when line rects are shared', () => {
+    const sharedLineRects = [
+      { left: 388, top: 607, right: 460, bottom: 642 },
+      { left: 388, top: 650, right: 512, bottom: 685 },
+    ];
+    expect(
+      resolveInsideBlockTrailingPlainClickAction({
+        blockRects: [
+          {
+            from: 66,
+            to: 73,
+            caretRange: { from: 66, to: 72 },
+            left: 388,
+            right: 849,
+            contentLeft: 388,
+            contentRight: 512,
+            contentLineRects: sharedLineRects,
+            top: 607,
+            bottom: 642,
+            allowInsideTrailingClick: true,
+          },
+          {
+            from: 73,
+            to: 81,
+            caretRange: { from: 73, to: 80 },
+            left: 388,
+            right: 849,
+            contentLeft: 388,
+            contentRight: 512,
+            contentLineRects: sharedLineRects,
+            top: 650,
+            bottom: 685,
+            allowInsideTrailingClick: true,
+          },
+        ],
+        clientX: 600,
+        clientY: 624,
+      })
+    ).toEqual({
+      targetPos: 72,
+      bias: -1,
+      blockFrom: 66,
     });
   });
 });

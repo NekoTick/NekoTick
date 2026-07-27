@@ -723,7 +723,7 @@ test.describe('notes list caret hit audit', () => {
         empty: false,
         selectedText: expect.stringContaining(']] following'),
       });
-      await expect(expandedLink).toHaveCount(1);
+      await expect.poll(async () => (await expandedLink.allTextContents()).join('')).toBe(sourceText);
 
       await page.evaluate((pos) => (window as any).__vlainaE2E.setEditorSelectionRange(pos), sourceRange!.from - 1);
       await expect(page.locator(`${EDITOR_SELECTOR} .wiki-link-expanded`)).toHaveCount(0);
@@ -745,6 +745,7 @@ test.describe('notes list caret hit audit', () => {
       await expect(page.locator(`${EDITOR_SELECTOR} .wiki-link-expanded`)).toHaveCount(0);
 
       await page.evaluate((pos) => (window as any).__vlainaE2E.setEditorSelectionRange(pos), sourceRange!.to + 1);
+      await page.waitForTimeout(600);
       const reverseStart = await resolveTextDragPoint(page, followingText, followingText.length - 1, 'end');
       const reverseEnd = await resolveTextDragPoint(page, linkText, 1, 'start');
       await page.mouse.move(reverseStart.x, reverseStart.y);

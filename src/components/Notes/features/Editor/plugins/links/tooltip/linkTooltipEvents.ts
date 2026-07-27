@@ -9,6 +9,7 @@ import {
     startLinkTextSelectionSession,
 } from './linkTextSelectionSession';
 import { resolveBlankAreaDragStartZone } from '../../cursor/blankAreaDragTargets';
+import { installExternalLinkDragClickSuppression } from './externalLinkDragClickSuppression';
 
 const LINK_DRAG_CLICK_SUPPRESSION_MS = 500;
 const BLOCK_SELECTION_PENDING_CLASS = 'editor-block-selection-pending';
@@ -154,6 +155,13 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
 
     const handleEditorMouseDown = (event: MouseEvent) => {
         if (!(event.target instanceof Node) || !view.dom.contains(event.target)) return;
+        const targetElement = event.target instanceof Element ? event.target : event.target.parentElement;
+        const wikiLinkSource = targetElement?.closest('[data-wiki-link-source="true"]');
+        if (wikiLinkSource?.querySelector('.wiki-link-expanded[data-wiki-link-expanded]')) {
+            setKeyboardInteraction(false);
+            if (!dom.classList.contains('hidden')) hide(true);
+            return;
+        }
         const selectableLink = resolveLinkTextRootFromMouseEvent(view, event);
         if (!selectableLink) {
             setKeyboardInteraction(false);
@@ -291,6 +299,10 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         }
     };
 
+    const cleanupExternalLinkDrag = installExternalLinkDragClickSuppression(
+        view,
+        suppressNextEditorClick,
+    );
     view.dom.addEventListener('mouseover', handleEditorMouseOver);
     view.dom.addEventListener('mousemove', handleEditorMouseMove);
     view.dom.addEventListener('mouseout', handleEditorMouseOut);
@@ -313,6 +325,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         view.dom.removeEventListener('mouseout', handleEditorMouseOut);
         view.dom.removeEventListener('mousedown', handleEditorMouseDown, true);
         view.dom.removeEventListener('click', handleEditorClick, true);
+        cleanupExternalLinkDrag();
         document.removeEventListener('mousedown', handleEditorMouseDown, true);
         document.removeEventListener('click', handleEditorClick, true);
         dom.removeEventListener('mouseenter', clearHideTimer);

@@ -1,9 +1,18 @@
 import { Plugin, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
-import { resolveEditorTextPositionAtPointer } from '../../shared/pointerTextPosition';
+import { floatingToolbarKey } from '../../floating-toolbar/floatingToolbarKey';
+import { TOOLBAR_ACTIONS } from '../../floating-toolbar/types';
+import {
+  POINTER_NATIVE_SELECTION_META,
+} from '../../selection/textSelectionOverlayState';
+import { syncNativeSelectionToCaretTarget } from '../../selection/textSelectionOverlayCaret';
 import { wikiLinkExpansionPluginKey } from './wikiLinkExpansionPlugin';
 import { wikiLinkPointerSessionPluginKey } from './wikiLinkInteraction';
+import {
+  isInsideWikiLinkRange,
+  resolveWikiLinkPointerPosition,
+} from './wikiLinkPointerPosition';
 
 type PointerSession = {
   anchor: number;
@@ -22,12 +31,31 @@ function isPlainPrimaryMouseDown(event: MouseEvent): boolean {
     !event.shiftKey;
 }
 
-function isInsideExpandedRange(position: number, range: { from: number; to: number }): boolean {
-  return position >= range.from && position <= range.to;
+function isShiftPrimaryMouseDown(event: MouseEvent): boolean {
+  return event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    event.shiftKey;
 }
 
-function resolvePointerPosition(view: EditorView, event: MouseEvent): number | null {
-  return resolveEditorTextPositionAtPointer(view, event.clientX, event.clientY);
+function resolveDoubleClickRange(
+  source: string,
+  offset: number,
+): { from: number; to: number } | null {
+  const segments = [...new Intl.Segmenter(undefined, { granularity: 'word' }).segment(source)];
+  const boundedOffset = Math.max(0, Math.min(offset, source.length));
+  const segment = segments.find((candidate) => (
+    candidate.isWordLike &&
+    boundedOffset >= candidate.index &&
+    boundedOffset <= candidate.index + candidate.segment.length
+  )) ?? segments.find((candidate) => (
+    boundedOffset >= candidate.index &&
+    boundedOffset < candidate.index + candidate.segment.length
+  ));
+  return segment
+    ? { from: segment.index, to: segment.index + segment.segment.length }
+    : null;
 }
 
 export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
@@ -48,18 +76,63 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
         .setMeta(wikiLinkPointerSessionPluginKey, active)
         .setMeta('addToHistory', false);
       if (selection) {
-        transaction = transaction.setSelection(
-          TextSelection.create(view.state.doc, selection.anchor, selection.head),
-        );
+        transaction = transaction
+          .setSelection(TextSelection.create(view.state.doc, selection.anchor, selection.head))
+          .setMeta(POINTER_NATIVE_SELECTION_META, false);
+        if (selection.anchor === selection.head) {
+          transaction = transaction.setMeta(floatingToolbarKey, {
+            type: TOOLBAR_ACTIONS.HIDE,
+          });
+        }
       }
       view.dispatch(transaction.scrollIntoView());
+      if (selection) {
+        view.focus();
+        if (selection.anchor === selection.head) {
+          syncNativeSelectionToCaretTarget(view, {
+            doc: view.state.doc,
+            pos: selection.head,
+          });
+        }
+      }
     };
 
     const handleMouseDown = (event: MouseEvent) => {
+      if (isShiftPrimaryMouseDown(event)) {
+        const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
+        const position = expanded ? resolveWikiLinkPointerPosition(view, event, expanded) : null;
+        if (!expanded || position === null || !isInsideWikiLinkRange(position, expanded)) return;
+        session = null;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        setSessionActive(false, {
+          anchor: view.state.selection.anchor,
+          head: position,
+        });
+        return;
+      }
       if (!isPlainPrimaryMouseDown(event)) return;
-      const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
-      const anchor = expanded ? resolvePointerPosition(view, event) : null;
-      if (!expanded || anchor === null || isInsideExpandedRange(anchor, expanded)) return;
+      const pluginState = wikiLinkExpansionPluginKey.getState(view.state);
+      const expanded = pluginState?.expanded;
+      const anchor = expanded ? resolveWikiLinkPointerPosition(view, event, expanded) : null;
+      if (!expanded || anchor === null) return;
+
+      if (event.detail === 2 && isInsideWikiLinkRange(anchor, expanded)) {
+        const source = view.state.doc.textBetween(expanded.from, expanded.to, '');
+        const range = resolveDoubleClickRange(source, anchor - expanded.from);
+        if (!range) return;
+        session = null;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        setSessionActive(false, {
+          anchor: expanded.from + range.from,
+          head: expanded.from + range.to,
+        });
+        return;
+      }
+      if (event.detail > 1) return;
 
       session = {
         anchor,
@@ -69,6 +142,13 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
         startX: event.clientX,
         startY: event.clientY,
       };
+      if (isInsideWikiLinkRange(anchor, expanded)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        setSessionActive(true, { anchor, head: anchor });
+        return;
+      }
       setSessionActive(true);
     };
 
@@ -83,12 +163,12 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
       if (!session.moved) return;
 
       const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
-      const head = expanded ? resolvePointerPosition(view, event) : null;
+      const head = expanded ? resolveWikiLinkPointerPosition(view, event, expanded) : null;
       if (!expanded || head === null) return;
       if (
         !session.selecting &&
-        !isInsideExpandedRange(session.anchor, expanded) &&
-        !isInsideExpandedRange(head, expanded)
+        !isInsideWikiLinkRange(session.anchor, expanded) &&
+        !isInsideWikiLinkRange(head, expanded)
       ) {
         return;
       }
@@ -104,14 +184,15 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
       if (!session) return;
       const current = session;
       session = null;
+      const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
       const head = event && current.selecting && current.doc === view.state.doc
-        ? resolvePointerPosition(view, event)
+        && expanded
+        ? resolveWikiLinkPointerPosition(view, event, expanded)
         : null;
       if (event && current.selecting) {
         event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
       }
+      // ProseMirror and the selection overlay must receive mouseup to release their pointer sessions.
       setSessionActive(false, head === null ? undefined : { anchor: current.anchor, head });
     };
 
