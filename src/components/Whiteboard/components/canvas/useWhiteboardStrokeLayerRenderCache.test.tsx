@@ -32,9 +32,10 @@ describe('useWhiteboardStrokeLayerRenderCache', () => {
   it('reuses geometry across repeated fractional move commits', () => {
     const initial = [createStroke('first', 0.3), createStroke('second', 123.456789)];
     const firstOffset = { x: 4.123, y: 2.789 };
+    const initialProps: RenderProps = { previewOffset: null, strokes: initial };
     const { rerender, result } = renderHook(
       ({ previewOffset, strokes }: RenderProps) => useWhiteboardStrokeLayerRenderCache(strokes, previewOffset),
-      { initialProps: { previewOffset: null, strokes: initial } },
+      { initialProps },
     );
 
     rerender({ previewOffset: firstOffset, strokes: initial });
@@ -54,9 +55,10 @@ describe('useWhiteboardStrokeLayerRenderCache', () => {
 
   it('invalidates preview geometry when the result is not a uniform translation', () => {
     const initial = [createStroke('stroke', 10.25)];
+    const initialProps: RenderProps = { previewOffset: null, strokes: initial };
     const { rerender, result } = renderHook(
       ({ previewOffset, strokes }: RenderProps) => useWhiteboardStrokeLayerRenderCache(strokes, previewOffset),
-      { initialProps: { previewOffset: null, strokes: initial } },
+      { initialProps },
     );
     rerender({ previewOffset: { x: 5, y: 3 }, strokes: initial });
     const reshaped = translate(initial, 5, 3);

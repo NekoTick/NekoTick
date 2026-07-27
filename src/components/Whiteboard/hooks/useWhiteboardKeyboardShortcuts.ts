@@ -110,7 +110,8 @@ function nudgeSelection(
     if (spatialIndex.allElements === current) {
       for (const id of selectedElementIds) {
         const index = spatialIndex.elementOrder.get(id);
-        const element = index === undefined ? undefined : current[index];
+        if (index === undefined) continue;
+        const element = current[index];
         if (!element || element.id !== id) continue;
         const moved = { ...element, x: element.x + dx, y: element.y + dy };
         next[index] = moved;
@@ -134,7 +135,8 @@ function nudgeSelection(
     if (spatialIndex.allStrokes === current) {
       for (const id of selectedStrokeIds) {
         const index = spatialIndex.strokeOrder.get(id);
-        const stroke = index === undefined ? undefined : current[index];
+        if (index === undefined) continue;
+        const stroke = current[index];
         if (!stroke || stroke.id !== id) continue;
         const moved = translateStroke(stroke, dx, dy);
         next[index] = moved;

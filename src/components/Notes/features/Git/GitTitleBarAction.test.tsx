@@ -541,8 +541,10 @@ describe('GitTitleBarAction', () => {
         ['notes/today.md', 'notes/later.md'],
       );
     });
-    expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:notes/today.md');
-    expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:notes/later.md');
+    await waitFor(() => {
+      expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:notes/today.md');
+      expect(screen.getByTestId('git-diff')).toHaveTextContent('diff:notes/later.md');
+    });
     const diffFiles = screen.getAllByTestId('git-diff-file');
     expect(diffFiles).toHaveLength(2);
     diffFiles.forEach((file) => {

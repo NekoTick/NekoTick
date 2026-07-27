@@ -170,7 +170,7 @@ describe('whiteboardRepository', () => {
 
   it('writes web board snapshots as prebuilt blobs', async () => {
     mocks.storage.platform = 'web';
-    const { entry } = await createWhiteboardEntry('/notesRoot', 'Web Sketch');
+    await createWhiteboardEntry('/notesRoot', 'Web Sketch');
 
     expect(mocks.storage.writeFileBlob).toHaveBeenCalledWith(
       `${SYSTEM_ROOT}/boards/web-sketch/board.vlwb.json`,

@@ -22,7 +22,7 @@ class WhiteboardIndexedSelectionMap<T extends { id: string }> implements Readonl
     this.#items = items;
     this.#order = order;
     this.#selectedIds = fullSelection ? null : new Set(ids);
-    this.size = fullSelection ? items.length : this.#selectedIds.size;
+    this.size = this.#selectedIds?.size ?? items.length;
   }
 
   get(id: string): T | undefined {
@@ -36,15 +36,15 @@ class WhiteboardIndexedSelectionMap<T extends { id: string }> implements Readonl
     return this.get(id) !== undefined;
   }
 
-  *entries() {
+  *entries(): Generator<[string, T], undefined, unknown> {
     for (const item of this.values()) yield [item.id, item] as [string, T];
   }
 
-  *keys() {
+  *keys(): Generator<string, undefined, unknown> {
     for (const item of this.values()) yield item.id;
   }
 
-  *values() {
+  *values(): Generator<T, undefined, unknown> {
     if (this.#ids === null) {
       yield* this.#items;
       return;
@@ -59,7 +59,7 @@ class WhiteboardIndexedSelectionMap<T extends { id: string }> implements Readonl
     for (const item of this.values()) callback.call(thisArg, item, item.id, this);
   }
 
-  [Symbol.iterator]() {
+  [Symbol.iterator](): Generator<[string, T], undefined, unknown> {
     return this.entries();
   }
 }

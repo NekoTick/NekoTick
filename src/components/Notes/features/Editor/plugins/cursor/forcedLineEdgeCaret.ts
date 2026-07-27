@@ -183,20 +183,21 @@ export function resolveVisualLineEdgePos(
     }
   }
 
-  if (!lineEdgeRect) {
+  const resolvedLineEdgeRect = lineEdgeRect as DOMRect | null;
+  if (!resolvedLineEdgeRect) {
     return null;
   }
 
   if (action.bias === -1) {
-    if (clientX < lineEdgeRect.right + TRAILING_LINE_END_CLICK_GAP_PX) {
+    if (clientX < resolvedLineEdgeRect.right + TRAILING_LINE_END_CLICK_GAP_PX) {
       return null;
     }
-  } else if (clientX > lineEdgeRect.left - LEADING_LINE_START_CLICK_GAP_PX) {
+  } else if (clientX > resolvedLineEdgeRect.left - LEADING_LINE_START_CLICK_GAP_PX) {
     return null;
   }
 
-  const forcedCaretX = action.bias === -1 ? lineEdgeRect.right : lineEdgeRect.left;
-  const serializedTextRect = serializeRect(lineEdgeRect);
+  const forcedCaretX = action.bias === -1 ? resolvedLineEdgeRect.right : resolvedLineEdgeRect.left;
+  const serializedTextRect = serializeRect(resolvedLineEdgeRect);
   return { pos: action.targetPos, textRect: serializedTextRect, forcedCaretX };
 }
 

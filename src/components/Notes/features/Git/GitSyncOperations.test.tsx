@@ -211,9 +211,11 @@ describe('Git sync operations', () => {
     await openGitPopover();
     fireEvent.click(screen.getByRole('tab', { name: 'git.history' }));
 
-    await waitFor(() => expect(mocks.git.history).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('git.operationFailed')).toBeInTheDocument();
+    expect(mocks.git.history).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId('git-changes-tab'));
+    fireEvent.click(screen.getByTestId('git-history-tab'));
     expect(screen.getByText('git.operationFailed')).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mocks.git.history).toHaveBeenCalledTimes(1);
   });
 

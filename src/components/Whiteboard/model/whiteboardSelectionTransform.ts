@@ -62,7 +62,8 @@ export function resizeSelectionElements(
     const changedItems: WhiteboardElement[] = [];
     for (const original of originalById.values()) {
       const index = order.get(original.id);
-      const element = index === undefined ? undefined : elements[index];
+      if (index === undefined) continue;
+      const element = elements[index];
       if (!element || element.id !== original.id) continue;
       const next = resizeSelectionElement({ ...original, imageSrc: element.imageSrc }, startBounds, nextBounds);
       resized[index] = next;
@@ -107,7 +108,8 @@ export function resizeSelectionStrokes(
     const changedItems: WhiteboardStroke[] = [];
     for (const original of originalById.values()) {
       const index = order.get(original.id);
-      const stroke = index === undefined ? undefined : strokes[index];
+      if (index === undefined) continue;
+      const stroke = strokes[index];
       if (!stroke || stroke.id !== original.id) continue;
       const next = resizeSelectionStroke(original, startBounds, nextBounds);
       resized[index] = next;
@@ -166,7 +168,8 @@ export function translateStrokesFromOriginals(
     const changedItems: WhiteboardStroke[] = [];
     for (const original of originalById.values()) {
       const index = order.get(original.id);
-      const stroke = index === undefined ? undefined : strokes[index];
+      if (index === undefined) continue;
+      const stroke = strokes[index];
       if (!stroke || stroke.id !== original.id) continue;
       const next = translateStroke(original, dx, dy);
       translated[index] = next;
@@ -198,7 +201,8 @@ export function translateElementsFromOriginals(
   if (order) {
     for (const original of originalElements.values()) {
       const index = order.get(original.id);
-      const element = index === undefined ? undefined : elements[index];
+      if (index === undefined) continue;
+      const element = elements[index];
       if (!element || element.id !== original.id) continue;
       const next = { ...element, x: Math.round(original.x + dx), y: Math.round(original.y + dy) };
       translated[index] = next;

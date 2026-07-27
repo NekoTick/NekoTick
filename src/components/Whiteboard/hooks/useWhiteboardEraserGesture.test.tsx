@@ -2,19 +2,21 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useWhiteboardEraserGesture } from './useWhiteboardEraserGesture';
 import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
+import type { WhiteboardStroke } from '../model/whiteboardModel';
 
 function createOptions() {
   const elements = [
     { height: 80, id: 'image-1', text: '', type: 'image' as const, width: 100, x: 0, y: 0 },
     { height: 80, id: 'image-2', text: '', type: 'image' as const, width: 100, x: 200, y: 0 },
   ];
+  const strokes: WhiteboardStroke[] = [];
   return {
     elements,
     pushHistory: vi.fn(),
     setElements: vi.fn(),
     setStrokes: vi.fn(),
-    spatialIndex: createWhiteboardEraserSpatialIndex(elements, []),
-    strokes: [],
+    spatialIndex: createWhiteboardEraserSpatialIndex(elements, strokes),
+    strokes,
   };
 }
 

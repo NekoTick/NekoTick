@@ -70,8 +70,12 @@ When debugging with logs:
 Verification:
 - Treat a failing test as evidence to investigate, not as an automatic command to bend production code toward the old assertion.
 - First decide whether the failure is a real regression, an intentional behavior change with outdated tests, a brittle test that asserts implementation details, or a mix of those.
+- Before changing production code or a test, identify the intended user-visible behavior from requirements, callers, and surrounding tests.
 - Fix production code when the test exposes broken behavior. Update tests when the intended behavior changed and the old expectation is stale.
 - Do not add compatibility hacks, preserve obsolete behavior, or make production code worse only to satisfy an outdated test.
+- When fixing asynchronous tests, wait for the final user-visible state or observable side effect. Do not rely on arbitrary sleeps or treat a mock invocation as proof that rendering has completed.
+- For performance or timing failures, do not raise thresholds or add retries based on a single run. Reproduce the focused scenario enough times to distinguish a repeatable regression from runner variance, and preserve the existing threshold when no regression is demonstrated.
+- Do not weaken or remove meaningful assertions merely to make CI pass. When updating a stale or brittle assertion, preserve the original behavioral coverage.
 - Do not run type checks by default. Run them only when type/API risk is high or the user asks.
 - Do not run the full local test suite by default. Full-suite coverage belongs to GitHub Actions; locally, run only the tests directly relevant to the changed code unless the user explicitly asks for a broader run.
 
