@@ -1,7 +1,7 @@
 import { createSetextHeadingFromDelimiter } from '@milkdown/kit/preset/commonmark';
-import { TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { shouldConvertParagraphToThematicBreak } from './hrAutoParagraphUtils';
+import { moveSelectionAfterInsertedNode } from '../shared/insertedNodeSelection';
 
 const MAX_HR_SHORTCUT_TEXT_CHARS = 256;
 
@@ -34,15 +34,18 @@ export function handleHorizontalRuleShortcutEnter(view: EditorView): boolean {
   const { $from } = selection;
   const paragraphPos = $from.before();
   const hrNode = hrType.create();
-  let tr = state.tr.replaceWith(
+  const tr = state.tr.replaceWith(
     paragraphPos,
     paragraphPos + $from.parent.nodeSize,
     hrNode,
   );
-  const afterHrPos = paragraphPos + hrNode.nodeSize;
-  tr = tr.insert(afterHrPos, paragraphType.create());
-  tr = tr.setSelection(TextSelection.create(tr.doc, afterHrPos + 1)).scrollIntoView();
-  view.dispatch(tr);
+  const movedTr = moveSelectionAfterInsertedNode({
+    tr,
+    nodePos: paragraphPos,
+    insertedNodeFallback: hrNode,
+    paragraphType,
+  });
+  view.dispatch(movedTr.scrollIntoView());
   return true;
 }
 

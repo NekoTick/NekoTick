@@ -2,6 +2,11 @@ import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
 import { normalizeEditorBreakPlaceholders } from './markdownSerializationEditorBreaks';
 import { normalizeInternalMarkdownBlankLineComments } from './markdownSerializationInternalBlankComments';
 import {
+  isMarkdownLineInContainer,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+} from './markdownFenceProtectedLines';
+import {
   LEAKED_LIST_GAP_SENTINEL_WITH_NEWLINES_PATTERN,
   LEAKED_USER_BR_SENTINEL_PATTERN,
   LIST_GAP_SENTINEL,
@@ -77,27 +82,40 @@ export function normalizeListItemBlankLines(text: string): string {
 export function normalizeSerializedListGapMarkerLines(text: string): string {
   const lines = text.split('\n');
   const nearestNonBlankLines = collectNearestNonBlankLines(lines);
-  let activeFence: { marker: string; length: number } | null = null;
+  let activeFence: {
+    blockquoteDepth: number;
+    containerIndent: number;
+    marker: string;
+    length: number;
+  } | null = null;
 
   return lines
     .map((line, index) => {
-      const fence = parseMarkdownFenceLine(line);
       if (activeFence) {
-        if (
-          fence?.marker === activeFence.marker
-          && fence.length >= activeFence.length
-          && isBlankMarkdownFenceInfo(line, fence.infoStart)
-        ) {
-          activeFence = null;
+        if (isMarkdownLineInContainer(line, activeFence)) {
+          if (parseMarkdownContainerFenceCloseLine(line, activeFence)) {
+            activeFence = null;
+          }
+          return line;
         }
-        return line;
+        activeFence = null;
       }
+
+      const fence = parseMarkdownFenceLine(line);
       if (fence) {
         if (fence.marker !== '`' || line.indexOf('`', fence.infoStart) === -1) {
-          activeFence = { marker: fence.marker, length: fence.length };
+          activeFence = {
+            blockquoteDepth: fence.blockquoteDepth,
+            containerIndent: fence.containerIndent,
+            marker: fence.marker,
+            length: fence.length,
+          };
         }
         return line;
       }
+
+      const blockquotePrefix = getSerializedBlockquoteListGapPrefix(line);
+      if (blockquotePrefix !== null) return blockquotePrefix;
 
       return SERIALIZED_EDITABLE_LIST_GAP_PLACEHOLDER_PATTERN.test(line)
         && (
@@ -110,27 +128,18 @@ export function normalizeSerializedListGapMarkerLines(text: string): string {
     .join('\n');
 }
 
-export function parseMarkdownFenceLine(line: string): MarkdownFenceLine | null {
-  let index = 0;
-  while (index < line.length && index <= 3 && line[index] === ' ') {
-    index += 1;
-  }
-  if (index > 3) return null;
+function getSerializedBlockquoteListGapPrefix(line: string): string | null {
+  const match = /^(\s*(?:>\s*)+)(?:[-+*]|\d+[.)])\s+\\?\u2800\s*$/.exec(line);
+  return match
+    ? `${(match[1] ?? '>').trimEnd()} ${LIST_GAP_SENTINEL}`
+    : null;
+}
 
-  const marker = line[index];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (line[index + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return {
-    infoStart: index + length,
-    length,
-    marker,
-  };
+export function parseMarkdownFenceLine(
+  line: string,
+  options?: { maxIndent?: number; stripListMarker?: boolean },
+): MarkdownFenceLine | null {
+  return parseMarkdownContainerFenceLine(line, options);
 }
 
 export function isBlankMarkdownFenceInfo(line: string, start: number): boolean {
@@ -179,9 +188,34 @@ export function replaceListGapSentinelsWithBlankLines(text: string): string {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? '';
-    if (line !== LIST_GAP_SENTINEL && !SERIALIZED_EDITABLE_LIST_GAP_PLACEHOLDER_PATTERN.test(line)) {
+    const blockquoteGapPrefix = getBlockquoteListGapSentinelPrefix(line);
+    if (
+      blockquoteGapPrefix === null
+      && line !== LIST_GAP_SENTINEL
+      && !SERIALIZED_EDITABLE_LIST_GAP_PLACEHOLDER_PATTERN.test(line)
+    ) {
       output.push(line);
       previousWasListGapSentinel = false;
+      continue;
+    }
+
+    if (blockquoteGapPrefix !== null) {
+      const depth = countBlockquoteMarkers(blockquoteGapPrefix);
+      while (
+        !previousWasListGapSentinel
+        && output.length > 0
+        && isSerializerBlankAroundBlockquoteListGap(output[output.length - 1] ?? '', depth)
+      ) {
+        output.pop();
+      }
+      output.push(blockquoteGapPrefix);
+      previousWasListGapSentinel = true;
+      while (
+        index + 1 < lines.length
+        && isSerializerBlankAroundBlockquoteListGap(lines[index + 1] ?? '', depth)
+      ) {
+        index += 1;
+      }
       continue;
     }
 
@@ -201,6 +235,29 @@ export function replaceListGapSentinelsWithBlankLines(text: string): string {
   }
 
   return output.join('\n');
+}
+
+function getBlockquoteListGapSentinelPrefix(line: string): string | null {
+  const sentinelIndex = line.indexOf(LIST_GAP_SENTINEL);
+  if (sentinelIndex < 0 || line.slice(sentinelIndex + LIST_GAP_SENTINEL.length).trim() !== '') {
+    return null;
+  }
+
+  const prefix = line.slice(0, sentinelIndex).trimEnd();
+  return /^\s*(?:>\s*)+$/.test(prefix) ? prefix : null;
+}
+
+function isSerializerBlankAroundBlockquoteListGap(line: string, depth: number): boolean {
+  if (line.trim() === '') return true;
+  return /^\s*(?:>\s*)+$/.test(line) && countBlockquoteMarkers(line) === depth;
+}
+
+function countBlockquoteMarkers(line: string): number {
+  let count = 0;
+  for (const character of line) {
+    if (character === '>') count += 1;
+  }
+  return count;
 }
 
 export function normalizeInternalClipboardArtifacts(text: string): string {

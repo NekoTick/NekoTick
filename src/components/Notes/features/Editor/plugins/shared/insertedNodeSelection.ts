@@ -1,4 +1,4 @@
-import { Selection, TextSelection } from '@milkdown/kit/prose/state';
+import { NodeSelection, Selection, TextSelection } from '@milkdown/kit/prose/state';
 
 const MARKDOWN_BLANK_LINE_VALUE = '<!--vlaina-markdown-blank-line-->';
 const RENDERED_HTML_BOUNDARY_BLANK_LINE_VALUE = '<!--vlaina-rendered-html-boundary-blank-line-->';
@@ -50,6 +50,18 @@ function setTextSelectionSafely(tr: any, pos: number) {
   }
 }
 
+function setInsertedNodeSelectionSafely(tr: any, nodePos: number) {
+  try {
+    const node = tr.doc.nodeAt(nodePos);
+    if (node && !node.isText && node.type?.spec?.selectable !== false) {
+      return tr.setSelection(NodeSelection.create(tr.doc, nodePos));
+    }
+    return tr.setSelection(Selection.near(tr.doc.resolve(nodePos), -1));
+  } catch {
+    return tr;
+  }
+}
+
 export function moveSelectionAfterInsertedNode(args: {
   tr: any;
   nodePos: number;
@@ -76,14 +88,7 @@ export function moveSelectionAfterInsertedNode(args: {
   const nextNode = tr.doc.nodeAt(afterNodePos);
   if (nextNode?.isTextblock) {
     if (nextNode.type?.name !== 'paragraph') {
-      if (paragraphType) {
-        try {
-          tr.insert(afterNodePos, paragraphType.create());
-          return setTextSelectionSafely(tr, afterNodePos + 1);
-        } catch {
-        }
-      }
-      return tr;
+      return setInsertedNodeSelectionSafely(tr, nodePos);
     }
     return setTextSelectionSafely(tr, afterNodePos + 1);
   }
@@ -104,7 +109,11 @@ export function moveSelectionAfterInsertedNode(args: {
   }
 
   if (isMarkdownBlankLineBlock(nextNode)) {
-    return tr;
+    return setInsertedNodeSelectionSafely(tr, nodePos);
+  }
+
+  if (nextNode) {
+    return setInsertedNodeSelectionSafely(tr, nodePos);
   }
 
   if (paragraphType) {
@@ -115,9 +124,5 @@ export function moveSelectionAfterInsertedNode(args: {
     }
   }
 
-  try {
-    return tr.setSelection(Selection.near(tr.doc.resolve(Math.min(afterNodePos, tr.doc.content.size)), 1));
-  } catch {
-    return tr;
-  }
+  return setInsertedNodeSelectionSafely(tr, nodePos);
 }

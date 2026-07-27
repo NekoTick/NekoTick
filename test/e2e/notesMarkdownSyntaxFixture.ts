@@ -4,6 +4,7 @@ export const REMOTE_COVER_IMAGE_URL =
   'https://raw.githubusercontent.com/521xueweihan/img_logo/master/logo/cover.jpg#w=72%25';
 
 export type MarkdownSyntaxRoundtripCase = {
+  expectExactAfterEdit?: boolean;
   label: string;
   markdown: string;
 };
@@ -21,6 +22,17 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
         '---',
         '',
         '# Frontmatter Roundtrip Sentinel',
+      ].join('\n'),
+    },
+    {
+      expectExactAfterEdit: true,
+      label: 'frontmatter-internal-blank-lines',
+      markdown: [
+        '---',
+        'title: Protected Blank Lines',
+        '',
+        'description: Still Protected',
+        '---',
       ].join('\n'),
     },
     {
@@ -57,6 +69,18 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
         '*[API]: Application Programming Interface',
         '',
         'API abbreviation sentinel.',
+      ].join('\n'),
+    },
+    {
+      expectExactAfterEdit: true,
+      label: 'reference-definition-asymmetric-blank-lines',
+      markdown: [
+        'Read [Docs][docs].',
+        '',
+        '[docs]: https://example.test/docs',
+        '',
+        '',
+        'After reference definition.',
       ].join('\n'),
     },
     {
@@ -194,6 +218,17 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
       ].join('\n'),
     },
     {
+      expectExactAfterEdit: true,
+      label: 'fenced-code-internal-blank-lines',
+      markdown: [
+        '```text',
+        'first protected code line',
+        '',
+        'second protected code line',
+        '```',
+      ].join('\n'),
+    },
+    {
       label: 'math',
       markdown: [
         '$$',
@@ -214,6 +249,17 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
       ].join('\n'),
     },
     {
+      expectExactAfterEdit: true,
+      label: 'math-internal-blank-lines',
+      markdown: [
+        '$$',
+        'a = b',
+        '',
+        'c = d',
+        '$$',
+      ].join('\n'),
+    },
+    {
       label: 'diagrams',
       markdown: [
         '```mermaid',
@@ -227,6 +273,17 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
         '',
         '```packet-beta',
         '0-7: "Mermaid packet alias sentinel"',
+        '```',
+      ].join('\n'),
+    },
+    {
+      expectExactAfterEdit: true,
+      label: 'mermaid-internal-blank-lines',
+      markdown: [
+        '```mermaid',
+        'flowchart TD',
+        '',
+        '  Start --> Done',
         '```',
       ].join('\n'),
     },
@@ -292,6 +349,40 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
         '<video src="xxx.mp4" controls />',
         '',
         '<audio src="xxx.mp3" controls />',
+      ].join('\n'),
+    },
+    {
+      expectExactAfterEdit: true,
+      label: 'raw-html-internal-blank-lines',
+      markdown: [
+        '<pre>',
+        'first protected html line',
+        '',
+        'second protected html line',
+        '</pre>',
+      ].join('\n'),
+    },
+    {
+      expectExactAfterEdit: true,
+      label: 'raw-html-fence-like-content-before-rendered-html',
+      markdown: [
+        '- \\[',
+        '  x = y',
+        '  \\]',
+        '',
+        '![video](https://example.test/video.mp4 "Video")',
+        '<?note value?>',
+        '',
+        '',
+        '- <textarea>',
+        '  - protected html marker',
+        '  ```not-a-fence',
+        '  </textarea>',
+        '',
+        '<div>Raw HTML</div>',
+        '',
+        '7) Ordered',
+        '8) Continued',
       ].join('\n'),
     },
   ];

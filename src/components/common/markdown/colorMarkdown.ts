@@ -208,7 +208,7 @@ export function replaceUnderlineMarkdown(
 ): void {
   if (!canTransformMarkdownAst(tree)) return;
 
-  const underlineRegex = /\+\+([^+]+)\+\+/g;
+  const underlineRegex = /(?<!\+)\+\+([^+\s](?:[^+]*?[^+\s])?)\+\+(?!\+)/g;
 
   function visitNode(node: ColorMarkdownMdastNode, parent?: ColorMarkdownMdastNode, index?: number): void {
     if (node.children) {

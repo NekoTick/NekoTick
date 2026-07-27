@@ -83,6 +83,7 @@ export const linkSchema = $markSchema('link', (ctx) => ({
   ],
   toDOM: (mark) => {
     const href = sanitizeLinkHref(mark.attrs.href)
+    if (!href) return ['span', 0]
     return [
       'a',
       {

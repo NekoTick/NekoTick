@@ -49,6 +49,10 @@ export const listItemSchema = $nodeSchema('list_item', (ctx) => ({
       default: true,
       validate: 'boolean',
     },
+    sourceTightFirstBlock: {
+      default: false,
+      validate: 'boolean',
+    },
   },
   defining: true,
   parseDOM: [
@@ -81,7 +85,8 @@ export const listItemSchema = $nodeSchema('list_item', (ctx) => ({
       const label = node.label != null ? `${node.label}.` : '•'
       const listType = node.label != null ? 'ordered' : 'bullet'
       const spread = node.spread != null ? `${node.spread}` : 'true'
-      state.openNode(type, { label, listType, spread })
+      const sourceTightFirstBlock = node.sourceTightFirstBlock === true
+      state.openNode(type, { label, listType, sourceTightFirstBlock, spread })
       state.next(node.children)
       state.closeNode()
     },
@@ -90,9 +95,21 @@ export const listItemSchema = $nodeSchema('list_item', (ctx) => ({
     match: (node) => node.type.name === 'list_item',
     runner: (state, node) => {
       state.openNode('listItem', undefined, {
+        sourceTightFirstBlock: node.attrs.sourceTightFirstBlock,
         spread: node.attrs.spread,
       })
-      state.next(node.content)
+      const firstChild = node.firstChild
+      if (
+        node.attrs.sourceTightFirstBlock === true
+        && firstChild?.type.name === 'paragraph'
+        && firstChild.content.size === 0
+      ) {
+        for (let index = 1; index < node.childCount; index += 1)
+          state.next(node.child(index))
+      }
+      else {
+        state.next(node.content)
+      }
       state.closeNode()
     },
   },

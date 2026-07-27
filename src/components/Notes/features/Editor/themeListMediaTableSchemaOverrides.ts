@@ -187,7 +187,11 @@ export function applyListMediaTableSchemaOverrides(ctx: Ctx) {
         ],
         parseMarkdown: {
             match: (node: any) => {
-                if (node.type === 'html' && typeof node.value === 'string')
+                if (
+                    node.type === 'html'
+                    && typeof node.value === 'string'
+                    && typeof node.githubHtmlRenderValue !== 'string'
+                )
                     return getMarkdownHtmlImageAttrs(node.value) !== null;
                 return node.type === 'image';
             },

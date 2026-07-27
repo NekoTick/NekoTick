@@ -25,6 +25,12 @@ import {
   serializeSingleListItemWithoutMarker,
 } from './selectionSerializationLists';
 
+function serializeSelectionFrontmatterMarkdown(markdown: string): string {
+  return serializeLeadingFrontmatterMarkdown(markdown, undefined, {
+    removeSerializerPadding: true,
+  });
+}
+
 function isTextSelectionLike(selection: EditorState['selection']): boolean {
   if (typeof TextSelection === 'function' && selection instanceof TextSelection) {
     return true;
@@ -189,12 +195,12 @@ export function serializeSelectionToClipboardText(
 
   const singleCellText = serializeSingleSelectedCellContent(state);
   if (singleCellText !== null) {
-    return serializeLeadingFrontmatterMarkdown(singleCellText);
+    return serializeSelectionFrontmatterMarkdown(singleCellText);
   }
 
   const singleCellTableSliceText = serializeSingleCellTableSlice(slice);
   if (singleCellTableSliceText !== null) {
-    return serializeLeadingFrontmatterMarkdown(singleCellTableSliceText);
+    return serializeSelectionFrontmatterMarkdown(singleCellTableSliceText);
   }
 
   if (shouldCopyTextSelectionAsPlainText(state, slice)) {
@@ -203,24 +209,24 @@ export function serializeSelectionToClipboardText(
 
   const singleListItemText = serializeSingleListItemWithoutMarker(slice);
   if (singleListItemText !== null) {
-    return serializeLeadingFrontmatterMarkdown(singleListItemText);
+    return serializeSelectionFrontmatterMarkdown(singleListItemText);
   }
 
   if (markdownSerializer && isSliceWithinClipboardTraversalBudget(slice)) {
     const selectedListText = serializeBoundarySelectedListItemsWithMarkdown(state, markdownSerializer);
     if (selectedListText !== null) {
-      return serializeLeadingFrontmatterMarkdown(selectedListText);
+      return serializeSelectionFrontmatterMarkdown(selectedListText);
     }
 
     const topLevelBlockText = serializeSliceTopLevelBlocks(state, slice, markdownSerializer);
     if (topLevelBlockText !== null) {
-      return serializeLeadingFrontmatterMarkdown(topLevelBlockText);
+      return serializeSelectionFrontmatterMarkdown(topLevelBlockText);
     }
 
     try {
       const doc = state.schema.topNodeType.createAndFill(undefined, slice.content);
       if (doc) {
-        return serializeLeadingFrontmatterMarkdown(
+        return serializeSelectionFrontmatterMarkdown(
           normalizeSerializedMarkdownSelection(markdownSerializer(doc))
         );
       }
@@ -228,7 +234,7 @@ export function serializeSelectionToClipboardText(
     }
   }
 
-  return serializeLeadingFrontmatterMarkdown(
+  return serializeSelectionFrontmatterMarkdown(
     normalizeSerializedMarkdownSelection(serializeSliceToText(slice))
   );
 }

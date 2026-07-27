@@ -1,5 +1,16 @@
 import { describe, it } from 'vitest';
-import { expectStableMarkdownRoundTrip } from './markdownRoundTripTestUtils';
+import {
+  expectStableMarkdownRoundTrip,
+  expectStableMarkdownRoundTrips,
+} from './markdownRoundTripTestUtils';
+
+interface BoundaryBlock {
+  expectedLines?: string[];
+  lines: string[];
+  name: string;
+  requiresPairSeparator?: boolean;
+  requiresSeparator?: boolean;
+}
 
 describe('markdown syntax persistence matrix', () => {
   it.each([
@@ -16,19 +27,10 @@ describe('markdown syntax persistence matrix', () => {
         '---',
         '# Heading',
       ].join('\n'),
-      expected: [
-        '---',
-        'title: Demo',
-        '',
-        'vlaina_cover: "@biva/1"',
-        '---',
-        '# Heading',
-      ].join('\n'),
     },
     {
       name: 'leading yaml-frontmatter code fence',
       markdown: ['```yaml-frontmatter', 'title: Demo', '```', '# Heading'].join('\n'),
-      expected: ['```yaml-frontmatter', 'title: Demo', '```', '', '# Heading'].join('\n'),
     },
     {
       name: 'math block and inline math',
@@ -108,17 +110,6 @@ describe('markdown syntax persistence matrix', () => {
         '> 💡 Callout title',
         '>',
         '> - First item',
-        '> - Second item',
-        '>',
-        '> ```ts',
-        '> const value = 1;',
-        '> ```',
-      ].join('\n'),
-      expected: [
-        '> 💡 Callout title',
-        '>',
-        '> - First item',
-        '>',
         '> - Second item',
         '>',
         '> ```ts',
@@ -254,6 +245,17 @@ describe('markdown syntax persistence matrix', () => {
       markdown: '<div>raw</div>',
       expectedText: 'raw',
     },
+    ...(['math', 'noembed', 'noscript', 'plaintext', 'svg', 'textarea', 'xmp'] as const)
+      .flatMap((tagName) => [0, 1, 2].map((blankLineCount) => ({
+        name: `${tagName} raw html with ${blankLineCount} trailing blank line(s)`,
+        markdown: [
+          `<${tagName}>`,
+          `hidden ${tagName} source`,
+          `</${tagName}>`,
+          ...Array.from({ length: blankLineCount }, () => ''),
+          '# After raw html',
+        ].join('\n'),
+      }))),
     {
       name: 'raw empty html with attributes',
       markdown: '<a href="#anchor"></a>',
@@ -404,19 +406,734 @@ describe('markdown syntax persistence matrix', () => {
       markdown: ['\\*[HTML]: HyperText Markup Language', '', 'HTML demo'].join('\n'),
     },
     {
-      name: 'block alignment comments',
-      markdown: ['Paragraph', '<!--align:center-->', '', '# Heading', '<!--align:right-->'].join('\n'),
-      expected: [
-        'Paragraph',
-        '',
-        '<!--align:center-->',
-        '',
+      name: 'wiki links with target and alias forms',
+      markdown: 'See [[Project Alpha]] and [[Project Beta|the beta note]].',
+    },
+    {
+      name: 'escaped wiki link syntax',
+      markdown: String.raw`Keep \[[Project Alpha]] literal.`,
+    },
+    {
+      name: 'Obsidian image embed canonicalizes without changing lines',
+      markdown: 'Before ![[assets/image.png|Local image]] after.',
+      expected: 'Before ![Local image](assets/image.png) after.',
+    },
+    ...([0, 1, 2] as const).flatMap((blankLineCountBefore) =>
+      ([0, 1, 2] as const).map((blankLineCountAfter) => ({
+        name: `block alignment comment with ${blankLineCountBefore}/${blankLineCountAfter} surrounding blank lines`,
+        markdown: [
+          'Paragraph',
+          ...Array.from({ length: blankLineCountBefore }, () => ''),
+          '<!--align:center-->',
+          ...Array.from({ length: blankLineCountAfter }, () => ''),
+          '# Heading',
+        ].join('\n'),
+      })),
+    ),
+    {
+      name: 'tight blockquote between heading and code',
+      markdown: ['# Heading', '> Quote', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight callout between heading and code',
+      markdown: ['# Heading', '> 💡 Callout', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight thematic break between heading and code',
+      markdown: ['# Heading', '---', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'multiple non-dash thematic breaks do not become frontmatter during save',
+      markdown: ['***', '', 'Body', '', '___', '', '# After'].join('\n'),
+    },
+    {
+      name: 'tight table between heading and code',
+      markdown: ['# Heading', '|A|B|', '|-|-|', '|1|2|', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight math block between heading and code',
+      markdown: ['# Heading', '$$', 'x + y', '$$', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight footnote definition between heading and code',
+      markdown: ['# Heading', '[^1]: Footnote', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight abbreviation definition between heading and code',
+      markdown: ['# Heading', '*[HTML]: HyperText Markup Language', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight table of contents between heading and code',
+      markdown: ['# Heading', '[TOC]', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'tight table of contents before unlabelled code',
+      markdown: ['# Heading', '[TOC]', '```', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'ordinary paragraph stays tight before labelled code',
+      markdown: ['# Heading', 'Body', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'ordinary paragraph stays tight after labelled code',
+      markdown: ['# Heading', '```code', 'code', '```', 'Body'].join('\n'),
+    },
+    {
+      name: 'tight video between heading and code',
+      markdown: [
         '# Heading',
-        '',
-        '<!--align:right-->',
+        '![video](https://example.com/video.mp4 "Demo")',
+        '```code',
+        'code',
+        '```',
       ].join('\n'),
     },
-  ])('keeps custom syntax stable and clean on reopen: $name', async ({ markdown, expected, expectedText }) => {
-    await expectStableMarkdownRoundTrip(markdown, expected, expectedText);
+    {
+      name: 'authored image separator before labelled code',
+      markdown: [
+        '# Heading',
+        '![alt](image.png)',
+        '',
+        '```code',
+        'code',
+        '```',
+      ].join('\n'),
+    },
+    {
+      name: 'tight mermaid between heading and code',
+      markdown: ['# Heading', '```mermaid', 'graph TD', 'A --> B', '```', '```code', 'code', '```'].join('\n'),
+    },
+    {
+      name: 'unlabelled fenced code stays tight between headings',
+      markdown: ['# Heading', '```', 'code', '```', '## Next'].join('\n'),
+    },
+    {
+      name: 'indented code stays source-stable before raw HTML',
+      markdown: ['    indented code', '<div>Raw</div>', '', 'After'].join('\n'),
+    },
+    {
+      name: 'equivalent inline and reference links keep their source occurrences',
+      markdown: [
+        'Read [Docs](https://example.test/docs) then [Docs][docs].',
+        '',
+        '[docs]: https://example.test/docs',
+      ].join('\n'),
+    },
+    {
+      name: 'equivalent plain URL and autolink keep their source occurrences',
+      markdown: 'Plain https://example.test/docs then <https://example.test/docs>.',
+    },
+    {
+      name: 'equivalent ATX and setext headings keep their source occurrences',
+      markdown: ['## Same heading', '', 'Same heading', '------------'].join('\n'),
+    },
+    {
+      name: 'fenced heading text does not consume a later setext source style',
+      markdown: [
+        '```md',
+        '## Same heading',
+        '```',
+        '',
+        'Same heading',
+        '------------',
+      ].join('\n'),
+    },
+    {
+      name: 'equivalent spaced and compact blockquotes keep their source occurrences',
+      markdown: ['> Same quote', '', '>Same quote'].join('\n'),
+    },
+    {
+      name: 'raw HTML fence text does not hide a later real code fence',
+      markdown: [
+        '<pre>',
+        '```',
+        'raw text',
+        '</pre>',
+        '',
+        '~~~~text',
+        'actual code',
+        '~~~~',
+      ].join('\n'),
+    },
+    {
+      name: 'display math fence text does not hide a later real code fence',
+      markdown: [
+        '$$',
+        '```',
+        'raw math text',
+        '$$',
+        '',
+        '~~~~text',
+        'actual code',
+        '~~~~',
+      ].join('\n'),
+    },
+  ])('keeps custom syntax stable and clean on reopen: $name', async (testCase) => {
+    await expectStableMarkdownRoundTrip(
+      testCase.markdown,
+      'expected' in testCase ? testCase.expected : undefined,
+      'expectedText' in testCase ? testCase.expectedText : undefined,
+    );
   });
+
+  const boundaryBlocks: BoundaryBlock[] = [
+    { name: 'paragraph', lines: ['Body'] },
+    { name: 'heading', lines: ['## Middle'] },
+    { name: 'setext heading', lines: ['Setext heading', '--------------'] },
+    { name: 'ordered list', lines: ['1. Ordered'] },
+    { name: 'bullet list', lines: ['- Bullet'] },
+    { name: 'task list', lines: ['- [ ] Task'] },
+    { name: 'blockquote', lines: ['> Quote'] },
+    { name: 'callout', lines: ['> 💡 Callout'] },
+    { name: 'thematic break', lines: ['---'] },
+    { name: 'table', lines: ['|A|B|', '|-|-|', '|1|2|'] },
+    { name: 'fenced code', lines: ['```ts', 'const value = 1;', '```'] },
+    {
+      name: 'indented code',
+      requiresPairSeparator: true,
+      lines: ['    const value = 1;'],
+    },
+    { name: 'display math', lines: ['$$', 'x + y', '$$'] },
+    { name: 'Mermaid', lines: ['```mermaid', 'graph TD', 'A --> B', '```'] },
+    { name: 'footnote definition', lines: ['[^1]: Footnote'] },
+    { name: 'reference definition', lines: ['[docs]: https://example.com "Docs"'] },
+    { name: 'abbreviation definition', lines: ['*[HTML]: HyperText Markup Language'] },
+    { name: 'definition list', lines: ['Term', '', ': Definition'] },
+    { name: 'table of contents', lines: ['[TOC]'] },
+    { name: 'video', lines: ['![video](https://example.com/video.mp4)'] },
+    { name: 'image', lines: ['![alt](image.png)'] },
+    { name: 'wiki link paragraph', lines: ['See [[Project Alpha]].'] },
+    {
+      name: 'Obsidian image embed',
+      lines: ['![[assets/image.png|Local image]]'],
+      expectedLines: ['![Local image](assets/image.png)'],
+    },
+    { name: 'raw HTML comment', lines: ['<!-- User comment -->'] },
+    { name: 'HTML processing instruction', lines: ['<?note value?>'] },
+    { name: 'HTML declaration', lines: ['<!doctype html>'] },
+    { name: 'HTML CDATA', lines: ['<![CDATA[', 'a < b', ']]>'] },
+    { name: 'closed raw pre HTML', lines: ['<pre>', 'raw', '</pre>'] },
+    { name: 'closed raw style HTML', lines: ['<style>', '.demo {}', '</style>'] },
+    { name: 'raw HTML', lines: ['<div>Raw</div>'], requiresSeparator: true },
+  ];
+
+  const pairwiseBoundaryCases = boundaryBlocks.flatMap((left) =>
+    boundaryBlocks.flatMap((right) =>
+      [0, 1, 2].flatMap((blankLineCount) => {
+        const requiresSeparator = left.requiresSeparator
+          || right.requiresSeparator
+          || left.requiresPairSeparator
+          || right.requiresPairSeparator
+          || (left.name === 'table' && right.name === 'table');
+        if (blankLineCount === 0 && requiresSeparator) return [];
+
+        const blanks = Array.from({ length: blankLineCount }, () => '');
+        const leftMarkdown = left.lines.join('\n');
+        const rightMarkdown = right.lines.join('\n');
+        return [{
+          name: left.name + ' -> ' + right.name + ' with ' + blankLineCount + ' blank line(s)',
+          independentParts: [leftMarkdown, rightMarkdown],
+          markdown: [...left.lines, ...blanks, ...right.lines].join('\n'),
+          expected: [
+            ...(left.expectedLines ?? left.lines),
+            ...blanks,
+            ...(right.expectedLines ?? right.lines),
+          ].join('\n'),
+        }];
+      })
+    )
+  );
+
+  it(
+    'preserves every ordered root-block pair with every valid 0/1/2-line boundary',
+    { timeout: 300_000 },
+    async () => {
+      await expectStableMarkdownRoundTrips(pairwiseBoundaryCases);
+    },
+  );
+
+  it.each(boundaryBlocks.filter(({ requiresSeparator }) => !requiresSeparator))(
+    'does not invent a root blank line around tight $name input',
+    async ({ lines, expectedLines = lines }) => {
+      const markdown = ['# Before', ...lines, '```after', 'after', '```'].join('\n');
+      const expected = ['# Before', ...expectedLines, '```after', 'after', '```'].join('\n');
+      await expectStableMarkdownRoundTrip(markdown, expected);
+    },
+  );
+
+  it.each(boundaryBlocks.filter(({ requiresSeparator }) => !requiresSeparator))(
+    'does not invent a root blank line before an unlabelled code fence after tight $name input',
+    async ({ lines, expectedLines = lines }) => {
+      const markdown = ['# Before', ...lines, '```', 'after', '```'].join('\n');
+      const expected = ['# Before', ...expectedLines, '```', 'after', '```'].join('\n');
+      await expectStableMarkdownRoundTrip(markdown, expected);
+    },
+  );
+
+  it.each(boundaryBlocks.filter(({ requiresSeparator }) => !requiresSeparator))(
+    'does not invent a root blank line after an unlabelled code fence before tight $name input',
+    async ({ lines, expectedLines = lines }) => {
+      const markdown = ['```', 'before', '```', ...lines, '## After'].join('\n');
+      const expected = ['```', 'before', '```', ...expectedLines, '## After'].join('\n');
+      await expectStableMarkdownRoundTrip(markdown, expected);
+    },
+  );
+
+  it.each(boundaryBlocks.flatMap((block) => [1, 2].map((blankLineCount) => ({
+    ...block,
+    blankLineCount,
+  }))))(
+    'preserves $blankLineCount authored root blank line(s) around $name',
+    async ({ lines, expectedLines = lines, blankLineCount }) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        '# Before',
+        ...blanks,
+        ...lines,
+        ...blanks,
+        '```after',
+        'after',
+        '```',
+      ].join('\n');
+      const expected = [
+        '# Before',
+        ...blanks,
+        ...expectedLines,
+        ...blanks,
+        '```after',
+        'after',
+        '```',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown, expected);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s authored root blank line(s) after leading frontmatter',
+    async (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        '---',
+        'title: Demo',
+        '---',
+        ...blanks,
+        '```after',
+        'after',
+        '```',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each(
+    [0, 1, 2].flatMap((blankLineCountBefore) =>
+      [0, 1, 2].map((blankLineCountAfter) => ({
+        blankLineCountAfter,
+        blankLineCountBefore,
+      }))
+    )
+  )(
+    'preserves $blankLineCountBefore/$blankLineCountAfter authored blank lines around a middle unused reference definition',
+    async ({ blankLineCountBefore, blankLineCountAfter }) => {
+      const markdown = [
+        '# Before',
+        ...Array.from({ length: blankLineCountBefore }, () => ''),
+        '[unused]: https://example.test/unused',
+        ...Array.from({ length: blankLineCountAfter }, () => ''),
+        '## After',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s authored blank line(s) inside a definition list',
+    async (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        '```',
+        'before',
+        '```',
+        'Term',
+        ...blanks,
+        ': Definition',
+        '## After',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each(
+    (['math', 'noembed', 'noscript', 'plaintext', 'svg', 'textarea', 'xmp'] as const)
+      .flatMap((tagName) => [0, 1, 2].map((blankLineCount) => ({
+        blankLineCount,
+        tagName,
+      })))
+  )(
+    'preserves $blankLineCount authored blockquote blank line(s) after nested $tagName html',
+    async ({ blankLineCount, tagName }) => {
+      const markdown = [
+        `> <${tagName}>`,
+        `> hidden ${tagName} source`,
+        `> </${tagName}>`,
+        ...Array.from({ length: blankLineCount }, () => '>'),
+        '> # After raw html',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([
+    {
+      container: 'unordered list item',
+      markdown: [
+        '- <textarea>',
+        '  hidden textarea source',
+        '  </textarea>',
+        '  # After raw html',
+      ].join('\n'),
+    },
+    {
+      container: 'ordered list blockquote',
+      markdown: [
+        '7. > <textarea>',
+        '   > hidden textarea source',
+        '   > </textarea>',
+        '   > # After raw html',
+      ].join('\n'),
+    },
+    {
+      container: 'footnote definition',
+      markdown: [
+        'Footnote reference[^html].',
+        '',
+        '[^html]: <textarea>',
+        '    hidden textarea source',
+        '    </textarea>',
+        '    # After raw html',
+      ].join('\n'),
+    },
+    {
+      container: 'definition list description',
+      markdown: [
+        'Term',
+        ': <textarea>',
+        '  hidden textarea source',
+        '  </textarea>',
+        '# After raw html',
+      ].join('\n'),
+    },
+  ])('preserves raw html source inside $container', async ({ markdown }) => {
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it.each([
+    {
+      block: 'heading',
+      markdown: '- # Nested heading',
+    },
+    {
+      block: 'fenced code',
+      markdown: ['- ```ts', '  nested code', '  ```'].join('\n'),
+    },
+    {
+      block: 'display math',
+      markdown: ['- $$', '  x + y', '  $$'].join('\n'),
+    },
+    {
+      block: 'bracket display math',
+      markdown: ['- \\[', '  x + y', '  \\]'].join('\n'),
+    },
+    {
+      block: 'thematic break',
+      markdown: '* ---',
+    },
+  ])('preserves a list marker tight to a first $block block', async ({ markdown }) => {
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it.each([
+    {
+      block: 'fenced code',
+      lines: ['- ```ts', '  nested code', '  ```'],
+    },
+    {
+      block: 'display math',
+      lines: ['- $$', '  x + y', '  $$'],
+    },
+    {
+      block: 'bracket display math',
+      lines: ['- \\[', '  x + y', '  \\]'],
+    },
+    {
+      block: 'raw HTML',
+      lines: ['- <textarea>', '  nested raw HTML', '  </textarea>'],
+    },
+    {
+      block: 'heading',
+      lines: ['- # Nested heading'],
+    },
+  ].flatMap((testCase) => [0, 1, 2].map((blankLineCount) => ({
+    ...testCase,
+    blankLineCount,
+  }))))(
+    'preserves $blankLineCount blank line(s) after a list-first $block',
+    async ({ blankLineCount, lines }) => {
+      const markdown = [
+        ...lines,
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '[TOC]',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([
+    {
+      block: 'fenced code',
+      lines: ['- ```ts', '  nested code', '  ```'],
+    },
+    {
+      block: 'display math',
+      lines: ['- $$', '  x + y', '  $$'],
+    },
+    {
+      block: 'bracket display math',
+      lines: ['- \\[', '  x + y', '  \\]'],
+    },
+    {
+      block: 'heading',
+      lines: ['- # Nested heading'],
+    },
+  ].flatMap((testCase) => [0, 1, 2].map((blankLineCount) => ({
+    ...testCase,
+    blankLineCount,
+  }))))(
+    'preserves $blankLineCount blank line(s) before a list-first $block after another list',
+    async ({ blankLineCount, lines }) => {
+      const markdown = [
+        '* Parent',
+        '  * Nested',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        ...lines,
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves a leading alignment comment with %s authored blank line(s)',
+    async (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        '<!--align:center-->',
+        ...blanks,
+        'Paragraph',
+        '# Heading',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s blank line(s) between list-contained and quoted fenced code',
+    async (blankLineCount) => {
+      const markdown = [
+        '- ```ts',
+        '  nested code',
+        '  ```',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '> - ```md',
+        '>   quoted code',
+        '>   ```',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s blank line(s) between a nested list and a quoted list',
+    async (blankLineCount) => {
+      const markdown = [
+        '* Parent',
+        '  * Nested',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '> - ```md',
+        '>   quoted code',
+        '>   ```',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s blank line(s) between list raw HTML and a task list',
+    async (blankLineCount) => {
+      const markdown = [
+        '- <textarea>',
+        '  nested raw HTML',
+        '  </textarea>',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '- [ ] Task',
+        '- [x] Done',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it('does not leak a rendered HTML boundary helper after raw HTML with fence-like text', async () => {
+    const markdown = [
+      '- \\[',
+      '  x = y',
+      '  \\]',
+      '',
+      '![video](https://example.test/video.mp4 "Video")',
+      '<?note value?>',
+      '',
+      '',
+      '- <textarea>',
+      '  - protected html marker',
+      '  ```not-a-fence',
+      '  </textarea>',
+      '',
+      '<div>Raw HTML</div>',
+      '',
+      '7) Ordered',
+      '8) Continued',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('does not leak an image boundary placeholder before a thematic break', async () => {
+    const markdown = [
+      '***',
+      '![Image](image.png "Title")',
+      '',
+      '***',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('does not leak an image boundary placeholder before later protected blocks', async () => {
+    const markdown = [
+      '***',
+      '![Image 501](image-501.png "Title 501")',
+      '',
+      '***',
+      '',
+      '',
+      '- $$',
+      '  x_503 = y_503',
+      '  $$',
+      '',
+      '',
+      'Paragraph 504 with **bold**, *emphasis*, `code`, and [link](https://example.test/504).',
+      '',
+      '',
+      'Setext heading 505',
+      '----------------',
+      '',
+      '',
+      '- <textarea>',
+      '  - protected html marker 506',
+      '  ```not-a-fence',
+      '  </textarea>',
+      '',
+      '',
+      '````md',
+      '> ````',
+      'protected pseudo close 507',
+      '````',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('does not leak an image boundary placeholder before list display math', async () => {
+    const markdown = [
+      '***',
+      '![Image](image.png "Title")',
+      '',
+      '***',
+      '',
+      '',
+      '- $$',
+      '  x = y',
+      '  $$',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('does not leak an image boundary placeholder before list raw HTML', async () => {
+    const markdown = [
+      '***',
+      '![Image](image.png "Title")',
+      '',
+      '***',
+      '',
+      '',
+      '- <textarea>',
+      '  hidden',
+      '  </textarea>',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('does not leak an image boundary placeholder before a pseudo closing fence', async () => {
+    const markdown = [
+      '***',
+      '![Image](image.png "Title")',
+      '',
+      '***',
+      '',
+      '',
+      '````md',
+      '> ````',
+      'protected pseudo close',
+      '````',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('does not leak an image boundary placeholder before a setext heading', async () => {
+    const markdown = [
+      '***',
+      '![Image](image.png "Title")',
+      '',
+      '***',
+      '',
+      '',
+      'Setext heading',
+      '----------------',
+    ].join('\n');
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it.each([0, 1, 2])(
+    'preserves an explicit left alignment comment with %s authored blank line(s)',
+    async (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        'Paragraph',
+        ...blanks,
+        '<!--align:left-->',
+        '# Heading',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s authored blank line(s) around a nested alignment comment',
+    async (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '>');
+      const markdown = [
+        '> Paragraph',
+        ...blanks,
+        '> <!--align:right-->',
+        ...blanks,
+        '> # Heading',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
 });

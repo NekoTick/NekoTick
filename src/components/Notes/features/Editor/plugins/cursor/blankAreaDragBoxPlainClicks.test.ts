@@ -4,7 +4,10 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { resolveTextblockLineEndPlainClick } from './listParagraphEndPlainClick';
-import { clearTextSelectionForDragSession } from './blankAreaDragBoxPlainClicks';
+import {
+  clearTextSelectionForDragSession,
+  startInsideBlockTrailingPlainClickSession,
+} from './blankAreaDragBoxPlainClicks';
 
 function createHarness(nextContent: 'paragraph' | 'list' | 'none' = 'paragraph') {
   const editor = document.createElement('div');
@@ -240,6 +243,41 @@ describe('clearTextSelectionForDragSession', () => {
       expect(view.state.selection).toBeInstanceOf(TextSelection);
       expect(view.state.selection.from).toBe(hardBreakPos);
       expect(view.state.selection.to).toBe(hardBreakPos);
+    } finally {
+      await editor.destroy();
+    }
+  });
+});
+
+describe('startInsideBlockTrailingPlainClickSession', () => {
+  it('focuses an empty text block before the first typed character can reach a neighbor', async () => {
+    const editor = Editor.make().use(commonmark).use(gfm);
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const { paragraph } = view.state.schema.nodes;
+      const before = paragraph.create(null, view.state.schema.text('before'));
+      const empty = paragraph.create();
+      const after = paragraph.create(null, view.state.schema.text('after'));
+      const emptyPos = before.nodeSize;
+      const tr = view.state.tr.replaceWith(
+        0,
+        view.state.doc.content.size,
+        [before, empty, after],
+      );
+      view.dispatch(tr.setSelection(TextSelection.create(tr.doc, emptyPos + empty.nodeSize + 1)));
+
+      const event = new MouseEvent('mousedown', { button: 0, cancelable: true });
+      const stop = startInsideBlockTrailingPlainClickSession(view, event, {
+        blockFrom: emptyPos,
+        targetPos: emptyPos + 1,
+        bias: -1,
+      });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.selection.from).toBe(emptyPos + 1);
+      stop();
     } finally {
       await editor.destroy();
     }

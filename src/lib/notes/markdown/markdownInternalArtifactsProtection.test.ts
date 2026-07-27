@@ -3,12 +3,76 @@ import {
   normalizeEditorStateMarkdownDocument,
   normalizeSerializedMarkdownDocument,
 } from './markdownSerializationUtils';
+import { normalizeInternalMarkdownBlankLineComments } from './markdownSerializationInternalBlankComments';
+import { LIST_GAP_SENTINEL } from './markdownSerializationShared';
 
 describe('markdown internal artifact protection', () => {
   it('removes editor blank-line comments outside protected content', () => {
     expect(
       normalizeSerializedMarkdownDocument(['A', '<!--vlaina-markdown-blank-line-->', 'B'].join('\n'))
     ).toBe(['A', '', 'B'].join('\n'));
+  });
+
+  it.each([
+    ['root fenced code', ['```ts', 'code', '```']],
+    ['list-first fenced code', ['- ```ts', '  code', '  ```']],
+    ['ordered-list-first fenced code', ['7. ```ts', '   code', '   ```']],
+  ])('removes editor blank-line comments after %s closes', (_, blockLines) => {
+    const serialized = [
+      ...blockLines,
+      '<!--vlaina-markdown-blank-line-->',
+      '***',
+    ].join('\n');
+
+    expect(normalizeSerializedMarkdownDocument(serialized)).toBe([
+      ...blockLines,
+      '',
+      '***',
+    ].join('\n'));
+  });
+
+  it.each([
+    ['dollar', ['- $$', '  x + y', '  $$']],
+    ['bracket', ['- \\[', '  x + y', '  \\]']],
+  ])('removes editor blank-line comments after list-contained %s math closes', (_, blockLines) => {
+    const serialized = [
+      ...blockLines,
+      '<!--vlaina-markdown-blank-line-->',
+      '[TOC]',
+    ].join('\n');
+
+    expect(normalizeSerializedMarkdownDocument(serialized)).toBe([
+      ...blockLines,
+      '',
+      '[TOC]',
+    ].join('\n'));
+  });
+
+  it.each([
+    ['task', '- [ ] Task\n- [x] Done'],
+    ['ordered', '1. Ordered\n2. Continued'],
+  ])('preserves a blank line from a nested bullet list to a %s list', (_, nextList) => {
+    const serialized = [
+      '* Bullet',
+      '  * Nested',
+      '<!--vlaina-markdown-blank-line-->',
+      nextList,
+    ].join('\n');
+    const withSentinel = [
+      '* Bullet',
+      '  * Nested',
+      LIST_GAP_SENTINEL,
+      nextList,
+    ].join('\n');
+    const expected = [
+      '* Bullet',
+      '  * Nested',
+      '',
+      nextList,
+    ].join('\n');
+
+    expect(normalizeInternalMarkdownBlankLineComments(serialized)).toBe(withSentinel);
+    expect(normalizeSerializedMarkdownDocument(serialized)).toBe(expected);
   });
 
   it('removes editor-generated rendered HTML boundary helper comments', () => {
@@ -26,6 +90,58 @@ describe('markdown internal artifact protection', () => {
 
     expect(normalizeSerializedMarkdownDocument(markdown)).toBe(expected);
     expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(expected);
+  });
+
+  it('removes rendered HTML boundary helpers after serializer-escaped closing tags', () => {
+    const serialized = [
+      '<div>',
+      'Alpha',
+      '',
+      'Beta',
+      '',
+      '\\</div>',
+      '',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
+      '',
+      'After',
+    ].join('\n');
+
+    expect(normalizeSerializedMarkdownDocument(serialized)).toBe([
+      '<div>',
+      'Alpha',
+      '',
+      'Beta',
+      '</div>',
+      '',
+      'After',
+    ].join('\n'));
+  });
+
+  it('removes rendered HTML boundary helpers after raw HTML with fence-like text', () => {
+    const serialized = [
+      '- <textarea>',
+      '  - protected html marker',
+      '  ```not-a-fence',
+      '  </textarea>',
+      '',
+      '<div>Raw HTML</div>',
+      '',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
+      '7) Ordered',
+      '8) Continued',
+    ].join('\n');
+
+    expect(normalizeSerializedMarkdownDocument(serialized)).toBe([
+      '- <textarea>',
+      '  - protected html marker',
+      '  ```not-a-fence',
+      '  </textarea>',
+      '',
+      '<div>Raw HTML</div>',
+      '',
+      '7) Ordered',
+      '8) Continued',
+    ].join('\n'));
   });
 
   it('preserves user-authored rendered HTML boundary comments outside helper positions', () => {

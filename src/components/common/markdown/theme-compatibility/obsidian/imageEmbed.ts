@@ -47,7 +47,7 @@ export function parseObsidianImageEmbedTarget(rawTarget: string): {
 }
 
 function splitTextNode(node: MarkdownAstNode): MarkdownAstNode[] | null {
-  if (typeof node.value !== 'string' || !node.value.includes('![[')) {
+  if (node.type !== 'text' || typeof node.value !== 'string' || !node.value.includes('![[')) {
     return null;
   }
 

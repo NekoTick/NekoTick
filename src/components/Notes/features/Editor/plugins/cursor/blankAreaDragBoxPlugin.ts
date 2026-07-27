@@ -30,7 +30,6 @@ import {
 } from './blankAreaInteractionUtils';
 import {
   appendMarkdownBlankLineNodeSelectionRecoveryTransaction,
-  appendFreshEmptyParagraphInputBoundaryTransaction,
   createEditableMarkdownBlankLineDecorations,
 } from './markdownBlankLineInteraction';
 import {
@@ -166,15 +165,8 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
 
   return new Plugin({
     key: blankAreaDragBoxPluginKey,
-    appendTransaction(transactions, oldState, newState) {
-      const markdownBlankLineSelectionRecovery =
-        appendMarkdownBlankLineNodeSelectionRecoveryTransaction(oldState, newState);
-      if (markdownBlankLineSelectionRecovery) {
-        return markdownBlankLineSelectionRecovery;
-      }
-
-      if (!transactions.some((tr) => tr.docChanged)) return null;
-      return appendFreshEmptyParagraphInputBoundaryTransaction(oldState, newState);
+    appendTransaction(_transactions, oldState, newState) {
+      return appendMarkdownBlankLineNodeSelectionRecoveryTransaction(oldState, newState);
     },
     state: {
       init(_config, state) {

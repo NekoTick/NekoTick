@@ -81,6 +81,18 @@ describe('colorMarkdown', () => {
     ]);
   });
 
+  it('does not parse plus operators as underline delimiters', () => {
+    const text = { type: 'text', value: 'C++ demo and C+++ suffix; C++ and C++.' };
+    const tree: ColorMarkdownMdastNode = {
+      type: 'root',
+      children: [{ type: 'paragraph', children: [text] }],
+    };
+
+    replaceUnderlineMarkdown(tree);
+
+    expect(tree.children?.[0].children).toEqual([text]);
+  });
+
   it('skips inline color html conversion on over-deep trees', () => {
     const leafChildren = [{ type: 'html', value: '<mark style="background-color: #abcdef">text</mark>' }];
     const { leaf, tree } = buildDeepTree(leafChildren);

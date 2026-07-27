@@ -5,11 +5,6 @@ import { TextSelection } from '@milkdown/kit/prose/state';
 import type { Selection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { themeDomStyleTokens } from '@/styles/themeTokens';
-import {
-  findTopLevelBlockAfter,
-  findTopLevelBlockBefore,
-  isMarkdownBlankLinePlaceholderNode,
-} from '../cursor/markdownBlankLineShared';
 export {
   findInsertedNodePos,
   moveSelectionAfterInsertedNode,
@@ -46,24 +41,10 @@ function isEditableBlankLineText(text: string): boolean {
 }
 
 function getCurrentBlankTextBlockReplaceRange(selection: TextSelection) {
-  const from = selection.$from.before(1);
-  const to = selection.$from.after(1);
-  const previous = findTopLevelBlockBefore(selection.$from.doc, from);
-  const next = findTopLevelBlockAfter(selection.$from.doc, to);
-
-  if (
-    previous &&
-    next &&
-    isMarkdownBlankLinePlaceholderNode(previous?.node) &&
-    isMarkdownBlankLinePlaceholderNode(next?.node)
-  ) {
-    return {
-      from: previous.from,
-      to: next.to,
-    };
-  }
-
-  return { from, to };
+  return {
+    from: selection.$from.before(1),
+    to: selection.$from.after(1),
+  };
 }
 
 export function replaceSelectionOrCurrentBlankTextBlockWithNode<TNode, TTransaction>(state: {

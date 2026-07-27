@@ -10,30 +10,37 @@ import {
     linkSchema,
     paragraphSchema,
 } from '@milkdown/kit/preset/commonmark';
-import {
-    getTextAlignmentComment,
-    readMarkdownNodeAlignment,
-} from './plugins/floating-toolbar/blockAlignmentMarkdown';
 import { sanitizeNoteLinkHref } from '@/lib/notes/markdown/urlSecurity';
 import {
     getAlignedBlockDomAttrs,
     getDomAttrs,
     getDomTextAlignment,
     mergeDomClassNames,
-    normalizeTextAlignment,
     updateSchemaFactory,
 } from './themeSchemaUtils';
+import {
+    alignmentCommentMarkdownAttrs,
+    getAlignmentCommentMarkdownAttrs,
+    getTextAlignmentMarkdownParseAttrs,
+    serializeTextBlockWithAlignmentComment,
+    textAlignmentMarkdownAttrs,
+} from './themeTextAlignmentMarkdown';
 import {
     readEscapedMarkdownBlockSyntax,
 } from '@/components/common/markdown/escapedBlockSyntax';
 import {
     getRawMarkdownHtmlValue,
+    getRawMarkdownHtmlRenderValue,
     isLiteralInlineMarkdownHtmlElement,
     MARKDOWN_HTML_INLINE_CLASS,
     MARKDOWN_HTML_SOURCE_TEXT_CLASS,
     renderRawMarkdownHtmlValueIntoElement,
     sanitizeRawMarkdownHtmlValue,
 } from './themeRawMarkdownHtml';
+import {
+    SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR,
+    SOURCE_TIGHT_HTML_BEFORE_ATTR,
+} from './plugins/html-block/htmlBlockMarkdown';
 export {
     renderRawMarkdownHtmlValueIntoElement,
     sanitizeRawMarkdownHtmlValue,
@@ -54,7 +61,7 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         ...prev,
         attrs: {
             ...(prev.attrs || {}),
-            align: { default: 'left' },
+            ...textAlignmentMarkdownAttrs,
             vlainaEscapedBlockSyntax: { default: null },
         },
         toDOM: (node: any) => [
@@ -80,10 +87,9 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         parseMarkdown: {
             match: (node: any) => node.type === 'paragraph',
             runner: (state: any, node: any, type: any) => {
-                const align = readMarkdownNodeAlignment(node);
                 const escapedBlockSyntax = readEscapedMarkdownBlockSyntax(node);
                 const attrs = {
-                    ...(align !== 'left' ? { align } : {}),
+                    ...(getTextAlignmentMarkdownParseAttrs(node) || {}),
                     ...(escapedBlockSyntax ? { vlainaEscapedBlockSyntax: escapedBlockSyntax } : {}),
                 };
                 state.openNode(type, Object.keys(attrs).length > 0 ? attrs : undefined);
@@ -94,11 +100,11 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         toMarkdown: {
             match: (node: any) => node.type.name === 'paragraph',
             runner: (state: any, node: any) => {
-                const align = normalizeTextAlignment(node.attrs.align);
-                prev.toMarkdown.runner(state, node);
-                if (align !== 'left') {
-                    state.addNode('html', undefined, getTextAlignmentComment(align));
-                }
+                serializeTextBlockWithAlignmentComment(
+                    state,
+                    node,
+                    () => prev.toMarkdown.runner(state, node),
+                );
             },
         },
     }));
@@ -107,7 +113,7 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         ...prev,
         attrs: {
             ...(prev.attrs || {}),
-            align: { default: 'left' },
+            ...textAlignmentMarkdownAttrs,
         },
         toDOM: (node: any) => {
             const level = node.attrs.level;
@@ -130,10 +136,10 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         parseMarkdown: {
             match: (node: any) => node.type === 'heading',
             runner: (state: any, node: any, type: any) => {
-                const align = readMarkdownNodeAlignment(node);
-                const attrs = align !== 'left'
-                    ? { level: node.depth, align }
-                    : { level: node.depth };
+                const attrs = {
+                    level: node.depth,
+                    ...(getTextAlignmentMarkdownParseAttrs(node) || {}),
+                };
                 state.openNode(type, attrs);
                 state.next(node.children);
                 state.closeNode();
@@ -142,11 +148,11 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         toMarkdown: {
             match: (node: any) => node.type.name === 'heading',
             runner: (state: any, node: any) => {
-                const align = normalizeTextAlignment(node.attrs.align);
-                prev.toMarkdown.runner(state, node);
-                if (align !== 'left') {
-                    state.addNode('html', undefined, getTextAlignmentComment(align));
-                }
+                serializeTextBlockWithAlignmentComment(
+                    state,
+                    node,
+                    () => prev.toMarkdown.runner(state, node),
+                );
             },
         },
     }));
@@ -155,6 +161,7 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
         ...prev,
         toDOM: (node: any) => {
             const safeHref = sanitizeNoteLinkHref(node.attrs.href);
+            if (!safeHref) return ['span', 0];
             const attrs = getDomAttrs({ ...node.attrs, href: safeHref ?? undefined });
             const isExternalLink = isExternalLinkHref(safeHref);
             const className = mergeDomClassNames(
@@ -175,11 +182,13 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
     updateSchemaFactory(ctx, htmlSchema.key, (prev: any) => ({
         ...prev,
         toDOM: (node: any) => {
-            const safeValue = sanitizeRawMarkdownHtmlValue(node.attrs?.value);
+            const renderValue = getRawMarkdownHtmlRenderValue(node.attrs?.renderValue);
+            const safeValue = sanitizeRawMarkdownHtmlValue(renderValue ?? node.attrs?.value);
             const dom = prev.toDOM({
                 ...node,
                 attrs: {
                     ...node.attrs,
+                    renderValue: null,
                     value: safeValue,
                 },
             });
@@ -196,7 +205,12 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
             match: (node: any) => prev.parseMarkdown?.match?.(node) ?? node.type === 'html',
             runner: (state: any, node: any, type: any) => {
                 const rawValue = getRawMarkdownHtmlValue(node.value);
-                if (rawValue) state.addNode(type, { value: rawValue });
+                if (rawValue) {
+                    state.addNode(type, {
+                        renderValue: getRawMarkdownHtmlRenderValue(node.githubHtmlRenderValue),
+                        value: rawValue,
+                    });
+                }
             },
         },
         toMarkdown: {
@@ -260,12 +274,20 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
 
     updateSchemaFactory(ctx, htmlBlockSchema.key, (prev: any) => ({
         ...prev,
+        attrs: {
+            ...(prev.attrs || {}),
+            ...alignmentCommentMarkdownAttrs,
+            [SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR]: { default: null },
+            [SOURCE_TIGHT_HTML_BEFORE_ATTR]: { default: false },
+        },
         toDOM: (node: any) => {
-            const safeValue = sanitizeRawMarkdownHtmlValue(node.attrs?.value);
+            const renderValue = getRawMarkdownHtmlRenderValue(node.attrs?.renderValue);
+            const safeValue = sanitizeRawMarkdownHtmlValue(renderValue ?? node.attrs?.value);
             const dom = prev.toDOM({
                 ...node,
                 attrs: {
                     ...node.attrs,
+                    renderValue: null,
                     value: safeValue,
                 },
             });
@@ -279,15 +301,50 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
             match: (node: any) => prev.parseMarkdown?.match?.(node) ?? node.type === 'html',
             runner: (state: any, node: any, type: any) => {
                 const rawValue = getRawMarkdownHtmlValue(node.value);
-                if (rawValue) state.addNode(type, { value: rawValue });
+                if (rawValue) {
+                    state.addNode(type, {
+                        renderValue: getRawMarkdownHtmlRenderValue(node.githubHtmlRenderValue),
+                        value: rawValue,
+                        ...getAlignmentCommentMarkdownAttrs(node.data),
+                        [SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR]:
+                            getSourceHtmlBlankLineCount(
+                                node.data?.[SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR]
+                            ),
+                        [SOURCE_TIGHT_HTML_BEFORE_ATTR]:
+                            node.data?.[SOURCE_TIGHT_HTML_BEFORE_ATTR] === true,
+                    });
+                }
             },
         },
         toMarkdown: {
             match: (node: any) => node.type.name === 'html_block',
             runner: (state: any, node: any) => {
                 const rawValue = getRawMarkdownHtmlValue(node.attrs?.value);
-                if (rawValue) state.addNode('html', undefined, rawValue);
+                if (rawValue) {
+                    const data = getAlignmentCommentMarkdownAttrs(node.attrs);
+                    if (node.attrs?.[SOURCE_TIGHT_HTML_BEFORE_ATTR] === true) {
+                        data[SOURCE_TIGHT_HTML_BEFORE_ATTR] = true;
+                    }
+                    const sourceHtmlBlankLineCountAfter = getSourceHtmlBlankLineCount(
+                        node.attrs?.[SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR]
+                    );
+                    if (sourceHtmlBlankLineCountAfter !== null) {
+                        data[SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR] = sourceHtmlBlankLineCountAfter;
+                    }
+                    state.addNode(
+                        'html',
+                        undefined,
+                        rawValue,
+                        Object.keys(data).length > 0 ? { data } : undefined,
+                    );
+                }
             },
         },
     }));
+}
+
+function getSourceHtmlBlankLineCount(value: unknown): number | null {
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+        ? value
+        : null;
 }

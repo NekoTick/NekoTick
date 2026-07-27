@@ -169,6 +169,22 @@ describe('resolvePendingMarkdownUpdate', () => {
     ).toBe(['Before', '', '***', '', '___', '', 'After'].join('\n'));
   });
 
+  it('restores leading thematic breaks before frontmatter-sensitive artifact cleanup', () => {
+    expect(
+      serializeEditorMarkdownSnapshot(
+        [
+          '---',
+          '<!--vlaina-markdown-blank-line-->',
+          '---',
+          '<!--vlaina-markdown-blank-line-->',
+          'After',
+          '',
+        ].join('\n'),
+        ['***', '', '***', '', 'After'].join('\n'),
+      )
+    ).toBe(['***', '', '***', '', 'After'].join('\n'));
+  });
+
   it('preserves setext heading style from the reference note', () => {
     expect(
       serializeEditorMarkdownSnapshot(
@@ -274,7 +290,14 @@ describe('resolvePendingMarkdownUpdate', () => {
         ['Read [Docs](https://example.com "Docs").', '', '', '', 'After', ''].join('\n'),
         ['Read [Docs][docs].', '', '[docs]: https://example.com "Docs"', '', '', 'After'].join('\n'),
       )
-    ).toBe(['Read [Docs][docs].', '', '[docs]: https://example.com "Docs"', '', 'After'].join('\n'));
+    ).toBe([
+      'Read [Docs][docs].',
+      '',
+      '[docs]: https://example.com "Docs"',
+      '',
+      '',
+      'After',
+    ].join('\n'));
   });
 
   it('preserves reference links with escaped serialized query separators', () => {
@@ -360,6 +383,20 @@ describe('resolvePendingMarkdownUpdate', () => {
         '1',
       ),
     ).toBe(['1', '', '2', '3'].join('\n'));
+  });
+
+  it('preserves serializer paragraph separators inside list item indentation', () => {
+    const markdown = [
+      '- one',
+      '',
+      '  detail paragraph',
+      '',
+      '  second detail',
+      '',
+      '- two',
+    ].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(`${markdown}\n`, markdown)).toBe(markdown);
   });
 
   it('strips rendered HTML boundary helpers around one-line HTML image blocks before note state', () => {
@@ -541,6 +578,10 @@ describe('resolvePendingMarkdownUpdate', () => {
 
   it('keeps Shift+Enter hard breaks as markdown hard breaks', () => {
     expect(serializeEditorMarkdownSnapshot('1\\\n2\n', '1')).toBe('1\\\n2');
+  });
+
+  it('preserves authored two-space hard break markers', () => {
+    expect(serializeEditorMarkdownSnapshot('1\\\n2\n', '1  \n2')).toBe('1  \n2');
   });
 
   it('does not compact structural markdown blank lines', () => {

@@ -1,10 +1,11 @@
 import { Fragment } from '@milkdown/kit/prose/model';
-import { Plugin, TextSelection } from '@milkdown/kit/prose/state';
+import { Plugin } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
 import { markEditorUserInput } from '../shared/userInputEvents';
 import { normalizeVideoAttrs } from './videoDom';
 import { sanitizeVideoUrlInput } from './videoUrl';
+import { moveSelectionAfterInsertedNode } from '../shared/insertedNodeSelection';
 
 const MAX_VIDEO_MARKDOWN_INPUT_CHARS = 8_192;
 const markdownImagePattern = /^!\[(?<alt>.*?)]\((?<src><(?:\\.|[^>\n])+>|[^\s)]+)(?:\s+"(?<title>[^"]+)")?\)$/;
@@ -50,19 +51,26 @@ function handleVideoMarkdownTextInput(
   const title = match.groups?.title || (alt !== 'video' ? alt : '');
   const video = videoType.create(normalizeVideoAttrs({ src, title }));
   const trailingParagraph = paragraphType.create();
-  const replacement = Fragment.fromArray([video, trailingParagraph]);
   const parentDepth = selection.$from.depth - 1;
   const parent = selection.$from.node(parentDepth);
   const fromIndex = selection.$from.index(parentDepth);
+  const hasFollowingSibling = fromIndex + 1 < parent.childCount;
+  const replacement = Fragment.fromArray(
+    hasFollowingSibling ? [video] : [video, trailingParagraph],
+  );
   if (!parent.canReplace(fromIndex, fromIndex + 1, replacement)) return false;
 
   const blockFrom = selection.$from.before(selection.$from.depth);
   const blockTo = selection.$from.after(selection.$from.depth);
   const tr = state.tr.replaceWith(blockFrom, blockTo, replacement);
+  const movedTr = moveSelectionAfterInsertedNode({
+    tr,
+    nodePos: blockFrom,
+    insertedNodeFallback: video,
+    paragraphType,
+  });
   markEditorUserInput(view);
-  view.dispatch(
-    tr.setSelection(TextSelection.create(tr.doc, blockFrom + video.nodeSize + 1)).scrollIntoView(),
-  );
+  view.dispatch(movedTr.scrollIntoView());
   return true;
 }
 

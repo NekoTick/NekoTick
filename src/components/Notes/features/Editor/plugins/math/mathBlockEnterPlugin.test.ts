@@ -174,14 +174,12 @@ describe('mathBlockEnterPlugin', () => {
       ));
 
       expect(handleMathBlockShortcutEnter(view)).toBe(true);
-      expect(view.state.doc.childCount).toBe(3);
+      expect(view.state.doc.childCount).toBe(2);
       expect(view.state.doc.child(0).type.name).toBe('math_block');
-      expect(view.state.doc.child(1).type.name).toBe('paragraph');
-      expect(view.state.doc.child(1).content.size).toBe(0);
-      expect(view.state.doc.child(2).type.name).toBe('heading');
-      expect(view.state.doc.child(2).textContent).toBe('Heading');
-      expect(view.state.selection).toBeInstanceOf(TextSelection);
-      expect(view.state.selection.$from.parent).toBe(view.state.doc.child(1));
+      expect(view.state.doc.child(1).type.name).toBe('heading');
+      expect(view.state.doc.child(1).textContent).toBe('Heading');
+      expect(view.state.selection).toBeInstanceOf(NodeSelection);
+      expect((view.state.selection as NodeSelection).node).toBe(view.state.doc.child(0));
     } finally {
       await editor.destroy();
     }

@@ -1,3 +1,9 @@
+import {
+  isMarkdownLineInContainer,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+} from '@/lib/notes/markdown/markdownFenceProtectedLines';
+
 interface FenceBlock {
   body: string;
   close: string;
@@ -109,20 +115,25 @@ export function restoreMermaidFenceSourceFromReference(
 function collectFenceBlocks(markdown: string): FenceBlock[] {
   const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
   const blocks: FenceBlock[] = [];
-  let active: { length: number; marker: string; open: string; start: number; lang: string } | null = null;
+  let active: {
+    blockquoteDepth: number;
+    containerIndent: number;
+    length: number;
+    marker: string;
+    open: string;
+    start: number;
+    lang: string;
+  } | null = null;
   let bodyStart = 0;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? '';
-    const fence = parseFenceLine(line);
+    if (active && !isMarkdownLineInContainer(line, active)) {
+      active = null;
+    }
 
     if (active) {
-      if (
-        fence &&
-        fence.marker === active.marker &&
-        fence.length >= active.length &&
-        line.slice(fence.infoStart).trim() === ''
-      ) {
+      if (parseMarkdownContainerFenceCloseLine(line, active)) {
         blocks.push({
           body: lines.slice(bodyStart, index).join('\n'),
           close: line,
@@ -136,8 +147,11 @@ function collectFenceBlocks(markdown: string): FenceBlock[] {
       continue;
     }
 
-    if (fence) {
+    const fence = parseMarkdownContainerFenceLine(line);
+    if (fence && (fence.marker !== '`' || line.indexOf('`', fence.infoStart) === -1)) {
       active = {
+        blockquoteDepth: fence.blockquoteDepth,
+        containerIndent: fence.containerIndent,
         lang: line.slice(fence.infoStart).trim().split(/\s+/, 1)[0] ?? '',
         length: fence.length,
         marker: fence.marker,
@@ -237,23 +251,4 @@ function isMermaidFenceLanguage(language: string): boolean {
 
 function normalizeMermaidAlias(value: string): string {
   return value.trim().toLowerCase().replace(/[\s_-]+/g, '');
-}
-
-function parseFenceLine(line: string): { infoStart: number; length: number; marker: string } | null {
-  let cursor = 0;
-  while (cursor < line.length && cursor <= 3 && line[cursor] === ' ') {
-    cursor += 1;
-  }
-  if (cursor > 3) return null;
-
-  const marker = line[cursor];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (line[cursor + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return { infoStart: cursor + length, length, marker };
 }

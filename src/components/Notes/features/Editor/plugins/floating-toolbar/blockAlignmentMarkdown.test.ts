@@ -55,6 +55,50 @@ describe('blockAlignmentMarkdown', () => {
     expect(tree.children[0].children[0].align).toBe('center');
   });
 
+  it('records authored blank lines around an alignment comment', () => {
+    const markdown = ['Paragraph', '', '<!--align:center-->', '', '', '# Heading'].join('\n');
+    const commentStart = markdown.indexOf('<!--align:center-->');
+    const commentEnd = commentStart + '<!--align:center-->'.length;
+    const headingStart = markdown.indexOf('# Heading');
+    const tree: any = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', value: 'Paragraph' }],
+          position: {
+            start: { offset: 0 },
+            end: { offset: 'Paragraph'.length },
+          },
+        },
+        {
+          type: 'html',
+          value: '<!--align:center-->',
+          position: {
+            start: { offset: commentStart },
+            end: { offset: commentEnd },
+          },
+        },
+        {
+          type: 'heading',
+          children: [{ type: 'text', value: 'Heading' }],
+          position: {
+            start: { offset: headingStart },
+            end: { offset: markdown.length },
+          },
+        },
+      ],
+    };
+
+    applyAlignmentCommentsToTree(tree, markdown);
+
+    expect(tree.children[0].data).toMatchObject({
+      vlainaAlignmentBlankLineCountBefore: 1,
+      vlainaAlignmentBlankLineCountAfter: 2,
+      vlainaAlignmentCommentPlacement: 'after',
+    });
+  });
+
   it('applies a leading alignment comment to the next alignable block and removes it', () => {
     const tree: any = {
       type: 'root',
@@ -75,9 +119,10 @@ describe('blockAlignmentMarkdown', () => {
     expect(tree.children).toHaveLength(1);
     expect(tree.children[0].type).toBe('paragraph');
     expect(tree.children[0].align).toBe('right');
+    expect(tree.children[0].data.vlainaAlignmentCommentPlacement).toBe('before');
   });
 
-  it('removes orphan alignment comments instead of rendering them as html nodes', () => {
+  it('keeps an alignment comment when no text block can consume it', () => {
     const tree: any = {
       type: 'root',
       children: [
@@ -98,8 +143,12 @@ describe('blockAlignmentMarkdown', () => {
 
     applyAlignmentCommentsToTree(tree);
 
-    expect(tree.children).toHaveLength(1);
+    expect(tree.children).toHaveLength(2);
     expect(tree.children[0].align).toBe('center');
+    expect(tree.children[1]).toMatchObject({
+      type: 'html',
+      value: '<!--align:right-->',
+    });
   });
 
   it('applies alignment comments inside list items without affecting sibling items', () => {
@@ -222,9 +271,13 @@ describe('blockAlignmentMarkdown', () => {
 
     applyAlignmentCommentsToTree(tree);
 
-    expect(tree.children).toHaveLength(1);
+    expect(tree.children).toHaveLength(2);
     expect(tree.children[0].type).toBe('code');
     expect(tree.children[0].align).toBeUndefined();
+    expect(tree.children[1]).toMatchObject({
+      type: 'html',
+      value: '<!--align:center-->',
+    });
   });
 
   it('keeps alignment-looking text inside code nodes', () => {
@@ -250,7 +303,7 @@ describe('blockAlignmentMarkdown', () => {
     ]);
   });
 
-  it('does not override an existing alignment with a stale comment', () => {
+  it('does not override an existing alignment and keeps the unconsumed comment', () => {
     const tree: any = {
       type: 'root',
       children: [
@@ -268,7 +321,11 @@ describe('blockAlignmentMarkdown', () => {
 
     applyAlignmentCommentsToTree(tree);
 
-    expect(tree.children).toHaveLength(1);
+    expect(tree.children).toHaveLength(2);
     expect(tree.children[0].align).toBe('center');
+    expect(tree.children[1]).toMatchObject({
+      type: 'html',
+      value: '<!--align:right-->',
+    });
   });
 });

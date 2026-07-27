@@ -168,7 +168,7 @@ describe('markdown blank line reopen regressions', () => {
     const snapshot = await reopenMarkdown(markdown);
 
     expect(snapshot.textContent).toContain('底线（-/=）方式（不推荐）：\\');
-    expect(snapshot.persisted).toContain('底线（-/=）方式（**不推荐**）：\\\\\\');
+    expect(snapshot.persisted).toContain('底线（-/=）方式（**不推荐**）：\\');
   });
 
   it.each([

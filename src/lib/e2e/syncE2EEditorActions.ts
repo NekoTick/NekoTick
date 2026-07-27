@@ -1,6 +1,9 @@
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { getElectronBridge } from '@/lib/electron/bridge';
-import { getCurrentEditorView } from '@/components/Notes/features/Editor/utils/editorViewRegistry';
+import {
+  getCurrentEditorNotePath,
+  getCurrentEditorView,
+} from '@/components/Notes/features/Editor/utils/editorViewRegistry';
 import { focusCurrentEditorAtViewportPoint } from '@/components/Notes/features/Editor/utils/focusEditorAtPoint';
 import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorMarkdownFlusher';
 import {
@@ -33,6 +36,7 @@ type EditorBridgeActions = Pick<
   | 'getEditorSelectionSummary'
   | 'getEditorPositionAtPoint'
   | 'getEditorTextRange'
+  | 'getCurrentEditorNotePath'
   | 'focusEditorAtPoint'
   | 'setEditorSelectionRange'
   | 'focusCurrentEditor'
@@ -84,6 +88,7 @@ export function createSyncE2EEditorActions(): EditorBridgeActions {
         return null;
       }
     },
+    getCurrentEditorNotePath,
     getEditorTextRange: (text, anchorText) => findEditorTextRange(text, anchorText),
     focusEditorAtPoint: (clientX, clientY) => focusCurrentEditorAtViewportPoint({ clientX, clientY }),
     selectEditorTextByText: async (text, anchorText) => {

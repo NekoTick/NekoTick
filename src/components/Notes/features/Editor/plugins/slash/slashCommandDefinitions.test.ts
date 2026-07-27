@@ -396,7 +396,9 @@ describe('slashCommandDefinitions', () => {
     });
     expect(children).toEqual([
       { type: 'paragraph', text: 'hi', value: undefined },
+      { type: 'html_block', text: '', value: markdownBlankLineValue },
       { type: 'html_block', text: '', value: '' },
+      { type: 'html_block', text: '', value: markdownBlankLineValue },
       { type: 'paragraph', text: '1', value: undefined },
     ]);
 
@@ -454,7 +456,9 @@ describe('slashCommandDefinitions', () => {
     });
     expect(children).toEqual([
       { type: 'paragraph', text: 'hi', value: undefined },
+      { type: 'html_block', text: '', value: markdownBlankLineValue },
       { type: 'html_block', text: '', value: '' },
+      { type: 'html_block', text: '', value: markdownBlankLineValue },
       { type: 'paragraph', text: '1', value: undefined },
     ]);
 

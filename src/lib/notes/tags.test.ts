@@ -52,6 +52,32 @@ describe('note tags', () => {
     ].join('\n'))).toEqual(['visible', 'after']);
   });
 
+  it.each([
+    ['list', ['- ```md', '  #hidden', '  ```', '#visible']],
+    ['ordered list', ['7. ```md', '   #hidden', '   ```', '#visible']],
+    ['blockquote', ['> ```md', '> #hidden', '> ```', '#visible']],
+  ])('excludes tags from %s-contained fenced code', (_name, lines) => {
+    expect(extractNoteTags(lines.join('\n'))).toEqual(['visible']);
+  });
+
+  it('resumes tag extraction after an unclosed list fence leaves its container', () => {
+    expect(extractNoteTags([
+      '- ```md',
+      '  #hidden',
+      '#visible',
+    ].join('\n'))).toEqual(['visible']);
+  });
+
+  it('does not close a top-level fence on quote-prefixed fence content', () => {
+    expect(extractNoteTags([
+      '```md',
+      '> ```',
+      '#hidden',
+      '```',
+      '#visible',
+    ].join('\n'))).toEqual(['visible']);
+  });
+
   it('excludes tags from raw text and sanitizer-dropped HTML contents', () => {
     expect(extractNoteTags([
       '#visible',

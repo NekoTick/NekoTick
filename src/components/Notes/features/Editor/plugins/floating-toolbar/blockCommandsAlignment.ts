@@ -15,6 +15,11 @@ export function setTextAlignment(view: EditorView, alignment: TextAlignment): vo
 
   const isUnsupportedContainer = (typeName: string | undefined) =>
     typeName === 'table_cell' || typeName === 'table_header';
+  const getUpdatedAttrs = (attrs: Record<string, unknown> | undefined) => ({
+    ...attrs,
+    align: alignment,
+    ...(alignment === 'left' ? { vlainaAlignmentCommentPlacement: null } : {}),
+  });
 
   const applyAlignmentAcrossRange = (rangeFrom: number, rangeTo: number) => {
     forEachBoundedSelectedNode(state.doc, rangeFrom, rangeTo, (node, pos, parent) => {
@@ -22,10 +27,7 @@ export function setTextAlignment(view: EditorView, alignment: TextAlignment): vo
       if (node.type?.name !== 'paragraph' && node.type?.name !== 'heading') return;
       if (isUnsupportedContainer(parent?.type?.name)) return false;
 
-      tr.setNodeMarkup(pos, undefined, {
-        ...node.attrs,
-        align: alignment,
-      });
+      tr.setNodeMarkup(pos, undefined, getUpdatedAttrs(node.attrs));
       updated = true;
       updateCount += 1;
       return false;
@@ -49,10 +51,7 @@ export function setTextAlignment(view: EditorView, alignment: TextAlignment): vo
       !isUnsupportedContainer(ancestor.type.name)
     ) {
       const targetPos = $from.before();
-      tr.setNodeMarkup(targetPos, undefined, {
-        ...parent.attrs,
-        align: alignment,
-      });
+      tr.setNodeMarkup(targetPos, undefined, getUpdatedAttrs(parent.attrs));
       updated = true;
     }
   }

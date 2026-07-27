@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 import { DOMSerializer } from '@milkdown/prose/model'
 import type { EditorView } from '@milkdown/prose/view'
 
-import { defaultValueCtx, Editor, editorViewCtx } from '@milkdown/core'
+import { defaultValueCtx, Editor, editorViewCtx, serializerCtx } from '@milkdown/core'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { commonmark, htmlAttr } from '..'
@@ -12,6 +12,11 @@ function createEditor() {
   const editor = Editor.make()
   editor.use(commonmark)
   return editor
+}
+
+function getRawHtmlSourceValues(view: EditorView) {
+  return Array.from(view.dom.querySelectorAll<HTMLElement>('[data-type="html"], [data-type="html-block"]'))
+    .map((element) => element.dataset.value ?? '')
 }
 
 afterEach(() => {
@@ -325,7 +330,7 @@ it('should drop parser-promoted raw html siblings while creating editor document
     .map((image) => image.getAttribute('src'))
     .filter((src): src is string => Boolean(src))
   expect(srcs).toEqual(['https://example.com/real.png'])
-  expect(editor.ctx.get(editorViewCtx).dom.innerHTML).not.toContain('https://example.com/svg.png')
+  expect(getRawHtmlSourceValues(editor.ctx.get(editorViewCtx)).join('\n')).toContain('https://example.com/svg.png')
 
   await editor.destroy()
 })
@@ -346,8 +351,9 @@ it('should keep nested parser-promoted raw html containers active while creating
     .map((image) => image.getAttribute('src'))
     .filter((src): src is string => Boolean(src))
   expect(srcs).toEqual(['https://example.com/real.png'])
-  expect(editor.ctx.get(editorViewCtx).dom.innerHTML).not.toContain('hidden.png')
-  expect(editor.ctx.get(editorViewCtx).dom.innerHTML).not.toContain('leaked.png')
+  const rawSource = getRawHtmlSourceValues(editor.ctx.get(editorViewCtx)).join('\n')
+  expect(rawSource).toContain('hidden.png')
+  expect(rawSource).toContain('leaked.png')
 
   await editor.destroy()
 })
@@ -370,7 +376,7 @@ it('should ignore raw html close tags inside comments while creating editor docu
     .map((image) => image.getAttribute('src'))
     .filter((src): src is string => Boolean(src))
   expect(srcs).toEqual(['https://example.com/real.png'])
-  expect(editor.ctx.get(editorViewCtx).dom.innerHTML).not.toContain('leaked.png')
+  expect(getRawHtmlSourceValues(editor.ctx.get(editorViewCtx)).join('\n')).toContain('leaked.png')
 
   await editor.destroy()
 })
@@ -392,8 +398,9 @@ it('should keep malformed parser-promoted raw html containers active while creat
     .map((image) => image.getAttribute('src'))
     .filter((src): src is string => Boolean(src))
   expect(srcs).toEqual(['https://example.com/real.png'])
-  expect(editor.ctx.get(editorViewCtx).dom.innerHTML).not.toContain('hidden.png')
-  expect(editor.ctx.get(editorViewCtx).dom.innerHTML).not.toContain('leaked.png')
+  const rawSource = getRawHtmlSourceValues(editor.ctx.get(editorViewCtx)).join('\n')
+  expect(rawSource).toContain('hidden.png')
+  expect(rawSource).toContain('leaked.png')
 
   await editor.destroy()
 })
@@ -599,6 +606,25 @@ it('should keep GFM-disallowed raw html as escaped source text', () => {
   expect(result).not.toContain('<img src="https://example.com/noembed.png">')
 })
 
+it('should keep supported html after unclosed GFM-disallowed tags', () => {
+  const result = sanitizeGithubHtml([
+    '<strong> <title> <style> <em>',
+    '',
+    '<blockquote>',
+    '  <xmp> is disallowed.',
+    '</blockquote>',
+  ].join('\n'))
+  const template = document.createElement('template')
+  template.innerHTML = result
+
+  expect(template.content.querySelector('strong')).not.toBeNull()
+  expect(template.content.querySelector('em')).not.toBeNull()
+  expect(template.content.querySelector('blockquote')).not.toBeNull()
+  expect(template.content.querySelector('title')).toBeNull()
+  expect(template.content.querySelector('style')).toBeNull()
+  expect(template.content.querySelector('xmp')).toBeNull()
+})
+
 it('should render protocol-relative markdown links as text', async () => {
   const editor = createEditor()
   editor.config((ctx) => {
@@ -610,6 +636,8 @@ it('should render protocol-relative markdown links as text', async () => {
   const hrefs = Array.from(editor.ctx.get(editorViewCtx).dom.querySelectorAll('a')).map((anchor) => anchor.getAttribute('href'))
   expect(hrefs).toEqual(['https://example.com'])
   expect(editor.ctx.get(editorViewCtx).dom.textContent).toContain('protocol')
+  expect(editor.ctx.get(serializerCtx)(editor.ctx.get(editorViewCtx).state.doc).trim())
+    .toBe('[protocol](//example.com/path) [safe](https://example.com)')
 
   await editor.destroy()
 })

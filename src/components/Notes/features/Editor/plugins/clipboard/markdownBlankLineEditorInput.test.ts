@@ -36,22 +36,66 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     );
   });
 
-  it('keeps single structural paste blank lines as markdown separators', () => {
+  it('distinguishes authored blank lines from parser-only separators on paste', () => {
     expect(preserveMarkdownBlankLinesForPaste(['# A', '', '# B'].join('\n'))).toBe(
-      ['# A', '', '# B'].join('\n')
+      ['# A', MARKDOWN_BLANK_LINE_PLACEHOLDER, '# B'].join('\n')
     );
     expect(preserveMarkdownBlankLinesForPaste(['# A', '## B', '### C'].join('\n'))).toBe(
       ['# A', '', '## B', '', '### C'].join('\n')
     );
     expect(preserveMarkdownBlankLinesForPaste(['Text', '', '$$', 'x', '$$'].join('\n'))).toBe(
-      ['Text', '', '$$', 'x', '$$'].join('\n')
+      ['Text', MARKDOWN_BLANK_LINE_PLACEHOLDER, '$$', 'x', '$$'].join('\n')
     );
   });
 
-  it('keeps only extra paste blank lines as editor-only visible blank blocks', () => {
+  it('leaves source-tight html boundaries for schema metadata preservation', () => {
+    const markdown = ['Before', '<p>Fresh HTML</p>'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
+  it('does not insert a boundary marker before an html closing tag', () => {
+    const markdown = ['Beta', '</div>'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
+  it('keeps every authored line in multi-blank paste runs as an editor-only block', () => {
     expect(preserveMarkdownBlankLinesForPaste(['# A', '', '', '# B'].join('\n'))).toBe(
-      ['# A', '', MARKDOWN_BLANK_LINE_PLACEHOLDER, '# B'].join('\n')
+      [
+        '# A',
+        MARKDOWN_BLANK_LINE_PLACEHOLDER,
+        MARKDOWN_BLANK_LINE_PLACEHOLDER,
+        '# B',
+      ].join('\n')
     );
+  });
+
+  it.each([
+    [['# Heading', '', '> Quote'], ['# Heading', MARKDOWN_BLANK_LINE_PLACEHOLDER, '> Quote']],
+    [
+      ['Body', '', '```code', 'code', '```'],
+      ['Body', MARKDOWN_BLANK_LINE_PLACEHOLDER, '```code', 'code', '```'],
+    ],
+    [
+      ['```code', 'code', '```', '', '# Heading'],
+      ['```code', 'code', '```', MARKDOWN_BLANK_LINE_PLACEHOLDER, '# Heading'],
+    ],
+  ])('keeps a user paste blank line when compact serialization would omit it', (markdown, expected) => {
+    expect(preserveMarkdownBlankLinesForPaste(markdown.join('\n'))).toBe(expected.join('\n'));
+  });
+
+  it.each([
+    [
+      ['# First', '', '## Second'],
+      ['# First', MARKDOWN_BLANK_LINE_PLACEHOLDER, '## Second'],
+    ],
+    [
+      ['```ts', 'first', '```', '', '```js', 'second', '```'],
+      ['```ts', 'first', '```', MARKDOWN_BLANK_LINE_PLACEHOLDER, '```js', 'second', '```'],
+    ],
+  ])('keeps authored paste blank lines between serializer-tight blocks', (markdown, expected) => {
+    expect(preserveMarkdownBlankLinesForPaste(markdown.join('\n'))).toBe(expected.join('\n'));
   });
 
   it('uses editor-only blank line blocks after leading frontmatter', () => {
@@ -128,6 +172,27 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     ].join('\n'));
   });
 
+  it.each([1, 2])(
+    'keeps %s editor blank-line placeholder(s) after list-contained display math',
+    (blankLineCount) => {
+      const markdown = [
+        '- $$',
+        '  x + y',
+        '  $$',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '[TOC]',
+      ].join('\n');
+
+      expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
+        '- $$',
+        '  x + y',
+        '  $$',
+        ...Array.from({ length: blankLineCount }, () => MARKDOWN_BLANK_LINE_PLACEHOLDER),
+        '[TOC]',
+      ].join('\n'));
+    },
+  );
+
   it('handles long blank line runs inside indented code blocks within the default test timeout', () => {
     const blankRun = Array.from({ length: 8_000 }, () => '').join('\n');
     const markdown = ['    before', blankRun, '    after', '', 'body'].join('\n');
@@ -141,6 +206,44 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     );
   });
 
+  it('uses one quote-scoped empty paragraph placeholder per authored blockquote blank line', () => {
+    const placeholder = '<!--vlaina-markdown-blank-line-->';
+
+    expect(preserveMarkdownBlankLinesForEditor([
+      '> Alpha',
+      '>',
+      '>',
+      '> Beta',
+      '> >',
+      '> > Gamma',
+    ].join('\n'))).toBe([
+      '> Alpha',
+      `> ${placeholder}`,
+      `> ${placeholder}`,
+      '> Beta',
+      `> > ${placeholder}`,
+      '> > Gamma',
+    ].join('\n'));
+  });
+
+  it('uses quote-scoped list gap items between blockquote list rows', () => {
+    expect(preserveMarkdownBlankLinesForEditor([
+      '> 1. parent',
+      '>    1. child one',
+      '>',
+      '>    2. child two',
+      '>',
+      '> 2. next',
+    ].join('\n'))).toBe([
+      '> 1. parent',
+      '>    1. child one',
+      '>    - \u2800',
+      '>    2. child two',
+      '> - \u2800',
+      '> 2. next',
+    ].join('\n'));
+  });
+
   it('expands terminal list item br tags into editor-reopenable hard breaks', () => {
     expect(preserveMarkdownBlankLinesForEditor('- 1<br />')).toBe(['- 1\\', '  <br />'].join('\n'));
     expect(preserveMarkdownBlankLinesForEditor('- [ ] 1<br />')).toBe(['- [ ] 1\\', '  <br />'].join('\n'));
@@ -148,26 +251,20 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     expect(preserveMarkdownBlankLinesForEditor('> - 1<br />')).toBe(['> - 1\\', '>   <br />'].join('\n'));
   });
 
-  it('escapes plain text trailing backslashes before editor parsing', () => {
+  it('preserves source trailing backslashes before editor parsing', () => {
     const markdown = [
       '7）视图模式：支持大纲和文档列表视图，方便在不同段落和不同文件之间进行切换。\\',
       '8）跨平台：支持macOS、Windows和Linux系统。\\',
       '9）目前免费：这么好用的编辑器竟然是免费的。',
     ].join('\n');
 
-    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
-      '7）视图模式：支持大纲和文档列表视图，方便在不同段落和不同文件之间进行切换。\\\\\\',
-      '8）跨平台：支持macOS、Windows和Linux系统。\\\\\\',
-      '9）目前免费：这么好用的编辑器竟然是免费的。',
-    ].join('\n'));
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
   });
 
-  it('escapes paragraph trailing backslashes even when the text contains inline markdown', () => {
+  it('preserves paragraph trailing backslashes when the text contains inline markdown', () => {
     const markdown = '底线（-/=）方式（**不推荐**）：\\';
 
-    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(
-      '底线（-/=）方式（**不推荐**）：\\\\\\'
-    );
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
   });
 
   it('escapes a standalone line-start backslash as literal text instead of a hard break', () => {
@@ -179,7 +276,7 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     );
   });
 
-  it('escapes paragraph trailing backslashes inside mixed markdown documents', () => {
+  it('preserves paragraph trailing backslashes inside mixed markdown documents', () => {
     const markdown = [
       '# Heading',
       '',
@@ -191,7 +288,7 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
       '# Heading',
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
-      '底线（-/=）方式（**不推荐**）：\\\\\\',
+      '底线（-/=）方式（**不推荐**）：\\',
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
       '- item\\',
     ].join('\n'));
@@ -240,6 +337,12 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
         '- two',
       ].join('\n')
     );
+    expect(
+      preserveMarkdownBlankLinesForEditor(['-', '', '- filled'].join('\n'))
+    ).toBe(['- <br />', '- \u2800', '- filled'].join('\n'));
+    expect(
+      preserveMarkdownBlankLinesForEditor(['1.', '', '2. filled'].join('\n'))
+    ).toBe(['1. <br />', '- \u2800', '2. filled'].join('\n'));
   });
 
   it('uses visible editor-only placeholders between headings and top-level lists', () => {
@@ -271,6 +374,120 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
         '- [ ] two',
       ].join('\n')
     );
+    expect(
+      preserveMarkdownBlankLinesForEditor(['- [ ]', '', '- [x] done'].join('\n'))
+    ).toBe(
+      [
+        '- [ ] <br />',
+        '- \u2800',
+        '- [x] done',
+      ].join('\n')
+    );
+  });
+
+  it.each([
+    {
+      name: 'bullet',
+      markdown: ['- parent', '  - child', '', '- next'],
+      expected: ['- parent', '  - child', '- \u2800', '- next'],
+    },
+    {
+      name: 'task',
+      markdown: ['- [ ] parent', '  - [x] child', '', '', '- [ ] next'],
+      expected: ['- [ ] parent', '  - [x] child', '- \u2800', '- \u2800', '- [ ] next'],
+    },
+    {
+      name: 'ordered',
+      markdown: ['1. parent', '   1. child', '', '2. next'],
+      expected: ['1. parent', '   1. child', '- \u2800', '2. next'],
+    },
+  ])('keeps every authored blank line from a nested $name item to its root sibling', ({
+    markdown,
+    expected,
+  }) => {
+    expect(preserveMarkdownBlankLinesForEditor(markdown.join('\n'))).toBe(expected.join('\n'));
+  });
+
+  it.each([
+    {
+      name: 'bullet',
+      markdown: ['- parent', '', '  - child'],
+      expected: ['- parent', '  - \u2800', '  - child'],
+    },
+    {
+      name: 'ordered',
+      markdown: ['1. parent', '', '', '   1. child'],
+      expected: ['1. parent', '   - \u2800', '   - \u2800', '   1. child'],
+    },
+  ])('keeps every authored blank line from a $name parent to its nested child', ({
+    markdown,
+    expected,
+  }) => {
+    expect(preserveMarkdownBlankLinesForEditor(markdown.join('\n'))).toBe(expected.join('\n'));
+  });
+
+  it('finds a root task parent through indented detail lines after a nested child', () => {
+    const markdown = [
+      '- [ ] parent',
+      '',
+      '  details',
+      '',
+      '  - nested child',
+      '',
+      '- [x] next',
+    ];
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown.join('\n'))).toBe([
+      '- [ ] parent',
+      '',
+      '  details',
+      '',
+      '  - nested child',
+      '- \u2800',
+      '- [x] next',
+    ].join('\n'));
+  });
+
+  it('does not treat a list inside a deeper blockquote as a nested child list', () => {
+    expect(preserveMarkdownBlankLinesForEditor(['- root', '', '> - quoted'].join('\n'))).toBe([
+      '- root',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      '> - quoted',
+    ].join('\n'));
+  });
+
+  it('counts blank lines once between list raw HTML and a different list style', () => {
+    const block = ['- <textarea>', '  hidden', '  </textarea>'];
+    const next = ['- [ ] Task', '- [x] Done'];
+    const oneBlank = [...block, '', ...next].join('\n');
+    const twoBlanks = [...block, '', '', ...next].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(oneBlank)).toBe(oneBlank);
+    expect(preserveMarkdownBlankLinesForEditor(twoBlanks)).toBe([
+      ...block,
+      '',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      ...next,
+    ].join('\n'));
+    expect(normalizeSerializedMarkdownDocument(
+      preserveMarkdownBlankLinesForEditor(twoBlanks)
+    )).toBe(twoBlanks);
+  });
+
+  it.each([
+    ['- plain', '- [ ] task'],
+    ['- [ ] task', '- plain'],
+    ['- bullet', '1. ordered'],
+    ['1. ordered', '- bullet'],
+    ['* parent\n  * nested', '- [ ] task'],
+    ['* parent\n  * nested', '1. ordered'],
+  ])('uses a standalone blank-line block between different list styles: %s -> %s', (before, after) => {
+    expect(preserveMarkdownBlankLinesForEditor([before, '', after].join('\n'))).toBe([
+      before,
+      '',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      after,
+    ].join('\n'));
   });
 
   it('does not rewrite content inside blockquote fenced code blocks', () => {
@@ -294,18 +511,28 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
   });
 
-  it('keeps the structural separator and uses editor-only blocks for extra blank lines after markdown images', () => {
+  it('uses editor-only blocks for image blank lines at serializer-tight boundaries', () => {
     const markdown = ['![alt](image.png)', '', '', '', '# Next'].join('\n');
     const editorInput = preserveMarkdownBlankLinesForEditor(markdown);
 
     expect(editorInput).toBe([
       '![alt](image.png)',
-      '',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
       '# Next',
     ].join('\n'));
     expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
+  });
+
+  it('uses an editor-only block for an image blank line before a paragraph', () => {
+    const markdown = ['![alt](image.png)', '', 'Body'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
+      '![alt](image.png)',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      'Body',
+    ].join('\n'));
   });
 
   it('keeps the structural separator and uses editor-only blocks for extra blank lines after html image blocks', () => {
@@ -366,8 +593,26 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
 
   it('detects indented code blocks after paragraph breaks', () => {
     const markdown = ['before', '', '    line 1', '', '    line 2'].join('\n');
+    const editorInput = preserveMarkdownBlankLinesForEditor(markdown);
 
-    expect(normalizeSerializedMarkdownDocument(preserveMarkdownBlankLinesForEditor(markdown))).toBe(markdown);
+    expect(editorInput).toBe([
+      'before',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      '    line 1',
+      '',
+      '    line 2',
+    ].join('\n'));
+    expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
+  });
+
+  it('exposes an authored blank line between indented code and a root list', () => {
+    const markdown = ['    const value = 1;', '', '1. Ordered'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
+      '    const value = 1;',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      '1. Ordered',
+    ].join('\n'));
   });
 
   it('keeps structural blank lines before fenced code blocks', () => {
@@ -388,6 +633,26 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     ].join('\n');
 
     expect(normalizeSerializedMarkdownDocument(preserveMarkdownBlankLinesForEditor(markdown))).toBe(markdown);
+  });
+
+  it('exposes a blank line between list-contained code and a quoted list', () => {
+    const markdown = [
+      '- ```ts',
+      '  nested code',
+      '  ```',
+      '',
+      '> - ```md',
+      '>   quoted code',
+      '>   ```',
+    ].join('\n');
+    const editorInput = preserveMarkdownBlankLinesForEditor(markdown);
+
+    expect(editorInput).toContain([
+      '  ```',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      '> - ```md',
+    ].join('\n'));
+    expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
   });
 
   it('keeps trailing document blank lines after indented text', () => {
@@ -442,17 +707,21 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
   });
 
-  it('uses editor-only blank line blocks around block alignment comments', () => {
-    const markdown = ['Paragraph', '', '<!--align:center-->', '', '# Heading'].join('\n');
+  it.each([0, 1, 2])(
+    'keeps %s authored blank line(s) around block alignment comments structural',
+    (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        'Paragraph',
+        ...blanks,
+        '<!--align:center-->',
+        ...blanks,
+        '# Heading',
+      ].join('\n');
 
-    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
-      'Paragraph',
-      '',
-      '<!--align:center-->',
-      '',
-      '# Heading',
-    ].join('\n'));
-  });
+      expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+    },
+  );
 
   it('does not add placeholders inside lowercase html declarations', () => {
     const markdown = ['<!doctype', '', 'html>', '', 'after'].join('\n');
@@ -501,6 +770,35 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     ].join('\n'));
     expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
   });
+
+  it('keeps the parser terminator after non-editable html blocks', () => {
+    const markdown = ['<svg>', '<text>hidden</text>', '</svg>', '', '# After'].join('\n');
+    const editorInput = preserveMarkdownBlankLinesForEditor(markdown);
+
+    expect(editorInput).toBe(markdown);
+    expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
+  });
+
+  it.each(
+    ['math', 'noembed', 'noscript', 'plaintext', 'svg', 'textarea', 'xmp'].flatMap((tagName) =>
+      [0, 1, 2].map((blankLineCount) => ({ blankLineCount, tagName }))
+    )
+  )(
+    'preserves $blankLineCount blank line(s) after blank-terminated <$tagName> html',
+    ({ blankLineCount, tagName }) => {
+      const markdown = [
+        `<${tagName}>`,
+        'hidden source',
+        `</${tagName}>`,
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '# After',
+      ].join('\n');
+
+      expect(normalizeSerializedMarkdownDocument(
+        preserveMarkdownBlankLinesForEditor(markdown)
+      )).toBe(markdown);
+    },
+  );
 
   it('does not duplicate rendered html boundary blank-line blocks on reopen', () => {
     const markdown = [

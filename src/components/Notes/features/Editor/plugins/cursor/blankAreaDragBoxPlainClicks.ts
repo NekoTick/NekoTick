@@ -172,6 +172,13 @@ export function startInsideBlockTrailingPlainClickSession(
   action: BlankAreaPlainClickAction,
   dragThreshold = DRAG_THRESHOLD,
 ): () => void {
+  const targetBlock = view.state.doc.nodeAt(action.blockFrom);
+  if (targetBlock?.isTextblock && targetBlock.content.size === 0) {
+    event.preventDefault();
+    dispatchBlankAreaPlainClick(view, action, event.clientX, event.clientY);
+    return () => undefined;
+  }
+
   const startX = event.clientX;
   const startY = event.clientY;
   const startSelection = snapshotSelection(view.state);

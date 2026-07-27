@@ -288,11 +288,7 @@ describe('real note markdown regression', () => {
 
     await expectConvergentPersistedMarkdownRoundTrip(
       markdown,
-      [
-        '7）视图模式：支持大纲和文档列表视图，方便在不同段落和不同文件之间进行切换。\\\\\\',
-        '8）跨平台：支持macOS、Windows和Linux系统。\\\\\\',
-        '9）目前免费：这么好用的编辑器竟然是免费的。',
-      ].join('\n'),
+      markdown,
       '切换。\\'
     );
   });

@@ -9,6 +9,12 @@ import {
   getImageSourceBase,
   resolveImageSourcePathCandidates,
 } from '../image-block/utils/imageSourcePath';
+import {
+  isMarkdownLineInContainer,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+  type MarkdownContainerState,
+} from '@/lib/notes/markdown/markdownFenceProtectedLines';
 
 const MAX_DRAGGED_IMAGE_ASSET_BYTES = 50 * 1024 * 1024;
 
@@ -121,7 +127,7 @@ async function rewriteMarkdownSegments(
   const lines = markdown.split('\n');
   const output: string[] = [];
   let segment: string[] = [];
-  let fence: string | null = null;
+  let fence: (MarkdownContainerState & { marker: string; length: number }) | null = null;
 
   const flushSegment = async () => {
     if (segment.length === 0) return;
@@ -130,22 +136,26 @@ async function rewriteMarkdownSegments(
   };
 
   for (const line of lines) {
-    const fenceMatch = line.match(/^\s{0,3}(```+|~~~+)/);
-    if (fenceMatch) {
-      if (!fence) {
-        await flushSegment();
-        fence = fenceMatch[1]![0]!;
+    if (fence) {
+      if (isMarkdownLineInContainer(line, fence)) {
         output.push(line);
+        if (parseMarkdownContainerFenceCloseLine(line, fence)) {
+          fence = null;
+        }
         continue;
       }
-      if (fenceMatch[1]!.startsWith(fence)) {
-        output.push(line);
-        fence = null;
-        continue;
-      }
+      fence = null;
     }
 
-    if (fence) {
+    const opening = parseMarkdownContainerFenceLine(line);
+    if (opening && (opening.marker !== '`' || line.indexOf('`', opening.infoStart) === -1)) {
+      await flushSegment();
+      fence = {
+        blockquoteDepth: opening.blockquoteDepth,
+        containerIndent: opening.containerIndent,
+        marker: opening.marker,
+        length: opening.length,
+      };
       output.push(line);
     } else {
       segment.push(line);

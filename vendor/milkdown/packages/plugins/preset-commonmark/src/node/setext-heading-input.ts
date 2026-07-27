@@ -45,7 +45,10 @@ export function createSetextHeadingFromDelimiter(
       headingSource.content
     )
     const trailingParagraph = paragraphType.create()
-    const replacement = Fragment.fromArray([heading, trailingParagraph])
+    const hasFollowingSibling = currentIndex + 1 < parent.childCount
+    const replacement = Fragment.fromArray(
+      hasFollowingSibling ? [heading] : [heading, trailingParagraph]
+    )
     if (!parent.canReplace(currentIndex - 1, currentIndex + 1, replacement))
       return false
 
@@ -53,10 +56,15 @@ export function createSetextHeadingFromDelimiter(
     const from = delimiterFrom - headingSource.nodeSize
     const to = $from.after($from.depth)
     const tr = state.tr.replaceWith(from, to, replacement)
+    const afterHeadingPos = from + heading.nodeSize
+    const selectionPos = hasFollowingSibling
+      && tr.doc.nodeAt(afterHeadingPos)?.type !== paragraphType
+      ? afterHeadingPos - 1
+      : afterHeadingPos + 1
 
     dispatch?.(
       tr
-        .setSelection(TextSelection.create(tr.doc, from + heading.nodeSize + 1))
+        .setSelection(TextSelection.create(tr.doc, selectionPos))
         .scrollIntoView()
     )
     return true
