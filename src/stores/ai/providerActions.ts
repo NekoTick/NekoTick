@@ -16,6 +16,7 @@ import {
   refreshManagedProviderAction,
   refreshManagedProviderInBackgroundAction,
 } from './providerManagedSync'
+import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorageSaveTypes'
 
 const locallyCreatedProviderIds = new Set<string>();
 
@@ -23,10 +24,19 @@ function isDefaultChannelLabel(name: string): boolean {
   return /^channel\s*\d+$/i.test(name.trim());
 }
 
+function normalizeProviderName(name: string): string {
+  const boundedName = name.slice(0, MAX_AI_MODEL_FIELD_CHARS)
+  return boundedName.trim() ? boundedName : 'Custom Provider'
+}
+
+function normalizeProviderText(value: string): string {
+  return value.slice(0, MAX_AI_MODEL_FIELD_CHARS)
+}
+
 function shouldDeleteIncompleteCustomProvider(provider: Provider): boolean {
   return (
     !isManagedProviderId(provider.id) &&
-    isDefaultChannelLabel(provider.name) &&
+    (isDefaultChannelLabel(provider.name) || provider.name === 'Custom Provider') &&
     !provider.apiHost.trim() &&
     !provider.apiKey.trim()
   );
@@ -36,7 +46,15 @@ export const actions = {
   addProvider: (provider: Omit<Provider, 'id' | 'createdAt' | 'updatedAt'>) => {
     const id = generateId('provider-')
     const now = Date.now()
-    const newProvider: Provider = { ...provider, id, createdAt: now, updatedAt: now }
+    const newProvider: Provider = {
+      ...provider,
+      id,
+      name: normalizeProviderName(provider.name),
+      apiHost: normalizeProviderText(provider.apiHost),
+      apiKey: normalizeProviderText(provider.apiKey),
+      createdAt: now,
+      updatedAt: now,
+    }
     locallyCreatedProviderIds.add(id)
     const state = useUnifiedStore.getState();
     const currentProviders = state.data.ai?.providers || [];
@@ -47,22 +65,28 @@ export const actions = {
   updateProvider: (id: string, updates: Partial<Provider>) => {
     if (isManagedProviderId(id)) return
 
+    const normalizedUpdates: Partial<Provider> = {
+      ...updates,
+      ...(typeof updates.name === 'string' ? { name: normalizeProviderName(updates.name) } : {}),
+      ...(typeof updates.apiHost === 'string' ? { apiHost: normalizeProviderText(updates.apiHost) } : {}),
+      ...(typeof updates.apiKey === 'string' ? { apiKey: normalizeProviderText(updates.apiKey) } : {}),
+    };
     const state = useUnifiedStore.getState();
     const ai = state.data.ai!;
     const providers = state.data.ai?.providers || [];
     const provider = providers.find((item) => item.id === id);
     if (!provider) return;
 
-    const hasProviderChanges = (Object.entries(updates) as Array<[keyof Provider, Provider[keyof Provider]]>)
+    const hasProviderChanges = (Object.entries(normalizedUpdates) as Array<[keyof Provider, Provider[keyof Provider]]>)
       .some(([key, value]) => !Object.is(provider[key], value));
     if (!hasProviderChanges) return;
 
-    const apiHostChanged = typeof updates.apiHost === 'string' && updates.apiHost !== provider.apiHost;
-    const apiKeyChanged = typeof updates.apiKey === 'string' && updates.apiKey !== provider.apiKey;
+    const apiHostChanged = typeof normalizedUpdates.apiHost === 'string' && normalizedUpdates.apiHost !== provider.apiHost;
+    const apiKeyChanged = typeof normalizedUpdates.apiKey === 'string' && normalizedUpdates.apiKey !== provider.apiKey;
     const connectionChanged = apiHostChanged || apiKeyChanged;
     const nextProviders = providers.map((p) => {
       if (p.id !== id) return p;
-      const nextProvider = { ...p, ...updates, updatedAt: Date.now() };
+      const nextProvider = { ...p, ...normalizedUpdates, updatedAt: Date.now() };
       return connectionChanged
         ? { ...nextProvider, endpointType: undefined, endpointTypeCheckedAt: undefined }
         : nextProvider;

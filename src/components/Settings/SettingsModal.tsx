@@ -169,6 +169,7 @@ export function SettingsModal({ open, communitySettings, requestedTab, onClose }
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
+              aria-label={t('account.settings')}
               data-settings-modal="true"
               data-settings-active-tab={activeTab}
               tabIndex={-1}

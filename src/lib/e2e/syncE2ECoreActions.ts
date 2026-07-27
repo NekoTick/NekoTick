@@ -19,6 +19,7 @@ type CoreBridgeActions = Pick<
   | 'flushUnifiedSave'
   | 'addProvider'
   | 'addModel'
+  | 'setProviderFetchedModels'
   | 'deleteProvider'
   | 'setTimezone'
   | 'setMarkdownLineNumbers'
@@ -68,6 +69,10 @@ export function createSyncE2ECoreActions(): CoreBridgeActions {
       }
       await flushPendingSave();
       return modelId;
+    },
+    setProviderFetchedModels: async (providerId, modelIds) => {
+      providerActions.setProviderFetchedModels(providerId, modelIds);
+      await flushPendingSave();
     },
     deleteProvider: async (id) => {
       providerActions.deleteProvider(id);

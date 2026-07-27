@@ -161,10 +161,25 @@ async function saveAndRead(page: Page, notePath: string): Promise<string> {
 async function forceNoContentChangeSerialization(page: Page): Promise<void> {
   const lastBlock = page.locator(`${EDITOR_SELECTOR} > *`).last();
   await expect(lastBlock).toBeVisible();
+  const originalText = await lastBlock.textContent();
+  expect(originalText).not.toBeNull();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).__vlainaE2E.getEditorSelectionSummary()
+  ))
+    .toMatchObject({ empty: true, selectedText: '' });
   await lastBlock.click();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).__vlainaE2E.getEditorSelectionSummary()
+  ))
+    .toMatchObject({ empty: true, selectedText: '' });
   await page.keyboard.press('End');
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).__vlainaE2E.getEditorSelectionSummary()
+  )).toMatchObject({ empty: true, selectedText: '' });
   await page.keyboard.type('x');
+  await expect(lastBlock).toHaveText(`${originalText}x`);
   await page.keyboard.press('Backspace');
+  await expect(lastBlock).toHaveText(originalText!);
   await waitForEditorAnimationFrame(page);
 }
 

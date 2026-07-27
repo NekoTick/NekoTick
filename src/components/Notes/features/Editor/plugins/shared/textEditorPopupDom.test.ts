@@ -192,4 +192,45 @@ describe('textEditorPopupDom', () => {
     expect(onResizeRequest).toHaveBeenCalledTimes(1);
     expect(textarea.style.height).toBe('');
   });
+
+  it('blocks image clipboard companion text in Mermaid, math, and HTML text popups', () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const { textarea } = mountTextEditorPopup({
+      container,
+      value: 'draft',
+      onInput: vi.fn(),
+      onCancel: vi.fn(),
+      onSave: vi.fn(),
+    });
+    const file = new File(['image'], 'popup.png', { type: 'image/png' });
+    const imageEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(imageEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+    const textEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(textEvent, 'clipboardData', {
+      value: {
+        items: [],
+        files: [],
+        getData: () => 'ordinary text',
+      },
+    });
+
+    textarea.dispatchEvent(imageEvent);
+    textarea.dispatchEvent(textEvent);
+
+    expect(imageEvent.defaultPrevented).toBe(true);
+    expect(textEvent.defaultPrevented).toBe(false);
+    expect(textarea.value).toBe('draft');
+
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true }) as DragEvent;
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: imageEvent.clipboardData });
+    textarea.dispatchEvent(dropEvent);
+    expect(dropEvent.defaultPrevented).toBe(true);
+  });
 });

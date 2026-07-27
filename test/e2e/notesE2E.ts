@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-export const EDITOR_SELECTOR = '.milkdown .ProseMirror';
+export const EDITOR_SELECTOR = '.milkdown .ProseMirror[contenteditable="true"]';
 export const SELECTED_BLOCK_SELECTOR = `${EDITOR_SELECTOR} .editor-block-selected`;
 export const BLOCK_CONTROLS_SELECTOR = '.editor-block-controls.visible';
 export const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
@@ -186,7 +186,7 @@ export async function openMarkdownFixture(
       const openActionWallMs = Date.now() - openStartedAt;
 
       await expect.poll(async () => page.evaluate(() => {
-        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
         const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks();
         const state = (window as any).__vlainaE2E.getNotesState();
         return {
@@ -223,7 +223,7 @@ export async function openMarkdownFixture(
     } catch (error) {
       lastError = error;
       const state = await page.evaluate(() => ({
-        hasEditor: Boolean(document.querySelector('.milkdown .ProseMirror')),
+        hasEditor: Boolean(document.querySelector('.milkdown .ProseMirror[contenteditable="true"]')),
         hasSourceFallback: Boolean(document.querySelector('[data-note-source-fallback="true"]')),
       })).catch(() => ({ hasEditor: false, hasSourceFallback: false }));
 
@@ -260,7 +260,7 @@ export async function openAbsoluteNote(
       const openActionWallMs = Date.now() - openStartedAt;
 
       await expect.poll(async () => page.evaluate((expectedPath) => {
-        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
         const state = (window as any).__vlainaE2E.getNotesState();
         return {
           currentNotePath: state.currentNote?.path ?? null,
@@ -576,7 +576,7 @@ export async function collectLayoutSmokeMetrics(page: Page) {
       '[data-chat-view-mode="full"]',
       '[data-notes-sidebar-scroll-root="true"]',
       '[data-chat-scrollable="true"]',
-      '.milkdown .ProseMirror',
+      '.milkdown .ProseMirror[contenteditable="true"]',
       '[data-chat-input="true"]',
     ];
     const surfaces = selectors.flatMap((selector) => {
@@ -629,7 +629,7 @@ export async function collectLayoutSmokeMetrics(page: Page) {
 
 export async function getBlankAreaDragTarget(page: Page, text: string) {
   return page.evaluate(async (targetText) => {
-    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
     const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
     if (!editor || !scrollRoot) {
       return null;
@@ -780,7 +780,7 @@ export async function selectNoteBlocksByIndexes(page: Page, indexes: number[]): 
 
 export async function scrollNoteToTop(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
     const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
     if (scrollRoot) {
       scrollRoot.scrollTop = 0;
@@ -798,7 +798,7 @@ export async function scrollElementIntoViewByText(page: Page, selector: string, 
 
 export async function collectEditorDomMetrics(page: Page) {
   return page.evaluate(() => {
-    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
     const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
     const blockElements = Array.from(editor?.querySelectorAll<HTMLElement>(
       'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,table,div[data-type="callout"],div[data-type="toc"],.frontmatter-block-container,div[data-type="math-block"],div[data-type="mermaid"],div[data-type="video"],div.image-block-container,[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]'
@@ -1042,7 +1042,7 @@ export async function stopMainThreadFrameProbe(page: Page, key = '__vlainaMainTh
 
 export async function measureScrollFrames(page: Page, frames = 45) {
   return page.evaluate(async (frameCount) => {
-    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
     const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
     if (!scrollRoot || scrollRoot.scrollHeight <= scrollRoot.clientHeight) {
       return null;

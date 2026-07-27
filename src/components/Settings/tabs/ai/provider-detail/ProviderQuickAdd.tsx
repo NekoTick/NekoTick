@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { SettingsTextInput } from '@/components/Settings/components/SettingsFields';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { rankByFuzzySearch } from './fuzzyModelSearch';
 import { providerInputClassName, providerInputShellClassName } from './providerInputStyles';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { handleScrollableWheel } from '@/lib/scroll/wheelScroll';
+import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorage';
 
 interface ProviderQuickAddProps {
   value: string;
@@ -34,6 +35,7 @@ export function ProviderQuickAdd({
   const { t } = useI18n();
   const [isFocused, setIsFocused] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const suggestionListId = useId();
   const isComposingRef = useRef(false);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const quickAddIds = useMemo(() => parseQuickAddModelIds(value), [value]);
@@ -115,6 +117,13 @@ export function ProviderQuickAdd({
           type="text"
           data-settings-provider-action="quick-add-model"
           value={value}
+          maxLength={MAX_AI_MODEL_FIELD_CHARS}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showSuggestions}
+          aria-controls={showSuggestions ? suggestionListId : undefined}
+          aria-activedescendant={showSuggestions ? `${suggestionListId}-option-${highlightedIndex}` : undefined}
+          aria-label={t('settings.ai.addModelId')}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onChange={(e) => {
@@ -149,6 +158,7 @@ export function ProviderQuickAdd({
 
             if (showSuggestions && e.key === 'Escape') {
               e.preventDefault();
+              e.stopPropagation();
               setIsFocused(false);
               return;
             }
@@ -169,6 +179,8 @@ export function ProviderQuickAdd({
         {showSuggestions ? (
           <div className="absolute left-0 right-0 top-[var(--vlaina-offset-dropdown-below-input)] z-[var(--vlaina-z-20)] overflow-hidden rounded-[var(--vlaina-ui-radius-panel)] border border-[var(--vlaina-border)] bg-[var(--vlaina-color-setting-field)] shadow-[var(--vlaina-shadow-floating-panel)]">
             <div
+              id={suggestionListId}
+              role="listbox"
               className="max-h-64 overflow-y-auto p-1.5"
               data-settings-scroll-root="ai-model-suggestions"
               onWheel={handleScrollableWheel}
@@ -176,6 +188,10 @@ export function ProviderQuickAdd({
               {suggestions.map((modelId, index) => (
                 <button
                   key={modelId}
+                  id={`${suggestionListId}-option-${index}`}
+                  role="option"
+                  aria-selected={index === highlightedIndex}
+                  tabIndex={-1}
                   ref={(node) => {
                     itemRefs.current[index] = node;
                   }}

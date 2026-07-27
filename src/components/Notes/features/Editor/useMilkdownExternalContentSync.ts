@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { editorViewCtx, serializerCtx } from '@milkdown/kit/core';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import {
@@ -14,6 +14,17 @@ import {
   replaceEditorMarkdown,
 } from './milkdownEditorMarkdownReplacement';
 import { logE2EMilkdownTiming } from './milkdownE2ETiming';
+import {
+  cacheCurrentNoteEditorHistory,
+  createNoteEditorHistorySession,
+  restoreEditorHistoryState,
+  type CachedNoteEditorHistory,
+  type NoteEditorHistorySession,
+} from './milkdownEditorHistorySession';
+import { removeTemporaryTailParagraph } from './plugins/cursor/endBlankClickPlugin';
+import { floatingToolbarKey } from './plugins/floating-toolbar/floatingToolbarKey';
+import { clearFormatPreview } from './plugins/floating-toolbar/previewStyles';
+import { TOOLBAR_ACTIONS } from './plugins/floating-toolbar/types';
 
 export function useMilkdownExternalContentSync(args: {
   activatedRevision: number;
@@ -39,17 +50,10 @@ export function useMilkdownExternalContentSync(args: {
     lastAppliedNoteRef,
     reportEditorReady,
   } = args;
+  const historySessionRef = useRef<NoteEditorHistorySession | null>(null);
 
   useEffect(() => {
     const lastAppliedNote = lastAppliedNoteRef.current;
-    if (
-      lastAppliedNote.path === currentNotePath &&
-      lastAppliedNote.diskRevision === currentNoteDiskRevision &&
-      lastAppliedNote.content === currentNoteContent
-    ) {
-      return;
-    }
-
     let restoreFrame = 0;
     let restoreTimeout = 0;
 
@@ -61,7 +65,46 @@ export function useMilkdownExternalContentSync(args: {
       }
 
       const view = editor.ctx.get(editorViewCtx) as EditorView;
+      const historySession = historySessionRef.current
+        ?? createNoteEditorHistorySession(view);
+      historySessionRef.current = historySession;
+      if (
+        lastAppliedNote.path === currentNotePath &&
+        lastAppliedNote.diskRevision === currentNoteDiskRevision &&
+        lastAppliedNote.content === currentNoteContent
+      ) {
+        return;
+      }
+
       const isSameNotePath = lastAppliedNote.path === currentNotePath;
+      if (!isSameNotePath) {
+        clearFormatPreview(view);
+        view.dispatch(
+          view.state.tr
+            .setMeta(floatingToolbarKey, { type: TOOLBAR_ACTIONS.HIDE })
+            .setMeta('addToHistory', false),
+        );
+      }
+      let liveSerializer: ((doc: unknown) => string) | null = null;
+      try {
+        liveSerializer = editor.ctx.get(serializerCtx) as (doc: unknown) => string;
+      } catch {
+        liveSerializer = null;
+      }
+      if (!isSameNotePath && lastAppliedNote.path && historySession && liveSerializer) {
+        try {
+          removeTemporaryTailParagraph(view);
+          cacheCurrentNoteEditorHistory(
+            view,
+            historySession,
+            lastAppliedNote.path,
+            liveSerializer(view.state.doc),
+          );
+        } catch {
+          historySession.entries.delete(lastAppliedNote.path);
+        }
+      }
+
       if (
         isSameNotePath &&
         hasLocalMarkdownCommitRef.current &&
@@ -86,13 +129,7 @@ export function useMilkdownExternalContentSync(args: {
         };
         return;
       }
-      let liveSerializer: ((doc: unknown) => string) | null = null;
       let shouldPreserveSameRevisionWithoutReplace = false;
-      try {
-        liveSerializer = editor.ctx.get(serializerCtx) as (doc: unknown) => string;
-      } catch {
-        liveSerializer = null;
-      }
       if (liveSerializer && isSameNotePath) {
         try {
           const serializedCurrentDoc = liveSerializer(view.state.doc);
@@ -127,6 +164,15 @@ export function useMilkdownExternalContentSync(args: {
         normalizeAlternativeMathBlockFences(currentNoteContent)
       );
       const nextMarkdown = preserveMarkdownBlankLinesForEditor(normalizedFrontmatter);
+      let cachedHistory: CachedNoteEditorHistory | null = null;
+      if (!isSameNotePath && currentNotePath && historySession) {
+        const cached = historySession.entries.get(currentNotePath);
+        if (cached && isEditorMarkdownEquivalentToNoteContent(cached.markdown, currentNoteContent)) {
+          cachedHistory = cached;
+        } else if (cached) {
+          historySession.entries.delete(currentNotePath);
+        }
+      }
       logE2EMilkdownTiming('replace-prepare', {
         notePath: currentNotePath,
         inputLength: currentNoteContent.length,
@@ -135,9 +181,31 @@ export function useMilkdownExternalContentSync(args: {
       });
 
       const replaceStartedAt = performance.now();
-      const replaced = runEditorAction((ctx) => replaceEditorMarkdown(ctx, nextMarkdown, {
-        resetSelection: !isSameNotePath,
-      }));
+      const replaced = runEditorAction((ctx) => {
+        const didReplace = replaceEditorMarkdown(ctx, nextMarkdown, {
+          replacementDoc: cachedHistory?.doc,
+          resetSelection: !isSameNotePath,
+        });
+        if (!didReplace || !historySession) {
+          return didReplace;
+        }
+
+        const updatedView = ctx.get(editorViewCtx) as EditorView;
+        const canRestoreCachedHistory = Boolean(
+          cachedHistory && updatedView.state.doc.eq(cachedHistory.doc),
+        );
+        restoreEditorHistoryState(
+          updatedView,
+          historySession,
+          canRestoreCachedHistory
+            ? cachedHistory!.historyState
+            : historySession.emptyHistoryState,
+        );
+        if (cachedHistory && !canRestoreCachedHistory && currentNotePath) {
+          historySession.entries.delete(currentNotePath);
+        }
+        return true;
+      });
       logE2EMilkdownTiming('replace-dispatch', {
         notePath: currentNotePath,
         replaced,

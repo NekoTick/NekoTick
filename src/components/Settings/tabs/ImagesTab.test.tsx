@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement, ReactNode } from 'react';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { ImagesTab } from './ImagesTab';
+import { MAX_IMAGE_SUBFOLDER_NAME_CHARS } from '@/stores/uiPreferences';
 
 const mocks = vi.hoisted(() => ({
   uiState: {
@@ -114,5 +115,19 @@ describe('ImagesTab dropdown styling', () => {
 
     expect(mocks.uiState.setImageSubfolderName).toHaveBeenCalledWith('日本');
     expect(mocks.uiState.setImageSubfolderName).not.toHaveBeenCalledWith('nihon');
+  });
+
+  it('keeps an overlong folder edit at the persisted character limit', () => {
+    render(<ImagesTab />);
+    const input = screen.getByLabelText('Subfolder name');
+    const overlongName = 'a'.repeat(MAX_IMAGE_SUBFOLDER_NAME_CHARS + 1);
+
+    fireEvent.change(input, { target: { value: overlongName } });
+
+    expect(input).toHaveAttribute('maxlength', String(MAX_IMAGE_SUBFOLDER_NAME_CHARS));
+    expect(input).toHaveValue('a'.repeat(MAX_IMAGE_SUBFOLDER_NAME_CHARS));
+    expect(mocks.uiState.setImageSubfolderName).toHaveBeenLastCalledWith(
+      'a'.repeat(MAX_IMAGE_SUBFOLDER_NAME_CHARS),
+    );
   });
 });

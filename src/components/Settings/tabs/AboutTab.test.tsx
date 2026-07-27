@@ -96,11 +96,15 @@ describe('AboutTab community QR pills', () => {
 
     expect(qqPanel).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(wechatPanel).not.toHaveClass('opacity-[var(--vlaina-opacity-100)]');
+    expect(screen.getByRole('button', { name: 'QQ group' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'WeChat group' })).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.mouseEnter(wechatPill as Element);
 
     expect(qqPanel).not.toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(wechatPanel).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
+    expect(screen.getByRole('button', { name: 'QQ group' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'WeChat group' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('opens the support email from the about community pills', () => {

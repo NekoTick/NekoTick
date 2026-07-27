@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  BLOCK_CONTROLS_SELECTOR,
   EDITOR_SELECTOR,
   NOTE_IMAGE_BLOCK_SELECTOR,
   NOTE_IMAGE_CROPPER_TOOLBAR_SELECTOR,
@@ -19,6 +20,7 @@ import {
   openMarkdownFixture,
   selectNoteBlocksByText,
 } from './notesE2E';
+import { moveMouseToBlockHandleGutter } from './notesBlockSelectionShared';
 
 const TINY_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -473,6 +475,12 @@ test.describe('notes image block interaction', () => {
 
       await hoverImageBlockContent(imageBlock);
       await waitForToolbarInteractive(page);
+      await app.evaluate(({ clipboard }) => {
+        clipboard.write({
+          text: 'https://example.test/stale-image-source',
+          html: '<a href="https://example.test/stale-image-source">stale image source</a>',
+        });
+      });
       await page.locator(`${NOTE_IMAGE_TOOLBAR_SELECTOR} [data-image-toolbar-action="copy"]`).click();
 
       await expect.poll(async () => app.evaluate(({ clipboard }) => {
@@ -485,6 +493,10 @@ test.describe('notes image block interaction', () => {
         width: expect.any(Number),
         height: expect.any(Number),
       });
+      expect(await app.evaluate(({ clipboard }) => ({
+        html: clipboard.readHTML(),
+        text: clipboard.readText(),
+      }))).toEqual({ html: '', text: '' });
 
       await app.evaluate(({ clipboard }) => {
         clipboard.clear();
@@ -602,6 +614,111 @@ test.describe('notes image block interaction', () => {
 
       expect(cropOpenMs).toBeLessThan(5_000);
       expect(dragMs).toBeLessThan(5_000);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('keeps immediate typing outside an image dragged to the document end', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-image-block-drag-immediate-typing');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      const fixture = await createNotesRootFilesFixture(page, {
+        name: 'image-block-drag-immediate-typing',
+        files: [
+          { filename: 'drag-image.md', content: createImageBlockMarkdown() },
+          { filename: 'other.md', content: '# Other note' },
+        ],
+      });
+      const notePath = fixture.notePaths[0]!;
+      const typedText = 'Immediate typing after dragged image';
+
+      await openAbsoluteNote(page, notePath);
+      const imageBlock = page.locator(NOTE_IMAGE_BLOCK_SELECTOR).first();
+      await waitForImageBlockReady(imageBlock, 'dragged image');
+      const selectionResult = await page.evaluate(async () => {
+        const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks() as Array<{
+          className?: string;
+          dataset?: Record<string, string>;
+        }>;
+        const index = blocks.findIndex((block) =>
+          String(block.className ?? '').includes('editor-paragraph-has-image-block')
+          || String(block.className ?? '').includes('image-block-container')
+          || block.dataset?.alt === 'Notes image block alt sentinel'
+        );
+        const count = index >= 0
+          ? await (window as any).__vlainaE2E.selectNoteBlocksByIndexes([index])
+          : 0;
+        return { blocks, count, index };
+      });
+      expect(selectionResult.count, JSON.stringify(selectionResult.blocks)).toBe(1);
+
+      await moveMouseToBlockHandleGutter(page, imageBlock, { assertCentered: false });
+      await expect(page.locator(BLOCK_CONTROLS_SELECTOR)).toBeVisible();
+      const handleBox = await page.locator('.editor-block-control-handle').boundingBox();
+      const targetBox = await page.locator(`${EDITOR_SELECTOR} p`, {
+        hasText: 'Final image block sentinel.',
+      }).boundingBox();
+      if (!handleBox || !targetBox) {
+        throw new Error('Could not resolve image drag geometry');
+      }
+
+      const startX = handleBox.x + handleBox.width / 2;
+      const startY = handleBox.y + handleBox.height / 2;
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      await page.mouse.move(startX + 28, startY, { steps: 4 });
+      await expect.poll(async () => page.evaluate(() =>
+        document.body.classList.contains('editor-block-drag-active')
+      )).toBe(true);
+      await page.mouse.move(
+        targetBox.x + Math.min(40, targetBox.width / 3),
+        targetBox.y + targetBox.height * 0.8,
+        { steps: 12 },
+      );
+      await expect(page.locator('.editor-block-drop-indicator.visible')).toBeVisible();
+      await page.mouse.up();
+      await expect.poll(async () => page.evaluate(() =>
+        document.body.classList.contains('editor-block-drag-active')
+      )).toBe(false);
+
+      await page.keyboard.type(typedText);
+      const typedParagraph = page.locator(`${EDITOR_SELECTOR} p`, { hasText: typedText });
+      await expect(typedParagraph).toBeVisible();
+      const typedMetrics = await typedParagraph.evaluate((paragraph, expectedText) => {
+        const hasImage = Boolean(paragraph.querySelector('.image-block-container, [data-type="image"]'));
+        const textNode = Array.from(paragraph.childNodes).find((node) =>
+          node.nodeType === Node.TEXT_NODE && node.textContent?.includes(expectedText)
+        );
+        const range = textNode ? document.createRange() : null;
+        if (range && textNode) range.selectNodeContents(textNode);
+        const rect = range?.getBoundingClientRect();
+        return { hasImage, height: rect?.height ?? 0, width: rect?.width ?? 0 };
+      }, typedText);
+      expect(typedMetrics.hasImage).toBe(false);
+      expect(typedMetrics.height).toBeGreaterThan(0);
+      expect(typedMetrics.width).toBeGreaterThan(0);
+
+      await page.evaluate(() => (window as any).__vlainaE2E.saveCurrentNote());
+      const saved = await page.evaluate((pathToRead) =>
+        (window as any).__vlainaE2E.readTextFile(pathToRead), notePath);
+      const savedLines = saved.split('\n');
+      const imageLineIndex = savedLines.findIndex((line) => line.includes('Notes image block alt sentinel'));
+      expect(savedLines.slice(imageLineIndex, imageLineIndex + 3)).toEqual([
+        expect.stringContaining('Notes image block alt sentinel'),
+        '',
+        typedText,
+      ]);
+      expect(saved.indexOf('Final image block sentinel.')).toBeLessThan(
+        saved.indexOf('Notes image block alt sentinel'),
+      );
+
+      await openAbsoluteNote(page, fixture.notePaths[1]!);
+      await openAbsoluteNote(page, notePath);
+      await expect(page.locator(NOTE_IMAGE_BLOCK_SELECTOR)).toHaveCount(1);
+      await expect(page.locator(`${EDITOR_SELECTOR} p`, { hasText: typedText })).toBeVisible();
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

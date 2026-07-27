@@ -1169,7 +1169,7 @@ test.describe('notes typing caret position', () => {
       await page.setViewportSize({ width: 1280, height: 860 });
       await setContentCommitThrottleMs(page, 120);
 
-      await openMarkdownFixture(page, {
+      const opened = await openMarkdownFixture(page, {
         filename: 'typing-caret-selected-chinese-enter-e2e.md',
         content: createLongTypingMarkdown(),
       });
@@ -1208,14 +1208,43 @@ test.describe('notes typing caret position', () => {
         const afterEnter = await getTypingDiagnostics(page, completedMarkers);
         expectMarkersAwayFromLastLine(afterEnter, completedMarkers);
         const markerParagraph = afterEnter.markerParagraphs.find((paragraph) => paragraph.marker === testCase.marker);
-        expect(markerParagraph?.text).toContain(testCase.marker);
-        expect(markerParagraph?.text).not.toContain(testCase.enterLine);
+        expect(markerParagraph?.text).toBe(`Typing caret ${testCase.marker}`);
         const nextParagraph = afterEnter.paragraphTexts[(markerParagraph?.index ?? -2) + 1] ?? '';
-        expect(nextParagraph).toContain(testCase.enterLine);
+        expect(nextParagraph).toBe(`${testCase.enterLine} text stays editable in the middle of a long note.`);
+        expect(afterEnter.paragraphTexts.filter((text) => text.includes(testCase.marker))).toHaveLength(1);
         expect(afterEnter.currentContentIncludesMarkers).toEqual(completedMarkers.map(() => true));
+        expect(await page.evaluate(({ marker, enterLine, targetText }) => {
+          const content = String((window as any).__vlainaE2E.getNotesState().currentNote?.content ?? '');
+          return {
+            markerCount: content.split(marker).length - 1,
+            hasExpectedLines: content.includes(
+              `Typing caret ${marker}\n${enterLine} text stays editable in the middle of a long note.`
+            ),
+            hasReplacedText: content.includes(targetText),
+          };
+        }, testCase)).toEqual({
+          markerCount: 1,
+          hasExpectedLines: true,
+          hasReplacedText: false,
+        });
         expect(afterEnter.lastParagraphText).toContain('Final typing caret sentinel');
         expect(Math.abs(afterEnter.scrollTop - before.scrollTop)).toBeLessThan(460);
       }
+
+      await expect.poll(async () => page.evaluate(async ({ path, cases }) => {
+        const content = String(await (window as any).__vlainaE2E.readTextFile(path));
+        return cases.map(({ marker, enterLine, targetText }) => ({
+          markerCount: content.split(marker).length - 1,
+          hasExpectedLines: content.includes(
+            `Typing caret ${marker}\n${enterLine} text stays editable in the middle of a long note.`
+          ),
+          hasReplacedText: content.includes(targetText),
+        }));
+      }, { path: opened.notePath, cases }), { timeout: 10_000 }).toEqual(cases.map(() => ({
+        markerCount: 1,
+        hasExpectedLines: true,
+        hasReplacedText: false,
+      })));
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

@@ -7,6 +7,10 @@ import { writeTextToClipboard } from '../../cursor/blockSelectionCommands';
 import { getCodeBlockSourceText } from '../codeBlockText';
 import { mapCodeBlockEditorOffsetToDocumentOffset } from './codeBlockEditorUtils';
 import type { CreateCodeBlockKeymapOptions } from './codeBlockEditorKeymapTypes';
+import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 const { TextSelection } = proseState;
 
@@ -162,6 +166,12 @@ export function createCodeBlockEditorClipboardHandlers({
   getPos,
 }: Omit<CreateCodeBlockKeymapOptions, 'getCodeMirror'>): DOMEventHandlers<unknown> {
   return {
+    paste(event) {
+      return preventImageClipboardTextPaste(event);
+    },
+    drop(event) {
+      return preventImageDataTransferTextDrop(event);
+    },
     copy(event, cm) {
       return copyCodeMirrorSelection(() => cm, view, getNode, getPos, event);
     },

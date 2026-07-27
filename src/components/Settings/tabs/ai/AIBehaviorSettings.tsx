@@ -70,6 +70,7 @@ export function AIBehaviorSettings() {
           data-settings-control="ai-system-prompt"
           autoGrow={true}
           value={draftSystemPrompt}
+          aria-label={t('settings.ai.systemPrompt')}
           onChange={(event) => {
             isEditingPromptRef.current = true;
             setDraftSystemPrompt(event.target.value);

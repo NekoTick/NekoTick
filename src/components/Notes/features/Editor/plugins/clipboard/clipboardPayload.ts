@@ -1,3 +1,11 @@
+export {
+    hasClipboardImageFilePayload,
+    hasClipboardImageOnlyHtmlPayload,
+    hasClipboardImagePayload,
+    normalizeImageOnlyClipboardHtml,
+    preventImageClipboardTextPaste,
+} from '@/lib/clipboardImagePayload';
+
 export function hasClipboardPayload(event: ClipboardEvent): boolean {
     const clipboardData = event.clipboardData;
     if (!clipboardData) return false;

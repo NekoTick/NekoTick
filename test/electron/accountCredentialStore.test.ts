@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   storageBackend: 'gnome_libsecret',
   decryptFails: false,
   decryptCalls: 0,
+  safeStorageCalls: 0,
 }));
 
 vi.mock('electron', () => ({
@@ -23,15 +24,19 @@ vi.mock('electron', () => ({
     },
     safeStorage: {
       isEncryptionAvailable() {
+        mocks.safeStorageCalls += 1;
         return mocks.encryptionAvailable;
       },
       getSelectedStorageBackend() {
+        mocks.safeStorageCalls += 1;
         return mocks.storageBackend;
       },
       encryptString(value: string) {
+        mocks.safeStorageCalls += 1;
         return Buffer.from(`enc:${value}`, 'utf8');
       },
       decryptString(buffer: Buffer) {
+        mocks.safeStorageCalls += 1;
         mocks.decryptCalls += 1;
         if (mocks.decryptFails) {
           throw new Error('decrypt failed');
@@ -52,6 +57,7 @@ describe('accountCredentialStore', () => {
     mocks.storageBackend = 'gnome_libsecret';
     mocks.decryptFails = false;
     mocks.decryptCalls = 0;
+    mocks.safeStorageCalls = 0;
   });
 
   afterEach(async () => {
@@ -276,6 +282,31 @@ describe('accountCredentialStore', () => {
     await expect(store.readStoredAccountCredentials()).resolves.toBeNull();
     await expect(readFile(secretsPath, 'utf8')).resolves.toBe(rawSecrets);
   });
+
+  it.each(['metadata', 'secrets'] as const)(
+    'returns null without using safe storage when the %s file is missing',
+    async (missingFile) => {
+      const storeDir = path.join(mocks.userDataPath, '.vlaina', 'app');
+      const metaPath = path.join(storeDir, 'account', 'profile.json');
+      const secretsPath = path.join(storeDir, 'secrets', 'account.json');
+      await mkdir(path.dirname(metaPath), { recursive: true });
+      await mkdir(path.dirname(secretsPath), { recursive: true });
+      if (missingFile !== 'metadata') {
+        await writeFile(metaPath, JSON.stringify({ provider: 'google', username: 'fixture-user' }), 'utf8');
+      }
+      if (missingFile !== 'secrets') {
+        await writeFile(secretsPath, JSON.stringify({ appSessionToken: {} }), 'utf8');
+      }
+
+      const { createAccountCredentialStore } = await import('../../electron/accountCredentialStore.mjs');
+      const store = createAccountCredentialStore({
+        desktopLegacySessionHeader: 'x-app-session-token',
+      });
+
+      await expect(store.readStoredAccountCredentials()).resolves.toBeNull();
+      expect(mocks.safeStorageCalls).toBe(0);
+    },
+  );
 
   it('coalesces and caches persistent credential reads', async () => {
     const storeDir = path.join(mocks.userDataPath, '.vlaina', 'app');

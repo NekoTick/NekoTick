@@ -1,4 +1,8 @@
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
+import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface UrlRailEditorOptions {
   value?: string;
@@ -87,6 +91,8 @@ export function renderUrlRailEditor(
   input.addEventListener('compositionend', () => {
     isComposing = false;
   });
+  input.addEventListener('paste', preventImageClipboardTextPaste);
+  input.addEventListener('drop', preventImageDataTransferTextDrop);
 
   input.addEventListener('keydown', (event) => {
     if (event.isComposing || isComposing) {

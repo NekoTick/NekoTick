@@ -348,6 +348,69 @@ describe('CoverPicker', () => {
     expect(pasteEvent.defaultPrevented).toBe(true);
   });
 
+  it('uploads a pasted image exposed only through clipboard files', async () => {
+    const file = new File(['image'], 'files-only.png', { type: 'image/png' });
+    hoisted.uploadAsset.mockResolvedValue({
+      success: true,
+      path: './assets/files-only.png',
+      isDuplicate: false,
+    });
+    const onSelect = vi.fn();
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        notesRootPath="/notesRoot"
+        currentNotePath="note.md"
+      />,
+    );
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+
+    await act(async () => {
+      document.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    expect(hoisted.uploadAsset).toHaveBeenCalledTimes(1);
+    expect(hoisted.uploadAsset).toHaveBeenCalledWith(file, 'note.md');
+    expect(onSelect).toHaveBeenCalledWith('./assets/files-only.png');
+    expect(pasteEvent.defaultPrevented).toBe(true);
+  });
+
+  it('does not consume a paste event already handled by the note editor', () => {
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        notesRootPath="/notesRoot"
+        currentNotePath="note.md"
+      />,
+    );
+    const file = new File(['image'], 'handled.png', { type: 'image/png' });
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => '',
+      },
+    });
+    pasteEvent.preventDefault();
+
+    document.dispatchEvent(pasteEvent);
+
+    expect(hoisted.uploadAsset).not.toHaveBeenCalled();
+  });
+
   it('starts asset reload when the picker opens and uses the latest note scope', async () => {
     hoisted.assetList = [{ filename: 'a.png' }];
 

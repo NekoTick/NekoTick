@@ -25,6 +25,7 @@ vi.mock('@/components/Settings/components/SettingsFields', () => ({
     value,
     onChange,
     placeholder,
+    'aria-label': ariaLabel,
     onFocus,
     onBlur,
     onKeyDown,
@@ -32,6 +33,7 @@ vi.mock('@/components/Settings/components/SettingsFields', () => ({
     value?: string;
     onChange?: ChangeEventHandler<HTMLInputElement>;
     placeholder?: string;
+    'aria-label'?: string;
     onFocus?: FocusEventHandler<HTMLInputElement>;
     onBlur?: FocusEventHandler<HTMLInputElement>;
     onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
@@ -40,6 +42,7 @@ vi.mock('@/components/Settings/components/SettingsFields', () => ({
       value={value}
       onChange={onChange}
       placeholder={placeholder}
+      aria-label={ariaLabel}
       onFocus={onFocus}
       onBlur={onBlur}
       onKeyDown={onKeyDown}
@@ -123,6 +126,12 @@ function setScrollMetrics(
 }
 
 describe('ProviderModelsPanel', () => {
+  it('names the model filter field', () => {
+    render(<ProviderModelsPanel {...buildProps()} />);
+
+    expect(screen.getByRole('textbox', { name: 'Filter models...' })).toBeInTheDocument();
+  });
+
   it('allows a model id to be added before a provider model catalog is fetched', () => {
     const onAddAllVisible = vi.fn();
     render(
@@ -204,6 +213,27 @@ describe('ProviderModelsPanel', () => {
 
     expect(onBenchmarkModel).toHaveBeenNthCalledWith(1, 'model-alpha');
     expect(onBenchmarkModel).toHaveBeenNthCalledWith(2, 'provider-1::beta');
+    expect(onDeleteModel).not.toHaveBeenCalled();
+    expect(onAddModel).not.toHaveBeenCalled();
+  });
+
+  it('names the selected and available section benchmark buttons', () => {
+    render(<ProviderModelsPanel {...buildProps()} />);
+
+    expect(screen.getByRole('button', { name: 'Benchmark All: Selected' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Benchmark All: Available' })).toBeInTheDocument();
+  });
+
+  it.each(['Enter', ' '])('does not toggle a model when a nested benchmark button handles %s', (key) => {
+    const onAddModel = vi.fn(() => true);
+    const onDeleteModel = vi.fn();
+
+    render(<ProviderModelsPanel {...buildProps({ onAddModel, onDeleteModel })} />);
+
+    const benchmarkButtons = screen.getAllByRole('button', { name: 'Benchmark All' });
+    fireEvent.keyDown(benchmarkButtons[1], { key });
+    fireEvent.keyDown(benchmarkButtons[2], { key });
+
     expect(onDeleteModel).not.toHaveBeenCalled();
     expect(onAddModel).not.toHaveBeenCalled();
   });

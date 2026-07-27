@@ -218,6 +218,42 @@ describe('SidebarSearchDrawer', () => {
     expect(onSelectNext).not.toHaveBeenCalled();
   });
 
+  it('does not paste image clipboard companion text into search', () => {
+    render(
+      <SidebarSearchDrawer
+        isSearchOpen
+        shouldShowTopActions={false}
+        searchQuery=""
+        setSearchQuery={() => {}}
+        inputRef={createRef<HTMLInputElement>()}
+        hideSearch={() => {}}
+        canSubmit={false}
+        onSubmit={() => {}}
+        placeholder="Search"
+        ariaLabel="Search"
+        closeLabel="Close search"
+        topActions={null}
+      />,
+    );
+    const image = new File(['image'], 'search.png', { type: 'image/png' });
+    const input = screen.getByRole('textbox');
+
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [{ kind: 'file', type: image.type, getAsFile: () => image }],
+        files: [image],
+        getData: () => 'https://example.test/companion',
+      },
+    })).toBe(false);
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: () => 'https://example.test/plain',
+      },
+    })).toBe(true);
+  });
+
   it('closes search from an outside editor even when an unrelated dialog exists', () => {
     const onClose = vi.fn();
     render(<SearchControlsHarness onClose={onClose} />);

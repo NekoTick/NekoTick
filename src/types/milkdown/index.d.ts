@@ -818,6 +818,9 @@ declare module '@milkdown/prose/commands' {
 }
 
 declare module '@milkdown/kit/prose/history' {
+  export function closeHistory(
+    tr: MilkdownTransactionLike,
+  ): MilkdownTransactionLike;
   export function undo(
     state: MilkdownEditorStateLike,
     dispatch?: ((tr: MilkdownTransactionLike) => void) | null,
@@ -826,6 +829,8 @@ declare module '@milkdown/kit/prose/history' {
     state: MilkdownEditorStateLike,
     dispatch?: ((tr: MilkdownTransactionLike) => void) | null,
   ): boolean;
+  export function undoDepth(state: MilkdownEditorStateLike): number;
+  export function redoDepth(state: MilkdownEditorStateLike): number;
 }
 
 declare module '@milkdown/kit/prose/inputrules' {
@@ -1027,7 +1032,9 @@ declare module '@milkdown/kit/prose/state' {
 
   export class Plugin<T = any> {
     constructor(spec?: MilkdownPluginSpec<T>);
+    key: string;
     spec: MilkdownPluginSpec<T>;
+    getState(state: EditorState): T | undefined;
     [key: string]: any;
   }
 

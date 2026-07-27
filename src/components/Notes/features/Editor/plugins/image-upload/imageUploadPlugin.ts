@@ -1,8 +1,7 @@
 import { $prose } from '@milkdown/kit/utils';
 import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
 import {
-    extractImageFilesFromClipboardItems,
-    extractImageFilesFromFileList,
+    extractImageFilesFromClipboardData,
 } from './imageFileExtraction';
 import { handleEditorImageFiles } from './handleEditorImageFiles';
 import { canInsertImageNodeAtSelection } from './imageNodeInsertion';
@@ -15,7 +14,7 @@ export const imageUploadPlugin = $prose(() => {
         props: {
             handleDOMEvents: {
                 paste(view, event) {
-                    const imageFiles = extractImageFilesFromClipboardItems(event.clipboardData?.items);
+                    const imageFiles = extractImageFilesFromClipboardData(event.clipboardData);
                     if (imageFiles.length === 0) return false;
                     if (!canInsertImageNodeAtSelection(view)) return false;
 
@@ -25,7 +24,7 @@ export const imageUploadPlugin = $prose(() => {
                 },
 
                 drop(view, event) {
-                    const imageFiles = extractImageFilesFromFileList(event.dataTransfer?.files);
+                    const imageFiles = extractImageFilesFromClipboardData(event.dataTransfer);
                     if (imageFiles.length === 0) return false;
                     if (!canInsertImageNodeAtSelection(view)) return false;
 

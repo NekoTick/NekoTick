@@ -78,6 +78,7 @@ export interface E2EBridge {
     endpointType?: 'openai' | 'anthropic';
     endpointTypeCheckedAt?: number;
   }): Promise<string>;
+  setProviderFetchedModels(providerId: string, modelIds: string[]): Promise<void>;
   deleteProvider(id: string): Promise<void>;
   prepareChatWebSearchE2E(): Promise<{ providerId: string; modelId: string }>;
   setChatWebSearchEnabled(enabled: boolean): Promise<void>;
@@ -185,6 +186,7 @@ export interface E2EBridge {
   getEditorPositionAtPoint(clientX: number, clientY: number): number | null;
   getEditorTextRange(text: string, anchorText?: string): { from: number; to: number } | null;
   getCurrentEditorNotePath(): string | null;
+  getEditorHistoryDepth(): { undo: number; redo: number } | null;
   focusEditorAtPoint(clientX: number, clientY: number): boolean;
   setEditorSelectionRange(from: number, to?: number): Promise<EditorSelectionSummary | null>;
   focusCurrentEditor(): Promise<boolean>;

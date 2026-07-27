@@ -125,7 +125,7 @@ export function hasTemporaryTailParagraph(state: any): boolean {
     return getTemporaryTailParagraphPos(state.doc, pluginState?.temporaryTailParagraphPos ?? null) !== null;
 }
 
-function removeTemporaryTailParagraph(view: EditorView): boolean {
+export function removeTemporaryTailParagraph(view: EditorView): boolean {
     const pluginState = endBlankClickPluginKey.getState(view.state) as EndBlankClickPluginState | undefined;
     const pos = getTemporaryTailParagraphPos(view.state.doc, pluginState?.temporaryTailParagraphPos ?? null);
     if (pos === null) return false;

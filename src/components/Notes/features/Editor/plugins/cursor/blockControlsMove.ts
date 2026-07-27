@@ -84,7 +84,30 @@ function setSelectionAtMovedContentTail(
   insertedSize: number,
 ): EditorState['tr'] {
   const anchor = Math.max(0, Math.min(insertedFrom + insertedSize, tr.doc.content.size));
-  return tr.setSelection(Selection.near(tr.doc.resolve(anchor), -1));
+  const $anchor = tr.doc.resolve(anchor);
+  const backwardSelection = Selection.near($anchor, -1);
+  const selectionParent = backwardSelection.$from.parent;
+  const isImageOnlyParagraph = selectionParent.type.name === 'paragraph'
+    && selectionParent.childCount > 0
+    && Array.from({ length: selectionParent.childCount }, (_, index) => selectionParent.child(index))
+      .every((child) => child.type.name === 'image');
+  if (!isImageOnlyParagraph) {
+    return tr.setSelection(backwardSelection);
+  }
+
+  const forwardSelection = Selection.near($anchor, 1);
+  if (forwardSelection.$from.parent !== selectionParent) {
+    return tr.setSelection(forwardSelection);
+  }
+
+  const paragraphType = tr.doc.type.schema.nodes.paragraph;
+  const insertIndex = $anchor.index();
+  if (paragraphType && $anchor.parent.canReplaceWith(insertIndex, insertIndex, paragraphType)) {
+    tr.insert(anchor, paragraphType.create());
+    return tr.setSelection(Selection.near(tr.doc.resolve(anchor), 1));
+  }
+
+  return tr.setSelection(backwardSelection);
 }
 
 function stripTerminalHardBreak(content: Fragment): Fragment {
@@ -239,12 +262,13 @@ function applyBlockMoveIntoInlineParagraph(
     const paragraphContent = paragraphNode.content as unknown as Fragment;
     const beforeContent = paragraphContent.cut(0, splitOffset);
     const afterContent = paragraphContent.cut(splitOffset);
-    let replacement = Fragment.from(paragraphNode.type.create(paragraphNode.attrs, beforeContent));
+    const beforeParagraph = paragraphNode.type.create(paragraphNode.attrs, beforeContent);
+    let replacement = Fragment.from(beforeParagraph);
     replacement = replacement.append(movedContent);
     replacement = replacement.append(Fragment.from(paragraphNode.type.create(paragraphNode.attrs, afterContent)));
 
     tr = tr.replaceWith(mappedParagraph.from, mappedParagraph.to, replacement);
-    tr = setSelectionAtMovedContentTail(tr, mappedParagraph.from + beforeContent.size, movedContent.size)
+    tr = setSelectionAtMovedContentTail(tr, mappedParagraph.from + beforeParagraph.nodeSize, movedContent.size)
       .scrollIntoView();
     markEditorUserInput(view);
     view.dispatch(tr);

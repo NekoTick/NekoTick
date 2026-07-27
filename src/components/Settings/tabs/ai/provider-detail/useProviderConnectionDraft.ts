@@ -32,6 +32,7 @@ export function useProviderConnectionDraft({
     apiKey: provider?.apiKey || '',
     endpointType: provider?.endpointType,
     endpointTypeCheckedAt: provider?.endpointTypeCheckedAt,
+    persistedName: provider?.name || '',
     persistedApiHost: provider?.apiHost || '',
     persistedApiKey: provider?.apiKey || '',
   });
@@ -141,6 +142,7 @@ export function useProviderConnectionDraft({
       apiKey,
       endpointType: provider?.endpointType,
       endpointTypeCheckedAt: provider?.endpointTypeCheckedAt,
+      persistedName: provider?.name || '',
       persistedApiHost: provider?.apiHost || '',
       persistedApiKey: provider?.apiKey || '',
     };
@@ -164,8 +166,12 @@ export function useProviderConnectionDraft({
       if (!draft.providerId || draft.providerId === MANAGED_PROVIDER_ID) {
         return;
       }
+      const sameName = draft.name === draft.persistedName;
       const sameApiHost = draft.apiHost === draft.persistedApiHost;
       const sameApiKey = draft.apiKey === draft.persistedApiKey;
+      if (sameName && sameApiHost && sameApiKey) {
+        return;
+      }
       const sameConnection = sameApiHost && sameApiKey;
       updateProviderRef.current(draft.providerId, {
         name: draft.name,

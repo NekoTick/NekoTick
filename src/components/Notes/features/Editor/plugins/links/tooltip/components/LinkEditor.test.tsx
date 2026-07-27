@@ -122,4 +122,28 @@ describe('LinkEditor', () => {
         expect(input).not.toHaveClass('error-shake');
         expect(input).not.toHaveAttribute('aria-invalid');
     });
+
+    it('does not turn image-only HTML companion text into a link URL', () => {
+        const setEditUrl = vi.fn();
+        render(<LinkEditor {...defaultProps} editUrl="https://example.test/original" setEditUrl={setEditUrl} />);
+        const input = screen.getByPlaceholderText('URL...');
+
+        expect(fireEvent.paste(input, {
+            clipboardData: {
+                items: [],
+                files: [],
+                getData: (type: string) => type === 'text/html'
+                    ? '<a href="https://example.test/companion"><img src="https://images.example.test/link.png"></a>'
+                    : 'https://example.test/companion',
+            },
+        })).toBe(false);
+        expect(fireEvent.paste(input, {
+            clipboardData: {
+                items: [],
+                files: [],
+                getData: () => 'https://example.test/ordinary',
+            },
+        })).toBe(true);
+        expect(setEditUrl).not.toHaveBeenCalled();
+    });
 });

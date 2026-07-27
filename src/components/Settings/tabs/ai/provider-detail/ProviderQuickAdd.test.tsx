@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ProviderQuickAdd } from './ProviderQuickAdd';
 
@@ -13,6 +13,22 @@ vi.mock('@/lib/i18n', () => ({
 }));
 
 describe('ProviderQuickAdd', () => {
+  it('names the model quick-add field', () => {
+    render(
+      <ProviderQuickAdd
+        value=""
+        error=""
+        sortedFetchedModels={[]}
+        providerModelIdSet={new Set()}
+        onValueChange={vi.fn()}
+        onAddAllVisible={vi.fn()}
+        onSetError={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('combobox', { name: 'settings.ai.addModelId' })).toBeInTheDocument();
+  });
+
   it('does not submit a model id while IME composition is active', () => {
     const onAddAllVisible = vi.fn();
     const onValueChange = vi.fn();
@@ -37,5 +53,33 @@ describe('ProviderQuickAdd', () => {
     fireEvent.click(addButton);
 
     expect(onAddAllVisible).not.toHaveBeenCalled();
+  });
+
+  it('exposes suggestions as a combobox and dismisses them with Escape', () => {
+    render(
+      <ProviderQuickAdd
+        value="gm"
+        error=""
+        sortedFetchedModels={['gpt-4o-mini', 'gemini-pro']}
+        providerModelIdSet={new Set()}
+        onValueChange={vi.fn()}
+        onAddAllVisible={vi.fn()}
+        onSetError={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByRole('combobox', { name: 'settings.ai.addModelId' });
+    act(() => input.focus());
+
+    expect(input).toHaveAttribute('aria-expanded', 'true');
+    expect(input).toHaveAttribute('aria-autocomplete', 'list');
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getAllByRole('option')[0]).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 });

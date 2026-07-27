@@ -108,6 +108,54 @@ export function installFloatingToolbarPluginViewEventMethods(ctx: FloatingToolba
     ctx.restoreLastSelection();
   };
 
+  ctx.handleEditorKeyboardInteraction = (event: KeyboardEvent) => {
+    const target = event.target;
+    if (!(target instanceof Node) || !ctx.editorView.dom.contains(target)) {
+      return;
+    }
+    if (
+      target instanceof Element &&
+      target.closest('button, a[href], input, textarea, select, .cm-editor, [contenteditable="false"]')
+    ) {
+      return;
+    }
+    const toolbarState = ctx.toolbarKey.getState(ctx.editorView.state);
+    if (
+      !toolbarState?.isVisible &&
+      !hasActiveAppliedPreview(ctx.editorView) &&
+      resolveDocumentHistoryShortcut(event) === null
+    ) {
+      return;
+    }
+    const clearKeyboardTriggeredPreview = () => {
+      const connected = ctx.editorView.dom.isConnected;
+      const activePreview = hasActiveAppliedPreview(ctx.editorView);
+      const domHidden = ctx.editorView.dom.hasAttribute('data-toolbar-preview-hidden');
+      if (
+        !connected ||
+        (
+          !activePreview &&
+          !domHidden
+        )
+      ) {
+        return;
+      }
+      clearFormatPreview(ctx.editorView);
+      ctx.editorView.dispatch(
+        ctx.editorView.state.tr
+          .setMeta(ctx.toolbarKey, { type: TOOLBAR_ACTIONS.HIDE })
+          .setMeta('addToHistory', false)
+      );
+      ctx.editorView.focus();
+    };
+
+    clearKeyboardTriggeredPreview();
+    requestAnimationFrame(() => {
+      clearKeyboardTriggeredPreview();
+      requestAnimationFrame(clearKeyboardTriggeredPreview);
+    });
+  };
+
   ctx.bindGlobalListeners = (resizeObserver: ResizeObserver | null) => {
     document.addEventListener('mousedown', ctx.handleMouseDown);
     document.addEventListener('mouseup', ctx.handleMouseUp, true);
@@ -115,6 +163,7 @@ export function installFloatingToolbarPluginViewEventMethods(ctx: FloatingToolba
     document.addEventListener('keydown', ctx.handleEscape);
     document.addEventListener('keydown', ctx.handleDocumentHistoryShortcut);
     document.addEventListener('keydown', ctx.handleDocumentFormatShortcut);
+    document.addEventListener('keydown', ctx.handleEditorKeyboardInteraction);
     document.addEventListener('mousemove', ctx.handleDocumentToolbarPointerMove, true);
     document.addEventListener('mouseover', ctx.handleDocumentToolbarPointerMove, true);
     ctx.toolbarElement.addEventListener('pointerover', ctx.handleToolbarPointerEnter, true);
@@ -140,6 +189,7 @@ export function installFloatingToolbarPluginViewEventMethods(ctx: FloatingToolba
     document.removeEventListener('keydown', ctx.handleEscape);
     document.removeEventListener('keydown', ctx.handleDocumentHistoryShortcut);
     document.removeEventListener('keydown', ctx.handleDocumentFormatShortcut);
+    document.removeEventListener('keydown', ctx.handleEditorKeyboardInteraction);
     document.removeEventListener('mousemove', ctx.handleDocumentToolbarPointerMove, true);
     document.removeEventListener('mouseover', ctx.handleDocumentToolbarPointerMove, true);
     ctx.toolbarElement.removeEventListener('pointerover', ctx.handleToolbarPointerEnter, true);

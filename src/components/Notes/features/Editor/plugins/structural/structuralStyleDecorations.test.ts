@@ -150,6 +150,10 @@ describe('structuralStyleDecorations', () => {
     expect(getStructuralStyleDecorationClass(paragraphWithChildren([image(), image()]))).toBe(
       `${STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS} ${STRUCTURAL_PARAGRAPH_HAS_MULTIPLE_IMAGE_BLOCKS_CLASS}`,
     );
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      image(),
+      textNode('Visible text'),
+    ]))).toBeNull();
   });
 
   it('marks list items based on direct child text alignment', () => {
@@ -218,7 +222,7 @@ describe('structuralStyleDecorations', () => {
     expect(scanned).toBe(2);
   });
 
-  it('adds paragraph image classes incrementally when an image is inserted', () => {
+  it('does not collapse a text paragraph when an image is inserted', () => {
     const state = EditorStateCtor.create({
       schema,
       doc: docWith([paragraph('Target')]),
@@ -231,9 +235,7 @@ describe('structuralStyleDecorations', () => {
       decorations: previousDecorations,
     }, tr.doc);
 
-    expect(next.decorations.find().map((decoration: Decoration) => (decoration.type as any).attrs?.class)).toEqual([
-      STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS,
-    ]);
+    expect(next.decorations.find()).toEqual([]);
   });
 
   it('reuses structural decorations for selection-only transactions', () => {

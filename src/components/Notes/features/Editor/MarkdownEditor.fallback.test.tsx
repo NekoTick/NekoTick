@@ -22,6 +22,7 @@ type MockNotesState = {
   }>;
   isStarred: (path: string) => boolean;
   toggleStarred: ReturnType<typeof vi.fn>;
+  uploadAsset: ReturnType<typeof vi.fn>;
   saveNote: ReturnType<typeof vi.fn<(options?: { explicit?: boolean }) => Promise<void>>>;
   getDisplayName: (path: string) => string;
   updateContent: (content: string) => void;
@@ -49,6 +50,7 @@ const mocks = vi.hoisted(() => {
     starredEntries: [],
     isStarred: () => false,
     toggleStarred: vi.fn(),
+    uploadAsset: vi.fn(),
     saveNote: vi.fn<(options?: { explicit?: boolean }) => Promise<void>>().mockResolvedValue(undefined),
     getDisplayName: (path: string) => path,
     updateContent: (content: string) => {
@@ -243,6 +245,7 @@ vi.mock('./MilkdownEditorInner', () => ({
 
 describe('MarkdownEditor source fallback', () => {
   beforeEach(() => {
+    delete (window as Window & { vlainaDesktop?: unknown }).vlainaDesktop;
     mocks.notesState.currentNote = { path: 'alpha.md', content: '# Alpha\n\nInitial body' };
     mocks.notesState.currentNoteRevision = 0;
     mocks.notesState.currentNoteDiskRevision = 0;
@@ -255,12 +258,14 @@ describe('MarkdownEditor source fallback', () => {
     mocks.notesState.starredEntries = [];
     mocks.notesState.isDirty = false;
     mocks.notesState.toggleStarred.mockClear();
+    mocks.notesState.uploadAsset.mockReset();
     mocks.notesState.saveNote.mockClear();
     mocks.milkdownRuntimeMode.value = 'throw';
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    delete (window as Window & { vlainaDesktop?: unknown }).vlainaDesktop;
   });
 
   it('uses the configured markdown font size in source mode', () => {
@@ -291,6 +296,421 @@ describe('MarkdownEditor source fallback', () => {
     );
 
     expect(document.activeElement).toBe(screen.getByLabelText('Markdown source editor'));
+  });
+
+  it('uploads a pasted image in source mode without inserting companion clipboard text', async () => {
+    const file = new File(['image'], 'source shot.png', { type: 'image/png' });
+    mocks.notesState.uploadAsset.mockResolvedValue({
+      success: true,
+      path: './assets/source-shot.png',
+      isDuplicate: false,
+    });
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    const selectionStart = sourceEditor.value.indexOf('Initial');
+    sourceEditor.setSelectionRange(selectionStart, selectionStart + 'Initial'.length);
+    const pasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [
+          { kind: 'string', type: 'text/plain', getAsFile: () => null },
+          { kind: 'file', type: 'image/png', getAsFile: () => file },
+        ],
+        files: [file],
+        types: ['text/plain', 'text/html', 'Files'],
+        getData: (type: string) => type === 'text/html'
+          ? '<a href="https://example.test/companion"><img src="blob:https://example.test/copied"></a>'
+          : '[https://example.test/companion](https://example.test/companion)\n\n\u200Bhttps://example.test/companion',
+      },
+    });
+
+    fireEvent(sourceEditor, pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(sourceEditor.value).toBe(
+        '# Alpha\n\n![source-shot](<./assets/source-shot.png>) body',
+      );
+    });
+    expect(mocks.notesState.currentNote?.content).toBe(
+      '# Alpha\n\n![source-shot](<./assets/source-shot.png>) body',
+    );
+    expect(sourceEditor.value).not.toContain('example.test/companion');
+    expect(sourceEditor.value).not.toContain('\u200B');
+    expect(sourceEditor.selectionStart).toBe(
+      selectionStart + '![source-shot](<./assets/source-shot.png>)'.length,
+    );
+    expect(sourceEditor.selectionEnd).toBe(sourceEditor.selectionStart);
+    expect(mocks.notesState.uploadAsset).toHaveBeenCalledTimes(1);
+    expect(mocks.notesState.uploadAsset).toHaveBeenCalledWith(file, 'alpha.md');
+  });
+
+  it('uses clipboard files when source-mode clipboard items contain only companion text', async () => {
+    const file = new File(['image'], 'files-only.png', { type: 'image/png' });
+    mocks.notesState.uploadAsset.mockResolvedValue({
+      success: true,
+      path: './assets/files-only.png',
+      isDuplicate: false,
+    });
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="fallback"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+    const pasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+        files: [file],
+        types: ['text/plain', 'Files'],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+
+    fireEvent(sourceEditor, pasteEvent);
+
+    await waitFor(() => {
+      expect(sourceEditor.value).toBe(
+        '# Alpha\n\nInitial body![files-only](<./assets/files-only.png>)',
+      );
+    });
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    expect(sourceEditor.value).not.toContain('example.test');
+    expect(mocks.notesState.uploadAsset).toHaveBeenCalledTimes(1);
+  });
+
+  it('inserts multiple source images once in order with only the required separator', async () => {
+    const first = new File(['one'], 'one.png', { type: 'image/png' });
+    const second = new File(['two'], 'two.png', { type: 'image/png' });
+    mocks.notesState.uploadAsset
+      .mockResolvedValueOnce({ success: true, path: './assets/one.png', isDuplicate: false })
+      .mockResolvedValueOnce({ success: true, path: './assets/two.png', isDuplicate: false });
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange('# Alpha'.length, '# Alpha'.length);
+    fireEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [
+          { kind: 'file', type: first.type, getAsFile: () => first },
+          { kind: 'file', type: second.type, getAsFile: () => second },
+        ],
+        files: [first, second],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+
+    const inserted = '![one](<./assets/one.png>)\n![two](<./assets/two.png>)';
+    await waitFor(() => {
+      expect(sourceEditor.value).toBe(`# Alpha${inserted}\n\nInitial body`);
+    });
+    expect(sourceEditor.value.match(/\.\/assets\/one\.png/g)).toHaveLength(1);
+    expect(sourceEditor.value.match(/\.\/assets\/two\.png/g)).toHaveLength(1);
+    expect(sourceEditor.value.slice('# Alpha'.length, '# Alpha'.length + inserted.length)).toBe(inserted);
+    expect(mocks.notesState.uploadAsset.mock.calls.map(([file]) => file)).toEqual([first, second]);
+  });
+
+  it('uploads a dropped image in source mode without inserting drag companion text', async () => {
+    const file = new File(['image'], 'dropped.png', { type: 'image/png' });
+    mocks.notesState.uploadAsset.mockResolvedValue({
+      success: true,
+      path: './assets/dropped.png',
+      isDuplicate: false,
+    });
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+    const dropEvent = createEvent.drop(sourceEditor, {
+      dataTransfer: {
+        items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+
+    fireEvent(sourceEditor, dropEvent);
+
+    expect(dropEvent.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(sourceEditor.value).toBe(
+        '# Alpha\n\nInitial body![dropped](<./assets/dropped.png>)',
+      );
+    });
+    expect(sourceEditor.value).not.toContain('example.test');
+  });
+
+  it('does not overwrite source edits made while an image upload is pending', async () => {
+    let resolveUpload: (value: { success: true; path: string; isDuplicate: false }) => void = () => undefined;
+    const file = new File(['image'], 'pending.png', { type: 'image/png' });
+    mocks.notesState.uploadAsset.mockReturnValue(new Promise((resolve) => {
+      resolveUpload = resolve;
+    }));
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+    fireEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [{ kind: 'file', type: file.type, getAsFile: () => file }],
+        files: [file],
+        getData: () => '',
+      },
+    });
+    await Promise.resolve();
+
+    fireEvent.change(sourceEditor, { target: { value: '# Alpha\n\nUser kept typing' } });
+    resolveUpload({ success: true, path: './assets/pending.png', isDuplicate: false });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(sourceEditor.value).toBe('# Alpha\n\nUser kept typing');
+    expect(sourceEditor.value).not.toContain('pending.png');
+  });
+
+  it('inserts normalized image-only HTML once in source mode and leaves ordinary URLs native', () => {
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+    const imagePasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [],
+        files: [],
+        types: ['text/plain', 'text/html'],
+        getData: (type: string) => type === 'text/html'
+          ? '\u200B<a href="https://example.test/companion"><img src="https://images.example.test/copied.png" alt="Copied" onerror="bad()"></a>\u200B'
+          : 'https://example.test/companion',
+      },
+    });
+
+    fireEvent(sourceEditor, imagePasteEvent);
+
+    expect(imagePasteEvent.defaultPrevented).toBe(true);
+    expect(sourceEditor.value).toBe(
+      '# Alpha\n\nInitial body<img src="https://images.example.test/copied.png" alt="Copied">',
+    );
+    expect(sourceEditor.value.match(/<img /g)).toHaveLength(1);
+    expect(sourceEditor.value).not.toContain('onerror');
+    expect(sourceEditor.value).not.toContain('example.test/companion');
+    expect(sourceEditor.value).not.toContain('\u200B');
+
+    const urlPasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [],
+        files: [],
+        types: ['text/plain'],
+        getData: () => 'https://example.test/plain',
+      },
+    });
+    fireEvent(sourceEditor, urlPasteEvent);
+
+    expect(urlPasteEvent.defaultPrevented).toBe(false);
+  });
+
+  it('does not delete the source selection when image-only HTML is invalid after sanitizing', () => {
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    const selectionStart = sourceEditor.value.indexOf('Initial');
+    const selectionEnd = selectionStart + 'Initial'.length;
+    sourceEditor.setSelectionRange(selectionStart, selectionEnd);
+    const pasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [],
+        files: [],
+        types: ['text/plain', 'text/html'],
+        getData: (type: string) => type === 'text/html'
+          ? '<img src="javascript:alert(1)" onerror="alert(2)">'
+          : 'https://example.test/companion',
+      },
+    });
+
+    fireEvent(sourceEditor, pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    expect(sourceEditor.value).toBe('# Alpha\n\nInitial body');
+    expect(sourceEditor.selectionStart).toBe(selectionStart);
+    expect(sourceEditor.selectionEnd).toBe(selectionEnd);
+    expect(mocks.notesState.currentNote?.content).toBe('# Alpha\n\nInitial body');
+  });
+
+  it('uploads native clipboard pixels when a source textarea exposes only image HTML', async () => {
+    const imageDataUrl = `data:image/png;base64,${btoa('native image')}`;
+    (window as any).vlainaDesktop = {
+      platform: 'electron',
+      clipboard: {
+        writeText: vi.fn(),
+        readImage: vi.fn().mockResolvedValue(imageDataUrl),
+      },
+    };
+    mocks.notesState.uploadAsset.mockResolvedValue({
+      success: true,
+      path: './assets/native-image.png',
+      isDuplicate: false,
+    });
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+    const pasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [
+          { kind: 'string', type: 'text/plain', getAsFile: () => null },
+          { kind: 'string', type: 'text/html', getAsFile: () => null },
+        ],
+        files: [],
+        types: ['text/plain', 'text/html'],
+        getData: (type: string) => type === 'text/html'
+          ? '<a href="https://example.test/source"><img src="https://images.example.test/copied.png"></a>'
+          : 'https://example.test/source',
+      },
+    });
+
+    fireEvent(sourceEditor, pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    await waitFor(() => {
+      expect(sourceEditor.value).toBe(
+        '# Alpha\n\nInitial body![native-image](<./assets/native-image.png>)',
+      );
+    });
+    expect(sourceEditor.value).not.toContain('example.test');
+    const uploadedFile = mocks.notesState.uploadAsset.mock.calls[0]?.[0] as File;
+    expect(uploadedFile).toBeInstanceOf(File);
+    expect(uploadedFile.name).toBe('image.png');
+    expect(uploadedFile.type).toBe('image/png');
+    expect(await uploadedFile.text()).toBe('native image');
+  });
+
+  it('does not use stale desktop clipboard pixels for an image-only HTML drop', () => {
+    const readImage = vi.fn().mockResolvedValue(`data:image/png;base64,${btoa('stale image')}`);
+    (window as any).vlainaDesktop = {
+      platform: 'electron',
+      clipboard: {
+        writeText: vi.fn(),
+        readImage,
+      },
+    };
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+    const dropEvent = createEvent.drop(sourceEditor, {
+      dataTransfer: {
+        items: [],
+        files: [],
+        types: ['text/html'],
+        getData: (type: string) => type === 'text/html'
+          ? '<a href="https://example.test/source"><img src="https://images.example.test/dropped.png"></a>'
+          : '',
+      },
+    });
+
+    fireEvent(sourceEditor, dropEvent);
+
+    expect(dropEvent.defaultPrevented).toBe(true);
+    expect(sourceEditor.value).toBe(
+      '# Alpha\n\nInitial body<img src="https://images.example.test/dropped.png">',
+    );
+    expect(readImage).not.toHaveBeenCalled();
+    expect(mocks.notesState.uploadAsset).not.toHaveBeenCalled();
+  });
+
+  it('does not insert an uploaded source image after the active note changes', async () => {
+    let resolveUpload: (value: { success: true; path: string; isDuplicate: false }) => void = () => undefined;
+    const file = new File(['image'], 'stale.png', { type: 'image/png' });
+    mocks.notesState.uploadAsset.mockReturnValue(new Promise((resolve) => {
+      resolveUpload = resolve;
+    }));
+    render(
+      <MarkdownSourceEditor
+        currentNotePath="alpha.md"
+        showBodyLineNumbers={false}
+        saveNote={mocks.notesState.saveNote}
+        mode="source"
+      />,
+    );
+
+    const sourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    const pasteEvent = createEvent.paste(sourceEditor, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        types: ['Files'],
+        getData: () => '',
+      },
+    });
+    fireEvent(sourceEditor, pasteEvent);
+    await Promise.resolve();
+
+    mocks.notesState.currentNote = { path: 'beta.md', content: '# Beta' };
+    resolveUpload({ success: true, path: './assets/stale.png', isDuplicate: false });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(sourceEditor.value).toBe('# Alpha\n\nInitial body');
+    expect(mocks.notesState.currentNote).toEqual({ path: 'beta.md', content: '# Beta' });
   });
 
   it('keeps markdown editable when the Milkdown runtime throws during render', async () => {
@@ -376,6 +796,19 @@ describe('MarkdownEditor source fallback', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch to source mode' }));
     expect(screen.getByRole('button', { name: 'Switch to rendered mode' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
+
+    expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
+  });
+
+  it('retries the rendered editor after switching away from a note that triggered the fallback', async () => {
+    const { rerender } = render(<MarkdownEditor />);
+
+    expect(await screen.findByLabelText('Markdown source editor')).toBeInTheDocument();
+    mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
+    mocks.notesState.currentNote = { path: 'beta.md', content: '# Beta' };
+    mocks.notesState.openTabs = [{ path: 'beta.md', name: 'beta.md', isDirty: false }];
+    rerender(<MarkdownEditor />);
 
     expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
     expect(screen.queryByLabelText('Markdown source editor')).toBeNull();

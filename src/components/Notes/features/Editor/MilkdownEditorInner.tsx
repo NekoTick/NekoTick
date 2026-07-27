@@ -209,6 +209,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     activatedEditorRef,
     cleanupActivatedEditor,
     configureMarkdownListener,
+    currentNoteContent,
     currentNotePath,
     initialContent,
     reportEditorReady,

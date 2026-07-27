@@ -80,4 +80,39 @@ describe('renderUrlRailEditor', () => {
     expect(onSubmit).toHaveBeenCalledWith('https://example.test');
     expect(onCancel).not.toHaveBeenCalled();
   });
+
+  it('blocks image clipboard companion text without blocking ordinary URLs', () => {
+    const container = document.createElement('div');
+    const input = renderUrlRailEditor(container, {
+      value: 'https://example.test/original',
+      placeholder: 'URL...',
+      hint: 'Press Enter to apply link',
+      onSubmit: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const file = new File(['image'], 'rail.png', { type: 'image/png' });
+    const imageEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(imageEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+    const urlEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(urlEvent, 'clipboardData', {
+      value: {
+        items: [],
+        files: [],
+        getData: () => 'https://example.test/ordinary',
+      },
+    });
+
+    input.dispatchEvent(imageEvent);
+    input.dispatchEvent(urlEvent);
+
+    expect(imageEvent.defaultPrevented).toBe(true);
+    expect(urlEvent.defaultPrevented).toBe(false);
+    expect(input.value).toBe('https://example.test/original');
+  });
 });

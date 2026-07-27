@@ -28,6 +28,12 @@ describe('AIBehaviorSettings', () => {
     aiStoreMock.setCustomSystemPrompt.mockReset();
   });
 
+  it('names the system prompt field', () => {
+    render(<AIBehaviorSettings />);
+
+    expect(screen.getByRole('textbox', { name: 'settings.ai.systemPrompt' })).toBeInTheDocument();
+  });
+
   it('does not commit the system prompt while IME composition is active', () => {
     const { unmount } = render(<AIBehaviorSettings />);
     const textarea = screen.getByRole('textbox');

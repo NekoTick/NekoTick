@@ -8,6 +8,11 @@ import {
   updateMarkdownTypewriterMode,
 } from './settings/markdownSettings';
 import type { UnifiedData } from '@/lib/storage/unifiedStorage';
+import {
+  MAX_SETTINGS_TIMEZONE_CITY_CHARS,
+  MAX_SETTINGS_UI_THEME_ID_CHARS,
+} from '@/lib/storage/unifiedStorage';
+import { DEFAULT_SETTINGS } from '@/lib/config';
 
 function createData(overrides?: Partial<NonNullable<UnifiedData['ai']>>): UnifiedData {
   return {
@@ -364,5 +369,40 @@ describe('settingsActions', () => {
         },
       },
     });
+  });
+
+  it('normalizes timezone values before they enter runtime state', () => {
+    const { actions, getData } = createSettingsActionHarness();
+
+    actions.setTimezone(Number.NaN, 'c'.repeat(MAX_SETTINGS_TIMEZONE_CITY_CHARS + 1));
+
+    expect(getData().settings.timezone).toEqual({
+      offset: DEFAULT_SETTINGS.timezone.offset,
+      city: 'c'.repeat(MAX_SETTINGS_TIMEZONE_CITY_CHARS),
+    });
+
+    actions.setTimezone(Number.POSITIVE_INFINITY, '   ');
+
+    expect(getData().settings.timezone).toEqual(DEFAULT_SETTINGS.timezone);
+  });
+
+  it('normalizes theme ids before they enter runtime state', () => {
+    const { actions, getData } = createSettingsActionHarness();
+
+    actions.setThemeId(`  ${'t'.repeat(MAX_SETTINGS_UI_THEME_ID_CHARS + 1)}  `);
+
+    expect(getData().settings.ui?.themeId).toBe('t'.repeat(MAX_SETTINGS_UI_THEME_ID_CHARS));
+  });
+
+  it('normalizes floating panel sizes before they enter runtime state', () => {
+    const { actions, getData } = createSettingsActionHarness();
+
+    actions.setNotesChatFloatingSize({ width: Number.NaN, height: Number.POSITIVE_INFINITY });
+    expect(getData().settings.ui?.notesChatFloatingSize).toEqual(
+      DEFAULT_SETTINGS.ui.notesChatFloatingSize,
+    );
+
+    actions.setNotesChatFloatingSize({ width: 9999.4, height: 1.2 });
+    expect(getData().settings.ui?.notesChatFloatingSize).toEqual({ width: 760, height: 420 });
   });
 });

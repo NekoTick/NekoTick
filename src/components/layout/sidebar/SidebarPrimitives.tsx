@@ -10,6 +10,10 @@ import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { cn } from '@/lib/utils';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
+import {
   getSidebarActionButtonClass,
   type SidebarTone,
 } from '@/components/layout/sidebar/sidebarLabelStyles';
@@ -147,6 +151,8 @@ export const SidebarSearchField = forwardRef<HTMLInputElement, SidebarSearchFiel
       inputClassName,
       closeButtonClassName,
       className,
+      onDrop,
+      onPaste,
       ...props
     },
     ref,
@@ -173,6 +179,16 @@ export const SidebarSearchField = forwardRef<HTMLInputElement, SidebarSearchFiel
               'h-[var(--vlaina-size-44px)] min-w-0 flex-1 bg-transparent py-0 text-[var(--vlaina-font-base)] leading-5 text-[var(--vlaina-color-text-soft)] outline-none placeholder:text-[var(--vlaina-color-text-soft)]',
               inputClassName,
             )}
+            onPaste={(event) => {
+              if (!preventImageClipboardTextPaste(event)) {
+                onPaste?.(event);
+              }
+            }}
+            onDrop={(event) => {
+              if (!preventImageDataTransferTextDrop(event)) {
+                onDrop?.(event);
+              }
+            }}
             {...props}
           />
           <button

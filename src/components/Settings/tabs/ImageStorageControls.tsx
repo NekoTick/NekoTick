@@ -10,6 +10,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { settingsPillDropdownItemSelectedClassName } from '../styles';
+import { MAX_IMAGE_SUBFOLDER_NAME_CHARS } from '@/stores/uiPreferences';
 import {
     getStorageDirectoryPreview,
     imageDropdownContentClassName,
@@ -56,8 +57,9 @@ export function StorageFolderNameEditor({
                 type="text"
                 data-settings-control={isNotesRootSubfolder ? 'image-notes-root-subfolder-name' : 'image-subfolder-name'}
                 value={draftFolderName}
+                maxLength={MAX_IMAGE_SUBFOLDER_NAME_CHARS}
                 onChange={(event) => {
-                    const nextValue = event.target.value;
+                    const nextValue = event.target.value.slice(0, MAX_IMAGE_SUBFOLDER_NAME_CHARS);
                     setDraftFolderName(nextValue);
                     if (!isComposingRef.current) {
                         setFolderName(nextValue);
@@ -68,8 +70,9 @@ export function StorageFolderNameEditor({
                 }}
                 onCompositionEnd={(event) => {
                     isComposingRef.current = false;
-                    setDraftFolderName(event.currentTarget.value);
-                    setFolderName(event.currentTarget.value);
+                    const nextValue = event.currentTarget.value.slice(0, MAX_IMAGE_SUBFOLDER_NAME_CHARS);
+                    setDraftFolderName(nextValue);
+                    setFolderName(nextValue);
                 }}
                 onMouseDown={(event) => {
                     preserveFocusSelectionRef.current = document.activeElement !== event.currentTarget;

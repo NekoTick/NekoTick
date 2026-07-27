@@ -192,6 +192,14 @@ describe('AppearanceTab theme entry', () => {
     document.getElementById(MARKDOWN_FONT_SIZE_STYLE_ID)?.remove();
   });
 
+  it('gives the font-size slider its visible setting name', async () => {
+    render(<AppearanceTab />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('slider', { name: 'Base font size' })).toBeInTheDocument();
+    });
+  });
+
   it('shows directory themes without exposing a compatibility-layer selector', async () => {
     render(<AppearanceTab />);
 
