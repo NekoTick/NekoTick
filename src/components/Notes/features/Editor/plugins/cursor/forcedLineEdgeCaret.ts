@@ -9,11 +9,13 @@ export { clearForcedCaretForOwner } from './forcedLineEdgeCaretOverlay';
 
 const TRAILING_LINE_END_CLICK_GAP_PX = 8;
 const LEADING_LINE_START_CLICK_GAP_PX = 8;
+const FORCED_CARET_POSITION_TOLERANCE_PX = 2;
 const TEXTBLOCK_CARET_CLASS = 'editor-textblock-caret-overlay-active';
 const TEXTBLOCK_CARET_ELEMENT_SELECTOR = '.editor-textblock-caret-overlay';
 export const MAX_FORCED_LINE_EDGE_TEXT_CHARS = 100_000;
 export const MAX_FORCED_LINE_EDGE_TEXT_NODES = 512;
 export const MAX_FORCED_LINE_EDGE_RECTS = 1024;
+export const MAX_FORCED_LINE_EDGE_INLINE_ATOMS = 512;
 export const MAX_TEXTBLOCK_CARET_OVERLAY_SCAN_ELEMENTS = 10_000;
 
 export interface SerializedRect {
@@ -75,7 +77,6 @@ export function clearTextBlockCaretOverlay(view: EditorView): number {
 
 function isIgnoredTrailingLineEndElement(element: Element): boolean {
   return Boolean(element.closest([
-    'a',
     'button',
     'input',
     'textarea',
@@ -86,8 +87,15 @@ function isIgnoredTrailingLineEndElement(element: Element): boolean {
 }
 
 function isPointVerticallyInsideRect(rect: Pick<DOMRect, 'top' | 'bottom' | 'height'>, clientY: number): boolean {
-  const verticalSlack = Math.max(2, Math.min(6, rect.height * 0.2));
+  const verticalSlack = Math.max(2, Math.min(6, rect.height * 0.35));
   return clientY >= rect.top - verticalSlack && clientY <= rect.bottom + verticalSlack;
+}
+
+function isIgnoredInlineAtom(element: HTMLElement): boolean {
+  if (!element.matches('[contenteditable="false"]')) return true;
+  if (element.parentElement?.closest('[contenteditable="false"]')) return true;
+  if (element.closest('button, input, textarea, select, [role="button"]')) return true;
+  return !element.ownerDocument.defaultView?.getComputedStyle(element).display.startsWith('inline');
 }
 
 export function resolveVisualLineEdgePos(
@@ -123,6 +131,21 @@ export function resolveVisualLineEdgePos(
   let lineEdgeRect: DOMRect | null = null;
   let measuredTextNodes = 0;
   let measuredRects = 0;
+  const considerRect = (rect: DOMRect): boolean => {
+    measuredRects += 1;
+    if (measuredRects > MAX_FORCED_LINE_EDGE_RECTS) return false;
+    if (rect.width <= 0 || rect.height <= 0) return true;
+    if (!isPointVerticallyInsideRect(rect, clientY)) return true;
+
+    if (!lineEdgeRect) {
+      lineEdgeRect = rect;
+    } else if (action.bias === -1) {
+      if (rect.right > lineEdgeRect.right) lineEdgeRect = rect;
+    } else if (rect.left < lineEdgeRect.left) {
+      lineEdgeRect = rect;
+    }
+    return true;
+  };
 
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (measuredTextChars > MAX_FORCED_LINE_EDGE_TEXT_CHARS) {
@@ -140,34 +163,23 @@ export function resolveVisualLineEdgePos(
       const rects = range.getClientRects();
 
       for (let index = 0; index < rects.length; index += 1) {
-        measuredRects += 1;
-        if (measuredRects > MAX_FORCED_LINE_EDGE_RECTS) {
-          return null;
-        }
-
         const rect = rects[index];
-        if (!rect || rect.width <= 0 || rect.height <= 0) {
-          continue;
-        }
-        if (!isPointVerticallyInsideRect(rect, clientY)) {
-          continue;
-        }
-
-        if (!lineEdgeRect) {
-          lineEdgeRect = rect;
-          continue;
-        }
-
-        if (action.bias === -1) {
-          if (rect.right > lineEdgeRect.right) {
-            lineEdgeRect = rect;
-          }
-        } else if (rect.left < lineEdgeRect.left) {
-          lineEdgeRect = rect;
-        }
+        if (rect && !considerRect(rect)) return null;
       }
     } finally {
       range.detach();
+    }
+  }
+
+  const inlineAtoms = blockElement.querySelectorAll<HTMLElement>('[contenteditable="false"]');
+  if (inlineAtoms.length > MAX_FORCED_LINE_EDGE_INLINE_ATOMS) return null;
+  for (let index = 0; index < inlineAtoms.length; index += 1) {
+    const atom = inlineAtoms.item(index);
+    if (!atom || isIgnoredInlineAtom(atom)) continue;
+    const rects = atom.getClientRects();
+    for (let rectIndex = 0; rectIndex < rects.length; rectIndex += 1) {
+      const rect = rects[rectIndex];
+      if (rect && !considerRect(rect)) return null;
     }
   }
 
@@ -213,6 +225,32 @@ function showForcedLineEndCaret(view: EditorView, action: RefinedBlankAreaPlainC
   return true;
 }
 
+function refreshForcedCaretGeometry(
+  view: EditorView,
+  action: RefinedBlankAreaPlainClickAction,
+  clientX?: number,
+  clientY?: number,
+): RefinedBlankAreaPlainClickAction | null {
+  if (!action.textRect || typeof action.forcedCaretX !== 'number') return action;
+  if (typeof clientX !== 'number' || typeof clientY !== 'number') return action;
+
+  const refreshed = resolveVisualLineEdgePos(view, {
+    ...action,
+    targetPos: view.state.selection.head,
+  }, clientX, clientY);
+  if (!refreshed) return null;
+  if (
+    Math.abs(refreshed.forcedCaretX - action.forcedCaretX)
+    > FORCED_CARET_POSITION_TOLERANCE_PX
+  ) return null;
+
+  return {
+    ...action,
+    textRect: refreshed.textRect,
+    forcedCaretX: refreshed.forcedCaretX,
+  };
+}
+
 export function dispatchBlankAreaPlainClick(
   view: EditorView,
   action: BlankAreaPlainClickAction,
@@ -227,5 +265,11 @@ export function dispatchBlankAreaPlainClick(
     .setMeta('addToHistory', false);
   view.dispatch(tr.scrollIntoView());
   view.focus();
-  showForcedLineEndCaret(view, refinedAction);
+  const refreshedAction = refreshForcedCaretGeometry(
+    view,
+    refinedAction,
+    clientX,
+    clientY,
+  );
+  if (refreshedAction) showForcedLineEndCaret(view, refreshedAction);
 }

@@ -85,13 +85,55 @@ export function resolveLinkTextRootFromMouseEvent(view: EditorView, event: Mouse
     return best?.link ?? null;
 }
 
+function resolveCollapsedWikiLinkSourceEnd(
+    view: EditorView,
+    event: MouseEvent,
+    selectionRoot: HTMLElement | null,
+): number | null {
+    if (!selectionRoot?.matches('.wiki-link[data-wiki-link-target]')) return null;
+    const sourceRoot = selectionRoot.closest('[data-wiki-link-source="true"]');
+    if (!(sourceRoot instanceof HTMLElement) || sourceRoot.querySelector('.wiki-link-expanded')) return null;
+
+    const rects = selectionRoot.getClientRects();
+    let isAtVisibleEnd = false;
+    for (let index = 0; index < rects.length; index += 1) {
+        const rect = rects.item(index);
+        if (
+            rect &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom &&
+            Math.abs(event.clientX - rect.right) <= 1
+        ) {
+            isAtVisibleEnd = true;
+            break;
+        }
+    }
+    if (!isAtVisibleEnd) return null;
+
+    try {
+        const pos = view.posAtDOM(sourceRoot, sourceRoot.childNodes.length, -1);
+        return isInlineTextSelectionEndpoint(view, pos) ? clampDocPosition(view, pos) : null;
+    } catch {
+        return null;
+    }
+}
+
+function resolveLinkTextPositionAtPointer(
+    view: EditorView,
+    event: MouseEvent,
+    selectionRoot = resolveLinkTextRootFromMouseEvent(view, event),
+): number | null {
+    return resolveCollapsedWikiLinkSourceEnd(view, event, selectionRoot)
+        ?? resolveEditorTextPositionAtPointer(
+            view,
+            event.clientX,
+            event.clientY,
+            selectionRoot,
+        );
+}
+
 export function dispatchLinkTextCursorFromMouseEvent(view: EditorView, event: MouseEvent): boolean {
-    const pos = resolveEditorTextPositionAtPointer(
-        view,
-        event.clientX,
-        event.clientY,
-        resolveLinkTextRootFromMouseEvent(view, event),
-    );
+    const pos = resolveLinkTextPositionAtPointer(view, event);
     return pos !== null && dispatchEditorTextSelection(view, pos, pos, { hideFloatingToolbar: false });
 }
 
@@ -153,12 +195,7 @@ export function startLinkTextSelectionSession(
     const isWikiLinkSelection = selectionRoot?.matches(
         '.wiki-link[data-wiki-link-target], .wiki-link-expanded[data-wiki-link-expanded]'
     ) === true;
-    const anchor = resolveEditorTextPositionAtPointer(
-        view,
-        event.clientX,
-        event.clientY,
-        selectionRoot,
-    );
+    const anchor = resolveLinkTextPositionAtPointer(view, event, selectionRoot);
     if (anchor === null) return false;
     const sessionDoc = view.state.doc;
 
@@ -177,12 +214,7 @@ export function startLinkTextSelectionSession(
 
     const extendSelection = (moveEvent: MouseEvent, suppressWikiLinkExpansion = isWikiLinkSelection) => {
         if (view.state.doc !== sessionDoc) return;
-        const head = resolveEditorTextPositionAtPointer(
-            view,
-            moveEvent.clientX,
-            moveEvent.clientY,
-            resolveLinkTextRootFromMouseEvent(view, moveEvent),
-        );
+        const head = resolveLinkTextPositionAtPointer(view, moveEvent);
         if (head !== null) {
             dispatchEditorTextSelection(view, anchor, head, { suppressWikiLinkExpansion });
         }

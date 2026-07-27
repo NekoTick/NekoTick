@@ -17,6 +17,7 @@ export interface BlankAreaPlainClickAction {
 type ContentLineRect = NonNullable<BlockRect['contentLineRects']>[number];
 
 function resolveVerticalDistance(block: BlockRect, clientY: number): number {
+  if (isPointVerticallyInsideLine(block, clientY)) return 0;
   if (clientY < block.top) return block.top - clientY;
   if (clientY > block.bottom) return clientY - block.bottom;
   return 0;
@@ -64,6 +65,18 @@ function resolveVisualLineHorizontalBias(block: BlockRect, clientX: number, clie
   if (!line) return null;
   if (clientX >= line.right + VISUAL_LINE_EDGE_CLICK_GAP_PX) return -1;
   if (clientX <= line.left - VISUAL_LINE_EDGE_CLICK_GAP_PX) return 1;
+  return null;
+}
+
+function resolveInsideBlockVisualLineHorizontalBias(
+  block: BlockRect,
+  clientX: number,
+  clientY: number,
+): 1 | -1 | null {
+  const line = resolveNearestVisualLine(block, clientY);
+  if (!line) return null;
+  if (clientX >= line.right + INSIDE_BLOCK_TRAILING_LINE_CLICK_MIN_GAP_PX) return -1;
+  if (clientX <= line.left - INSIDE_BLOCK_LEADING_LINE_CLICK_MIN_GAP_PX) return 1;
   return null;
 }
 
@@ -127,34 +140,39 @@ export function resolveBlankAreaPlainClickAction(args: {
   };
 }
 
+export function resolveInsideBlockVisualLinePlainClickAction(args: {
+  blockRects: readonly BlockRect[];
+  clientX: number;
+  clientY: number;
+}): BlankAreaPlainClickAction | null {
+  const { blockRects, clientX, clientY } = args;
+  let visualLineAction: BlankAreaPlainClickAction | null = null;
+  for (const block of blockRects) {
+    if (!block.allowInsideTrailingClick) continue;
+    if (!isPointVerticallyInsideLine(block, clientY)) continue;
+    const bias = resolveInsideBlockVisualLineHorizontalBias(block, clientX, clientY);
+    if (bias === null) continue;
+    visualLineAction = {
+      targetPos: resolveBlockCaretPos(block, bias),
+      bias,
+      blockFrom: block.from,
+    };
+  }
+  return visualLineAction;
+}
+
 export function resolveInsideBlockTrailingPlainClickAction(args: {
   blockRects: readonly BlockRect[];
   clientX: number;
   clientY: number;
 }): BlankAreaPlainClickAction | null {
   const { blockRects, clientX, clientY } = args;
+  const visualLineAction = resolveInsideBlockVisualLinePlainClickAction(args);
+  if (visualLineAction) return visualLineAction;
+
   for (let index = 0; index < blockRects.length; index += 1) {
     const block = blockRects[index];
     if (!block.allowInsideTrailingClick) continue;
-    const trailingLine = isPointVerticallyInsideLine(block, clientY)
-      ? resolveNearestVisualLine(block, clientY)
-      : null;
-    if (trailingLine) {
-      if (clientX <= trailingLine.left - INSIDE_BLOCK_LEADING_LINE_CLICK_MIN_GAP_PX) {
-        return {
-          targetPos: resolveBlockCaretPos(block, 1),
-          bias: 1,
-          blockFrom: block.from,
-        };
-      }
-      if (clientX < trailingLine.right + INSIDE_BLOCK_TRAILING_LINE_CLICK_MIN_GAP_PX) continue;
-      return {
-        targetPos: resolveBlockCaretPos(block, -1),
-        bias: -1,
-        blockFrom: block.from,
-      };
-    }
-
     const contentRight = block.contentRight;
     if (contentRight === undefined || clientX < contentRight + INSIDE_BLOCK_TRAILING_CLICK_MIN_GAP_PX) continue;
 

@@ -360,6 +360,130 @@ describe('installLinkTooltipEvents', () => {
         editorDom.remove();
     });
 
+    it('leaves an outer expanded wiki-link source boundary to the wiki-link pointer handler', () => {
+        const { editorDom, handlers } = createHandlers();
+        const sourceMark = document.createElement('span');
+        sourceMark.dataset.wikiLinkSource = 'true';
+        const source = document.createElement('span');
+        source.className = 'wiki-link-expanded';
+        source.dataset.wikiLinkExpanded = 'true';
+        source.textContent = '[[Project Beta|the beta note]]';
+        sourceMark.appendChild(source);
+        editorDom.appendChild(sourceMark);
+        useTextSelectionCapableView(editorDom, handlers);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const downstreamMouseDown = vi.fn();
+        editorDom.addEventListener('mousedown', downstreamMouseDown, true);
+        const mouseDown = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            buttons: 1,
+            clientX: 10,
+            clientY: 10,
+        });
+        sourceMark.dispatchEvent(mouseDown);
+
+        expect(mouseDown.defaultPrevented).toBe(false);
+        expect(downstreamMouseDown).toHaveBeenCalledOnce();
+        expect(handlers.hide).toHaveBeenCalledWith(true);
+        expect(handlers.view.dispatch).not.toHaveBeenCalled();
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('starts text selection inside a folded wiki-link source', () => {
+        const { editorDom, handlers } = createHandlers();
+        const sourceMark = document.createElement('span');
+        sourceMark.dataset.wikiLinkSource = 'true';
+        const link = document.createElement('span');
+        link.className = 'wiki-link';
+        link.dataset.wikiLinkTarget = 'Project Beta';
+        link.textContent = 'the beta note';
+        sourceMark.appendChild(link);
+        editorDom.appendChild(sourceMark);
+        useTextSelectionCapableView(editorDom, handlers);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const mouseDown = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            buttons: 1,
+            clientX: 10,
+            clientY: 10,
+        });
+        link.dispatchEvent(mouseDown);
+        document.dispatchEvent(new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+        }));
+
+        expect(mouseDown.defaultPrevented).toBe(true);
+        expect(handlers.view.dispatch).toHaveBeenCalled();
+
+        cleanup();
+        editorDom.remove();
+    });
+
+    it('preserves an external drag selection when mouseup is followed by a link click', async () => {
+        const { editorDom, handlers } = createHandlers();
+        const plainText = document.createElement('span');
+        plainText.textContent = 'before';
+        const link = document.createElement('span');
+        link.className = 'wiki-link';
+        link.dataset.wikiLinkTarget = 'Project Beta';
+        link.textContent = 'the beta note';
+        editorDom.appendChild(plainText);
+        editorDom.appendChild(link);
+        useTextSelectionCapableView(editorDom, handlers);
+        handlers.dom.classList.add('hidden');
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        plainText.dispatchEvent(new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            buttons: 1,
+            clientX: 10,
+            clientY: 10,
+        }));
+        document.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            buttons: 1,
+            clientX: 100,
+            clientY: 10,
+        }));
+        link.dispatchEvent(new MouseEvent('mouseup', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            clientX: 100,
+            clientY: 10,
+        }));
+        const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            detail: 1,
+            clientX: 100,
+            clientY: 10,
+        });
+        link.dispatchEvent(click);
+        await flushAsyncHandlers();
+
+        expect(click.defaultPrevented).toBe(true);
+        expect(handlers.view.dispatch).not.toHaveBeenCalled();
+
+        cleanup();
+        editorDom.remove();
+    });
+
     it('leaves wiki double-click selection to the browser', () => {
         const { editorDom, handlers } = createHandlers();
         const link = document.createElement('span');

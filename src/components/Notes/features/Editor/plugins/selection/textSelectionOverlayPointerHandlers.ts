@@ -17,6 +17,10 @@ export function handleTextSelectionOverlayMouseDown(
 ): void {
   const { session, view } = context;
   if (event.button !== 0) return;
+  if (
+    event.target instanceof Element &&
+    event.target.closest('.wiki-link-expanded, [data-wiki-link-source="true"]')
+  ) return;
   session.preserveNativeSelectionForKeyboard = false;
   session.isPointerSelectionActive = true;
   session.pointerMovedSinceDown = false;
@@ -81,6 +85,7 @@ export function handleTextSelectionOverlayMouseUp(
   event: MouseEvent
 ): void {
   const { session, view } = context;
+  if (!session.isPointerSelectionActive) return;
   session.isPointerSelectionActive = false;
   session.lastPointerSelectionY = null;
   session.pointerSelectionAutoScroll.stop();

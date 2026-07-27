@@ -6,27 +6,31 @@ import {
   type EditorState,
   type Transaction,
 } from '@milkdown/kit/prose/state';
-import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
-import { MAX_WIKI_LINK_TEXT_CHARS } from './wikiLinkMarkdown';
+import type { Mark } from '@milkdown/kit/prose/model';
+import { DecorationSet } from '@milkdown/kit/prose/view';
 import {
   WIKI_LINK_POINTER_SELECTION_META,
   wikiLinkPointerSessionPluginKey,
 } from './wikiLinkInteraction';
+import {
+  createWikiLinkSourceDecorations,
+  isValidWikiLinkSourceRange,
+  matchWikiLinkSource,
+  type WikiLinkSourceRange,
+} from './wikiLinkSourceDecorations';
 
 type WikiLinkRange = {
   from: number;
   to: number;
   target: string;
+  marks: readonly Mark[];
 };
 
-type ExpandedWikiLinkRange = {
-  from: number;
-  to: number;
-};
+type ExpandedWikiLinkRange = WikiLinkSourceRange;
 
 type WikiLinkExpansionState = {
   expanded: ExpandedWikiLinkRange | null;
-  collapsed: ExpandedWikiLinkRange | null;
+  collapsed: ExpandedWikiLinkRange[];
   decorations: DecorationSet;
 };
 
@@ -34,10 +38,6 @@ type WikiLinkExpansionMeta =
   | { type: 'expand'; range: ExpandedWikiLinkRange }
   | { type: 'fold'; range: ExpandedWikiLinkRange }
   | { type: 'clear' };
-
-const WIKI_LINK_SOURCE_PATTERN = new RegExp(
-  `^\\[\\[([^\\]|\\n]{1,${MAX_WIKI_LINK_TEXT_CHARS}})(?:\\|([^\\]\\n]{1,${MAX_WIKI_LINK_TEXT_CHARS}}))?\\]\\]$`,
-);
 
 export const wikiLinkExpansionPluginKey = new PluginKey<WikiLinkExpansionState>('wiki-link-expansion');
 
@@ -63,7 +63,12 @@ function findActiveWikiLinkRange(state: EditorState): WikiLinkRange | null {
 
     const target = String(mark.attrs.target ?? '');
     if (!activeRange || (isInside && activeRangeIsBoundary)) {
-      activeRange = { from: pos, to: nodeEnd, target };
+      activeRange = {
+        from: pos,
+        to: nodeEnd,
+        target,
+        marks: node.marks.filter((candidate) => candidate.type.name !== 'wiki_link'),
+      };
       activeRangeIsBoundary = isAtEndBoundary;
       return;
     }
@@ -74,66 +79,6 @@ function findActiveWikiLinkRange(state: EditorState): WikiLinkRange | null {
   });
 
   return activeRange;
-}
-
-function createDecorations(
-  state: EditorState,
-  expanded: ExpandedWikiLinkRange | null,
-  collapsed: ExpandedWikiLinkRange | null,
-): DecorationSet {
-  const range = expanded ?? collapsed;
-  if (!range || range.to <= range.from || range.to > state.doc.content.size) {
-    return DecorationSet.empty;
-  }
-
-  const source = state.doc.textBetween(range.from, range.to, '');
-  const match = WIKI_LINK_SOURCE_PATTERN.exec(source);
-  const target = match?.[1]?.trim() ?? '';
-  if (expanded) {
-    return DecorationSet.create(state.doc, [
-      Decoration.inline(range.from, range.to, {
-        class: 'wiki-link-expanded',
-        'data-wiki-link-expanded': 'true',
-        'data-wiki-link-target': target,
-      }, {
-        inclusiveStart: false,
-        inclusiveEnd: false,
-      }),
-    ]);
-  }
-
-  const targetSource = match?.[1] ?? '';
-  const labelSource = match?.[2] ?? targetSource;
-  const label = labelSource.trim();
-  if (!target || !label) return DecorationSet.empty;
-
-  const labelPrefixLength = match?.[2] === undefined
-    ? 2
-    : 2 + targetSource.length + 1;
-  const leadingWhitespaceLength = labelSource.length - labelSource.trimStart().length;
-  const labelFrom = range.from + labelPrefixLength + leadingWhitespaceLength;
-  const labelTo = labelFrom + label.length;
-  return DecorationSet.create(state.doc, [
-    Decoration.inline(range.from, labelFrom, {
-      class: 'wiki-link-source-hidden',
-    }, {
-      inclusiveStart: false,
-      inclusiveEnd: false,
-    }),
-    Decoration.inline(labelFrom, labelTo, {
-      class: 'internal-link wiki-link',
-      'data-wiki-link-target': target,
-    }, {
-      inclusiveStart: false,
-      inclusiveEnd: false,
-    }),
-    Decoration.inline(labelTo, range.to, {
-      class: 'wiki-link-source-hidden',
-    }, {
-      inclusiveStart: false,
-      inclusiveEnd: false,
-    }),
-  ]);
 }
 
 function mapExpandedRange(
@@ -156,10 +101,13 @@ function expandWikiLink(state: EditorState, range: WikiLinkRange) {
       ? range.from + source.length
       : range.from + prefix.length + state.selection.from - range.from;
   const sourceMark = state.schema.marks.wiki_link_source;
+  const sourceMarks = sourceMark
+    ? [...range.marks, sourceMark.create()]
+    : range.marks;
   const tr = state.tr.replaceWith(
     range.from,
     range.to,
-    state.schema.text(source, sourceMark ? [sourceMark.create()] : undefined),
+    state.schema.text(source, sourceMarks),
   );
   const expanded = { from: range.from, to: range.from + source.length };
 
@@ -171,7 +119,7 @@ function expandWikiLink(state: EditorState, range: WikiLinkRange) {
 
 function foldWikiLink(state: EditorState, range: ExpandedWikiLinkRange) {
   const source = state.doc.textBetween(range.from, range.to, '');
-  const match = WIKI_LINK_SOURCE_PATTERN.exec(source);
+  const match = matchWikiLinkSource(source);
   const target = match?.[1]?.trim();
   const label = (match?.[2] ?? match?.[1])?.trim();
   let tr = state.tr;
@@ -195,7 +143,7 @@ export const wikiLinkExpansionPlugin = $prose(() => new Plugin<WikiLinkExpansion
   state: {
     init: () => ({
       expanded: null,
-      collapsed: null,
+      collapsed: [],
       decorations: DecorationSet.empty,
     }),
     apply: (transaction, previous, _oldState, newState) => {
@@ -207,17 +155,22 @@ export const wikiLinkExpansionPlugin = $prose(() => new Plugin<WikiLinkExpansion
           : previous.expanded && transaction.docChanged
             ? mapExpandedRange(transaction, previous.expanded)
             : previous.expanded;
-      const collapsed = meta?.type === 'fold'
-        ? meta.range
-        : meta?.type === 'expand' || meta?.type === 'clear'
-          ? null
-          : previous.collapsed && transaction.docChanged
-            ? mapExpandedRange(transaction, previous.collapsed)
-            : previous.collapsed;
+      const mappedCollapsed = transaction.docChanged
+        ? previous.collapsed.map((range) => mapExpandedRange(transaction, range))
+        : previous.collapsed;
+      const sameRange = (range: ExpandedWikiLinkRange, other: ExpandedWikiLinkRange) => (
+        range.from === other.from && range.to === other.to
+      );
+      const nextCollapsed = meta?.type === 'fold'
+        ? [...mappedCollapsed.filter((range) => !sameRange(range, meta.range)), meta.range]
+        : meta?.type === 'expand'
+          ? mappedCollapsed.filter((range) => !sameRange(range, meta.range))
+          : mappedCollapsed;
+      const collapsed = nextCollapsed.filter((range) => isValidWikiLinkSourceRange(newState, range));
       return {
         expanded,
         collapsed,
-        decorations: createDecorations(newState, expanded, collapsed),
+        decorations: createWikiLinkSourceDecorations(newState, expanded, collapsed),
       };
     },
   },
@@ -237,44 +190,64 @@ export const wikiLinkExpansionPlugin = $prose(() => new Plugin<WikiLinkExpansion
       return null;
     }
 
-    const collapsed = pluginState?.collapsed;
-    if (collapsed) {
-      if (
-        newState.selection.empty &&
-        newState.selection.from >= collapsed.from &&
-        newState.selection.from <= collapsed.to &&
-        !transactions.some((transaction) => transaction.getMeta(WIKI_LINK_POINTER_SELECTION_META) === true)
-      ) {
-        return newState.tr
-          .setMeta(
-            wikiLinkExpansionPluginKey,
-            { type: 'expand', range: collapsed } satisfies WikiLinkExpansionMeta,
-          )
-          .setMeta('addToHistory', false);
-      }
-      return null;
-    }
-
+    const suppressPointerExpansion = transactions.some(
+      (transaction) => transaction.getMeta(WIKI_LINK_POINTER_SELECTION_META) === true,
+    );
     if (
       !newState.selection.empty ||
-      transactions.some((transaction) => transaction.getMeta(WIKI_LINK_POINTER_SELECTION_META) === true)
+      suppressPointerExpansion
     ) {
       return null;
     }
 
+    const selectionPos = newState.selection.from;
+    const collapsedInside = pluginState?.collapsed.find((range) => (
+      selectionPos >= range.from && selectionPos < range.to
+    ));
+    if (collapsedInside) {
+      return newState.tr
+        .setMeta(
+          wikiLinkExpansionPluginKey,
+          { type: 'expand', range: collapsedInside } satisfies WikiLinkExpansionMeta,
+        )
+        .setMeta('addToHistory', false);
+    }
+
     const range = findActiveWikiLinkRange(newState);
-    return range ? expandWikiLink(newState, range) : null;
+    if (range) return expandWikiLink(newState, range);
+
+    const collapsedBoundary = pluginState?.collapsed.find((candidate) => candidate.to === selectionPos);
+    return collapsedBoundary
+      ? newState.tr
+        .setMeta(
+          wikiLinkExpansionPluginKey,
+          { type: 'expand', range: collapsedBoundary } satisfies WikiLinkExpansionMeta,
+        )
+        .setMeta('addToHistory', false)
+      : null;
   },
   props: {
     decorations: (state) => wikiLinkExpansionPluginKey.getState(state)?.decorations ?? DecorationSet.empty,
+    handleTextInput: (view, from, to, text) => {
+      const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
+      if (
+        view.composing ||
+        !expanded ||
+        from < expanded.from ||
+        to > expanded.to
+      ) {
+        return false;
+      }
+
+      view.dispatch(view.state.tr.insertText(text, from, to).scrollIntoView());
+      return true;
+    },
     handleKeyDown: (view, event) => {
       if (
         event.isComposing ||
-        event.shiftKey ||
         event.altKey ||
         event.ctrlKey ||
         event.metaKey ||
-        !view.state.selection.empty ||
         (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
       ) {
         return false;
@@ -282,6 +255,29 @@ export const wikiLinkExpansionPlugin = $prose(() => new Plugin<WikiLinkExpansion
 
       const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
       if (!expanded) return false;
+      const { anchor, empty, head } = view.state.selection;
+      if (event.shiftKey) {
+        const nextHead = event.key === 'ArrowLeft' ? head - 1 : head + 1;
+        if (
+          anchor < expanded.from ||
+          anchor > expanded.to ||
+          head < expanded.from ||
+          head > expanded.to ||
+          nextHead < expanded.from ||
+          nextHead > expanded.to
+        ) {
+          return false;
+        }
+
+        event.preventDefault();
+        view.dispatch(view.state.tr
+          .setSelection(TextSelection.create(view.state.doc, anchor, nextHead))
+          .setMeta('addToHistory', false)
+          .scrollIntoView());
+        return true;
+      }
+      if (!empty) return false;
+
       const position = view.state.selection.from;
       const nextPosition = event.key === 'ArrowLeft' ? position - 1 : position + 1;
       if (nextPosition < expanded.from || nextPosition > expanded.to) return false;

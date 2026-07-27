@@ -633,6 +633,40 @@ describe('blankAreaDragBoxPlugin document routing', () => {
     }
   });
 
+  it('drops stale forced caret geometry when inline content expands during dispatch', async () => {
+    const { editor, view } = await createBlockSelectionEditor('Alpha\n\nBeta');
+
+    try {
+      attachNoteScrollRoot(view);
+      let measurementPass = 0;
+      vi.spyOn(document, 'createRange').mockImplementation(() => ({
+        selectNodeContents: vi.fn(),
+        getClientRects: vi.fn().mockImplementation(() => {
+          measurementPass += 1;
+          const right = measurementPass === 1 ? 200 : 400;
+          return [domRect(100, 40, right, 60)];
+        }),
+        detach: vi.fn(),
+      }) as any);
+
+      const [firstBlock] = collectSelectableBlockRanges(view.state.doc);
+      if (!firstBlock) {
+        throw new Error('Expected a selectable block');
+      }
+      dispatchBlankAreaPlainClick(view, {
+        blockFrom: firstBlock.from,
+        targetPos: Math.max(firstBlock.from + 1, firstBlock.to - 1),
+        bias: -1,
+      }, 320, 50);
+
+      expect(measurementPass).toBeGreaterThanOrEqual(2);
+      expect(document.querySelector('.editor-forced-line-end-caret')).toBeNull();
+    } finally {
+      vi.restoreAllMocks();
+      await editor.destroy();
+    }
+  });
+
   it('passes ordinary text clicks through after document routing inspects them', async () => {
     const { editor, view } = await createBlockSelectionEditor('Alpha\n\nBeta');
     const viewCaptureListener = vi.fn((event: MouseEvent) => {
@@ -1027,6 +1061,72 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
       rectSpy?.mockRestore();
       debugSpy?.mockRestore();
       delete (globalThis as typeof globalThis & { __debugMarkdownBlankLine?: boolean }).__debugMarkdownBlankLine;
+      await editor.destroy();
+    }
+  });
+
+  it('leaves a markdown blank line unchanged when the next visible text line overflows into it', async () => {
+    const { editor, view } = await createBlockSelectionEditor([
+      'Alpha',
+      '<!--vlaina-markdown-blank-line-->',
+      'Beta',
+    ].join('\n'));
+    let measuredNode: Node | null = null;
+
+    try {
+      const blankLine = view.dom.querySelector(
+        '[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]',
+      );
+      const alphaBlock = Array.from(view.dom.children).find((child) => child.textContent === 'Alpha');
+      const betaBlock = Array.from(view.dom.children).find((child) => child.textContent === 'Beta');
+      expect(blankLine).toBeInstanceOf(HTMLElement);
+      expect(alphaBlock).toBeInstanceOf(HTMLElement);
+      expect(betaBlock).toBeInstanceOf(HTMLElement);
+
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
+        if (this === view.dom) return domRect(0, 0, 480, 72);
+        if (this === alphaBlock) return domRect(0, 0, 480, 24);
+        if (this === blankLine) return domRect(0, 24, 480, 48);
+        if (this === betaBlock) return domRect(0, 48, 480, 72);
+        return domRect(0, 0, 0, 0);
+      });
+      vi.spyOn(document, 'createRange').mockImplementation(() => ({
+        selectNodeContents(node: Node) {
+          measuredNode = node;
+        },
+        getClientRects() {
+          if (measuredNode?.textContent === 'Alpha') {
+            return domRectList(domRect(40, 2, 100, 20));
+          }
+          if (measuredNode?.textContent === 'Beta') {
+            return domRectList(domRect(40, 30, 180, 44));
+          }
+          return domRectList();
+        },
+        detach: vi.fn(),
+      }) as any);
+
+      const mouseDown = createMouseEvent('mousedown', {
+        clientX: 320,
+        clientY: 44,
+      });
+      Object.defineProperty(mouseDown, 'target', {
+        configurable: true,
+        value: blankLine,
+      });
+
+      expect(simulateDomEvent(view, 'mousedown', mouseDown)).toBe(true);
+      expect(view.dom.querySelector(
+        '[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]',
+      )).toBe(blankLine);
+      expect(view.dom.querySelector('p.editor-editable-markdown-blank-line')).toBeNull();
+      document.dispatchEvent(createMouseEvent('mouseup', {
+        clientX: 320,
+        clientY: 44,
+      }));
+      await waitForPointerClickSettled();
+    } finally {
+      vi.restoreAllMocks();
       await editor.destroy();
     }
   });
