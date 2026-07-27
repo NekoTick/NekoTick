@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   encryptionAvailable: true,
   storageBackend: 'gnome_libsecret',
   decryptFails: false,
+  decryptCalls: 0,
 }));
 
 vi.mock('electron', () => ({
@@ -31,6 +32,7 @@ vi.mock('electron', () => ({
         return Buffer.from(`enc:${value}`, 'utf8');
       },
       decryptString(buffer: Buffer) {
+        mocks.decryptCalls += 1;
         if (mocks.decryptFails) {
           throw new Error('decrypt failed');
         }
@@ -49,6 +51,7 @@ describe('accountCredentialStore', () => {
     mocks.encryptionAvailable = true;
     mocks.storageBackend = 'gnome_libsecret';
     mocks.decryptFails = false;
+    mocks.decryptCalls = 0;
   });
 
   afterEach(async () => {
@@ -272,6 +275,100 @@ describe('accountCredentialStore', () => {
 
     await expect(store.readStoredAccountCredentials()).resolves.toBeNull();
     await expect(readFile(secretsPath, 'utf8')).resolves.toBe(rawSecrets);
+  });
+
+  it('coalesces and caches persistent credential reads', async () => {
+    const storeDir = path.join(mocks.userDataPath, '.vlaina', 'app');
+    const metaPath = path.join(storeDir, 'account', 'profile.json');
+    const secretsPath = path.join(storeDir, 'secrets', 'account.json');
+    await mkdir(path.dirname(metaPath), { recursive: true });
+    await mkdir(path.dirname(secretsPath), { recursive: true });
+    await writeFile(metaPath, JSON.stringify({ provider: 'google', username: 'alice' }), 'utf8');
+    await writeFile(secretsPath, JSON.stringify({
+      appSessionToken: {
+        __secure: 'electron.safeStorage.v1',
+        ciphertext: Buffer.from('enc:nts_session', 'utf8').toString('base64'),
+      },
+    }), 'utf8');
+
+    const { createAccountCredentialStore } = await import('../../electron/accountCredentialStore.mjs');
+    const store = createAccountCredentialStore({
+      desktopLegacySessionHeader: 'x-app-session-token',
+    });
+
+    const [first, second] = await Promise.all([
+      store.readStoredAccountCredentials(),
+      store.readStoredAccountCredentials(),
+    ]);
+    const third = await store.readStoredAccountCredentials();
+
+    expect(first).toMatchObject({ appSessionToken: 'nts_session', username: 'alice' });
+    expect(second).toEqual(first);
+    expect(third).toEqual(first);
+    expect(mocks.decryptCalls).toBe(1);
+  });
+
+  it('serializes overlapping persistent reads and writes', async () => {
+    const storeDir = path.join(mocks.userDataPath, '.vlaina', 'app');
+    const metaPath = path.join(storeDir, 'account', 'profile.json');
+    const secretsPath = path.join(storeDir, 'secrets', 'account.json');
+    await mkdir(path.dirname(metaPath), { recursive: true });
+    await mkdir(path.dirname(secretsPath), { recursive: true });
+    await writeFile(metaPath, JSON.stringify({ provider: 'google', username: 'old-user' }), 'utf8');
+    await writeFile(secretsPath, JSON.stringify({
+      appSessionToken: {
+        __secure: 'electron.safeStorage.v1',
+        ciphertext: Buffer.from('enc:nts_old_session', 'utf8').toString('base64'),
+      },
+      legacyToken: 'plaintext-is-removed',
+    }), 'utf8');
+
+    const realFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    let releaseSecretsRead!: () => void;
+    let markSecretsReadStarted!: () => void;
+    const secretsReadGate = new Promise<void>((resolve) => {
+      releaseSecretsRead = resolve;
+    });
+    const secretsReadStarted = new Promise<void>((resolve) => {
+      markSecretsReadStarted = resolve;
+    });
+    let heldSecretsRead = false;
+    const readFileMock = vi.fn(async (...args: Parameters<typeof realFs.readFile>) => {
+      const value = await realFs.readFile(...args);
+      if (!heldSecretsRead && String(args[0]) === secretsPath) {
+        heldSecretsRead = true;
+        markSecretsReadStarted();
+        await secretsReadGate;
+      }
+      return value;
+    });
+    const writeFileMock = vi.fn(realFs.writeFile);
+    const fsMocks = { ...realFs, readFile: readFileMock, writeFile: writeFileMock };
+    vi.doMock('node:fs/promises', () => ({ ...fsMocks, default: fsMocks }));
+
+    const { createAccountCredentialStore } = await import('../../electron/accountCredentialStore.mjs');
+    const store = createAccountCredentialStore({
+      desktopLegacySessionHeader: 'x-app-session-token',
+    });
+    const staleRead = store.readStoredAccountCredentials();
+    const write = store.writeStoredAccountCredentials({
+      appSessionToken: 'nts_new_session',
+      provider: 'google',
+      username: 'new-user',
+      primaryEmail: null,
+      avatarUrl: null,
+      authenticatedAt: 2,
+    });
+
+    await secretsReadStarted;
+    releaseSecretsRead();
+    await expect(staleRead).resolves.toMatchObject({ appSessionToken: 'nts_old_session' });
+    await write;
+    await expect(store.readStoredAccountCredentials()).resolves.toMatchObject({
+      appSessionToken: 'nts_new_session',
+      username: 'new-user',
+    });
+    await expect(readFile(secretsPath, 'utf8')).resolves.not.toContain('plaintext-is-removed');
   });
 
   it('ignores and removes plaintext account session token records', async () => {

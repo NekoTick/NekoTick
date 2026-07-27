@@ -141,8 +141,14 @@ export const accountCommands = {
   ) {
     const requestId = externalRequestId?.trim() || `managed-${crypto.randomUUID()}`;
     const bridge = getDesktopAccountBridge();
+    const cancelStream = () => {
+      try {
+        void Promise.resolve(bridge.cancelManagedChatCompletionStream(requestId)).catch(() => undefined);
+      } catch {
+      }
+    };
     if (signal?.aborted) {
-      void bridge.cancelManagedChatCompletionStream(requestId);
+      cancelStream();
       throw createAbortError();
     }
 
@@ -175,7 +181,7 @@ export const accountCommands = {
         reject(error);
       };
       const settleAborted = () => {
-        void bridge.cancelManagedChatCompletionStream(requestId);
+        cancelStream();
         settleRejected(new DOMException('Aborted', 'AbortError'));
       };
 
@@ -199,7 +205,7 @@ export const accountCommands = {
                 settleAborted();
                 return;
               }
-              void bridge.cancelManagedChatCompletionStream(requestId);
+              cancelStream();
               settleRejected(error);
             }
           })

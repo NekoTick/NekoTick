@@ -11,6 +11,8 @@ export function createScenarioRuntime(config, sessionTokens, selectedProfileName
       "public-models": publicEndpoints(),
       "managed-client": managedClientEndpoints(),
       models: [endpoint("GET /v1/models", () => "/v1/models", 100)],
+      session: sessionEndpoints(false),
+      "session-budget": sessionEndpoints(true),
       budget: budgetEndpoints(),
       chat: chatEndpoints(),
       analytics: adminAnalyticsEndpoints(),
@@ -159,6 +161,11 @@ function managedClientEndpoints() {
 
 function budgetEndpoints() {
   return [endpoint("GET /v1/budget", () => "/v1/budget", 100, { session: true })];
+}
+
+function sessionEndpoints(includeBudget) {
+  const suffix = includeBudget ? "?include_budget=1" : "";
+  return [endpoint("GET /auth/session", () => `/auth/session${suffix}`, 100, { session: true })];
 }
 
 function adminTableEndpoints() {

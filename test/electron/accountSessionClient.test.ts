@@ -138,7 +138,7 @@ describe('desktop account session client', () => {
     expect(options.rotateStoredSessionToken).not.toHaveBeenCalled();
   });
 
-  it('does not request budget data during desktop session status probes', async () => {
+  it('requests budget data during desktop session status probes', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       connected: true,
       provider: 'google',
@@ -147,6 +147,11 @@ describe('desktop account session client', () => {
       avatarUrl: null,
       membershipTier: 'pro',
       membershipName: 'Pro',
+      budget: {
+        active: true,
+        remainingPercent: 75,
+        status: 'active',
+      },
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const { client } = createHarness();
@@ -154,10 +159,15 @@ describe('desktop account session client', () => {
     await expect(client.getDesktopAccountSessionStatus()).resolves.toMatchObject({
       connected: true,
       username: 'alice',
+      budget: {
+        active: true,
+        remainingPercent: 75,
+        status: 'active',
+      },
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.example.com/auth/session');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.example.com/auth/session?include_budget=1');
   });
 
   it('ignores an older session probe after newer credentials are stored', async () => {

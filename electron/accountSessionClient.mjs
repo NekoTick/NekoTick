@@ -119,8 +119,11 @@ export function createDesktopAccountSessionClient({
     return response;
   }
 
-  async function probeDesktopSession(appSessionToken, eventPrefix = 'session_status:http') {
-    return await fetchJson(`${apiBaseUrl}/auth/session`, {
+  async function probeDesktopSession(appSessionToken, eventPrefix = 'session_status:http', options = {}) {
+    const sessionUrl = options.includeBudget
+      ? `${apiBaseUrl}/auth/session?include_budget=1`
+      : `${apiBaseUrl}/auth/session`;
+    return await fetchJson(sessionUrl, {
       method: 'GET',
       cache: 'no-store',
       headers: buildDesktopSessionHeaders(appSessionToken, {
@@ -132,9 +135,9 @@ export function createDesktopAccountSessionClient({
   async function probeDesktopSessionWithRetry(
     appSessionToken,
     eventPrefix = 'session_status:http',
-    { retryUnauthorized = true } = {},
+    { retryUnauthorized = true, includeBudget = false } = {},
   ) {
-    let lastResult = await probeDesktopSession(appSessionToken, eventPrefix);
+    let lastResult = await probeDesktopSession(appSessionToken, eventPrefix, { includeBudget });
 
     for (let attempt = 0; attempt < desktopSessionRetryDelaysMs.length; attempt += 1) {
       if (lastResult.response.status !== 401 && lastResult.response.status !== 403) {
@@ -150,6 +153,7 @@ export function createDesktopAccountSessionClient({
       lastResult = await probeDesktopSession(
         appSessionToken,
         `${eventPrefix}:retry_${attempt + 1}`,
+        { includeBudget },
       );
     }
 
@@ -166,7 +170,7 @@ export function createDesktopAccountSessionClient({
       const { response, payload, text } = await probeDesktopSessionWithRetry(
         credentials.appSessionToken,
         'session_status:http',
-        { retryUnauthorized: shouldGraceDesktopSession(credentials) },
+        { retryUnauthorized: shouldGraceDesktopSession(credentials), includeBudget: true },
       );
       const currentCredentials = await readStoredAccountCredentials();
       if (!currentCredentials || currentCredentials.appSessionToken !== credentials.appSessionToken) {

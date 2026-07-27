@@ -61,6 +61,11 @@ describe('webAccountCommands', () => {
         username: 'octocat',
         primaryEmail: 'octocat@example.com',
         avatarUrl: 'https://example.com/avatar.png',
+        budget: {
+          active: true,
+          remainingPercent: 75,
+          status: 'active',
+        },
       }), { status: 200 })
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -69,7 +74,12 @@ describe('webAccountCommands', () => {
 
     expect(status.connected).toBe(true);
     expect(status.provider).toBe('google');
-    expect(fetchMock).toHaveBeenCalledWith('https://api.vlaina.com/auth/session', {
+    expect(status.budget).toEqual({
+      active: true,
+      remainingPercent: 75,
+      status: 'active',
+    });
+    expect(fetchMock).toHaveBeenCalledWith('https://api.vlaina.com/auth/session?include_budget=1', {
       method: 'GET',
       cache: 'no-store',
       credentials: 'include',
