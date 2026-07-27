@@ -233,6 +233,29 @@ describe('saveNoteDocument', () => {
     expect(result.modifiedAt).toBe(123);
   });
 
+  it('preserves user-authored blank lines at the end of frontmatter when saving markdown', async () => {
+    adapter.writeFile.mockResolvedValue();
+    adapter.stat.mockResolvedValue({ modifiedAt: 123, size: 64 });
+    const content = [
+      '---',
+      'title: Blank Line Fidelity',
+      '',
+      '',
+      '---',
+      '',
+      '# Alpha',
+    ].join('\n');
+
+    const result = await saveNoteDocument({
+      notesPath: '/notesRoot',
+      currentNote: { path: 'alpha.md', content },
+      cache: new Map(),
+    });
+
+    expect(adapter.writeFile).toHaveBeenCalledWith('/notesRoot/alpha.md', content);
+    expect(result.content).toBe(content);
+  });
+
   it('normalizes invalid modified timestamps after saving markdown', async () => {
     adapter.writeFile.mockResolvedValue();
     adapter.stat.mockResolvedValue({ modifiedAt: Number.NaN, size: 16 });

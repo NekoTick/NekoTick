@@ -36,6 +36,18 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
       ].join('\n'),
     },
     {
+      expectExactAfterEdit: true,
+      label: 'frontmatter-trailing-blank-lines',
+      markdown: [
+        '---',
+        'title: Protected Trailing Blank Lines',
+        '',
+        '',
+        '---',
+        '# Frontmatter Trailing Blank Lines Sentinel',
+      ].join('\n'),
+    },
+    {
       label: 'headings-and-toc',
       markdown: [
         '# ATX Heading Sentinel',

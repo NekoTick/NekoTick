@@ -205,7 +205,7 @@ async function clickFileTreeNote(page: Page, row: Locator, expectedPathTail: str
 
 async function toggleSourceModeFromMoreMenu(page: Page, targetMode: 'source' | 'rendered'): Promise<number> {
   const label = targetMode === 'source' ? 'Source mode' : 'Rendered mode';
-  const moreActionsButton = page.getByRole('button', { name: 'More note actions' });
+  const moreActionsButton = page.getByRole('button', { name: 'More' });
   const startedAt = Date.now();
   await moreActionsButton.click();
   await expect(page.getByText(label, { exact: true })).toBeVisible({ timeout: 10_000 });

@@ -276,7 +276,7 @@ export function applyBlockMove(view: EditorView, selectedRanges: readonly BlockR
     if (!preparedMove) return false;
 
     let tr = preparedMove.tr.insert(preparedMove.targetPos, preparedMove.movedContent);
-    tr = setSelectionAtMovedContentTail(tr, preparedMove.targetPos, preparedMove.movedContent.size).scrollIntoView();
+    tr = setSelectionAtMovedContentTail(tr, preparedMove.targetPos, preparedMove.contentTailOffset).scrollIntoView();
     markEditorUserInput(view);
     view.dispatch(tr);
     view.focus();

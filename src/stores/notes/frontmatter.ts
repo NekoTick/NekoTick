@@ -209,12 +209,10 @@ export function writeNoteMetadataToMarkdown(
 ): string {
   const normalizedEntry = normalizeNoteMetadataEntry(entry);
   const { lines, body, hasFrontmatter } = splitLeadingFrontmatter(markdown, { includeBody: true });
-  const preservedLines = trimTrailingBlankLines(
-    lines.filter((line) => {
-      const key = parseTopLevelKey(line);
-      return !key || !MANAGED_KEYS.has(key);
-    }),
-  );
+  const preservedLines = lines.filter((line) => {
+    const key = parseTopLevelKey(line);
+    return !key || !MANAGED_KEYS.has(key);
+  });
 
   const managedLines: string[] = [];
   const cover = normalizedEntry.cover;
@@ -228,7 +226,11 @@ export function writeNoteMetadataToMarkdown(
   }
 
   const nextFrontmatterLines = [...preservedLines];
-  if (preservedLines.length > 0 && managedLines.length > 0) {
+  if (
+    preservedLines.length > 0
+    && managedLines.length > 0
+    && preservedLines[preservedLines.length - 1]?.trim() !== ''
+  ) {
     nextFrontmatterLines.push('');
   }
   nextFrontmatterLines.push(...managedLines);

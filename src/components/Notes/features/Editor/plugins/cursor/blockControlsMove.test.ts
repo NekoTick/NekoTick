@@ -297,11 +297,13 @@ describe('applyBlockMove content integrity', () => {
     expect(applyBlockMove(view, draggedRanges, view.state.doc.content.size)).toBe(true);
     expect(Array.from({ length: view.state.doc.childCount }, (_, index) => (
       view.state.doc.child(index).type.name
-    ))).toEqual(['paragraph', 'paragraph', 'paragraph']);
+    ))).toEqual(['paragraph', 'paragraph', 'html_block', 'paragraph']);
     expect(Array.from({ length: view.state.doc.childCount }, (_, index) => (
       view.state.doc.child(index).textContent
-    ))).toEqual(['Body', 'Tail', 'title: Demo']);
-    expect(normalizeMarkdown(serializer(view.state.doc))).toBe('Body\n\nTail\n\ntitle: Demo');
+    ))).toEqual(['Body', 'Tail', '', 'title: Demo']);
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), 'Body\n\nTail')).toBe(
+      'Body\nTail\n\ntitle: Demo',
+    );
 
     const movedBlocks = collectSelectableBlockRanges(view.state.doc);
     expect(applyBlockMove(view, movedBlocks.slice(-1), 0)).toBe(true);
@@ -317,8 +319,8 @@ describe('applyBlockMove content integrity', () => {
       '---',
       'hi',
       '',
-      'vlaina_cover: asset="./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
-      'vlaina_icon: value="hero"',
+      'vlaina_cover: "./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
+      'vlaina_icon: "hero"',
       '---',
       '1',
       '',
@@ -353,14 +355,16 @@ describe('applyBlockMove content integrity', () => {
 
     expect(applyBlockMove(view, draggedRanges, twoFrom)).toBe(true);
     expect(userInputListener).toHaveBeenCalledTimes(1);
-    expect(normalizeMarkdown(serializer(view.state.doc))).toBe('1\n\nhi\n\n2');
+    expect(serializer(view.state.doc).match(/vlaina-markdown-blank-line/g)).toHaveLength(2);
     expect(normalizeMarkdown(serializeEditorMarkdownSnapshot(serializer(view.state.doc), referenceMarkdown))).toBe([
       '---',
-      'vlaina_cover: asset="./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
-      'vlaina_icon: value="hero"',
+      'vlaina_cover: "./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
+      'vlaina_icon: "hero"',
       '---',
       '1',
+      '',
       'hi',
+      '',
       '2',
     ].join('\n'));
 
@@ -368,13 +372,13 @@ describe('applyBlockMove content integrity', () => {
     await editor.destroy();
   });
 
-  it('removes target editor blank-line blocks when moved frontmatter becomes body text', async () => {
+  it('keeps paragraph boundaries when moved frontmatter becomes body text', async () => {
     const referenceMarkdown = [
       '---',
       'hi',
       '',
-      'vlaina_cover: asset="./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
-      'vlaina_icon: value="hero"',
+      'vlaina_cover: "./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
+      'vlaina_icon: "hero"',
       '---',
       '1',
       '',
@@ -396,14 +400,16 @@ describe('applyBlockMove content integrity', () => {
     const twoBlock = findTopLevelBlockByText(view, '2');
 
     expect(applyBlockMove(view, draggedRanges, twoBlock.from)).toBe(true);
-    expect(topLevelTextContents(view)).toEqual(['1', 'hi', '2']);
+    expect(topLevelTextContents(view)).toEqual(['1', '', 'hi', '', '2']);
     expect(normalizeMarkdown(serializeEditorMarkdownSnapshot(serializer(view.state.doc), referenceMarkdown))).toBe([
       '---',
-      'vlaina_cover: asset="./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
-      'vlaina_icon: value="hero"',
+      'vlaina_cover: "./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
+      'vlaina_icon: "hero"',
       '---',
       '1',
+      '',
       'hi',
+      '',
       '2',
     ].join('\n'));
 

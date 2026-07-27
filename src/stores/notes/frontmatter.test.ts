@@ -261,6 +261,7 @@ describe('note frontmatter metadata', () => {
       '---',
       'title: Example',
       '',
+      '',
       'vlaina_cover: "assets/old.webp" height=240',
       'vlaina_icon: "🐱" size=90',
       '---',
@@ -271,12 +272,54 @@ describe('note frontmatter metadata', () => {
       '---',
       'title: Example',
       '',
+      '',
       'vlaina_cover: "assets/old.webp" height=260',
       'vlaina_icon: "🐱" size=96',
       '---',
       '',
       '# Title',
     ].join('\n'));
+  });
+
+  it.each([1, 2, 3])(
+    'preserves %s user-authored blank line(s) before the frontmatter closing delimiter',
+    (blankLineCount) => {
+      const markdown = [
+        '---',
+        'title: Example',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '---',
+        '',
+        '# Title',
+      ].join('\n');
+
+      expect(updateNoteMetadataInMarkdown(markdown, {}).content).toBe(markdown);
+    },
+  );
+
+  it('keeps authored spacing stable while updating managed frontmatter', () => {
+    const markdown = [
+      '---',
+      'title: Example',
+      '',
+      '',
+      'vlaina_icon: "🐱" size=84',
+      '---',
+      '',
+      '# Title',
+    ].join('\n');
+
+    const first = updateNoteMetadataInMarkdown(markdown, {
+      icon: '🐱',
+      iconSize: 90,
+    }).content;
+    const second = updateNoteMetadataInMarkdown(first, {
+      icon: '🐱',
+      iconSize: 96,
+    }).content;
+
+    expect(first).toBe(markdown.replace('size=84', 'size=90'));
+    expect(second).toBe(markdown.replace('size=84', 'size=96'));
   });
 
   it('updates frontmatter after a UTF-8 BOM without duplicating it', () => {

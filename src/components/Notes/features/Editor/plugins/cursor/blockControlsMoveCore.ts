@@ -19,7 +19,10 @@ import {
   collectSourceResidualInsertions,
   isInsertionInsideList,
 } from './blockControlsMoveContent';
-import { convertMovedFrontmatterToPlainText } from './blockControlsMoveFrontmatter';
+import {
+  addMovedFrontmatterParagraphBoundaries,
+  convertMovedFrontmatterToPlainText,
+} from './blockControlsMoveFrontmatter';
 
 export interface BlockMoveContext {
   selectedRanges: BlockRange[];
@@ -32,6 +35,7 @@ export interface PreparedBlockMove {
   tr: EditorView['state']['tr'];
   targetPos: number;
   movedContent: Fragment;
+  contentTailOffset: number;
 }
 
 export { convertMovedFrontmatterToPlainText };
@@ -130,19 +134,45 @@ export function prepareBlockMove(
   const insertInsideList = isInsertionInsideList(tr.doc, safeTargetPos);
   const $target = tr.doc.resolve(safeTargetPos);
   const targetIndex = $target.index();
+  const movesFrontmatterIntoTopLevelBody = safeTargetPos > 0
+    && $target.depth === 0
+    && selectedRanges.some((range) => state.doc.nodeAt(range.from)?.type.name === 'frontmatter');
   let movedContent = convertMovedFrontmatterToPlainText(
     view,
     buildMovedContent(view, selectedRanges, listItemInfoByRangeKey, insertInsideList),
     safeTargetPos,
   );
+  let contentTailOffset = movedContent.size;
+  if (movesFrontmatterIntoTopLevelBody) {
+    const bounded = addMovedFrontmatterParagraphBoundaries(
+      view,
+      tr.doc,
+      movedContent,
+      safeTargetPos,
+    );
+    movedContent = bounded.content;
+    contentTailOffset = bounded.contentTailOffset;
+  }
   if (movedContent.size === 0) return null;
 
   if (!$target.parent.canReplace(targetIndex, targetIndex, movedContent)) {
-    const fallbackContent = convertMovedFrontmatterToPlainText(
+    let fallbackContent = convertMovedFrontmatterToPlainText(
       view,
       buildMovedContent(view, selectedRanges, listItemInfoByRangeKey, !insertInsideList),
       safeTargetPos,
     );
+    if (movesFrontmatterIntoTopLevelBody) {
+      const bounded = addMovedFrontmatterParagraphBoundaries(
+        view,
+        tr.doc,
+        fallbackContent,
+        safeTargetPos,
+      );
+      fallbackContent = bounded.content;
+      contentTailOffset = bounded.contentTailOffset;
+    } else {
+      contentTailOffset = fallbackContent.size;
+    }
     if (fallbackContent.size === 0) return null;
     if (!$target.parent.canReplace(targetIndex, targetIndex, fallbackContent)) return null;
     movedContent = fallbackContent;
@@ -152,5 +182,6 @@ export function prepareBlockMove(
     tr,
     targetPos: safeTargetPos,
     movedContent,
+    contentTailOffset,
   };
 }

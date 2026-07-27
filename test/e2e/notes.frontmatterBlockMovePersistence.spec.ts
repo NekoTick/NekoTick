@@ -13,8 +13,8 @@ const FRONTMATTER_MOVE_MARKDOWN = [
   '---',
   'hi',
   '',
-  'vlaina_cover: asset="./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
-  'vlaina_icon: value="icon:common.sparkle"',
+  'vlaina_cover: "./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
+  'vlaina_icon: "icon:common.sparkle"',
   '---',
   '1',
   '',
@@ -23,8 +23,8 @@ const FRONTMATTER_MOVE_MARKDOWN = [
 
 const EXPECTED_MOVED_MARKDOWN = [
   '---',
-  'vlaina_cover: asset="./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
-  'vlaina_icon: value="icon:common.sparkle"',
+  'vlaina_cover: "./assets/13.jpg" x=50 y=38.56146469049695 height=200 scale=1',
+  'vlaina_icon: "icon:common.sparkle"',
   '---',
   '1',
   '',
@@ -97,7 +97,7 @@ test.describe('notes frontmatter block move persistence', () => {
       await expect.poll(async () => page.evaluate(() => {
         const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks();
         return blocks.map((block: { text: string }) => block.text);
-      }), { timeout: 10_000 }).toEqual(['1', 'hi', '2']);
+      }), { timeout: 10_000 }).toEqual(['1', '', 'hi', '', '2']);
 
       await expect.poll(async () => page.evaluate(() =>
         String((window as any).__vlainaE2E.getNotesState().currentNote?.content ?? '')
