@@ -8,7 +8,7 @@ import {
   serializerCtx,
 } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
-import { TextSelection } from '@milkdown/kit/prose/state';
+import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { useUIStore } from '@/stores/uiSlice';
 import { notesRemarkStringifyOptions } from '../../config/stringifyOptions';
@@ -681,14 +681,12 @@ describe('videoPlugin URL support', () => {
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)));
 
     expect(commands.call(insertVideoCommand.key, 'https://example.com/video.mp4')).toBe(true);
-    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.childCount).toBe(2);
     expect(view.state.doc.child(0).type.name).toBe('video');
-    expect(view.state.doc.child(1).type.name).toBe('paragraph');
-    expect(view.state.doc.child(1).content.size).toBe(0);
-    expect(view.state.doc.child(2).type.name).toBe('heading');
-    expect(view.state.doc.child(2).textContent).toBe('Heading');
-    expect(view.state.selection).toBeInstanceOf(TextSelection);
-    expect(view.state.selection.$from.parent).toBe(view.state.doc.child(1));
+    expect(view.state.doc.child(1).type.name).toBe('heading');
+    expect(view.state.doc.child(1).textContent).toBe('Heading');
+    expect(view.state.selection).toBeInstanceOf(NodeSelection);
+    expect((view.state.selection as NodeSelection).node).toBe(view.state.doc.child(0));
 
     await editor.destroy();
   });

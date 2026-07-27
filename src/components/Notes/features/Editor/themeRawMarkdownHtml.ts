@@ -13,6 +13,10 @@ export function getRawMarkdownHtmlValue(value: unknown): string {
     return typeof value === 'string' && value.length <= MAX_RAW_MARKDOWN_HTML_CHARS ? value : '';
 }
 
+export function getRawMarkdownHtmlRenderValue(value: unknown): string | null {
+    return typeof value === 'string' && value.length <= MAX_RAW_MARKDOWN_HTML_CHARS ? value : null;
+}
+
 function isSafeInternalMarkdownHtmlValue(value: string): boolean {
     const trimmed = value.trim();
     return trimmed === '<!--vlaina-markdown-blank-line-->'

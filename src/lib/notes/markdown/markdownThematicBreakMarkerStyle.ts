@@ -1,10 +1,23 @@
+import { getLeadingFrontmatterEndIndex } from './markdownProtectedFrontmatter';
+import { isSetextHeadingUnderlineAt } from './markdownHeadingMarkerStyle';
+import {
+  collectNonCodeProtectedLineIndexes,
+  isMarkdownLineInContainer,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+} from './markdownFenceProtectedLines';
+
 interface ThematicBreakLine {
   index: number;
   raw: string;
 }
 
+interface ThematicBreakCollection {
+  breaks: ThematicBreakLine[];
+  setextPairs: Map<string, number>;
+}
+
 const THEMATIC_BREAK_LINE_PATTERN = /^(?: {0,3})(?:[-*_][ \t]*){3,}$/;
-const FRONTMATTER_DELIMITER_PATTERN = /^---[ \t]*$/;
 
 export function restoreThematicBreakMarkerStyleFromReference(
   markdown: string,
@@ -13,19 +26,32 @@ export function restoreThematicBreakMarkerStyleFromReference(
   if (!referenceMarkdown || !markdown.includes('---')) return markdown;
 
   const referenceLines = referenceMarkdown.replace(/\r\n?/g, '\n').split('\n');
-  const referenceBreaks = collectThematicBreakLines(referenceLines)
-    .filter((line) => line.raw.trim() !== '---');
-  if (referenceBreaks.length === 0) return markdown;
+  const frontmatterEndIndex = getLeadingFrontmatterEndIndex(referenceLines);
+  const referenceCollection = collectThematicBreakLines(referenceLines, frontmatterEndIndex);
+  const referenceBreaks = referenceCollection.breaks;
+  if (referenceBreaks.every((line) => line.raw.trim() === '---')) return markdown;
 
   const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
-  const breaks = collectThematicBreakLines(lines);
+  const outputFrontmatterEndIndex = frontmatterEndIndex === null
+    ? null
+    : getLeadingFrontmatterEndIndex(lines);
+  const breaks = collectThematicBreakLines(
+    lines,
+    outputFrontmatterEndIndex,
+    referenceCollection.setextPairs,
+  ).breaks;
   if (breaks.length !== referenceBreaks.length) return markdown;
 
   let changed = false;
   for (let index = 0; index < breaks.length; index += 1) {
     const line = breaks[index];
     const referenceLine = referenceBreaks[index];
-    if (!line || !referenceLine || line.raw === referenceLine.raw) continue;
+    if (
+      !line
+      || !referenceLine
+      || referenceLine.raw.trim() === '---'
+      || line.raw === referenceLine.raw
+    ) continue;
     lines[line.index] = referenceLine.raw;
     changed = true;
   }
@@ -33,61 +59,76 @@ export function restoreThematicBreakMarkerStyleFromReference(
   return changed ? lines.join('\n') : markdown;
 }
 
-function collectThematicBreakLines(lines: readonly string[]): ThematicBreakLine[] {
+function collectThematicBreakLines(
+  lines: readonly string[],
+  frontmatterEndIndex = getLeadingFrontmatterEndIndex(lines),
+  referenceSetextPairs?: ReadonlyMap<string, number>,
+): ThematicBreakCollection {
   const breaks: ThematicBreakLine[] = [];
-  let activeFence: { marker: string; length: number } | null = null;
-  let inLeadingFrontmatter = FRONTMATTER_DELIMITER_PATTERN.test(lines[0] ?? '');
+  const setextPairs = new Map<string, number>();
+  const remainingReferenceSetextPairs = referenceSetextPairs
+    ? new Map(referenceSetextPairs)
+    : null;
+  const nonCodeProtectedLines = collectNonCodeProtectedLineIndexes(lines, frontmatterEndIndex);
+  let activeFence: {
+    blockquoteDepth: number;
+    containerIndent: number;
+    marker: string;
+    length: number;
+  } | null = null;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? '';
 
-    if (inLeadingFrontmatter) {
-      if (index > 0 && FRONTMATTER_DELIMITER_PATTERN.test(line)) {
-        inLeadingFrontmatter = false;
-      }
-      continue;
-    }
+    if (nonCodeProtectedLines.has(index)) continue;
 
-    const fence = parseFenceLine(line);
+    if (activeFence && !isMarkdownLineInContainer(line, activeFence)) {
+      activeFence = null;
+    }
     if (activeFence) {
-      if (
-        fence &&
-        fence.marker === activeFence.marker &&
-        fence.length >= activeFence.length &&
-        line.slice(fence.infoStart).trim() === ''
-      ) {
+      if (parseMarkdownContainerFenceCloseLine(line, activeFence)) {
         activeFence = null;
       }
       continue;
     }
-    if (fence) {
-      activeFence = { marker: fence.marker, length: fence.length };
+    const fence = parseMarkdownContainerFenceLine(line);
+    if (fence && (fence.marker !== '`' || line.indexOf('`', fence.infoStart) === -1)) {
+      activeFence = {
+        blockquoteDepth: fence.blockquoteDepth,
+        containerIndent: fence.containerIndent,
+        marker: fence.marker,
+        length: fence.length,
+      };
       continue;
     }
 
-    if (THEMATIC_BREAK_LINE_PATTERN.test(line)) {
-      breaks.push({ index, raw: line });
+    if (!THEMATIC_BREAK_LINE_PATTERN.test(line)) continue;
+
+    const setextPair = `${lines[index - 1] ?? ''}\u0000${line}`;
+    const isSetextUnderline = remainingReferenceSetextPairs
+      ? consumeSetextPair(remainingReferenceSetextPairs, setextPair)
+      : !nonCodeProtectedLines.has(index - 1)
+        && isSetextHeadingUnderlineAt(lines, index);
+    if (isSetextUnderline) {
+      if (!referenceSetextPairs) {
+        setextPairs.set(setextPair, (setextPairs.get(setextPair) ?? 0) + 1);
+      }
+      continue;
     }
+
+    breaks.push({ index, raw: line });
   }
 
-  return breaks;
+  return { breaks, setextPairs };
 }
 
-function parseFenceLine(line: string): { infoStart: number; length: number; marker: string } | null {
-  let cursor = 0;
-  while (cursor < line.length && cursor <= 3 && line[cursor] === ' ') {
-    cursor += 1;
+function consumeSetextPair(pairs: Map<string, number>, key: string): boolean {
+  const count = pairs.get(key) ?? 0;
+  if (count === 0) return false;
+  if (count === 1) {
+    pairs.delete(key);
+  } else {
+    pairs.set(key, count - 1);
   }
-  if (cursor > 3) return null;
-
-  const marker = line[cursor];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (line[cursor + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return { infoStart: cursor + length, length, marker };
+  return true;
 }

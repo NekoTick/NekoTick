@@ -612,7 +612,9 @@ describe('GitHub README HTML compatibility', () => {
     expect(result.dom.querySelector('title')).toBeNull();
     expect(result.dom.querySelector('style')).toBeNull();
     expect(result.dom.querySelector('xmp')).toBeNull();
-    expect(result.dom.textContent).not.toContain('<title>');
+    expect(result.dom.textContent).toContain('<title>');
+    expect(result.dom.textContent).toContain('<style>');
+    expect(result.dom.textContent).toContain('<xmp>');
     expect(result.persisted).toContain('<style>');
     expect(result.persisted).toContain('<xmp>');
     expect(result.persisted).toContain('<XMP>');

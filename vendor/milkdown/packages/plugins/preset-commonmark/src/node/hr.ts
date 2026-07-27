@@ -1,5 +1,5 @@
 import { InputRule } from '@milkdown/prose/inputrules'
-import { Selection } from '@milkdown/prose/state'
+import { NodeSelection, Selection } from '@milkdown/prose/state'
 import { $command, $inputRule, $nodeAttr, $nodeSchema } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
@@ -69,14 +69,23 @@ export const insertHrCommand = $command(
   (ctx) => () => (state, dispatch) => {
     if (!dispatch) return true
 
-    const paragraph = paragraphSchema.node.type(ctx).create()
     const { tr, selection } = state
     const { from } = selection
     const node = hrSchema.type(ctx).create()
     if (!node) return true
 
-    const _tr = tr.replaceSelectionWith(node).insert(from, paragraph)
-    const sel = Selection.findFrom(_tr.doc.resolve(from), 1, true)
+    const _tr = tr.replaceSelectionWith(node)
+    const nodePos = _tr.mapping.map(from, -1)
+    const afterNodePos = nodePos + node.nodeSize
+    let nextNode = _tr.doc.nodeAt(afterNodePos)
+    if (!nextNode) {
+      _tr.insert(afterNodePos, paragraphSchema.node.type(ctx).create())
+      nextNode = _tr.doc.nodeAt(afterNodePos)
+    }
+
+    const sel = nextNode?.type.name === 'paragraph'
+      ? Selection.findFrom(_tr.doc.resolve(afterNodePos), 1, true)
+      : NodeSelection.create(_tr.doc, nodePos)
     if (!sel) return true
 
     dispatch(_tr.setSelection(sel).scrollIntoView())

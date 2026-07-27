@@ -9,6 +9,7 @@ import {
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import {
   joinSerializedBlocks,
+  normalizeGenericHtmlBlockClosingSpacing,
   normalizeAlternativeMathBlockFences,
   normalizeChineseOrderedListMarkers,
   normalizeCjkAtxHeadingMarkerSpaces,
@@ -32,12 +33,52 @@ import {
   restoreMathBlockFenceStylesFromReference,
   stripTrailingNewlines,
 } from '@/lib/notes/markdown/markdownSerializationUtils';
+import { normalizeSerializedListGapMarkerLines } from '@/lib/notes/markdown/markdownSerializationSentinels';
+import { LIST_GAP_SENTINEL } from '@/lib/notes/markdown/markdownSerializationShared';
 import { notesRemarkStringifyOptions } from '../../config/stringifyOptions';
 
 describe('stripTrailingNewlines', () => {
   it('removes trailing newlines only', () => {
     expect(stripTrailingNewlines('abc\n\n')).toBe('abc');
     expect(stripTrailingNewlines('abc\nxyz')).toBe('abc\nxyz');
+  });
+});
+
+describe('container-aware serialization scanners', () => {
+  it('does not remove an authored blank line after leaving list-contained HTML', () => {
+    const markdown = ['- <div>', '  content', 'Outside', '', '</div>'].join('\n');
+
+    expect(normalizeGenericHtmlBlockClosingSpacing(markdown)).toBe(markdown);
+  });
+
+  it('normalizes a list-gap marker after leaving an unclosed list fence', () => {
+    const serialized = [
+      '- ```md',
+      '  code',
+      'Outside',
+      '- \u2800',
+      '  - Nested',
+    ].join('\n');
+
+    expect(normalizeSerializedListGapMarkerLines(serialized)).toBe([
+      '- ```md',
+      '  code',
+      'Outside',
+      LIST_GAP_SENTINEL,
+      '  - Nested',
+    ].join('\n'));
+  });
+
+  it('does not normalize list-gap-like code after a quote-prefixed pseudo close', () => {
+    const serialized = [
+      '```md',
+      '> ```',
+      '- \u2800',
+      '  - Nested',
+      '```',
+    ].join('\n');
+
+    expect(normalizeSerializedListGapMarkerLines(serialized)).toBe(serialized);
   });
 });
 
@@ -131,6 +172,38 @@ describe('normalizeAlternativeMathBlockFences', () => {
     expect(normalizeAlternativeMathBlockFences('> $$x^2$$')).toBe(
       ['> $$', '> x^2', '> $$'].join('\n')
     );
+  });
+
+  it.each([
+    {
+      source: ['- \\[', '  x^2', '  \\]'],
+      expected: ['- $$', '  x^2', '  $$'],
+    },
+    {
+      source: ['7. \\[', '   x^2', '   \\]'],
+      expected: ['7. $$', '   x^2', '   $$'],
+    },
+    {
+      source: ['> - \\[', '>   x^2', '>   \\]'],
+      expected: ['> - $$', '>   x^2', '>   $$'],
+    },
+  ])('normalizes list-contained bracket display math: $source', ({ expected, source }) => {
+    expect(normalizeAlternativeMathBlockFences(source.join('\n'))).toBe(expected.join('\n'));
+  });
+
+  it('normalizes same-line and generated list-contained display math', () => {
+    expect(normalizeAlternativeMathBlockFences('- \\[x^2\\]')).toBe(
+      ['- $$', '  x^2', '  $$'].join('\n')
+    );
+    expect(normalizeAlternativeMathBlockFences([
+      '- [\\',
+      '  a=\\frac{f}{m}\\',
+      '  ]',
+    ].join('\n'))).toBe([
+      '- $$',
+      '  a=\\frac{f}{m}',
+      '  $$',
+    ].join('\n'));
   });
 
   it('does not convert alternative math fences inside fenced code', () => {
@@ -382,11 +455,35 @@ describe('restoreMathBlockFenceStylesFromReference', () => {
     expect(restoreMathBlockFenceStylesFromReference(markdown, markdown)).toBe(markdown);
   });
 
+  it('restores short source fences after serialization avoids dollar-like content', () => {
+    const serialized = ['$$$', '> $$', 'x^2', '$$$'].join('\n');
+    const reference = ['$$', '> $$', 'x^2', '$$'].join('\n');
+
+    expect(restoreMathBlockFenceStylesFromReference(serialized, reference)).toBe(reference);
+  });
+
+  it('preserves user-authored dollar opener and closer lengths', () => {
+    const serialized = ['$$', 'x^2', '$$'].join('\n');
+    const reference = ['$$$', 'x^2', '$$$$'].join('\n');
+
+    expect(restoreMathBlockFenceStylesFromReference(serialized, reference)).toBe(reference);
+  });
+
   it('restores standard bracket math fences from the reference document', () => {
     const serialized = ['Before', '', '$$', 'x^2', '$$', '', 'After'].join('\n');
     const reference = ['Before', '', '\\[', 'x^2', '\\]', '', 'After'].join('\n');
 
     expect(restoreMathBlockFenceStylesFromReference(serialized, reference)).toBe(reference);
+  });
+
+  it('restores list-contained multiline and same-line bracket math styles', () => {
+    const serialized = ['- $$', '  x^2', '  $$'].join('\n');
+    const multilineReference = ['- \\[', '  x^2', '  \\]'].join('\n');
+
+    expect(restoreMathBlockFenceStylesFromReference(serialized, multilineReference))
+      .toBe(multilineReference);
+    expect(restoreMathBlockFenceStylesFromReference(serialized, '- \\[x^2\\]'))
+      .toBe('- \\[x^2\\]');
   });
 
   it('restores malformed bracket-style references as canonical bracket fences', () => {
@@ -593,7 +690,7 @@ describe('normalizeSerializedMarkdownDocument', () => {
     expect(normalizeSerializedMarkdownDocument('- one\n\u200B\u200C\n- two\n')).toBe('- one\n\n- two\n');
   });
 
-  it('does not duplicate editor blank-line comments after one-line html blocks', () => {
+  it('preserves explicit editor blank-line comments after one-line html blocks', () => {
     expect(
       normalizeSerializedMarkdownDocument([
         'hi',
@@ -609,6 +706,7 @@ describe('normalizeSerializedMarkdownDocument', () => {
       '',
       '<p>Fresh middle HTML body</p>',
       '',
+      '',
       '1',
     ].join('\n'));
     expect(
@@ -621,10 +719,10 @@ describe('normalizeSerializedMarkdownDocument', () => {
         '',
         '1',
       ].join('\n'))
-    ).toBe(['hi', '', '<div>h1</div>', '', '1'].join('\n'));
+    ).toBe(['hi', '', '<div>h1</div>', '', '', '1'].join('\n'));
   });
 
-  it('does not duplicate editor empty-line placeholders after one-line html blocks', () => {
+  it('preserves explicit editor empty-line placeholders after one-line html blocks', () => {
     expect(
       normalizeSerializedMarkdownDocument([
         'hi',
@@ -635,7 +733,7 @@ describe('normalizeSerializedMarkdownDocument', () => {
         '',
         '1',
       ].join('\n'))
-    ).toBe(['hi', '', '<p>Fresh middle HTML body</p>', '', '1'].join('\n'));
+    ).toBe(['hi', '', '<p>Fresh middle HTML body</p>', '', '', '1'].join('\n'));
   });
 
   it('strips editor rendered-boundary comments after multi-line html blocks', () => {
@@ -1242,6 +1340,9 @@ describe('normalizeSerializedMarkdownDocument', () => {
     expect(
       normalizeSerializedMarkdownDocument('- parent\n    - \\\u2800\n    - child\n')
     ).toBe('- parent\n\n    - child\n');
+    expect(
+      normalizeSerializedMarkdownDocument('> 1. parent\n>    - \u2800\n>    1. child\n')
+    ).toBe('> 1. parent\n>\n>    1. child\n');
     expect(
       normalizeSerializedMarkdownDocument('- one\n<br data-vlaina-list-gap="true"/>\n- two\n')
     ).toBe('- one\n\n- two\n');

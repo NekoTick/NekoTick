@@ -1,10 +1,10 @@
 import { MAX_EXCLUDED_RANGES } from './tagMarkdownRangeLimits';
 import type { NoteMarkdownExcludedRange } from './tagMarkdownExcludedRanges';
-
-interface FenceInfo {
-  marker: string;
-  length: number;
-}
+import {
+  isMarkdownLineInContainer,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+} from './markdown/markdownFenceProtectedLines';
 
 interface ReadLineResult {
   line: string;
@@ -52,7 +52,7 @@ export function collectFencedCodeRanges(content: string, ranges: NoteMarkdownExc
 
   while (lineStart < content.length && ranges.length < MAX_EXCLUDED_RANGES) {
     const openerLine = readLine(content, lineStart);
-    const opener = parseFenceOpener(content, lineStart, openerLine.contentEnd);
+    const opener = parseFenceOpener(openerLine.line);
     if (!opener) {
       lineStart = openerLine.nextStart;
       continue;
@@ -65,9 +65,13 @@ export function collectFencedCodeRanges(content: string, ranges: NoteMarkdownExc
     while (lineStart < content.length) {
       const currentLineStart = lineStart;
       const line = readLine(content, lineStart);
+      if (!isMarkdownLineInContainer(line.line, opener)) {
+        blockEnd = currentLineStart;
+        break;
+      }
       blockEnd = line.nextStart;
       lineStart = line.nextStart;
-      if (isFenceCloser(content, currentLineStart, line.contentEnd, opener)) {
+      if (parseMarkdownContainerFenceCloseLine(line.line, opener)) {
         break;
       }
     }
@@ -79,68 +83,12 @@ export function collectFencedCodeRanges(content: string, ranges: NoteMarkdownExc
   }
 }
 
-function parseFenceOpener(content: string, lineStart: number, lineEnd: number): FenceInfo | null {
-  let index = lineStart;
-  let spaces = 0;
-  while (index < lineEnd && content[index] === ' ') {
-    spaces += 1;
-    if (spaces > 3) {
-      return null;
-    }
-    index += 1;
-  }
-
-  const marker = content[index];
-  if (marker !== '`' && marker !== '~') {
+function parseFenceOpener(line: string) {
+  const fence = parseMarkdownContainerFenceLine(line);
+  if (!fence || (fence.marker === '`' && line.indexOf('`', fence.infoStart) !== -1)) {
     return null;
   }
-
-  const markerEnd = scanRepeatedChar(content, index, marker);
-  const markerLength = markerEnd - index;
-  if (markerLength < 3) {
-    return null;
-  }
-
-  if (marker === '`' && content.slice(markerEnd, lineEnd).includes('`')) {
-    return null;
-  }
-
-  return { marker, length: markerLength };
-}
-
-function isFenceCloser(
-  content: string,
-  lineStart: number,
-  lineEnd: number,
-  opener: FenceInfo,
-): boolean {
-  let index = lineStart;
-  let spaces = 0;
-
-  while (index < lineEnd && content[index] === ' ') {
-    spaces += 1;
-    if (spaces > 3) {
-      return false;
-    }
-    index += 1;
-  }
-
-  let markerLength = 0;
-  while (content[index + markerLength] === opener.marker) {
-    markerLength += 1;
-  }
-  if (markerLength < opener.length) {
-    return false;
-  }
-
-  for (let cursor = index + markerLength; cursor < lineEnd; cursor += 1) {
-    const character = content[cursor];
-    if (character !== ' ' && character !== '\t') {
-      return false;
-    }
-  }
-
-  return true;
+  return fence;
 }
 
 export function collectInlineCodeRanges(content: string, ranges: NoteMarkdownExcludedRange[]): void {

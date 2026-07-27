@@ -183,10 +183,19 @@ test.describe('notes list blank line caret', () => {
           hasText: /^1$/,
         }).first();
         await expect(firstItemParagraph).toBeVisible({ timeout: 30_000 });
-        const box = await firstItemParagraph.boundingBox();
-        expect(box, `Expected a paragraph box for ${listCase.label}`).not.toBeNull();
+        const lineEndPoint = await firstItemParagraph.evaluate((paragraph) => {
+          const paragraphRect = paragraph.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(paragraph);
+          const textRect = range.getBoundingClientRect();
+          range.detach();
+          return {
+            x: Math.min(paragraphRect.right - 1, Math.max(paragraphRect.left + 1, textRect.right - 1)),
+            y: textRect.top + textRect.height / 2,
+          };
+        });
 
-        await page.mouse.click(box!.x + box!.width - 8, box!.y + box!.height / 2);
+        await page.mouse.click(lineEndPoint.x, lineEndPoint.y);
         await page.keyboard.type('X');
         await waitForEditorAnimationFrame(page);
 

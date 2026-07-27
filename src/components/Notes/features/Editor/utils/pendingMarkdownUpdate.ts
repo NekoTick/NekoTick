@@ -5,10 +5,12 @@ import {
 import { restoreAutolinkStyleFromReference } from '@/lib/notes/markdown/markdownAutolinkStyle';
 import { restoreBlockquoteMarkerSpacingFromReference } from '@/lib/notes/markdown/markdownBlockquoteMarkerSpacing';
 import { restoreFenceMarkerStyleFromReference } from '@/lib/notes/markdown/markdownFenceMarkerStyle';
+import { restoreHardBreakStyleFromReference } from '@/lib/notes/markdown/markdownHardBreakStyle';
 import { restoreSetextHeadingStyleFromReference } from '@/lib/notes/markdown/markdownHeadingMarkerStyle';
 import { restoreListMarkerStyleFromReference } from '@/lib/notes/markdown/markdownListMarkerStyle';
 import { restoreReferenceLinkStyleFromReference } from '@/lib/notes/markdown/markdownReferenceLinkStyle';
 import { restoreThematicBreakMarkerStyleFromReference } from '@/lib/notes/markdown/markdownThematicBreakMarkerStyle';
+import { mapMarkdownOutsideProtectedSegments } from '@/lib/notes/markdown/markdownProtectedBlocks';
 import { serializeLeadingFrontmatterMarkdown } from '../plugins/frontmatter/frontmatterMarkdown';
 import { restoreMermaidFenceSourceFromReference } from '../plugins/mermaid/mermaidFenceSourceRestore';
 
@@ -71,13 +73,16 @@ export function resolvePendingMarkdownUpdate({
 export function serializeEditorMarkdownSnapshot(markdown: string, referenceMarkdown: string): string {
   const markdownWithParagraphSeparators = markEditorParagraphSeparators(markdown);
   const normalizedMarkdown = normalizeSerializedMarkdownDocument(
-    restoreMathBlockFenceStylesFromReference(markdownWithParagraphSeparators, referenceMarkdown)
+    restoreThematicBreakMarkerStyleFromReference(
+      restoreMathBlockFenceStylesFromReference(markdownWithParagraphSeparators, referenceMarkdown),
+      referenceMarkdown,
+    )
   );
   const serializedMarkdown = stripEditorParagraphSeparatorSentinels(stripAutomaticEditorTrailingNewline(serializeLeadingFrontmatterMarkdown(
     normalizedMarkdown,
     referenceMarkdown,
   )));
-  return restoreBlockquoteMarkerSpacingFromReference(
+  return restoreHardBreakStyleFromReference(restoreBlockquoteMarkerSpacingFromReference(
     restoreThematicBreakMarkerStyleFromReference(
       restoreListMarkerStyleFromReference(
         restoreFenceMarkerStyleFromReference(
@@ -98,7 +103,7 @@ export function serializeEditorMarkdownSnapshot(markdown: string, referenceMarkd
       referenceMarkdown,
     ),
     referenceMarkdown,
-  );
+  ), referenceMarkdown);
 }
 
 export function normalizeMarkdownParagraphSeparatorsForEditorComparison(markdown: string): string {
@@ -146,6 +151,13 @@ function stripAutomaticEditorTrailingNewline(markdown: string): string {
 function markEditorParagraphSeparators(markdown: string): string {
   if (!markdown.includes('\n\n')) return markdown;
 
+  return mapMarkdownOutsideProtectedSegments(
+    markdown,
+    markEditorParagraphSeparatorsInSegment,
+  );
+}
+
+function markEditorParagraphSeparatorsInSegment(markdown: string): string {
   const normalizedMarkdown = markdown.replace(/\r\n?/g, '\n');
   const lines = normalizedMarkdown.split('\n');
   const output: string[] = [];
@@ -240,6 +252,7 @@ function isEditorEmptyParagraphLine(line: string): boolean {
 function isPlainTextParagraphLine(line: string): boolean {
   const trimmed = line.trim();
   if (trimmed.length === 0) return false;
+  if (/^(?: {2,}|\t)/.test(line)) return false;
   if (trimmed.includes(EDITOR_PARAGRAPH_SEPARATOR_SENTINEL)) return false;
   if (isInternalEditorArtifactLine(line)) return false;
   if (STRUCTURAL_MARKDOWN_LINE_PATTERN.test(line)) return false;

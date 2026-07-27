@@ -13,6 +13,7 @@ import {
   obsidianImageEmbedInputPlugin,
   obsidianImageEmbedPlugin,
 } from './imageEmbedPlugin';
+import { remarkObsidianImageEmbeds } from '@/components/common/markdown/theme-compatibility/obsidian/imageEmbed';
 
 function typeText(view: EditorView, input: string): void {
   for (const text of input) {
@@ -37,6 +38,19 @@ function createEditor() {
 }
 
 describe('Obsidian image embed input', () => {
+  it('does not transform image-like syntax inside code nodes', () => {
+    const tree = {
+      type: 'root',
+      children: [{ type: 'code', value: 'literal ![[attachments/demo.png]]' }],
+    };
+
+    remarkObsidianImageEmbeds()(tree);
+
+    expect(tree.children).toEqual([
+      { type: 'code', value: 'literal ![[attachments/demo.png]]' },
+    ]);
+  });
+
   it('creates an editable image from typed embed syntax', async () => {
     const editor = createEditor();
     await editor.create();

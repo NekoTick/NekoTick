@@ -270,6 +270,8 @@ describe('extractLargestMarkdownFenceContent', () => {
 });
 
 describe('normalizeInterruptedOrderedListsForPaste', () => {
+    const parserBoundary = '<!--vlaina-markdown-tight-heading-->';
+
     it('separates a paragraph from a following ordered list that starts after 1', () => {
         expect(normalizeInterruptedOrderedListsForPaste([
             '`mindmap支持是否完整`',
@@ -278,7 +280,7 @@ describe('normalizeInterruptedOrderedListsForPaste', () => {
             '5. 斜杠工具栏',
         ].join('\n'))).toBe([
             '`mindmap支持是否完整`',
-            '',
+            parserBoundary,
             '3. 表格看看是否需要调整大小',
             '4. ',
             '5. 斜杠工具栏',
@@ -294,7 +296,7 @@ describe('normalizeInterruptedOrderedListsForPaste', () => {
             '12. 自动生成的目录部分的高度需要调整',
         ].join('\n'))).toBe([
             '`mindmap支持是否完整`',
-            '',
+            parserBoundary,
             '3. 表格看看是否需要调整大小',
             '11. 这个merger表格根本用不了',
             '    1. 在他下面弄个反斜杠直接消失了',
@@ -309,7 +311,7 @@ describe('normalizeInterruptedOrderedListsForPaste', () => {
             '    1. 在他下面弄个反斜杠直接消失了',
         ].join('\n'))).toBe([
             '`mindmap支持是否完整`',
-            '',
+            parserBoundary,
             '3. 这个merger表格根本用不了',
             '    1. 在他下面弄个反斜杠直接消失了',
         ].join('\n'));
@@ -319,15 +321,23 @@ describe('normalizeInterruptedOrderedListsForPaste', () => {
         const value = ['```md', '`mindmap`', '3. inside code', '4. still code', '```'].join('\n');
         expect(normalizeInterruptedOrderedListsForPaste(value)).toBe(value);
     });
+
+    it.each([
+        ['list', ['- ```md', '  paragraph', '  3. inside code', '  4. still code', '  ```']],
+        ['blockquote', ['> ```md', '> paragraph', '> 3. inside code', '> 4. still code', '> ```']],
+    ])('does not rewrite ordered-list-looking lines inside %s-contained fenced code', (_name, lines) => {
+        const value = lines.join('\n');
+        expect(normalizeInterruptedOrderedListsForPaste(value)).toBe(value);
+    });
 });
 
 describe('normalizeStandaloneThematicBreaksForPaste', () => {
-    it('adds blank lines around thematic breaks next to plain content', () => {
-        expect(normalizeStandaloneThematicBreaksForPaste('---\n测试\n---')).toBe('---\n\n测试\n\n---');
+    it('does not add blank lines around thematic-break-like input', () => {
+        expect(normalizeStandaloneThematicBreaksForPaste('---\n测试\n---')).toBe('---\n测试\n---');
     });
 
-    it('disambiguates a trailing thematic break from a setext heading underline', () => {
-        expect(normalizeStandaloneThematicBreaksForPaste('Title\n---')).toBe('Title\n\n---');
+    it('keeps a setext heading underline unchanged', () => {
+        expect(normalizeStandaloneThematicBreaksForPaste('Title\n---')).toBe('Title\n---');
     });
 
     it('keeps a long hyphen underline as a setext heading marker', () => {
@@ -346,6 +356,6 @@ describe('normalizeStandaloneThematicBreaksForPaste', () => {
 
     it('does not rewrite thematic-break-like lines inside fenced code', () => {
         const value = ['```md', 'alpha', '---', 'beta', '```', '---', 'tail'].join('\n');
-        expect(normalizeStandaloneThematicBreaksForPaste(value)).toBe(['```md', 'alpha', '---', 'beta', '```', '---', '', 'tail'].join('\n'));
+        expect(normalizeStandaloneThematicBreaksForPaste(value)).toBe(value);
     });
 });

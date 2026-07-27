@@ -12,6 +12,7 @@ export interface DefinitionListMdastNode {
     hName?: string;
     hProperties?: Record<string, unknown>;
     vlainaEscapedBlockSyntax?: string;
+    vlainaDefinitionBlankLineCount?: number;
   };
   position?: MarkdownSourcePosition;
 }
@@ -145,7 +146,8 @@ function stripDefinitionPrefix(
 export function createDefinitionListNode(
   termChildren: readonly DefinitionListMdastNode[],
   descChildren: readonly DefinitionListMdastNode[],
-  markdown = ''
+  markdown = '',
+  blankLineCount = 0
 ): DefinitionListMdastNode {
   return {
     type: 'definitionList',
@@ -167,6 +169,7 @@ export function createDefinitionListNode(
         data: {
           hName: 'dd',
           hProperties: { className: ['definition-desc'] },
+          vlainaDefinitionBlankLineCount: blankLineCount,
         },
         children: [{
           type: 'paragraph',

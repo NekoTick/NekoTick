@@ -10,7 +10,13 @@ import {
 
 function createPositionedInlineNodes(
   markdown: string,
-  parts: Array<{ type: string; value?: string; children?: MarkdownNode[]; source?: string }>
+  parts: Array<{
+    type: string
+    value?: string
+    children?: MarkdownNode[]
+    data?: Record<string, unknown>
+    source?: string
+  }>
 ): MarkdownNode[] {
   let offset = 0
   return parts.map((part) => {
@@ -110,6 +116,86 @@ describe('mergePairedInlineHtml', () => {
     ])
   })
 
+  it('keeps multiline block html inline when a paragraph has adjacent content', () => {
+    const markdown = ['Before', '<textarea>', 'raw', '</textarea>', 'After'].join('\n')
+    const tree = createTree(markdown, [
+      { type: 'text', value: 'Before\n' },
+      { type: 'html', value: '<textarea>' },
+      { type: 'text', value: '\nraw\n' },
+      { type: 'html', value: '</textarea>' },
+      { type: 'text', value: '\nAfter' },
+    ])
+
+    const result = mergePairedInlineHtml(tree, markdown)
+
+    expect(paragraphChildren(result)).toMatchObject([
+      { type: 'text', value: 'Before\n' },
+      {
+        type: 'html',
+        value: ['<textarea>', 'raw', '</textarea>'].join('\n'),
+        githubHtmlBlock: false,
+      },
+      { type: 'text', value: '\nAfter' },
+    ])
+  })
+
+  it('preserves source boundary data while merging multiline html', () => {
+    const markdown = ['<textarea>', 'raw', '</textarea>', '', 'After'].join('\n')
+    const tree = createTree(markdown, [
+      { type: 'html', value: '<textarea>', data: { sourceTightBefore: true } },
+      { type: 'text', value: '\nraw\n' },
+      {
+        type: 'html',
+        value: '</textarea>',
+        data: { sourceBlankLineCountAfter: 1 },
+      },
+    ])
+
+    const result = mergePairedInlineHtml(tree, markdown)
+
+    expect(result.children?.[0]).toMatchObject({
+      type: 'html',
+      data: {
+        sourceBlankLineCountAfter: 1,
+        sourceTightBefore: true,
+      },
+      position: {
+        start: { offset: 0 },
+        end: { offset: markdown.indexOf('</textarea>') + '</textarea>'.length },
+      },
+    })
+  })
+
+  it.each(['heading', 'tableCell'])(
+    'keeps multiline block html inline inside %s nodes',
+    (type) => {
+      const markdown = [': <textarea>', 'raw', '</textarea>'].join('\n')
+      const tree = {
+        type: 'root',
+        children: [{
+          type,
+          children: createPositionedInlineNodes(markdown, [
+            { type: 'text', value: ': ' },
+            { type: 'html', value: '<textarea>' },
+            { type: 'text', value: '\nraw\n' },
+            { type: 'html', value: '</textarea>' },
+          ]),
+        } as MarkdownNode],
+      } as MarkdownNode
+
+      const result = mergePairedInlineHtml(tree, markdown)
+
+      expect(result.children?.[0]?.children).toMatchObject([
+        { type: 'text', value: ': ' },
+        {
+          type: 'html',
+          value: ['<textarea>', 'raw', '</textarea>'].join('\n'),
+          githubHtmlBlock: false,
+        },
+      ])
+    }
+  )
+
   it('restores single html nodes from source when their value has encoded nested tags', () => {
     const markdown = '<span style="color : #123456"><em>nested</em></span>'
     const tree = createTree(markdown, [
@@ -125,6 +211,110 @@ describe('mergePairedInlineHtml', () => {
     expect(paragraphChildren(result).map((node) => ({ type: node.type, value: node.value }))).toEqual([
       { type: 'html', value: markdown },
     ])
+  })
+
+  it.each([
+    {
+      container: 'blockquote',
+      markdown: ['> <textarea>', '> hidden source', '> </textarea>'].join('\n'),
+      source: '<textarea>\n> hidden source\n> </textarea>',
+      start: 2,
+      startColumn: 3,
+      tree: (node: MarkdownNode) => ({
+        type: 'root',
+        children: [{
+          type: 'blockquote',
+          children: [{ type: 'paragraph', children: [node] } as MarkdownNode],
+        } as MarkdownNode],
+      } as MarkdownNode),
+    },
+    {
+      container: 'list item',
+      markdown: ['- <textarea>', '  hidden source', '  </textarea>'].join('\n'),
+      source: '<textarea>\n  hidden source\n  </textarea>',
+      start: 2,
+      startColumn: 3,
+      tree: (node: MarkdownNode) => ({
+        type: 'root',
+        children: [{
+          type: 'list',
+          children: [{
+            type: 'listItem',
+            children: [{ type: 'paragraph', children: [node] } as MarkdownNode],
+          } as MarkdownNode],
+        } as MarkdownNode],
+      } as MarkdownNode),
+    },
+  ])('removes $container prefixes while restoring multiline html source', ({
+    markdown,
+    source,
+    start,
+    startColumn,
+    tree,
+  }) => {
+    const value = ['<textarea>', 'hidden source', '</textarea>'].join('\n')
+    const html = {
+      type: 'html',
+      value,
+      position: {
+        start: { column: startColumn, offset: start },
+        end: { offset: start + source.length },
+      },
+    } as MarkdownNode
+
+    const result = mergePairedInlineHtml(tree(html), markdown)
+    const serialized = JSON.stringify(result)
+
+    expect(serialized).toContain(JSON.stringify(value).slice(1, -1))
+    expect(serialized).not.toContain('> hidden source')
+    expect(serialized).not.toContain('  hidden source')
+  })
+
+  it.each([
+    {
+      expected: true,
+      markdown: ['- <textarea>', '  hidden source', '  </textarea>'].join('\n'),
+      sourceLine: 1,
+    },
+    {
+      expected: undefined,
+      markdown: ['-', '', '  <textarea>', '  hidden source', '  </textarea>'].join('\n'),
+      sourceLine: 3,
+    },
+  ])('marks a list item tight-first-block as $expected for source line $sourceLine', ({
+    expected,
+    markdown,
+    sourceLine,
+  }) => {
+    const value = ['<textarea>', 'hidden source', '</textarea>'].join('\n')
+    const html = {
+      type: 'html',
+      value,
+      position: {
+        start: {
+          column: 3,
+          line: sourceLine,
+          offset: markdown.indexOf('<textarea>'),
+        },
+        end: { offset: markdown.length },
+      },
+    } as MarkdownNode
+    const tree = {
+      type: 'root',
+      children: [{
+        type: 'list',
+        children: [{
+          type: 'listItem',
+          position: { start: { line: 1, offset: 0 }, end: { offset: markdown.length } },
+          children: [{ type: 'paragraph', children: [html] } as MarkdownNode],
+        } as MarkdownNode],
+      } as MarkdownNode],
+    } as MarkdownNode
+
+    const result = mergePairedInlineHtml(tree, markdown)
+    const listItem = result.children?.[0]?.children?.[0]
+
+    expect(listItem?.sourceTightFirstBlock).toBe(expected)
   })
 
   it('pairs same-tag nested inline html by nesting depth', () => {

@@ -4,6 +4,12 @@ import {
     preserveMarkdownBlankLinesForPaste,
 } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { normalizeCanonicalMarkdownSpacingForPaste } from '@/lib/notes/markdown/markdownCanonicalSpacing';
+import {
+    isMarkdownLineInContainer,
+    parseMarkdownContainerFenceCloseLine,
+    parseMarkdownContainerFenceLine,
+    type MarkdownContainerState,
+} from '@/lib/notes/markdown/markdownFenceProtectedLines';
 
 import {
     looksLikeMarkdownForPaste,
@@ -17,7 +23,6 @@ const BULLET_PREFIXED_ORDERED_MARKER_PATTERN = /^(?:\s*)[•‣◦]\s*(\d{1,3})[
 const ORDERED_OUTLINE_MARKER_PATTERN = /^(\s{0,3})(?:[•‣◦]\s*)?(\d{1,3})[.)][ \t]+(.+)$/u;
 const INLINE_EMBEDDED_HTML_EXAMPLE_PATTERN =
     /<(video|audio|iframe)\b[^>\n]*>[^<\n]*<\/\1>|<(img|source|track|video|audio|iframe)\b[^>\n]*\/?>/gi;
-const FENCED_CODE_LINE_PATTERN = /^(?: {0,3}>[ \t]*)* {0,3}(`{3,}|~{3,})/;
 
 function getInlineCodeSpanRanges(line: string): Array<[number, number]> {
     const ranges: Array<[number, number]> = [];
@@ -63,25 +68,26 @@ function isAtRawHtmlLineStart(line: string, offset: number): boolean {
 }
 
 function escapeInlineEmbeddedHtmlExamples(text: string): string {
-    let activeFence: { marker: string; size: number } | null = null;
+    let activeFence: (MarkdownContainerState & { marker: string; length: number }) | null = null;
 
     return text.replace(/^.*$/gm, (line) => {
-        const fenceMatch = FENCED_CODE_LINE_PATTERN.exec(line);
         if (activeFence) {
-            if (
-                fenceMatch
-                && (fenceMatch[1]?.[0] ?? '') === activeFence.marker
-                && (fenceMatch[1]?.length ?? 0) >= activeFence.size
-            ) {
-                activeFence = null;
+            if (isMarkdownLineInContainer(line, activeFence)) {
+                if (parseMarkdownContainerFenceCloseLine(line, activeFence)) {
+                    activeFence = null;
+                }
+                return line;
             }
-            return line;
+            activeFence = null;
         }
 
-        if (fenceMatch) {
+        const fence = parseMarkdownContainerFenceLine(line);
+        if (fence && (fence.marker !== '`' || line.indexOf('`', fence.infoStart) === -1)) {
             activeFence = {
-                marker: fenceMatch[1]?.[0] ?? '`',
-                size: fenceMatch[1]?.length ?? 3,
+                blockquoteDepth: fence.blockquoteDepth,
+                containerIndent: fence.containerIndent,
+                marker: fence.marker,
+                length: fence.length,
             };
             return line;
         }

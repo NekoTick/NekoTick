@@ -12,12 +12,23 @@ export const htmlAttr = $nodeAttr('html')
 
 function isGithubHtmlBlockNode(node: { githubHtmlBlock?: unknown; value?: unknown }) {
   const value = typeof node.value === 'string' ? node.value : ''
-  return node.githubHtmlBlock === true || (value.includes('\n') && isGithubHtmlBlock(value))
+  return node.githubHtmlBlock === true
+    || (node.githubHtmlBlock !== false && value.includes('\n') && isGithubHtmlBlock(value))
 }
 
 function getBoundedHtmlValue(value: unknown) {
   const html = typeof value === 'string' ? value : ''
   return html.length <= maxGithubHtmlSanitizeChars ? html : ''
+}
+
+function getBoundedHtmlRenderValue(value: unknown) {
+  return typeof value === 'string' && value.length <= maxGithubHtmlSanitizeChars
+    ? value
+    : null
+}
+
+function getMarkdownHtmlRenderValue(node: { githubHtmlRenderValue?: unknown }) {
+  return getBoundedHtmlRenderValue(node.githubHtmlRenderValue)
 }
 
 function getSafeDomAttributeValue(value: unknown) {
@@ -50,17 +61,23 @@ export const htmlSchema = $nodeSchema('html', (ctx) => {
         default: '',
         validate: 'string',
       },
+      renderValue: {
+        default: null,
+        validate: 'string|null',
+      },
     },
     toDOM: (node) => {
       const span = document.createElement('span')
       const value = getBoundedHtmlValue(node.attrs.value)
+      const renderValue = getBoundedHtmlRenderValue(node.attrs.renderValue)
       setSafeDomAttributes(span, {
         ...ctx.get(htmlAttr.key)(node),
+        'data-render-value': renderValue,
         'data-value': value,
         'data-type': 'html',
       })
-      span.innerHTML = sanitizeGithubHtml(value)
-      if (span.childNodes.length === 0 && isGfmDisallowedRawHtml(value))
+      span.innerHTML = sanitizeGithubHtml(renderValue ?? value)
+      if (renderValue === null && span.childNodes.length === 0 && isGfmDisallowedRawHtml(value))
         span.textContent = value
       return span
     },
@@ -69,6 +86,9 @@ export const htmlSchema = $nodeSchema('html', (ctx) => {
         tag: 'span[data-type="html"]',
         getAttrs: (dom) => {
           return {
+            renderValue: dom.hasAttribute('data-render-value')
+              ? getBoundedHtmlValue(dom.dataset.renderValue)
+              : null,
             value: getBoundedHtmlValue(dom.dataset.value),
           }
         },
@@ -77,7 +97,10 @@ export const htmlSchema = $nodeSchema('html', (ctx) => {
     parseMarkdown: {
       match: (node) => node.type === 'html' && !isGithubHtmlBlockNode(node),
       runner: (state, node, type) => {
-        state.addNode(type, { value: getBoundedHtmlValue(node.value) })
+        state.addNode(type, {
+          renderValue: getMarkdownHtmlRenderValue(node),
+          value: getBoundedHtmlValue(node.value),
+        })
       },
     },
     toMarkdown: {
@@ -98,17 +121,23 @@ export const htmlBlockSchema = $nodeSchema('html_block', (ctx) => {
         default: '',
         validate: 'string',
       },
+      renderValue: {
+        default: null,
+        validate: 'string|null',
+      },
     },
     toDOM: (node) => {
       const block = document.createElement('div')
       const value = getBoundedHtmlValue(node.attrs.value)
+      const renderValue = getBoundedHtmlRenderValue(node.attrs.renderValue)
       setSafeDomAttributes(block, {
         ...ctx.get(htmlAttr.key)(node),
+        'data-render-value': renderValue,
         'data-value': value,
         'data-type': 'html-block',
       })
-      block.innerHTML = sanitizeGithubHtml(value)
-      if (block.childNodes.length === 0 && isGfmDisallowedRawHtml(value))
+      block.innerHTML = sanitizeGithubHtml(renderValue ?? value)
+      if (renderValue === null && block.childNodes.length === 0 && isGfmDisallowedRawHtml(value))
         block.textContent = value
       return block
     },
@@ -117,6 +146,9 @@ export const htmlBlockSchema = $nodeSchema('html_block', (ctx) => {
         tag: 'div[data-type="html-block"]',
         getAttrs: (dom) => {
           return {
+            renderValue: dom.hasAttribute('data-render-value')
+              ? getBoundedHtmlValue(dom.dataset.renderValue)
+              : null,
             value: getBoundedHtmlValue(dom.dataset.value),
           }
         },
@@ -125,7 +157,10 @@ export const htmlBlockSchema = $nodeSchema('html_block', (ctx) => {
     parseMarkdown: {
       match: (node) => node.type === 'html' && isGithubHtmlBlockNode(node),
       runner: (state, node, type) => {
-        state.addNode(type, { value: getBoundedHtmlValue(node.value) })
+        state.addNode(type, {
+          renderValue: getMarkdownHtmlRenderValue(node),
+          value: getBoundedHtmlValue(node.value),
+        })
       },
     },
     toMarkdown: {

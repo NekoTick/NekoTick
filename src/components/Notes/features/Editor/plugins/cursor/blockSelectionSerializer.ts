@@ -38,6 +38,12 @@ import {
   serializeParagraphInlineRange,
 } from './blockSelectionParagraphInlineSerialization';
 
+function serializeSelectionFrontmatterMarkdown(markdown: string): string {
+  return serializeLeadingFrontmatterMarkdown(markdown, undefined, {
+    removeSerializerPadding: true,
+  });
+}
+
 interface SerializeSelectedBlocksOptions {
   compactPlainParagraphs?: boolean;
   markdownSerializer?: Serializer | null;
@@ -153,7 +159,7 @@ export function serializeSelectedBlocksToText(
       options.markdownSerializer,
     );
     if (singleListText !== null) {
-      return serializeLeadingFrontmatterMarkdown(singleListText);
+      return serializeSelectionFrontmatterMarkdown(singleListText);
     }
   }
 
@@ -178,7 +184,7 @@ export function serializeSelectedBlocksToText(
             markdownSerializer(state.doc.cut(block.from, block.to))
           );
         });
-      return serializeLeadingFrontmatterMarkdown(
+      return serializeSelectionFrontmatterMarkdown(
         joinSerializedBlockRanges(
           state.doc,
           pruned,
@@ -204,7 +210,7 @@ export function serializeSelectedBlocksToText(
       );
     });
 
-  return serializeLeadingFrontmatterMarkdown(
+  return serializeSelectionFrontmatterMarkdown(
     joinSerializedBlockRanges(state.doc, pruned, pieces, options.compactPlainParagraphs)
   );
 }

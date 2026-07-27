@@ -8,10 +8,10 @@ import {
   waitForEditorAnimationFrame,
 } from './notesE2E';
 
-const BLANK_LINE_SELECTOR = [
-  `${EDITOR_SELECTOR} [data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]`,
-  `${EDITOR_SELECTOR} p.editor-editable-markdown-blank-line`,
-  `${EDITOR_SELECTOR} p:empty`,
+const TOP_LEVEL_BLANK_LINE_SELECTOR = [
+  `${EDITOR_SELECTOR} > [data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]`,
+  `${EDITOR_SELECTOR} > p.editor-editable-markdown-blank-line`,
+  `${EDITOR_SELECTOR} > p:empty`,
 ].join(', ');
 
 type StructuralGapCase = {
@@ -71,7 +71,7 @@ async function collectStructuralGapDiagnostics(page: Page) {
       text: editor?.textContent ?? '',
     };
   }, {
-    blankLineSelector: BLANK_LINE_SELECTOR,
+    blankLineSelector: TOP_LEVEL_BLANK_LINE_SELECTOR,
     editorSelector: EDITOR_SELECTOR,
   });
 }
@@ -145,7 +145,7 @@ test.describe('notes structural blank line Backspace caret', () => {
           content: testCase.content,
         });
         await expect(page.locator(EDITOR_SELECTOR), testCase.label).toContainText(testCase.nextText);
-        await expect(page.locator(BLANK_LINE_SELECTOR), testCase.label).toHaveCount(1);
+        await expect(page.locator(TOP_LEVEL_BLANK_LINE_SELECTOR), testCase.label).toHaveCount(1);
 
         const anchorRange = await selectTextRange(page, testCase.anchorText);
         await setCursorAtTextStart(page, testCase.nextText);

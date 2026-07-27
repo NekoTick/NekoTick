@@ -1,4 +1,8 @@
-import { getMarkdownBlockContent } from '@/lib/markdown/markdownHtmlBlockClassification';
+import {
+  isMarkdownContainerMathFenceCloseLine,
+  isMarkdownLineInContainer,
+  parseMarkdownContainerMathFenceLine,
+} from './markdownFenceProtectedLines';
 import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
 import { containsAsciiCaseInsensitive } from './markdownSerializationAscii';
 import {
@@ -6,13 +10,17 @@ import {
   shouldKeepHtmlCommentProtectionActive
 } from './markdownSerializationInternalBlankComments';
 import {
-  ALTERNATIVE_MATH_BLOCK_STANDARD_CLOSE_PATTERN,
-  DOLLAR_MATH_BLOCK_FENCE_PATTERN,
   INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN,
   INTERNAL_TIGHT_HEADING_COMMENT_PATTERN,
-  MathBlockFenceStyle,
   RENDERED_HTML_BOUNDARY_BLANK_LINE_COMMENT_PATTERN
 } from './markdownSerializationShared';
+
+interface ArtifactMathBlockState {
+  blockquoteDepth: number;
+  containerIndent: number;
+  length: number;
+  style: 'bracket' | 'dollar';
+}
 
 export function normalizeInternalTightHeadingComments(text: string): string {
   const afterMathBlockArtifacts = normalizeInternalArtifactCommentsInsideMathBlocks(text);
@@ -38,7 +46,7 @@ export function normalizeInternalArtifactCommentsInsideMathBlocks(text: string):
 
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const output: string[] = [];
-  let mathStyle: MathBlockFenceStyle | null = null;
+  let mathBlock: ArtifactMathBlockState | null = null;
   let mathContent: string[] = [];
   let changed = false;
 
@@ -52,11 +60,16 @@ export function normalizeInternalArtifactCommentsInsideMathBlocks(text: string):
   };
 
   for (const line of lines) {
-    if (mathStyle) {
-      if (isMathBlockFenceCloseLine(line, mathStyle)) {
+    if (mathBlock && !isMarkdownLineInContainer(line, mathBlock)) {
+      flushMathContent();
+      mathBlock = null;
+    }
+
+    if (mathBlock) {
+      if (isMathBlockFenceCloseLine(line, mathBlock)) {
         flushMathContent();
         output.push(line);
-        mathStyle = null;
+        mathBlock = null;
         continue;
       }
 
@@ -64,17 +77,17 @@ export function normalizeInternalArtifactCommentsInsideMathBlocks(text: string):
       continue;
     }
 
-    const nextMathStyle = getMathBlockFenceOpenStyle(line);
-    if (nextMathStyle) {
+    const nextMathBlock = getMathBlockFenceOpenState(line);
+    if (nextMathBlock) {
       output.push(line);
-      mathStyle = nextMathStyle;
+      mathBlock = nextMathBlock;
       continue;
     }
 
     output.push(line);
   }
 
-  if (mathStyle) {
+  if (mathBlock) {
     flushMathContent();
   }
 
@@ -107,18 +120,29 @@ export function normalizeInternalArtifactMathContentLines(lines: string[]): stri
   return output;
 }
 
-export function getMathBlockFenceOpenStyle(line: string): MathBlockFenceStyle | null {
-  const content = getMarkdownBlockContent(line);
-  if (DOLLAR_MATH_BLOCK_FENCE_PATTERN.test(content)) return 'dollar';
-  if (/^(?: {0,3})\\\[\s*$/.test(content)) return 'bracket';
+function getMathBlockFenceOpenState(line: string): ArtifactMathBlockState | null {
+  const fence = parseMarkdownContainerMathFenceLine(line);
+  if (fence?.kind === 'dollar') {
+    return {
+      blockquoteDepth: fence.blockquoteDepth,
+      containerIndent: fence.containerIndent,
+      length: fence.length,
+      style: 'dollar',
+    };
+  }
+  if (fence?.kind === 'bracket-open') {
+    return {
+      blockquoteDepth: fence.blockquoteDepth,
+      containerIndent: fence.containerIndent,
+      length: fence.length,
+      style: 'bracket',
+    };
+  }
   return null;
 }
 
-export function isMathBlockFenceCloseLine(line: string, style: MathBlockFenceStyle): boolean {
-  const content = getMarkdownBlockContent(line);
-  return style === 'dollar'
-    ? DOLLAR_MATH_BLOCK_FENCE_PATTERN.test(content)
-    : ALTERNATIVE_MATH_BLOCK_STANDARD_CLOSE_PATTERN.test(content);
+function isMathBlockFenceCloseLine(line: string, state: ArtifactMathBlockState): boolean {
+  return isMarkdownContainerMathFenceCloseLine(line, state);
 }
 
 export function normalizeInternalTightHeadingCommentSegment(segment: string): string {

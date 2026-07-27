@@ -59,7 +59,7 @@ describe('markdown image line helpers', () => {
 
     expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
       '![outer [nested] label](assets/file(one).png "Demo title")',
-      '',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
       '# Next',
     ].join('\n'));

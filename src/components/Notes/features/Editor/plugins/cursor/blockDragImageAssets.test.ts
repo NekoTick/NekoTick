@@ -97,4 +97,58 @@ describe('remapDraggedMarkdownImageAssets', () => {
     ].join('\n'));
     expect(deps.uploadAsset).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    {
+      name: 'list',
+      lines: [
+        '- ```md',
+        '  ![Code](./assets/photo.png)',
+        '  ```',
+      ],
+    },
+    {
+      name: 'blockquote',
+      lines: [
+        '> ```md',
+        '> ![Code](./assets/photo.png)',
+        '> ```',
+      ],
+    },
+  ])('does not rewrite image-looking text inside $name-contained fenced code', async ({ lines }) => {
+    const deps = createDeps('./assets/photo-copy.png');
+    const markdown = lines.join('\n');
+
+    const result = await remapDraggedMarkdownImageAssets({
+      markdown,
+      sourceNotePath: 'source/source.md',
+      targetNotePath: 'target/target.md',
+    }, deps);
+
+    expect(result).toBe(markdown);
+    expect(deps.uploadAsset).not.toHaveBeenCalled();
+  });
+
+  it('resumes rewriting after an unclosed list fence leaves its container', async () => {
+    const deps = createDeps('./assets/photo-copy.png');
+
+    const result = await remapDraggedMarkdownImageAssets({
+      markdown: [
+        '- ```md',
+        '  ![Code](./assets/photo.png)',
+        'Outside',
+        '![Real](./assets/photo.png)',
+      ].join('\n'),
+      sourceNotePath: 'source/source.md',
+      targetNotePath: 'target/target.md',
+    }, deps);
+
+    expect(result).toBe([
+      '- ```md',
+      '  ![Code](./assets/photo.png)',
+      'Outside',
+      '![Real](./assets/photo-copy.png)',
+    ].join('\n'));
+    expect(deps.uploadAsset).toHaveBeenCalledTimes(1);
+  });
 });

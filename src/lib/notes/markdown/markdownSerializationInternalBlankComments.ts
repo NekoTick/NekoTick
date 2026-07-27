@@ -1,9 +1,12 @@
 import { getMarkdownBlockContent } from '@/lib/markdown/markdownHtmlBlockClassification';
+import {
+  areDifferentListStyleLines,
+  findPreviousListItemAtSameDepth,
+} from './markdownBlankLineBoundaries';
 import { isMarkdownImageOnlyLine } from './markdownImageLine';
 import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
 import { containsAsciiCaseInsensitive } from './markdownSerializationAscii';
 import {
-  HTML_BLOCK_LINE_PATTERN,
   HTML_CLOSING_RENDERED_BLOCK_PATTERN,
   HTML_COMMENT_CLOSE_PATTERN,
   HTML_COMMENT_OPEN_PATTERN,
@@ -11,9 +14,14 @@ import {
   HTML_ONE_LINE_RENDERED_BLOCK_PATTERN, HTML_ONE_LINE_RENDERED_VOID_BLOCK_PATTERN,
   INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN,
   INTERNAL_TIGHT_HEADING_COMMENT_PATTERN,
+  LIST_GAP_SENTINEL,
+  BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES,
   NON_EDITABLE_HTML_BOUNDARY_TAG_NAMES,
   RENDERED_HTML_BOUNDARY_BLANK_LINE_COMMENT_PATTERN
 } from './markdownSerializationShared';
+
+const BLOCKQUOTE_INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN =
+  /^(\s*(?:>\s*)+)<!--\s*vlaina-markdown-blank-line\s*-->\s*$/i;
 
 export function normalizeInternalMarkdownBlankLineComments(text: string): string {
   if (
@@ -22,17 +30,12 @@ export function normalizeInternalMarkdownBlankLineComments(text: string): string
   ) return text;
 
   const afterRenderedHtmlBoundaryHelpers = normalizeRenderedHtmlBoundaryHelperComments(text);
-  const shouldCollapseSingleHtmlBoundaryPlaceholder =
-    hasSingleInternalBlankLineCommentAfterHtmlBoundary(afterRenderedHtmlBoundaryHelpers);
-  const normalized = mapMarkdownOutsideProtectedSegments(
+  return mapMarkdownOutsideProtectedSegments(
     afterRenderedHtmlBoundaryHelpers,
     (segment, startIndex, lines) =>
       normalizeInternalMarkdownBlankLineCommentSegment(segment, startIndex, lines),
     { protectHtmlComments: false },
   );
-  return shouldCollapseSingleHtmlBoundaryPlaceholder
-    ? collapseHtmlBoundaryBlankLinesCreatedByInternalComments(normalized)
-    : normalized;
 }
 
 export function normalizeRenderedHtmlBoundaryHelperComments(text: string): string {
@@ -95,58 +98,12 @@ export function normalizeRenderedHtmlBoundaryHelperCommentSegment(
   return changed ? output.join('\n') : text;
 }
 
-export function hasSingleInternalBlankLineCommentAfterHtmlBoundary(text: string): boolean {
-  const lines = text.split('\n');
-  for (let index = 0; index < lines.length; index += 1) {
-    if (!INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN.test(lines[index] ?? '')) {
-      continue;
-    }
-
-    if (INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN.test(lines[index + 1] ?? '')) {
-      continue;
-    }
-
-    if ((lines[index + 1] ?? '').trim() === '') {
-      continue;
-    }
-
-    const previousLine = lines[index - 1] ?? '';
-    if (previousLine.trim() !== '') {
-      continue;
-    }
-
-    if (isHtmlBlockBoundaryLine(findNearestPreviousNonBlankInputLine(lines, index - 1))) {
-      return true;
-    }
-  }
-  return false;
-}
-
 export function findNearestPreviousNonBlankInputLine(lines: readonly string[], startIndex: number): string | null {
   for (let index = startIndex; index >= 0; index -= 1) {
     const line = lines[index] ?? '';
     if (line.trim() !== '') return line;
   }
   return null;
-}
-
-export function collapseHtmlBoundaryBlankLinesCreatedByInternalComments(text: string): string {
-  if (!text.includes('\n\n\n')) return text;
-
-  const lines = text.split('\n');
-  const output: string[] = [];
-  for (const line of lines) {
-    if (
-      line.trim() === ''
-      && output.length >= 2
-      && output[output.length - 1]?.trim() === ''
-      && isHtmlBlockBoundaryLine(findNearestPreviousNonBlankOutputLine(output))
-    ) {
-      continue;
-    }
-    output.push(line);
-  }
-  return output.join('\n');
 }
 
 export function findNearestPreviousNonBlankOutputLine(lines: readonly string[]): string | null {
@@ -157,23 +114,14 @@ export function findNearestPreviousNonBlankOutputLine(lines: readonly string[]):
   return null;
 }
 
-export function isHtmlBlockBoundaryLine(line: string | null): boolean {
-  return line !== null
-    && (
-      HTML_BLOCK_LINE_PATTERN.test(line)
-      || /^<![A-Za-z][^>]*>\s*$/.test(line)
-      || /^<\?.*\?>\s*$/.test(line)
-      || /^<!\[CDATA\[[\s\S]*\]\]>\s*$/.test(line)
-    );
-}
-
 export function isRenderedHtmlBlockBoundaryLine(line: string | null): boolean {
   if (line === null) return false;
+  const boundaryLine = line.replace(/^(\s*)\\(?=<\/)/, '$1');
 
-  const match = HTML_ONE_LINE_RENDERED_BLOCK_PATTERN.exec(line)
-    ?? HTML_ONE_LINE_RENDERED_VOID_BLOCK_PATTERN.exec(line);
-  const closingTagName = HTML_CLOSING_RENDERED_BLOCK_PATTERN.exec(line)?.[1]?.toLowerCase();
-  const tagName = match?.[1]?.toLowerCase() ?? closingTagName ?? getHtmlStartTagName(line);
+  const match = HTML_ONE_LINE_RENDERED_BLOCK_PATTERN.exec(boundaryLine)
+    ?? HTML_ONE_LINE_RENDERED_VOID_BLOCK_PATTERN.exec(boundaryLine);
+  const closingTagName = HTML_CLOSING_RENDERED_BLOCK_PATTERN.exec(boundaryLine)?.[1]?.toLowerCase();
+  const tagName = match?.[1]?.toLowerCase() ?? closingTagName ?? getHtmlStartTagName(boundaryLine);
   return Boolean(tagName && !NON_EDITABLE_HTML_BOUNDARY_TAG_NAMES.has(tagName));
 }
 
@@ -194,6 +142,30 @@ export function normalizeInternalMarkdownBlankLineCommentSegment(
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? '';
+    const blockquoteInternalBlankLineMatch =
+      BLOCKQUOTE_INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN.exec(line);
+    if (blockquoteInternalBlankLineMatch) {
+      const prefix = (blockquoteInternalBlankLineMatch[1] ?? '>').trimEnd();
+      const depth = countBlockquoteMarkers(prefix);
+      if (!previousWasInternalBlankLine) {
+        while (
+          output.length > 0
+          && isSerializerBlankAroundBlockquoteComment(output[output.length - 1] ?? '', depth)
+        ) {
+          output.pop();
+        }
+      }
+      output.push(prefix);
+      previousWasInternalBlankLine = true;
+      while (
+        index + 1 < lines.length
+        && isSerializerBlankAroundBlockquoteComment(lines[index + 1] ?? '', depth)
+      ) {
+        index += 1;
+      }
+      continue;
+    }
+
     if (activeHtmlComment || isMultiLineHtmlCommentOpenLine(line)) {
       output.push(line);
       activeHtmlComment = shouldKeepHtmlCommentProtectionActive(activeHtmlComment, line);
@@ -208,23 +180,29 @@ export function normalizeInternalMarkdownBlankLineCommentSegment(
       continue;
     }
 
-    if (
-      output.length === 0
-      && isDiscardableHtmlBoundaryInternalBlankLineComment(allLines, startIndex + index)
-    ) {
-      while (index + 1 < lines.length && (lines[index + 1] ?? '').trim() === '') {
-        index += 1;
-      }
-      continue;
-    }
-
     if (!previousWasInternalBlankLine && !hasStructuralBlankAfterImage(output)) {
-      while (output.length > 0 && output[output.length - 1]?.trim() === '') {
-        output.pop();
+      const previousBoundaryLine = findNearestPreviousNonBlankOutputLine(output)
+        ?? findNearestPreviousNonBlankInputLine(allLines, startIndex + index - 1);
+      const closingTagName = previousBoundaryLine === null
+        ? null
+        : HTML_CLOSING_RENDERED_BLOCK_PATTERN.exec(previousBoundaryLine)?.[1]?.toLowerCase();
+      if (!closingTagName || !BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES.has(closingTagName)) {
+        while (output.length > 0 && output[output.length - 1]?.trim() === '') {
+          output.pop();
+        }
       }
     }
 
-    output.push('');
+    const nextBoundaryLine = findNearestNonInternalBlankLine(lines, index, 1);
+    const previousBoundaryLine = nextBoundaryLine === null
+      ? findNearestNonInternalBlankLine(lines, index, -1)
+      : findPreviousListItemAtSameDepth(lines, index, nextBoundaryLine)
+        ?? findNearestNonInternalBlankLine(lines, index, -1);
+    output.push(
+      areDifferentListStyleLines(previousBoundaryLine, nextBoundaryLine)
+        ? LIST_GAP_SENTINEL
+        : ''
+    );
     previousWasInternalBlankLine = true;
 
     while (index + 1 < lines.length && (lines[index + 1] ?? '').trim() === '') {
@@ -235,16 +213,31 @@ export function normalizeInternalMarkdownBlankLineCommentSegment(
   return output.join('\n');
 }
 
-export function isDiscardableHtmlBoundaryInternalBlankLineComment(
-  lines: readonly string[],
-  index: number,
-): boolean {
-  if ((lines[index - 1] ?? '').trim() !== '') return false;
+function isSerializerBlankAroundBlockquoteComment(line: string, depth: number): boolean {
+  if (line.trim() === '') return true;
+  if (!/^\s*(?:>\s*)+$/.test(line)) return false;
+  return countBlockquoteMarkers(line) === depth;
+}
 
-  const previous = findNearestPreviousNonBlankInputLine(lines, index - 1);
-  return isHtmlBlockBoundaryLine(previous)
-    && !HTML_IMAGE_LINE_PATTERN.test(previous ?? '')
-    && !isMarkdownImageOnlyLine(previous);
+function countBlockquoteMarkers(line: string): number {
+  let count = 0;
+  for (const character of line) {
+    if (character === '>') count += 1;
+  }
+  return count;
+}
+
+function findNearestNonInternalBlankLine(
+  lines: readonly string[],
+  startIndex: number,
+  direction: -1 | 1,
+): string | null {
+  for (let index = startIndex + direction; index >= 0 && index < lines.length; index += direction) {
+    const line = lines[index] ?? '';
+    if (line.trim() === '' || INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN.test(line)) continue;
+    return line;
+  }
+  return null;
 }
 
 export function hasStructuralBlankAfterImage(lines: readonly string[]): boolean {

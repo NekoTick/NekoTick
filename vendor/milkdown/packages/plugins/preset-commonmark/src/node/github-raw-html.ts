@@ -410,12 +410,9 @@ export function prepareGithubRawHtmlForSanitizerFragment(
 
     const close = scanRawHtmlContainer(content, tag.name, tag.end, 1)
     if (close.closeEnd === null) {
-      return {
-        activeDepth: close.depth,
-        activeTag: tag.name,
-        mode: 'escape',
-        value: `${output.join('')}${escapeHtmlText(content.slice(start))}`,
-      }
+      output.push(escapeHtmlText(content.slice(start, tag.end)))
+      cursor = tag.end
+      continue
     }
 
     output.push(escapeHtmlText(content.slice(start, close.closeEnd)))

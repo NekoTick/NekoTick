@@ -1,17 +1,14 @@
+import { collectMarkdownSourceStyleLines } from './markdownSourceStyleLines';
+import { collectMarkdownProtectedLineInfo } from './markdownFenceProtectedLines';
+
 interface ParsedListMarkerLine {
   delimiter?: '.' | ')';
   key: string;
   marker: string;
 }
 
-interface MarkdownLine {
-  protected: boolean;
-  text: string;
-}
-
 const LIST_MARKER_LINE_PATTERN =
   /^((?: {0,3}>[ \t]?)*[ \t]*)([-+*]|\d{1,9}[.)])([ \t]+(?:\[(?: |x|X)\][ \t]+)?)(.*)$/;
-const FRONTMATTER_DELIMITER_PATTERN = /^---[ \t]*$/;
 
 export function restoreListMarkerStyleFromReference(
   markdown: string,
@@ -19,10 +16,15 @@ export function restoreListMarkerStyleFromReference(
 ): string {
   if (!referenceMarkdown) return markdown;
 
-  const referenceLines = collectMarkdownLines(referenceMarkdown);
+  const normalizedReference = referenceMarkdown.replace(/\r\n?/g, '\n');
+  const referenceLines = collectMarkdownSourceStyleLines(normalizedReference);
+  const referenceOpenLines = collectMarkdownProtectedLineInfo(
+    normalizedReference.split('\n')
+  ).containerBlockOpenLineIndexes;
   const referenceStyles = new Map<string, ParsedListMarkerLine[]>();
-  for (const line of referenceLines) {
-    if (line.protected) continue;
+  for (let index = 0; index < referenceLines.length; index += 1) {
+    const line = referenceLines[index];
+    if (!line || (line.protected && !referenceOpenLines.has(index))) continue;
     const parsed = parseListMarkerLine(line.text);
     if (!parsed) continue;
     const styles = referenceStyles.get(parsed.key) ?? [];
@@ -31,10 +33,14 @@ export function restoreListMarkerStyleFromReference(
   }
   if (referenceStyles.size === 0) return markdown;
 
-  const lines = collectMarkdownLines(markdown);
+  const normalizedMarkdown = markdown.replace(/\r\n?/g, '\n');
+  const lines = collectMarkdownSourceStyleLines(normalizedMarkdown);
+  const outputOpenLines = collectMarkdownProtectedLineInfo(
+    normalizedMarkdown.split('\n')
+  ).containerBlockOpenLineIndexes;
   let changed = false;
-  const output = lines.map((line) => {
-    if (line.protected) return line.text;
+  const output = lines.map((line, index) => {
+    if (line.protected && !outputOpenLines.has(index)) return line.text;
 
     const parsed = parseListMarkerLine(line.text);
     if (!parsed) return line.text;
@@ -55,41 +61,6 @@ export function restoreListMarkerStyleFromReference(
   });
 
   return changed ? output.join('\n') : markdown;
-}
-
-function collectMarkdownLines(markdown: string): MarkdownLine[] {
-  const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
-  let activeFence: { marker: string; length: number } | null = null;
-  let inLeadingFrontmatter = FRONTMATTER_DELIMITER_PATTERN.test(lines[0] ?? '');
-
-  return lines.map((text, index) => {
-    if (inLeadingFrontmatter) {
-      const isClosingDelimiter = index > 0 && FRONTMATTER_DELIMITER_PATTERN.test(text);
-      if (isClosingDelimiter) {
-        inLeadingFrontmatter = false;
-      }
-      return { protected: true, text };
-    }
-
-    const fence = parseFenceLine(text);
-    if (activeFence) {
-      const isClosingFence = fence
-        && fence.marker === activeFence.marker
-        && fence.length >= activeFence.length
-        && text.slice(fence.infoStart).trim() === '';
-      if (isClosingFence) {
-        activeFence = null;
-      }
-      return { protected: true, text };
-    }
-
-    if (fence) {
-      activeFence = { marker: fence.marker, length: fence.length };
-      return { protected: true, text };
-    }
-
-    return { protected: false, text };
-  });
 }
 
 function parseListMarkerLine(line: string): ParsedListMarkerLine | null {
@@ -114,23 +85,4 @@ function parseListMarkerLine(line: string): ParsedListMarkerLine | null {
 
 function isOrderedMarker(marker: string): boolean {
   return /\d[.)]$/.test(marker);
-}
-
-function parseFenceLine(line: string): { infoStart: number; length: number; marker: string } | null {
-  let cursor = 0;
-  while (cursor < line.length && cursor <= 3 && line[cursor] === ' ') {
-    cursor += 1;
-  }
-  if (cursor > 3) return null;
-
-  const marker = line[cursor];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (line[cursor + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return { infoStart: cursor + length, length, marker };
 }

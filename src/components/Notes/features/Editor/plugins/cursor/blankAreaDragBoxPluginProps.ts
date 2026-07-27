@@ -15,7 +15,6 @@ import {
 } from './blockSelectionInputHandlers';
 import { handleListGapPlaceholderPointerDown } from './listGapPlaceholder';
 import {
-  handleFreshEmptyParagraphTextInput,
   handleMarkdownBlankLineDeletion,
   handleMarkdownBlankLineKeyboardNavigation,
   handleMarkdownBlankLinePointerDown,
@@ -64,10 +63,7 @@ export function createBlankAreaDragBoxPluginProps(options: CreateBlankAreaDragBo
       return handleMarkdownBlankLineKeyboardNavigation(view, event);
     },
     handleTextInput(view: EditorView, from: number, to: number, text: string) {
-      return (
-        handleMarkdownBlankLineTextInput(view, from, to, text)
-        || handleFreshEmptyParagraphTextInput(view, from, to, text)
-      );
+      return handleMarkdownBlankLineTextInput(view, from, to, text);
     },
     handleDOMEvents: {
       copy(view: EditorView, event: Event) {

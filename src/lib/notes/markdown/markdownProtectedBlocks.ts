@@ -2,16 +2,29 @@ import { getMarkdownBlockContent } from '@/lib/markdown/markdownHtmlBlockClassif
 import {
   getMarkdownRawHtmlBlockClosePattern,
   isHtmlBlockCloseLine,
-  nextHtmlBlockState,
   type HtmlBlockState,
 } from './markdownProtectedHtmlBlocks';
 import { getLeadingFrontmatterEndIndex } from './markdownProtectedFrontmatter';
+import {
+  getMarkdownContentInContainer,
+  isMarkdownContainerMathFenceCloseLine,
+  isMarkdownLineInContainer,
+  type MarkdownContainerState,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+  parseMarkdownContainerMathFenceLine,
+  parseMarkdownContainerLinePrefix,
+} from './markdownFenceProtectedLines';
 
 const INDENTED_CODE_LINE_PATTERN = /^(?: {4,}|\t)/;
+const LIST_ITEM_LINE_PATTERN = /^([ \t]*)(?:[-+*]|\d+[.)])(?:[ \t]+|$)/;
 
-type FenceLine = { infoStart: number; length: number; marker: string };
-type FenceState = { marker: string; length: number };
-type MathBlockState = { style: 'dollar' | 'bracket' };
+type FenceState = MarkdownContainerState & { marker: string; length: number };
+type MathBlockState = MarkdownContainerState & {
+  length: number;
+  style: 'dollar' | 'bracket';
+};
+type HtmlBlockContainerState = MarkdownContainerState & HtmlBlockState;
 
 interface ProtectedSegmentOptions {
   protectHtmlBlocks?: boolean;
@@ -47,7 +60,8 @@ export function mapMarkdownOutsideProtectedSegments(
   let segment: string[] = [];
   let segmentStartIndex = 0;
   let activeFence: FenceState | null = null;
-  let activeHtmlBlock: HtmlBlockState | null = null;
+  let activeHtmlBlock: HtmlBlockContainerState | null = null;
+  let activeUnprotectedHtmlBlock: HtmlBlockContainerState | null = null;
   let activeMathBlock: MathBlockState | null = null;
   let activeIndentedCode = false;
   const protectHtmlComments = options.protectHtmlComments !== false;
@@ -70,6 +84,19 @@ export function mapMarkdownOutsideProtectedSegments(
       return;
     }
 
+    if (activeUnprotectedHtmlBlock) {
+      const content = getMarkdownContentInContainer(line, activeUnprotectedHtmlBlock);
+      if (content !== null) {
+        if (segment.length === 0) segmentStartIndex = index;
+        segment.push(line);
+        if (isHtmlBlockCloseLine(content, activeUnprotectedHtmlBlock)) {
+          activeUnprotectedHtmlBlock = null;
+        }
+        return;
+      }
+      activeUnprotectedHtmlBlock = null;
+    }
+
     if (activeIndentedCode) {
       const content = getMarkdownBlockContent(line);
       if (
@@ -87,45 +114,75 @@ export function mapMarkdownOutsideProtectedSegments(
     }
 
     if (protectHtmlBlocks && activeHtmlBlock) {
-      flushSegment(index + 1);
-      output.push(line);
-      activeHtmlBlock = nextHtmlBlockState(line, activeHtmlBlock);
-      return;
+      const content = getMarkdownContentInContainer(line, activeHtmlBlock);
+      if (content !== null) {
+        flushSegment(index + 1);
+        output.push(line);
+        if (isHtmlBlockCloseLine(content, activeHtmlBlock)) {
+          activeHtmlBlock = null;
+        }
+        return;
+      }
+      activeHtmlBlock = null;
     }
 
     if (activeFence) {
-      flushSegment(index + 1);
-      output.push(line);
-      activeFence = nextFenceState(line, activeFence);
-      return;
+      if (isMarkdownLineInContainer(line, activeFence)) {
+        flushSegment(index + 1);
+        output.push(line);
+        activeFence = nextFenceState(line, activeFence);
+        return;
+      }
+      activeFence = null;
     }
 
     if (protectMathBlocks && activeMathBlock) {
-      flushSegment(index + 1);
-      output.push(line);
-      activeMathBlock = nextMathBlockState(line, activeMathBlock);
-      return;
+      if (isMarkdownLineInContainer(line, activeMathBlock)) {
+        flushSegment(index + 1);
+        output.push(line);
+        activeMathBlock = nextMathBlockState(line, activeMathBlock);
+        return;
+      }
+      activeMathBlock = null;
     }
 
-    const content = getMarkdownBlockContent(line);
-    if (isIndentedCodeBlockLine(content) && canStartIndentedCodeBlock(lines, index)) {
+    const container = parseMarkdownContainerLinePrefix(line);
+    const content = container
+      ? line.slice(container.markerStart)
+      : getMarkdownBlockContent(line);
+    if (
+      isIndentedCodeBlockLine(content)
+      && canStartIndentedCodeBlock(lines, index)
+      && !isNestedListItemInListContext(lines, index)
+    ) {
       flushSegment(index + 1);
       output.push(line);
       activeIndentedCode = true;
       return;
     }
 
-    const htmlBlock = protectHtmlBlocks
-      ? getMarkdownRawHtmlBlockClosePattern(content, { protectHtmlComments })
-      : null;
+    const htmlBlock = getMarkdownRawHtmlBlockClosePattern(content, { protectHtmlComments });
     if (htmlBlock) {
-      flushSegment(index + 1);
-      output.push(line);
-      activeHtmlBlock = isHtmlBlockCloseLine(content, htmlBlock) ? null : htmlBlock;
+      const nextHtmlBlock = isHtmlBlockCloseLine(content, htmlBlock) || !container
+        ? null
+        : {
+            ...htmlBlock,
+            blockquoteDepth: container.blockquoteDepth,
+            containerIndent: container.containerIndent,
+          };
+      if (protectHtmlBlocks) {
+        flushSegment(index + 1);
+        output.push(line);
+        activeHtmlBlock = nextHtmlBlock;
+      } else {
+        if (segment.length === 0) segmentStartIndex = index;
+        segment.push(line);
+        activeUnprotectedHtmlBlock = nextHtmlBlock;
+      }
       return;
     }
 
-    if (parseFenceLine(content)) {
+    if (parseMarkdownContainerFenceLine(line)) {
       flushSegment(index + 1);
       output.push(line);
       activeFence = nextFenceState(line, null);
@@ -151,97 +208,50 @@ export function mapMarkdownOutsideProtectedSegments(
 }
 
 function nextMathBlockState(line: string, activeMathBlock: MathBlockState | null): MathBlockState | null {
-  const content = getMarkdownBlockContent(line);
-
-  if (activeMathBlock?.style === 'dollar') {
-    return isDollarMathBlockFenceLine(content) ? null : activeMathBlock;
+  if (activeMathBlock) {
+    return isMarkdownContainerMathFenceCloseLine(line, activeMathBlock)
+      ? null
+      : activeMathBlock;
   }
 
-  if (activeMathBlock?.style === 'bracket') {
-    return isBracketMathBlockCloseLine(content) ? null : activeMathBlock;
+  const mathFence = parseMarkdownContainerMathFenceLine(line);
+  if (mathFence?.kind === 'dollar') {
+    return {
+      blockquoteDepth: mathFence.blockquoteDepth,
+      containerIndent: mathFence.containerIndent,
+      length: mathFence.length,
+      style: 'dollar',
+    };
   }
 
-  if (isDollarMathBlockFenceLine(content)) {
-    return { style: 'dollar' };
-  }
-
-  if (isBracketMathBlockOpenLine(content)) {
-    return { style: 'bracket' };
+  if (mathFence?.kind === 'bracket-open') {
+    return {
+      blockquoteDepth: mathFence.blockquoteDepth,
+      containerIndent: mathFence.containerIndent,
+      length: mathFence.length,
+      style: 'bracket',
+    };
   }
 
   return null;
 }
 
-function isDollarMathBlockFenceLine(content: string): boolean {
-  return /^(?: {0,3})\$\$\s*$/.test(content);
-}
-
-function isBracketMathBlockOpenLine(content: string): boolean {
-  return /^(?: {0,3})\\\[\s*$/.test(content);
-}
-
-function isBracketMathBlockCloseLine(content: string): boolean {
-  return /^(?: {0,3})\\\]\s*$/.test(content);
-}
-
 function nextFenceState(line: string, activeFence: FenceState | null): FenceState | null {
-  const content = getMarkdownBlockContent(line);
-  const fence = parseFenceLine(content);
-  if (!fence) return activeFence;
+  if (activeFence) {
+    return parseMarkdownContainerFenceCloseLine(line, activeFence) ? null : activeFence;
+  }
 
-  const isFenceCloser =
-    activeFence?.marker === fence.marker
-    && fence.length >= activeFence.length
-    && isFenceClosingLine(content, fence.marker, activeFence.length);
-
-  if (isFenceCloser) return null;
-  if (!activeFence && isValidMarkdownFenceOpener(content, fence)) {
-    return { marker: fence.marker, length: fence.length };
+  const fence = parseMarkdownContainerFenceLine(line);
+  if (!fence) return null;
+  if (!activeFence && isValidMarkdownFenceOpener(line, fence)) {
+    return {
+      blockquoteDepth: fence.blockquoteDepth,
+      containerIndent: fence.containerIndent,
+      marker: fence.marker,
+      length: fence.length,
+    };
   }
   return activeFence;
-}
-
-function parseFenceLine(content: string): FenceLine | null {
-  let index = 0;
-  while (index < content.length && index <= 3 && content[index] === ' ') {
-    index += 1;
-  }
-  if (index > 3) return null;
-
-  const marker = content[index];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (content[index + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return {
-    infoStart: index + length,
-    length,
-    marker,
-  };
-}
-
-function isFenceClosingLine(content: string, marker: string, minimumLength: number): boolean {
-  let index = 0;
-  while (index < content.length && index <= 3 && content[index] === ' ') {
-    index += 1;
-  }
-  if (index > 3) return false;
-
-  let markerLength = 0;
-  while (content[index + markerLength] === marker) {
-    markerLength += 1;
-  }
-  if (markerLength < minimumLength) return false;
-
-  for (let cursor = index + markerLength; cursor < content.length; cursor += 1) {
-    const character = content[cursor];
-    if (character !== ' ' && character !== '\t') return false;
-  }
-  return true;
 }
 
 function isIndentedCodeBlockLine(line: string): boolean {
@@ -251,6 +261,34 @@ function isIndentedCodeBlockLine(line: string): boolean {
 function canStartIndentedCodeBlock(lines: readonly string[], index: number): boolean {
   const previousLine = getMarkdownBlockContent(lines[index - 1] ?? '');
   return index === 0 || previousLine.trim() === '';
+}
+
+function isNestedListItemInListContext(lines: readonly string[], index: number): boolean {
+  const line = lines[index] ?? '';
+  const content = getMarkdownBlockContent(line);
+  if (!LIST_ITEM_LINE_PATTERN.test(content)) return false;
+
+  const blockquoteDepth = countBlockquoteMarkers(line, content);
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const previousLine = lines[cursor] ?? '';
+    const previousContent = getMarkdownBlockContent(previousLine);
+    if (previousContent.trim() === '') continue;
+    if (countBlockquoteMarkers(previousLine, previousContent) !== blockquoteDepth) return false;
+    if (LIST_ITEM_LINE_PATTERN.test(previousContent)) return true;
+    if (INDENTED_CODE_LINE_PATTERN.test(previousContent)) continue;
+    return false;
+  }
+
+  return false;
+}
+
+function countBlockquoteMarkers(line: string, content: string): number {
+  const prefixLength = line.length - content.length;
+  let count = 0;
+  for (let index = 0; index < prefixLength; index += 1) {
+    if (line[index] === '>') count += 1;
+  }
+  return count;
 }
 
 function keepsIndentedCodeBlockOpen(content: string, next: string | null | undefined): boolean {
@@ -272,6 +310,9 @@ function getNextNonBlankMarkdownBlockContentByIndex(lines: readonly string[]): A
   return nextNonBlankContentByIndex;
 }
 
-function isValidMarkdownFenceOpener(content: string, fence: FenceLine): boolean {
-  return fence.marker !== '`' || content.indexOf('`', fence.infoStart) === -1;
+function isValidMarkdownFenceOpener(
+  line: string,
+  fence: { infoStart: number; marker: string },
+): boolean {
+  return fence.marker !== '`' || line.indexOf('`', fence.infoStart) === -1;
 }

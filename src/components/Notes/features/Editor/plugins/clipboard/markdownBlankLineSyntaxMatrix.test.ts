@@ -69,22 +69,18 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'nested bullet list gaps keep nested structure',
       markdown: lines(['- parent', '  - child one', '', '  - child two', '', '- next']),
-      expected: lines(['- parent', '  - child one', '', '  - child two', '- next']),
     },
     {
       name: 'nested task list gaps keep nested checkboxes',
       markdown: lines(['- parent', '  - [ ] child one', '', '  - [x] child two', '', '- next']),
-      expected: lines(['- parent', '  - [ ] child one', '', '  - [x] child two', '- next']),
     },
     {
       name: 'nested ordered list gaps keep nested numbering',
       markdown: lines(['1. parent', '   1. child one', '', '   2. child two', '', '2. next']),
-      expected: lines(['1. parent', '   1. child one', '', '   2. child two', '2. next']),
     },
     {
       name: 'mixed list gaps keep authored blank lines per level',
       markdown: lines(['- parent', '  1. child one', '', '  2. child two', '', '- next']),
-      expected: lines(['- parent', '  1. child one', '', '  2. child two', '- next']),
     },
     {
       name: 'mixed bullet markers keep list gaps editable',
@@ -99,14 +95,24 @@ describe('markdown blank line syntax matrix', () => {
       markdown: lines(['1. step', '', '- [ ] task', '', '2. next']),
     },
     {
+      name: 'plain bullet before task list preserves authored blank line',
+      markdown: lines(['- plain', '', '- [ ] task']),
+    },
+    {
+      name: 'task list before plain bullet preserves authored blank line',
+      markdown: lines(['- [x] task', '', '* plain']),
+    },
+    {
+      name: 'bullet and ordered list boundaries preserve authored blank lines',
+      markdown: lines(['- bullet', '', '1. ordered', '', '* next bullet']),
+    },
+    {
       name: 'empty bullet item followed by content stays editable',
       markdown: lines(['-', '', '- filled']),
-      expected: lines(['-', '- filled']),
     },
     {
       name: 'empty ordered item followed by content stays editable',
       markdown: lines(['1.', '', '2. filled']),
-      expected: lines(['1.', '2. filled']),
     },
     {
       name: 'empty task item followed by checked task stays editable',
@@ -119,22 +125,18 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'list gap before nested list keeps child attached',
       markdown: lines(['- parent', '', '  - child', '', '- next']),
-      expected: lines(['- parent', '  - child', '- next']),
     },
     {
       name: 'nested list gap before parent sibling keeps hierarchy',
       markdown: lines(['- parent', '  - child', '', '', '- next']),
-      expected: lines(['- parent', '  - child', '- next']),
     },
     {
       name: 'ordered nested list after loose parent keeps numbering',
       markdown: lines(['1. parent', '', '   1. child', '', '2. next']),
-      expected: lines(['1. parent', '   1. child', '2. next']),
     },
     {
       name: 'task list nested paragraph then sibling keeps blanks',
       markdown: lines(['- [ ] parent', '', '  details', '', '  - [ ] child', '', '- [ ] next']),
-      expected: lines(['- [ ] parent', '', '  details', '', '  - [ ] child', '- [ ] next']),
     },
     {
       name: 'deep nested list gaps do not leak placeholders',
@@ -149,17 +151,6 @@ describe('markdown blank line syntax matrix', () => {
         '',
         '- next root',
       ]),
-      expected: lines([
-        '- root',
-        '  - child',
-        '',
-        '    - grandchild one',
-        '',
-        '    - grandchild two',
-        '',
-        '  - sibling child',
-        '- next root',
-      ]),
     },
     {
       name: 'list item details keep internal blank paragraphs',
@@ -168,7 +159,6 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'task list item details keep blank paragraphs and checkbox state',
       markdown: lines(['- [ ] one', '', '  detail paragraph', '', '  - nested child', '', '- [x] two']),
-      expected: lines(['- [ ] one', '', '  detail paragraph', '', '  - nested child', '- [x] two']),
     },
     {
       name: 'list gaps around thematic break do not become editable list gaps',
@@ -178,32 +168,26 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'loose list item details do not become placeholder list gaps',
       markdown: lines(['- one', '', '  paragraph detail', '', '  - nested child', '', '- two']),
-      expected: lines(['- one', '', '  paragraph detail', '', '  - nested child', '- two']),
     },
     {
       name: 'blockquote paragraph blanks stay blockquote blanks',
       markdown: lines(['> Alpha', '>', '> Beta', '>', '>', '> Gamma']),
-      expected: lines(['> Alpha', '>', '> Beta', '>', '> Gamma']),
     },
     {
       name: 'blockquote bullet list blanks stay editable',
       markdown: lines(['> - one', '>', '> - two', '>', '>', '> - three']),
-      expected: lines(['> - one', '>', '> - two', '>', '> - three']),
     },
     {
       name: 'nested blockquote list blanks stay editable',
       markdown: lines(['> > - one', '> >', '> > - two', '> >', '> >', '> > - three']),
-      expected: lines(['> > - one', '> >', '> > - two', '> >', '> > - three']),
     },
     {
       name: 'blockquote task list blanks stay editable',
       markdown: lines(['> - [ ] one', '>', '> - [x] two', '>', '>', '> - [ ] three']),
-      expected: lines(['> - [ ] one', '>', '> - [x] two', '>', '> - [ ] three']),
     },
     {
       name: 'blockquote nested ordered blanks stay scoped',
       markdown: lines(['> 1. parent', '>    1. child one', '>', '>    2. child two', '>', '> 2. next']),
-      expected: lines(['> 1. parent', '>', '>    1. child one', '>', '>    2. child two', '> 2. next']),
     },
     {
       name: 'blockquote mixed task and ordered gaps stay scoped',
@@ -218,7 +202,6 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'blockquote malformed list markers keep blanks through canonicalization',
       markdown: lines(['> 1.第一项', '>', '> 2.第二项', '>', '>', '> 3.第三项']),
-      expected: lines(['> 1.第一项', '>', '> 2.第二项', '>', '> 3.第三项']),
     },
     {
       name: 'blockquote code fence keeps internal blank line',
@@ -243,7 +226,6 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'indented code keeps internal blank lines',
       markdown: lines(['Before', '', '    const a = 1;', '', '    const b = 2;', '', 'After']),
-      expected: lines(['Before', '', '```', 'const a = 1;', '', 'const b = 2;', '```', '', 'After']),
     },
     {
       name: 'table keeps surrounding blank lines',
@@ -288,7 +270,6 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'frontmatter with metadata keeps body blanks after normalization',
       markdown: lines(['---', 'title: Demo', 'vlaina_icon: note', '---', 'Alpha', '', '', 'Beta']),
-      expected: lines(['---', 'title: Demo', '', 'vlaina_icon: note', '---', 'Alpha', '', '', 'Beta']),
     },
     {
       name: 'frontmatter followed by list gaps keeps body blanks',
@@ -315,12 +296,10 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'callout keeps blank body paragraphs',
       markdown: lines(['> 💡 Title', '>', '> Alpha', '>', '>', '> Beta']),
-      expected: lines(['> 💡 Title', '>', '> Alpha', '>', '> Beta']),
     },
     {
       name: 'callout list blank lines persist as blockquote list blanks',
       markdown: lines(['> 💡 Title', '>', '> - one', '>', '> - two', '>', '>', '> - three']),
-      expected: lines(['> 💡 Title', '>', '> - one', '>', '> - two', '>', '> - three']),
     },
     {
       name: 'callout mixed list blanks preserve editable boundaries',
@@ -421,19 +400,6 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'raw html block keeps internal blank lines',
       markdown: lines(['Before', '', '<div>', 'Alpha', '', 'Beta', '</div>', '', 'After']),
-      expected: lines([
-        'Before',
-        '',
-        '<div>',
-        'Alpha',
-        '',
-        'Beta',
-        '</div>',
-        '',
-        '<!--vlaina-rendered-html-boundary-blank-line-->',
-        '',
-        'After',
-      ]),
     },
     {
       name: 'raw pre html keeps list-like blank lines protected',
@@ -449,6 +415,10 @@ describe('markdown blank line syntax matrix', () => {
       expected: lines(['- one', '', '<div>note</div>', '', '- two']),
     },
     {
+      name: 'tight paragraph before html keeps zero authored blank lines',
+      markdown: lines(['Before', '<p>Fresh HTML</p>']),
+    },
+    {
       name: 'html comment keeps surrounding blank lines',
       markdown: lines(['Before', '', '<!-- note -->', '', '', 'After']),
       expected: lines(['Before', '', '<!-- note -->', '', '', 'After']),
@@ -456,12 +426,10 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'alignment comments keep authored blank lines',
       markdown: lines(['Alpha', '', '<!--align:center-->', '', '', '# Beta', '<!--align:right-->', '', 'Tail']),
-      expected: lines(['Alpha', '', '<!--align:center-->', '', '# Beta', '', '<!--align:right-->', '', 'Tail']),
     },
     {
       name: 'alignment comments around lists do not disturb list blanks',
       markdown: lines(['<!--align:center-->', '', '- one', '', '- two', '', '<!--align:left-->', '', 'Tail']),
-      expected: lines(['- one', '', '- two', '', 'Tail']),
     },
     {
       name: 'abbreviation definition keeps surrounding blanks',
@@ -516,7 +484,6 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'hard breaks do not become structural blank lines',
       markdown: lines(['Alpha\\', 'Beta', '', '', 'Gamma']),
-      expected: lines(['Alpha\\\\\\', 'Beta', '', '', 'Gamma']),
     },
   ])('keeps blank lines stable with $name', async ({ markdown, expected }) => {
     await expectStableMarkdownRoundTrip(markdown, expected ?? markdown);

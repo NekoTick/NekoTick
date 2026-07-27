@@ -171,7 +171,7 @@ export const underlineMark = $mark('underline', () => ({
 }));
 export const underlineInputRule = $inputRule(() => {
   const rule = new InputRule(
-    /(?<!\+)\+\+([^+]+)\+\+$/,
+    /(?<!\+)\+\+([^+\s](?:[^+]*?[^+\s])?)\+\+$/,
     (state, match, start, end) => {
       const text = match[1];
       if (!text) return null;

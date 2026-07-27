@@ -10,6 +10,50 @@ import { createMarkdownSyntaxRoundtripCases } from './notesMarkdownSyntaxFixture
 
 const ROUNDTRIP_TAIL = 'Roundtrip tail sentinel';
 const ROUNDTRIP_EDIT = 'roundtrip-edit-sentinel';
+const RANDOM_SEEDS = [0x13579bdf, 0xf00dbabe] as const;
+
+const RANDOM_BLOCK_FACTORIES = [
+  (id: number) => `## Random heading ${id}`,
+  (id: number) => [`* Bullet ${id}`, `  * Nested bullet ${id}`].join('\n'),
+  (id: number) => [`- [ ] Task ${id}`, `- [x] Completed ${id}`].join('\n'),
+  (id: number) => [`1. Ordered ${id}`, `2. Continued ${id}`].join('\n'),
+  (id: number) => [`> Quote ${id}`, `> Continued ${id}`].join('\n'),
+  (id: number) => ['```ts', `const value${id} = ${id};`, '', `console.log(value${id});`, '```'].join('\n'),
+  (id: number) => ['$$', `x_${id} = y_${id}`, '', `z_${id} = 1`, '$$'].join('\n'),
+  (id: number) => ['```mermaid', 'flowchart TD', '', `  A${id} --> B${id}`, '```'].join('\n'),
+  (id: number) => `<!-- Random user comment ${id} -->`,
+] as const;
+
+function createRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return state >>> 0;
+  };
+}
+
+function createRandomElectronRoundtripCases() {
+  return RANDOM_SEEDS.flatMap((seed) => {
+    const random = createRandom(seed);
+    return Array.from({ length: 4 }, (_, caseIndex) => {
+      const blockCount = 4 + (random() % 4);
+      const blocks = Array.from({ length: blockCount }, (_, blockIndex) => {
+        const id = caseIndex * 100 + blockIndex;
+        return RANDOM_BLOCK_FACTORIES[random() % RANDOM_BLOCK_FACTORIES.length]!(id);
+      });
+      const gaps = Array.from({ length: blockCount - 1 }, () => random() % 3);
+      return {
+        expectExactAfterEdit: true,
+        label: `random-${seed.toString(16)}-${caseIndex}-gaps-${gaps.join('-')}`,
+        markdown: blocks.map((block, index) =>
+          index === 0 ? block : `${'\n'.repeat((gaps[index - 1] ?? 0) + 1)}${block}`
+        ).join(''),
+      };
+    });
+  });
+}
 
 function withRoundtripTail(markdown: string): string {
   return `${markdown.replace(/\n+$/g, '')}\n\n${ROUNDTRIP_TAIL}.`;
@@ -42,6 +86,7 @@ function expectNoInternalPersistenceArtifacts(markdown: string, label: string): 
     'VLAINA_LIST_GAP_SENTINEL',
     'VLAINA_USER_BR_SENTINEL',
     '<!--vlaina-markdown-blank-line-->',
+    '<!--vlaina-rendered-html-boundary-blank-line-->',
     '<!--vlaina-markdown-tight-heading-->',
     'data-vlaina-empty-line',
     'date-vlaina-empty-line',
@@ -58,7 +103,7 @@ function expectNoInternalPersistenceArtifacts(markdown: string, label: string): 
 }
 
 test.describe('notes markdown syntax roundtrip persistence', () => {
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
 
   test('saves and reopens each supported syntax case without hidden line-break drift', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-markdown-syntax-roundtrip');
@@ -67,8 +112,16 @@ test.describe('notes markdown syntax roundtrip persistence', () => {
       await app.firstWindow();
       const [page] = await getOpenBridgePages(app, 1);
       await page.setViewportSize({ width: 1280, height: 860 });
+      const switchTarget = await openMarkdownFixture(page, {
+        filename: 'syntax-roundtrip-switch-target.md',
+        content: '# Syntax roundtrip switch target',
+      });
 
-      for (const syntaxCase of createMarkdownSyntaxRoundtripCases()) {
+      const syntaxCases = [
+        ...createMarkdownSyntaxRoundtripCases(),
+        ...createRandomElectronRoundtripCases(),
+      ];
+      for (const syntaxCase of syntaxCases) {
         await test.step(syntaxCase.label, async () => {
           const opened = await openMarkdownFixture(page, {
             filename: safeFilename(syntaxCase.label),
@@ -87,8 +140,14 @@ test.describe('notes markdown syntax roundtrip persistence', () => {
             .toBe(currentContent);
           expect(savedContent, `${syntaxCase.label} should persist the typed tail edit`)
             .toContain(ROUNDTRIP_EDIT);
+          if (syntaxCase.expectExactAfterEdit) {
+            expect(savedContent, `${syntaxCase.label} should preserve every authored line on first save`)
+              .toBe(`${withRoundtripTail(syntaxCase.markdown)}\n${ROUNDTRIP_EDIT}`);
+          }
           expectNoInternalPersistenceArtifacts(savedContent, syntaxCase.label);
 
+          await openAbsoluteNote(page, switchTarget.notePath);
+          expect(await getCurrentNoteContent(page)).toBe('# Syntax roundtrip switch target');
           await openAbsoluteNote(page, opened.notePath);
           const reopenedContent = await getCurrentNoteContent(page);
           expect(reopenedContent, `${syntaxCase.label} should reopen to the saved markdown`)

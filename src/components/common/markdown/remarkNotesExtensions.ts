@@ -41,7 +41,7 @@ export function remarkNotesInlineExtensions(options: RemarkNotesInlineExtensions
       stripDefinitions: options.stripAbbrDefinitions,
       growthBudget,
     });
-    applyAlignmentCommentsToTree(tree);
+    applyAlignmentCommentsToTree(tree, markdown);
     transformCalloutBlockquotes(tree, markdown, growthBudget);
     replaceDelimitedTextMark(tree, 'highlight', /==([^=]+)==/g, markdown, 2, growthBudget);
     replaceDelimitedTextMark(

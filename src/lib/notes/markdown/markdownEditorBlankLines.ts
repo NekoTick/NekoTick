@@ -2,6 +2,7 @@ import {
   isAlignmentCommentBoundaryBlankLine,
   isBetweenListItemsBlankLine,
   isDefinitionListBoundaryBlankLine,
+  isDifferentListStyleBoundaryBlankLine,
   isEditableListBoundaryBlankLine,
   isHtmlImageStructuralBoundaryBlankLine,
   isIndentedCodeBoundaryBlankLine,
@@ -13,11 +14,17 @@ import {
   mapMarkdownOutsideProtectedBlocks,
   mapMarkdownOutsideProtectedSegments,
 } from './markdownProtectedBlocks';
-import { exposeRenderedHtmlBoundaryBlankLinesForEditor } from './markdownRenderedHtmlBlankLines';
+import {
+  exposeRenderedHtmlBoundaryBlankLinesForEditor,
+  isBlankTerminatedNonEditableHtmlBoundaryLine,
+} from './markdownRenderedHtmlBlankLines';
 import { escapeParagraphTrailingBackslashesForEditor } from './plainTextBackslashHardBreaks';
 
 const BR_ONLY_PATTERN = /^<br\s*\/?>$/i;
 const BLOCKQUOTE_BR_ONLY_PATTERN = /^(\s*(?:>\s*)+)<br\s*\/?>$/i;
+const BLOCKQUOTE_EMPTY_LINE_PATTERN = /^(\s*(?:>\s*)+)$/;
+const BLOCKQUOTE_LIST_ITEM_PATTERN =
+  /^((?: {0,3}>[ \t]?)+)([ \t]*)(?:[-+*]|\d+[.)])(?:[ \t]+|$)/;
 const EDITOR_EMPTY_PARAGRAPH_PLACEHOLDER = '<br />';
 const EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER = '<!--vlaina-markdown-blank-line-->';
 const EDITOR_TIGHT_HEADING_PLACEHOLDER = '<!--vlaina-markdown-tight-heading-->';
@@ -30,7 +37,7 @@ const INLINE_TERMINAL_LIST_BR_PATTERN =
 const USER_BR_SENTINEL_LINE_PATTERN =
   new RegExp(`^(\\s*(?:>\\s*)*)${USER_BR_SENTINEL}$`);
 const MARKDOWN_HEADING_LINE_PATTERN = /^\s{0,3}#{1,6}\s+/;
-const STANDALONE_ESCAPED_BACKSLASH_LINE_PATTERN = /^[ \t]*\\\\[ \t]*$/;
+const STANDALONE_BACKSLASH_LINE_PATTERN = /^([ \t]*)(\\{1,2})([ \t]*)$/;
 const EMPTY_LIST_ITEM_LINE_PATTERN =
   /^([ \t]*(?:>[ \t]*)*(?:[-+*]|\d+[.)]))[ \t]*$/;
 const EMPTY_TASK_LIST_ITEM_LINE_PATTERN =
@@ -42,8 +49,7 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
   if (text.length === 0) return text;
 
   const expandedText = expandInlineTerminalListBreaksForEditor(text);
-  const escapedText = escapeParagraphTrailingBackslashesForEditor(expandedText);
-  const preserved = mapMarkdownOutsideProtectedBlocks(escapedText, (line, index, lines) => {
+  const preserved = mapMarkdownOutsideProtectedBlocks(expandedText, (line, index, lines) => {
     const emptyListItemMatch = EMPTY_LIST_ITEM_LINE_PATTERN.exec(line);
     if (emptyListItemMatch) {
       return `${emptyListItemMatch[1]} ${EDITOR_EMPTY_PARAGRAPH_PLACEHOLDER}`;
@@ -52,6 +58,13 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
     const emptyTaskListItemMatch = EMPTY_TASK_LIST_ITEM_LINE_PATTERN.exec(line);
     if (emptyTaskListItemMatch) {
       return `${emptyTaskListItemMatch[1]} ${EDITOR_EMPTY_PARAGRAPH_PLACEHOLDER}`;
+    }
+
+    const blockquoteEmptyLineMatch = BLOCKQUOTE_EMPTY_LINE_PATTERN.exec(line);
+    if (blockquoteEmptyLineMatch) {
+      const listGapPlaceholder = createBlockquoteListGapPlaceholderLine(lines, index);
+      if (listGapPlaceholder !== null) return listGapPlaceholder;
+      return `${blockquoteEmptyLineMatch[1]?.trimEnd() ?? '>'} ${EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER}`;
     }
 
     const blockquoteBrMatch = BLOCKQUOTE_BR_ONLY_PATTERN.exec(line);
@@ -72,14 +85,31 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
     }
 
     if (
+      line.trim() === ''
+      && isBlankTerminatedNonEditableHtmlBoundaryLine(lines[index - 1] ?? '')
+    ) {
+      return line;
+    }
+
+    if (
       isDefinitionListBoundaryBlankLine(lines, index)
       || isHtmlImageStructuralBoundaryBlankLine(lines, index)
-      || isMarkdownImageStructuralBoundaryBlankLine(lines, index)
-      || isIndentedCodeBoundaryBlankLine(lines, index)
       || isIndentedContinuationBoundaryBlankLine(lines, index)
       || isAlignmentCommentBoundaryBlankLine(lines, index)
     ) {
       return line;
+    }
+
+    if (isIndentedCodeBoundaryBlankLine(lines, index)) {
+      return EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER;
+    }
+
+    if (isMarkdownImageStructuralBoundaryBlankLine(lines, index)) {
+      return EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER;
+    }
+
+    if (isDifferentListStyleBoundaryBlankLine(lines, index)) {
+      return `${hasEarlierHtmlTerminatorBlank(lines, index) ? '' : '\n'}${EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER}`;
     }
 
     if (isEditableListBoundaryBlankLine(lines, index)) {
@@ -94,11 +124,9 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
       return EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER;
     }
 
-    if (
-      STANDALONE_ESCAPED_BACKSLASH_LINE_PATTERN.test(line)
-      && (lines[index + 1] ?? '').trim() !== ''
-    ) {
-      return `${line}\n${EDITOR_NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER}`;
+    const standaloneBackslashMatch = STANDALONE_BACKSLASH_LINE_PATTERN.exec(line);
+    if (standaloneBackslashMatch && (lines[index + 1] ?? '').trim() !== '') {
+      return `${standaloneBackslashMatch[1] ?? ''}\\\\${standaloneBackslashMatch[3] ?? ''}\n${EDITOR_NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER}`;
     }
 
     if (
@@ -120,9 +148,16 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
   );
 }
 
+function hasEarlierHtmlTerminatorBlank(lines: readonly string[], index: number): boolean {
+  let cursor = index - 1;
+  while (cursor >= 0 && (lines[cursor] ?? '').trim() === '') cursor -= 1;
+  return cursor < index - 1
+    && isBlankTerminatedNonEditableHtmlBoundaryLine(lines[cursor] ?? '');
+}
+
 export function preserveMarkdownBlankLinesForPaste(text: string): string {
   return compactEditorOnlyBlankLinePlaceholdersForPaste(
-    preserveMarkdownBlankLinesForEditor(text)
+    preserveMarkdownBlankLinesForEditor(escapeParagraphTrailingBackslashesForEditor(text))
   );
 }
 
@@ -157,8 +192,13 @@ function compactEditorOnlyBlankLinePlaceholdersForPaste(text: string): string {
       end += 1;
     }
 
-    output.push('');
-    for (let placeholderIndex = index + 1; placeholderIndex < end; placeholderIndex += 1) {
+    if (end === index + 1) {
+      output.push(EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER);
+      index = end;
+      continue;
+    }
+
+    for (let placeholderIndex = index; placeholderIndex < end; placeholderIndex += 1) {
       output.push(EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER);
     }
     index = end;
@@ -176,6 +216,43 @@ function createEditableListGapPlaceholderLine(lines: readonly string[], index: n
   if (!match) return LIST_GAP_PLACEHOLDER;
 
   return `${match[1] ?? ''}- ${LIST_GAP_PLACEHOLDER}`;
+}
+
+function createBlockquoteListGapPlaceholderLine(
+  lines: readonly string[],
+  index: number,
+): string | null {
+  const previous = findNearestBlockquoteContentLine(lines, index, -1);
+  const next = findNearestBlockquoteContentLine(lines, index, 1);
+  const previousMatch = previous === null ? null : BLOCKQUOTE_LIST_ITEM_PATTERN.exec(previous);
+  const nextMatch = next === null ? null : BLOCKQUOTE_LIST_ITEM_PATTERN.exec(next);
+  if (!previousMatch || !nextMatch) return null;
+  if (countMarkers(previousMatch[1] ?? '', '>') !== countMarkers(nextMatch[1] ?? '', '>')) {
+    return null;
+  }
+
+  return `${nextMatch[1] ?? ''}${nextMatch[2] ?? ''}- ${LIST_GAP_PLACEHOLDER}`;
+}
+
+function findNearestBlockquoteContentLine(
+  lines: readonly string[],
+  startIndex: number,
+  direction: -1 | 1,
+): string | null {
+  for (let index = startIndex + direction; index >= 0 && index < lines.length; index += direction) {
+    const line = lines[index] ?? '';
+    if (BLOCKQUOTE_EMPTY_LINE_PATTERN.test(line)) continue;
+    return line;
+  }
+  return null;
+}
+
+function countMarkers(text: string, marker: string): number {
+  let count = 0;
+  for (const character of text) {
+    if (character === marker) count += 1;
+  }
+  return count;
 }
 
 function findNearestListItemLine(

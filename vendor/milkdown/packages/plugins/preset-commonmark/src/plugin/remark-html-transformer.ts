@@ -29,6 +29,7 @@ const noRawHtmlTags = new Set<string>()
 
 function flatMapWithDepth(
   ast: Node,
+  markdown: string | null,
   fn: (node: Node, index: number, parent: Node | null) => Node[]
 ) {
   const rawHtmlState: RawHtmlState = {
@@ -40,9 +41,6 @@ function flatMapWithDepth(
   return transform(ast, 0, null)[0]
 
   function transform(node: Node, index: number, parent: Node | null) {
-    if (!syncTextRawHtmlState(node, rawHtmlState))
-      return []
-
     if (isHTML(node) && typeof node.value === 'string') {
       const sanitized = sanitizeRawHtmlNode(node, rawHtmlState)
       const out = []
@@ -56,6 +54,14 @@ function flatMapWithDepth(
         }
       }
       return out
+    }
+
+    if (isText(node)) {
+      const sanitized = syncTextRawHtmlState(node, rawHtmlState, markdown)
+      if (!sanitized)
+        return []
+      if (sanitized !== node)
+        return fn(sanitized, index, parent)
     }
 
     const enteredDroppedRawHtml = rawHtmlState.activeTag && rawHtmlState.activeMode === 'drop'
@@ -74,11 +80,14 @@ function flatMapWithDepth(
         }
       }
       node.children = out
-      if (enteredDroppedRawHtml && node.children.length === 0)
-        return []
+      if (enteredDroppedRawHtml && node.children.length === 0) {
+        const suppressed = createRawHtmlRenderNode(node, markdown, '')
+        return suppressed ? fn(suppressed, index, parent) : []
+      }
     }
     else if (enteredDroppedRawHtml) {
-      return []
+      const suppressed = createRawHtmlRenderNode(node, markdown, '')
+      return suppressed ? fn(suppressed, index, parent) : []
     }
 
     return fn(node, index, parent)
@@ -89,32 +98,75 @@ function flatMapWithDepth(
 // and thus may need HTML content to be wrapped in paragraphs
 const BLOCK_CONTAINER_TYPES = ['root', 'blockquote', 'listItem']
 
+function getMarkdownNodeSource(node: Node, markdown: string | null) {
+  const position = (node as Node & {
+    position?: { end?: { offset?: unknown }; start?: { offset?: unknown } }
+  }).position
+  const start = position?.start?.offset
+  const end = position?.end?.offset
+  if (
+    markdown
+    && typeof start === 'number'
+    && typeof end === 'number'
+    && start >= 0
+    && end > start
+    && end <= markdown.length
+  )
+    return markdown.slice(start, end)
+
+  const value = (node as Node & { value?: unknown }).value
+  return typeof value === 'string' ? value : null
+}
+
+function createRawHtmlRenderNode(
+  node: Node,
+  markdown: string | null,
+  renderValue: string
+) {
+  const value = getMarkdownNodeSource(node, markdown)
+  if (value === null) return null
+  return {
+    type: 'html',
+    value,
+    position: (node as Node & { position?: unknown }).position,
+    githubHtmlRenderValue: renderValue,
+  } as Node
+}
+
 function sanitizeRawHtmlNode(node: Node, state: RawHtmlState) {
+  const value = node.value as string
   const result = prepareGithubRawHtmlForSanitizerFragment(
-    node.value as string,
+    value,
     state.activeTag,
     state.activeMode,
     {
       activeDepth: state.activeDepth,
-      gfmDisallowedRawHtmlTags: noRawHtmlTags,
-      sanitizerOnlyDropWithContentTags: noRawHtmlTags,
+      gfmDisallowedRawHtmlTags,
+      sanitizerOnlyDropWithContentTags,
     },
   )
   state.activeTag = result.activeTag
   state.activeMode = result.mode
   state.activeDepth = result.activeDepth || 1
-  return result.value ? [{ ...node, value: result.value }] : []
+  return [result.value === value
+    ? node
+    : { ...node, githubHtmlRenderValue: result.value }]
 }
 
-function syncTextRawHtmlState(node: Node, state: RawHtmlState) {
-  if (!isText(node) || typeof node.value !== 'string')
-    return true
+function syncTextRawHtmlState(
+  node: Node & { value: unknown },
+  state: RawHtmlState,
+  markdown: string | null
+) {
+  if (typeof node.value !== 'string')
+    return node
 
   if (state.activeTag && state.activeMode !== 'drop')
-    return true
+    return node
 
+  const value = node.value
   const result = prepareGithubRawHtmlForSanitizerFragment(
-    node.value,
+    value,
     state.activeTag,
     state.activeMode,
     {
@@ -126,18 +178,20 @@ function syncTextRawHtmlState(node: Node, state: RawHtmlState) {
   state.activeTag = result.activeTag
   state.activeMode = result.mode
   state.activeDepth = result.activeDepth || 1
-  node.value = result.value
-  return Boolean(result.value)
+  if (result.value === value)
+    return node
+  return createRawHtmlRenderNode(node, markdown, result.value)
 }
 
 /// @internal
 /// This plugin should be deprecated after we support HTML.
 export const remarkHtmlTransformer = $remark(
   'remarkHTMLTransformer',
-  () => () => (tree: Node) => {
+  () => () => (tree: Node, file) => {
     if (!canTransformRemarkAst(tree)) return
 
-    flatMapWithDepth(tree, (node, _index, parent) => {
+    const markdown = typeof file.value === 'string' ? file.value : null
+    flatMapWithDepth(tree, markdown, (node, _index, parent) => {
       if (!isHTML(node)) return [node]
 
       // If the parent is a block container that expects block content,

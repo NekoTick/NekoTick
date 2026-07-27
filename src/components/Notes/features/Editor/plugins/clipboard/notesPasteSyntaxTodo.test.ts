@@ -16,6 +16,7 @@ import { tocPlugin } from '../toc';
 import { videoPlugin } from '../video';
 
 type ClipboardEditor = ReturnType<typeof Editor.make>;
+const MARKDOWN_BLANK_LINE_COMMENT = '<!--vlaina-markdown-blank-line-->';
 
 interface PasteSyntaxTodo {
   name: string;
@@ -67,9 +68,18 @@ async function createPasteEditor(): Promise<ClipboardEditor> {
 }
 
 function topLevelNodeNames(doc: any): string[] {
-  const names: string[] = [];
-  doc.forEach((node: any) => names.push(node.type.name));
-  return names;
+  return topLevelContentNodes(doc).map((node) => node.type.name);
+}
+
+function topLevelContentNodes(doc: any): any[] {
+  const nodes: any[] = [];
+  doc.forEach((node: any) => {
+    if (node.type.name === 'html_block' && node.attrs.value === MARKDOWN_BLANK_LINE_COMMENT) {
+      return;
+    }
+    nodes.push(node);
+  });
+  return nodes;
 }
 
 function markNamesInDoc(doc: any): Set<string> {
@@ -121,9 +131,10 @@ const pasteSyntaxTodo: PasteSyntaxTodo[] = [
     name: 'unordered ordered and task lists',
     markdown: ['- bullet', '  - nested', '- [x] done', '', '3. third', '4. fourth'].join('\n'),
     expectDoc: (doc) => {
+      const nodes = topLevelContentNodes(doc);
       expect(topLevelNodeNames(doc)).toEqual(['bullet_list', 'ordered_list']);
-      expect(doc.child(0).child(1).attrs.checked).toBe(true);
-      expect(doc.child(1).attrs.order).toBe(3);
+      expect(nodes[0].child(1).attrs.checked).toBe(true);
+      expect(nodes[1].attrs.order).toBe(3);
     },
   },
   {
@@ -155,11 +166,12 @@ const pasteSyntaxTodo: PasteSyntaxTodo[] = [
     name: 'math block and inline math',
     markdown: ['Inline $x + y$.', '', '$$', '\\frac{1}{2}', '$$'].join('\n'),
     expectDoc: (doc) => {
+      const nodes = topLevelContentNodes(doc);
       expect(topLevelNodeNames(doc)).toEqual(['paragraph', 'math_block']);
       const inlineNodeNames: string[] = [];
-      doc.child(0).descendants((node: any) => inlineNodeNames.push(node.type.name));
+      nodes[0].descendants((node: any) => inlineNodeNames.push(node.type.name));
       expect(inlineNodeNames).toContain('math_inline');
-      expect(doc.child(1).attrs.latex).toBe('\\frac{1}{2}');
+      expect(nodes[1].attrs.latex).toBe('\\frac{1}{2}');
     },
   },
   {
@@ -182,8 +194,9 @@ const pasteSyntaxTodo: PasteSyntaxTodo[] = [
     name: 'footnotes',
     markdown: ['Footnote ref[^1].', '', '[^1]: Footnote body'].join('\n'),
     expectDoc: (doc) => {
+      const nodes = topLevelContentNodes(doc);
       expect(topLevelNodeNames(doc)).toEqual(['paragraph', 'footnote_definition']);
-      expect(doc.child(1).attrs.label).toBe('1');
+      expect(nodes[1].attrs.label).toBe('1');
     },
   },
   {
