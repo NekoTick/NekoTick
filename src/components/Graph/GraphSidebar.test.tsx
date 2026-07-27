@@ -1,5 +1,4 @@
 import type {
-  ButtonHTMLAttributes,
   ChangeEvent,
   KeyboardEventHandler,
   ReactNode,
@@ -64,13 +63,6 @@ vi.mock('@/components/layout/sidebar/AppViewModeSwitch', () => ({
 
 vi.mock('@/components/layout/sidebar/SidebarPrimitives', () => ({
   SidebarActionGroup: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SidebarActionButton: ({
-    icon,
-    label,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ReactNode; label: ReactNode }) => (
-    <button type="button" {...props}>{icon}{label}</button>
-  ),
   SidebarCapsulePanel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SidebarList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SidebarScrollArea: ({
@@ -160,6 +152,7 @@ describe('GraphSidebar', () => {
     render(<GraphSidebar />);
 
     expect(screen.queryByText('app.viewGraph')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'graph.searchPlaceholder' })).not.toBeInTheDocument();
     expect(screen.getByText('graph.modeLocal')).toHaveAttribute('aria-pressed', 'true');
     expect(document.querySelector('[data-graph-summary="true"]')).toHaveTextContent('graph.summary:');
     expect(document.querySelector('[data-graph-mode-indicator="true"]')).toHaveClass('translate-x-full');
@@ -225,17 +218,13 @@ describe('GraphSidebar', () => {
     );
   });
 
-  it('opens search from a visible touch-sized action', () => {
+  it('keeps search collapsed without a separate action button', () => {
     render(<GraphSidebar />);
 
     expect(document.querySelector('[data-sidebar-search-drawer="true"]'))
       .toHaveAttribute('inert');
     expect(document.querySelector('[role="combobox"]')).toBeDisabled();
-    const searchAction = screen.getByRole('button', { name: 'graph.searchPlaceholder' });
-    expect(searchAction).toHaveClass('h-[var(--vlaina-size-44px)]');
-    fireEvent.click(searchAction);
-
-    expect(screen.getByRole('combobox', { name: 'graph.searchPlaceholder' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'graph.searchPlaceholder' })).not.toBeInTheDocument();
   });
 
   it('finds and selects a note outside the graph render budget', () => {
@@ -256,7 +245,7 @@ describe('GraphSidebar', () => {
     graphStore.selectedPath = null;
     render(<GraphSidebar />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'graph.searchPlaceholder' }));
+    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
     fireEvent.click(screen.getByRole('option', { name: 'Note 240, Note 240.md' }));
 
     expect(graphStore.setSelectedPath).toHaveBeenCalledWith('Note 240.md');

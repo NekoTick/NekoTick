@@ -281,7 +281,7 @@ test.describe('notes blank line caret interaction', () => {
     }
   });
 
-  test('keeps slash text in a freshly typed middle blank line as a paragraph', async () => {
+  test('keeps slash text in a freshly typed middle line without adding blank lines', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-fresh-blank-line-slash');
 
     try {
@@ -332,7 +332,8 @@ test.describe('notes blank line caret interaction', () => {
         (pathToRead) => (window as any).__vlainaE2E.readTextFile(pathToRead),
         opened.notePath,
       );
-      expect(saved, { saved, after }).toBe(['hi', '', '/h', '', '1'].join('\n'));
+      expect(saved, { saved, after }).toBe(['hi', '/h', '1'].join('\n'));
+      expect(saved, { saved }).not.toContain('\n\n');
       expect(saved, { saved }).not.toContain('hi\\');
       expect(saved, { saved }).not.toContain('/h\\');
     } finally {
@@ -340,7 +341,7 @@ test.describe('notes blank line caret interaction', () => {
     }
   });
 
-  test('keeps slash html text entered by keyboard into a freshly typed middle blank line without hard-break backslashes', async () => {
+  test('keeps slash html text in a freshly typed middle line without adding blank lines', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-fresh-blank-line-keyboard-slash-html');
 
     try {
@@ -373,7 +374,8 @@ test.describe('notes blank line caret interaction', () => {
         (pathToRead) => (window as any).__vlainaE2E.readTextFile(pathToRead),
         opened.notePath,
       );
-      expect(saved, { saved, after }).toBe(['hi', '', '/html', '', '1'].join('\n'));
+      expect(saved, { saved, after }).toBe(['hi', '/html', '1'].join('\n'));
+      expect(saved, { saved }).not.toContain('\n\n');
       expect(saved, { saved }).not.toContain('hi\\');
       expect(saved, { saved }).not.toContain('/html\\');
     } finally {
@@ -381,7 +383,7 @@ test.describe('notes blank line caret interaction', () => {
     }
   });
 
-  test('keeps slash heading text entered by keyboard into a freshly typed middle blank line without hard-break backslashes', async () => {
+  test('keeps slash heading text in a freshly typed middle line without adding blank lines', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-fresh-blank-line-keyboard-slash-heading-text');
 
     try {
@@ -414,11 +416,12 @@ test.describe('notes blank line caret interaction', () => {
           (window as any).__vlainaE2E.getNotesState().currentNote?.content ?? ''
         )),
         { timeout: 3_000 },
-      ).toBe(['hi', '', '/h', '', '1'].join('\n'));
+      ).toBe(['hi', '/h', '1'].join('\n'));
       const liveContent = await page.evaluate(() => (
         (window as any).__vlainaE2E.getNotesState().currentNote?.content ?? ''
       ));
-      expect(liveContent, { liveContent, after }).toBe(['hi', '', '/h', '', '1'].join('\n'));
+      expect(liveContent, { liveContent, after }).toBe(['hi', '/h', '1'].join('\n'));
+      expect(liveContent, { liveContent }).not.toContain('\n\n');
       expect(liveContent, { liveContent }).not.toContain('hi\\');
       expect(liveContent, { liveContent }).not.toContain('/h\\');
 
@@ -427,7 +430,8 @@ test.describe('notes blank line caret interaction', () => {
         (pathToRead) => (window as any).__vlainaE2E.readTextFile(pathToRead),
         opened.notePath,
       );
-      expect(saved, { saved, after }).toBe(['hi', '', '/h', '', '1'].join('\n'));
+      expect(saved, { saved, after }).toBe(['hi', '/h', '1'].join('\n'));
+      expect(saved, { saved }).not.toContain('\n\n');
       expect(saved, { saved }).not.toContain('hi\\');
       expect(saved, { saved }).not.toContain('/h\\');
     } finally {

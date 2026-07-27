@@ -23,11 +23,9 @@ import {
   STANDALONE_BR_LINE_PATTERN,
   USER_BR_SENTINEL
 } from './markdownSerializationShared';
-import {
-  findNearestPreviousNonBlankInputLine,
-  findNearestPreviousNonBlankOutputLine,
-  isRenderedHtmlBlockBoundaryLine,
-} from './markdownSerializationInternalBlankComments';
+
+const BLOCKQUOTE_EDITABLE_LIST_GAP_MARKER_PLACEHOLDER_PATTERN =
+  /^(\s*(?:>\s*)+)(?:[-+*]|\d+[.)])\s+\\?\u2800\s*$/;
 
 export function normalizeEmptyAtxHeadingMarkers(text: string): string {
   return text;
@@ -175,13 +173,15 @@ export function isListContextSpacerLine(line: string): boolean {
 export function normalizeEditorBreakPlaceholders(text: string): string {
   if (!hasPotentialEditorBreakPlaceholder(text)) return text;
 
-  const afterRenderedHtmlBoundaryEmptyLines =
-    collapseInvisibleEmptyLinePlaceholdersAfterRenderedHtmlBoundary(text);
-
   return mapMarkdownOutsideProtectedBlocks(
-    afterRenderedHtmlBoundaryEmptyLines,
+    text,
     (line) => {
       const trimmed = line.trim();
+      const blockquoteListGapMatch =
+        BLOCKQUOTE_EDITABLE_LIST_GAP_MARKER_PLACEHOLDER_PATTERN.exec(line);
+      if (blockquoteListGapMatch) {
+        return `${(blockquoteListGapMatch[1] ?? '>').trimEnd()} ${LIST_GAP_SENTINEL}`;
+      }
       if (INVISIBLE_LIST_GAP_PLACEHOLDER_PATTERN.test(line)) {
         return LIST_GAP_SENTINEL;
       }
@@ -233,48 +233,6 @@ export function normalizeEditorBreakPlaceholders(text: string): string {
         .replace(MARKED_USER_BR_TOKEN_PATTERN, `\n${USER_BR_SENTINEL}\n`);
     },
   );
-}
-
-export function collapseInvisibleEmptyLinePlaceholdersAfterRenderedHtmlBoundary(text: string): string {
-  if (!text.includes('\u200B')) return text;
-
-  return mapMarkdownOutsideProtectedSegments(text, (segment, startIndex, allLines) => {
-    const lines = segment.split('\n');
-    let changed = false;
-    const output: string[] = [];
-
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index] ?? '';
-      if (!INVISIBLE_EMPTY_LINE_PLACEHOLDER_PATTERN.test(line)) {
-        output.push(line);
-        continue;
-      }
-
-      const previousBoundaryLine =
-        findNearestPreviousNonBlankOutputLine(output)
-        ?? findNearestPreviousNonBlankInputLine(allLines, startIndex + index - 1);
-      if (!isRenderedHtmlBlockBoundaryLine(previousBoundaryLine)) {
-        output.push(line);
-        continue;
-      }
-
-      changed = true;
-      const hadLocalBlankBeforePlaceholder = output.length > 0 && output[output.length - 1]?.trim() === '';
-      const hadInputBlankBeforePlaceholder = (allLines[startIndex + index - 1] ?? '').trim() === '';
-      while (output.length > 0 && output[output.length - 1]?.trim() === '') {
-        output.pop();
-      }
-      if (hadLocalBlankBeforePlaceholder || !hadInputBlankBeforePlaceholder) {
-        output.push('');
-      }
-
-      while (index + 1 < lines.length && (lines[index + 1] ?? '').trim() === '') {
-        index += 1;
-      }
-    }
-
-    return changed ? output.join('\n') : segment;
-  });
 }
 
 export function hasPotentialEditorBreakPlaceholder(text: string): boolean {

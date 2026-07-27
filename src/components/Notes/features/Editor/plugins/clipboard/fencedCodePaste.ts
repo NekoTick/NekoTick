@@ -1,10 +1,11 @@
 import { isTocShortcutText } from '../toc/tocShortcut';
+import { normalizeLineEnding } from './fencedCodeBlockParser';
 import {
-    getFenceState,
-    isFenceClose,
-    normalizeLineEnding,
-    type FenceState,
-} from './fencedCodeBlockParser';
+    isMarkdownLineInContainer,
+    parseMarkdownContainerFenceCloseLine,
+    parseMarkdownContainerFenceLine,
+    type MarkdownContainerState,
+} from '@/lib/notes/markdown/markdownFenceProtectedLines';
 export {
     looksLikePlainTextWithOnlyBackslashHardBreakSignal,
 } from '@/lib/notes/markdown/plainTextBackslashHardBreaks';
@@ -19,23 +20,6 @@ export interface AtxHeadingPayload {
     text: string;
 }
 
-const THEMATIC_BREAK_PATTERN = /^(\s*)([-*_])(?:\s*\2){2,}\s*$/;
-const SETEXT_HYPHEN_UNDERLINE_PATTERN = /^ {0,3}-+[ \t]*$/;
-
-function isNonBlankContentLine(line: string | undefined): boolean {
-    if (line === undefined || line.trim().length === 0) return false;
-    return getFenceState(line) === null;
-}
-
-function looksLikeSetextHeadingUnderline(line: string, previousLine: string | undefined): boolean {
-    const previous = previousLine?.trim();
-    if (!previous || !SETEXT_HYPHEN_UNDERLINE_PATTERN.test(line)) return false;
-    if (BLOCK_START_PATTERN.test(previousLine ?? '')) return false;
-
-    const markerLength = line.replace(/[^-]/g, '').length;
-    return markerLength === previous.length;
-}
-
 const ATX_HEADING_PATTERN = /^ {0,3}(#{1,6})(?:[ \t]+(.+?))?[ \t]*$/;
 const ATX_CLOSING_SEQUENCE_PATTERN = /(?:^|[ \t]+)#{1,}[ \t]*$/;
 const BLOCK_MARKDOWN_SIGNAL_PATTERN = /(^|\n)\s{0,3}(#{1,6}[ \t]+|[-+*][ \t]+|\d+[.)][ \t]+|>[ \t]+|```|~~~|\$\$[ \t]*$|\\\[|\[\\|\[[ \t]*$|\[[^\]\n]+\]:|[-*_]{3,}[ \t]*$|\|.+\|)/m;
@@ -48,6 +32,9 @@ const PLAIN_FENCE_CLOSE_PATTERN = /^```$/;
 const ORDERED_LIST_MARKER_PATTERN = /^(\s{0,3})(\d+)[.)][ \t]+/;
 const ANY_LIST_MARKER_PATTERN = /^\s*(?:[-+*]|\d+[.)])[ \t]+/;
 const BLOCK_START_PATTERN = /^\s{0,3}(?:#{1,6}[ \t]+|[-+*][ \t]+|\d+[.)][ \t]+|>[ \t]+|```|~~~|\$\$[ \t]*$|\\\[|\[\\|\[[ \t]*$|\[\^[^\]]+\]:|[-*_]{3,}[ \t]*$|\|.+\|)/;
+const NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER = '<!--vlaina-markdown-tight-heading-->';
+
+type ContainerFenceState = MarkdownContainerState & { marker: string; length: number };
 
 export const parseStandaloneAtxHeading = (value: string): AtxHeadingPayload | null => {
     const normalized = normalizeLineEnding(value).replace(/\n+$/g, '');
@@ -66,57 +53,7 @@ export const parseStandaloneAtxHeading = (value: string): AtxHeadingPayload | nu
     };
 };
 
-export const normalizeStandaloneThematicBreaksForPaste = (value: string): string => {
-    const normalized = normalizeLineEnding(value);
-    const lines = normalized.split('\n');
-
-    if (lines.length < 2) return normalized;
-
-    const result: string[] = [];
-    let activeFence: FenceState | null = null;
-
-    for (let index = 0; index < lines.length; index += 1) {
-        const line = lines[index];
-        if (activeFence) {
-            result.push(line);
-            if (isFenceClose(line, activeFence)) {
-                activeFence = null;
-            }
-            continue;
-        }
-
-        const openingFence = getFenceState(line);
-        if (openingFence) {
-            activeFence = openingFence;
-            result.push(line);
-            continue;
-        }
-
-        if (!THEMATIC_BREAK_PATTERN.test(line)) {
-            result.push(line);
-            continue;
-        }
-
-        const previousLine = lines[index - 1];
-        const nextLine = lines[index + 1];
-        const previousIsContent = isNonBlankContentLine(previousLine);
-        const nextIsContent = isNonBlankContentLine(nextLine);
-        const isSetextHeadingUnderline = looksLikeSetextHeadingUnderline(line, previousLine);
-        const lastResultLine = result[result.length - 1];
-
-        if (previousIsContent && !isSetextHeadingUnderline && lastResultLine !== '') {
-            result.push('');
-        }
-
-        result.push(line);
-
-        if (!isSetextHeadingUnderline && nextIsContent) {
-            result.push('');
-        }
-    }
-
-    return result.join('\n');
-};
+export const normalizeStandaloneThematicBreaksForPaste = normalizeLineEnding;
 
 function isListLikeLine(line: string): boolean {
     return ANY_LIST_MARKER_PATTERN.test(line);
@@ -124,7 +61,7 @@ function isListLikeLine(line: string): boolean {
 
 function isParagraphContinuationBeforeList(line: string | undefined): boolean {
     if (line === undefined || line.trim().length === 0) return false;
-    if (getFenceState(line)) return false;
+    if (isMarkdownFenceOpenLine(line)) return false;
     if (ANY_LIST_MARKER_PATTERN.test(line)) return false;
     return !BLOCK_START_PATTERN.test(line);
 }
@@ -140,7 +77,7 @@ function hasFollowingOrderedListRun(lines: string[], startIndex: number): boolea
     for (let index = startIndex + 1; index < lines.length; index += 1) {
         const line = lines[index];
         if (line.trim().length === 0) continue;
-        if (getFenceState(line)) return false;
+        if (isMarkdownFenceOpenLine(line)) return false;
 
         const nextMatch = ORDERED_LIST_MARKER_PATTERN.exec(line);
         if (!nextMatch) {
@@ -159,22 +96,30 @@ export const normalizeInterruptedOrderedListsForPaste = (value: string): string 
     if (lines.length < 2) return normalized;
 
     const result: string[] = [];
-    let activeFence: FenceState | null = null;
+    let activeFence: ContainerFenceState | null = null;
 
     for (let index = 0; index < lines.length; index += 1) {
         const line = lines[index];
 
         if (activeFence) {
-            result.push(line);
-            if (isFenceClose(line, activeFence)) {
-                activeFence = null;
+            if (isMarkdownLineInContainer(line, activeFence)) {
+                result.push(line);
+                if (parseMarkdownContainerFenceCloseLine(line, activeFence)) {
+                    activeFence = null;
+                }
+                continue;
             }
-            continue;
+            activeFence = null;
         }
 
-        const openingFence = getFenceState(line);
+        const openingFence = getMarkdownFenceOpenLine(line);
         if (openingFence) {
-            activeFence = openingFence;
+            activeFence = {
+                blockquoteDepth: openingFence.blockquoteDepth,
+                containerIndent: openingFence.containerIndent,
+                length: openingFence.length,
+                marker: openingFence.marker,
+            };
             result.push(line);
             continue;
         }
@@ -185,7 +130,7 @@ export const normalizeInterruptedOrderedListsForPaste = (value: string): string 
             && hasFollowingOrderedListRun(lines, index)
             && isParagraphContinuationBeforeList(previousLine)
         ) {
-            result.push('');
+            result.push(NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER);
         }
 
         result.push(line);
@@ -193,6 +138,18 @@ export const normalizeInterruptedOrderedListsForPaste = (value: string): string 
 
     return result.join('\n');
 };
+
+function getMarkdownFenceOpenLine(line: string) {
+    const fence = parseMarkdownContainerFenceLine(line);
+    if (!fence || (fence.marker === '`' && line.indexOf('`', fence.infoStart) !== -1)) {
+        return null;
+    }
+    return fence;
+}
+
+function isMarkdownFenceOpenLine(line: string): boolean {
+    return getMarkdownFenceOpenLine(line) !== null;
+}
 
 export const looksLikeMarkdownForPaste = (value: string): boolean => {
     const normalized = normalizeLineEnding(value);

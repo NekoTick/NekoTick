@@ -1,4 +1,5 @@
 import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
+import { getMarkdownBlockContent } from '@/lib/markdown/markdownHtmlBlockClassification';
 import {
   decodeMarkdownHtmlText,
   escapeMarkdownHtmlText,
@@ -17,11 +18,28 @@ const THEMATIC_BREAK_PATTERN = /^(?: {0,3})(?:(?:[-*_][ \t]*){3,})$/;
 const FRONTMATTER_SAFE_THEMATIC_BREAK_PATTERN = /^---[ \t]*$/;
 
 function isListItem(line: string): boolean {
-  return LIST_ITEM_MARKER_PATTERN.test(line);
+  return LIST_ITEM_MARKER_PATTERN.test(getMarkdownBlockContent(line));
 }
 
 function isEditableListGapItem(line: string): boolean {
-  return LIST_ITEM_MARKER_PATTERN.test(line) && line.includes('\u2800');
+  return LIST_ITEM_MARKER_PATTERN.test(getMarkdownBlockContent(line)) && line.includes('\u2800');
+}
+
+function isListStructuralBlankLine(line: string, previous: string, next: string): boolean {
+  if (line.trim() === '') return true;
+  if (!/^\s*(?:>\s*)+$/.test(line)) return false;
+
+  const depth = countBlockquoteMarkers(line);
+  return countBlockquoteMarkers(previous) === depth
+    && countBlockquoteMarkers(next) === depth;
+}
+
+function countBlockquoteMarkers(line: string): number {
+  let count = 0;
+  for (const character of line) {
+    if (character === '>') count += 1;
+  }
+  return count;
 }
 
 function isStandaloneSerializedHorizontalRule(line: string): boolean {
@@ -57,11 +75,12 @@ export function normalizeCanonicalMarkdownSpacing(
         continue;
       }
 
-      if (line.trim() === '') {
+      if (line.trim() === '' || /^\s*(?:>\s*)+$/.test(line)) {
         const previous = output[output.length - 1] ?? '';
         const next = lines[index + 1] ?? '';
         if (
           compactListGaps
+          && isListStructuralBlankLine(line, previous, next)
           && isListItem(previous)
           && isListItem(next)
           && !isEditableListGapItem(previous)

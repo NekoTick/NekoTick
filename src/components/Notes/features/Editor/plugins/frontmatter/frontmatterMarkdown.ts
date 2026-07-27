@@ -60,6 +60,17 @@ function trimTrailingBlankLines(lines: string[]): string[] {
   return lines.slice(0, end);
 }
 
+function getHiddenFrontmatterSeparatorLines(lines: readonly string[]): string[] {
+  const firstHiddenIndex = lines.findIndex(isPersistedManagedFrontmatterLine);
+  if (firstHiddenIndex <= 0) return [];
+
+  let separatorStart = firstHiddenIndex;
+  while (separatorStart > 0 && (lines[separatorStart - 1] ?? '').trim() === '') {
+    separatorStart -= 1;
+  }
+  return lines.slice(separatorStart, firstHiddenIndex);
+}
+
 function readLine(value: string, start: number, maxContentEnd = value.length): ReadLineResult {
   let index = start;
   while (
@@ -190,7 +201,15 @@ export function normalizeLeadingFrontmatterMarkdown(markdown: string): string {
   });
 }
 
-export function serializeLeadingFrontmatterMarkdown(markdown: string, referenceMarkdown?: string): string {
+interface SerializeLeadingFrontmatterOptions {
+  removeSerializerPadding?: boolean;
+}
+
+export function serializeLeadingFrontmatterMarkdown(
+  markdown: string,
+  referenceMarkdown?: string,
+  options: SerializeLeadingFrontmatterOptions = {}
+): string {
   const normalized = normalizeLineEndings(markdown);
   const referenceSections = referenceMarkdown ? splitLeadingFrontmatter(referenceMarkdown) : null;
   const hiddenFrontmatterLines = referenceSections
@@ -198,6 +217,9 @@ export function serializeLeadingFrontmatterMarkdown(markdown: string, referenceM
     : [];
   const referenceVisibleFrontmatterLines = referenceSections
     ? trimTrailingBlankLines(referenceSections.frontmatterLines.filter((line) => !isManagedFrontmatterLine(line)))
+    : [];
+  const referenceHiddenSeparatorLines = referenceSections
+    ? getHiddenFrontmatterSeparatorLines(referenceSections.frontmatterLines)
     : [];
   const shouldRestoreHiddenOnlyBodySeparator =
     Boolean(
@@ -220,14 +242,27 @@ export function serializeLeadingFrontmatterMarkdown(markdown: string, referenceM
   }
 
   const visibleFrontmatterLines = sections.frontmatterLines.filter((line) => !isManagedFrontmatterLine(line));
-  const mergedFrontmatterLines =
-    visibleFrontmatterLines.length > 0 && hiddenFrontmatterLines.length > 0
-      ? [...visibleFrontmatterLines, '', ...hiddenFrontmatterLines]
-      : [...visibleFrontmatterLines, ...hiddenFrontmatterLines];
+  const hasCurrentTrailingSeparator =
+    visibleFrontmatterLines.length > 0
+    && visibleFrontmatterLines[visibleFrontmatterLines.length - 1]?.trim() === '';
+  const hiddenSeparatorLines =
+    visibleFrontmatterLines.length > 0
+    && hiddenFrontmatterLines.length > 0
+    && !hasCurrentTrailingSeparator
+      ? referenceHiddenSeparatorLines
+      : [];
+  const mergedFrontmatterLines = [
+    ...visibleFrontmatterLines,
+    ...hiddenSeparatorLines,
+    ...hiddenFrontmatterLines,
+  ];
+  const body = options.removeSerializerPadding
+    ? removeSerializedFrontmatterPadding(sections.body)
+    : sections.body;
 
   return buildFrontmatterBlock(
     mergedFrontmatterLines,
-    removeSerializedFrontmatterPadding(sections.body),
+    body,
     false,
     { preserveEmpty: true, preserveBodySeparator: sections.hasBodySeparator }
   );

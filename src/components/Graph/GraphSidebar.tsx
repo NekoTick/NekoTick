@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
-import { Icon } from '@/components/ui/icons';
 import { AppViewModeSwitch } from '@/components/layout/sidebar/AppViewModeSwitch';
 import {
   SidebarSearchDrawer,
@@ -8,7 +7,6 @@ import {
 } from '@/components/layout/sidebar/SidebarSearchDrawer';
 import {
   SidebarActionGroup,
-  SidebarActionButton,
   SidebarCapsulePanel,
   SidebarList,
   SidebarScrollArea,
@@ -145,13 +143,6 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
       <SidebarCapsulePanel>
         <SidebarActionGroup>
           <AppViewModeSwitch />
-          <SidebarActionButton
-            aria-label={t('graph.searchPlaceholder')}
-            className="h-[var(--vlaina-size-44px)]"
-            icon={<Icon name="common.search" size="sm" />}
-            label={t('graph.searchPlaceholder')}
-            onClick={openSearch}
-          />
         </SidebarActionGroup>
         <div className="flex min-h-0 flex-1 flex-col pt-3">
           <SidebarSearchDrawer

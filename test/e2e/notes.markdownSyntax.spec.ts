@@ -400,8 +400,17 @@ test.describe('notes markdown syntax rendering', () => {
       const [page] = await getOpenBridgePages(app, 1);
 
       const openEmptyFixture = async (filename: string) => {
+        const previousEditor = await page.locator(EDITOR_SELECTOR).elementHandle();
         await openMarkdownFixture(page, { filename, content: '' });
-        await page.locator(EDITOR_SELECTOR).click({ position: { x: 24, y: 24 } });
+        if (previousEditor) {
+          await expect.poll(() => page.evaluate(
+            (previous) => document.querySelector('.milkdown .ProseMirror') !== previous,
+            previousEditor,
+          ), { timeout: 30_000 }).toBe(true);
+        }
+        await expect.poll(() => page.evaluate(
+          () => (window as any).__vlainaE2E.focusCurrentEditor()
+        ), { timeout: 30_000 }).toBe(true);
       };
 
       await openEmptyFixture('typed-frontmatter.md');

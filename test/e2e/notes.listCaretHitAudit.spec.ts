@@ -634,6 +634,171 @@ test.describe('notes list caret hit audit', () => {
     }
   });
 
+  test('keeps wiki-link boundary clicks and drag selections precise', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-wiki-link-pointer-selection');
+    const linkText = 'the beta note';
+    const sourceText = `[[Project Beta|${linkText}]]`;
+    const followingText = 'following selectable text';
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      await openMarkdownFixture(page, {
+        filename: 'wiki-link-pointer-selection.md',
+        content: [
+          '# Wiki Link Pointer Selection',
+          '',
+          `Before [[Project Beta|${linkText}]] ${followingText} after.`,
+        ].join('\n'),
+      });
+
+      const wikiLink = page.locator(`${EDITOR_SELECTOR} .wiki-link[data-wiki-link-target="Project Beta"]`);
+      await expect(wikiLink).toBeVisible();
+      const linkRange = await page.evaluate((text) =>
+        (window as any).__vlainaE2E.getEditorTextRange(text), linkText);
+      const linkBox = await wikiLink.boundingBox();
+      expect(linkRange).not.toBeNull();
+      expect(linkBox).not.toBeNull();
+
+      await page.mouse.click(linkBox!.x + linkBox!.width + 1, linkBox!.y + linkBox!.height / 2);
+      await waitForEditorAnimationFrame(page);
+
+      const expandedLink = page.locator(`${EDITOR_SELECTOR} .wiki-link-expanded`);
+      await expect(expandedLink).toHaveText(sourceText);
+      const sourceRange = await page.evaluate((text) =>
+        (window as any).__vlainaE2E.getEditorTextRange(text), sourceText);
+      expect(sourceRange).not.toBeNull();
+      await expect.poll(async () => page.evaluate(() =>
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      )).toMatchObject({
+        empty: true,
+        from: sourceRange!.to,
+        to: sourceRange!.to,
+      });
+
+      await clickTextOffset(page, {
+        label: 'between wiki-link closing brackets',
+        text: sourceText,
+        offset: sourceText.length - 1,
+      });
+      await expect.poll(async () => page.evaluate(() =>
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      )).toMatchObject({
+        empty: true,
+        from: sourceRange!.to - 1,
+        to: sourceRange!.to - 1,
+      });
+
+      await clickTextOffset(page, {
+        label: 'after wiki-link closing brackets',
+        text: sourceText,
+        offset: sourceText.length,
+      });
+      await expect.poll(async () => page.evaluate(() =>
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      )).toMatchObject({
+        empty: true,
+        from: sourceRange!.to,
+        to: sourceRange!.to,
+      });
+
+      await page.waitForTimeout(600);
+      const closingDragStart = await resolveTextDragPoint(
+        page,
+        sourceText,
+        sourceText.length - 2,
+        'start',
+      );
+      const closingDragEnd = await resolveTextDragPoint(page, followingText, 9, 'end');
+      await page.mouse.move(closingDragStart.x, closingDragStart.y);
+      await page.mouse.down();
+      await page.mouse.move(closingDragEnd.x, closingDragEnd.y, { steps: 12 });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+      await expect.poll(async () => page.evaluate(() =>
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      )).toMatchObject({
+        empty: false,
+        selectedText: expect.stringContaining(']] following'),
+      });
+      await expect.poll(async () => (await expandedLink.allTextContents()).join('')).toBe(sourceText);
+
+      await page.evaluate((pos) => (window as any).__vlainaE2E.setEditorSelectionRange(pos), sourceRange!.from - 1);
+      await expect(page.locator(`${EDITOR_SELECTOR} .wiki-link-expanded`)).toHaveCount(0);
+
+      const start = await resolveTextDragPoint(page, linkText, 1, 'start');
+      const end = await resolveTextDragPoint(page, followingText, followingText.length - 1, 'end');
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(end.x, end.y, { steps: 18 });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      await expect.poll(async () => page.evaluate(() =>
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      )).toMatchObject({
+        empty: false,
+        selectedText: expect.stringContaining(followingText.slice(0, -1)),
+      });
+      await expect(page.locator(`${EDITOR_SELECTOR} .wiki-link-expanded`)).toHaveCount(0);
+
+      await page.evaluate((pos) => (window as any).__vlainaE2E.setEditorSelectionRange(pos), sourceRange!.to + 1);
+      await page.waitForTimeout(600);
+      const reverseStart = await resolveTextDragPoint(page, followingText, followingText.length - 1, 'end');
+      const reverseEnd = await resolveTextDragPoint(page, linkText, 1, 'start');
+      await page.mouse.move(reverseStart.x, reverseStart.y);
+      await page.mouse.down();
+      await page.mouse.move(reverseEnd.x, reverseEnd.y, { steps: 18 });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      await expect.poll(async () => page.evaluate(() =>
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      )).toMatchObject({
+        empty: false,
+        selectedText: expect.stringContaining(linkText.slice(1)),
+      });
+      await expect(page.locator(`${EDITOR_SELECTOR} .wiki-link-expanded`)).toHaveCount(0);
+
+      await page.evaluate((pos) => (window as any).__vlainaE2E.setEditorSelectionRange(pos), linkRange!.from - 1);
+      await clickTextOffset(page, {
+        label: 'wiki-link alias edit',
+        text: linkText,
+        offset: 8,
+      });
+      await page.keyboard.type('X');
+      await waitForEditorAnimationFrame(page);
+      await expect(expandedLink).toHaveText('[[Project Beta|the betaX note]]');
+
+      await page.keyboard.press('Control+z');
+      await waitForEditorAnimationFrame(page);
+      await expect(expandedLink).toHaveText(sourceText);
+
+      await page.keyboard.type('X');
+      await waitForEditorAnimationFrame(page);
+      const editedSourceText = '[[Project Beta|the betaX note]]';
+      await expect(expandedLink).toHaveText(editedSourceText);
+      const editedSourceRange = await page.evaluate((text) =>
+        (window as any).__vlainaE2E.getEditorTextRange(text), editedSourceText);
+      await page.evaluate((pos) =>
+        (window as any).__vlainaE2E.setEditorSelectionRange(pos), editedSourceRange!.from - 1);
+      await expect(wikiLink).toHaveText('the betaX note');
+
+      await page.keyboard.press('Control+z');
+      await waitForEditorAnimationFrame(page);
+      await expect(expandedLink).toHaveText(sourceText);
+      const restoredSourceRange = await page.evaluate((text) =>
+        (window as any).__vlainaE2E.getEditorTextRange(text), sourceText);
+      await page.evaluate((pos) =>
+        (window as any).__vlainaE2E.setEditorSelectionRange(pos), restoredSourceRange!.from - 1);
+      await expect(wikiLink).toHaveText(linkText);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('keeps reported ordered-list items editable after a direct click', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-reported-ordered-list-click-edit');
 

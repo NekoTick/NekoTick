@@ -20,6 +20,7 @@ import { tocPlugin } from '../plugins/toc/tocPlugin';
 import { mermaidPlugin } from '../plugins/mermaid/mermaidPlugin';
 import { mermaidEditorPlugin } from '../plugins/mermaid/mermaidEditorPlugin';
 import { htmlBlockEditorPlugin } from '../plugins/html-block/htmlBlockEditorPlugin';
+import { remarkSourceTightHtmlBoundariesPlugin } from '../plugins/html-block/htmlBlockMarkdown';
 import { htmlInlineSourceTextPlugin } from '../plugins/html-inline';
 import { backslashHardBreakTextPlugins } from '../plugins/hard-break';
 import { codePlugin } from '../plugins/code/codePlugin';
@@ -113,6 +114,7 @@ export const customPluginGroups = [
       ...tocPlugin,
       ...mermaidPlugin,
       mermaidEditorPlugin,
+      remarkSourceTightHtmlBoundariesPlugin,
       htmlBlockEditorPlugin,
       htmlInlineSourceTextPlugin,
       ...backslashHardBreakTextPlugins,

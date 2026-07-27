@@ -11,6 +11,18 @@ const GFM_TYPE_7_HTML_TAG_LINE_PATTERN = /^<\/?([A-Za-z][A-Za-z0-9-]*)(?:\s[^>]*
 const GFM_TYPE_7_EXCLUDED_TAGS = new Set(['script', 'style', 'pre'])
 const LOCALLY_PARSED_HTML_BLOCK_EXCLUDED_TAGS = new Set(['img'])
 const LOCALLY_PARSED_HTML_TAGS = new Set(['sup', 'sub', 'mark', 'u'])
+const MARKDOWN_SOURCE_CONTAINER_TYPES = new Set([
+  'blockquote',
+  'footnoteDefinition',
+  'listItem',
+])
+const MARKDOWN_FLOW_PARENT_TYPES = new Set([
+  'blockquote',
+  'definitionDescription',
+  'footnoteDefinition',
+  'listItem',
+  'root',
+])
 const RAW_HTML_TAG_TEXT_PATTERN = /<\/?[A-Za-z][A-Za-z0-9:-]*(?:\s[^<>]*)?>|&lt;\/?[A-Za-z][A-Za-z0-9:-]*(?:\s[^&<>]*)?&gt;/i
 export const MAX_INLINE_HTML_MERGE_AST_NODES = 20_000
 export const MAX_INLINE_HTML_MERGE_DEPTH = 200
@@ -117,7 +129,9 @@ function hasRawHtmlTagText(nodes: MarkdownNode[]): boolean {
 function getSourceSlice(
   markdown: string | undefined,
   startNode: MarkdownNode,
-  endNode: MarkdownNode
+  endNode: MarkdownNode,
+  stripContainerPrefixes = false,
+  parsedValue?: string
 ): string | null {
   const start = startNode.position?.start?.offset
   const end = endNode.position?.end?.offset
@@ -131,7 +145,44 @@ function getSourceSlice(
   )
     return null
 
-  return markdown.slice(start, end)
+  const source = markdown.slice(start, end)
+  if (!stripContainerPrefixes) return source
+
+  const startColumn = startNode.position?.start?.column
+  if (typeof startColumn !== 'number' || startColumn <= 1) return source
+  return stripMarkdownContainerPrefixes(source, startColumn - 1, parsedValue)
+}
+
+function stripMarkdownContainerPrefixes(
+  source: string,
+  maxPrefixColumns: number,
+  parsedValue?: string
+): string {
+  const parsedLines = parsedValue?.split(/\r\n|\r|\n/)
+  let lineIndex = 0
+  return source.replace(/(^|\r\n|\r|\n)([^\r\n]*)/g, (line, boundary: string, value: string) => {
+    const parsedLine = parsedLines?.[lineIndex]
+    lineIndex += 1
+    if (!boundary) return line
+    if (parsedLine !== undefined && value.endsWith(parsedLine)) {
+      const prefix = value.slice(0, value.length - parsedLine.length)
+      if (/^[\t >]*$/.test(prefix)) return `${boundary}${parsedLine}`
+    }
+
+    let columns = 0
+    let cursor = 0
+    while (cursor < value.length && columns < maxPrefixColumns) {
+      const character = value[cursor]
+      if (character !== ' ' && character !== '\t' && character !== '>') break
+      const nextColumns = character === '\t'
+        ? columns + 4 - (columns % 4)
+        : columns + 1
+      cursor += 1
+      columns = nextColumns
+    }
+    const overshoot = Math.max(0, columns - maxPrefixColumns)
+    return `${boundary}${' '.repeat(overshoot)}${value.slice(cursor)}`
+  })
 }
 
 function isGfmHtmlBlock(value: string): boolean {
@@ -153,19 +204,46 @@ function isGfmHtmlBlock(value: string): boolean {
 }
 
 function markGfmHtmlBlock(node: MarkdownNode): MarkdownNode {
-  if (node.type !== 'html') return node
+  if (node.type !== 'html' || node.githubHtmlBlock === false) return node
   const value = readMarkdownValue(node.value)
   return value !== null && isGfmHtmlBlock(value)
     ? ({ ...node, githubHtmlBlock: true } as MarkdownNode)
     : node
 }
 
-function restoreRawHtmlFromSource(node: MarkdownNode, markdown?: string): MarkdownNode {
+function createMergedHtmlNode(
+  startNode: MarkdownNode,
+  endNode: MarkdownNode,
+  value: string
+): MarkdownNode {
+  const startData = startNode.data && typeof startNode.data === 'object'
+    ? startNode.data as Record<string, unknown>
+    : {}
+  const endData = endNode.data && typeof endNode.data === 'object'
+    ? endNode.data as Record<string, unknown>
+    : {}
+  const data = { ...startData, ...endData }
+  const start = startNode.position?.start
+  const end = endNode.position?.end
+
+  return {
+    type: 'html',
+    value,
+    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(start && end ? { position: { start, end } } : {}),
+  } as MarkdownNode
+}
+
+function restoreRawHtmlFromSource(
+  node: MarkdownNode,
+  markdown: string | undefined,
+  insideMarkdownContainer: boolean
+): MarkdownNode {
   const value = node.type === 'html' ? readMarkdownValue(node.value) : null
   if (node.type !== 'html' || value === null || !RAW_HTML_TAG_TEXT_PATTERN.test(value))
     return node
 
-  const rawSource = getSourceSlice(markdown, node, node)
+  const rawSource = getSourceSlice(markdown, node, node, insideMarkdownContainer, value)
   return rawSource ? ({ ...node, value: rawSource } as MarkdownNode) : node
 }
 
@@ -245,7 +323,11 @@ function findBlockHtmlCloseIndex(closeIndexes: number[] | undefined, startIndex:
   return closeIndexes[left] ?? -1
 }
 
-function mergePairedBlockHtmlChildren(children: MarkdownNode[], markdown?: string): MarkdownNode[] {
+function mergePairedBlockHtmlChildren(
+  children: MarkdownNode[],
+  markdown: string | undefined,
+  insideMarkdownContainer: boolean
+): MarkdownNode[] {
   const closeIndexesByTag = buildBlockHtmlCloseIndexes(children)
   const mergedChildren: MarkdownNode[] = []
   for (let index = 0; index < children.length; index += 1) {
@@ -269,38 +351,57 @@ function mergePairedBlockHtmlChildren(children: MarkdownNode[], markdown?: strin
       continue
     }
 
-    const pairedSource = getSourceSlice(markdown, child, closeNode)
+    const pairedSource = getSourceSlice(
+      markdown,
+      child,
+      closeNode,
+      insideMarkdownContainer
+    )
     if (!pairedSource || !pairedSource.includes('\n') || !isGfmHtmlBlock(pairedSource)) {
       mergedChildren.push(child)
       continue
     }
 
-    mergedChildren.push({
-      type: 'html',
-      value: pairedSource,
-    } as MarkdownNode)
+    mergedChildren.push(createMergedHtmlNode(child, closeNode, pairedSource))
     index = closeIndex
   }
   return mergedChildren
 }
 
 export function mergePairedInlineHtml(node: MarkdownNode, markdown?: string): MarkdownNode {
-  return mergePairedInlineHtmlWithBudget(node, markdown, { visitedNodes: 0 }, 0)
+  return mergePairedInlineHtmlWithBudget(node, markdown, { visitedNodes: 0 }, 0, false)
 }
 
 function mergePairedInlineHtmlWithBudget(
   node: MarkdownNode,
   markdown: string | undefined,
   context: InlineHtmlMergeContext,
-  depth: number
+  depth: number,
+  insideMarkdownContainer: boolean
 ): MarkdownNode {
   if (!hasInlineHtmlMergeBudget(context, depth)) return node
-  if (!Array.isArray(node.children)) return restoreRawHtmlFromSource(node, markdown)
+  if (!Array.isArray(node.children)) {
+    return restoreRawHtmlFromSource(node, markdown, insideMarkdownContainer)
+  }
   if (node.children.length > MAX_INLINE_HTML_MERGE_CHILDREN) return node
 
-  node.children = node.children.map((child) => mergePairedInlineHtmlWithBudget(child, markdown, context, depth + 1))
-  if (node.type !== 'paragraph')
-    node.children = mergePairedBlockHtmlChildren(node.children, markdown)
+  const descendantsInsideMarkdownContainer = insideMarkdownContainer
+    || MARKDOWN_SOURCE_CONTAINER_TYPES.has(node.type)
+  const canContainMarkdownFlow = MARKDOWN_FLOW_PARENT_TYPES.has(node.type)
+  const canPromoteWholeNodeToFlow = canContainMarkdownFlow || node.type === 'paragraph'
+  node.children = node.children.map((child) => mergePairedInlineHtmlWithBudget(
+    child,
+    markdown,
+    context,
+    depth + 1,
+    descendantsInsideMarkdownContainer
+  ))
+  if (canContainMarkdownFlow)
+    node.children = mergePairedBlockHtmlChildren(
+      node.children,
+      markdown,
+      descendantsInsideMarkdownContainer
+    )
 
   const { htmlValues, matchingCloseIndexes } = buildInlineHtmlLookup(node.children)
   const mergedChildren: MarkdownNode[] = []
@@ -333,11 +434,18 @@ function mergePairedInlineHtmlWithBudget(
     }
 
     const innerNodes = node.children.slice(index + 1, closeIndex)
-    const pairedSource = getSourceSlice(markdown, child, closeNode)
+    const pairedSource = getSourceSlice(
+      markdown,
+      child,
+      closeNode,
+      descendantsInsideMarkdownContainer
+    )
     if (pairedSource?.includes('\n') && isGfmHtmlBlock(pairedSource)) {
       mergedChildren.push({
-        type: 'html',
-        value: pairedSource,
+        ...createMergedHtmlNode(child, closeNode, pairedSource),
+        githubHtmlBlock: canPromoteWholeNodeToFlow
+          && index === 0
+          && closeIndex === node.children.length - 1,
       } as MarkdownNode)
       index = closeIndex
       continue
@@ -376,7 +484,15 @@ function mergePairedInlineHtmlWithBudget(
   }
 
   node.children = mergedChildren
-  if (node.type !== 'paragraph')
+  const firstChild = node.children[0]
+  if (
+    node.type === 'listItem'
+    && firstChild?.type !== 'paragraph'
+    && node.position?.start?.line === firstChild?.position?.start?.line
+  ) {
+    node.sourceTightFirstBlock = true
+  }
+  if (canContainMarkdownFlow)
     node.children = node.children.map(markGfmHtmlBlock)
   if (node.type === 'paragraph' && node.children.length === 1) {
     const child = node.children[0]

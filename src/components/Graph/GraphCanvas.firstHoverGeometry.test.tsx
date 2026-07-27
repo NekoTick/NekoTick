@@ -79,7 +79,8 @@ describe('GraphCanvas first hover geometry', () => {
     latestPositions['Beta.md'] = { x: 460, y: 260 };
     act(() => forceMock.onPositionsFrame?.(latestPositions));
 
-    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' }));
+    fireEvent.mouseEnter(screen.getByRole('option', { name: 'Alpha' })
+      .querySelector('[data-graph-node-hit-target="Alpha.md"]')!);
 
     const activeEdge = screen.getByRole('group', { name: 'app.viewGraph' })
       .querySelector('[data-graph-edge-layer="active"]');

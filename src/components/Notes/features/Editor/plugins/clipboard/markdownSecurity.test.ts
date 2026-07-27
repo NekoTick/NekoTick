@@ -91,6 +91,8 @@ describe('markdown security when opening notes', () => {
     expect(hrefs.some((href) => href?.startsWith('data:'))).toBe(false);
     expect(hrefs.some((href) => href?.startsWith('file:'))).toBe(false);
     expect(hrefs.some((href) => href?.startsWith('//'))).toBe(false);
+    const anchorTexts = Array.from(result.dom.querySelectorAll('a')).map((anchor) => anchor.textContent);
+    expect(anchorTexts).not.toEqual(expect.arrayContaining(['javascript', 'data', 'file', 'windows', 'protocol']));
     expect(result.persisted).toContain('javascript:alert');
     expect(result.persisted).toContain('file:///etc/passwd');
     expect(result.persisted).toContain('](//example.com');
@@ -149,9 +151,44 @@ describe('markdown security when opening notes', () => {
 
     dispatch(tr);
 
-    const anchor = result.dom.querySelector('a');
-    expect(anchor?.getAttribute('href')).toBeNull();
+    expect(result.dom.querySelector('a')).toBeNull();
+    expect(result.dom.textContent).toContain('unsafe link');
     expect(result.dom.innerHTML).not.toContain('javascript:');
+  });
+
+  it('keeps nested raw html source while suppressing parser-promoted descendants', async () => {
+    const markdown = [
+      '<svg><svg><img src="https://example.com/hidden.png"></svg>',
+      '<img src="https://example.com/leaked.png"></svg>',
+      '<img src="https://example.com/real.png">',
+    ].join('\n\n');
+    const result = await openMarkdown(markdown);
+
+    const srcs = Array.from(result.dom.querySelectorAll('img, .image-block-container'))
+      .map((image) => image.getAttribute('src'))
+      .filter((src): src is string => Boolean(src));
+    expect(srcs).toEqual(['https://example.com/real.png']);
+    expect(result.dom.innerHTML).not.toContain('hidden.png');
+    expect(result.dom.innerHTML).not.toContain('leaked.png');
+    expect(result.persisted).toBe(markdown);
+  });
+
+  it('does not promote markdown or custom inline syntax inside dropped raw html', async () => {
+    const markdown = [
+      '<svg>',
+      '# Hidden heading',
+      '![hidden](https://example.com/hidden-markdown.png)',
+      '<mark>Hidden mark</mark>',
+      '</svg>',
+      '# Visible heading',
+    ].join('\n\n');
+    const result = await openMarkdown(markdown);
+
+    expect(result.dom.textContent).not.toContain('Hidden heading');
+    expect(result.dom.textContent).not.toContain('Hidden mark');
+    expect(result.dom.querySelector('[src="https://example.com/hidden-markdown.png"]')).toBeNull();
+    expect(result.dom.textContent).toContain('Visible heading');
+    expect(result.persisted).toBe(markdown);
   });
 
   it('sanitizes raw html values across the full notes editor plugin stack', async () => {

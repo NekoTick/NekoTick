@@ -194,6 +194,32 @@ describe('hrAutoParagraphPlugin', () => {
     await editor.destroy();
   });
 
+  it('does not add a paragraph when creating a setext heading before an existing block', async () => {
+    const editor = createEditor();
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const { schema } = view.state;
+    const source = schema.nodes.paragraph.create(null, schema.text('Setext heading'));
+    const delimiter = schema.nodes.paragraph.create(null, schema.text('---'));
+    const code = schema.nodes.code_block.create(null, schema.text('code'));
+    const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, [source, delimiter, code]);
+    view.dispatch(tr.setSelection(TextSelection.create(
+      tr.doc,
+      source.nodeSize + delimiter.nodeSize - 1,
+    )));
+
+    expect(pressKey(view, 'Enter')).toBe(true);
+    expect(Array.from(
+      { length: view.state.doc.childCount },
+      (_, index) => view.state.doc.child(index).type.name,
+    )).toEqual(['heading', 'code_block']);
+    expect(view.state.doc.firstChild?.textContent).toBe('Setext heading');
+
+    await editor.destroy();
+  });
+
   it('keeps --- as plain text until Enter is pressed', async () => {
     const editor = createEditor();
 

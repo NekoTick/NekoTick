@@ -170,6 +170,7 @@ export async function openMarkdownFixture(
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
+      await waitForE2EBridge(page);
       const fixtureInput = {
         ...input,
         filename: attempt === 0
@@ -190,6 +191,7 @@ export async function openMarkdownFixture(
         const state = (window as any).__vlainaE2E.getNotesState();
         return {
           currentNotePath: state.currentNote?.path ?? null,
+          editorNotePath: (window as any).__vlainaE2E.getCurrentEditorNotePath(),
           hasEditor: Boolean(editor),
           textLength: editor?.textContent?.trim().length ?? 0,
           selectableCount: blocks.length,
@@ -197,6 +199,7 @@ export async function openMarkdownFixture(
         };
       }), { timeout: 30_000 }).toMatchObject({
         currentNotePath: notePath,
+        editorNotePath: notePath,
         hasEditor: true,
         hasSourceFallback: false,
         selectableCount: expect.any(Number),
@@ -261,6 +264,7 @@ export async function openAbsoluteNote(
         const state = (window as any).__vlainaE2E.getNotesState();
         return {
           currentNotePath: state.currentNote?.path ?? null,
+          editorNotePath: (window as any).__vlainaE2E.getCurrentEditorNotePath(),
           hasEditor: Boolean(editor),
           hasSourceFallback: Boolean(document.querySelector('[data-note-source-fallback="true"]')),
           selectableCount: (window as any).__vlainaE2E.getNoteSelectableBlocks().length,
@@ -268,6 +272,7 @@ export async function openAbsoluteNote(
         };
       }, notePath), { timeout: 30_000 }).toMatchObject({
         currentNotePath: notePath,
+        editorNotePath: notePath,
         hasEditor: true,
         hasSourceFallback: false,
         selectableCount: expect.any(Number),

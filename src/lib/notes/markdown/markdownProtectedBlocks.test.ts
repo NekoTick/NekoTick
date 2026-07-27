@@ -98,6 +98,162 @@ describe('markdown protected blocks', () => {
     ].join('\n'));
   });
 
+  it.each([
+    {
+      name: 'blockquote fenced code',
+      lines: ['> ```md', '> - hidden', '- visible'],
+    },
+    {
+      name: 'list-contained fenced code',
+      lines: ['- ```md', '  - hidden', '- visible'],
+    },
+    {
+      name: 'blockquote display math',
+      lines: ['> $$', '> - hidden', '- visible'],
+    },
+    {
+      name: 'list-contained display math',
+      lines: ['- \\[', '  - hidden', '- visible'],
+    },
+    {
+      name: 'blockquote raw HTML',
+      lines: ['> <textarea>', '> - hidden', '- visible'],
+    },
+    {
+      name: 'list-contained raw HTML',
+      lines: ['- <textarea>', '  - hidden', '- visible'],
+    },
+  ])('ends protection when an unclosed $name leaves its container', ({ lines }) => {
+    expect(
+      mapMarkdownOutsideProtectedSegments(lines.join('\n'), (segment) => segment.replace(/-/g, '*'))
+    ).toBe([...lines.slice(0, -1), '* visible'].join('\n'));
+  });
+
+  it('does not close a top-level fence on a quote-prefixed fence-like content line', () => {
+    const markdown = [
+      '```md',
+      '> ```',
+      '- hidden',
+      '```',
+      '- visible',
+    ].join('\n');
+
+    expect(
+      mapMarkdownOutsideProtectedSegments(markdown, (segment) => segment.replace(/-/g, '*'))
+    ).toBe([
+      '```md',
+      '> ```',
+      '- hidden',
+      '```',
+      '* visible',
+    ].join('\n'));
+  });
+
+  it('does not close a dollar math block with a shorter fence', () => {
+    const markdown = [
+      'Before - visible',
+      '$$$',
+      '$$',
+      'x - hidden',
+      '$$$$',
+      'After - visible',
+    ].join('\n');
+
+    expect(
+      mapMarkdownOutsideProtectedSegments(markdown, (segment) => segment.replace(/-/g, '*'))
+    ).toBe([
+      'Before * visible',
+      '$$$',
+      '$$',
+      'x - hidden',
+      '$$$$',
+      'After * visible',
+    ].join('\n'));
+  });
+
+  it.each([
+    {
+      close: '  $$',
+      content: '  x - hidden',
+      open: '- $$',
+    },
+    {
+      close: '   $$',
+      content: '   x - hidden',
+      open: '7. $$',
+    },
+    {
+      close: '>   $$',
+      content: '>   x - hidden',
+      open: '> - $$',
+    },
+    {
+      close: '  \\]',
+      content: '  x - hidden',
+      open: '- \\[',
+    },
+  ])('protects list-contained math from $open and resumes after its close', ({ close, content, open }) => {
+    const markdown = [
+      'Before - visible',
+      open,
+      content,
+      close,
+      'After - visible',
+    ].join('\n');
+
+    expect(
+      mapMarkdownOutsideProtectedSegments(markdown, (segment) => segment.replace(/-/g, '*'))
+    ).toBe([
+      'Before * visible',
+      open,
+      content,
+      close,
+      'After * visible',
+    ].join('\n'));
+  });
+
+  it('transforms deeply nested list markers instead of protecting them as indented code', () => {
+    const markdown = [
+      '- root',
+      '  - child',
+      '',
+      '    - grandchild',
+    ].join('\n');
+
+    expect(
+      mapMarkdownOutsideProtectedSegments(markdown, (segment) => segment.replace(/-/g, '*'))
+    ).toBe([
+      '* root',
+      '  * child',
+      '',
+      '    * grandchild',
+    ].join('\n'));
+  });
+
+  it('keeps list-like lines inside actual indented code protected', () => {
+    const markdown = [
+      'Paragraph - visible',
+      '',
+      '    - code one',
+      '',
+      '    - code two',
+      '',
+      'Tail - visible',
+    ].join('\n');
+
+    expect(
+      mapMarkdownOutsideProtectedSegments(markdown, (segment) => segment.replace(/-/g, '*'))
+    ).toBe([
+      'Paragraph * visible',
+      '',
+      '    - code one',
+      '',
+      '    - code two',
+      '',
+      'Tail * visible',
+    ].join('\n'));
+  });
+
   it('protects fenced code blocks with long marker runs without materializing the marker', () => {
     const marker = '`'.repeat(20_000);
     const markdown = [
@@ -154,6 +310,33 @@ describe('markdown protected blocks', () => {
       '- hidden',
       '</xmp>',
       'After * item',
+    ].join('\n'));
+  });
+
+  it.each([
+    ['fenced code', '  ```not-a-fence'],
+    ['dollar math', '  $$'],
+    ['bracket math', '  \\['],
+    ['indented code', '      indented text'],
+  ])('does not start %s protection from transformed raw HTML contents', (_, nestedLine) => {
+    const markdown = [
+      '- <textarea>',
+      nestedLine,
+      '  </textarea>',
+      'After - visible',
+    ].join('\n');
+
+    expect(
+      mapMarkdownOutsideProtectedSegments(
+        markdown,
+        (segment) => segment.replace('After - visible', 'After * visible'),
+        { protectHtmlBlocks: false },
+      )
+    ).toBe([
+      '- <textarea>',
+      nestedLine,
+      '  </textarea>',
+      'After * visible',
     ].join('\n'));
   });
 

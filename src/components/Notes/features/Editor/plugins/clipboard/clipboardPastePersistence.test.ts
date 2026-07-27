@@ -31,6 +31,30 @@ import { htmlInlineSourceTextPlugin } from '../html-inline';
 import { tocPlugin } from '../toc';
 import { blockAlignmentPlugin } from '../floating-toolbar';
 import { markdownLinkPlugin } from '../links/markdown-link/markdownLinkPlugin';
+import { deflistPlugin } from '../deflist';
+
+const pasteBoundaryBlocks = [
+  { name: 'paragraph', lines: ['Body'] },
+  { name: 'heading', lines: ['## Middle'] },
+  { name: 'ordered list', lines: ['1. Ordered'] },
+  { name: 'bullet list', lines: ['- Bullet'] },
+  { name: 'task list', lines: ['- [ ] Task'] },
+  { name: 'blockquote', lines: ['> Quote'] },
+  { name: 'callout', lines: ['> 💡 Callout'] },
+  { name: 'thematic break', lines: ['---'] },
+  { name: 'table', lines: ['|A|B|', '|-|-|', '|1|2|'] },
+  { name: 'fenced code', lines: ['```ts', 'const value = 1;', '```'] },
+  { name: 'display math', lines: ['$$', 'x + y', '$$'] },
+  { name: 'Mermaid', lines: ['```mermaid', 'graph TD', 'A --> B', '```'] },
+  { name: 'footnote definition', lines: ['[^1]: Footnote'] },
+  { name: 'abbreviation definition', lines: ['*[HTML]: HyperText Markup Language'] },
+  { name: 'definition list', lines: ['Term', '', ': Definition'] },
+  { name: 'table of contents', lines: ['[TOC]'] },
+  { name: 'video', lines: ['![video](https://example.com/video.mp4)'] },
+  { name: 'image', lines: ['![alt](image.png)'] },
+  { name: 'raw HTML comment', lines: ['<!-- Raw HTML -->'] },
+  { name: 'block alignment comment', lines: ['<!--align:center-->'] },
+];
 
 function simulatePasteText(view: any, text: string): boolean {
   const event = {
@@ -84,6 +108,7 @@ async function createPasteEditor(options: { includeMarkdownLinkPlugin?: boolean 
     ...videoPlugin,
     ...tocPlugin,
     ...blockAlignmentPlugin,
+    ...deflistPlugin,
   ]) {
     editor.use(plugin);
   }
@@ -179,6 +204,54 @@ describe('clipboard paste markdown persistence', () => {
       ['- 苹果', '- 香蕉', '- 橘子'].join('\n')
     );
   });
+
+  it.each([
+    ['heading before blockquote', ['# Heading', '', '> Quote'].join('\n')],
+    ['adjacent headings', ['# First', '', '## Second'].join('\n')],
+    ['paragraph before labelled fenced code', ['Body', '', '```code', 'code', '```'].join('\n')],
+    ['labelled fenced code before heading', ['```code', 'code', '```', '', '# Heading'].join('\n')],
+    [
+      'adjacent labelled fenced code blocks',
+      ['```ts', 'const first = 1;', '```', '', '```ecmascript', 'const second = 2;', '```'].join('\n'),
+    ],
+  ] as const)('preserves an authored blank line at a tight %s boundary', async (_name, markdown) => {
+    await expect(pasteAndPersist(markdown)).resolves.toBe(markdown);
+  });
+
+  it.each(pasteBoundaryBlocks.flatMap((block) => [0, 1, 2].map((blankLineCount) => ({
+    ...block,
+    blankLineCount,
+  }))))(
+    'preserves $blankLineCount authored blank line(s) around pasted $name',
+    async ({ lines, blankLineCount }) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        '# Before',
+        ...blanks,
+        ...lines,
+        ...blanks,
+        '```after',
+        'after',
+        '```',
+      ].join('\n');
+      await expect(pasteAndPersist(markdown)).resolves.toBe(markdown);
+    },
+  );
+
+  it.each([0, 1, 2])(
+    'preserves %s authored blank line(s) after pasted frontmatter',
+    async (blankLineCount) => {
+      const blanks = Array.from({ length: blankLineCount }, () => '');
+      const markdown = [
+        '---',
+        'title: Demo',
+        '---',
+        ...blanks,
+        '# Heading',
+      ].join('\n');
+      await expect(pasteAndPersist(markdown)).resolves.toBe(markdown);
+    },
+  );
 
   it('persists copied bullet-prefixed numbered outlines as ordered lists without hard-break escapes', async () => {
     const pasted = [
@@ -322,6 +395,19 @@ describe('clipboard paste markdown persistence', () => {
     expect(persisted).toContain('<img src="cover.png" />');
     expect(persisted).toContain('<iframe src="https://example.com/embed"></iframe>');
     expect(persisted).not.toContain('\\<img');
+    expect(persisted).not.toContain('\\<iframe');
+  });
+
+  it('does not rewrite inline html examples inside pasted list-contained fenced code', async () => {
+    const pasted = [
+      '- ```html',
+      '  Example <iframe src="https://example.test/embed"></iframe> stays literal.',
+      '  ```',
+    ].join('\n');
+
+    const persisted = await pasteAndPersist(pasted);
+
+    expect(persisted).toContain('Example <iframe src="https://example.test/embed"></iframe> stays literal.');
     expect(persisted).not.toContain('\\<iframe');
   });
 

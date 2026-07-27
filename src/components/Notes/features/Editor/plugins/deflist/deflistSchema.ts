@@ -5,6 +5,13 @@ import { remarkDefinitionLists } from '@/components/common/markdown/definitionLi
 
 const definitionListsRemarkReady = createTimer('definitionListsRemarkReady');
 
+function getDefinitionBlankLineCount(node: { data?: unknown }): number {
+    const value = (
+        node.data as { vlainaDefinitionBlankLineCount?: unknown } | undefined
+    )?.vlainaDefinitionBlankLineCount;
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
 export const remarkDefinitionListsPlugin: MilkdownPlugin = (ctx) => {
     ctx.record(definitionListsRemarkReady);
     ctx.update(schemaTimerCtx, (timers) => timers.concat(definitionListsRemarkReady));
@@ -82,6 +89,9 @@ export const definitionDescSchema = $node('definition_desc', () => ({
     content: 'block+',
     group: 'block',
     defining: true,
+    attrs: {
+        sourceBlankLineCount: { default: 0 },
+    },
     parseDOM: [{
         tag: 'dd'
     }],
@@ -89,7 +99,9 @@ export const definitionDescSchema = $node('definition_desc', () => ({
     parseMarkdown: {
         match: (node) => node.type === 'definitionDescription',
         runner: (state, node, type) => {
-            state.openNode(type);
+            state.openNode(type, {
+                sourceBlankLineCount: getDefinitionBlankLineCount(node),
+            });
             state.next(node.children);
             state.closeNode();
         }
@@ -97,9 +109,21 @@ export const definitionDescSchema = $node('definition_desc', () => ({
     toMarkdown: {
         match: (node) => node.type.name === 'definition_desc',
         runner: (state, node) => {
-            state.openNode('paragraph');
+            (state.openNode as (...args: any[]) => any)('paragraph', undefined, {
+                data: {
+                    vlainaDefinitionBlankLineCount: node.attrs.sourceBlankLineCount,
+                },
+            });
             state.addNode('text', undefined, ': ');
             const firstChild = node.firstChild;
+            if (firstChild?.type.name === 'html_block') {
+                state.next(firstChild);
+                state.closeNode();
+                for (let index = 1; index < node.childCount; index += 1) {
+                    state.next(node.child(index));
+                }
+                return;
+            }
             if (firstChild?.type.name === 'paragraph') {
                 state.next(firstChild.content);
                 state.closeNode();

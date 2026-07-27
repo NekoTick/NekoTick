@@ -1,3 +1,8 @@
+import {
+  collectMarkdownSourceStyleLines,
+  type MarkdownSourceStyleLine,
+} from './markdownSourceStyleLines';
+
 interface MarkdownLineBlock {
   canonical: string;
   end: number;
@@ -5,17 +10,11 @@ interface MarkdownLineBlock {
   start: number;
 }
 
-interface MarkdownLine {
-  protected: boolean;
-  text: string;
-}
-
 interface ParsedBlockquoteLine {
   content: string;
   depth: number;
 }
 
-const FRONTMATTER_DELIMITER_PATTERN = /^---[ \t]*$/;
 
 export function restoreBlockquoteMarkerSpacingFromReference(
   markdown: string,
@@ -29,15 +28,16 @@ export function restoreBlockquoteMarkerSpacingFromReference(
   if (referenceBlocks.length === 0) return markdown;
 
   const referenceByCanonical = new Map<string, string[][]>();
+  let hasSourceSpacingToRestore = false;
   for (const block of referenceBlocks) {
-    if (!block.raw.some(hasCompactBlockquoteMarker)) continue;
+    hasSourceSpacingToRestore ||= block.raw.some(hasCompactBlockquoteMarker);
     const blocks = referenceByCanonical.get(block.canonical) ?? [];
     blocks.push(block.raw);
     referenceByCanonical.set(block.canonical, blocks);
   }
-  if (referenceByCanonical.size === 0) return markdown;
+  if (!hasSourceSpacingToRestore) return markdown;
 
-  const lines = collectMarkdownLines(markdown);
+  const lines = collectMarkdownSourceStyleLines(markdown);
   const blocks = collectBlockquoteBlocksFromLines(lines);
   if (blocks.length === 0) return markdown;
 
@@ -62,10 +62,10 @@ export function restoreBlockquoteMarkerSpacingFromReference(
 }
 
 function collectBlockquoteBlocks(markdown: string): MarkdownLineBlock[] {
-  return collectBlockquoteBlocksFromLines(collectMarkdownLines(markdown));
+  return collectBlockquoteBlocksFromLines(collectMarkdownSourceStyleLines(markdown));
 }
 
-function collectBlockquoteBlocksFromLines(lines: readonly MarkdownLine[]): MarkdownLineBlock[] {
+function collectBlockquoteBlocksFromLines(lines: readonly MarkdownSourceStyleLine[]): MarkdownLineBlock[] {
   const blocks: MarkdownLineBlock[] = [];
 
   for (let index = 0; index < lines.length;) {
@@ -92,41 +92,6 @@ function collectBlockquoteBlocksFromLines(lines: readonly MarkdownLine[]): Markd
   }
 
   return blocks;
-}
-
-function collectMarkdownLines(markdown: string): MarkdownLine[] {
-  const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
-  let activeFence: { marker: string; length: number } | null = null;
-  let inLeadingFrontmatter = FRONTMATTER_DELIMITER_PATTERN.test(lines[0] ?? '');
-
-  return lines.map((text, index) => {
-    if (inLeadingFrontmatter) {
-      const isClosingDelimiter = index > 0 && FRONTMATTER_DELIMITER_PATTERN.test(text);
-      if (isClosingDelimiter) {
-        inLeadingFrontmatter = false;
-      }
-      return { protected: true, text };
-    }
-
-    const fence = parseFenceLine(text);
-    if (activeFence) {
-      const isClosingFence = fence
-        && fence.marker === activeFence.marker
-        && fence.length >= activeFence.length
-        && text.slice(fence.infoStart).trim() === '';
-      if (isClosingFence) {
-        activeFence = null;
-      }
-      return { protected: true, text };
-    }
-
-    if (fence) {
-      activeFence = { marker: fence.marker, length: fence.length };
-      return { protected: true, text };
-    }
-
-    return { protected: false, text };
-  });
 }
 
 function canonicalizeBlockquoteLines(lines: readonly string[]): string {
@@ -178,23 +143,4 @@ function hasCompactBlockquoteMarker(line: string): boolean {
   }
 
   return false;
-}
-
-function parseFenceLine(line: string): { infoStart: number; length: number; marker: string } | null {
-  let cursor = 0;
-  while (cursor < line.length && cursor <= 3 && line[cursor] === ' ') {
-    cursor += 1;
-  }
-  if (cursor > 3) return null;
-
-  const marker = line[cursor];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (line[cursor + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return { infoStart: cursor + length, length, marker };
 }

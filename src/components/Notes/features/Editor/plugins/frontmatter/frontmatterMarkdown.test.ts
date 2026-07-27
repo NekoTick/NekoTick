@@ -98,12 +98,12 @@ describe('frontmatterMarkdown', () => {
     ).toBe('---\ntitle: Demo\n---\n# Heading');
   });
 
-  it('removes serializer padding after the internal frontmatter block', () => {
+  it('preserves a body blank line after the internal frontmatter block', () => {
     expect(
       serializeLeadingFrontmatterMarkdown(
         `${frontmatterFenceOpen()}\ntitle: Demo\n\`\`\`\n\n# Heading`,
       ),
-    ).toBe('---\ntitle: Demo\n---\n# Heading');
+    ).toBe('---\ntitle: Demo\n---\n\n# Heading');
   });
 
   it('preserves user-authored body blank lines after frontmatter', () => {
@@ -111,7 +111,7 @@ describe('frontmatterMarkdown', () => {
       serializeLeadingFrontmatterMarkdown(
         `${frontmatterFenceOpen()}\ntitle: Demo\n\`\`\`\n\n\n# Heading`,
       ),
-    ).toBe('---\ntitle: Demo\n---\n\n# Heading');
+    ).toBe('---\ntitle: Demo\n---\n\n\n# Heading');
   });
 
   it('preserves editor-visible body blank lines when hidden-only frontmatter is restored', () => {
@@ -148,7 +148,18 @@ describe('frontmatterMarkdown', () => {
         '---\ntitle: Demo\nvlaina_cover: "@biva/1"\nvlaina_updated: "2026-04-16T00:00:00.000Z"\n---\n# Heading',
       ),
     ).toBe(
-      '---\ntitle: Demo\n\nvlaina_cover: "@biva/1"\n---\n# Heading'
+      '---\ntitle: Demo\nvlaina_cover: "@biva/1"\n---\n# Heading'
+    );
+  });
+
+  it('preserves two authored separator lines before hidden metadata', () => {
+    expect(
+      serializeLeadingFrontmatterMarkdown(
+        `${frontmatterFenceOpen()}\ntitle: Demo\n\`\`\`\n# Heading`,
+        '---\ntitle: Demo\n\n\nvlaina_cover: "@biva/1"\n---\n# Heading',
+      ),
+    ).toBe(
+      '---\ntitle: Demo\n\n\nvlaina_cover: "@biva/1"\n---\n# Heading'
     );
   });
 
@@ -159,7 +170,7 @@ describe('frontmatterMarkdown', () => {
         '---\ntitle: Demo\nsummary: Test\n\nvlaina_cover: "@biva/1"\n---\n\n# Heading',
       ),
     ).toBe(
-      '---\ntitle: Demo\nsummary: Test\n\nvlaina_cover: "@biva/1"\n---\n# Heading'
+      '---\ntitle: Demo\nsummary: Test\n\nvlaina_cover: "@biva/1"\n---\n\n# Heading'
     );
   });
 

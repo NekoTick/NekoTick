@@ -1,9 +1,9 @@
 import { $inputRule } from '@milkdown/kit/utils';
 import { InputRule } from '@milkdown/kit/prose/inputrules';
 import { Fragment } from '@milkdown/kit/prose/model';
-import { TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { normalizeFootnoteLabel } from './footnoteLabels';
+import { moveSelectionAfterInsertedNode } from '../shared/insertedNodeSelection';
 import { markEditorUserInput } from '../shared/userInputEvents';
 
 type UndoableInputRule = InputRule & { undoable?: boolean };
@@ -121,24 +121,26 @@ export function handleFootnoteDefinitionShortcutEnter(view: EditorView): boolean
     : { id };
   const footnote = footnoteType.create(attrs, [body]);
   const trailingParagraph = paragraphType.create();
-  const replacement = Fragment.fromArray([footnote, trailingParagraph]);
   const parentDepth = selection.$from.depth - 1;
   const parent = selection.$from.node(parentDepth);
-  if (!parent.canReplace(
-    selection.$from.index(parentDepth),
-    selection.$from.indexAfter(parentDepth),
-    replacement,
-  )) {
+  const fromIndex = selection.$from.index(parentDepth);
+  const hasFollowingSibling = fromIndex + 1 < parent.childCount;
+  const replacement = Fragment.fromArray(
+    hasFollowingSibling ? [footnote] : [footnote, trailingParagraph],
+  );
+  if (!parent.canReplace(fromIndex, selection.$from.indexAfter(parentDepth), replacement)) {
     return false;
   }
 
   const from = selection.$from.before(selection.$from.depth);
   const to = selection.$from.after(selection.$from.depth);
   const tr = state.tr.replaceWith(from, to, replacement);
-  view.dispatch(
-    tr
-      .setSelection(TextSelection.create(tr.doc, from + footnote.nodeSize + 1))
-      .scrollIntoView(),
-  );
+  const movedTr = moveSelectionAfterInsertedNode({
+    tr,
+    nodePos: from,
+    insertedNodeFallback: footnote,
+    paragraphType,
+  });
+  view.dispatch(movedTr.scrollIntoView());
   return true;
 }

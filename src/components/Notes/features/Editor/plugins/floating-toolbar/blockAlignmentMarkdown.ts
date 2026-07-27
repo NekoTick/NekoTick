@@ -4,10 +4,12 @@ import { remarkBlockAlignment } from '@/components/common/markdown/blockAlignmen
 
 export {
   applyAlignmentCommentsToTree,
+  DEFAULT_ALIGNMENT_COMMENT_BLANK_LINE_COUNT,
   extractTextAlignmentComment,
   getTextAlignmentComment,
   isTextAlignment,
   readMarkdownNodeAlignment,
+  type AlignmentCommentPlacement,
   type TextAlignment,
 } from '@/components/common/markdown/blockAlignment';
 

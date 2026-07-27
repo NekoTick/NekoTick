@@ -261,6 +261,12 @@ describe('floating toolbar command markdown persistence', () => {
     await expect(persist(editor)).resolves.toBe(['text', '', '<!--align:center-->'].join('\n'));
   });
 
+  it('removes a source alignment comment when the user selects left alignment', async () => {
+    const editor = await createEditor(['text', '', '<!--align:center-->'].join('\n'));
+    setTextAlignment(selectBlockStart(editor), 'left');
+    await expect(persist(editor)).resolves.toBe('text');
+  });
+
   it.each([
     ['==highlight==x', 'highlight'],
     ['++underlined++x', 'underline'],

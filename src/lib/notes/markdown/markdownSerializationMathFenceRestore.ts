@@ -1,25 +1,25 @@
 import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
 import {
   getAlternativeMathBlockClose,
-  isAlternativeMathBlockBracketCloseFence,
+  getAlternativeMathBlockOpen,
   isLatexLikeMathBlock,
+  parseStandaloneMathBlockLine,
   stripSingleTrailingBackslash,
 } from './markdownSerializationMathFences';
 import {
-  ALTERNATIVE_MATH_BLOCK_OPEN_PATTERN,
-  DOLLAR_MATH_BLOCK_FENCE_PATTERN,
+  isMarkdownLineInContainer,
+  type MarkdownContainerMathFenceLine,
+  parseMarkdownContainerMathFenceLine,
+  parseMarkdownContainerMathFenceLineInContainer,
+} from './markdownFenceProtectedLines';
+import {
   DollarMathFenceMatch,
   MathBlockFenceReference, MathBlockFenceReferenceIndex,
-  MathBlockFenceStyle,
-  STANDALONE_BRACKET_MATH_PATTERN,
-  STANDALONE_DOLLAR_MATH_PATTERN,
 } from './markdownSerializationShared';
 
 export function restoreMathBlockFenceStylesFromReference(markdown: string, reference: string): string {
   const references = collectMathBlockFenceReferences(reference);
-  if (!references.some((item) => item.style !== 'dollar')) {
-    return markdown;
-  }
+  if (references.length === 0) return markdown;
 
   const referenceIndex = createMathBlockFenceReferenceIndex(references);
   let nextReferenceIndex = 0;
@@ -44,18 +44,29 @@ export function restoreMathBlockFenceStylesFromReference(markdown: string, refer
       nextReferenceIndex = referenceMatch.nextIndex;
 
       const singleLineLatex = match.closeIndex === index + 2
-        ? stripMathContainerPrefix(lines[index + 1] ?? '', match.prefix)
+        ? stripMathContainerPrefix(lines[index + 1] ?? '', match.contentPrefix)
         : null;
-      if (referenceMatch.style === 'dollar-inline' && singleLineLatex !== null) {
+      const referenceFence = referenceMatch.reference;
+      if (referenceFence?.style === 'dollar-inline' && singleLineLatex !== null) {
         output.push(`${match.prefix}$$${singleLineLatex}$$`);
-      } else if (referenceMatch.style === 'bracket-inline' && singleLineLatex !== null) {
+      } else if (referenceFence?.style === 'bracket-inline' && singleLineLatex !== null) {
         output.push(`${match.prefix}\\[${singleLineLatex}\\]`);
-      } else if (referenceMatch.style === 'bracket') {
+      } else if (referenceFence?.style === 'bracket') {
         output.push(`${match.prefix}\\[`);
         for (let cursor = index + 1; cursor < match.closeIndex; cursor += 1) {
           output.push(lines[cursor] ?? '');
         }
-        output.push(`${match.prefix}\\]`);
+        output.push(`${match.closePrefix}\\]`);
+      } else if (
+        referenceFence?.style === 'dollar'
+        && referenceFence.openFenceLength !== undefined
+        && referenceFence.closeFenceLength !== undefined
+      ) {
+        output.push(`${match.prefix}${'$'.repeat(referenceFence.openFenceLength)}`);
+        for (let cursor = index + 1; cursor < match.closeIndex; cursor += 1) {
+          output.push(lines[cursor] ?? '');
+        }
+        output.push(`${match.closePrefix}${'$'.repeat(referenceFence.closeFenceLength)}`);
       } else {
         for (let cursor = index; cursor <= match.closeIndex; cursor += 1) {
           output.push(lines[cursor] ?? '');
@@ -73,10 +84,10 @@ export function takeMatchingMathBlockFenceReference(
   referenceIndex: MathBlockFenceReferenceIndex,
   latex: string,
   startIndex: number
-): { style: MathBlockFenceStyle | null; nextIndex: number } {
+): { nextIndex: number; reference: MathBlockFenceReference | null } {
   const direct = references[startIndex];
   if (direct && referenceIndex.normalizedLatexes[startIndex] === latex) {
-    return { style: direct.style, nextIndex: startIndex + 1 };
+    return { reference: direct, nextIndex: startIndex + 1 };
   }
 
   const matchIndex = findNextMathBlockFenceReferenceIndex(
@@ -84,10 +95,10 @@ export function takeMatchingMathBlockFenceReference(
     startIndex
   );
   if (matchIndex !== null) {
-    return { style: references[matchIndex]?.style ?? null, nextIndex: matchIndex + 1 };
+    return { reference: references[matchIndex] ?? null, nextIndex: matchIndex + 1 };
   }
 
-  return { style: null, nextIndex: startIndex };
+  return { reference: null, nextIndex: startIndex };
 }
 
 export function createMathBlockFenceReferenceIndex(
@@ -134,24 +145,54 @@ export function findNextMathBlockFenceReferenceIndex(
 
 export function collectDollarMathFenceMatches(lines: readonly string[]): Map<number, DollarMathFenceMatch> {
   const matches = new Map<number, DollarMathFenceMatch>();
-  const openByPrefix = new Map<string, number>();
+  let active: {
+    blockquoteDepth: number;
+    containerIndent: number;
+    contentPrefix: string;
+    length: number;
+    openIndex: number;
+    prefix: string;
+  } | null = null;
 
   for (let index = 0; index < lines.length; index += 1) {
-    const fence = DOLLAR_MATH_BLOCK_FENCE_PATTERN.exec(lines[index]);
-    if (!fence) continue;
+    const line = lines[index] ?? '';
+    if (active && !isMarkdownLineInContainer(line, active)) {
+      active = null;
+    }
+    const fence: MarkdownContainerMathFenceLine | null = active
+      ? parseMarkdownContainerMathFenceLineInContainer(line, active)
+      : parseMarkdownContainerMathFenceLine(line);
+    if (active) {
+      if (
+        fence?.kind !== 'dollar'
+        || fence.blockquoteDepth !== active.blockquoteDepth
+        || fence.length < active.length
+      ) {
+        continue;
+      }
 
-    const prefix = fence[1] ?? '';
-    const openIndex = openByPrefix.get(prefix);
-    if (openIndex === undefined) {
-      openByPrefix.set(prefix, index);
+      matches.set(active.openIndex, {
+        closeFenceLength: fence.length,
+        closeIndex: index,
+        closePrefix: line.slice(0, fence.markerStart),
+        contentPrefix: active.contentPrefix,
+        openFenceLength: active.length,
+        prefix: active.prefix,
+      });
+      active = null;
       continue;
     }
 
-    matches.set(openIndex, {
-      prefix,
-      closeIndex: index,
-    });
-    openByPrefix.delete(prefix);
+    if (fence?.kind === 'dollar') {
+      active = {
+        blockquoteDepth: fence.blockquoteDepth,
+        containerIndent: fence.containerIndent,
+        contentPrefix: fence.continuationPrefix,
+        length: fence.length,
+        openIndex: index,
+        prefix: line.slice(0, fence.markerStart),
+      };
+    }
   }
 
   return matches;
@@ -183,22 +224,12 @@ export function collectMathBlockFenceReferencesFromSegment(
   const dollarFenceMatches = collectDollarMathFenceMatches(lines);
 
   for (let index = 0; index < lines.length; index += 1) {
-    const standaloneDollar = STANDALONE_DOLLAR_MATH_PATTERN.exec(lines[index]);
-    if (standaloneDollar) {
-      const prefix = standaloneDollar[1] ?? '';
+    const line = lines[index] ?? '';
+    const standalone = parseStandaloneMathBlockLine(line);
+    if (standalone) {
       references.push({
-        latex: `${prefix}${standaloneDollar[2] ?? ''}`,
-        style: 'dollar-inline',
-      });
-      continue;
-    }
-
-    const standaloneBracket = STANDALONE_BRACKET_MATH_PATTERN.exec(lines[index]);
-    if (standaloneBracket) {
-      const prefix = standaloneBracket[1] ?? '';
-      references.push({
-        latex: `${prefix}${standaloneBracket[2] ?? ''}`,
-        style: 'bracket-inline',
+        latex: `${standalone.continuationPrefix}${standalone.latex}`,
+        style: standalone.style,
       });
       continue;
     }
@@ -206,26 +237,25 @@ export function collectMathBlockFenceReferencesFromSegment(
     const dollarMatch = dollarFenceMatches.get(index);
     if (dollarMatch) {
       references.push({
+        closeFenceLength: dollarMatch.closeFenceLength,
         latex: joinLineRange(lines, index + 1, dollarMatch.closeIndex),
+        openFenceLength: dollarMatch.openFenceLength,
         style: 'dollar',
       });
       index = dollarMatch.closeIndex;
       continue;
     }
 
-    const alternativeOpen = ALTERNATIVE_MATH_BLOCK_OPEN_PATTERN.exec(lines[index]);
+    const alternativeOpen = getAlternativeMathBlockOpen(line);
     if (!alternativeOpen) continue;
 
-    const pendingFence = {
-      prefix: alternativeOpen[1] ?? '',
-      bracketCloseFence: isAlternativeMathBlockBracketCloseFence(alternativeOpen[2] ?? ''),
-      bracketOnlyFence: lines[index].trim() === '[',
-    };
+    const pendingFence = alternativeOpen;
     const content: string[] = [];
     let closeIndex = -1;
     let inlineCloseContent: string | null = null;
 
     for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      if (!isMarkdownLineInContainer(lines[cursor] ?? '', pendingFence)) break;
       const close = getAlternativeMathBlockClose(lines[cursor], pendingFence);
       if (close) {
         inlineCloseContent = close.contentLine;

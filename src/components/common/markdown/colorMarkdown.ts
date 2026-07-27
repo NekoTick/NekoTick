@@ -160,7 +160,13 @@ function parseSplitInlineColorHtmlMark(
   ) {
     return null;
   }
-  return parseInlineColorHtml(`${open.value}${text.value}${close.value}`);
+  const parsed = parseInlineColorHtml(`${open.value}${text.value}${close.value}`);
+  if (!parsed) return null;
+
+  return {
+    ...parsed,
+    children: [{ ...text, value: decodeMarkdownHtmlText(text.value) }],
+  };
 }
 
 export function replaceInlineColorHtmlMark(
@@ -208,7 +214,7 @@ export function replaceUnderlineMarkdown(
 ): void {
   if (!canTransformMarkdownAst(tree)) return;
 
-  const underlineRegex = /\+\+([^+]+)\+\+/g;
+  const underlineRegex = /(?<!\+)\+\+([^+\s](?:[^+]*?[^+\s])?)\+\+(?!\+)/g;
 
   function visitNode(node: ColorMarkdownMdastNode, parent?: ColorMarkdownMdastNode, index?: number): void {
     if (node.children) {

@@ -17,6 +17,8 @@ import { deflistPlugin } from '../deflist';
 import { customPlugins } from '../../config/plugins';
 import { createMarkdownSyntaxFixture } from '../../../../../../../test/e2e/notesMarkdownSyntaxFixture';
 
+const MARKDOWN_BLANK_LINE_COMMENT = '<!--vlaina-markdown-blank-line-->';
+
 function simulatePasteText(view: any, text: string): boolean {
   return simulatePasteData(view, {
     getData(type: string) {
@@ -248,13 +250,16 @@ describe('clipboard custom markdown paste', () => {
     expect(simulatePasteText(view, ['Footnote ref[^1].', '', '[^1]: Footnote body'].join('\n'))).toBe(true);
 
     const paragraph = view.state.doc.child(0);
-    const footnote = view.state.doc.child(1);
+    const blankLine = view.state.doc.child(1);
+    const footnote = view.state.doc.child(2);
     const inlineNodes: string[] = [];
     paragraph.descendants((node) => {
       inlineNodes.push(node.type.name);
     });
 
     expect(inlineNodes).toContain('footnote_reference');
+    expect(blankLine.type.name).toBe('html_block');
+    expect(blankLine.attrs.value).toBe(MARKDOWN_BLANK_LINE_COMMENT);
     expect(footnote.type.name).toBe('footnote_definition');
     expect(footnote.attrs.label).toBe('1');
     expect(footnote.textContent).toBe('Footnote body');
@@ -288,11 +293,43 @@ describe('clipboard custom markdown paste', () => {
     expect(simulatePasteText(view, markdown)).toBe(true);
 
     const nodeNames: string[] = [];
+    let blankLineCount = 0;
     view.state.doc.forEach((node) => {
+      if (
+        node.type.name === 'html_block'
+        && node.attrs.value === '<!--vlaina-markdown-blank-line-->'
+      ) {
+        blankLineCount += 1;
+        return;
+      }
       nodeNames.push(node.type.name);
     });
 
     expect(nodeNames).toEqual(['frontmatter', 'callout', 'math_block', 'table', 'mermaid']);
+    expect(blankLineCount).toBe(3);
+
+    await editor.destroy();
+  });
+
+  it.each([
+    ['adjacent headings', ['# First', '', '## Second'].join('\n')],
+    [
+      'adjacent fenced code blocks',
+      ['```ts', 'const first = 1;', '```', '', '```js', 'const second = 2;', '```'].join('\n'),
+    ],
+  ])('keeps the authored blank editor node for %s', async (_name, markdown) => {
+    const editor = await createPasteEditor();
+    const view = editor.ctx.get(editorViewCtx);
+
+    expect(simulatePasteText(view, markdown)).toBe(true);
+
+    const blankLineNodes: string[] = [];
+    view.state.doc.forEach((node) => {
+      if (node.type.name === 'html_block') {
+        blankLineNodes.push(node.attrs.value);
+      }
+    });
+    expect(blankLineNodes).toEqual(['<!--vlaina-markdown-blank-line-->']);
 
     await editor.destroy();
   });

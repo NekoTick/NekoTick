@@ -3,81 +3,56 @@ import {
   Editor,
   defaultValueCtx,
   editorViewCtx,
+  parserCtx,
   remarkStringifyOptionsCtx,
   serializerCtx,
 } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
+import { history } from '@milkdown/kit/plugin/history';
+import { tableBlock } from '@milkdown/kit/component/table-block';
 
+import { customPlugins } from '../../config/plugins';
 import { notesRemarkGfmOptions, notesRemarkStringifyOptions } from '../../config/stringifyOptions';
 import { configureTheme } from '../../theme';
 import {
   normalizeAlternativeMathBlockFences,
-  normalizeSerializedMarkdownDocument,
   preserveMarkdownBlankLinesForEditor,
-  restoreMathBlockFenceStylesFromReference,
   stripTrailingNewlines,
 } from '@/lib/notes/markdown/markdownSerializationUtils';
 import {
   normalizeLeadingFrontmatterMarkdown,
-  serializeLeadingFrontmatterMarkdown,
 } from '../frontmatter/frontmatterMarkdown';
-import { restoreMermaidFenceSourceFromReference } from '../mermaid/mermaidFenceSourceRestore';
-import { restoreAutolinkStyleFromReference } from '@/lib/notes/markdown/markdownAutolinkStyle';
-import { restoreBlockquoteMarkerSpacingFromReference } from '@/lib/notes/markdown/markdownBlockquoteMarkerSpacing';
-import { restoreFenceMarkerStyleFromReference } from '@/lib/notes/markdown/markdownFenceMarkerStyle';
-import { restoreSetextHeadingStyleFromReference } from '@/lib/notes/markdown/markdownHeadingMarkerStyle';
-import { restoreListMarkerStyleFromReference } from '@/lib/notes/markdown/markdownListMarkerStyle';
-import { restoreReferenceLinkStyleFromReference } from '@/lib/notes/markdown/markdownReferenceLinkStyle';
-import { restoreThematicBreakMarkerStyleFromReference } from '@/lib/notes/markdown/markdownThematicBreakMarkerStyle';
+import { serializeEditorMarkdownSnapshot } from '../../utils/pendingMarkdownUpdate';
 import { expectPersistedMarkdownToBeClean } from './persistedMarkdownAssertions';
-import { mathPlugin } from '../math';
-import { calloutPlugin } from '../callout';
-import { footnotePlugin } from '../footnote';
-import { frontmatterPlugin } from '../frontmatter';
-import { highlightPlugin } from '../highlight';
-import { mermaidPlugin } from '../mermaid';
-import { videoPlugin } from '../video';
-import { tocPlugin } from '../toc';
-import { blockAlignmentPlugin } from '../floating-toolbar';
-import { colorMarksPlugin } from '../floating-toolbar/colorMarks';
-import { codePlugin } from '../code';
-import { tablePlugin } from '../table';
-import { abbrPlugin } from '../abbr';
-import { deflistPlugin } from '../deflist';
-import { autolinkPlugin } from '../links/autolink/autolinkPlugin';
-import { markdownLinkPlugin } from '../links/markdown-link/markdownLinkPlugin';
-
-const syntaxPlugins = [
-  ...mathPlugin,
-  ...calloutPlugin,
-  ...footnotePlugin,
-  ...frontmatterPlugin,
-  ...highlightPlugin,
-  ...tablePlugin,
-  ...mermaidPlugin,
-  ...videoPlugin,
-  ...tocPlugin,
-  ...blockAlignmentPlugin,
-  ...colorMarksPlugin,
-  ...codePlugin,
-  ...abbrPlugin,
-  ...deflistPlugin,
-  autolinkPlugin,
-  markdownLinkPlugin,
-];
+import { clipboardPlugin } from './clipboardPlugin';
 
 interface EditorRoundTripSnapshot {
   docJson: unknown;
   persisted: string;
 }
 
-async function openMarkdownThroughSyntaxEditor(markdown: string): Promise<EditorRoundTripSnapshot> {
-  const defaultValue = preserveMarkdownBlankLinesForEditor(
+interface MarkdownRoundTripCase {
+  expected?: string;
+  independentParts?: readonly string[];
+  markdown: string;
+  name: string;
+}
+
+export interface MarkdownRoundTripBatchResult {
+  checked: number;
+  skipped: number;
+}
+
+function prepareMarkdownForSyntaxEditor(markdown: string): string {
+  return preserveMarkdownBlankLinesForEditor(
     normalizeLeadingFrontmatterMarkdown(
       normalizeAlternativeMathBlockFences(markdown)
     )
   );
+}
+
+function createSyntaxEditor(defaultValue: string) {
   const editor = Editor.make()
     .config((ctx) => {
       ctx.set(defaultValueCtx, defaultValue);
@@ -87,55 +62,34 @@ async function openMarkdownThroughSyntaxEditor(markdown: string): Promise<Editor
       }));
       ctx.set(remarkGFMPlugin.options.key, notesRemarkGfmOptions);
     })
+    .use(clipboardPlugin)
     .use(commonmark)
     .use(gfm)
-    .use(configureTheme);
+    .use(history)
+    .use(configureTheme)
+    .use(tableBlock)
+    .use(customPlugins);
 
-  for (const plugin of syntaxPlugins) {
-    editor.use(plugin);
-  }
+  return editor;
+}
 
+function restorePersistedMarkdown(serialized: string, referenceMarkdown: string): string {
+  return serializeEditorMarkdownSnapshot(serialized, referenceMarkdown);
+}
+
+async function openMarkdownThroughSyntaxEditor(markdown: string): Promise<EditorRoundTripSnapshot> {
+  const preparedMarkdown = prepareMarkdownForSyntaxEditor(markdown);
+  const editor = createSyntaxEditor(preparedMarkdown);
   await editor.create();
   const view = editor.ctx.get(editorViewCtx);
   const serializer = editor.ctx.get(serializerCtx);
   const serialized = serializer(view.state.doc);
   const docJson = view.state.doc.toJSON();
   await editor.destroy();
-  const normalized = normalizeSerializedMarkdownDocument(serialized);
 
   return {
     docJson,
-    persisted: restoreBlockquoteMarkerSpacingFromReference(
-      restoreThematicBreakMarkerStyleFromReference(
-        restoreListMarkerStyleFromReference(
-          restoreFenceMarkerStyleFromReference(
-            restoreMermaidFenceSourceFromReference(
-              restoreReferenceLinkStyleFromReference(
-                restoreAutolinkStyleFromReference(
-                  restoreSetextHeadingStyleFromReference(
-                    serializeLeadingFrontmatterMarkdown(
-                      restoreMathBlockFenceStylesFromReference(
-                        normalized,
-                        markdown
-                      ),
-                      markdown
-                    ),
-                    markdown
-                  ),
-                  markdown
-                ),
-                markdown
-              ),
-              markdown,
-            ),
-            markdown,
-          ),
-          markdown,
-        ),
-        markdown
-      ),
-      markdown,
-    ),
+    persisted: restorePersistedMarkdown(serialized, markdown),
   };
 }
 
@@ -173,30 +127,139 @@ export async function expectStableMarkdownRoundTrip(
   expected = markdown,
   expectedText?: string,
 ): Promise<void> {
-  const firstOpen = await openMarkdownThroughSyntaxEditor(markdown);
+  await expectStableMarkdownRoundTripWith(
+    openMarkdownThroughSyntaxEditor,
+    markdown,
+    expected,
+    expectedText,
+  );
+}
+
+export async function expectStableMarkdownRoundTrips(
+  testCases: readonly MarkdownRoundTripCase[],
+): Promise<MarkdownRoundTripBatchResult> {
+  const editor = createSyntaxEditor('');
+  await editor.create();
+
+  try {
+    const parser = editor.ctx.get(parserCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+    const openMarkdown = async (markdown: string): Promise<EditorRoundTripSnapshot> => {
+      const preparedMarkdown = prepareMarkdownForSyntaxEditor(markdown);
+      const doc = parser(preparedMarkdown);
+      const serialized = serializer(doc);
+      const persisted = restorePersistedMarkdown(serialized, markdown);
+      return {
+        docJson: doc.toJSON(),
+        persisted,
+      };
+    };
+
+    const failures: string[] = [];
+    let firstFailure: unknown;
+    let checked = 0;
+    let skipped = 0;
+    for (const testCase of testCases) {
+      if (testCase.independentParts) {
+        const combinedContent = getDocContent(
+          parser(prepareMarkdownForSyntaxEditor(testCase.markdown)).toJSON()
+        );
+        const independentContent = testCase.independentParts.flatMap((part) =>
+          getDocContent(parser(prepareMarkdownForSyntaxEditor(part)).toJSON())
+        );
+        if (JSON.stringify(combinedContent) !== JSON.stringify(independentContent)) {
+          skipped += 1;
+          continue;
+        }
+      }
+
+      checked += 1;
+      try {
+        await expectStableMarkdownRoundTripWith(
+          openMarkdown,
+          testCase.markdown,
+          testCase.expected ?? testCase.markdown,
+          undefined,
+          testCase.name,
+        );
+      } catch (error) {
+        firstFailure ??= error;
+        failures.push(testCase.name);
+      }
+    }
+    if (firstFailure instanceof Error) {
+      firstFailure.message = `${firstFailure.message}\nFailing cases: ${failures.join(', ')}`;
+      throw firstFailure;
+    }
+    expect(failures).toEqual([]);
+    return { checked, skipped };
+  } finally {
+    await editor.destroy();
+  }
+}
+
+function getDocContent(docJson: unknown): unknown[] {
+  if (!docJson || typeof docJson !== 'object') return [];
+  const content = (docJson as { content?: unknown }).content;
+  return Array.isArray(content)
+    ? content
+      .filter((node) => !isInternalEditorDocNode(node))
+      .map(stripIndependentComparisonMetadata)
+    : [];
+}
+
+function stripIndependentComparisonMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripIndependentComparisonMetadata);
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, nestedValue]) =>
+      key === 'vlainaSourceTightBefore' || key === 'vlainaSourceHtmlBlankLineCountAfter'
+        ? []
+        : [[key, stripIndependentComparisonMetadata(nestedValue)]]
+    )
+  );
+}
+
+function isInternalEditorDocNode(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const node = value as { attrs?: { value?: unknown }; type?: unknown };
+  return (node.type === 'html' || node.type === 'html_block')
+    && typeof node.attrs?.value === 'string'
+    && /^<!--\s*vlaina-(?:markdown|rendered-html-boundary)-/i.test(node.attrs.value.trim());
+}
+
+async function expectStableMarkdownRoundTripWith(
+  openMarkdown: (markdown: string) => Promise<EditorRoundTripSnapshot>,
+  markdown: string,
+  expected: string,
+  expectedText?: string,
+  message?: string,
+): Promise<void> {
+  const firstOpen = await openMarkdown(markdown);
   const firstPersisted = stripTrailingNewlines(firstOpen.persisted);
   const normalizedInput = stripTrailingNewlines(markdown);
   expectPersistedMarkdownToBeClean(firstPersisted);
-  expect(firstPersisted).toBe(expected);
+  expect(firstPersisted, message).toBe(expected);
   if (expectedText) {
-    expect(collectDocText(firstOpen.docJson)).toContain(expectedText);
+    expect(collectDocText(firstOpen.docJson), message).toContain(expectedText);
   }
 
-  const secondOpen = await openMarkdownThroughSyntaxEditor(firstPersisted);
+  const secondOpen = await openMarkdown(firstPersisted);
   const secondPersisted = stripTrailingNewlines(secondOpen.persisted);
   expectPersistedMarkdownToBeClean(secondPersisted);
-  expect(secondPersisted).toBe(firstPersisted);
+  expect(secondPersisted, message).toBe(firstPersisted);
 
   if (firstPersisted === normalizedInput) {
-    expect(secondOpen.docJson).toEqual(firstOpen.docJson);
+    expect(secondOpen.docJson, message).toEqual(firstOpen.docJson);
     return;
   }
 
-  const thirdOpen = await openMarkdownThroughSyntaxEditor(secondPersisted);
+  const thirdOpen = await openMarkdown(secondPersisted);
   const thirdPersisted = stripTrailingNewlines(thirdOpen.persisted);
   expectPersistedMarkdownToBeClean(thirdPersisted);
-  expect(thirdPersisted).toBe(secondPersisted);
-  expect(thirdOpen.docJson).toEqual(secondOpen.docJson);
+  expect(thirdPersisted, message).toBe(secondPersisted);
+  expect(thirdOpen.docJson, message).toEqual(secondOpen.docJson);
 }
 
 export async function expectConvergentPersistedMarkdownRoundTrip(

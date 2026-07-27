@@ -1068,9 +1068,14 @@ describe('clipboardPlugin paste', () => {
     });
 
     it('preserves intentional blank lines inside structural markdown paste', async () => {
+        const markdown = '# A\n\n\n# B';
         const editor = Editor.make()
             .config((ctx) => {
                 ctx.set(defaultValueCtx, '');
+                ctx.update(remarkStringifyOptionsCtx, (prev) => ({
+                    ...prev,
+                    ...notesRemarkStringifyOptions,
+                }));
             })
             .use(commonmark)
             .use(clipboardPlugin);
@@ -1078,12 +1083,17 @@ describe('clipboardPlugin paste', () => {
         await editor.create();
         const view = editor.ctx.get(editorViewCtx);
 
-        expect(simulatePasteText(view, '# A\n\n\n# B')).toBe(true);
+        expect(simulatePasteText(view, markdown)).toBe(true);
 
-        expect(view.state.doc.childCount).toBe(3);
+        expect(view.state.doc.childCount).toBe(4);
         expect(view.state.doc.child(0).textContent).toBe('A');
         expect(view.state.doc.child(1).textContent).toBe('');
-        expect(view.state.doc.child(2).textContent).toBe('B');
+        expect(view.state.doc.child(2).textContent).toBe('');
+        expect(view.state.doc.child(3).textContent).toBe('B');
+        const serializer = editor.ctx.get(serializerCtx);
+        expect(stripTrailingNewlines(normalizeSerializedMarkdownDocument(serializer(view.state.doc)))).toBe(
+            markdown
+        );
 
         await editor.destroy();
     });
@@ -1632,9 +1642,22 @@ describe('clipboardPlugin paste', () => {
     });
 
     it('recognizes pasted multiple fenced code blocks as separate code blocks', async () => {
+        const markdown = [
+            '```',
+            'first',
+            '```',
+            '',
+            '```',
+            'second',
+            '```',
+        ].join('\n');
         const editor = Editor.make()
             .config((ctx) => {
                 ctx.set(defaultValueCtx, '');
+                ctx.update(remarkStringifyOptionsCtx, (prev) => ({
+                    ...prev,
+                    ...notesRemarkStringifyOptions,
+                }));
             })
             .use(commonmark)
             .use(clipboardPlugin)
@@ -1643,21 +1666,18 @@ describe('clipboardPlugin paste', () => {
         await editor.create();
         const view = editor.ctx.get(editorViewCtx);
 
-        expect(simulatePasteText(view, [
-            '```',
-            'first',
-            '```',
-            '',
-            '```',
-            'second',
-            '```',
-        ].join('\n'))).toBe(true);
+        expect(simulatePasteText(view, markdown)).toBe(true);
 
-        expect(view.state.doc.childCount).toBe(2);
+        expect(view.state.doc.childCount).toBe(3);
         expect(view.state.doc.child(0).type.name).toBe('code_block');
         expect(view.state.doc.child(0).textContent).toBe('first');
-        expect(view.state.doc.child(1).type.name).toBe('code_block');
-        expect(view.state.doc.child(1).textContent).toBe('second');
+        expect(view.state.doc.child(1).textContent).toBe('');
+        expect(view.state.doc.child(2).type.name).toBe('code_block');
+        expect(view.state.doc.child(2).textContent).toBe('second');
+        const serializer = editor.ctx.get(serializerCtx);
+        expect(stripTrailingNewlines(normalizeSerializedMarkdownDocument(serializer(view.state.doc)))).toBe(
+            markdown
+        );
 
         await editor.destroy();
     });

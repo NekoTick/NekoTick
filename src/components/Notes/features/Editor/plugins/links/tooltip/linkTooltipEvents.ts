@@ -9,12 +9,21 @@ import {
     startLinkTextSelectionSession,
 } from './linkTextSelectionSession';
 import { resolveBlankAreaDragStartZone } from '../../cursor/blankAreaDragTargets';
+import { installExternalLinkDragClickSuppression } from './externalLinkDragClickSuppression';
 
 const LINK_DRAG_CLICK_SUPPRESSION_MS = 500;
 const BLOCK_SELECTION_PENDING_CLASS = 'editor-block-selection-pending';
 
 function isPlainMouseClick(event: MouseEvent): boolean {
-    return event.detail > 0 &&
+    return event.detail === 1 &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.shiftKey;
+}
+
+function isPlainMultiClick(event: MouseEvent): boolean {
+    return event.detail > 1 &&
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
@@ -32,6 +41,9 @@ function resolveTooltipEligibleLink(view: EditorView, event: MouseEvent): HTMLEl
     if (tocLink instanceof HTMLElement) return null;
 
     const link = resolveLinkTextRootFromMouseEvent(view, event);
+    if (link?.matches(
+        '.wiki-link[data-wiki-link-target], .wiki-link-expanded[data-wiki-link-expanded]'
+    )) return null;
     if (link?.closest('.toc-link[data-heading-pos]')) return null;
     return link instanceof HTMLElement ? link : null;
 }
@@ -143,8 +155,15 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
 
     const handleEditorMouseDown = (event: MouseEvent) => {
         if (!(event.target instanceof Node) || !view.dom.contains(event.target)) return;
-        const link = resolveTooltipEligibleLink(view, event);
-        if (!link) {
+        const targetElement = event.target instanceof Element ? event.target : event.target.parentElement;
+        const wikiLinkSource = targetElement?.closest('[data-wiki-link-source="true"]');
+        if (wikiLinkSource?.querySelector('.wiki-link-expanded[data-wiki-link-expanded]')) {
+            setKeyboardInteraction(false);
+            if (!dom.classList.contains('hidden')) hide(true);
+            return;
+        }
+        const selectableLink = resolveLinkTextRootFromMouseEvent(view, event);
+        if (!selectableLink) {
             setKeyboardInteraction(false);
             if (!dom.classList.contains('hidden')) {
                 const isPlainPrimaryMouseDown = event.button === 0 &&
@@ -164,17 +183,30 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         }
 
         setKeyboardInteraction(false);
+        if (selectableLink.matches('.wiki-link-expanded[data-wiki-link-expanded]')) return;
+        const isWikiLink = selectableLink.matches(
+            '.wiki-link[data-wiki-link-target], .wiki-link-expanded[data-wiki-link-expanded]'
+        );
         if (startLinkTextSelectionSession(view, event, () => {
             clearShowTimer();
             hide(true);
             suppressNextEditorClick();
-        })) return;
+        })) {
+            if (isWikiLink) suppressNextEditorClick();
+            return;
+        }
     };
 
     const handleEditorClick = async (event: MouseEvent) => {
         if (!(event.target instanceof Node) || !view.dom.contains(event.target)) return;
+        const selectableLink = resolveLinkTextRootFromMouseEvent(view, event);
         const link = resolveTooltipEligibleLink(view, event);
-        if (!link) return;
+        if (!selectableLink) return;
+        if (selectableLink.matches('.wiki-link-expanded[data-wiki-link-expanded]')) return;
+
+        // Wiki links use their own Ctrl/Cmd-click navigation handler.
+        if (!link && (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)) return;
+        if (isPlainMultiClick(event)) return;
 
         event.preventDefault();
         event.stopPropagation();
@@ -194,6 +226,8 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
                 return;
             }
         }
+
+        if (!link) return;
 
         const href = link.getAttribute('href') || link.getAttribute('data-href');
         if (href) await openEditorLinkHref(href, { view });
@@ -265,6 +299,10 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         }
     };
 
+    const cleanupExternalLinkDrag = installExternalLinkDragClickSuppression(
+        view,
+        suppressNextEditorClick,
+    );
     view.dom.addEventListener('mouseover', handleEditorMouseOver);
     view.dom.addEventListener('mousemove', handleEditorMouseMove);
     view.dom.addEventListener('mouseout', handleEditorMouseOut);
@@ -287,6 +325,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         view.dom.removeEventListener('mouseout', handleEditorMouseOut);
         view.dom.removeEventListener('mousedown', handleEditorMouseDown, true);
         view.dom.removeEventListener('click', handleEditorClick, true);
+        cleanupExternalLinkDrag();
         document.removeEventListener('mousedown', handleEditorMouseDown, true);
         document.removeEventListener('click', handleEditorClick, true);
         dom.removeEventListener('mouseenter', clearHideTimer);

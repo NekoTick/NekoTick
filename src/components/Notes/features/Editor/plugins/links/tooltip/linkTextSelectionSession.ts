@@ -7,9 +7,15 @@ import {
     isInlineTextSelectionEndpoint,
     resolveEditorTextPositionAtPointer,
 } from '../../shared/pointerTextPosition';
+import { WIKI_LINK_POINTER_SELECTION_META } from '../wiki-link/wikiLinkInteraction';
 
 const LINK_DRAG_SELECTION_THRESHOLD_PX = 4;
-export const LINK_TEXT_POSITION_SELECTOR = 'a[href], .autolink';
+export const LINK_TEXT_POSITION_SELECTOR = [
+    'a[href]',
+    '.autolink',
+    '.wiki-link[data-wiki-link-target]',
+    '.wiki-link-expanded[data-wiki-link-expanded]',
+].join(', ');
 const LINK_TEXT_SCAN_ROOT_SELECTOR = [
     'li',
     'p',
@@ -79,13 +85,55 @@ export function resolveLinkTextRootFromMouseEvent(view: EditorView, event: Mouse
     return best?.link ?? null;
 }
 
+function resolveCollapsedWikiLinkSourceEnd(
+    view: EditorView,
+    event: MouseEvent,
+    selectionRoot: HTMLElement | null,
+): number | null {
+    if (!selectionRoot?.matches('.wiki-link[data-wiki-link-target]')) return null;
+    const sourceRoot = selectionRoot.closest('[data-wiki-link-source="true"]');
+    if (!(sourceRoot instanceof HTMLElement) || sourceRoot.querySelector('.wiki-link-expanded')) return null;
+
+    const rects = selectionRoot.getClientRects();
+    let isAtVisibleEnd = false;
+    for (let index = 0; index < rects.length; index += 1) {
+        const rect = rects.item(index);
+        if (
+            rect &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom &&
+            Math.abs(event.clientX - rect.right) <= 1
+        ) {
+            isAtVisibleEnd = true;
+            break;
+        }
+    }
+    if (!isAtVisibleEnd) return null;
+
+    try {
+        const pos = view.posAtDOM(sourceRoot, sourceRoot.childNodes.length, -1);
+        return isInlineTextSelectionEndpoint(view, pos) ? clampDocPosition(view, pos) : null;
+    } catch {
+        return null;
+    }
+}
+
+function resolveLinkTextPositionAtPointer(
+    view: EditorView,
+    event: MouseEvent,
+    selectionRoot = resolveLinkTextRootFromMouseEvent(view, event),
+): number | null {
+    return resolveCollapsedWikiLinkSourceEnd(view, event, selectionRoot)
+        ?? resolveEditorTextPositionAtPointer(
+            view,
+            event.clientX,
+            event.clientY,
+            selectionRoot,
+        );
+}
+
 export function dispatchLinkTextCursorFromMouseEvent(view: EditorView, event: MouseEvent): boolean {
-    const pos = resolveEditorTextPositionAtPointer(
-        view,
-        event.clientX,
-        event.clientY,
-        resolveLinkTextRootFromMouseEvent(view, event),
-    );
+    const pos = resolveLinkTextPositionAtPointer(view, event);
     return pos !== null && dispatchEditorTextSelection(view, pos, pos, { hideFloatingToolbar: false });
 }
 
@@ -93,7 +141,7 @@ function dispatchEditorTextSelection(
     view: EditorView,
     anchor: number,
     head = anchor,
-    options: { hideFloatingToolbar?: boolean } = {},
+    options: { hideFloatingToolbar?: boolean; suppressWikiLinkExpansion?: boolean } = {},
 ): boolean {
     if (!view.dom.isConnected) return false;
 
@@ -112,6 +160,9 @@ function dispatchEditorTextSelection(
         if (options.hideFloatingToolbar !== false) {
             tr = tr.setMeta(floatingToolbarKey, { type: TOOLBAR_ACTIONS.HIDE });
         }
+        if (options.suppressWikiLinkExpansion) {
+            tr = tr.setMeta(WIKI_LINK_POINTER_SELECTION_META, true);
+        }
         tr = tr
             .setMeta('addToHistory', false)
             .scrollIntoView();
@@ -126,6 +177,7 @@ function dispatchEditorTextSelection(
 
 function isPlainPrimaryMouseDown(event: MouseEvent): boolean {
     return event.button === 0 &&
+        event.detail <= 1 &&
         !event.metaKey &&
         !event.ctrlKey &&
         !event.altKey &&
@@ -139,12 +191,11 @@ export function startLinkTextSelectionSession(
 ): boolean {
     if (!isPlainPrimaryMouseDown(event)) return false;
 
-    const anchor = resolveEditorTextPositionAtPointer(
-        view,
-        event.clientX,
-        event.clientY,
-        resolveLinkTextRootFromMouseEvent(view, event),
-    );
+    const selectionRoot = resolveLinkTextRootFromMouseEvent(view, event);
+    const isWikiLinkSelection = selectionRoot?.matches(
+        '.wiki-link[data-wiki-link-target], .wiki-link-expanded[data-wiki-link-expanded]'
+    ) === true;
+    const anchor = resolveLinkTextPositionAtPointer(view, event, selectionRoot);
     if (anchor === null) return false;
     const sessionDoc = view.state.doc;
 
@@ -161,16 +212,11 @@ export function startLinkTextSelectionSession(
         ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
     };
 
-    const extendSelection = (moveEvent: MouseEvent) => {
+    const extendSelection = (moveEvent: MouseEvent, suppressWikiLinkExpansion = isWikiLinkSelection) => {
         if (view.state.doc !== sessionDoc) return;
-        const head = resolveEditorTextPositionAtPointer(
-            view,
-            moveEvent.clientX,
-            moveEvent.clientY,
-            resolveLinkTextRootFromMouseEvent(view, moveEvent),
-        );
+        const head = resolveLinkTextPositionAtPointer(view, moveEvent);
         if (head !== null) {
-            dispatchEditorTextSelection(view, anchor, head);
+            dispatchEditorTextSelection(view, anchor, head, { suppressWikiLinkExpansion });
         }
     };
 
@@ -211,14 +257,17 @@ export function startLinkTextSelectionSession(
             }, 0);
             return;
         }
-        extendSelection(upEvent);
+        extendSelection(upEvent, false);
         onDragSelectionComplete();
     };
 
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    dispatchEditorTextSelection(view, anchor, anchor, { hideFloatingToolbar: false });
+    dispatchEditorTextSelection(view, anchor, anchor, {
+        hideFloatingToolbar: false,
+        suppressWikiLinkExpansion: isWikiLinkSelection,
+    });
     ownerDocument.addEventListener('mousemove', handleMouseMove, true);
     ownerDocument.addEventListener('mouseup', handleMouseUp, true);
     return true;

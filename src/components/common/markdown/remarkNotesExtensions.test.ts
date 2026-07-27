@@ -296,6 +296,41 @@ describe('remarkNotesInlineExtensions', () => {
     ]);
   });
 
+  it('passes source markdown to alignment blank-line preservation', () => {
+    const markdown = ['Paragraph', '<!--align:center-->', '', '', '# Heading'].join('\n');
+    const commentStart = markdown.indexOf('<!--align:center-->');
+    const commentEnd = commentStart + '<!--align:center-->'.length;
+    const headingStart = markdown.indexOf('# Heading');
+    const tree: MdastNode = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [{ type: 'text', value: 'Paragraph' }],
+          position: { start: { offset: 0 }, end: { offset: 'Paragraph'.length } },
+        },
+        {
+          type: 'html',
+          value: '<!--align:center-->',
+          position: { start: { offset: commentStart }, end: { offset: commentEnd } },
+        },
+        {
+          type: 'heading',
+          children: [{ type: 'text', value: 'Heading' }],
+          position: { start: { offset: headingStart }, end: { offset: markdown.length } },
+        },
+      ],
+    };
+
+    remarkNotesInlineExtensions()(tree, { value: markdown });
+
+    expect(tree.children?.[0].data).toMatchObject({
+      vlainaAlignmentBlankLineCountBefore: 0,
+      vlainaAlignmentBlankLineCountAfter: 2,
+      vlainaAlignmentCommentPlacement: 'after',
+    });
+  });
+
   it('keeps source positions for inline transforms after abbreviation replacements', () => {
     const markdown = [
       '*[HTML]: HyperText Markup Language',

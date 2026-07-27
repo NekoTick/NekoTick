@@ -44,6 +44,14 @@ export const NON_EDITABLE_HTML_BOUNDARY_TAG_NAMES = new Set([
   'noscript',
   'svg',
 ]);
+export const BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES = new Set([
+  'math',
+  'noembed',
+  'noscript',
+  'svg',
+  'textarea',
+  'xmp',
+]);
 export const MARKDOWN_ESCAPE_PATTERN = /\\([\\`*_{}[\]()#+\-.!])/g;
 export const ESCAPED_LESS_THAN_PATTERN = /(^|[^\\])\\</g;
 export const REDUNDANT_PAIRED_MARKER_ESCAPES = new Set(['*', '~']);
@@ -139,14 +147,6 @@ export const MAILTO_EMAIL_MARKDOWN_LINK_PATTERN = new RegExp(
 );
 export const FAST_NORMALIZATION_STRUCTURAL_LINE_PATTERN =
   /^\s*(?:[-+*]\s+|\d+[.)]\s+|>\s*|`{3,}|~{3,}|\|.*\||#{1,6}[ \t]*$|[-*_][ \t]*[-*_][ \t]*[-*_]|=+[ \t]*$)/;
-export const ALTERNATIVE_MATH_BLOCK_OPEN_PATTERN = /^(\s*(?:>\s*)*)((?:\\+\[\\?)|\[\\?|\[)\s*$/;
-export const ALTERNATIVE_MATH_BLOCK_STANDARD_CLOSE_PATTERN = /^(\s*(?:>\s*)*)\\\]\s*$/;
-export const ALTERNATIVE_MATH_BLOCK_BRACKET_CLOSE_PATTERN = /^(\s*(?:>\s*)*)]\s*$/;
-export const ALTERNATIVE_MATH_BLOCK_STANDARD_CLOSE_SUFFIX_PATTERN = /^(.*)\\\]\s*$/;
-export const ALTERNATIVE_MATH_BLOCK_BRACKET_CLOSE_SUFFIX_PATTERN = /^(.*)]\s*$/;
-export const DOLLAR_MATH_BLOCK_FENCE_PATTERN = /^(\s*(?:>\s*)*)\$\$\s*$/;
-export const STANDALONE_DOLLAR_MATH_PATTERN = /^(\s*(?:>\s*)*)\$\$[ \t]*(\S(?:.*?\S)?)[ \t]*\$\$\s*$/;
-export const STANDALONE_BRACKET_MATH_PATTERN = /^(\s*(?:>\s*)*)\\\[[ \t]*(\S(?:.*?\S)?)[ \t]*\\\]\s*$/;
 export const LATEX_LIKE_MATH_CONTENT_PATTERN = /\\[A-Za-z]+|(?:^|[^\w])(?:\\?[A-Za-z]\w*)\s*(?:=|[<>]|\^(?:\{|\d)|_(?:\{|\d)|\\(?:le|ge|neq|approx|times|cdot|frac|sqrt|mu|alpha|beta|gamma|theta)\b)/;
 export const GENERIC_HTML_BLOCK_TAGS = new Set([
   'address',
@@ -207,7 +207,9 @@ export const GENERIC_HTML_BLOCK_TAGS = new Set([
 export type MathBlockFenceStyle = 'dollar' | 'bracket' | 'dollar-inline' | 'bracket-inline';
 
 export interface MathBlockFenceReference {
+  closeFenceLength?: number;
   latex: string;
+  openFenceLength?: number;
   style: MathBlockFenceStyle;
 }
 
@@ -217,17 +219,25 @@ export interface MathBlockFenceReferenceIndex {
 }
 
 export interface DollarMathFenceMatch {
+  closeFenceLength: number;
+  closePrefix: string;
   prefix: string;
+  contentPrefix: string;
   closeIndex: number;
+  openFenceLength: number;
 }
 
 export interface MarkdownFenceLine {
+  blockquoteDepth: number;
+  containerIndent: number;
   infoStart: number;
   length: number;
   marker: string;
 }
 
 export interface GenericHtmlSpacingFenceState {
+  blockquoteDepth: number;
+  containerIndent: number;
   length: number;
   marker: string;
 }

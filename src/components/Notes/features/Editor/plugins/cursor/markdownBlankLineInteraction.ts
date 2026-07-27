@@ -27,8 +27,6 @@ export {
   resolveMarkdownBlankLineTargetAtCoords,
 } from './markdownBlankLinePointer';
 export {
-  appendFreshEmptyParagraphInputBoundaryTransaction,
   createEditableMarkdownBlankLineDecorations,
-  handleFreshEmptyParagraphTextInput,
   handleMarkdownBlankLineTextInput,
 } from './markdownBlankLineInput';

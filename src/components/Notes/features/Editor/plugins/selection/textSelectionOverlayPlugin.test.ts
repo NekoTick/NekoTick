@@ -795,6 +795,53 @@ describe('textSelectionOverlayPlugin', () => {
     }
   });
 
+  it('leaves expanded wiki-link pointer gestures to the wiki-link plugin', async () => {
+    const view = await createEditor('hello world');
+    const originalElementFromPoint = document.elementFromPoint;
+    const restoreCaretRangeFromPoint = mockCaretRangeFromPoint(view, 3);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+    const expanded = view.dom.querySelector('p');
+    expect(expanded).not.toBeNull();
+    expanded!.setAttribute('data-wiki-link-source', 'true');
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => expanded,
+    });
+
+    try {
+      expanded!.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: 32,
+        clientY: 12,
+      }));
+      const mouseUp = new MouseEvent('mouseup', {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+      });
+      const mouseUpDispatched = document.dispatchEvent(mouseUp);
+      expanded!.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+      }));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+      expect(mouseUpDispatched).toBe(true);
+      expect(mouseUp.defaultPrevented).toBe(false);
+      expect(view.state.selection.from).toBe(1);
+      expect(view.state.selection.to).toBe(6);
+    } finally {
+      restoreCaretRangeFromPoint();
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    }
+  });
+
   it('does not collapse a retained pointer text selection when the next gesture drags', async () => {
     const view = await createEditor('hello world');
     const originalElementFromPoint = document.elementFromPoint;
@@ -1047,9 +1094,31 @@ describe('textSelectionOverlayPlugin', () => {
       expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
       expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
 
+      const setCurSelection = vi.spyOn(
+        (view as unknown as {
+          domObserver: {
+            setCurSelection: () => void;
+            suppressSelectionUpdates: () => void;
+          };
+        }).domObserver,
+        'setCurSelection',
+      );
+      const suppressSelectionUpdates = vi.spyOn(
+        (view as unknown as {
+          domObserver: {
+            setCurSelection: () => void;
+            suppressSelectionUpdates: () => void;
+          };
+        }).domObserver,
+        'suppressSelectionUpdates',
+      );
+      setCurSelection.mockClear();
+      suppressSelectionUpdates.mockClear();
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
       expect(removeAllRanges).toHaveBeenCalled();
+      expect(suppressSelectionUpdates).toHaveBeenCalled();
+      expect(setCurSelection).toHaveBeenCalled();
       expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
       expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
     } finally {

@@ -1,7 +1,9 @@
 import { TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION } from './blockSelectionPluginState';
-import { isSameEditorScrollRoot } from './blankAreaInteractionUtils';
+import { resolveInsideBlockVisualLinePlainClickAction } from './blankAreaPlainClick';
+import { createBlockRectResolver } from './blockRectResolver';
+import { isSameEditorScrollRoot, SCROLL_ROOT_SELECTOR } from './blankAreaInteractionUtils';
 import {
   DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT,
   STOP_PROSE_SCAN,
@@ -180,6 +182,28 @@ function logMarkdownBlankLineDebug(message: string, payload: Record<string, unkn
   console.debug('[editor:markdown-blank-line]', message, payload);
 }
 
+function isAdjacentVisualLineEdgeClick(
+  view: EditorView,
+  blankLineNodePos: number,
+  clientX: number,
+  clientY: number,
+): boolean {
+  const resolver = createBlockRectResolver({
+    view,
+    scrollRootSelector: SCROLL_ROOT_SELECTOR,
+  });
+  try {
+    const action = resolveInsideBlockVisualLinePlainClickAction({
+      blockRects: resolver.getTopLevelBlockRects(),
+      clientX,
+      clientY,
+    });
+    return action !== null && action.blockFrom !== blankLineNodePos;
+  } finally {
+    resolver.invalidate();
+  }
+}
+
 export function handleMarkdownBlankLinePointerDown(view: EditorView, event: MouseEvent): boolean {
   if (!isSameEditorScrollRoot(view, event.target)) return false;
   if (event.button !== 0) return false;
@@ -191,6 +215,7 @@ export function handleMarkdownBlankLinePointerDown(view: EditorView, event: Mous
 
   const nodePos = resolveMarkdownBlankLineNodePos(view, blankLine);
   if (nodePos === null) return false;
+  if (isAdjacentVisualLineEdgeClick(view, nodePos, event.clientX, event.clientY)) return false;
 
   const node = view.state.doc.nodeAt(nodePos);
   if (!node || node.type.name !== 'html_block') return false;

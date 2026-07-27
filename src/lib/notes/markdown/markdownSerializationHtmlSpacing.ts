@@ -1,5 +1,12 @@
-import { getMarkdownBlockContent } from '@/lib/markdown/markdownHtmlBlockClassification';
 import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
+import {
+  getMarkdownContentInContainer,
+  isMarkdownLineInContainer,
+  type MarkdownContainerState,
+  parseMarkdownContainerFenceCloseLine,
+  parseMarkdownContainerFenceLine,
+  parseMarkdownContainerLinePrefix,
+} from './markdownFenceProtectedLines';
 import {
   GENERIC_HTML_BLOCK_OPEN_LINE_PATTERN,
   GENERIC_HTML_BLOCK_TAGS,
@@ -7,6 +14,8 @@ import {
   MarkdownFenceLine,
   RAW_HTML_BLOCK_OPEN_LINE_PATTERN
 } from './markdownSerializationShared';
+
+type HtmlSpacingBlockState = MarkdownContainerState & { tagName: string };
 
 export function normalizeGenericHtmlBlockClosingSpacing(text: string): string {
   if (!text.includes('</')) return text;
@@ -22,51 +31,67 @@ export function normalizeGenericHtmlBlockClosingSpacingSegment(text: string): st
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const output: string[] = [];
   let activeFence: GenericHtmlSpacingFenceState | null = null;
-  let activeGenericTagName: string | null = null;
-  let activeRawTagName: string | null = null;
+  let activeGenericBlock: HtmlSpacingBlockState | null = null;
+  let activeRawBlock: HtmlSpacingBlockState | null = null;
 
   for (const line of lines) {
-    const content = getMarkdownBlockContent(line);
-
     if (activeFence) {
-      output.push(line);
-      if (isGenericHtmlSpacingFenceClose(content, activeFence)) {
-        activeFence = null;
+      if (isMarkdownLineInContainer(line, activeFence)) {
+        output.push(line);
+        if (isGenericHtmlSpacingFenceClose(line, activeFence)) {
+          activeFence = null;
+        }
+        continue;
       }
-      continue;
+      activeFence = null;
     }
 
-    if (activeRawTagName) {
-      output.push(line);
-      if (new RegExp(`</${activeRawTagName}(?:\\s[^>]*)?>`, 'i').test(content)) {
-        activeRawTagName = null;
+    if (activeRawBlock) {
+      const content = getMarkdownContentInContainer(line, activeRawBlock);
+      if (content !== null) {
+        output.push(line);
+        if (new RegExp(`</${activeRawBlock.tagName}(?:\\s[^>]*)?>`, 'i').test(content)) {
+          activeRawBlock = null;
+        }
+        continue;
       }
-      continue;
+      activeRawBlock = null;
     }
 
-    if (activeGenericTagName) {
-      const closePattern = new RegExp(`^(?: {0,3})<\\/${activeGenericTagName}\\s*>\\s*$`, 'i');
-      const isCloseLine = closePattern.test(content);
-      if (isCloseLine && output[output.length - 1] === '') {
-        output.pop();
+    if (activeGenericBlock) {
+      const content = getMarkdownContentInContainer(line, activeGenericBlock);
+      if (content !== null) {
+        const closePattern = new RegExp(`^(?: {0,3})<\\/${activeGenericBlock.tagName}\\s*>\\s*$`, 'i');
+        const isCloseLine = closePattern.test(content);
+        if (isCloseLine && output[output.length - 1] === '') {
+          output.pop();
+        }
+        output.push(line);
+        if (isCloseLine) {
+          activeGenericBlock = null;
+        }
+        continue;
       }
-      output.push(line);
-      if (isCloseLine) {
-        activeGenericTagName = null;
-      }
-      continue;
+      activeGenericBlock = null;
     }
 
     output.push(line);
 
-    activeFence = getGenericHtmlSpacingFenceOpen(content);
+    activeFence = getGenericHtmlSpacingFenceOpen(line);
     if (activeFence) {
       continue;
     }
 
+    const container = parseMarkdownContainerLinePrefix(line);
+    if (!container) continue;
+    const content = line.slice(container.markerStart);
     const rawTagName = RAW_HTML_BLOCK_OPEN_LINE_PATTERN.exec(content)?.[1]?.toLowerCase();
     if (rawTagName && !new RegExp(`</${rawTagName}(?:\\s[^>]*)?>`, 'i').test(content)) {
-      activeRawTagName = rawTagName;
+      activeRawBlock = {
+        blockquoteDepth: container.blockquoteDepth,
+        containerIndent: container.containerIndent,
+        tagName: rawTagName,
+      };
       continue;
     }
 
@@ -76,7 +101,11 @@ export function normalizeGenericHtmlBlockClosingSpacingSegment(text: string): st
       GENERIC_HTML_BLOCK_TAGS.has(openTagName) &&
       !/\/>\s*$/.test(content)
     ) {
-      activeGenericTagName = openTagName;
+      activeGenericBlock = {
+        blockquoteDepth: container.blockquoteDepth,
+        containerIndent: container.containerIndent,
+        tagName: openTagName,
+      };
     }
   }
 
@@ -87,41 +116,24 @@ export function getGenericHtmlSpacingFenceOpen(content: string): GenericHtmlSpac
   const fence = parseGenericHtmlSpacingFenceLine(content);
   if (!fence) return null;
   if (fence.marker === '`' && content.indexOf('`', fence.infoStart) !== -1) return null;
-  return { marker: fence.marker, length: fence.length };
+  return {
+    blockquoteDepth: fence.blockquoteDepth,
+    containerIndent: fence.containerIndent,
+    marker: fence.marker,
+    length: fence.length,
+  };
 }
 
 export function isGenericHtmlSpacingFenceClose(
   content: string,
   activeFence: GenericHtmlSpacingFenceState,
 ): boolean {
-  const fence = parseGenericHtmlSpacingFenceLine(content);
-  return Boolean(
-    fence &&
-    fence.marker === activeFence.marker &&
-    fence.length >= activeFence.length &&
-    content.slice(fence.infoStart).trim() === ''
-  );
+  return parseMarkdownContainerFenceCloseLine(content, activeFence) !== null;
 }
 
-export function parseGenericHtmlSpacingFenceLine(content: string): MarkdownFenceLine | null {
-  let index = 0;
-  while (index < content.length && index <= 3 && content[index] === ' ') {
-    index += 1;
-  }
-  if (index > 3) return null;
-
-  const marker = content[index];
-  if (marker !== '`' && marker !== '~') return null;
-
-  let length = 0;
-  while (content[index + length] === marker) {
-    length += 1;
-  }
-  if (length < 3) return null;
-
-  return {
-    infoStart: index + length,
-    length,
-    marker,
-  };
+export function parseGenericHtmlSpacingFenceLine(
+  content: string,
+  options?: { maxIndent?: number; stripListMarker?: boolean },
+): MarkdownFenceLine | null {
+  return parseMarkdownContainerFenceLine(content, options);
 }
