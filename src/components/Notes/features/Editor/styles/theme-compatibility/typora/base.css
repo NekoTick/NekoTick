@@ -217,9 +217,19 @@
   line-height: 1;
   display: inline-block;
   vertical-align: baseline;
-  white-space: pre;
+  max-width: 100%;
+  white-space: break-spaces;
+  overflow-wrap: break-word;
+  word-break: normal;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+
+:where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora) #write .editor-tag-token {
+  display: inline;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 :where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora) #write :is(.v-tag, .editor-tag-token) {

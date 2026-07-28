@@ -10,7 +10,7 @@
   word-break: break-all;
 }
 
-.markdown-surface :is(pre, code, [data-type="math-inline"], [data-type="math-block"], .katex, .katex *) {
+.markdown-surface :where(pre, code, [data-type="math-inline"], [data-type="math-block"], .katex, .katex *) {
   overflow-wrap: normal;
   word-break: normal;
 }
