@@ -3,7 +3,7 @@ import type { Node } from '@milkdown/kit/prose/model';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { DOMEventHandlers, EditorView as CodeMirror } from '@codemirror/view';
 import { EditorSelection } from '@codemirror/state';
-import { writeTextToClipboard } from '../../cursor/blockSelectionCommands';
+import { tryWriteTextToClipboardSynchronously } from '@/lib/clipboard';
 import { getCodeBlockSourceText } from '../codeBlockText';
 import { mapCodeBlockEditorOffsetToDocumentOffset } from './codeBlockEditorUtils';
 import type { CreateCodeBlockKeymapOptions } from './codeBlockEditorKeymapTypes';
@@ -14,6 +14,14 @@ import {
 
 const { TextSelection } = proseState;
 
+type CapturedCodeMirrorClipboardSelection = {
+  doc: CodeMirror['state']['doc'];
+  selection: CodeMirror['state']['selection'];
+  text: string;
+};
+
+const capturedClipboardSelections = new WeakMap<CodeMirror, CapturedCodeMirrorClipboardSelection>();
+
 function getSelectedCodeMirrorText(cm: CodeMirror): string {
   return cm.state.selection.ranges
     .filter((range) => !range.empty)
@@ -21,27 +29,55 @@ function getSelectedCodeMirrorText(cm: CodeMirror): string {
     .join('\n');
 }
 
-function isCodeMirrorSelectionStillCurrent(
-  cm: CodeMirror,
-  originalDoc: CodeMirror['state']['doc'],
-  originalSelection: CodeMirror['state']['selection'],
-  originalText: string
-): boolean {
-  const currentDoc = cm.state.doc as { eq?: (other: unknown) => boolean } | undefined;
-  if (typeof currentDoc?.eq === 'function' && !currentDoc.eq(originalDoc)) {
-    return false;
+export function trackCodeBlockEditorClipboardKeydown(event: KeyboardEvent, cm: CodeMirror): void {
+  const key = event.key.toLowerCase();
+  if (event.isComposing || event.altKey) {
+    capturedClipboardSelections.delete(cm);
+    return;
   }
 
-  const currentSelection = cm.state.selection as { eq?: (other: unknown) => boolean } | undefined;
-  if (typeof currentSelection?.eq === 'function') {
-    return currentSelection.eq(originalSelection);
+  if (key === 'control' || key === 'meta') {
+    const text = getSelectedCodeMirrorText(cm);
+    if (text) {
+      capturedClipboardSelections.set(cm, {
+        doc: cm.state.doc,
+        selection: cm.state.selection,
+        text,
+      });
+    } else {
+      capturedClipboardSelections.delete(cm);
+    }
+    return;
   }
 
-  return getSelectedCodeMirrorText(cm) === originalText;
+  const isClipboardKey =
+    ((event.ctrlKey || event.metaKey) && (key === 'c' || key === 'x')) ||
+    (event.ctrlKey && !event.metaKey && key === 'insert') ||
+    (!event.ctrlKey && !event.metaKey && event.shiftKey && key === 'delete');
+  if (!isClipboardKey) {
+    capturedClipboardSelections.delete(cm);
+  }
 }
 
-function collapseCodeMirrorSelection(cm: CodeMirror) {
-  const { main } = cm.state.selection;
+export function clearCodeBlockEditorClipboardCapture(cm: CodeMirror): void {
+  capturedClipboardSelections.delete(cm);
+}
+
+function takeCapturedClipboardSelection(cm: CodeMirror): CapturedCodeMirrorClipboardSelection | null {
+  const captured = capturedClipboardSelections.get(cm) ?? null;
+  capturedClipboardSelections.delete(cm);
+  const currentDoc = cm.state.doc as { eq?: (other: unknown) => boolean } | undefined;
+  if (captured && typeof currentDoc?.eq === 'function' && !currentDoc.eq(captured.doc)) {
+    return null;
+  }
+  return captured;
+}
+
+function collapseCodeMirrorSelection(
+  cm: CodeMirror,
+  selection: CodeMirror['state']['selection'],
+) {
+  const { main } = selection;
   cm.dispatch({
     selection: {
       anchor: main.to,
@@ -83,40 +119,37 @@ export function copyCodeMirrorSelection(
     return false;
   }
 
-  const text = getSelectedCodeMirrorText(cm);
-  if (!text) {
+  const currentText = getSelectedCodeMirrorText(cm);
+  const captured = event ? null : takeCapturedClipboardSelection(cm);
+  const selection = currentText ? cm.state.selection : captured?.selection;
+  const text = currentText || captured?.text || '';
+  if (!text || !selection) {
     return false;
   }
 
   if (event?.clipboardData) {
     event.preventDefault();
     event.clipboardData.setData('text/plain', text);
-    collapseCodeMirrorSelection(cm);
+    collapseCodeMirrorSelection(cm, selection);
     collapseProseMirrorSelectionToCodeMirrorHead(cm, view, getNode, getPos);
     view.focus();
     return true;
   }
 
-  event?.preventDefault();
-  const originalDoc = cm.state.doc;
-  const originalSelection = cm.state.selection;
-  void writeTextToClipboard(text).then((didCopy) => {
-    if (!didCopy || !isCodeMirrorSelectionStillCurrent(cm, originalDoc, originalSelection, text)) {
-      return;
-    }
+  if (!tryWriteTextToClipboardSynchronously(text)) {
+    return false;
+  }
 
-    collapseCodeMirrorSelection(cm);
-    collapseProseMirrorSelectionToCodeMirrorHead(cm, view, getNode, getPos);
-    view.focus();
-  }).catch(() => undefined);
+  event?.preventDefault();
+  collapseCodeMirrorSelection(cm, selection);
+  collapseProseMirrorSelectionToCodeMirrorHead(cm, view, getNode, getPos);
+  view.focus();
   return true;
 }
 
 export function cutCodeMirrorSelection(
   getCodeMirror: () => CodeMirror | undefined,
   view: EditorView,
-  getNode: () => Node,
-  getPos: () => number | undefined,
   event?: ClipboardEvent
 ) {
   const cm = getCodeMirror();
@@ -124,20 +157,22 @@ export function cutCodeMirrorSelection(
     return false;
   }
 
-  const text = getSelectedCodeMirrorText(cm);
-  if (!text) {
+  const currentText = getSelectedCodeMirrorText(cm);
+  const captured = event ? null : takeCapturedClipboardSelection(cm);
+  const selection = currentText ? cm.state.selection : captured?.selection;
+  const text = currentText || captured?.text || '';
+  if (!text || !selection) {
     return false;
   }
-
   const deleteSelection = () => {
+    cm.focus();
+    cm.dispatch({ selection });
     cm.dispatch(
       cm.state.changeByRange((range) => ({
         changes: range.empty ? [] : { from: range.from, to: range.to, insert: '' },
         range: range.empty ? range : EditorSelection.cursor(range.from),
       }))
     );
-    collapseProseMirrorSelectionToCodeMirrorHead(cm, view, getNode, getPos);
-    cm.focus();
   };
 
   if (event?.clipboardData) {
@@ -147,16 +182,12 @@ export function cutCodeMirrorSelection(
     return true;
   }
 
-  event?.preventDefault();
-  const originalDoc = cm.state.doc;
-  const originalSelection = cm.state.selection;
-  void writeTextToClipboard(text).then((didCopy) => {
-    if (!didCopy || !isCodeMirrorSelectionStillCurrent(cm, originalDoc, originalSelection, text)) {
-      return;
-    }
+  if (!tryWriteTextToClipboardSynchronously(text)) {
+    return false;
+  }
 
-    deleteSelection();
-  }).catch(() => undefined);
+  event?.preventDefault();
+  deleteSelection();
   return true;
 }
 
@@ -164,7 +195,10 @@ export function createCodeBlockEditorClipboardHandlers({
   view,
   getNode,
   getPos,
-}: Omit<CreateCodeBlockKeymapOptions, 'getCodeMirror'>): DOMEventHandlers<unknown> {
+  onCut,
+}: Omit<CreateCodeBlockKeymapOptions, 'getCodeMirror'> & {
+  onCut?: () => void;
+}): DOMEventHandlers<unknown> {
   return {
     paste(event) {
       return preventImageClipboardTextPaste(event);
@@ -176,7 +210,11 @@ export function createCodeBlockEditorClipboardHandlers({
       return copyCodeMirrorSelection(() => cm, view, getNode, getPos, event);
     },
     cut(event, cm) {
-      return cutCodeMirrorSelection(() => cm, view, getNode, getPos, event);
+      const didCut = cutCodeMirrorSelection(() => cm, view, event);
+      if (didCut) {
+        onCut?.();
+      }
+      return didCut;
     },
   };
 }

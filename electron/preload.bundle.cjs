@@ -265,6 +265,9 @@
           writeText(text) {
             return ipcRenderer.invoke('desktop:clipboard:write-text', text);
           },
+          writeTextSync(text) {
+            return ipcRenderer.sendSync('desktop:clipboard:write-text-sync', text) === true;
+          },
           writeImage(dataUrl) {
             return ipcRenderer.invoke('desktop:clipboard:write-image', dataUrl);
           },

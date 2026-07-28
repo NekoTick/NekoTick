@@ -212,11 +212,7 @@ export function prepareMarkdownPasteInput(
     if (!isWithinBounds(withFrontmatter)) {
         return null;
     }
-    const withInterruptedLists = normalizeInterruptedOrderedListsForPaste(withFrontmatter);
-    if (!isWithinBounds(withInterruptedLists)) {
-        return null;
-    }
-    const withThematicBreaks = normalizeStandaloneThematicBreaksForPaste(withInterruptedLists);
+    const withThematicBreaks = normalizeStandaloneThematicBreaksForPaste(withFrontmatter);
     if (!isWithinBounds(withThematicBreaks)) {
         return null;
     }
@@ -227,6 +223,10 @@ export function prepareMarkdownPasteInput(
     if (!isWithinBounds(pasteMarkdown)) {
         return null;
     }
-    const editorInput = preserveMarkdownBlankLinesForPaste(pasteMarkdown);
+    const withPreservedBlankLines = preserveMarkdownBlankLinesForPaste(pasteMarkdown);
+    if (!isWithinBounds(withPreservedBlankLines)) {
+        return null;
+    }
+    const editorInput = normalizeInterruptedOrderedListsForPaste(withPreservedBlankLines);
     return isWithinBounds(editorInput) ? editorInput : null;
 }

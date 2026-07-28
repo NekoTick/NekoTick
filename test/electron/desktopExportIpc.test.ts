@@ -114,10 +114,14 @@ vi.mock('electron', () => ({
 
 function registerHarness() {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const syncHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
   registerDesktopIpc({
     handleIpc: (name: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(name, handler);
+    },
+    handleSyncIpc: (name: string, handler: (...args: unknown[]) => unknown) => {
+      syncHandlers.set(name, handler);
     },
     normalizeExternalUrl: (url: string) => url,
     resolveTargetWindow: vi.fn(() => null),
@@ -125,7 +129,7 @@ function registerHarness() {
     requireStringArray: (value: string[]) => value,
   });
 
-  return { handlers };
+  return { handlers, syncHandlers };
 }
 
 function createOversizedBase64Body() {
@@ -448,6 +452,13 @@ describe('desktop export ipc', () => {
     expect(isPathInsideDirectory('/notesRoot/docs', '/notesRoot/docs')).toBe(false);
     expect(isPathInsideDirectory('/notesRoot/docs', '/notesRoot/docs-archive')).toBe(false);
     expect(isPathInsideDirectory('/notesRoot/docs', '/notesRoot/other')).toBe(false);
+  });
+
+  it('writes text to the native clipboard synchronously', () => {
+    const { syncHandlers } = registerHarness();
+
+    expect(syncHandlers.get('desktop:clipboard:write-text-sync')?.({}, 'fresh clipboard text')).toBe(true);
+    expect(electron.clipboard.writeText).toHaveBeenCalledWith('fresh clipboard text');
   });
 
   it('writes data URL images to the native clipboard', async () => {

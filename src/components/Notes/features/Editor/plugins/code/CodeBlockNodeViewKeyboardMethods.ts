@@ -4,6 +4,10 @@ import {
 } from '@codemirror/view';
 import { floatingToolbarKey } from '../floating-toolbar/floatingToolbarKey';
 import { TOOLBAR_ACTIONS } from '../floating-toolbar/types';
+import {
+  copyCodeMirrorSelection,
+  cutCodeMirrorSelection,
+} from './codemirror/codeBlockEditorClipboard';
 
 type CodeMirrorSelectionArrowKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
 
@@ -84,6 +88,28 @@ class CodeBlockNodeViewKeyboardMethods {
   }
 
   handleCodeMirrorKeydown(this: any, event: KeyboardEvent, cm: CodeMirror) {
+    if (!event.isComposing && !event.altKey) {
+      const key = event.key.toLowerCase();
+      const hasPrimaryModifier = event.ctrlKey || event.metaKey;
+      const isCopyShortcut =
+        (hasPrimaryModifier && !event.shiftKey && key === 'c') ||
+        (event.ctrlKey && !event.metaKey && !event.shiftKey && key === 'insert');
+      const isCutShortcut =
+        (hasPrimaryModifier && !event.shiftKey && key === 'x') ||
+        (!event.ctrlKey && !event.metaKey && event.shiftKey && key === 'delete');
+
+      if (isCopyShortcut) {
+        return copyCodeMirrorSelection(() => cm, this.view, () => this.node, this.getPos);
+      }
+      if (isCutShortcut) {
+        const didCut = cutCodeMirrorSelection(() => cm, this.view);
+        if (didCut) {
+          this.flushCodeMirrorClipboardCut();
+        }
+        return didCut;
+      }
+    }
+
     if (
       !event.defaultPrevented &&
       !event.ctrlKey &&

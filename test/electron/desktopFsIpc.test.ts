@@ -46,6 +46,7 @@ function registerHarness() {
     handleIpc: (name: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(name, handler);
     },
+    handleSyncIpc: vi.fn(),
     normalizeExternalUrl: (url: string) => url,
     resolveTargetWindow: vi.fn(() => null),
     requireNonEmptyString: (value: string) => value,

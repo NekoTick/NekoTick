@@ -17,6 +17,7 @@ import {
 import {
   exposeRenderedHtmlBoundaryBlankLinesForEditor,
   isBlankTerminatedNonEditableHtmlBoundaryLine,
+  restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor,
 } from './markdownRenderedHtmlBlankLines';
 import { escapeParagraphTrailingBackslashesForEditor } from './plainTextBackslashHardBreaks';
 import { protectUserAuthoredInternalArtifactCommentsForEditor } from './markdownInternalArtifactEscapes';
@@ -147,7 +148,9 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
     return line;
   });
   return normalizeUserBreakSentinels(
-    exposeRenderedHtmlBoundaryBlankLinesForEditor(preserved)
+    exposeRenderedHtmlBoundaryBlankLinesForEditor(
+      restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor(preserved)
+    )
   );
 }
 

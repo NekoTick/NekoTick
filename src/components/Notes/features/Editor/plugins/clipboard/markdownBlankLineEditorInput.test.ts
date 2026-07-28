@@ -800,11 +800,14 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     },
   );
 
-  it('does not duplicate rendered html boundary blank-line blocks on reopen', () => {
+  it.each([
+    ['multiline html', ['<div>', 'HTML', '</div>']],
+    ['one-line html', ['<p align="center">HTML</p>']],
+    ['html image', ['<img src="./assets/demo.svg" alt="Demo" />']],
+    ['section html', ['<section>HTML</section>']],
+  ])('does not duplicate rendered html boundary blocks on reopen: %s', (_label, htmlLines) => {
     const markdown = [
-      '<div>',
-      'HTML',
-      '</div>',
+      ...htmlLines,
       '',
       RENDERED_HTML_BOUNDARY_PLACEHOLDER,
       'after',

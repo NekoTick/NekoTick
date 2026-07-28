@@ -42,6 +42,7 @@ export function registerDesktopIpc({
   app: appOverride,
   dialog: dialogOverride,
   handleIpc,
+  handleSyncIpc,
   normalizeExternalUrl,
   resolveTargetWindow,
   requireNonEmptyString,
@@ -70,6 +71,11 @@ export function registerDesktopIpc({
 
   handleIpc('desktop:clipboard:write-text', async (_event, text) => {
     clipboard.writeText(typeof text === 'string' ? text : '');
+  });
+
+  handleSyncIpc('desktop:clipboard:write-text-sync', (_event, text) => {
+    clipboard.writeText(typeof text === 'string' ? text : '');
+    return true;
   });
 
   handleIpc('desktop:clipboard:read-image', async () => {

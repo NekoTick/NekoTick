@@ -270,7 +270,7 @@ describe('extractLargestMarkdownFenceContent', () => {
 });
 
 describe('normalizeInterruptedOrderedListsForPaste', () => {
-    const parserBoundary = '<!--vlaina-markdown-tight-heading-->';
+    const parserBoundary = '';
 
     it('separates a paragraph from a following ordered list that starts after 1', () => {
         expect(normalizeInterruptedOrderedListsForPaste([

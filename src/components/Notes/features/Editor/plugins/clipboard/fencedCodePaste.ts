@@ -32,7 +32,6 @@ const PLAIN_FENCE_CLOSE_PATTERN = /^```$/;
 const ORDERED_LIST_MARKER_PATTERN = /^(\s{0,3})(\d+)[.)][ \t]+/;
 const ANY_LIST_MARKER_PATTERN = /^\s*(?:[-+*]|\d+[.)])[ \t]+/;
 const BLOCK_START_PATTERN = /^\s{0,3}(?:#{1,6}[ \t]+|[-+*][ \t]+|\d+[.)][ \t]+|>[ \t]+|```|~~~|\$\$[ \t]*$|\\\[|\[\\|\[[ \t]*$|\[\^[^\]]+\]:|[-*_]{3,}[ \t]*$|\|.+\|)/;
-const NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER = '<!--vlaina-markdown-tight-heading-->';
 
 type ContainerFenceState = MarkdownContainerState & { marker: string; length: number };
 
@@ -130,7 +129,7 @@ export const normalizeInterruptedOrderedListsForPaste = (value: string): string 
             && hasFollowingOrderedListRun(lines, index)
             && isParagraphContinuationBeforeList(previousLine)
         ) {
-            result.push(NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER);
+            result.push('');
         }
 
         result.push(line);

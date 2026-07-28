@@ -1395,34 +1395,48 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     }
   });
 
-  it('copies and cuts selected blocks directly from keyboard shortcuts', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
+  it('writes block Ctrl+C and Ctrl+X clipboard content synchronously', async () => {
+    const writeText = vi.fn(() => new Promise<void>(() => undefined));
+    const writeTextSync = vi.fn(() => true);
+    const originalDesktopBridge = Object.getOwnPropertyDescriptor(window, 'vlainaDesktop');
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
+      configurable: true,
+    });
+    Object.defineProperty(window, 'vlainaDesktop', {
+      value: {
+        platform: 'electron',
+        clipboard: { writeTextSync },
+      },
       configurable: true,
     });
 
     const { editor, view } = await createBlockSelectionEditor('Alpha\n\nBeta');
 
     try {
-      const copy = simulateKeydown(view, 'c');
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(copy.handled).toBe(true);
-      expect(copy.event.defaultPrevented).toBe(true);
-      expect(writeText).toHaveBeenCalledWith('Alpha');
+      const copyKeydown = simulateKeydown(view, 'c');
+      expect(copyKeydown.handled).toBe(true);
+      expect(copyKeydown.event.defaultPrevented).toBe(true);
+      expect(writeTextSync).toHaveBeenCalledWith('Alpha');
+      expect(writeText).not.toHaveBeenCalled();
       expect(view.state.doc.textContent).toBe('AlphaBeta');
       expect(getBlockSelectionPluginState(view.state).selectedBlocks).toHaveLength(0);
 
       const [firstBlock] = collectSelectableBlockRanges(view.state.doc);
       dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks: [firstBlock] });
-      const cut = simulateKeydown(view, 'x');
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(cut.handled).toBe(true);
-      expect(cut.event.defaultPrevented).toBe(true);
-      expect(writeText).toHaveBeenLastCalledWith('Alpha');
+      const cutKeydown = simulateKeydown(view, 'x');
+      expect(cutKeydown.handled).toBe(true);
+      expect(cutKeydown.event.defaultPrevented).toBe(true);
+      expect(writeTextSync).toHaveBeenLastCalledWith('Alpha');
+      expect(writeText).not.toHaveBeenCalled();
       expect(view.state.doc.textContent).toBe('Beta');
     } finally {
       await editor.destroy();
+      if (originalDesktopBridge) {
+        Object.defineProperty(window, 'vlainaDesktop', originalDesktopBridge);
+      } else {
+        delete (window as Window & { vlainaDesktop?: unknown }).vlainaDesktop;
+      }
     }
   });
 
@@ -1462,8 +1476,8 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     }
   });
 
-  it('prioritizes block selection copy over a stale text selection in the integrated plugin order', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
+  it('does not route Ctrl+C through an async writer when a block selection shadows stale text', async () => {
+    const writeText = vi.fn(() => new Promise<void>(() => undefined));
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
       configurable: true,
@@ -1478,13 +1492,29 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
       dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks: [firstBlock] });
 
       const copy = simulateKeydownUntilHandled(view, 'c');
-      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(copy.handled).toBe(true);
-      expect(copy.event.defaultPrevented).toBe(true);
-      expect(writeText).toHaveBeenCalledTimes(1);
-      expect(writeText).toHaveBeenCalledWith('Alpha');
-      expect(getBlockSelectionPluginState(view.state).selectedBlocks).toHaveLength(0);
+      expect(copy.handled).toBe(false);
+      expect(copy.event.defaultPrevented).toBe(false);
+      expect(writeText).not.toHaveBeenCalled();
+      expect(getBlockSelectionPluginState(view.state).selectedBlocks).toHaveLength(1);
+    } finally {
+      await editor.destroy();
+    }
+  });
+
+  it('keeps selected blocks when synchronous Ctrl+X clipboard writing fails', async () => {
+    const { editor, view } = await createIntegratedBlockSelectionEditor('Alpha\n\nBeta');
+
+    try {
+      const [firstBlock] = collectSelectableBlockRanges(view.state.doc);
+      dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks: [firstBlock] });
+
+      const cut = simulateKeydownUntilHandled(view, 'x');
+
+      expect(cut.handled).toBe(false);
+      expect(cut.event.defaultPrevented).toBe(false);
+      expect(view.state.doc.textContent).toBe('AlphaBeta');
+      expect(getBlockSelectionPluginState(view.state).selectedBlocks).toHaveLength(1);
     } finally {
       await editor.destroy();
     }
@@ -1942,7 +1972,7 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     }
   });
 
-  it('keeps selected blocks when keyboard copy cannot write to the clipboard', async () => {
+  it('keeps selected blocks when legacy keyboard copy cannot write to the clipboard', async () => {
     const writeText = vi.fn().mockRejectedValue(new Error('clipboard unavailable'));
     Object.defineProperty(navigator, 'clipboard', {
       value: { writeText },
@@ -1952,7 +1982,7 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     const { editor, view } = await createBlockSelectionEditor('Alpha\n\nBeta');
 
     try {
-      const copy = simulateKeydown(view, 'c');
+      const copy = simulateKeydown(view, 'Insert');
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(copy.handled).toBe(true);
@@ -1965,7 +1995,7 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     }
   });
 
-  it('does not delete selected blocks when async Ctrl+X completes after the document changes', async () => {
+  it('does not delete selected blocks when async Shift+Delete completes after the document changes', async () => {
     let resolveWrite: () => void = () => {
       throw new Error('clipboard write promise was not created');
     };
@@ -1980,7 +2010,7 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     const { editor, view } = await createBlockSelectionEditor('Alpha\n\nBeta');
 
     try {
-      const cut = simulateKeydown(view, 'x');
+      const cut = simulateKeydown(view, 'Delete', { ctrlKey: false, shiftKey: true });
       view.dispatch(view.state.tr.insertText('Prefix ', 1));
       resolveWrite();
       await new Promise((resolve) => setTimeout(resolve, 0));

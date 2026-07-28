@@ -5,7 +5,7 @@ import { DOMParser as ProseDOMParser, type Node as ProseNode } from '@milkdown/k
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Parser, Serializer } from '@milkdown/kit/transformer';
 
-import { writeTextToClipboard } from '@/lib/clipboard';
+import { tryWriteTextToClipboardSynchronously, writeTextToClipboard } from '@/lib/clipboard';
 import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { hasHeadingDropPayload } from '../cursor/externalTextDropCursorPlugin';
 import { insertImageNodesAtSelection } from '../image-upload/imageNodeInsertion';
@@ -125,20 +125,18 @@ export const clipboardPlugin = $prose((ctx) => {
                 if (text.length === 0) {
                     return false;
                 }
+                if (!tryWriteTextToClipboardSynchronously(text)) {
+                    return false;
+                }
 
                 const selection = view.state.selection;
                 const doc = view.state.doc;
                 event.preventDefault();
-                void writeTextToClipboard(text).then((didCopy) => {
-                    if (didCopy) {
-                        if (isDirectCut) {
-                            deleteCapturedSelection(view, selection, doc);
-                            return;
-                        }
-
-                        collapseCapturedSelectionAndHideFloatingToolbar(view, selection, doc);
-                    }
-                }).catch(() => undefined);
+                if (isDirectCut) {
+                    deleteCapturedSelection(view, selection, doc);
+                } else {
+                    collapseCapturedSelectionAndHideFloatingToolbar(view, selection, doc);
+                }
                 return true;
             },
             handleDOMEvents: {

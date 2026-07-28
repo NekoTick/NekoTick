@@ -41,9 +41,21 @@ export function createTrustedIpc({
     });
   };
 
+  const handleSyncIpc = (channel, listener) => {
+    ipcMain.on(channel, (event, ...args) => {
+      try {
+        assertTrustedIpcSender(event);
+        event.returnValue = listener(event, ...args);
+      } catch {
+        event.returnValue = false;
+      }
+    });
+  };
+
   return {
     assertTrustedIpcSender,
     handleIpc,
+    handleSyncIpc,
     isTrustedRendererUrl,
   };
 }

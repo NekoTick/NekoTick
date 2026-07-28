@@ -106,7 +106,8 @@ class CodeBlockNodeViewInitializationMethods {
     });
     this.lineNumbersStateKey = this.getLineNumbersStateKey(this.node);
     this.wrapStateKey = this.getWrapStateKey(this.node);
-    this.cm.contentDOM.addEventListener('keydown', this.trackCodeMirrorSelectionKeydown, true);
+    this.cm.dom.addEventListener('keydown', this.trackCodeMirrorSelectionKeydown, true);
+    this.cm.dom.addEventListener('keyup', this.clearCodeMirrorClipboardCaptureOnKeyup, true);
     this.cm.dom.addEventListener('blur', this.clearEditorSelectionOnBlur, true);
     this.disposeFontMetricsSync = bindCodeBlockFontMetricsSync(
       this.dom.ownerDocument,
@@ -223,6 +224,7 @@ class CodeBlockNodeViewInitializationMethods {
       view: this.view,
       getNode: () => this.node,
       getPos: this.getPos,
+      onCut: this.flushCodeMirrorClipboardCut,
     });
   }
 
