@@ -1,16 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
 import { cn } from '@/lib/utils';
-import { Icon } from '@/components/ui/icons';
-import { AssetGrid } from './AssetGrid';
-import { UploadZone } from './UploadZone';
 import { CoverPickerProps, CoverPickerTab } from './types';
 import { Popover, PopoverContent, PopoverAnchor } from '@/components/ui/popover';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import { themeLazyLoadTokens } from '@/styles/themeTokens';
-import { AssetLibraryLoadingState } from './AssetLibraryLoadingState';
 import { extractImageFilesFromClipboardData } from '@/lib/assets/imageClipboardFiles';
+import { normalizeUserFacingErrorMessage } from '@/lib/i18n/userFacingErrors';
+import { CoverPickerBody } from './CoverPickerBody';
+import { CoverPickerHeader } from './CoverPickerHeader';
+import { CoverPickerStatus } from './CoverPickerStatus';
 
 export function CoverPicker({
   isOpen,
@@ -25,11 +25,13 @@ export function CoverPicker({
   const { t } = useI18n();
   const assetList = useNotesStore((state) => state.assetList);
   const isLoadingAssets = useNotesStore((state) => state.isLoadingAssets);
+  const assetLoadError = useNotesStore((state) => state.assetLoadError);
   const loadAssets = useNotesStore((state) => state.loadAssets);
   const uploadAsset = useNotesStore((state) => state.uploadAsset);
   const hasAssets = assetList.length > 0;
   const [activeTab, setActiveTab] = useState<CoverPickerTab>('library');
   const [isUploading, setIsUploading] = useState(false);
+  const [pasteUploadError, setPasteUploadError] = useState<string | null>(null);
   const [isPickerAssetRefreshPending, setIsPickerAssetRefreshPending] = useState(
     () => isOpen && Boolean(notesRootPath)
   );
@@ -56,6 +58,9 @@ export function CoverPicker({
     isUnrefreshedAssetScope ||
     (isLoadingAssets && !hasAssets)
   );
+  const assetLoadErrorMessage = assetLoadError
+    ? normalizeUserFacingErrorMessage(assetLoadError, 'asset.loadFailed') || t('asset.loadFailed')
+    : null;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -75,6 +80,7 @@ export function CoverPicker({
       uploadingRef.current = false;
       removeTriggeredRef.current = false;
       latestPreviewAssetRef.current = null;
+      setPasteUploadError(null);
       if (previewTimerRef.current) {
         clearTimeout(previewTimerRef.current);
         previewTimerRef.current = null;
@@ -82,22 +88,30 @@ export function CoverPicker({
     }
   }, [isOpen]);
 
+  const requestAssetRefresh = useCallback(async () => {
+    if (!notesRootPath) return;
+
+    requestedAssetScopeRef.current = assetRefreshScope;
+    setIsPickerAssetRefreshPending(true);
+    try {
+      await loadAssets(notesRootPath);
+    } catch {
+      // The store retains the previous library and exposes the scoped error.
+    } finally {
+      if (
+        mountedRef.current &&
+        isOpenRef.current &&
+        requestedAssetScopeRef.current === assetRefreshScope
+      ) {
+        setIsPickerAssetRefreshPending(false);
+      }
+    }
+  }, [assetRefreshScope, loadAssets, notesRootPath]);
+
   useEffect(() => {
     if (isOpen && notesRootPath) {
-      let cancelled = false;
-      requestedAssetScopeRef.current = assetRefreshScope;
-      setIsPickerAssetRefreshPending(true);
-      void Promise.resolve(loadAssets(notesRootPath))
-        .catch(() => undefined)
-        .finally(() => {
-          if (!cancelled && mountedRef.current) {
-            setIsPickerAssetRefreshPending(false);
-          }
-        });
-
-      return () => {
-        cancelled = true;
-      };
+      void requestAssetRefresh();
+      return;
     }
 
     requestedAssetScopeRef.current = null;
@@ -110,7 +124,11 @@ export function CoverPicker({
       }, themeLazyLoadTokens.coverPickerResetAfterCloseDelayMs);
       return () => clearTimeout(timer);
     }
-  }, [assetRefreshScope, isOpen, notesRootPath, loadAssets]);
+  }, [isOpen, notesRootPath, requestAssetRefresh]);
+
+  useEffect(() => {
+    setPasteUploadError(null);
+  }, [assetRefreshScope]);
 
   const handleAssetSelect = useCallback((assetPath: string) => {
     if (previewTimerRef.current) {
@@ -190,12 +208,25 @@ export function CoverPicker({
       e.preventDefault();
       uploadingRef.current = true;
       setIsUploading(true);
+      setPasteUploadError(null);
 
       try {
         const result = await uploadAsset(file, currentNotePath);
 
-        if (mountedRef.current && isOpenRef.current && result.success && result.path) {
-          onSelect(result.path);
+        if (mountedRef.current && isOpenRef.current) {
+          if (result.success && result.path) {
+            onSelect(result.path);
+          } else {
+            setPasteUploadError(
+              normalizeUserFacingErrorMessage(result.error, 'asset.uploadFailed') || t('asset.uploadFailed'),
+            );
+          }
+        }
+      } catch (error) {
+        if (mountedRef.current && isOpenRef.current) {
+          setPasteUploadError(
+            normalizeUserFacingErrorMessage(error, 'asset.uploadFailed') || t('asset.uploadFailed'),
+          );
         }
       } finally {
         uploadingRef.current = false;
@@ -213,7 +244,7 @@ export function CoverPicker({
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('paste', handlePaste);
     };
-  }, [currentNotePath, isOpen, onClose, uploadAsset, onSelect, onPreview]);
+  }, [currentNotePath, isOpen, onClose, uploadAsset, onSelect, onPreview, t]);
 
   return (
     <Popover open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -232,73 +263,35 @@ export function CoverPicker({
         onMouseDown={(e) => e.stopPropagation()}
       >
         {showHeaderControls ? (
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--vlaina-border)]">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('library')}
-                className={cn(
-                  "text-xs font-medium px-2 py-1 rounded transition-colors",
-                  activeTab === 'library'
-                    ? "bg-[var(--vlaina-color-accent-soft-bg)] text-[var(--vlaina-accent)]"
-                    : "text-[var(--vlaina-text-secondary)] hover:text-[var(--vlaina-text-primary)]"
-                )}
-              >
- <Icon size="md" name="file.image" className="inline mr-1" />
-                {t('asset.library')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  handleAssetHover(null);
-                  setActiveTab('upload');
-                }}
-                className={cn(
-                  "text-xs font-medium px-2 py-1 rounded transition-colors",
-                  activeTab === 'upload'
-                    ? "bg-[var(--vlaina-color-accent-soft-bg)] text-[var(--vlaina-accent)]"
-                    : "text-[var(--vlaina-text-secondary)] hover:text-[var(--vlaina-text-primary)]"
-                )}
-              >
- <Icon size="md" name="common.upload" className="inline mr-1" />
-                {t('common.upload')}
-              </button>
-            </div>
-            {onRemove && (
-              <button
-                type="button"
-                onPointerDown={handleRemoveCover}
-                onMouseDown={handleRemoveCover}
-                onClick={handleRemoveCover}
-                className="text-xs text-[var(--vlaina-text-tertiary)] hover:text-[var(--vlaina-text-primary)] transition-colors"
-              >
-                {t('common.remove')}
-              </button>
-            )}
-          </div>
+          <CoverPickerHeader
+            activeTab={activeTab}
+            onSelectLibrary={() => setActiveTab('library')}
+            onSelectUpload={() => {
+              handleAssetHover(null);
+              setActiveTab('upload');
+            }}
+            onRemoveCover={onRemove ? handleRemoveCover : undefined}
+          />
         ) : null}
 
+        <CoverPickerStatus
+          assetLoadError={activeTab === 'library' ? assetLoadErrorMessage : null}
+          pasteUploadError={pasteUploadError}
+          onRetry={() => void requestAssetRefresh()}
+        />
+
         <div className="flex-1 overflow-hidden">
-          {shouldShowLibraryLoading ? (
-            <AssetLibraryLoadingState />
-          ) : activeTab === 'library' && hasAssets ? (
-            <AssetGrid
-              onSelect={handleAssetSelect}
-              onHover={handleAssetHover}
-              notesRootPath={notesRootPath}
-              currentNotePath={currentNotePath}
-              compact
-            />
-          ) : (
-            <div className="p-3">
-              <UploadZone onUploadComplete={handleUploadComplete} compact currentNotePath={currentNotePath} />
-              {isUploading && (
-                <p className="mt-1 text-xs text-center text-[var(--vlaina-accent)]">
-                  {t('asset.uploading')}
-                </p>
-              )}
-            </div>
-          )}
+          <CoverPickerBody
+            activeTab={activeTab}
+            currentNotePath={currentNotePath}
+            hasAssets={hasAssets}
+            isLoading={shouldShowLibraryLoading}
+            isUploading={isUploading}
+            notesRootPath={notesRootPath}
+            onHover={handleAssetHover}
+            onSelect={handleAssetSelect}
+            onUploadComplete={handleUploadComplete}
+          />
         </div>
       </PopoverContent>
     </Popover>

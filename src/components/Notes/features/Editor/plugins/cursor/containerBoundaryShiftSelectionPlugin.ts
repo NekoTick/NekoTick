@@ -66,12 +66,42 @@ function findTextSelectionOutsideTable(
   return selection instanceof TextSelection ? selection : null;
 }
 
+function resolveRegressedIsolatingSelectionHead(
+  selection: TextSelection,
+  direction: ShiftSelectionDirection,
+): number | null {
+  const { $head, anchor, head } = selection;
+  if ($head.depth === 0 || !$head.parent.isTextblock || !$head.parent.type.spec.isolating) {
+    return null;
+  }
+
+  const currentStart = $head.start();
+  const currentEnd = $head.end();
+  const regressedToBoundary = direction === 'down'
+    ? head === currentStart && anchor < currentStart
+    : head === currentEnd && anchor > currentEnd;
+  if (!regressedToBoundary) return null;
+
+  const outsideBoundary = direction === 'up' ? $head.before() : $head.after();
+  const outside = Selection.findFrom(
+    $head.doc.resolve(outsideBoundary),
+    direction === 'up' ? -1 : 1,
+    true,
+  );
+  if (!(outside instanceof TextSelection)) return null;
+
+  return direction === 'up' ? outside.$head.end() : outside.$head.start();
+}
+
 function resolveModifiedSelectionHead(
   selection: TextSelection,
   direction: ShiftSelectionDirection,
 ): number {
   const { $head, head } = selection;
   if (!$head.parent.isTextblock || $head.depth === 0) return head;
+
+  const recoveredHead = resolveRegressedIsolatingSelectionHead(selection, direction);
+  if (recoveredHead !== null) return recoveredHead;
 
   const currentStart = $head.start();
   const currentEnd = $head.end();

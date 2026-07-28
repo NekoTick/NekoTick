@@ -89,13 +89,10 @@ export async function loadWorkspaceState(notesRootPath: string): Promise<Workspa
 }
 
 export async function saveWorkspaceState(notesRootPath: string, state: WorkspaceState): Promise<void> {
-  try {
-    const storePath = await getNotesRootSystemStorePath(notesRootPath);
-    await ensureSystemDirectory(storePath);
+  const storePath = await getNotesRootSystemStorePath(notesRootPath);
+  await ensureSystemDirectory(storePath);
 
-    const wsPath = await joinPath(storePath, WORKSPACE_FILE);
-    const normalizedState = normalizeWorkspaceState(state);
-    await safeWriteTextFile(wsPath, JSON.stringify(normalizedState, null, 2));
-  } catch (error) {
-  }
+  const wsPath = await joinPath(storePath, WORKSPACE_FILE);
+  const normalizedState = normalizeWorkspaceState(state);
+  await safeWriteTextFile(wsPath, JSON.stringify(normalizedState, null, 2));
 }

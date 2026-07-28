@@ -125,17 +125,27 @@ describe('BodyLineNumberGutter', () => {
     ]);
   });
 
-  it('collects body targets without unsupported self-closing raw audio or video HTML', () => {
+  it('collects rendered raw audio and video HTML targets', () => {
     const editorRoot = document.createElement('div');
     editorRoot.className = 'ProseMirror';
-    editorRoot.innerHTML = [
-      '<div id="iframe">&lt;iframe src="https://example.com/embed"&gt;&lt;/iframe&gt;</div>',
-      '<div id="video">&lt;video src="xxx.mp4" controls /&gt;</div>',
-      '<div id="audio">&lt;audio src="xxx.mp3" controls /&gt;</div>',
-    ].join('');
+    const iframe = document.createElement('div');
+    const video = document.createElement('div');
+    const audio = document.createElement('div');
+    iframe.id = 'iframe';
+    iframe.dataset.type = 'html-block';
+    iframe.dataset.value = '<iframe src="https://example.com/embed"></iframe>';
+    video.id = 'video';
+    video.dataset.type = 'html-block';
+    video.dataset.value = '<video src="xxx.mp4" controls />';
+    audio.id = 'audio';
+    audio.dataset.type = 'html-block';
+    audio.dataset.value = '<audio src="xxx.mp3" controls />';
+    editorRoot.append(iframe, video, audio);
 
     expect(collectBodyLineNumberTargets(editorRoot).map((item) => item.id)).toEqual([
       'iframe',
+      'video',
+      'audio',
     ]);
   });
 

@@ -1,4 +1,17 @@
 import { preserveMarkdownBlankLinesForEditor } from '@/lib/notes/markdown/markdownEditorBlankLines';
+import {
+  getMarkdownContentInContainer,
+  isMarkdownContainerMathFenceCloseLine,
+  isMarkdownLineInContainer,
+  parseMarkdownContainerLinePrefix,
+  parseMarkdownContainerMathFenceLine,
+} from '@/lib/notes/markdown/markdownContainerParsing';
+import {
+  getMarkdownRawHtmlBlockClosePattern,
+  isHtmlBlockCloseLine,
+} from '@/lib/notes/markdown/markdownProtectedHtmlBlocks';
+import { collectMarkdownProtectedLineInfo } from '@/lib/notes/markdown/markdownFenceProtectedLines';
+import { isAlignmentCommentLine } from '@/lib/notes/markdown/markdownBlankLineBoundaries';
 import { parseMermaidFenceLanguage } from '@/components/common/markdown/mermaidLanguage';
 import {
   canStartIndentedCodeBlock,
@@ -35,9 +48,35 @@ function isBlankAdjacentToUnsupportedSelfClosingRawMedia(lines: readonly string[
     || isUnsupportedSelfClosingRawMediaLine(lines[index + 1] ?? '');
 }
 
+function findUnsupportedSelfClosingRawMediaGroupEnd(
+  lines: readonly string[],
+  startIndex: number,
+): number {
+  let endIndex = startIndex;
+  let cursor = startIndex + 1;
+
+  while (cursor < lines.length) {
+    while (cursor < lines.length && isBodyLineBoundary(lines[cursor] ?? '')) {
+      cursor += 1;
+    }
+    if (!isUnsupportedSelfClosingRawMediaLine(lines[cursor] ?? '')) break;
+    endIndex = cursor;
+    cursor += 1;
+  }
+
+  return endIndex;
+}
+
 function findParagraphEnd(lines: readonly string[], startIndex: number): number {
   for (let index = startIndex + 1; index < lines.length; index += 1) {
     if (isBodyLineBoundary(lines[index] ?? '')) {
+      return index - 1;
+    }
+
+    if (
+      (!isAlignmentCommentLine(lines[index] ?? '') && findRawHtmlBlockEnd(lines, index) !== null)
+      || isUnsupportedSelfClosingRawMediaLine(lines[index] ?? '')
+    ) {
       return index - 1;
     }
 
@@ -77,6 +116,52 @@ function findTableEnd(lines: readonly string[], startIndex: number): number {
     if (isBodyLineBoundary(line) || !line.includes('|')) {
       return index - 1;
     }
+  }
+
+  return lines.length - 1;
+}
+
+function findMathBlockEnd(lines: readonly string[], startIndex: number): number | null {
+  const fence = parseMarkdownContainerMathFenceLine(lines[startIndex] ?? '');
+  if (!fence || fence.kind === 'bracket-close') return null;
+
+  const state = {
+    blockquoteDepth: fence.blockquoteDepth,
+    containerIndent: fence.containerIndent,
+    length: fence.length,
+    style: fence.kind === 'dollar' ? 'dollar' as const : 'bracket' as const,
+  };
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (!isMarkdownLineInContainer(line, state)) return null;
+    if (isMarkdownContainerMathFenceCloseLine(line, state)) return index;
+  }
+
+  return null;
+}
+
+function findRawHtmlBlockEnd(lines: readonly string[], startIndex: number): number | null {
+  const openingLine = lines[startIndex] ?? '';
+  const container = parseMarkdownContainerLinePrefix(openingLine);
+  if (!container) return null;
+  if (container.blockquoteDepth > 0 || container.containerIndent > 0) return null;
+
+  const openingContent = openingLine.slice(container.markerStart);
+  const htmlBlock = getMarkdownRawHtmlBlockClosePattern(openingContent, {
+    protectHtmlComments: true,
+  });
+  if (!htmlBlock) return null;
+  if (isHtmlBlockCloseLine(openingContent, htmlBlock)) return startIndex;
+
+  const state = {
+    ...htmlBlock,
+    blockquoteDepth: container.blockquoteDepth,
+    containerIndent: container.containerIndent,
+  };
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const content = getMarkdownContentInContainer(lines[index] ?? '', state);
+    if (content === null) return index - 1;
+    if (isHtmlBlockCloseLine(content, state)) return index;
   }
 
   return lines.length - 1;
@@ -141,6 +226,7 @@ export function getMarkdownBodyLineNumbers(markdown: string): number[] {
   const frontmatterEnd = findLeadingFrontmatterEnd(lines);
   let index = getBodyStartIndex(lines, frontmatterEnd);
   const sourceLineNumbers = buildBodySourceLineNumbers(lines, index);
+  const protectedLineInfo = collectMarkdownProtectedLineInfo(lines, frontmatterEnd);
   const pushLineNumber = (lineIndex: number) => {
     const sourceLineNumber = sourceLineNumbers[lineIndex];
     if (sourceLineNumber !== null && sourceLineNumber !== undefined) {
@@ -177,13 +263,41 @@ export function getMarkdownBodyLineNumbers(markdown: string): number[] {
       continue;
     }
 
-    if (isUnsupportedSelfClosingRawMediaLine(line)) {
+    if (isAlignmentCommentLine(line)) {
       index += 1;
+      continue;
+    }
+
+    const rawHtmlBlockEndIndex = findRawHtmlBlockEnd(lines, index);
+    if (rawHtmlBlockEndIndex !== null) {
+      pushLineNumber(index);
+      index = rawHtmlBlockEndIndex + 1;
+      continue;
+    }
+
+    if (
+      protectedLineInfo.nonCodeProtectedLineIndexes.has(index)
+      && !protectedLineInfo.containerBlockOpenLineIndexes.has(index)
+    ) {
+      index += 1;
+      continue;
+    }
+
+    if (isUnsupportedSelfClosingRawMediaLine(line)) {
+      pushLineNumber(index);
+      index = findUnsupportedSelfClosingRawMediaGroupEnd(lines, index) + 1;
       continue;
     }
 
     if (isHiddenDefinitionLine(line)) {
       index += 1;
+      continue;
+    }
+
+    const mathBlockEndIndex = findMathBlockEnd(lines, index);
+    if (mathBlockEndIndex !== null) {
+      pushLineNumber(index);
+      index = mathBlockEndIndex + 1;
       continue;
     }
 

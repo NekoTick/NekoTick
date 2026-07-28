@@ -182,6 +182,40 @@ describe('assetSlice loadAssets', () => {
     await load;
   });
 
+  it('preserves existing assets and exposes a failed library refresh', async () => {
+    mocks.list.mockRejectedValue(new Error('Library read failed'));
+    const existingAsset = {
+      filename: './assets/existing.jpg',
+      hash: 'existing',
+      size: 10,
+      mimeType: 'image/jpeg',
+      uploadedAt: '2026-05-08T01:47:54.361Z',
+    };
+    const harness = createSliceHarness({
+      notesPath: '',
+      currentNote: { path: '/outside/demo.md', content: '' },
+      assetList: [existingAsset],
+    });
+
+    await expect(harness.getState().loadAssets('/outside')).rejects.toThrow('Library read failed');
+
+    expect(harness.getState().assetList).toEqual([existingAsset]);
+    expect(harness.getState().isLoadingAssets).toBe(false);
+    expect(harness.getState().assetLoadError).toBe('Library read failed');
+  });
+
+  it('clears the previous library error after a successful refresh', async () => {
+    const harness = createSliceHarness({
+      notesPath: '',
+      currentNote: { path: '/outside/demo.md', content: '' },
+      assetLoadError: 'Previous failure',
+    });
+
+    await harness.getState().loadAssets('/outside');
+
+    expect(harness.getState().assetLoadError).toBeNull();
+  });
+
   it('coalesces concurrent loads for the same asset scope', async () => {
     let resolveList: (value: Array<{
       filename: string;

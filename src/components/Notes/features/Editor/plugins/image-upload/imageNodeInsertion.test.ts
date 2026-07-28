@@ -239,6 +239,21 @@ describe('imageNodeInsertion', () => {
         expect(state.selection.$from.parentOffset).toBe(0);
     });
 
+    it('reuses an existing following paragraph instead of inserting an extra blank paragraph', () => {
+        const doc = schema.nodes.doc.create(null, [paragraph(), paragraph('following')]);
+        const harness = createRealView(doc, 1);
+
+        expect(insertImageNodeAtSelection(harness.view as never, './assets/following.png')).toBe(true);
+
+        const state = harness.getState();
+        expect(Array.from(
+            { length: state.doc.childCount },
+            (_value, index) => inlineLabel(state.doc.child(index)),
+        )).toEqual(['<image>', 'following']);
+        expect(state.selection.$from.parent.textContent).toBe('following');
+        expect(state.selection.$from.parentOffset).toBe(0);
+    });
+
     it('isolates multiple images in order and places one caret paragraph after them', () => {
         const doc = schema.nodes.doc.create(null, [paragraph('before after')]);
         const harness = createRealView(doc, 1 + 'before '.length);

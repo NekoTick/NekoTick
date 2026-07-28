@@ -92,6 +92,77 @@ describe('getMarkdownBodyLineNumbers', () => {
     expect(getMarkdownBodyLineNumbers(markdown)).toEqual([2, 4, 5, 9, 10, 13, 14]);
   });
 
+  it('numbers display math with internal blank lines as one rendered block', () => {
+    const markdown = [
+      '$$',
+      'a = b',
+      '',
+      'c = d',
+      '$$',
+      '',
+      '\\[',
+      'x = y',
+      '',
+      'z = w',
+      '\\]',
+      '',
+      'After math',
+    ].join('\n');
+
+    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 6, 7, 12, 13]);
+  });
+
+  it('numbers multiline raw HTML with protected internal blank lines as one rendered block', () => {
+    const markdown = [
+      '<pre>',
+      'first protected html line',
+      '',
+      'second protected html line',
+      '</pre>',
+      'After raw HTML',
+    ].join('\n');
+
+    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 6]);
+  });
+
+  it('does not parse Markdown markers protected inside list-contained raw HTML', () => {
+    const markdown = [
+      '- \\[',
+      '  x = y',
+      '  \\]',
+      '',
+      '![video](https://example.test/video.mp4 "Video")',
+      '<?note value?>',
+      '',
+      '',
+      '- <textarea>',
+      '  - protected html marker',
+      '  ```not-a-fence',
+      '  </textarea>',
+      '',
+      '<div>Raw HTML</div>',
+      '',
+      '7) Ordered',
+      '8) Continued',
+    ].join('\n');
+
+    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([
+      1, 4, 5, 6, 7, 8, 9, 14, 16, 17,
+    ]);
+  });
+
+  it('does not number alignment metadata comments as rendered body blocks', () => {
+    const markdown = [
+      'Centered paragraph',
+      '<!--align:center-->',
+      '',
+      '## Right heading',
+      '<!--align:right-->',
+    ].join('\n');
+
+    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 4]);
+  });
+
   it('numbers top-level indented code blocks without counting list continuations', () => {
     const markdown = [
       '- List item',
@@ -160,7 +231,7 @@ describe('getMarkdownBodyLineNumbers', () => {
     expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 2, 4, 6, 7]);
   });
 
-  it('skips unsupported self-closing raw audio and video HTML lines', () => {
+  it('groups consecutive self-closing raw media lines as one rendered HTML block', () => {
     const markdown = [
       '<iframe src="https://example.com/embed"></iframe>',
       '',
@@ -169,7 +240,7 @@ describe('getMarkdownBodyLineNumbers', () => {
       '<audio src="xxx.mp3" controls />',
     ].join('\n');
 
-    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1]);
+    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 3]);
   });
 
   it('numbers raw markdown blank lines that render as editable body lines', () => {

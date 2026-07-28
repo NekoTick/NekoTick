@@ -182,7 +182,19 @@ test.describe('notes caret height', () => {
       const sourceEditor = page.locator('[data-note-source-editor="true"]');
       await expect(sourceEditor).toBeVisible({ timeout: 10_000 });
       await focusTextControlAtEnd(sourceEditor);
-      await expectOverlayMatchesLineHeight(page, 'source editor', sourceEditor, '.native-caret-overlay');
+      const sourceCaret = await sourceEditor.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          active: document.activeElement === element,
+          caretColor: style.caretColor,
+          hasCustomOverlay: Boolean(document.querySelector('.native-caret-overlay')),
+          lineHeight: Number.parseFloat(style.lineHeight),
+        };
+      });
+      expect(sourceCaret.active).toBe(true);
+      expect(sourceCaret.hasCustomOverlay).toBe(false);
+      expect(sourceCaret.caretColor).not.toBe('transparent');
+      expect(sourceCaret.lineHeight).toBeGreaterThan(0);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

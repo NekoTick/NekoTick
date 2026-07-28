@@ -128,7 +128,7 @@ export function resolveVisualLineEdgePos(
     },
   });
 
-  let lineEdgeRect: DOMRect | null = null;
+  const lineEdgeRectRef = { current: null as DOMRect | null };
   let measuredTextNodes = 0;
   let measuredRects = 0;
   const considerRect = (rect: DOMRect): boolean => {
@@ -137,12 +137,12 @@ export function resolveVisualLineEdgePos(
     if (rect.width <= 0 || rect.height <= 0) return true;
     if (!isPointVerticallyInsideRect(rect, clientY)) return true;
 
-    if (!lineEdgeRect) {
-      lineEdgeRect = rect;
+    if (!lineEdgeRectRef.current) {
+      lineEdgeRectRef.current = rect;
     } else if (action.bias === -1) {
-      if (rect.right > lineEdgeRect.right) lineEdgeRect = rect;
-    } else if (rect.left < lineEdgeRect.left) {
-      lineEdgeRect = rect;
+      if (rect.right > lineEdgeRectRef.current.right) lineEdgeRectRef.current = rect;
+    } else if (rect.left < lineEdgeRectRef.current.left) {
+      lineEdgeRectRef.current = rect;
     }
     return true;
   };
@@ -183,6 +183,7 @@ export function resolveVisualLineEdgePos(
     }
   }
 
+  const lineEdgeRect = lineEdgeRectRef.current;
   if (!lineEdgeRect) {
     return null;
   }

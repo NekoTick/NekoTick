@@ -408,6 +408,54 @@ describe('flushPendingEditorMarkdown', () => {
     });
   });
 
+  it('lets an explicit cross-note source save replace a stale editor flush', async () => {
+    let resolveSave: () => void = () => {};
+    saveNoteDocument.mockImplementationOnce(async ({ currentNote, cache }) => new Promise((resolve) => {
+      resolveSave = () => resolve({
+        content: currentNote.content,
+        metadata: {},
+        modifiedAt: 11,
+        size: currentNote.content.length,
+        nextCache: cache,
+      });
+    }));
+    useNotesStore.setState({
+      notesPath: '/notesRoot',
+      currentNote: { path: 'beta.md', content: 'Beta content' },
+      currentNoteRevision: 4,
+      isDirty: false,
+      openTabs: [
+        { path: 'alpha.md', name: 'alpha', isDirty: false },
+        { path: 'beta.md', name: 'beta', isDirty: false },
+      ],
+      noteContentsCache: new Map([
+        ['alpha.md', { content: 'Source before move', modifiedAt: 2 }],
+        ['beta.md', { content: 'Beta content', modifiedAt: 3 }],
+      ]),
+    });
+
+    const savePromise = savePendingEditorMarkdown(
+      'alpha.md',
+      'Source after move',
+      { replaceConcurrentContent: true },
+    );
+    await Promise.resolve();
+
+    expect(flushPendingEditorMarkdown('alpha.md', 'Source before move')).toBe(true);
+    expect(useNotesStore.getState().openTabs[0]?.isDirty).toBe(true);
+
+    resolveSave();
+    await expect(savePromise).resolves.toBe(true);
+
+    const state = useNotesStore.getState();
+    expect(state.currentNote).toEqual({ path: 'beta.md', content: 'Beta content' });
+    expect(state.openTabs[0]?.isDirty).toBe(false);
+    expect(state.noteContentsCache.get('alpha.md')).toEqual({
+      content: 'Source after move',
+      modifiedAt: 11,
+    });
+  });
+
   it('does not clear the active note save error when a background save succeeds', async () => {
     saveNoteDocument.mockImplementationOnce(async ({ currentNote, cache }) => ({
       content: currentNote.content,

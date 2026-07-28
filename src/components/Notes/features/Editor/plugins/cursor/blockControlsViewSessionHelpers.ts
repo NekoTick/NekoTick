@@ -259,7 +259,9 @@ export async function saveCrossNoteBlockDropAfterTargetSave({
   const targetSaved = await saveMarkdown(targetNotePath, targetMarkdownAfterInsert);
   if (!targetSaved) return false;
 
-  return saveMarkdown(sourceNotePath, sourceMarkdownAfterDelete);
+  return saveMarkdown(sourceNotePath, sourceMarkdownAfterDelete, {
+    replaceConcurrentContent: true,
+  });
 }
 
 export function setPendingCrossNoteBlockDrag(pending: PendingCrossNoteBlockDrag): void {
