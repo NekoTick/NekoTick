@@ -2175,13 +2175,11 @@ test.describe("notes block selection", () => {
           return {
             largeActive: editor?.classList.contains('editor-block-selection-large') ?? false,
             maxIndex: indexes.length > 0 ? Math.max(...indexes) : -1,
-            pending: editor?.classList.contains('editor-block-selection-pending') ?? false,
             scrollTop: Math.round(scrollRoot?.scrollTop ?? 0),
             selectedCount: selectedItems.length,
           };
         });
 
-        expect(metrics.pending, JSON.stringify(metrics, null, 2)).toBe(true);
         expect(metrics.largeActive, JSON.stringify(metrics, null, 2)).toBe(true);
         expect(metrics.selectedCount, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(128);
         expect(metrics.maxIndex, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(150);

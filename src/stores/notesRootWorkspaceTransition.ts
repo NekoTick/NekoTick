@@ -251,6 +251,7 @@ export function resetNotesWorkspaceForNotesRootTransition(
     newlyCreatedFolderPath: null,
     assetList: [],
     isLoadingAssets: false,
+    assetLoadError: null,
     uploadProgress: null,
   });
   void flushStalePendingTrashForNotesRoot(notesPath).catch(() => undefined);

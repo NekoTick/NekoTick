@@ -28,6 +28,7 @@ type ErrorMessageKeyPattern = readonly [RegExp, MessageKey];
 
 const ASSET_AND_EXPORT_ERROR_KEYS: ErrorMessageKeyPattern[] = [
   [/^upload failed\.?$/i, 'asset.uploadFailed'],
+  [/^failed to load asset library\.?$/i, 'asset.loadFailed'],
   [/^failed to export note\.?$/i, 'notes.exportFailed'],
   [/^failed to open theme folder\.?$/i, 'settings.appearance.openThemeFolderFailed'],
 ];

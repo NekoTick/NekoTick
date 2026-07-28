@@ -139,10 +139,6 @@ async function collectBodyLineNumberDiagnostics(page: Page) {
       return /^(?:\[[^\]\n]+]:\s+\S|\*\[[^\]\n]+]:\s+\S)/.test((element.textContent ?? '').trim());
     }
 
-    function isUnsupportedSelfClosingRawMedia(element: HTMLElement): boolean {
-      return /^<(?:video|audio)\b[^>]*\/>$/i.test((element.textContent ?? '').trim());
-    }
-
     function collectBodyLineTargets(): HTMLElement[] {
       const targets: HTMLElement[] = [];
 
@@ -175,7 +171,6 @@ async function collectBodyLineNumberDiagnostics(page: Page) {
           isFrontmatterBlock(child)
           || isNonNumberedPlaceholder(child)
           || isHiddenDefinition(child)
-          || isUnsupportedSelfClosingRawMedia(child)
         ) continue;
         if (
           child.classList.contains('code-block-container')
@@ -549,9 +544,16 @@ test.describe('notes body line numbers', () => {
 
           await expect(page.locator(EDITOR_SELECTOR)).toBeVisible();
           await waitForEditorAnimationFrame(page);
-          await expect.poll(async () => page.evaluate(() => {
+          await expect.poll(async () => page.evaluate((expectedCount) => {
             const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
-            if (!editor) return false;
+            if (!editor) {
+              return {
+                expectedCount,
+                hasRenderedContent: false,
+                labelCount: 0,
+                targetCount: 0,
+              };
+            }
 
             function collectCodeBlockLineTargets(codeBlock: HTMLElement): HTMLElement[] {
               const codeRoot = codeBlock.querySelector<HTMLElement>('.cm-content')
@@ -586,7 +588,6 @@ test.describe('notes body line numbers', () => {
                   && /<!--\s*(?:vlaina-rendered-html-boundary-blank-line|vlaina-markdown-tight-heading)\s*-->/.test(child.dataset.value ?? '')
                 )
                 || /^(?:\[[^\]\n]+]:\s+\S|\*\[[^\]\n]+]:\s+\S)/.test((child.textContent ?? '').trim())
-                || /^<(?:video|audio)\b[^>]*\/>$/i.test((child.textContent ?? '').trim())
               ) {
                 continue;
               }
@@ -604,13 +605,53 @@ test.describe('notes body line numbers', () => {
             }
 
             const labelCount = document.querySelectorAll('.body-line-number').length;
-            return targetCount > 0 && labelCount === targetCount;
-          }), {
+            const hasRenderedContent = editor.children.length > 0 && (
+              Boolean(editor.textContent?.trim())
+              || editor.querySelector('.frontmatter-block-container, [data-type], .code-block-container') !== null
+            );
+            return {
+              debug: targetCount === expectedCount && labelCount === expectedCount
+                ? null
+                : {
+                    children: Array.from(editor.children).map((child) => ({
+                      className: child.className,
+                      datasetType: child instanceof HTMLElement ? child.dataset.type ?? null : null,
+                      datasetValue: child instanceof HTMLElement ? child.dataset.value ?? null : null,
+                      listItems: child.querySelectorAll('li').length,
+                      tagName: child.tagName,
+                      text: (child.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
+                    })),
+                    labelTexts: Array.from(document.querySelectorAll<HTMLElement>('.body-line-number'))
+                      .map((label) => label.textContent?.trim() ?? ''),
+                  },
+              expectedCount,
+              hasRenderedContent,
+              labelCount,
+              targetCount,
+            };
+          }, expectedLabelTexts.length), {
             message: `${syntaxCase.label}: body line labels should settle before geometry audit`,
             timeout: 10_000,
-          }).toBe(true);
+          }).toEqual({
+            debug: null,
+            expectedCount: expectedLabelTexts.length,
+            hasRenderedContent: true,
+            labelCount: expectedLabelTexts.length,
+            targetCount: expectedLabelTexts.length,
+          });
 
-          const audit = await page.evaluate(() => {
+          await expect.poll(async () => page.evaluate(() => Array.from(
+            document.querySelectorAll<HTMLElement>('.milkdown .ProseMirror .mermaid-block'),
+          ).every((block) => (
+            block.dataset.mermaidLazy !== 'true'
+            && block.querySelector('.mermaid-placeholder') === null
+          ))), {
+            message: `${syntaxCase.label}: asynchronous Mermaid blocks should finish rendering`,
+            timeout: 10_000,
+          }).toBe(true);
+          await waitForEditorAnimationFrame(page);
+
+          const collectAudit = () => page.evaluate(() => {
             const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
             if (!editor) throw new Error('Missing editor');
 
@@ -625,10 +666,6 @@ test.describe('notes body line numbers', () => {
 
             function isHiddenDefinition(element: HTMLElement): boolean {
               return /^(?:\[[^\]\n]+]:\s+\S|\*\[[^\]\n]+]:\s+\S)/.test((element.textContent ?? '').trim());
-            }
-
-            function isUnsupportedSelfClosingRawMedia(element: HTMLElement): boolean {
-              return /^<(?:video|audio)\b[^>]*\/>$/i.test((element.textContent ?? '').trim());
             }
 
             function collectTargets(): HTMLElement[] {
@@ -663,7 +700,6 @@ test.describe('notes body line numbers', () => {
                   isFrontmatterBlock(child)
                   || isNonNumberedPlaceholder(child)
                   || isHiddenDefinition(child)
-                  || isUnsupportedSelfClosingRawMedia(child)
                 ) continue;
                 if (
                   child.classList.contains('code-block-container')
@@ -820,6 +856,15 @@ test.describe('notes body line numbers', () => {
               })),
             };
           });
+
+          await expect.poll(
+            async () => (await collectAudit()).maxVerticalDelta,
+            {
+              message: `${syntaxCase.label}: body line labels should settle after asynchronous block rendering`,
+              timeout: 10_000,
+            },
+          ).toBeLessThanOrEqual(4);
+          const audit = await collectAudit();
 
           expect(audit.labelCount, `${syntaxCase.label}: label count should match numbered targets\n${JSON.stringify(audit.targetSummaries, null, 2)}`)
             .toBe(audit.targetCount);

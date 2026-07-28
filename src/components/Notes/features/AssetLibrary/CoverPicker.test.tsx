@@ -9,6 +9,7 @@ const hoisted = vi.hoisted(() => ({
   uploadAsset: vi.fn(),
   assetList: [] as Array<{ filename: string }>,
   isLoadingAssets: false,
+  assetLoadError: null as string | null,
 }));
 
 const supportedImageFilenames = [
@@ -27,6 +28,7 @@ vi.mock('@/stores/notes/useNotesStore', () => ({
   useNotesStore: (selector: (state: any) => unknown) => selector({
     assetList: hoisted.assetList,
     isLoadingAssets: hoisted.isLoadingAssets,
+    assetLoadError: hoisted.assetLoadError,
     loadAssets: hoisted.loadAssets,
     uploadAsset: hoisted.uploadAsset,
   }),
@@ -82,6 +84,7 @@ describe('CoverPicker', () => {
     hoisted.loadAssets.mockReturnValue(new Promise(() => undefined));
     hoisted.assetList = [];
     hoisted.isLoadingAssets = false;
+    hoisted.assetLoadError = null;
   });
 
   it('uses the shared composer pill surface for the picker shell', () => {
@@ -466,6 +469,67 @@ describe('CoverPicker', () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(screen.getByTestId('asset-grid')).toBeInTheDocument());
+  });
+
+  it('keeps existing assets visible and lets the user retry a failed library refresh', async () => {
+    hoisted.loadAssets.mockResolvedValue(undefined);
+    hoisted.assetList = [{ filename: 'existing.png' }];
+    hoisted.assetLoadError = 'Library read failed';
+
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        notesRootPath="/notesRoot"
+        currentNotePath="one.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('asset-grid')).toBeInTheDocument());
+    expect(screen.getByRole('alert')).toHaveTextContent('Library read failed');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(hoisted.loadAssets).toHaveBeenCalledTimes(2));
+  });
+
+  it('reports a failed pasted image upload without selecting a cover', async () => {
+    hoisted.loadAssets.mockResolvedValue(undefined);
+    hoisted.uploadAsset.mockResolvedValue({
+      success: false,
+      path: null,
+      isDuplicate: false,
+      error: 'Disk write failed',
+    });
+    const onSelect = vi.fn();
+    const file = new File(['image'], 'failed.png', { type: 'image/png' });
+
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        notesRootPath="/notesRoot"
+        currentNotePath="one.md"
+      />,
+    );
+
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => '',
+      },
+    });
+
+    await act(async () => {
+      document.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Disk write failed');
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('does not refetch only because the asset count changes while open', async () => {

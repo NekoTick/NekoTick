@@ -1288,6 +1288,136 @@ test.describe('notes image block interaction', () => {
       expect(textIndex, JSON.stringify(selectableBlocks, null, 2)).toBeGreaterThanOrEqual(0);
       expect(imageIndex, JSON.stringify(selectableBlocks, null, 2)).toBeGreaterThanOrEqual(0);
 
+      const imageBlock = page.locator(
+        `${NOTE_IMAGE_BLOCK_SELECTOR}[data-alt="Notes html image block alt sentinel"]`
+      );
+      await expect.poll(async () => imageBlock.evaluate((element) => {
+        const image = element.querySelector('img');
+        return Boolean(image && image.complete && image.naturalWidth > 0 && image.getBoundingClientRect().width > 0);
+      })).toBe(true);
+
+      const geometryAudit = await page.evaluate(async (targetIndex) => {
+        const block = document.querySelector<HTMLElement>(
+          '.image-block-container[data-alt="Notes html image block alt sentinel"]'
+        );
+        const wrapper = block?.querySelector<HTMLElement>('[data-image-selection-wrapper="true"]') ?? null;
+        const container = wrapper?.firstElementChild instanceof HTMLElement
+          ? wrapper.firstElementChild
+          : null;
+        const image = container?.querySelector<HTMLImageElement>('img') ?? null;
+        if (!block || !wrapper || !container || !image) return null;
+
+        const readRect = (element: HTMLElement) => {
+          const rect = element.getBoundingClientRect();
+          return { height: rect.height, width: rect.width };
+        };
+        const baseline = {
+          container: readRect(container),
+          image: readRect(image),
+          wrapper: readRect(wrapper),
+        };
+        const violations: Array<Record<string, unknown>> = [];
+        let maxDelta = 0;
+
+        const sample = (cycle: number, phase: string) => {
+          const snapshot = {
+            container: readRect(container),
+            image: readRect(image),
+            wrapper: readRect(wrapper),
+          };
+          const deltas = [
+            Math.abs(snapshot.container.width - baseline.container.width),
+            Math.abs(snapshot.container.height - baseline.container.height),
+            Math.abs(snapshot.image.width - baseline.image.width),
+            Math.abs(snapshot.image.height - baseline.image.height),
+            Math.abs(snapshot.wrapper.width - baseline.wrapper.width),
+            Math.abs(snapshot.wrapper.height - baseline.wrapper.height),
+          ];
+          maxDelta = Math.max(maxDelta, ...deltas);
+          const transform = getComputedStyle(container).transform;
+          const dragging = container.dataset.dragging === 'true';
+          if (deltas.some((delta) => delta > 0.75) || transform !== 'none' || dragging) {
+            violations.push({
+              blockClassName: block.className,
+              cycle,
+              dragging,
+              phase,
+              snapshot,
+              transform,
+            });
+          }
+        };
+
+        for (let cycle = 0; cycle < 24; cycle += 1) {
+          const selectPromise = (window as any).__vlainaE2E.selectNoteBlocksByIndexes([targetIndex]);
+          sample(cycle, 'selected-sync');
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          sample(cycle, 'selected-frame');
+          await selectPromise;
+          sample(cycle, 'selected-settled');
+
+          const clearPromise = (window as any).__vlainaE2E.selectNoteBlocksByIndexes([]);
+          sample(cycle, 'cleared-sync');
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          sample(cycle, 'cleared-frame');
+          await clearPromise;
+          sample(cycle, 'cleared-settled');
+        }
+
+        return { baseline, maxDelta, violations };
+      }, imageIndex);
+
+      expect(geometryAudit).not.toBeNull();
+      expect(geometryAudit!.violations, JSON.stringify(geometryAudit, null, 2)).toEqual([]);
+      expect(geometryAudit!.maxDelta, JSON.stringify(geometryAudit, null, 2)).toBeLessThanOrEqual(0.75);
+
+      const dragTarget = await getBlankAreaDragTarget(page, 'Paragraph before image sentinel');
+      const imageBox = await imageBlock.boundingBox();
+      expect(dragTarget).not.toBeNull();
+      expect(imageBox).not.toBeNull();
+      await page.mouse.move(dragTarget!.startX, dragTarget!.startY);
+      await page.mouse.down();
+      for (let step = 1; step <= 12; step += 1) {
+        const progress = step / 12;
+        await page.mouse.move(
+          dragTarget!.startX + (dragTarget!.endX - dragTarget!.startX) * progress,
+          dragTarget!.startY + (imageBox!.y + imageBox!.height / 2 - dragTarget!.startY) * progress,
+        );
+        const frameGeometry = await imageBlock.evaluate((element) => {
+          const wrapper = element.querySelector<HTMLElement>('[data-image-selection-wrapper="true"]');
+          const container = wrapper?.firstElementChild instanceof HTMLElement
+            ? wrapper.firstElementChild
+            : null;
+          const image = container?.querySelector<HTMLImageElement>('img') ?? null;
+          if (!wrapper || !container || !image) return null;
+          return {
+            containerHeight: container.getBoundingClientRect().height,
+            containerWidth: container.getBoundingClientRect().width,
+            dragging: container.dataset.dragging === 'true',
+            imageHeight: image.getBoundingClientRect().height,
+            imageWidth: image.getBoundingClientRect().width,
+            transform: getComputedStyle(container).transform,
+            wrapperHeight: wrapper.getBoundingClientRect().height,
+            wrapperWidth: wrapper.getBoundingClientRect().width,
+          };
+        });
+        expect(frameGeometry, `physical drag frame ${step}`).not.toBeNull();
+        expect(frameGeometry!.dragging, JSON.stringify(frameGeometry)).toBe(false);
+        expect(frameGeometry!.transform, JSON.stringify(frameGeometry)).toBe('none');
+        expect(Math.abs(frameGeometry!.containerWidth - geometryAudit!.baseline.container.width)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.containerHeight - geometryAudit!.baseline.container.height)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.imageWidth - geometryAudit!.baseline.image.width)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.imageHeight - geometryAudit!.baseline.image.height)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.wrapperWidth - geometryAudit!.baseline.wrapper.width)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.wrapperHeight - geometryAudit!.baseline.wrapper.height)).toBeLessThanOrEqual(0.75);
+      }
+      await page.mouse.up();
+      await expect.poll(async () => imageBlock.evaluate((element) => (
+        element.classList.contains('editor-block-selected')
+        || Boolean(element.closest('.editor-block-selected'))
+      ))).toBe(true);
+      await clearSelectedNoteBlocks(page);
+
       const readSelectionPaint = async (index: number) => {
         const selectedCount = await page.evaluate(async (targetIndex) => {
           const count = await (window as any).__vlainaE2E.selectNoteBlocksByIndexes([targetIndex]);

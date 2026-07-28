@@ -4,6 +4,7 @@ import { NoteHeader } from './NoteHeader';
 import { clearDisplayIconSnapshotCacheForTests } from '@/hooks/useTitleSync';
 
 const mocks = vi.hoisted(() => {
+  const addToast = vi.fn();
   const loadAssets = vi.fn();
   const resolveCoverAssetUrl = vi.fn();
   const uploadAsset = vi.fn();
@@ -32,6 +33,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     heroProps: null as any,
+    addToast,
     loadAssets,
     notesState,
     resolveCoverAssetUrl,
@@ -41,6 +43,12 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@/stores/useNotesStore', () => ({
   useNotesStore: (selector: (state: typeof mocks.notesState) => unknown) => selector(mocks.notesState),
+}));
+
+vi.mock('@/stores/useToastStore', () => ({
+  useToastStore: (selector: (state: { addToast: typeof mocks.addToast }) => unknown) => selector({
+    addToast: mocks.addToast,
+  }),
 }));
 
 vi.mock('@/components/common/HeroIconHeader', () => ({
@@ -67,6 +75,7 @@ describe('NoteHeader', () => {
     mocks.notesState.draftNotes = {};
     mocks.notesState.notesPath = '/notesRoot';
     clearDisplayIconSnapshotCacheForTests();
+    mocks.addToast.mockReset();
     mocks.loadAssets.mockReset();
     mocks.loadAssets.mockResolvedValue(undefined);
     mocks.resolveCoverAssetUrl.mockReset();
@@ -109,6 +118,19 @@ describe('NoteHeader', () => {
       replayAnimated: true,
       animatedPlaybackKey: 'notes/demo.md',
     });
+  });
+
+  it('reports a failed icon library refresh instead of presenting stale assets silently', async () => {
+    mocks.loadAssets.mockRejectedValue(new Error('Failed to load asset library'));
+    render(<NoteHeader coverUrl={null} onAddCover={vi.fn()} />);
+
+    await mocks.heroProps.onIconPickerOpen();
+
+    expect(mocks.addToast).toHaveBeenCalledWith(
+      'Could not load the image library',
+      'error',
+      expect.any(Number),
+    );
   });
 
   it('uses current markdown frontmatter while note icon metadata is not loaded yet', () => {

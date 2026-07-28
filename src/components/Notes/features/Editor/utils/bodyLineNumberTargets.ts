@@ -4,7 +4,6 @@ export const MAX_BODY_LINE_NUMBER_TARGETS = 5000;
 export const MAX_BODY_LINE_NUMBER_LIST_SCAN_ELEMENTS = 10000;
 
 const HIDDEN_DEFINITION_TEXT_PATTERN = /^(?:\[[^\]\n]+]:\s+\S|\*\[[^\]\n]+]:\s+\S)/;
-const SELF_CLOSING_RAW_MEDIA_HTML_TEXT_PATTERN = /^<(?:video|audio)\b[^>]*\/>$/i;
 
 function isNonNumberedPlaceholderElement(element: HTMLElement): boolean {
   return element.dataset.type === 'html-block'
@@ -15,15 +14,10 @@ function isHiddenDefinitionElement(element: HTMLElement): boolean {
   return HIDDEN_DEFINITION_TEXT_PATTERN.test((element.textContent ?? '').trim());
 }
 
-function isUnsupportedSelfClosingRawMediaElement(element: HTMLElement): boolean {
-  return SELF_CLOSING_RAW_MEDIA_HTML_TEXT_PATTERN.test((element.textContent ?? '').trim());
-}
-
 function shouldSkipBodyLineNumberTarget(element: HTMLElement): boolean {
   return element.classList.contains('frontmatter-block-container')
     || isNonNumberedPlaceholderElement(element)
-    || isHiddenDefinitionElement(element)
-    || isUnsupportedSelfClosingRawMediaElement(element);
+    || isHiddenDefinitionElement(element);
 }
 
 function isCodeBlockTarget(element: HTMLElement): boolean {
@@ -74,7 +68,6 @@ function collectListItemLineNumberTargets(list: HTMLElement, targets: HTMLElemen
     if (node.closest('.frontmatter-block-container')) continue;
     if (isNonNumberedPlaceholderElement(node)) continue;
     if (isHiddenDefinitionElement(node)) continue;
-    if (isUnsupportedSelfClosingRawMediaElement(node)) continue;
     targets.push(node);
   }
 }

@@ -65,6 +65,7 @@ function getLoadAssetsKey(notesRootPath: string, currentNotePath: string | undef
 export interface AssetSlice {
   assetList: AssetEntry[];
   isLoadingAssets: boolean;
+  assetLoadError: string | null;
   uploadProgress: number | null;
 
   loadAssets: (notesRootPath: string) => Promise<void>;
@@ -75,147 +76,162 @@ export interface AssetSlice {
   clearAssetUrlCache: () => void;
 }
 
-export const createAssetSlice: StateCreator<NotesStore, [], [], AssetSlice> = (set, get) => ({
-  assetList: [],
-  isLoadingAssets: false,
-  uploadProgress: null,
+export const createAssetSlice: StateCreator<NotesStore, [], [], AssetSlice> = (set, get) => {
+  let latestAssetLoadRequest = 0;
 
-  loadAssets: async (notesRootPath: string) => {
-    const currentNotePath = get().currentNote?.path;
-    const config = getAssetConfig();
-    const loadKey = getLoadAssetsKey(notesRootPath, currentNotePath, config);
-    const existingLoad = loadAssetsInFlight.get(loadKey);
-    if (existingLoad) {
-      await existingLoad;
-      return;
-    }
-    if (loadAssetsInFlight.size >= MAX_PENDING_ASSET_LOADS) {
-      return;
-    }
+  return {
+    assetList: [],
+    isLoadingAssets: false,
+    assetLoadError: null,
+    uploadProgress: null,
 
-    const loadPromise = (async () => {
-      set({
-        isLoadingAssets: true,
-      });
+    loadAssets: async (notesRootPath: string) => {
+      const currentNotePath = get().currentNote?.path;
+      const config = getAssetConfig();
+      const loadKey = getLoadAssetsKey(notesRootPath, currentNotePath, config);
+      const existingLoad = loadAssetsInFlight.get(loadKey);
+      if (existingLoad) {
+        await existingLoad;
+        return;
+      }
+      if (loadAssetsInFlight.size >= MAX_PENDING_ASSET_LOADS) {
+        return;
+      }
+      const requestId = ++latestAssetLoadRequest;
 
+      const loadPromise = (async () => {
+        set({
+          isLoadingAssets: true,
+          assetLoadError: null,
+        });
+
+        try {
+          const context = {
+            notesRootPath,
+            currentNotePath,
+          };
+          const assets = combineAndSortAssets(await AssetService.list(context, config));
+
+          if (requestId !== latestAssetLoadRequest) {
+            return;
+          }
+
+          if (!isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
+            set({ isLoadingAssets: false });
+            return;
+          }
+
+          set({ assetList: assets, isLoadingAssets: false, assetLoadError: null });
+        } catch (error) {
+          if (requestId === latestAssetLoadRequest) {
+            if (isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
+              set({
+                isLoadingAssets: false,
+                assetLoadError: error instanceof Error && error.message.trim()
+                  ? error.message.trim()
+                  : 'Failed to load asset library',
+              });
+            } else {
+              set({ isLoadingAssets: false });
+            }
+          }
+          throw error;
+        }
+      })();
+
+      loadAssetsInFlight.set(loadKey, loadPromise);
       try {
+        await loadPromise;
+      } finally {
+        if (loadAssetsInFlight.get(loadKey) === loadPromise) {
+          loadAssetsInFlight.delete(loadKey);
+        }
+      }
+    },
+
+    uploadAsset: async (file: File, currentNotePath?: string): Promise<UploadResult> => {
+      const { notesPath, assetList } = get();
+      const config = getAssetConfig();
+
+      const notesRootPath = resolveEffectiveNotesRootPath({ notesPath, currentNotePath });
+      if (!notesRootPath) {
+        return {
+          success: false,
+          path: null,
+          isDuplicate: false,
+          error: 'Opened folder path is unavailable',
+        };
+      }
+
       const context = {
         notesRootPath,
         currentNotePath,
       };
 
-      let assets: AssetEntry[] = [];
+      clearUploadProgressResetTimer();
+      set({ uploadProgress: 0 });
+
       try {
-        assets = await AssetService.list(context, config);
-      } catch (error) {
-      }
-
-      assets = combineAndSortAssets(assets);
-
-      if (!isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
-        set({ isLoadingAssets: false });
-        return;
-      }
-
-      set({ assetList: assets, isLoadingAssets: false });
-    } catch (error) {
-      set({ isLoadingAssets: false });
-    }
-    })();
-
-    loadAssetsInFlight.set(loadKey, loadPromise);
-    try {
-      await loadPromise;
-    } finally {
-      if (loadAssetsInFlight.get(loadKey) === loadPromise) {
-        loadAssetsInFlight.delete(loadKey);
-      }
-    }
-  },
-
-  uploadAsset: async (file: File, currentNotePath?: string): Promise<UploadResult> => {
-    const { notesPath, assetList } = get();
-    const config = getAssetConfig();
-
-    const notesRootPath = resolveEffectiveNotesRootPath({ notesPath, currentNotePath });
-    if (!notesRootPath) {
-      return {
-        success: false,
-        path: null,
-        isDuplicate: false,
-        error: 'Opened folder path is unavailable',
-      };
-    }
-
-    const context = {
-      notesRootPath,
-      currentNotePath,
-    };
-
-    clearUploadProgressResetTimer();
-    set({ uploadProgress: 0 });
-
-    try {
-      const result = await AssetService.upload(
-        file,
-        context,
-        config,
-        assetList,
-        (progress) => {
-          if (isActiveUploadNotesRoot(get(), notesRootPath)) {
-            set({ uploadProgress: progress });
+        const result = await AssetService.upload(
+          file,
+          context,
+          config,
+          assetList,
+          (progress) => {
+            if (isActiveUploadNotesRoot(get(), notesRootPath)) {
+              set({ uploadProgress: progress });
+            }
           }
+        );
+
+        if (!isActiveUploadNotesRoot(get(), notesRootPath)) {
+          return result;
         }
-      );
 
-      if (!isActiveUploadNotesRoot(get(), notesRootPath)) {
+        if (result.success && result.entry) {
+          set((state) => ({
+            assetList: [
+              result.entry!,
+              ...state.assetList.filter((asset) => asset.filename !== result.entry!.filename),
+            ],
+          }));
+        }
+
+        uploadProgressResetTimer = setTimeout(() => {
+          uploadProgressResetTimer = null;
+          if (isActiveUploadNotesRoot(get(), notesRootPath)) {
+            set({ uploadProgress: null });
+          }
+        }, 500);
         return result;
-      }
 
-      if (result.success && result.entry) {
-        set((state) => ({
-          assetList: [
-            result.entry!,
-            ...state.assetList.filter((asset) => asset.filename !== result.entry!.filename),
-          ],
-        }));
-      }
-
-      uploadProgressResetTimer = setTimeout(() => {
-        uploadProgressResetTimer = null;
+      } catch (error) {
+        clearUploadProgressResetTimer();
         if (isActiveUploadNotesRoot(get(), notesRootPath)) {
           set({ uploadProgress: null });
         }
-      }, 500);
-      return result;
-
-    } catch (error) {
-      clearUploadProgressResetTimer();
-      if (isActiveUploadNotesRoot(get(), notesRootPath)) {
-        set({ uploadProgress: null });
+        return {
+          success: false,
+          path: null,
+          isDuplicate: false,
+          error: error instanceof Error ? error.message : 'Upload failed',
+        };
       }
-      return {
-        success: false,
-        path: null,
-        isDuplicate: false,
-        error: error instanceof Error ? error.message : 'Upload failed',
-      };
-    }
-  },
+    },
 
+    deleteAsset: async (filename: string) => {
+      void filename;
+    },
 
-  deleteAsset: async (filename: string) => {
-    void filename;
-  },
+    cleanupAssetTempFiles: async () => {
+      return;
+    },
 
-  cleanupAssetTempFiles: async () => {
-    return;
-  },
+    getAssetList: (): AssetEntry[] => get().assetList,
 
-  getAssetList: (): AssetEntry[] => get().assetList,
-
-  clearAssetUrlCache: () => {
-    clearImageCache();
-    clearUploadProgressResetTimer();
-  },
-});
+    clearAssetUrlCache: () => {
+      clearImageCache();
+      clearUploadProgressResetTimer();
+    },
+  };
+};

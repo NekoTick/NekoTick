@@ -3,6 +3,9 @@ import { collectExpandedPaths } from './fileTreeUtils';
 import { normalizeWorkspaceState } from './persistenceValidation';
 import { saveWorkspaceState, type WorkspaceState } from './storage';
 import type { NotesStore } from './types';
+import { translate } from '@/lib/i18n/runtime';
+import { useToastStore } from '@/stores/useToastStore';
+import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 
 interface WorkspaceSnapshotInput {
   rootFolder: NotesStore['rootFolder'];
@@ -17,6 +20,15 @@ const pendingWorkspaceSnapshots = new Map<string, {
   timer: ReturnType<typeof setTimeout>;
 }>();
 const workspaceSaveChains = new Map<string, Promise<void>>();
+
+function reportWorkspacePersistenceError(): void {
+  const message = translate('storage.workspaceStateSaveFailed');
+  const toastState = useToastStore.getState();
+  if (toastState.toasts.some((toast) => toast.type === 'error' && toast.message === message)) {
+    return;
+  }
+  toastState.addToast(message, 'error', themeUiFeedbackTokens.errorToastDurationMs);
+}
 
 export function createWorkspaceSnapshot({
   rootFolder,
@@ -80,6 +92,9 @@ export async function saveWorkspaceSnapshot(
 
   try {
     await save;
+  } catch (error) {
+    reportWorkspacePersistenceError();
+    throw error;
   } finally {
     if (workspaceSaveChains.get(notesPath) === save) {
       workspaceSaveChains.delete(notesPath);

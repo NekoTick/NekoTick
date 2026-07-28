@@ -1,6 +1,6 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Node as ProseNode, NodeType } from '@milkdown/kit/prose/model';
-import type { Selection, Transaction } from '@milkdown/kit/prose/state';
+import { TextSelection, type Selection, type Transaction } from '@milkdown/kit/prose/state';
 import { replaceVisibleBlockSelectionWithCursor } from '../cursor/blockSelectionReplacement';
 import { markEditorImageUserInput } from '../shared/userInputEvents';
 
@@ -54,7 +54,19 @@ function isolateImageAndPlaceCaretAfter(
         tr.setNodeMarkup($image.before(), paragraphType);
     }
 
-    tr.split(imagePos + imageNode.nodeSize, 1, [{ type: paragraphType }]);
+    imagePos = findInsertedImagePos(tr, imageNode);
+    if (imagePos === null) return tr;
+    const $isolatedImage = tr.doc.resolve(imagePos);
+    const afterImagePos = imagePos + imageNode.nodeSize;
+    if (afterImagePos === $isolatedImage.end()) {
+        const afterParagraphPos = $isolatedImage.after($isolatedImage.depth);
+        const followingNode = tr.doc.nodeAt(afterParagraphPos);
+        if (followingNode?.type === paragraphType) {
+            return tr.setSelection(TextSelection.create(tr.doc, afterParagraphPos + 1));
+        }
+    }
+
+    tr.split(afterImagePos, 1, [{ type: paragraphType }]);
     return tr;
 }
 
