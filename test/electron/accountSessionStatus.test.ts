@@ -45,6 +45,20 @@ describe('desktop account session status resolution', () => {
     });
   });
 
+  it('preserves the device-limit reason on an unauthorized session', () => {
+    expect(resolveDesktopSessionProbe(credentials, {
+      kind: 'unauthorized',
+      sessionInvalidationReason: 'device_limit',
+    })).toMatchObject({
+      status: {
+        connected: false,
+        sessionInvalidated: true,
+        sessionInvalidationReason: 'device_limit',
+      },
+      clearStoredCredentials: true,
+    });
+  });
+
   it('keeps cached desktop identity when auth/session errors', () => {
     expect(resolveDesktopSessionProbe(credentials, { kind: 'error' })).toEqual({
       status: buildCachedDesktopStatus(credentials),

@@ -3,6 +3,7 @@ import { hasElectronDesktopBridge } from '@/lib/desktop/backend';
 import { accountCommands } from '@/lib/account/desktopCommands';
 import { normalizeManagedBudgetPayload } from '@/lib/ai/managed/normalizers';
 import { webAccountCommands } from '@/lib/account/webCommands';
+import { translate } from '@/lib/i18n';
 import { normalizeAccountProvider } from '@/lib/account/provider';
 import { clearManagedBudgetUnlessQuotaExhausted, useManagedAIStore } from '@/stores/useManagedAIStore';
 import {
@@ -71,6 +72,9 @@ export function createCheckStatus(set: Set, get: Get): (options?: { force?: bool
         });
         const provider = normalizeAccountProvider(normalizedIdentity.provider);
         const sessionInvalidated = status && 'sessionInvalidated' in status && status.sessionInvalidated === true;
+        const sessionInvalidationReason = status && 'sessionInvalidationReason' in status
+          ? status.sessionInvalidationReason
+          : null;
         const username = normalizedIdentity.username ?? null;
         const primaryEmail = normalizedIdentity.primaryEmail ?? null;
         const avatarUrl = normalizedIdentity.avatarUrl ?? null;
@@ -92,6 +96,9 @@ export function createCheckStatus(set: Set, get: Get): (options?: { force?: bool
 
         if (!connected && sessionInvalidated) {
           applyDisconnectedAccount(set);
+          if (sessionInvalidationReason === 'device_limit') {
+            set({ error: translate('account.error.deviceLimit') });
+          }
           useManagedAIStore.getState().clearBudget();
           markCheckStatusSynced();
           return;

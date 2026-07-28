@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { ACCOUNT_AUTH_INVALIDATED_EVENT } from '@/lib/account/sessionEvent';
+import { translate } from '@/lib/i18n';
 import { clearManagedBudgetUnlessQuotaExhausted, useManagedAIStore } from '@/stores/useManagedAIStore';
 import {
   createCheckStatus,
@@ -54,7 +55,10 @@ function registerAccountAuthInvalidationListener(): void {
     return;
   }
 
-  window.addEventListener(ACCOUNT_AUTH_INVALIDATED_EVENT, () => {
+  window.addEventListener(ACCOUNT_AUTH_INVALIDATED_EVENT, (event) => {
+    const invalidationReason = event instanceof CustomEvent && event.detail?.reason === 'device_limit'
+      ? 'device_limit'
+      : null;
     invalidateAccountSessionAuthState();
     useManagedAIStore.getState().clearBudget();
     useAccountSessionStore.setState({
@@ -69,7 +73,7 @@ function registerAccountAuthInvalidationListener(): void {
       isConnecting: false,
       isLoading: false,
       hasCheckedStatus: true,
-      error: null,
+      error: invalidationReason === 'device_limit' ? translate('account.error.deviceLimit') : null,
     });
   });
 

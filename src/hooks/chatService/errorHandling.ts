@@ -36,12 +36,14 @@ export function extractRawErrorMessage(error: unknown): string {
   return primitiveToString(error).trim() || 'AI request failed.';
 }
 
-function dispatchAccountAuthInvalidated() {
+function dispatchAccountAuthInvalidated(reason?: 'device_limit') {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.dispatchEvent(new Event(ACCOUNT_AUTH_INVALIDATED_EVENT));
+  window.dispatchEvent(reason
+    ? new CustomEvent(ACCOUNT_AUTH_INVALIDATED_EVENT, { detail: { reason } })
+    : new Event(ACCOUNT_AUTH_INVALIDATED_EVENT));
 }
 
 export function requestManagedAccountSignIn(sessionId?: string | null) {
@@ -77,7 +79,9 @@ export function buildChatErrorPayload(error: unknown, managed = true) {
     applyManagedQuotaExhaustedSnapshot();
   }
   if (normalized.type === AIErrorType.AUTH_ERROR) {
-    dispatchAccountAuthInvalidated();
+    dispatchAccountAuthInvalidated(
+      normalized.code === 'session_device_limit' ? 'device_limit' : undefined,
+    );
   }
 
   return {

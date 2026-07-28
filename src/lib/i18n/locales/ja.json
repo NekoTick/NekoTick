@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ ログイン状態を保存できません",
   "account.error.network": "๑ᵒᯅᵒ๑ ネットワーク接続エラー",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ もう一度ログインしてください",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ アカウントが5台の端末上限に達したため、この端末からログアウトしました。もう一度ログインしてください。",
   "account.error.timeout": "๑ᵒᯅᵒ๑ ログインがタイムアウトしました",
   "app.checkoutCanceled": "チェックアウトはキャンセルされました。",
   "app.checkoutCompleted": "チェックアウトが完了しました。メンバーシップはまもなく更新されます。",

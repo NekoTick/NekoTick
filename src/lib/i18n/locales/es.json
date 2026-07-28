@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ No se pudo guardar el inicio de sesión",
   "account.error.network": "๑ᵒᯅᵒ๑ Error de conexión de red",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Inicia sesión de nuevo",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Se cerró la sesión en este dispositivo porque tu cuenta alcanzó el límite de 5 dispositivos. Inicia sesión de nuevo.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Inicio de sesión agotado",
   "app.checkoutCanceled": "El pago fue cancelado.",
   "app.checkoutCompleted": "Pago completado. La membresía se actualizará en breve.",

@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ 無法儲存登入狀態",
   "account.error.network": "๑ᵒᯅᵒ๑ 網路連線異常",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ 請重新登入",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ 登入裝置已達 5 台上限，此裝置已登出。請重新登入以繼續使用。",
   "account.error.timeout": "๑ᵒᯅᵒ๑ 登入逾時",
   "app.checkoutCanceled": "結帳已取消。",
   "app.checkoutCompleted": "結帳已完成。會員資格將在短時間內更新。",

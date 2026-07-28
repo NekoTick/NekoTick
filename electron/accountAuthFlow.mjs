@@ -5,6 +5,10 @@ import {
 import {
   createAccountCredentialStore,
 } from './accountCredentialStore.mjs';
+import {
+  buildDesktopDeviceHeaders,
+  createDesktopDeviceIdentityStore,
+} from './accountDeviceIdentity.mjs';
 import { createDesktopAuthPersistence } from './accountAuthPersistence.mjs';
 import { createDesktopAccountSessionClient } from './accountSessionClient.mjs';
 import { createDesktopOauthFlow } from './accountDesktopOauthFlow.mjs';
@@ -20,6 +24,8 @@ import {
 } from './accountAuthFlowUtils.mjs';
 
 export function createDesktopAccountService({ apiBaseUrl, fetchImpl = fetch }) {
+  const { getDesktopDeviceId } = createDesktopDeviceIdentityStore();
+  void getDesktopDeviceId().catch(() => undefined);
   const {
     readStoredAccountCredentials,
     writeStoredAccountCredentials,
@@ -37,6 +43,7 @@ export function createDesktopAccountService({ apiBaseUrl, fetchImpl = fetch }) {
     clearStoredAccountCredentialsIfCurrent,
     rotateStoredSessionToken,
     writeStoredAccountCredentialsIfCurrent,
+    getDesktopDeviceId,
   });
   const {
     fetchDesktopJson,
@@ -53,20 +60,22 @@ export function createDesktopAccountService({ apiBaseUrl, fetchImpl = fetch }) {
     apiBaseUrl,
     fetchDesktopJson,
     persistDesktopAuthResult,
+    getDesktopDeviceId,
   });
   let inFlightEmailVerification = null;
 
   async function verifyDesktopEmailCode(email, code) {
     let data;
     try {
+      const deviceId = await getDesktopDeviceId();
       ({ data } = await withAccountRequestTimeout((signal) =>
         fetchDesktopJson(`${apiBaseUrl}/auth/email/verify-code`, {
           method: 'POST',
           signal,
-          headers: {
+          headers: buildDesktopDeviceHeaders(deviceId, {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-          },
+          }),
           body: JSON.stringify({
             email,
             code,
@@ -161,11 +170,15 @@ export function createDesktopAccountService({ apiBaseUrl, fetchImpl = fetch }) {
       const credentials = await readStoredAccountCredentials();
       if (credentials?.appSessionToken) {
         try {
+          const deviceId = await getDesktopDeviceId();
           await withAccountRequestTimeout((signal) =>
             raceWithAbort(fetchImpl(`${apiBaseUrl}/auth/session/revoke`, {
               method: 'POST',
               signal,
-              headers: buildDesktopSessionHeaders(credentials.appSessionToken),
+              headers: buildDesktopDeviceHeaders(
+                deviceId,
+                buildDesktopSessionHeaders(credentials.appSessionToken),
+              ),
             }), signal)
           );
         } catch {

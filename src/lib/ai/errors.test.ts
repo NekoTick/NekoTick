@@ -14,6 +14,29 @@ import {
 import { AIErrorType } from './types';
 
 describe('getUserFacingAIError', () => {
+  it('explains managed session eviction caused by the device limit', () => {
+    const error = new Error('Session signed out because device limit was reached') as Error & {
+      errorCode?: string;
+      statusCode?: number;
+    };
+    error.errorCode = 'session_device_limit';
+    error.statusCode = 401;
+
+    expect(getUserFacingAIError(error)).toEqual({
+      type: AIErrorType.AUTH_ERROR,
+      code: 'session_device_limit',
+      message: '๑ᵒᯅᵒ๑ This device was signed out because your account reached the 5-device limit. Sign in again to continue.',
+    });
+
+    expect(getUserFacingAIError(new Error(
+      "Error invoking remote method 'desktop:managed:get-budget': Session signed out because device limit was reached",
+    ))).toEqual({
+      type: AIErrorType.AUTH_ERROR,
+      code: 'session_device_limit',
+      message: '๑ᵒᯅᵒ๑ This device was signed out because your account reached the 5-device limit. Sign in again to continue.',
+    });
+  });
+
   it('maps fetch failures to the network error message', () => {
     const result = getUserFacingAIError(new TypeError('Failed to fetch'));
 

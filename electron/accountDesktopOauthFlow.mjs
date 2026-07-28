@@ -2,6 +2,7 @@ import electron from 'electron';
 import { isSupportedAccountProvider } from './accountCredentialStore.mjs';
 import { bindDesktopAuthLoopbackServer } from './accountLoopbackServer.mjs';
 import { normalizeExternalUrl } from './externalUrlPolicy.mjs';
+import { buildDesktopDeviceHeaders } from './accountDeviceIdentity.mjs';
 import {
   accountErrorResult,
   accountNetworkErrorResult,
@@ -17,7 +18,12 @@ import {
 
 const { shell } = electron;
 
-export function createDesktopOauthFlow({ apiBaseUrl, fetchDesktopJson, persistDesktopAuthResult }) {
+export function createDesktopOauthFlow({
+  apiBaseUrl,
+  fetchDesktopJson,
+  persistDesktopAuthResult,
+  getDesktopDeviceId = async () => null,
+}) {
   let activeOauthFlow = null;
 
   function buildDesktopAuthStartUrl(provider) {
@@ -29,14 +35,15 @@ export function createDesktopOauthFlow({ apiBaseUrl, fetchDesktopJson, persistDe
   }
 
   async function requestDesktopAuthResult(provider, state, verifier, resultToken, signal) {
+    const deviceId = await getDesktopDeviceId();
     const { data } = await withAccountRequestTimeout((requestSignal) =>
       fetchDesktopJson(buildDesktopAuthResultUrl(provider), {
         method: 'POST',
         signal: requestSignal,
-        headers: {
+        headers: buildDesktopDeviceHeaders(deviceId, {
           Accept: 'application/json',
           'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({
           state,
           verifier,
@@ -90,6 +97,7 @@ export function createDesktopOauthFlow({ apiBaseUrl, fetchDesktopJson, persistDe
         timeoutSeconds: 300,
       });
       flow.loopback = loopback;
+      const deviceId = await getDesktopDeviceId();
 
       const { data: authStart } = await retryTransientAccountNetworkError(
         () =>
@@ -97,10 +105,10 @@ export function createDesktopOauthFlow({ apiBaseUrl, fetchDesktopJson, persistDe
             fetchDesktopJson(buildDesktopAuthStartUrl(provider), {
               method: 'POST',
               signal: requestSignal,
-              headers: {
+              headers: buildDesktopDeviceHeaders(deviceId, {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
-              },
+              }),
               body: JSON.stringify({
                 callbackUrl: loopback.callbackUrl,
                 verifier,

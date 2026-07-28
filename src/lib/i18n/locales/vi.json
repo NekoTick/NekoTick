@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Không thể lưu đăng nhập",
   "account.error.network": "๑ᵒᯅᵒ๑ Lỗi kết nối mạng",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Vui lòng đăng nhập lại",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Thiết bị này đã bị đăng xuất vì tài khoản của bạn đạt giới hạn 5 thiết bị. Vui lòng đăng nhập lại.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Đăng nhập hết thời gian",
   "app.checkoutCanceled": "Thanh toán đã bị hủy.",
   "app.checkoutCompleted": "Thanh toán hoàn tất. Tư cách thành viên sẽ được làm mới sớm.",
