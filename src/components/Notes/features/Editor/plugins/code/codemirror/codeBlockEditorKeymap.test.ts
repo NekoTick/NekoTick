@@ -646,4 +646,59 @@ describe('createCodeBlockEditorKeymap', () => {
     expect(editorDispatch).toHaveBeenCalledWith(transaction);
     expect(cm.focus).toHaveBeenCalledTimes(1);
   });
+
+  it('blocks image clipboard companion text in CodeMirror while leaving ordinary text paste native', () => {
+    const file = new File(['image'], 'code.png', { type: 'image/png' });
+    const handlers = createCodeBlockEditorClipboardHandlers({
+      view: {} as never,
+      getNode: () => ({ textContent: 'const value = 1;' }) as never,
+      getPos: () => 10,
+    });
+    const imageEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    } as unknown as ClipboardEvent;
+    const htmlImageEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: (type: string) => type === 'text/html'
+          ? '<img src="https://images.example.test/code.png">'
+          : 'https://example.test/companion',
+      },
+    } as unknown as ClipboardEvent;
+    const textEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: () => 'ordinary code',
+      },
+    } as unknown as ClipboardEvent;
+
+    expect(handlers.paste?.call(undefined, imageEvent, {} as never)).toBe(true);
+    expect(imageEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(imageEvent.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(handlers.paste?.call(undefined, htmlImageEvent, {} as never)).toBe(true);
+    expect(htmlImageEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(htmlImageEvent.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(handlers.paste?.call(undefined, textEvent, {} as never)).toBe(false);
+    expect(textEvent.preventDefault).not.toHaveBeenCalled();
+
+    const dropEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      dataTransfer: imageEvent.clipboardData,
+    } as unknown as DragEvent;
+    expect(handlers.drop?.call(undefined, dropEvent, {} as never)).toBe(true);
+    expect(dropEvent.preventDefault).toHaveBeenCalledTimes(1);
+  });
 });

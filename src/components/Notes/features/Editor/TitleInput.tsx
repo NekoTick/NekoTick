@@ -10,6 +10,10 @@ import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import { clearCurrentEditorBlockSelection } from './utils/editorViewRegistry';
 import { useTitleInputAutoResize } from './hooks/useTitleInputAutoResize';
 import { useTitleCommit } from './hooks/useTitleCommit';
+import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface TitleInputProps {
   notePath: string;
@@ -215,6 +219,8 @@ export function TitleInput({ notePath, initialTitle, onEnter, autoFocus, compact
       onFocus={handleTitleInteraction}
       onPointerDown={handleTitleInteraction}
       onBlur={handleBlur}
+      onPaste={preventImageClipboardTextPaste}
+      onDrop={preventImageDataTransferTextDrop}
       onKeyDown={handleKeyDown}
       className="block w-full resize-none overflow-hidden bg-transparent border-none outline-none font-bold leading-[var(--vlaina-leading-title)] tracking-normal text-[var(--vlaina-text-primary)] placeholder:text-[var(--vlaina-soft-placeholder)] selection:bg-[var(--vlaina-selection-bg)] selection:text-[var(--vlaina-color-white)]"
       style={titleInputStyle}

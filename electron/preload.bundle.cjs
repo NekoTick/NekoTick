@@ -259,6 +259,9 @@
           },
         },
         clipboard: {
+          readImage() {
+            return ipcRenderer.invoke('desktop:clipboard:read-image');
+          },
           writeText(text) {
             return ipcRenderer.invoke('desktop:clipboard:write-text', text);
           },

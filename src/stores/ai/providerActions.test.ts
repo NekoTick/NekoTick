@@ -6,6 +6,7 @@ import { useAccountSessionStore } from '../accountSession';
 import { useManagedAIStore } from '../useManagedAIStore';
 import { saveUnifiedData } from '@/lib/storage/unifiedStorage';
 import type { AIModel, Provider } from '@/lib/ai/types';
+import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorageSaveTypes';
 
 const { fetchManagedModelsMock, fetchManagedModelsVersionMock } = vi.hoisted(() => ({
   fetchManagedModelsMock: vi.fn(),
@@ -163,6 +164,23 @@ describe('deleteIncompleteCustomProviders', () => {
       apiKey: '',
       enabled: true,
     });
+
+    actions.deleteIncompleteCustomProviders();
+
+    expect(useUnifiedStore.getState().data.ai?.providers).toEqual([]);
+  });
+
+  it('removes a locally created empty channel after its generated name is cleared', () => {
+    const providerId = actions.addProvider({
+      name: 'Channel 1',
+      type: 'newapi',
+      apiHost: '',
+      apiKey: '',
+      enabled: true,
+    });
+
+    actions.updateProvider(providerId, { name: '' });
+    expect(useUnifiedStore.getState().data.ai?.providers[0]?.name).toBe('Custom Provider');
 
     actions.deleteIncompleteCustomProviders();
 
@@ -357,6 +375,37 @@ describe('updateProvider', () => {
       }),
     ]);
     vi.mocked(saveUnifiedData).mockClear();
+  });
+
+  it('normalizes provider fields before they enter runtime state', () => {
+    actions.updateProvider('provider-1', {
+      name: '',
+      apiHost: 'h'.repeat(MAX_AI_MODEL_FIELD_CHARS + 1),
+      apiKey: 'k'.repeat(MAX_AI_MODEL_FIELD_CHARS + 1),
+    });
+
+    expect(useUnifiedStore.getState().data.ai?.providers[0]).toMatchObject({
+      name: 'Custom Provider',
+      apiHost: 'h'.repeat(MAX_AI_MODEL_FIELD_CHARS),
+      apiKey: 'k'.repeat(MAX_AI_MODEL_FIELD_CHARS),
+    });
+  });
+
+  it('normalizes manual model ids before they enter runtime state', () => {
+    const overlongModelId = `  ${'m'.repeat(MAX_AI_MODEL_FIELD_CHARS + 1)}  `;
+
+    actions.addModel({
+      id: overlongModelId,
+      apiModelId: overlongModelId,
+      name: overlongModelId,
+      providerId: 'provider-1',
+      enabled: true,
+    });
+
+    const addedModel = useUnifiedStore.getState().data.ai?.models.at(-1);
+    expect(addedModel?.apiModelId).toBe('m'.repeat(MAX_AI_MODEL_FIELD_CHARS));
+    expect(addedModel?.name).toHaveLength(MAX_AI_MODEL_FIELD_CHARS);
+    expect(addedModel?.id).toBe(`provider-1::${'m'.repeat(MAX_AI_MODEL_FIELD_CHARS)}`);
   });
 
   it('clears provider and model endpoint caches when the provider API host changes', () => {

@@ -111,6 +111,38 @@ describe('TitleInput', () => {
     expect(screen.getByRole('textbox')).toHaveAttribute('spellcheck', 'true');
   });
 
+  it('blocks companion text from image clipboard payloads without blocking ordinary text', () => {
+    render(<TitleInput notePath="/notesRoot/test.md" initialTitle="test" />);
+
+    const input = screen.getByDisplayValue('test');
+    const file = new File(['image'], 'title.png', { type: 'image/png' });
+
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    })).toBe(false);
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: (type: string) => type === 'text/html'
+          ? '<a href="https://example.test/companion"><img src="https://images.example.test/title.png"></a>'
+          : 'https://example.test/companion',
+      },
+    })).toBe(false);
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: () => 'ordinary title text',
+      },
+    })).toBe(true);
+    expect(input).toHaveValue('test');
+  });
+
   it('does not lock a bogus title height when first measured before layout has width', () => {
     render(<TitleInput notePath="/notesRoot/test.md" initialTitle="test" />);
 

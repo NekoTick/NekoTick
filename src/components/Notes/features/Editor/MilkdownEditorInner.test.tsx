@@ -128,9 +128,16 @@ const ProseSchema = (ProseModel as unknown as {
   };
 }).Schema;
 
+function withSetMeta<T extends object>(transaction: T) {
+  const result = transaction as T & { setMeta: ReturnType<typeof vi.fn> };
+  result.setMeta = vi.fn(() => result);
+  return result;
+}
+
 function createContext(parser: (markdown: string) => unknown) {
   const dispatch = vi.fn();
-  const replace = vi.fn(() => ({ step: 'replace' }));
+  const transaction = withSetMeta({ step: 'replace' });
+  const replace = vi.fn(() => transaction);
   const nodeFromJSON = vi.fn((json: unknown) => ({
     content: { type: 'fast-doc-content', json },
   }));
@@ -187,13 +194,15 @@ function createTextSchema(options: { blankLine?: boolean } = {}) {
 
 function createMockActiveEditor() {
   const dispatch = vi.fn();
-  const replace = vi.fn(() => ({ step: 'replace' }));
+  const transaction = withSetMeta({ step: 'replace' });
+  const replace = vi.fn(() => transaction);
   const parser = vi.fn((markdown: string) => ({ content: { type: 'parsed-doc-content', markdown } }));
   const view = {
     dom: document.createElement('div'),
     dispatch,
     state: {
       doc: { content: { size: 12 } },
+      plugins: [],
       tr: { replace },
     },
   };
@@ -270,14 +279,16 @@ describe('replaceEditorMarkdown', () => {
     const setSelection = vi.fn(function setSelection(this: unknown, _selection: unknown) {
       return transaction;
     });
-    const transaction = {
+    const transaction = withSetMeta({
       doc: replacementDoc,
       setSelection,
-    };
+    });
     const dispatch = vi.fn();
     const replace = vi.fn(() => transaction);
+    const lastClick = { time: Date.now() };
     const view = {
       dispatch,
+      input: { lastClick },
       state: {
         schema,
         doc: currentDoc,
@@ -299,6 +310,7 @@ describe('replaceEditorMarkdown', () => {
     expect(selection).toBeInstanceOf(TextSelection);
     expect((selection as TextSelection).from).toBe(8);
     expect((selection as TextSelection).to).toBe(8);
+    expect(lastClick.time).not.toBe(0);
     expect(dispatch).toHaveBeenCalledWith(transaction);
   });
 
@@ -314,10 +326,10 @@ describe('replaceEditorMarkdown', () => {
     const setSelection = vi.fn(function setSelection(this: unknown, _selection: unknown) {
       return transaction;
     });
-    const transaction = {
+    const transaction = withSetMeta({
       doc: replacementDoc,
       setSelection,
-    };
+    });
     const dispatch = vi.fn();
     const replace = vi.fn(() => transaction);
     const view = {
@@ -358,10 +370,10 @@ describe('replaceEditorMarkdown', () => {
     const setSelection = vi.fn(function setSelection(this: unknown, _selection: unknown) {
       return transaction;
     });
-    const transaction = {
+    const transaction = withSetMeta({
       doc: replacementDoc,
       setSelection,
-    };
+    });
     const dispatch = vi.fn();
     const replace = vi.fn(() => transaction);
     const view = {
@@ -404,10 +416,10 @@ describe('replaceEditorMarkdown', () => {
     const setSelection = vi.fn(function setSelection(this: unknown, _selection: unknown) {
       return transaction;
     });
-    const transaction = {
+    const transaction = withSetMeta({
       doc: replacementDoc,
       setSelection,
-    };
+    });
     const dispatch = vi.fn();
     const replace = vi.fn(() => transaction);
     const view = {
@@ -505,8 +517,16 @@ describe('replaceEditorMarkdown', () => {
     };
     const dispatch = vi.fn();
     const replace = vi.fn(() => transaction);
+    const lastClick = {
+      time: Date.now(),
+      x: 439,
+      y: 288,
+      type: 'doubleClick',
+      button: 0,
+    };
     const view = {
       dispatch,
+      input: { lastClick },
       state: {
         schema,
         doc: currentDoc,
@@ -528,6 +548,7 @@ describe('replaceEditorMarkdown', () => {
     expect(selection).toBeInstanceOf(TextSelection);
     expect((selection as TextSelection).from).toBe(2 + 'After leading blank line'.length);
     expect(setMeta).toHaveBeenCalledWith(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION);
+    expect(lastClick.time).toBe(0);
     expect(dispatch).toHaveBeenCalledWith(transaction);
   });
 });

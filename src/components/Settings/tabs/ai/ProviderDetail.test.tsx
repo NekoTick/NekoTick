@@ -140,4 +140,13 @@ describe('ProviderDetail', () => {
       name: '你好',
     }));
   });
+
+  it('does not write an unchanged provider when the detail closes', () => {
+    const { unmount } = render(<ProviderDetail provider={provider} />);
+
+    window.dispatchEvent(new Event('vlaina:settings-before-close'));
+    unmount();
+
+    expect(storeMock.updateProvider).not.toHaveBeenCalled();
+  });
 });

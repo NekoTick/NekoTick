@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useEditor } from '@milkdown/react';
 import {
   Editor,
@@ -27,6 +28,7 @@ export function useMilkdownEditorFactory(args: {
   cleanupActivatedEditor: () => void;
   configureMarkdownListener: (ctx: MilkdownContext, initialContent: string) => (markdown: string) => void;
   currentNotePath: string | undefined;
+  currentNoteContent: string;
   initialContent: string;
   reportEditorReady: (editor: ActiveMilkdownEditor) => void;
   shouldSerializeEditorMarkdown: () => boolean;
@@ -36,12 +38,30 @@ export function useMilkdownEditorFactory(args: {
     activateEditor,
     cleanupActivatedEditor,
     configureMarkdownListener,
+    currentNoteContent,
     currentNotePath,
     initialContent,
     reportEditorReady,
     shouldSerializeEditorMarkdown,
     activatedEditorRef,
   } = args;
+  const configureMarkdownListenerRef = useRef(configureMarkdownListener);
+  const currentNoteContentRef = useRef(currentNoteContent);
+  const markdownListenerRef = useRef<((markdown: string) => void) | null>(null);
+  const milkdownContextRef = useRef<MilkdownContext | null>(null);
+  configureMarkdownListenerRef.current = configureMarkdownListener;
+  currentNoteContentRef.current = currentNoteContent;
+
+  useEffect(() => {
+    const ctx = milkdownContextRef.current;
+    if (!ctx) {
+      return;
+    }
+    markdownListenerRef.current = configureMarkdownListenerRef.current(
+      ctx,
+      currentNoteContentRef.current,
+    );
+  }, [configureMarkdownListener]);
 
   const { get } = useEditor((root) => {
     const editorFactoryStartedAt = performance.now();
@@ -82,9 +102,12 @@ export function useMilkdownEditorFactory(args: {
         }));
         ctx.set(remarkGFMPlugin.options.key, notesRemarkGfmOptions);
 
-        const handleMarkdownUpdated = configureMarkdownListener(ctx, initialContent);
+        milkdownContextRef.current = ctx;
+        markdownListenerRef.current = configureMarkdownListenerRef.current(ctx, initialContent);
         ctx.update(prosePluginsCtx, (plugins) => plugins.concat(
-          createDeferredMarkdownUpdatePlugin(ctx, handleMarkdownUpdated, {
+          createDeferredMarkdownUpdatePlugin(ctx, (markdown) => {
+            markdownListenerRef.current?.(markdown);
+          }, {
             shouldSerialize: shouldSerializeEditorMarkdown,
           })
         ));

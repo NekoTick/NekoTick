@@ -25,6 +25,7 @@ export function MarkdownCodeBlockSettings({
           <SettingsSwitch
             data-settings-control="markdown-code-block-line-numbers"
             checked={showLineNumbers}
+            aria-label={t('settings.markdown.showLineNumbers')}
             onChange={onShowLineNumbersChange}
             activeColor="bg-[var(--vlaina-sidebar-row-selected-text)]"
           />

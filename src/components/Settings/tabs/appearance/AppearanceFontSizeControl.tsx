@@ -41,6 +41,7 @@ export function AppearanceFontSizeControl({ onPreviewingChange }: AppearanceFont
       type="range"
       spellCheck={false}
       data-settings-control="appearance-font-size"
+      aria-label={t('settings.appearance.baseFontSize')}
       min={UI_FONT_SIZE_MIN}
       max={UI_FONT_SIZE_MAX}
       step="1"

@@ -7,6 +7,7 @@ import { GITHUB_ISSUES_URL, SUPPORT_EMAIL, SUPPORT_EMAIL_HREF, safeTranslate } f
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
+  resetKey?: string;
 }
 
 interface ErrorBoundaryState {
@@ -77,6 +78,20 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         logsDir: logInfo?.logsDir ?? null,
       });
     });
+  }
+
+  componentDidUpdate(previousProps: ErrorBoundaryProps) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({
+        error: null,
+        componentStack: '',
+        copied: false,
+        appVersion: null,
+        logFilePath: null,
+        logsDir: null,
+        reportedAt: null,
+      });
+    }
   }
 
   private handleReload = () => {

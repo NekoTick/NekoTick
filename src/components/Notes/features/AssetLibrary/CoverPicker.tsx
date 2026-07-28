@@ -10,25 +10,7 @@ import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import { themeLazyLoadTokens } from '@/styles/themeTokens';
 import { AssetLibraryLoadingState } from './AssetLibraryLoadingState';
-import { isImageFileLike } from '@/lib/assets/core/naming';
-
-function getPastedImageFile(item: DataTransferItem): File | null {
-  if (item.kind && item.kind !== 'file') return null;
-
-  const itemMimeType = item.type.split(';')[0]?.trim().toLowerCase() ?? '';
-  if (itemMimeType.startsWith('image/')) {
-    return item.getAsFile();
-  }
-
-  if (itemMimeType && itemMimeType !== 'application/octet-stream') {
-    return null;
-  }
-
-  const file = item.getAsFile();
-  if (!file) return null;
-
-  return isImageFileLike(file) ? file : null;
-}
+import { extractImageFilesFromClipboardData } from '@/lib/assets/imageClipboardFiles';
 
 export function CoverPicker({
   isOpen,
@@ -200,31 +182,25 @@ export function CoverPicker({
     };
 
     const handlePaste = async (e: ClipboardEvent) => {
-      if (uploadingRef.current) return;
+      if (e.defaultPrevented || uploadingRef.current) return;
 
-      const items = e.clipboardData?.items;
-      if (!items) return;
+      const file = extractImageFilesFromClipboardData(e.clipboardData)[0];
+      if (!file) return;
 
-      for (const item of items) {
-        const file = getPastedImageFile(item);
-        if (file) {
-          e.preventDefault();
-          uploadingRef.current = true;
-          setIsUploading(true);
+      e.preventDefault();
+      uploadingRef.current = true;
+      setIsUploading(true);
 
-          try {
-            const result = await uploadAsset(file, currentNotePath);
+      try {
+        const result = await uploadAsset(file, currentNotePath);
 
-            if (mountedRef.current && isOpenRef.current && result.success && result.path) {
-              onSelect(result.path);
-            }
-          } finally {
-            uploadingRef.current = false;
-            if (mountedRef.current && isOpenRef.current) {
-              setIsUploading(false);
-            }
-          }
-          break;
+        if (mountedRef.current && isOpenRef.current && result.success && result.path) {
+          onSelect(result.path);
+        }
+      } finally {
+        uploadingRef.current = false;
+        if (mountedRef.current && isOpenRef.current) {
+          setIsUploading(false);
         }
       }
     };

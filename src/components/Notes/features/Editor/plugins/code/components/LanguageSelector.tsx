@@ -7,6 +7,10 @@ import { guessLanguage } from '../../../utils/languageGuesser';
 import { codeBlockLanguages } from '../codeBlockLanguageLoader';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { themeIconTokens } from '@/styles/themeTokens';
+import {
+    preventImageClipboardTextPaste,
+    preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface LanguageSelectorProps {
     language: string;
@@ -159,6 +163,8 @@ export const LanguageSelector = React.memo(function LanguageSelector({
                                 isComposingRef.current = false;
                             }}
                             onClick={(e) => e.stopPropagation()}
+                            onPaste={preventImageClipboardTextPaste}
+                            onDrop={preventImageDataTransferTextDrop}
                             onKeyDown={handleKeyDown}
                         />
                         <button

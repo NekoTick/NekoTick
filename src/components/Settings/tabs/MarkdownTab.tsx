@@ -53,6 +53,7 @@ export function MarkdownTab() {
           <SettingsSwitch
             data-settings-control="markdown-typewriter-mode"
             checked={typewriterMode}
+            aria-label={t('settings.markdown.typewriterMode')}
             onChange={setMarkdownTypewriterMode}
             activeColor="bg-[var(--vlaina-sidebar-row-selected-text)]"
           />
@@ -65,6 +66,7 @@ export function MarkdownTab() {
           <SettingsSwitch
             data-settings-control="markdown-body-line-numbers"
             checked={showBodyLineNumbers}
+            aria-label={t('settings.markdown.bodyLineNumbers')}
             onChange={setMarkdownBodyLineNumbers}
             activeColor="bg-[var(--vlaina-sidebar-row-selected-text)]"
           />

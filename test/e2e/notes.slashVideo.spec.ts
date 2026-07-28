@@ -212,7 +212,10 @@ test.describe('notes slash video command', () => {
 
       const selectedVideoCount = await page.evaluate(() => {
         const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks();
-        const index = blocks.findIndex((block: { tagName: string }) => block.tagName === 'DIV');
+        const index = blocks.findIndex((block: {
+          className: string;
+          dataset: Record<string, string>;
+        }) => block.dataset.type === 'video' || block.className.includes('video-block'));
         return (window as any).__vlainaE2E.selectNoteBlocksByIndexes([index]);
       });
       expect(selectedVideoCount).toBe(1);

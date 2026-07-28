@@ -428,6 +428,10 @@ describe('markdown blank line syntax matrix', () => {
       markdown: lines(['Alpha', '', '<!--align:center-->', '', '', '# Beta', '<!--align:right-->', '', 'Tail']),
     },
     {
+      name: 'leading alignment comments keep following text blocks',
+      markdown: lines(['<!--align:center-->', '', '', '# Leading alignment', 'Tail']),
+    },
+    {
       name: 'alignment comments around lists do not disturb list blanks',
       markdown: lines(['<!--align:center-->', '', '- one', '', '- two', '', '<!--align:left-->', '', 'Tail']),
     },

@@ -7,7 +7,7 @@ const FIRST_VISUAL_LINE_TOLERANCE_PX = 4;
 const MAX_FIRST_LINE_END_SCAN_POSITIONS = 20_000;
 
 function getEditorElement(): HTMLElement | null {
-  return document.querySelector('.milkdown .ProseMirror');
+  return document.querySelector('.milkdown .ProseMirror[contenteditable="true"]');
 }
 
 function focusEditorDomStart(editorEl: HTMLElement): void {

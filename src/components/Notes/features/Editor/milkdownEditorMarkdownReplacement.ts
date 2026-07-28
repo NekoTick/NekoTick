@@ -19,6 +19,7 @@ import { createLargePlainMarkdownDoc } from './milkdownLargePlainMarkdown';
 import { logE2EMilkdownTiming } from './milkdownE2ETiming';
 
 interface ReplaceEditorMarkdownOptions {
+  replacementDoc?: ProseNode;
   resetSelection?: boolean;
 }
 
@@ -81,6 +82,18 @@ function createPreservedEditorSelection(doc: ProseNode, previousSelection: Selec
   }
 }
 
+function resetEditorPointerClickSequence(view: EditorView): void {
+  const input = (view as unknown as {
+    input?: { lastClick?: { time: number } };
+  }).input;
+
+  // The EditorView is reused across notes, so clicks from the previous note
+  // must not contribute to ProseMirror's double/triple-click counter.
+  if (input?.lastClick) {
+    input.lastClick.time = 0;
+  }
+}
+
 export function normalizeInitialEditorSelection(view: EditorView): boolean {
   const nextSelection = createDocumentFirstLineEndTextSelection(view.state.doc);
   if (!(nextSelection instanceof TextSelection) || nextSelection.eq(view.state.selection)) {
@@ -105,16 +118,20 @@ export function replaceEditorMarkdown(
 
   try {
     view = ctx.get(editorViewCtx);
-    const fastDocStartedAt = performance.now();
-    doc = createLargePlainMarkdownDoc(view.state.schema, markdown);
-    if (doc) {
-      logE2EMilkdownTiming('replace-fast-doc', {
-        inputLength: markdown.length,
-        durationMs: Math.round(performance.now() - fastDocStartedAt),
-      });
+    if (options.replacementDoc) {
+      doc = options.replacementDoc;
     } else {
-      const parser = ctx.get(parserCtx);
-      doc = parser(markdown);
+      const fastDocStartedAt = performance.now();
+      doc = createLargePlainMarkdownDoc(view.state.schema, markdown);
+      if (doc) {
+        logE2EMilkdownTiming('replace-fast-doc', {
+          inputLength: markdown.length,
+          durationMs: Math.round(performance.now() - fastDocStartedAt),
+        });
+      } else {
+        const parser = ctx.get(parserCtx);
+        doc = parser(markdown);
+      }
     }
   } catch {
     return false;
@@ -130,9 +147,10 @@ export function replaceEditorMarkdown(
     0,
     state.doc.content.size,
     new Slice(doc.content as never, 0, 0),
-  );
+  ).setMeta('addToHistory', false);
 
   if (options.resetSelection) {
+    resetEditorPointerClickSequence(view);
     tr = tr
       .setSelection(createDocumentFirstLineEndTextSelection(tr.doc))
       .setMeta(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION);
@@ -176,4 +194,3 @@ export function isEditorMarkdownEquivalentToNoteContent(
     normalizeComparableEditorMarkdown(noteContent)
   );
 }
-

@@ -59,10 +59,11 @@ export function getStructuralStyleDecorationClass(node: ProseNode): string | nul
     }
 
     const imageChildCount = getDirectImageChildCount(node);
-    if (imageChildCount > 0) {
+    const containsOnlyImages = imageChildCount > 0 && imageChildCount === node.childCount;
+    if (containsOnlyImages) {
       classes.push(STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS);
     }
-    if (imageChildCount > 1) {
+    if (containsOnlyImages && imageChildCount > 1) {
       classes.push(STRUCTURAL_PARAGRAPH_HAS_MULTIPLE_IMAGE_BLOCKS_CLASS);
     }
   }

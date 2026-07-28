@@ -42,6 +42,7 @@ function CommunityQrPill({
   onClose: (id: CommunityQrPillId) => void;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const panelId = `settings-community-${id}-qr`;
 
   useEffect(() => {
     if (!isOpen || !qrText) {
@@ -89,6 +90,8 @@ function CommunityQrPill({
       <button
         type="button"
         aria-label={title}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
         className={cn(communityPillClassName, raisedPillSurfaceClass)}
       >
         {icon}
@@ -99,6 +102,8 @@ function CommunityQrPill({
         isOpen && 'opacity-[var(--vlaina-opacity-100)]',
         raisedPillSurfaceClass
       )}
+        id={panelId}
+        aria-hidden={!isOpen}
         data-community-qr-panel={id}
       >
         {detail ? (

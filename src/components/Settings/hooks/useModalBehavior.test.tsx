@@ -81,6 +81,26 @@ describe('useModalBehavior', () => {
     nestedDialog.remove();
   });
 
+  it('does not close when a child control consumes Escape', () => {
+    const onClose = vi.fn();
+    const childControl = document.createElement('input');
+    childControl.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+      }
+    });
+    document.body.appendChild(childControl);
+
+    renderHook(() => useModalBehavior({ open: true, onClose }));
+    childControl.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    }));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('does not close or cancel editing while IME composition is active', () => {
     const onClose = vi.fn();
     const onCancelEdit = vi.fn();

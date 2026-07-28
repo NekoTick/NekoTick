@@ -5,6 +5,10 @@ import { cn } from '@/lib/utils';
 import type { NoteEditorFindController } from './types';
 import { useI18n } from '@/lib/i18n';
 import { themeMotionTokens } from '@/styles/themeTokens';
+import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface NoteEditorFindBarProps {
   controller: NoteEditorFindController;
@@ -120,6 +124,8 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
           onCompositionStart={controller.handleQueryCompositionStart}
           onCompositionEnd={controller.handleQueryCompositionEnd}
           onKeyDown={controller.handleQueryKeyDown}
+          onPaste={preventImageClipboardTextPaste}
+          onDrop={preventImageDataTransferTextDrop}
           placeholder={t('notes.find')}
           spellCheck={false}
           className="h-8 min-w-0 flex-1 bg-transparent py-0 text-[var(--vlaina-font-15)] font-medium leading-5 text-[var(--vlaina-color-text-strong)] outline-none placeholder:text-[var(--vlaina-color-text-soft)] tracking-tight"
@@ -192,6 +198,8 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
                 onCompositionStart={controller.handleReplaceCompositionStart}
                 onCompositionEnd={controller.handleReplaceCompositionEnd}
                 onKeyDown={controller.handleReplaceKeyDown}
+                onPaste={preventImageClipboardTextPaste}
+                onDrop={preventImageDataTransferTextDrop}
                 placeholder={t('notes.replaceWith')}
                 spellCheck={false}
                 className="h-8 min-w-0 flex-1 bg-transparent px-3 py-0 text-[var(--vlaina-font-sm)] font-medium leading-5 text-[var(--vlaina-text-primary)] outline-none placeholder:text-[var(--vlaina-color-text-soft)] tracking-tight"

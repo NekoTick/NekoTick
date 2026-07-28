@@ -4,6 +4,7 @@ import { SettingsTextInput } from '@/components/Settings/components/SettingsFiel
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
+import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorage';
 import { providerInputClassName, providerInputShellClassName } from './providerInputStyles';
 import {
   getApiKeyEditableSelectionRange,
@@ -184,6 +185,8 @@ export function ProviderConnectionFields({
               type="text"
               data-settings-provider-field="name"
               value={name}
+              maxLength={MAX_AI_MODEL_FIELD_CHARS}
+              aria-label={t('settings.ai.channelName')}
               onChange={(e) => onNameChange(e.target.value)}
               onCompositionStart={() => onCompositionChange?.(true)}
               onCompositionEnd={() => onCompositionChange?.(false)}
@@ -210,6 +213,8 @@ export function ProviderConnectionFields({
               type="text"
               data-settings-provider-field="api-host"
               value={apiHost}
+              maxLength={MAX_AI_MODEL_FIELD_CHARS}
+              aria-label={t('settings.ai.baseUrl', { url: '' }).replace(/[:：]\s*$/, '')}
               onChange={(e) => onApiHostChange(e.target.value)}
               onCompositionStart={() => onCompositionChange?.(true)}
               onCompositionEnd={() => onCompositionChange?.(false)}
@@ -241,6 +246,8 @@ export function ProviderConnectionFields({
               type="text"
               data-settings-provider-field="api-key"
               value={apiKeyDisplayValue}
+              maxLength={MAX_AI_MODEL_FIELD_CHARS}
+              aria-label={t('settings.ai.apiKey')}
               onChange={(e) => onApiKeyChange(e.target.value)}
               onCompositionStart={() => onCompositionChange?.(true)}
               onCompositionEnd={() => onCompositionChange?.(false)}

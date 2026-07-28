@@ -3,6 +3,10 @@ import { Plugin } from '@milkdown/kit/prose/state';
 import { Fragment, Slice } from '@milkdown/kit/prose/model';
 import { DecorationSet } from '@milkdown/kit/prose/view';
 import { resolvePasteRange } from '../../clipboard/pasteCursorUtils';
+import {
+    hasClipboardImageFilePayload,
+    hasClipboardImageOnlyHtmlPayload,
+} from '../../clipboard/clipboardPayload';
 import { sanitizeExplicitMarkdownLinkHref } from '../utils/linkHref';
 import {
     getMarkdownLinkHref,
@@ -251,6 +255,13 @@ export const markdownLinkPlugin = $prose(() => {
             handlePaste(view, event) {
                 const clipboardData = event.clipboardData;
                 if (!clipboardData) return false;
+                if (hasClipboardImageFilePayload(clipboardData)) {
+                    event.preventDefault();
+                    return true;
+                }
+                if (hasClipboardImageOnlyHtmlPayload(clipboardData)) {
+                    return false;
+                }
 
                 const text = clipboardData.getData('text/plain');
                 if (text.length > MAX_MARKDOWN_LINK_PASTE_CHARS) {

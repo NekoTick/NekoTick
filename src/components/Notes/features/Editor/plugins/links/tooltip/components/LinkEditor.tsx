@@ -21,6 +21,10 @@ import {
     useLinkTooltipContentWidth,
 } from '../hooks/useLinkTooltipContentWidth';
 import { MAX_LINK_TOOLTIP_URL_CHARS } from '../hooks/useLinkState';
+import {
+    preventImageClipboardTextPaste,
+    preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface LinkEditorProps {
     editUrl: string;
@@ -209,6 +213,8 @@ export const LinkEditor = ({
                     onCompositionStart={handleCompositionStart}
                     onCompositionEnd={handleCompositionEnd}
                     onKeyDown={handleKeyDown}
+                    onPaste={preventImageClipboardTextPaste}
+                    onDrop={preventImageDataTransferTextDrop}
                     rows={1}
                     maxLength={MAX_LINK_TOOLTIP_URL_CHARS}
                     aria-invalid={hasValidationError || undefined}
