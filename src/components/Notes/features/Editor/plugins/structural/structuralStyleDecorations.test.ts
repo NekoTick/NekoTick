@@ -4,6 +4,7 @@ import * as ProseState from '@milkdown/kit/prose/state';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import type { Decoration } from '@milkdown/kit/prose/view';
 import {
+  STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS,
   STRUCTURAL_EMPTY_PARAGRAPH_CLASS,
   STRUCTURAL_LIST_ITEM_ALIGN_CENTER_CLASS,
   STRUCTURAL_LIST_ITEM_ALIGN_RIGHT_CLASS,
@@ -154,6 +155,18 @@ describe('structuralStyleDecorations', () => {
       image(),
       textNode('Visible text'),
     ]))).toBeNull();
+  });
+
+  it('eagerly lays out only long paragraphs with dense inline structure', () => {
+    const denseChildren = Array.from({ length: 12 }, (_, index) => (
+      schema.text('formatted segment '.repeat(12), index % 2 === 0 ? [schema.marks.strong.create()] : undefined)
+    ));
+
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren(denseChildren))).toBe(
+      STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS,
+    );
+    expect(getStructuralStyleDecorationClass(paragraph('plain text '.repeat(300)))).toBeNull();
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren(denseChildren.slice(0, 6)))).toBeNull();
   });
 
   it('marks list items based on direct child text alignment', () => {

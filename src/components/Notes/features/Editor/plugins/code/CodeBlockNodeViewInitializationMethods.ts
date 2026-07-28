@@ -14,7 +14,10 @@ import React from 'react';
 import {
   codeMirrorFindHighlightExtensions
 } from '../find/editorFindCodeMirrorHighlights';
-import { MAX_LAZY_CODE_BLOCK_LINE_NUMBER_PLACEHOLDER_LINES } from './CodeBlockNodeViewConstants';
+import {
+  LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS,
+  MAX_LAZY_CODE_BLOCK_LINE_NUMBER_PLACEHOLDER_LINES,
+} from './CodeBlockNodeViewConstants';
 import { CodeBlockView } from './CodeBlockView';
 import { subscribeCodeBlockSelectionSync } from './codeBlockSelectionSync';
 import {
@@ -54,10 +57,37 @@ class CodeBlockNodeViewInitializationMethods {
 
     this.intersectionObserver = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
-        this.initializeCodeMirror();
+        this.scheduleLazyCodeMirrorInitialization();
+      } else {
+        this.cancelPendingLazyCodeMirrorInitialization();
       }
     }, { rootMargin: themeLazyLoadTokens.codeBlockRootMargin });
     this.intersectionObserver.observe(this.dom);
+  }
+
+  cancelPendingLazyCodeMirrorInitialization(this: any) {
+    if (this.pendingLazyInitializationTimer === null) {
+      return;
+    }
+    this.getOwnerWindow()?.clearTimeout(this.pendingLazyInitializationTimer);
+    this.pendingLazyInitializationTimer = null;
+  }
+
+  scheduleLazyCodeMirrorInitialization(this: any) {
+    if (this.cm || this.pendingLazyInitializationTimer !== null) {
+      return;
+    }
+    const ownerWindow = this.getOwnerWindow();
+    if (!ownerWindow) {
+      this.initializeCodeMirror();
+      return;
+    }
+    this.pendingLazyInitializationTimer = ownerWindow.setTimeout(() => {
+      this.pendingLazyInitializationTimer = null;
+      if (!this.destroyed) {
+        this.initializeCodeMirror();
+      }
+    }, LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
   }
 
   readonly activateCodeMirrorFromInteraction = () => {
@@ -65,6 +95,7 @@ class CodeBlockNodeViewInitializationMethods {
   };
 
   initializeCodeMirror(this: any) {
+    this.cancelPendingLazyCodeMirrorInitialization();
     if (this.cm) {
       return;
     }

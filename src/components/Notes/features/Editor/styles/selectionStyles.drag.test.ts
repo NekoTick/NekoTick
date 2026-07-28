@@ -164,6 +164,7 @@ describe("editor block drag interaction styles", () => {
     expect(lazyRule).toContain("[data-type='html-block'],");
     expect(lazyRule).toContain("[data-type='math-block'],");
     expect(lazyRule).toContain("[data-type='toc']");
+    expect(lazyRule).toContain(':not(.editor-eager-layout-paragraph)');
     expect(lazyRule).toContain('content-visibility: auto;');
     expect(lazyRule).toContain('contain-intrinsic-size: auto var(--vlaina-height-block-intrinsic);');
   });

@@ -180,12 +180,15 @@ describe('getMarkdownBodyLineNumbers', () => {
   it('numbers source blank line placeholders but not rendered HTML boundary placeholders', () => {
     const markdown = [
       '# Title',
-      '<!--vlaina-markdown-blank-line-->',
-      '<!-- vlaina-rendered-html-boundary-blank-line -->',
       'Body',
+      '',
+      'Editable blank line',
+      '<img src="./assets/example.svg" alt="Example" />',
+      '',
+      'After image',
     ].join('\n');
 
-    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 2, 3]);
+    expect(getMarkdownBodyLineNumbers(markdown)).toEqual([1, 2, 3, 4, 7]);
   });
 
   it('numbers rendered table rows while skipping separator syntax lines', () => {
@@ -256,7 +259,6 @@ describe('getMarkdownBodyLineNumbers', () => {
   it('skips editor-only tight heading placeholders', () => {
     const markdown = [
       '# Before',
-      '<!--vlaina-markdown-tight-heading-->',
       '## After',
     ].join('\n');
 

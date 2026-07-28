@@ -6,10 +6,15 @@ import {
   CodeBlockNodeView,
   MAX_LAZY_CODE_BLOCK_LINE_NUMBER_PLACEHOLDER_LINES,
 } from './CodeBlockNodeView';
+import { LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS } from './CodeBlockNodeViewConstants';
 
 const renderMock = vi.fn();
 const unmountMock = vi.fn();
-const intersectionObserverInstances: Array<{ rootMargin: string }> = [];
+const intersectionObserverInstances: Array<{
+  callback: IntersectionObserverCallback;
+  observer: IntersectionObserver;
+  rootMargin: string;
+}> = [];
 
 vi.mock('react-dom/client', () => ({
   createRoot: vi.fn(() => ({
@@ -77,15 +82,20 @@ describe('CodeBlockNodeView lazy placeholders', () => {
       root = null;
       rootMargin: string;
       thresholds = [];
-      constructor(_callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
         this.rootMargin = options?.rootMargin ?? '0px';
-        intersectionObserverInstances.push(this);
+        intersectionObserverInstances.push({
+          callback,
+          observer: this as unknown as IntersectionObserver,
+          rootMargin: this.rootMargin,
+        });
       }
     }
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     setGlobalLineNumbers(false);
   });
@@ -119,6 +129,48 @@ describe('CodeBlockNodeView lazy placeholders', () => {
 
     expect(intersectionObserverInstances.at(-1)?.rootMargin).toBe('900px 0px');
 
+    nodeView.destroy();
+  });
+
+  it('initializes only after the code block remains near the viewport', () => {
+    vi.useFakeTimers();
+    const nodeView = new CodeBlockNodeView(
+      createMockNode('const value = 1;'),
+      createMockView(),
+      () => 1,
+      { lazyCodeMirror: true },
+    );
+    const instance = intersectionObserverInstances.at(-1)!;
+
+    instance.callback([{ isIntersecting: true } as IntersectionObserverEntry], instance.observer);
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS - 1);
+    expect(nodeView.cm).toBeNull();
+
+    instance.callback([{ isIntersecting: false } as IntersectionObserverEntry], instance.observer);
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    expect(nodeView.cm).toBeNull();
+
+    instance.callback([{ isIntersecting: true } as IntersectionObserverEntry], instance.observer);
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    expect(nodeView.cm).not.toBeNull();
+
+    nodeView.destroy();
+  });
+
+  it('initializes immediately when the user interacts with a lazy code block', () => {
+    vi.useFakeTimers();
+    const nodeView = new CodeBlockNodeView(
+      createMockNode('const value = 1;'),
+      createMockView(),
+      () => 1,
+      { lazyCodeMirror: true },
+    );
+    const instance = intersectionObserverInstances.at(-1)!;
+
+    instance.callback([{ isIntersecting: true } as IntersectionObserverEntry], instance.observer);
+    nodeView.dom.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+
+    expect(nodeView.cm).not.toBeNull();
     nodeView.destroy();
   });
 });

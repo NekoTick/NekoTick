@@ -9,6 +9,7 @@ import {
 
 export const STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS = 'editor-paragraph-has-image-block';
 export const STRUCTURAL_PARAGRAPH_HAS_MULTIPLE_IMAGE_BLOCKS_CLASS = 'editor-paragraph-has-multiple-image-blocks';
+export const STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS = 'editor-eager-layout-paragraph';
 export const STRUCTURAL_EMPTY_PARAGRAPH_CLASS = 'editor-empty-paragraph';
 export const STRUCTURAL_LIST_ITEM_ALIGN_CENTER_CLASS = 'editor-list-item-align-center';
 export const STRUCTURAL_LIST_ITEM_ALIGN_RIGHT_CLASS = 'editor-list-item-align-right';
@@ -18,6 +19,8 @@ export const MAX_STRUCTURAL_STYLE_SCAN_NODES = DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT
 export const MAX_STRUCTURAL_STYLE_RANGE_SCAN_NODES = MAX_STRUCTURAL_STYLE_SCAN_NODES;
 
 const STRUCTURAL_STYLE_NODE_TYPES = new Set(['paragraph', 'list_item']);
+const EAGER_LAYOUT_PARAGRAPH_MIN_CONTENT_SIZE = 2000;
+const EAGER_LAYOUT_PARAGRAPH_MIN_CHILD_COUNT = 12;
 
 export function isRelevantStructuralNode(node: ProseNode): boolean {
   return STRUCTURAL_STYLE_NODE_TYPES.has(node.type.name);
@@ -56,6 +59,12 @@ export function getStructuralStyleDecorationClass(node: ProseNode): string | nul
   if (node.type.name === 'paragraph') {
     if (node.content.size === 0) {
       classes.push(STRUCTURAL_EMPTY_PARAGRAPH_CLASS);
+    }
+    if (
+      node.content.size >= EAGER_LAYOUT_PARAGRAPH_MIN_CONTENT_SIZE
+      && node.childCount >= EAGER_LAYOUT_PARAGRAPH_MIN_CHILD_COUNT
+    ) {
+      classes.push(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
     }
 
     const imageChildCount = getDirectImageChildCount(node);

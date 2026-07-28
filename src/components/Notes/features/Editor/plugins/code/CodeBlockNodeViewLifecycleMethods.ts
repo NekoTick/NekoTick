@@ -149,6 +149,7 @@ class CodeBlockNodeViewLifecycleMethods {
 
   destroy(this: any) {
     this.destroyed = true;
+    this.cancelPendingLazyCodeMirrorInitialization();
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = null;
     this.clearCodeMirrorSelectionArrowKey();
