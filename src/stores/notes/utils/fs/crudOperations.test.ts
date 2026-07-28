@@ -162,7 +162,7 @@ describe('createNoteImpl', () => {
     expect(result.content).not.toContain('data-vlaina-empty-line');
   });
 
-  it('cleans serialized editor-only markdown artifacts before creating a note', async () => {
+  it('preserves user-authored reserved comments while normalizing a new note', async () => {
     hoisted.resolveUniquePath.mockResolvedValue({
       relativePath: 'alpha.md',
       fullPath: '/notesRoot/alpha.md',
@@ -196,11 +196,11 @@ describe('createNoteImpl', () => {
     const written = String(adapter.writeFile.mock.calls[0]?.[1] ?? '');
     expect(written).toBe([
       '# Alpha',
-      '',
+      '<!--vlaina-markdown-blank-line-->',
       '  Pro:   \\$76.80 / year',
       ' Max:   \\$191.90 / year',
     ].join('\n'));
-    expect(written).not.toContain('vlaina-markdown-blank-line');
+    expect(written).toContain('vlaina-markdown-blank-line');
     expect(written).not.toContain('&#x20');
     expect(written).not.toContain('&#32');
     expect(result.content).toBe(written);

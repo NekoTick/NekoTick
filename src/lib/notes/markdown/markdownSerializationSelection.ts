@@ -15,6 +15,7 @@ import {
   normalizeUserBreakSentinels,
 } from './markdownSerializationSentinels';
 import { BR_ONLY_PATTERN, MARKED_BLOCKQUOTE_USER_BR_PATTERN, MARKED_BLOCKQUOTE_USER_BR_WITH_DEPTH_PATTERN, MARKED_BR_ONLY_PATTERN, MARKED_USER_BR_PATTERN } from './markdownSerializationShared';
+import { restoreUserAuthoredInternalArtifactComments } from './markdownInternalArtifactEscapes';
 
 export function normalizeSerializedMarkdownSelection(text: string): string {
   const trimmedText = stripTrailingNewlines(text).trim();
@@ -29,11 +30,11 @@ export function normalizeSerializedMarkdownSelection(text: string): string {
     || (text.length > 0 && withoutTrailingNewlines.length === 0)
     || BR_ONLY_PATTERN.test(withoutTrailingNewlines.trim())
   ) return '\n';
-  return normalizeUrlSerializationArtifacts(
+  return restoreUserAuthoredInternalArtifactComments(normalizeUrlSerializationArtifacts(
     normalizeEscapedHighlightSyntax(normalizeEscapedAngleBracketText(
       unescapeMarkdownPunctuation(withoutTrailingNewlines)
     ))
-  );
+  ));
 }
 
 export function isPlainStandaloneBreakLine(text: string): boolean {

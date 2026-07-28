@@ -37,6 +37,7 @@ export class BlockControlsViewSession {
   dragSourceDoc: EditorView['state']['doc'] | null = null;
   dragSourceNotePath: string | null = null;
   draggedMarkdown: string | null = null;
+  dragSourceMarkdownBeforeDelete: string | null = null;
   dragSourceMarkdownAfterDelete: string | null = null;
   blockDragTabOpenPath: string | null = null;
   blockDragTabOpenTimerId: number | null = null;

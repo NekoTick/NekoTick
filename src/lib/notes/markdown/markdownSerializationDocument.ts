@@ -25,6 +25,10 @@ import {
 import { normalizeGenericHtmlBlockClosingSpacing } from './markdownSerializationHtmlSpacing';
 import { normalizeInternalMarkdownBlankLineComments } from './markdownSerializationInternalBlankComments';
 import { normalizeInternalTightHeadingComments } from './markdownSerializationInternalTightComments';
+import {
+  protectUserAuthoredInternalArtifactCommentsForEditor,
+  restoreUserAuthoredInternalArtifactComments,
+} from './markdownInternalArtifactEscapes';
 import { normalizeMailtoEmailMarkdownLinks } from './markdownSerializationLinks';
 import {
   normalizeInternalClipboardArtifacts,
@@ -119,11 +123,11 @@ export function normalizeSerializedMarkdownBlock(text: string): string {
     normalizeUserBreakSentinels(stripEmptyMarkdownPlaceholders(normalizedPlaceholders))
   );
   if (BR_ONLY_PATTERN.test(withoutTrailingNewlines.trim())) return '';
-  return normalizeUrlSerializationArtifacts(
+  return restoreUserAuthoredInternalArtifactComments(normalizeUrlSerializationArtifacts(
     normalizeEscapedHighlightSyntax(normalizeEscapedAngleBracketText(
       unescapeMarkdownPunctuation(withoutTrailingNewlines)
     ))
-  );
+  ));
 }
 
 export function normalizeSerializedMarkdownDocument(text: string): string {
@@ -153,7 +157,8 @@ export function normalizeEditorStateMarkdownDocument(text: string): string {
 }
 
 export function normalizeEditorRuntimeMarkdownArtifacts(text: string): string {
-  const afterInternalTightHeadingComments = normalizeInternalTightHeadingComments(text);
+  const protectedText = protectUserAuthoredInternalArtifactCommentsForEditor(text);
+  const afterInternalTightHeadingComments = normalizeInternalTightHeadingComments(protectedText);
   const afterInternalMarkdownBlankLineComments =
     normalizeInternalMarkdownBlankLineComments(afterInternalTightHeadingComments);
   const afterStripPlaceholders = stripEmptyMarkdownPlaceholders(afterInternalMarkdownBlankLineComments);
@@ -168,11 +173,15 @@ export function normalizeEditorRuntimeMarkdownArtifacts(text: string): string {
   const afterStandaloneBreakHtml = normalizeStandaloneBreakHtmlToMarkdown(afterTableCellBreaks);
   const afterMarkdownSpaceEntities = normalizeMarkdownSpaceEntityArtifacts(afterStandaloneBreakHtml);
   const afterEscapedAngleBracketText = normalizeEscapedAngleBracketText(afterMarkdownSpaceEntities);
-  return normalizeRedundantMarkdownEscapes(afterEscapedAngleBracketText);
+  return restoreUserAuthoredInternalArtifactComments(
+    normalizeRedundantMarkdownEscapes(afterEscapedAngleBracketText)
+  );
 }
 
 export function normalizeEditorRuntimeMarkdownArtifactsForState(text: string): string {
-  const source = stripLeadingBom(text).replace(/\r\n?/g, '\n');
+  const source = protectUserAuthoredInternalArtifactCommentsForEditor(
+    stripLeadingBom(text).replace(/\r\n?/g, '\n')
+  );
   const afterInternalTightHeadingComments = normalizeInternalTightHeadingComments(source);
   const afterInternalMarkdownBlankLineComments =
     normalizeInternalMarkdownBlankLineComments(afterInternalTightHeadingComments);
@@ -191,7 +200,9 @@ export function normalizeEditorRuntimeMarkdownArtifactsForState(text: string): s
   const afterEscapedAngleBracketText = normalizeEscapedAngleBracketText(afterMarkdownSpaceEntities);
   const afterRedundantMarkdownEscapes = normalizeRedundantMarkdownEscapes(afterEscapedAngleBracketText);
 
-  return normalizeUrlSerializationArtifacts(afterRedundantMarkdownEscapes);
+  return restoreUserAuthoredInternalArtifactComments(
+    normalizeUrlSerializationArtifacts(afterRedundantMarkdownEscapes)
+  );
 }
 
 export function summarizeMarkdownNormalizationPipeline(text: string) {
@@ -232,7 +243,9 @@ export function runMarkdownDocumentNormalizationPipeline(text: string) {
   const afterStandaloneBreakHtml = normalizeStandaloneBreakHtmlToMarkdown(afterTableCellBreaks);
   const afterMarkdownSpaceEntities = normalizeMarkdownSpaceEntityArtifacts(afterStandaloneBreakHtml);
   const afterRedundantMarkdownEscapes = normalizeRedundantMarkdownEscapes(afterMarkdownSpaceEntities);
-  const output = normalizeUrlSerializationArtifacts(afterRedundantMarkdownEscapes);
+  const output = restoreUserAuthoredInternalArtifactComments(
+    normalizeUrlSerializationArtifacts(afterRedundantMarkdownEscapes)
+  );
 
   return {
     input: text,

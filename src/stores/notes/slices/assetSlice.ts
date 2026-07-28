@@ -8,7 +8,7 @@ import { resolveEffectiveNotesRootPath } from '../effectiveNotesRootPath';
 
 let uploadProgressResetTimer: ReturnType<typeof setTimeout> | null = null;
 export const MAX_PENDING_ASSET_LOADS = 50;
-const loadAssetsInFlight = new Map<string, Promise<void>>();
+const loadAssetsInFlight = new Map<string, Promise<AssetEntry[]>>();
 
 function clearUploadProgressResetTimer() {
   if (uploadProgressResetTimer === null) {
@@ -77,7 +77,8 @@ export interface AssetSlice {
 }
 
 export const createAssetSlice: StateCreator<NotesStore, [], [], AssetSlice> = (set, get) => {
-  let latestAssetLoadRequest = 0;
+  let assetListScopeKey: string | null = null;
+  let latestAssetLoadKey: string | null = null;
 
   return {
     assetList: [],
@@ -90,58 +91,51 @@ export const createAssetSlice: StateCreator<NotesStore, [], [], AssetSlice> = (s
       const config = getAssetConfig();
       const loadKey = getLoadAssetsKey(notesRootPath, currentNotePath, config);
       const existingLoad = loadAssetsInFlight.get(loadKey);
-      if (existingLoad) {
-        await existingLoad;
+      if (!existingLoad && loadAssetsInFlight.size >= MAX_PENDING_ASSET_LOADS) {
         return;
       }
-      if (loadAssetsInFlight.size >= MAX_PENDING_ASSET_LOADS) {
-        return;
-      }
-      const requestId = ++latestAssetLoadRequest;
+      latestAssetLoadKey = loadKey;
+      set({
+        ...(assetListScopeKey !== null && assetListScopeKey !== loadKey
+          ? { assetList: [] }
+          : {}),
+        isLoadingAssets: true,
+        assetLoadError: null,
+      });
 
-      const loadPromise = (async () => {
-        set({
-          isLoadingAssets: true,
-          assetLoadError: null,
-        });
-
-        try {
-          const context = {
-            notesRootPath,
-            currentNotePath,
-          };
-          const assets = combineAndSortAssets(await AssetService.list(context, config));
-
-          if (requestId !== latestAssetLoadRequest) {
-            return;
-          }
-
-          if (!isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
-            set({ isLoadingAssets: false });
-            return;
-          }
-
-          set({ assetList: assets, isLoadingAssets: false, assetLoadError: null });
-        } catch (error) {
-          if (requestId === latestAssetLoadRequest) {
-            if (isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
-              set({
-                isLoadingAssets: false,
-                assetLoadError: error instanceof Error && error.message.trim()
-                  ? error.message.trim()
-                  : 'Failed to load asset library',
-              });
-            } else {
-              set({ isLoadingAssets: false });
-            }
-          }
-          throw error;
-        }
-      })();
-
-      loadAssetsInFlight.set(loadKey, loadPromise);
+      const context = {
+        notesRootPath,
+        currentNotePath,
+      };
+      const loadPromise = existingLoad ?? (async () => (
+        combineAndSortAssets(await AssetService.list(context, config))
+      ))();
+      if (!existingLoad) loadAssetsInFlight.set(loadKey, loadPromise);
       try {
-        await loadPromise;
+        const assets = await loadPromise;
+        if (latestAssetLoadKey !== loadKey) return;
+
+        if (!isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
+          set({ isLoadingAssets: false });
+          return;
+        }
+
+        assetListScopeKey = loadKey;
+        set({ assetList: assets, isLoadingAssets: false, assetLoadError: null });
+      } catch (error) {
+        if (latestAssetLoadKey === loadKey) {
+          if (isActiveAssetLoadScope(get(), notesRootPath, loadKey)) {
+            set({
+              isLoadingAssets: false,
+              assetLoadError: error instanceof Error && error.message.trim()
+                ? error.message.trim()
+                : 'Failed to load asset library',
+            });
+          } else {
+            set({ isLoadingAssets: false });
+          }
+        }
+        throw error;
       } finally {
         if (loadAssetsInFlight.get(loadKey) === loadPromise) {
           loadAssetsInFlight.delete(loadKey);
@@ -188,6 +182,9 @@ export const createAssetSlice: StateCreator<NotesStore, [], [], AssetSlice> = (s
           return result;
         }
 
+        if (result.success) {
+          assetListScopeKey = getLoadAssetsKey(notesRootPath, currentNotePath, config);
+        }
         if (result.success && result.entry) {
           set((state) => ({
             assetList: [

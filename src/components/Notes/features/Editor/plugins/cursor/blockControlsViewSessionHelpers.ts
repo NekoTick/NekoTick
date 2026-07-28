@@ -231,6 +231,7 @@ export function getNotesBlockOpenTargetPathFromElements(elements: readonly Eleme
 export type PendingCrossNoteBlockDrag = {
   sourceNotePath: string | null;
   draggedMarkdown: string | null;
+  sourceMarkdownBeforeDelete: string | null;
   sourceMarkdownAfterDelete: string | null;
   dragStartClientX: number;
   dragStartClientY: number;
@@ -245,12 +246,14 @@ export type SavePendingMarkdown = typeof savePendingEditorMarkdown;
 
 export async function saveCrossNoteBlockDropAfterTargetSave({
   sourceNotePath,
+  sourceMarkdownBeforeDelete,
   sourceMarkdownAfterDelete,
   targetNotePath,
   targetMarkdownAfterInsert,
   saveMarkdown = savePendingEditorMarkdown,
 }: {
   sourceNotePath: string;
+  sourceMarkdownBeforeDelete: string;
   sourceMarkdownAfterDelete: string;
   targetNotePath: string;
   targetMarkdownAfterInsert: string;
@@ -260,7 +263,7 @@ export async function saveCrossNoteBlockDropAfterTargetSave({
   if (!targetSaved) return false;
 
   return saveMarkdown(sourceNotePath, sourceMarkdownAfterDelete, {
-    replaceConcurrentContent: true,
+    replaceConcurrentContentIfEqualTo: sourceMarkdownBeforeDelete,
   });
 }
 

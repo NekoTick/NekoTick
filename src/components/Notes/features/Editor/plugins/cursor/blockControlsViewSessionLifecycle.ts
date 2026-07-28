@@ -33,6 +33,7 @@ class BlockControlsViewSessionLifecycle {
     this.dragSourceDoc = null;
     this.dragSourceNotePath = pending.sourceNotePath;
     this.draggedMarkdown = pending.draggedMarkdown;
+    this.dragSourceMarkdownBeforeDelete = pending.sourceMarkdownBeforeDelete;
     this.dragSourceMarkdownAfterDelete = pending.sourceMarkdownAfterDelete;
     this.dragPreview = pending.preview;
     this.setPointer(pending.lastClientX, pending.lastClientY);
@@ -107,6 +108,7 @@ class BlockControlsViewSessionLifecycle {
     this.dragSourceDoc = null;
     this.dragSourceNotePath = null;
     this.draggedMarkdown = null;
+    this.dragSourceMarkdownBeforeDelete = null;
     this.dragSourceMarkdownAfterDelete = null;
     clearPendingCrossNoteBlockDrag();
     this.clearBlockDragTabOpen();
@@ -140,10 +142,12 @@ class BlockControlsViewSessionLifecycle {
 
   async applyCrossNoteDrop(this: any, insertPos: number): Promise<boolean> {
     const sourceNotePath = this.dragSourceNotePath;
+    const sourceMarkdownBeforeDelete = this.dragSourceMarkdownBeforeDelete;
     const sourceMarkdownAfterDelete = this.dragSourceMarkdownAfterDelete;
     const targetNotePath = getCurrentNotePath();
     if (
       !sourceNotePath ||
+      sourceMarkdownBeforeDelete === null ||
       sourceMarkdownAfterDelete === null ||
       !targetNotePath ||
       targetNotePath === sourceNotePath
@@ -166,6 +170,7 @@ class BlockControlsViewSessionLifecycle {
 
     return saveCrossNoteBlockDropAfterTargetSave({
       sourceNotePath,
+      sourceMarkdownBeforeDelete,
       sourceMarkdownAfterDelete,
       targetNotePath,
       targetMarkdownAfterInsert,

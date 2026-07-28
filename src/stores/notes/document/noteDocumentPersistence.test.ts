@@ -321,7 +321,7 @@ describe('saveNoteDocument', () => {
     vi.useRealTimers();
   });
 
-  it('cleans serialized editor-only markdown artifacts before writing markdown', async () => {
+  it('preserves user-authored reserved comments while normalizing markdown before writing', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-15T10:00:00.000Z'));
     adapter.writeFile.mockResolvedValue();
@@ -344,11 +344,11 @@ describe('saveNoteDocument', () => {
     const written = String(adapter.writeFile.mock.calls[0]?.[1] ?? '');
     expect(written).toBe([
       '# Alpha',
-      '',
+      '<!--vlaina-markdown-blank-line-->',
       '  Pro:   \\$76.80 / year',
       ' Max:   \\$191.90 / year',
     ].join('\n'));
-    expect(written).not.toContain('vlaina-markdown-blank-line');
+    expect(written).toContain('vlaina-markdown-blank-line');
     expect(written).not.toContain('&#x20');
     expect(written).not.toContain('&#32');
     expect(result.content).toBe(written);
@@ -356,7 +356,7 @@ describe('saveNoteDocument', () => {
     vi.useRealTimers();
   });
 
-  it('cleans rendered HTML boundary helpers before writing markdown', async () => {
+  it('preserves a user-authored reserved comment after rendered HTML when writing', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-15T10:00:00.000Z'));
     adapter.writeFile.mockResolvedValue();
@@ -379,11 +379,12 @@ describe('saveNoteDocument', () => {
     const expected = [
       '<img src="./assets/demo.svg" alt="Demo" />',
       '',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
       'After image.',
     ].join('\n');
     const written = String(adapter.writeFile.mock.calls[0]?.[1] ?? '');
     expect(written).toBe(expected);
-    expect(written).not.toContain('vlaina-rendered-html-boundary-blank-line');
+    expect(written).toContain('vlaina-rendered-html-boundary-blank-line');
     expect(result.content).toBe(expected);
 
     vi.useRealTimers();
@@ -785,7 +786,7 @@ describe('saveNoteDocument', () => {
     );
   });
 
-  it('cleans serialized editor-only markdown artifacts when loading markdown', async () => {
+  it('preserves user-authored reserved comments while normalizing loaded markdown', async () => {
     adapter.readFile.mockResolvedValue([
       '# Alpha',
       '<!--vlaina-markdown-blank-line-->',
@@ -802,18 +803,18 @@ describe('saveNoteDocument', () => {
 
     const expected = [
       '# Alpha',
-      '',
+      '<!--vlaina-markdown-blank-line-->',
       '  Pro:   \\$76.80 / year',
       ' Max:   \\$191.90 / year',
     ].join('\n');
     expect(result.content).toBe(expected);
-    expect(result.content).not.toContain('vlaina-markdown-blank-line');
+    expect(result.content).toContain('vlaina-markdown-blank-line');
     expect(result.content).not.toContain('&#x20');
     expect(result.content).not.toContain('&#32');
     expect(result.nextCache.get('alpha.md')?.content).toBe(expected);
   });
 
-  it('cleans rendered HTML boundary helpers when loading markdown', async () => {
+  it('preserves a user-authored reserved comment after rendered HTML when loading', async () => {
     adapter.readFile.mockResolvedValue([
       '<img src="./assets/demo.svg" alt="Demo" />',
       '',
@@ -831,10 +832,11 @@ describe('saveNoteDocument', () => {
     const expected = [
       '<img src="./assets/demo.svg" alt="Demo" />',
       '',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
       'After image.',
     ].join('\n');
     expect(result.content).toBe(expected);
-    expect(result.content).not.toContain('vlaina-rendered-html-boundary-blank-line');
+    expect(result.content).toContain('vlaina-rendered-html-boundary-blank-line');
     expect(result.nextCache.get('alpha.md')?.content).toBe(expected);
   });
 

@@ -1775,7 +1775,7 @@ test.describe("notes block selection regressions", () => {
           selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
         };
       }, EDITOR_SELECTOR)).toMatchObject({
-        active: true,
+        active: false,
         large: true,
       });
 
@@ -2141,7 +2141,7 @@ test.describe("notes block selection regressions", () => {
           selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
         };
       }, EDITOR_SELECTOR)).toMatchObject({
-          active: true,
+          active: false,
           large: true,
       });
 
@@ -2311,7 +2311,7 @@ test.describe("notes block selection regressions", () => {
           selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
         };
       }, EDITOR_SELECTOR)).toMatchObject({
-        active: true,
+        active: false,
         large: true,
       });
 

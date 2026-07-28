@@ -205,6 +205,7 @@ describe('BlockControlsViewSession', () => {
 
     await expect(__testing__.saveCrossNoteBlockDropAfterTargetSave({
       sourceNotePath: 'source.md',
+      sourceMarkdownBeforeDelete: 'Source before delete',
       sourceMarkdownAfterDelete: 'Source after delete',
       targetNotePath: 'target.md',
       targetMarkdownAfterInsert: 'Target after insert',
@@ -214,7 +215,7 @@ describe('BlockControlsViewSession', () => {
     expect(saveMarkdown).toHaveBeenCalledTimes(2);
     expect(saveMarkdown).toHaveBeenNthCalledWith(1, 'target.md', 'Target after insert');
     expect(saveMarkdown).toHaveBeenNthCalledWith(2, 'source.md', 'Source after delete', {
-      replaceConcurrentContent: true,
+      replaceConcurrentContentIfEqualTo: 'Source before delete',
     });
   });
 
@@ -223,6 +224,7 @@ describe('BlockControlsViewSession', () => {
 
     await expect(__testing__.saveCrossNoteBlockDropAfterTargetSave({
       sourceNotePath: 'source.md',
+      sourceMarkdownBeforeDelete: 'Source before delete',
       sourceMarkdownAfterDelete: 'Source after delete',
       targetNotePath: 'target.md',
       targetMarkdownAfterInsert: 'Target after insert',

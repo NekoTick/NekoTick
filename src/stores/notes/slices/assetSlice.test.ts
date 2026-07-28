@@ -216,6 +216,32 @@ describe('assetSlice loadAssets', () => {
     expect(harness.getState().assetLoadError).toBeNull();
   });
 
+  it('does not expose assets from a previous scope when the next scope fails to load', async () => {
+    mocks.list
+      .mockResolvedValueOnce([{
+        filename: './assets/a.png',
+        hash: 'a',
+        size: 10,
+        mimeType: 'image/png',
+        uploadedAt: '2026-05-08T01:47:54.361Z',
+      }])
+      .mockRejectedValueOnce(new Error('Scope B unavailable'));
+    const harness = createSliceHarness({
+      notesPath: '/notes-root-a',
+      currentNote: { path: 'daily/a.md', content: '' },
+    });
+
+    await harness.getState().loadAssets('/notes-root-a');
+    expect(harness.getState().assetList.map((entry: { filename: string }) => entry.filename))
+      .toEqual(['./assets/a.png']);
+
+    harness.getState().currentNote = { path: 'daily/b.md', content: '' };
+    await expect(harness.getState().loadAssets('/notes-root-a')).rejects.toThrow('Scope B unavailable');
+
+    expect(harness.getState().assetList).toEqual([]);
+    expect(harness.getState().assetLoadError).toBe('Scope B unavailable');
+  });
+
   it('coalesces concurrent loads for the same asset scope', async () => {
     let resolveList: (value: Array<{
       filename: string;
@@ -239,6 +265,53 @@ describe('assetSlice loadAssets', () => {
     await Promise.all([firstLoad, secondLoad]);
 
     expect(mocks.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies a coalesced refresh after switching away and back to the same note', async () => {
+    type Asset = {
+      filename: string;
+      hash: string;
+      size: number;
+      mimeType: string;
+      uploadedAt: string;
+    };
+    const pendingLists = new Map<string, (value: Asset[]) => void>();
+    mocks.list.mockImplementation(({ currentNotePath }: { currentNotePath?: string }) => (
+      new Promise<Asset[]>((resolve) => {
+        pendingLists.set(currentNotePath ?? '', resolve);
+      })
+    ));
+    const harness = createSliceHarness({
+      notesPath: '/notes-root-a',
+      currentNote: { path: 'daily/a.md', content: '' },
+    });
+
+    const firstALoad = harness.getState().loadAssets('/notes-root-a');
+    harness.getState().currentNote = { path: 'daily/b.md', content: '' };
+    const bLoad = harness.getState().loadAssets('/notes-root-a');
+    harness.getState().currentNote = { path: 'daily/a.md', content: '' };
+    const secondALoad = harness.getState().loadAssets('/notes-root-a');
+
+    pendingLists.get('daily/a.md')?.([{
+      filename: './assets/a.png',
+      hash: 'a',
+      size: 10,
+      mimeType: 'image/png',
+      uploadedAt: '2026-05-08T01:47:54.361Z',
+    }]);
+    pendingLists.get('daily/b.md')?.([{
+      filename: './assets/b.png',
+      hash: 'b',
+      size: 10,
+      mimeType: 'image/png',
+      uploadedAt: '2026-05-08T01:47:54.361Z',
+    }]);
+    await Promise.all([firstALoad, secondALoad, bLoad]);
+
+    expect(mocks.list).toHaveBeenCalledTimes(2);
+    expect(harness.getState().assetList.map((entry: Asset) => entry.filename))
+      .toEqual(['./assets/a.png']);
+    expect(harness.getState().isLoadingAssets).toBe(false);
   });
 
   it('bounds concurrent loads for different asset scopes', async () => {

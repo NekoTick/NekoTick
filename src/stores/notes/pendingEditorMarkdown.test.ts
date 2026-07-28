@@ -51,7 +51,7 @@ describe('flushPendingEditorMarkdown', () => {
     });
   });
 
-  it('normalizes editor-only artifacts before they enter note state', () => {
+  it('preserves user-authored reserved comments while normalizing serializer artifacts', () => {
     useNotesStore.setState({
       currentNote: { path: 'alpha.md', content: 'Old content' },
       currentNoteRevision: 3,
@@ -69,7 +69,7 @@ describe('flushPendingEditorMarkdown', () => {
 
     const expected = [
       '# Alpha',
-      '',
+      '<!--vlaina-markdown-blank-line-->',
       '  Pro:   \\$76.80 / year',
       ' Max:   \\$191.90 / year',
     ].join('\n');
@@ -80,12 +80,12 @@ describe('flushPendingEditorMarkdown', () => {
       content: expected,
       modifiedAt: 7,
     });
-    expect(state.currentNote?.content).not.toContain('vlaina-markdown-blank-line');
+    expect(state.currentNote?.content).toContain('vlaina-markdown-blank-line');
     expect(state.currentNote?.content).not.toContain('&#x20');
     expect(state.currentNote?.content).not.toContain('&#32');
   });
 
-  it('normalizes rendered HTML boundary helpers before they enter note state', () => {
+  it('preserves a user-authored reserved comment after rendered HTML', () => {
     useNotesStore.setState({
       currentNote: { path: 'alpha.md', content: 'Old content' },
       currentNoteRevision: 3,
@@ -104,6 +104,7 @@ describe('flushPendingEditorMarkdown', () => {
     const expected = [
       '<img src="./assets/demo.svg" alt="Demo" />',
       '',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
       'After image.',
     ].join('\n');
     const state = useNotesStore.getState();
@@ -113,7 +114,7 @@ describe('flushPendingEditorMarkdown', () => {
       content: expected,
       modifiedAt: 7,
     });
-    expect(state.currentNote?.content).not.toContain('vlaina-rendered-html-boundary-blank-line');
+    expect(state.currentNote?.content).toContain('vlaina-rendered-html-boundary-blank-line');
   });
 
   it('preserves user-authored rendered HTML boundary comments outside helper positions', () => {
@@ -203,7 +204,7 @@ describe('flushPendingEditorMarkdown', () => {
     });
   });
 
-  it('ignores pending markdown that only differs by editor-only artifacts after normalization', () => {
+  it('treats a reserved standalone comment as user content', () => {
     const currentContent = [
       '# Alpha',
       '',
@@ -227,12 +228,18 @@ describe('flushPendingEditorMarkdown', () => {
     ].join('\n'));
 
     const state = useNotesStore.getState();
-    expect(didFlush).toBe(false);
-    expect(state.currentNoteRevision).toBe(3);
-    expect(state.isDirty).toBe(false);
-    expect(state.openTabs).toEqual([{ path: 'alpha.md', name: 'alpha', isDirty: false }]);
+    const expected = [
+      '# Alpha',
+      '<!--vlaina-markdown-blank-line-->',
+      '  Pro:   \\$76.80 / year',
+      ' Max:   \\$191.90 / year',
+    ].join('\n');
+    expect(didFlush).toBe(true);
+    expect(state.currentNoteRevision).toBe(4);
+    expect(state.isDirty).toBe(true);
+    expect(state.openTabs).toEqual([{ path: 'alpha.md', name: 'alpha', isDirty: true }]);
     expect(state.noteContentsCache.get('alpha.md')).toEqual({
-      content: currentContent,
+      content: expected,
       modifiedAt: 7,
     });
   });
@@ -437,7 +444,7 @@ describe('flushPendingEditorMarkdown', () => {
     const savePromise = savePendingEditorMarkdown(
       'alpha.md',
       'Source after move',
-      { replaceConcurrentContent: true },
+      { replaceConcurrentContentIfEqualTo: 'Source before move' },
     );
     await Promise.resolve();
 
@@ -454,6 +461,83 @@ describe('flushPendingEditorMarkdown', () => {
       content: 'Source after move',
       modifiedAt: 11,
     });
+  });
+
+  it('does not start a conditional source save after the source content has changed', async () => {
+    useNotesStore.setState({
+      notesPath: '/notesRoot',
+      currentNote: { path: 'beta.md', content: 'Beta content' },
+      currentNoteRevision: 4,
+      isDirty: false,
+      openTabs: [
+        { path: 'alpha.md', name: 'alpha', isDirty: true },
+        { path: 'beta.md', name: 'beta', isDirty: false },
+      ],
+      noteContentsCache: new Map([
+        ['alpha.md', { content: 'Source changed before drop save', modifiedAt: 2 }],
+        ['beta.md', { content: 'Beta content', modifiedAt: 3 }],
+      ]),
+    });
+
+    await expect(savePendingEditorMarkdown(
+      'alpha.md',
+      'Source after move',
+      { replaceConcurrentContentIfEqualTo: 'Source before move' },
+    )).resolves.toBe(false);
+
+    expect(saveNoteDocument).not.toHaveBeenCalled();
+    expect(useNotesStore.getState().noteContentsCache.get('alpha.md')).toEqual({
+      content: 'Source changed before drop save',
+      modifiedAt: 2,
+    });
+  });
+
+  it('does not replace a genuine source edit made while a cross-note save is in flight', async () => {
+    let resolveSave: () => void = () => {};
+    saveNoteDocument.mockImplementationOnce(async ({ currentNote, cache }) => new Promise((resolve) => {
+      resolveSave = () => resolve({
+        content: currentNote.content,
+        metadata: {},
+        modifiedAt: 11,
+        size: currentNote.content.length,
+        nextCache: cache,
+      });
+    }));
+    useNotesStore.setState({
+      notesPath: '/notesRoot',
+      currentNote: { path: 'beta.md', content: 'Beta content' },
+      currentNoteRevision: 4,
+      isDirty: false,
+      openTabs: [
+        { path: 'alpha.md', name: 'alpha', isDirty: false },
+        { path: 'beta.md', name: 'beta', isDirty: false },
+      ],
+      noteContentsCache: new Map([
+        ['alpha.md', { content: 'Source before move', modifiedAt: 2 }],
+        ['beta.md', { content: 'Beta content', modifiedAt: 3 }],
+      ]),
+    });
+
+    const savePromise = savePendingEditorMarkdown(
+      'alpha.md',
+      'Source after move',
+      { replaceConcurrentContentIfEqualTo: 'Source before move' },
+    );
+    await Promise.resolve();
+
+    expect(flushPendingEditorMarkdown('alpha.md', 'Source after move plus user edit')).toBe(true);
+    resolveSave();
+    await expect(savePromise).resolves.toBe(false);
+
+    const state = useNotesStore.getState();
+    expect(state.openTabs[0]?.isDirty).toBe(true);
+    const cached = state.noteContentsCache.get('alpha.md');
+    expect(cached).toEqual({
+      content: 'Source after move plus user edit',
+      modifiedAt: 11,
+    });
+    expect(cached?.savedContent).toBe('Source after move');
+    expect(cached?.size).toBe('Source after move'.length);
   });
 
   it('does not clear the active note save error when a background save succeeds', async () => {
