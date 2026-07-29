@@ -84,7 +84,26 @@ describe('desktop update downloads', () => {
     });
     expect(fs.readFileSync(result.filePath)).toEqual(Buffer.from([1, 2, 3]));
     expect(result.filePath).toContain(path.join('update-downloads', '0.1.17'));
+    expect(fs.statSync(result.filePath).mode & 0o111).not.toBe(0);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not mark downloaded Linux packages executable unless they are AppImages', async () => {
+    const bytes = [1, 2, 3];
+    const result = await downloadUpdateAsset({
+      app: createApp(),
+      updateInfo: createUpdateInfo({
+        downloadUrl: 'https://github.com/vladelaina/vlaina/releases/download/v0.1.17/vlaina-0.1.17-linux-x64.deb',
+        platformAssetName: 'vlaina-0.1.17-linux-x64.deb',
+        platformAssetSha256: sha256Hex(bytes),
+      }),
+      fetchImpl: vi.fn().mockResolvedValue(new Response(new Uint8Array(bytes), {
+        status: 200,
+        headers: { 'content-length': '3' },
+      })),
+    });
+
+    expect(fs.statSync(result.filePath).mode & 0o111).toBe(0);
   });
 
   it('surfaces asynchronous file stream errors without crashing the updater process', async () => {
@@ -107,6 +126,27 @@ describe('desktop update downloads', () => {
         headers: { 'content-length': '3' },
       })),
     })).rejects.toThrow('disk full');
+
+    expect(stream.destroy).toHaveBeenCalled();
+  });
+
+  it('times out when a file stream never drains', async () => {
+    const stream = new EventEmitter();
+    stream.write = vi.fn(() => false);
+    stream.end = vi.fn();
+    stream.destroy = vi.fn();
+    vi.spyOn(fs, 'createWriteStream').mockReturnValue(stream);
+
+    await expect(downloadUpdateAsset({
+      app: createApp(),
+      updateInfo: createUpdateInfo({
+        platformAssetSha256: sha256Hex([1, 2, 3]),
+      }),
+      fetchImpl: vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'content-length': '3' },
+      })),
+    })).rejects.toThrow('Update download stalled while writing to disk');
 
     expect(stream.destroy).toHaveBeenCalled();
   });
@@ -225,8 +265,9 @@ describe('desktop update downloads', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('rejects and deletes an existing downloaded update asset with a mismatched sha256', async () => {
+  it('replaces an existing downloaded update asset with a mismatched sha256', async () => {
     const app = createApp();
+    const replacementBytes = [9, 9];
     const existingPath = path.join(
       temporaryRoot,
       'update-downloads',
@@ -236,15 +277,21 @@ describe('desktop update downloads', () => {
     fs.mkdirSync(path.dirname(existingPath), { recursive: true });
     fs.writeFileSync(existingPath, Buffer.from([4, 5]));
 
-    await expect(downloadUpdateAsset({
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(new Uint8Array(replacementBytes), {
+      status: 200,
+      headers: { 'content-length': String(replacementBytes.length) },
+    }));
+    const result = await downloadUpdateAsset({
       app,
       updateInfo: createUpdateInfo({
-        platformAssetSha256: sha256Hex([9, 9]),
+        platformAssetSha256: sha256Hex(replacementBytes),
       }),
-      fetchImpl: vi.fn(),
-    })).rejects.toThrow('Downloaded update SHA-256 does not match');
+      fetchImpl,
+    });
 
-    expect(fs.existsSync(existingPath)).toBe(false);
+    expect(result.filePath).toBe(existingPath);
+    expect(fs.readFileSync(existingPath)).toEqual(Buffer.from(replacementBytes));
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('cleans old update packages without deleting unfinished downloads for the current version', async () => {

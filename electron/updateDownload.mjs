@@ -130,16 +130,16 @@ export async function downloadUpdateAsset({
     if (stat.isFile() && stat.size > 0) {
       try {
         await verifyDownloadedUpdateSha256(target.filePath, expectedSha256);
-      } catch (error) {
+        return {
+          filePath: target.filePath,
+          fileName: target.assetName,
+          downloadedAt: stat.mtime.toISOString(),
+          sizeBytes: stat.size,
+        };
+      } catch {
         fs.rmSync(target.filePath, { force: true });
-        throw error;
+        fs.rmSync(target.temporaryFilePath, { force: true });
       }
-      return {
-        filePath: target.filePath,
-        fileName: target.assetName,
-        downloadedAt: stat.mtime.toISOString(),
-        sizeBytes: stat.size,
-      };
     }
   }
 
@@ -187,7 +187,7 @@ export async function downloadUpdateAsset({
       existingBytes: resumeFromBytes,
     });
     fs.renameSync(target.temporaryFilePath, target.filePath);
-    if (process.platform === 'linux') {
+    if (process.platform === 'linux' && target.assetName.toLowerCase().endsWith('.appimage')) {
       fs.chmodSync(target.filePath, 0o755);
     }
     try {

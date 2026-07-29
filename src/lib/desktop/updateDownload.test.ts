@@ -92,17 +92,18 @@ describe('desktop update background download policy', () => {
     expect(updateApi.deleteDownloaded).not.toHaveBeenCalled();
   });
 
-  it('does not preserve downloaded installer metadata when the update asset changes', async () => {
+  it('cleans the previous downloaded installer when the update asset changes', async () => {
     const updateApi = {
       deleteDownloaded: vi.fn(),
     };
-    localStorage.setItem(UPDATE_INFO_CACHE_KEY, JSON.stringify(createUpdateInfo({
+    const cachedUpdateInfo = createUpdateInfo({
       downloadState: 'downloaded',
       downloadedFileName: 'vlaina-0.1.17-windows-x64-setup.exe',
       downloadedFilePath: 'C:\\Users\\tester\\AppData\\Roaming\\vlaina\\update-downloads\\0.1.17\\vlaina-0.1.17-windows-x64-setup.exe',
       platformAssetName: 'vlaina-0.1.17-windows-x64-setup.exe',
       platformAssetSha256: 'a'.repeat(64),
-    })));
+    });
+    localStorage.setItem(UPDATE_INFO_CACHE_KEY, JSON.stringify(cachedUpdateInfo));
 
     const freshUpdateInfo = createUpdateInfo({
       platformAssetName: 'vlaina-0.1.17-windows-arm64-setup.exe',
@@ -110,6 +111,30 @@ describe('desktop update background download policy', () => {
     });
 
     await expect(clearStaleDesktopUpdateDownload(updateApi, freshUpdateInfo, '0.1.16')).resolves.toBe(freshUpdateInfo);
-    expect(updateApi.deleteDownloaded).not.toHaveBeenCalled();
+    expect(updateApi.deleteDownloaded).toHaveBeenCalledWith(expect.objectContaining(cachedUpdateInfo));
+  });
+
+  it('cleans the cached downloaded installer when a fresh check reports no update', async () => {
+    const updateApi = {
+      deleteDownloaded: vi.fn(),
+    };
+    const cachedUpdateInfo = createUpdateInfo({
+      downloadState: 'downloaded',
+      downloadedFilePath: 'C:\\Users\\tester\\AppData\\Roaming\\vlaina\\update-downloads\\0.1.17\\vlaina-0.1.17-windows-x64-setup.exe',
+      platformAssetName: 'vlaina-0.1.17-windows-x64-setup.exe',
+      platformAssetSha256: 'a'.repeat(64),
+    });
+    localStorage.setItem(UPDATE_INFO_CACHE_KEY, JSON.stringify(cachedUpdateInfo));
+
+    const currentInfo = createUpdateInfo({
+      latestVersion: '0.1.16',
+      updateAvailable: false,
+      platformAssetName: '',
+      platformAssetSha256: '',
+      hasPlatformAsset: false,
+    });
+
+    await expect(clearStaleDesktopUpdateDownload(updateApi, currentInfo, '0.1.16')).resolves.toBeNull();
+    expect(updateApi.deleteDownloaded).toHaveBeenCalledWith(expect.objectContaining(cachedUpdateInfo));
   });
 });

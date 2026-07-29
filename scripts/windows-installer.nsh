@@ -49,10 +49,16 @@
     !insertmacro parseSemverForCompare "${VERSION}" $R6 $R7 $R8 $R9
     ${VersionCompare} "$R4" "$R6" $R3
 
+    StrCpy $R1 "0"
     ${if} $R3 == "1"
-    ${orIf} $R3 == "0"
+      StrCpy $R1 "1"
+    ${elseif} $R3 == "0"
     ${andIf} $R5 == "0"
     ${andIf} $R7 == "1"
+      StrCpy $R1 "1"
+    ${endif}
+
+    ${if} $R1 == "1"
       ${ifNot} ${Silent}
         MessageBox MB_OK|MB_ICONEXCLAMATION "A newer version of ${PRODUCT_NAME} ($R2) is already installed. This installer contains ${VERSION}."
       ${endif}
@@ -63,15 +69,13 @@
 !macroend
 
 !macro customInstallMode
-  ${if} ${isUpdated}
-    ${if} $hasPerUserInstallation == "1"
-    ${andIf} $hasPerMachineInstallation == "0"
-      StrCpy $isForceCurrentInstall "1"
-    ${elseif} $hasPerUserInstallation == "0"
-    ${andIf} $hasPerMachineInstallation == "1"
+  !ifndef BUILD_UNINSTALLER
+    ${if} $installMode == "all"
       StrCpy $isForceMachineInstall "1"
+    ${else}
+      StrCpy $isForceCurrentInstall "1"
     ${endif}
-  ${endif}
+  !endif
 !macroend
 
 !macro customInit
@@ -82,6 +86,18 @@
 
   !ifndef INSTALL_MODE_PER_ALL_USERS
     !ifndef ONE_CLICK
+      # New installations are always per-user. Preserve a legacy per-machine installation only while upgrading it.
+      ${if} $perMachineInstallationFolder != ""
+      ${andIf} $perUserInstallationFolder == ""
+        StrCpy $hasPerUserInstallation "0"
+        StrCpy $hasPerMachineInstallation "1"
+        !insertmacro setInstallModePerAllUsers
+      ${else}
+        StrCpy $hasPerUserInstallation "1"
+        StrCpy $hasPerMachineInstallation "0"
+        !insertmacro setInstallModePerUser
+      ${endif}
+
       !insertmacro GetDParameter $R0
       ${ifNot} ${Silent}
       ${andIfNot} ${isUpdated}
@@ -95,12 +111,6 @@
         ${andIf} $hasPerMachineInstallation == "1"
         ${andIf} $perMachineInstallationFolder != ""
           # Mark this process as an assisted upgrade so setup choices are skipped without restarting the installer.
-          StrCpy $vlainaAssistedUpgrade "1"
-        ${elseif} $hasPerUserInstallation == "1"
-        ${andIf} $hasPerMachineInstallation == "1"
-        ${andIf} $perUserInstallationFolder != ""
-        ${andIf} $perMachineInstallationFolder != ""
-          # Keep the install-mode page when both installation scopes exist.
           StrCpy $vlainaAssistedUpgrade "1"
         ${endif}
       ${endif}

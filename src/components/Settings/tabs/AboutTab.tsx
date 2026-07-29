@@ -59,15 +59,22 @@ export function AboutTab({ community }: { community: CommunitySettings }) {
 
     void bridge.update?.getPolicy?.().then((policy) => {
       setUpdatePolicy(policy);
-      if (policy.distribution !== 'microsoft-store') return;
-
       const cachedUpdateInfo = readCachedDesktopUpdateInfo();
-      if (cachedUpdateInfo) {
-        void bridge.update?.deleteDownloaded?.(cachedUpdateInfo).catch(() => undefined);
+      if (policy.distribution === 'microsoft-store') {
+        if (cachedUpdateInfo) {
+          void bridge.update?.deleteDownloaded?.(cachedUpdateInfo).catch(() => undefined);
+        }
+        clearCachedDesktopUpdateInfo();
+        setUpdateInfo(null);
+        setStatus('idle');
+        return;
       }
-      clearCachedDesktopUpdateInfo();
-      setUpdateInfo(null);
-      setStatus('idle');
+
+      if (cachedUpdateInfo) {
+        const currentPolicyUpdateInfo = { ...cachedUpdateInfo, updatePolicy: policy };
+        writeCachedDesktopUpdateInfo(currentPolicyUpdateInfo);
+        setUpdateInfo(currentPolicyUpdateInfo);
+      }
     }).catch(() => undefined);
 
     void bridge.app.getVersion().then((version) => {
@@ -118,7 +125,8 @@ export function AboutTab({ community }: { community: CommunitySettings }) {
         return;
       }
 
-      const nextInfo = await bridge.update.check();
+      const checkedInfo = await bridge.update.check();
+      const nextInfo = policy ? { ...checkedInfo, updatePolicy: policy } : checkedInfo;
       const freshUpdateInfo = await clearStaleDesktopUpdateDownload(
         bridge.update,
         nextInfo,
@@ -133,36 +141,51 @@ export function AboutTab({ community }: { community: CommunitySettings }) {
       setStatus('available');
       writeCachedDesktopUpdateInfo(freshUpdateInfo);
       startDesktopUpdateDownload(bridge.update, freshUpdateInfo);
-    } catch (error) {
-      setStatus((previousStatus) => previousStatus === 'available' && updateInfo ? 'available' : 'error');
+    } catch {
+      setStatus(updateInfo ? 'available' : 'error');
     }
   }, [currentVersion, updateInfo, updatePolicy]);
 
   const hasUpdate = status === 'available' && Boolean(updateInfo);
 
-  const openUpdateDownload = useCallback(() => {
-    if (!hasUpdate || !updateInfo?.downloadUrl) return;
-    if (
-      canOpenDesktopUpdateLocalInstaller(updateInfo) &&
-      updateInfo.downloadState === 'downloaded' &&
-      updateInfo.platformAssetSha256 &&
-      updateInfo.downloadedFilePath
-    ) {
-      const bridge = getElectronBridge();
-      if (bridge?.update?.openDownloaded) {
-        void bridge.update.openDownloaded(updateInfo)
-          .catch(() => {
-            if (canOpenDesktopUpdateExternalDownload(updateInfo)) {
-              void openExternalHref(updateInfo.downloadUrl);
-            }
-          });
-        return;
+  const openUpdateDownload = useCallback(async () => {
+    if (!hasUpdate || !updateInfo || (!updateInfo.downloadUrl && !updateInfo.releaseUrl)) return;
+    const bridge = getElectronBridge();
+    let effectiveUpdateInfo = updateInfo;
+    let effectiveUpdatePolicy = updatePolicy;
+    if (!effectiveUpdatePolicy && bridge?.update?.getPolicy) {
+      try {
+        effectiveUpdatePolicy = await bridge.update.getPolicy();
+        setUpdatePolicy(effectiveUpdatePolicy);
+      } catch {
       }
     }
-    if (canOpenDesktopUpdateExternalDownload(updateInfo)) {
-      void openExternalHref(updateInfo.downloadUrl);
+    if (effectiveUpdatePolicy) {
+      effectiveUpdateInfo = { ...updateInfo, updatePolicy: effectiveUpdatePolicy };
     }
-  }, [hasUpdate, updateInfo]);
+
+    const localInstallerEnabled = canOpenDesktopUpdateLocalInstaller(effectiveUpdateInfo);
+    const externalDownloadUrl = localInstallerEnabled
+      ? effectiveUpdateInfo.downloadUrl
+      : effectiveUpdateInfo.releaseUrl || effectiveUpdateInfo.downloadUrl;
+    if (
+      localInstallerEnabled &&
+      effectiveUpdateInfo.downloadState === 'downloaded' &&
+      effectiveUpdateInfo.platformAssetSha256 &&
+      effectiveUpdateInfo.downloadedFilePath
+    ) {
+      if (bridge?.update?.openDownloaded) {
+        try {
+          await bridge.update.openDownloaded(effectiveUpdateInfo);
+          return;
+        } catch {
+        }
+      }
+    }
+    if (externalDownloadUrl && canOpenDesktopUpdateExternalDownload(effectiveUpdateInfo)) {
+      void openExternalHref(externalDownloadUrl);
+    }
+  }, [hasUpdate, updateInfo, updatePolicy]);
 
   const statusLabel = (() => {
     if (status === 'checking') return t('common.checking');
