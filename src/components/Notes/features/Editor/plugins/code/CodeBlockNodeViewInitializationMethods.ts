@@ -56,7 +56,8 @@ class CodeBlockNodeViewInitializationMethods {
     this.dom.addEventListener('focusin', this.activateCodeMirrorFromInteraction);
 
     this.intersectionObserver = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
+      this.lazyCodeBlockIntersecting = entries.some((entry) => entry.isIntersecting);
+      if (this.lazyCodeBlockIntersecting) {
         this.scheduleLazyCodeMirrorInitialization();
       } else {
         this.cancelPendingLazyCodeMirrorInitialization();
@@ -66,15 +67,19 @@ class CodeBlockNodeViewInitializationMethods {
   }
 
   cancelPendingLazyCodeMirrorInitialization(this: any) {
-    if (this.pendingLazyInitializationTimer === null) {
-      return;
+    const ownerWindow = this.getOwnerWindow();
+    if (this.pendingLazyInitializationTimer !== null) {
+      ownerWindow?.clearTimeout(this.pendingLazyInitializationTimer);
+      this.pendingLazyInitializationTimer = null;
     }
-    this.getOwnerWindow()?.clearTimeout(this.pendingLazyInitializationTimer);
-    this.pendingLazyInitializationTimer = null;
+    if (this.pendingLazyInitializationFrame !== null) {
+      ownerWindow?.cancelAnimationFrame(this.pendingLazyInitializationFrame);
+      this.pendingLazyInitializationFrame = null;
+    }
   }
 
   scheduleLazyCodeMirrorInitialization(this: any) {
-    if (this.cm || this.pendingLazyInitializationTimer !== null) {
+    if (this.cm || this.pendingLazyInitializationTimer !== null || this.pendingLazyInitializationFrame !== null) {
       return;
     }
     const ownerWindow = this.getOwnerWindow();
@@ -84,15 +89,36 @@ class CodeBlockNodeViewInitializationMethods {
     }
     this.pendingLazyInitializationTimer = ownerWindow.setTimeout(() => {
       this.pendingLazyInitializationTimer = null;
-      if (!this.destroyed) {
-        this.initializeCodeMirror();
-      }
+      const scrollRoot = this.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+      const scrollLeft = scrollRoot?.scrollLeft ?? ownerWindow.scrollX;
+      const scrollTop = scrollRoot?.scrollTop ?? ownerWindow.scrollY;
+      this.pendingLazyInitializationFrame = ownerWindow.requestAnimationFrame(() => {
+        this.pendingLazyInitializationFrame = ownerWindow.requestAnimationFrame(() => {
+          this.pendingLazyInitializationFrame = null;
+          if (this.destroyed || !this.lazyCodeBlockIntersecting) return;
+          const currentScrollLeft = scrollRoot?.scrollLeft ?? ownerWindow.scrollX;
+          const currentScrollTop = scrollRoot?.scrollTop ?? ownerWindow.scrollY;
+          if (currentScrollLeft !== scrollLeft || currentScrollTop !== scrollTop) {
+            this.scheduleLazyCodeMirrorInitialization();
+            return;
+          }
+          const blockRect = this.dom.getBoundingClientRect();
+          const scrollRootRect = scrollRoot?.getBoundingClientRect();
+          const viewportTop = scrollRootRect?.top ?? 0;
+          const viewportBottom = scrollRootRect?.bottom ?? ownerWindow.innerHeight;
+          const verticalRootMargin = Number.parseFloat(themeLazyLoadTokens.codeBlockRootMargin) || 0;
+          if (
+            blockRect.bottom >= viewportTop - verticalRootMargin
+            && blockRect.top <= viewportBottom + verticalRootMargin
+          ) {
+            this.initializeCodeMirror();
+          }
+        });
+      });
     }, LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
   }
 
-  readonly activateCodeMirrorFromInteraction = () => {
-    this.initializeCodeMirror();
-  };
+  readonly activateCodeMirrorFromInteraction = () => this.initializeCodeMirror();
 
   initializeCodeMirror(this: any) {
     this.cancelPendingLazyCodeMirrorInitialization();

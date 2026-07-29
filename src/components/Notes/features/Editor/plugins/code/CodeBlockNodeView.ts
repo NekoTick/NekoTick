@@ -72,6 +72,8 @@ export class CodeBlockNodeView implements NodeView {
   pendingMeasureFrame: number | null = null;
   pendingForwardTimer: number | null = null;
   pendingLazyInitializationTimer: number | null = null;
+  pendingLazyInitializationFrame: number | null = null;
+  lazyCodeBlockIntersecting = false;
   disposeFontMetricsSync: () => void = () => { };
   unsubscribeSettings: () => void = () => { };
   unsubscribeSelectionSync: () => void = () => { };

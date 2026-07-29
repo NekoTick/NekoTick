@@ -125,7 +125,7 @@ if ($existingRegistrations.Count -ne 0) {
 }
 
 try {
-  Invoke-Installer -Arguments @('/S', '/allusers', "/D=$installDir")
+  Invoke-Installer -Arguments @('/S', '/currentuser', "/D=$installDir")
   if (-not (Test-Path $appPath -PathType Leaf)) {
     throw "Installed application was not found at $appPath."
   }
@@ -137,7 +137,7 @@ try {
   }
 
   Set-ItemProperty -LiteralPath $registration.PSPath -Name DisplayVersion -Value '9999.0.0'
-  Invoke-Installer -Arguments @('/S', '/allusers', "/D=$installDir") -ExpectedExitCode 1
+  Invoke-Installer -Arguments @('/S', '/currentuser', "/D=$installDir") -ExpectedExitCode 1
 
   $registration = Assert-CurrentUserRegistration
   if ($registration.DisplayVersion -ne '9999.0.0') {
@@ -149,7 +149,7 @@ try {
   Set-Content -LiteralPath $sentinelPath -Value 'preserve during installer upgrade'
 
   $appProcess = Start-ResponsiveApp
-  Invoke-Installer -Arguments @('/S', '/allusers', '--updated')
+  Invoke-Installer -Arguments @('/S', '/currentuser', '--updated')
   $appProcess.Refresh()
   if (-not $appProcess.HasExited) {
     throw 'Upgrade installer did not close the running old application.'
