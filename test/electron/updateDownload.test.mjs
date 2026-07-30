@@ -84,7 +84,9 @@ describe('desktop update downloads', () => {
     });
     expect(fs.readFileSync(result.filePath)).toEqual(Buffer.from([1, 2, 3]));
     expect(result.filePath).toContain(path.join('update-downloads', '0.1.17'));
-    expect(fs.statSync(result.filePath).mode & 0o111).not.toBe(0);
+    if (process.platform === 'linux') {
+      expect(fs.statSync(result.filePath).mode & 0o111).not.toBe(0);
+    }
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
@@ -237,6 +239,9 @@ describe('desktop update downloads', () => {
 
     expect(result.filePath).toBe(existingPath);
     expect(result.sizeBytes).toBe(2);
+    if (process.platform === 'linux') {
+      expect(fs.statSync(result.filePath).mode & 0o111).not.toBe(0);
+    }
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 

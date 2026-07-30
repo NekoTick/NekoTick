@@ -106,6 +106,12 @@ async function verifyDownloadedUpdateSha256(filePath, expectedSha256) {
   }
 }
 
+function ensureDownloadedUpdateExecutable(filePath, assetName) {
+  if (process.platform === 'linux' && assetName.toLowerCase().endsWith('.appimage')) {
+    fs.chmodSync(filePath, 0o755);
+  }
+}
+
 export async function downloadUpdateAsset({
   app,
   updateInfo,
@@ -130,15 +136,18 @@ export async function downloadUpdateAsset({
     if (stat.isFile() && stat.size > 0) {
       try {
         await verifyDownloadedUpdateSha256(target.filePath, expectedSha256);
+      } catch {
+        fs.rmSync(target.filePath, { force: true });
+        fs.rmSync(target.temporaryFilePath, { force: true });
+      }
+      if (fs.existsSync(target.filePath)) {
+        ensureDownloadedUpdateExecutable(target.filePath, target.assetName);
         return {
           filePath: target.filePath,
           fileName: target.assetName,
           downloadedAt: stat.mtime.toISOString(),
           sizeBytes: stat.size,
         };
-      } catch {
-        fs.rmSync(target.filePath, { force: true });
-        fs.rmSync(target.temporaryFilePath, { force: true });
       }
     }
   }
@@ -187,15 +196,13 @@ export async function downloadUpdateAsset({
       existingBytes: resumeFromBytes,
     });
     fs.renameSync(target.temporaryFilePath, target.filePath);
-    if (process.platform === 'linux' && target.assetName.toLowerCase().endsWith('.appimage')) {
-      fs.chmodSync(target.filePath, 0o755);
-    }
     try {
       await verifyDownloadedUpdateSha256(target.filePath, expectedSha256);
     } catch (error) {
       fs.rmSync(target.filePath, { force: true });
       throw error;
     }
+    ensureDownloadedUpdateExecutable(target.filePath, target.assetName);
     const stat = fs.statSync(target.filePath);
     return {
       filePath: target.filePath,
@@ -241,6 +248,7 @@ export async function normalizeDownloadedUpdateForOpen(app, updateInfo) {
     throw new Error('Downloaded update path is not a file.');
   }
   await verifyDownloadedUpdateSha256(target.filePath, expectedSha256);
+  ensureDownloadedUpdateExecutable(target.filePath, target.assetName);
   return target.filePath;
 }
 

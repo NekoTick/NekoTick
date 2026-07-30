@@ -8,6 +8,7 @@ $installer = (Get-Item $InstallerPath).FullName
 $installDir = Join-Path $env:RUNNER_TEMP 'vlaina-installer-smoke'
 $appPath = Join-Path $installDir 'vlaina.exe'
 $uninstallRegistryPath = 'Software\Microsoft\Windows\CurrentVersion\Uninstall'
+$vlainaDisplayNamePattern = '^vlaina [0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$'
 $sentinelPath = Join-Path $env:APPDATA "vlaina\installer-smoke-$([Guid]::NewGuid().ToString('N')).txt"
 $appProcess = $null
 
@@ -49,7 +50,9 @@ function Get-VlainaRegistrations {
   @(
     Get-ChildItem -Path $registryRoot -ErrorAction SilentlyContinue |
       Get-ItemProperty |
-      Where-Object { $_.DisplayName -eq 'vlaina' }
+      Where-Object {
+        $_.DisplayName -eq 'vlaina' -or $_.DisplayName -match $vlainaDisplayNamePattern
+      }
   )
 }
 

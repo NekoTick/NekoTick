@@ -60,6 +60,10 @@
   border-radius: var(--vlaina-radius-8px);
 }
 
+.milkdown .ProseMirror .editor-block-selection-line-marker {
+  display: none !important;
+}
+
 .milkdown .ProseMirror .editor-block-selected-inline-line {
   --vlaina-block-selection-fill-top: var(--vlaina-block-selection-gap-y);
   --vlaina-block-selection-fill-bottom: var(--vlaina-block-selection-gap-y);

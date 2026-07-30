@@ -765,13 +765,11 @@ describe('blockSelectionUtils', () => {
     const ranges = collectSelectableBlockRanges(view.state.doc).slice(0, LARGE_BLOCK_SELECTION_RENDERING_THRESHOLD);
 
     const decorations = createBlockSelectionDecorations(view.state.doc, ranges);
-    const classes = decorations.find().map((decoration: Decoration) =>
-      String((decoration.type as any).attrs?.class ?? '')
-    );
+    const lineMarkers = decorations.find();
 
-    expect(classes).toHaveLength(LARGE_BLOCK_SELECTION_RENDERING_THRESHOLD);
-    expect(classes.every((className) => className.includes('editor-block-selected-large-textlike'))).toBe(true);
-    expect(classes.every((className) => className.includes('editor-block-selected-inline-line'))).toBe(true);
+    expect(lineMarkers).toHaveLength(LARGE_BLOCK_SELECTION_RENDERING_THRESHOLD);
+    expect(lineMarkers.every((decoration: Decoration) => decoration.widget)).toBe(true);
+    expect(lineMarkers.every((decoration: Decoration) => decoration.spec.blockSelectionLineMarker === true)).toBe(true);
 
     await editor.destroy();
   });
