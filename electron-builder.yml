@@ -91,6 +91,8 @@ appx:
   publisherDisplayName: vladelaina
   displayName: vlaina
   backgroundColor: transparent
+  minVersion: 10.0.17763.0
+  maxVersionTested: 10.0.26100.0
   languages:
     - en-US
     - zh-CN
