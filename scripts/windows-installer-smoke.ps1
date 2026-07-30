@@ -61,7 +61,13 @@ function Assert-CurrentUserRegistration {
   if ($perUserRegistrations.Count -ne 1) {
     throw "Expected one current-user registration; found $($perUserRegistrations.Count)."
   }
-  if ($perUserRegistrations[0].InstallLocation.TrimEnd('\') -ne $installDir.TrimEnd('\')) {
+  $registration = $perUserRegistrations[0]
+  $uninstallString = [string]$registration.UninstallString
+  $expectedUninstallPrefix = '"' + $installDir.TrimEnd('\') + '\'
+  if (
+    [string]::IsNullOrWhiteSpace($uninstallString) -or
+    -not $uninstallString.StartsWith($expectedUninstallPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+  ) {
     throw 'Current-user registration did not preserve the expected installation directory.'
   }
 
@@ -70,7 +76,7 @@ function Assert-CurrentUserRegistration {
     throw 'Installer unexpectedly registered vlaina for all users.'
   }
 
-  $perUserRegistrations[0]
+  $registration
 }
 
 function Start-ResponsiveApp {
@@ -164,9 +170,6 @@ try {
   }
 
   $registration = Assert-CurrentUserRegistration
-  if ($registration.InstallLocation.TrimEnd('\') -ne $installDir.TrimEnd('\')) {
-    throw 'Upgrade changed the existing installation directory.'
-  }
   if ($registration.DisplayVersion -ne $packagedVersion) {
     throw "Upgrade registered version $($registration.DisplayVersion); expected $packagedVersion."
   }
