@@ -4,6 +4,7 @@ import {
   Editor,
   defaultValueCtx,
   editorViewCtx,
+  parserCtx,
   remarkStringifyOptionsCtx,
   serializerCtx,
 } from '@milkdown/kit/core';
@@ -13,6 +14,7 @@ import { history } from '@milkdown/kit/plugin/history';
 import { listener } from '@milkdown/kit/plugin/listener';
 import { tableBlock } from '@milkdown/kit/component/table-block';
 import type { EditorView } from '@milkdown/kit/prose/view';
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { redo, undo } from '@milkdown/kit/prose/history';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { notesRemarkStringifyOptions } from './config/stringifyOptions';
@@ -54,12 +56,29 @@ function pressEnter(view: EditorView): boolean {
   return handled;
 }
 
-async function createEditor(markdown: string) {
-  const defaultValue = preserveMarkdownBlankLinesForEditor(
+function prepareEditorMarkdown(markdown: string): string {
+  return preserveMarkdownBlankLinesForEditor(
     normalizeLeadingFrontmatterMarkdown(
       normalizeAlternativeMathBlockFences(markdown)
     )
   );
+}
+
+function stripSourceBoundaryMetadata(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripSourceBoundaryMetadata);
+  if (!value || typeof value !== 'object') return value;
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, nestedValue]) =>
+      key === 'vlainaSourceTightBefore' || key === 'vlainaSourceHtmlBlankLineCountAfter'
+        ? []
+        : [[key, stripSourceBoundaryMetadata(nestedValue)]]
+    )
+  );
+}
+
+async function createEditor(markdown: string) {
+  const defaultValue = prepareEditorMarkdown(markdown);
   const editor = Editor.make()
     .config((ctx) => {
       ctx.set(defaultValueCtx, defaultValue);
@@ -89,6 +108,201 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it.each([
+    {
+      name: 'unescaped input',
+      source: [
+        '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+        '2. Second item',
+        '3. Third item',
+        '4. Fourth item',
+      ].join('\n'),
+    },
+    {
+      name: 'legacy serializer escapes',
+      source: [
+        '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+        '2\\. Second item',
+        '3\\. Third item',
+        '4\\. Fourth item',
+      ].join('\n'),
+    },
+  ])('reopens an interrupted ordered list without synthetic backslashes: $name', async ({ source }) => {
+    const expected = [
+      '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+      '',
+      '2. Second item',
+      '3. Third item',
+      '4. Fourth item',
+    ].join('\n');
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(view.state.doc.childCount).toBe(2);
+    expect(view.state.doc.child(1).type.name).toBe('ordered_list');
+    expect(view.state.doc.child(1).attrs.order).toBe(2);
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), source)).toBe(expected);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(expected);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(reopenedView.state.doc.child(1).type.name).toBe('ordered_list');
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), expected))
+      .toBe(expected);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it('reopens an interrupted blockquote ordered list without synthetic backslashes', async () => {
+    const source = ['> Intro', '> 2\\. Second item', '> 3\\. Third item'].join('\n');
+    const expected = ['> Intro', '>', '> 2. Second item', '> 3. Third item'].join('\n');
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+    const blockquote = view.state.doc.firstChild;
+
+    expect(blockquote?.type.name).toBe('blockquote');
+    expect(blockquote?.child(1).type.name).toBe('ordered_list');
+    expect(blockquote?.child(1).attrs.order).toBe(2);
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), source)).toBe(expected);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(expected);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(reopenedView.state.doc.firstChild?.child(1).type.name).toBe('ordered_list');
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), expected))
+      .toBe(expected);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it('keeps image paragraph spacing before a later heading across reload', async () => {
+    const markdown = [
+      '![Image](image.png "Title")',
+      '',
+      'Hard break  ',
+      'continued.',
+      '',
+      '',
+      'Setext heading',
+      '----------------',
+    ].join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown)).toBe(markdown);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(markdown);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), markdown))
+      .toBe(markdown);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it.each([
+    ['table of contents before a thematic break', ['[TOC]', '___']],
+    ['list code before an HTML comment', [
+      '7. ```md',
+      '   code',
+      '   ```',
+      '',
+      '<!-- User comment -->',
+    ]],
+    ['frontmatter before an HTML processing instruction', [
+      '---',
+      'title: Example',
+      '---',
+      '',
+      '<?note value?>',
+    ]],
+    ['list raw HTML before a table', [
+      '- <textarea>',
+      '  raw HTML',
+      '  </textarea>',
+      '| Key | Value |',
+      '| --- | ----: |',
+      '| row |     1 |',
+    ]],
+    ['footnote raw HTML before an image', [
+      'Footnote[^html].',
+      '',
+      '[^html]: <textarea>',
+      '    raw HTML',
+      '    </textarea>',
+      '![Image](image.png)',
+    ]],
+  ])('keeps %s byte-stable across reload', async (_label, lines) => {
+    const markdown = lines.join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown)).toBe(markdown);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(markdown);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), markdown))
+      .toBe(markdown);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it.each([
+    ['list math', ['> - \\[', '>   x = y', '>   \\]', 'Body']],
+    ['fenced code', ['> ```', '> code', '> ```', 'Body']],
+    ['heading', ['> ## Heading', 'Body']],
+    ['nested heading', ['> > ## Heading', 'Body']],
+  ])('keeps the tight boundary after a blockquote ending in %s', async (_label, lines) => {
+    const markdown = lines.join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(view.state.doc.childCount).toBe(2);
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown)).toBe(markdown);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(markdown);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(reopenedView.state.doc.childCount).toBe(2);
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), markdown))
+      .toBe(markdown);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it.each([
+    ['root dollar math', '$$x = y$$'],
+    ['ordered-list dollar math', '7. $$x = y$$'],
+    ['bullet-list bracket math', '- \\[x = y\\]'],
+  ])('keeps a blank between %s and an image across reload', async (_label, math) => {
+    const markdown = [math, '', '![Image](image.png "Title")'].join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown)).toBe(markdown);
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(markdown);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), markdown))
+      .toBe(markdown);
+    await destroyEditor(reopenedEditor);
+  });
+
   it('preserves user-authored comments that share editor placeholder names', async () => {
     const markdown = [
       '# User comments',
@@ -133,6 +347,223 @@ describe('MarkdownEditor compatibility', () => {
     const serialized = serializer(view.state.doc);
     expect(isEditorMarkdownEquivalentToNoteContent(serialized, markdown)).toBe(true);
     await destroyEditor(editor);
+  });
+
+  it('migrates a legacy escaped number run and continues the ordered list across reload', async () => {
+    const markdown = [
+      '7\\. Position limits',
+      '8\\. Project credits',
+      '9\\. Window sizing',
+      '10\\. C rewrite',
+    ].join('\n');
+    const migrated = [
+      '7. Position limits',
+      '8. Project credits',
+      '9. Window sizing',
+      '10. C rewrite',
+      '11. test',
+    ].join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(view.state.doc.childCount).toBe(1);
+    expect(view.state.doc.firstChild?.type.name).toBe('ordered_list');
+    expect(view.state.doc.firstChild?.attrs.order).toBe(7);
+    view.dispatch(view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)));
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, 'test');
+
+    expect(view.state.doc.lastChild?.type.name).toBe('ordered_list');
+    const saved = serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown);
+    expect(saved).toBe(migrated);
+
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(saved);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+    const reopenedSerializer = reopenedEditor.ctx.get(serializerCtx);
+
+    expect(reopenedView.state.doc.childCount).toBe(1);
+    expect(reopenedView.state.doc.lastChild?.type.name).toBe('ordered_list');
+    expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), saved)).toBe(saved);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it.each([
+    ['ordered list', '1. ', 'ordered_list', '1.', '\n\n'],
+    ['custom-start ordered list', '11. ', 'ordered_list', '11.', '\n\n'],
+    ['bullet list', '- ', 'bullet_list', '-', '\n\n'],
+    ['task list', '- [ ] ', 'bullet_list', '- [ ]', '\n'],
+  ])('keeps a newly typed empty %s after a paragraph across reload', async (
+    _label,
+    input,
+    listNodeType,
+    marker,
+    separator,
+  ) => {
+    const markdown = 'Paragraph before the list.';
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)));
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, input);
+
+    expect(view.state.doc.lastChild?.type.name).toBe(listNodeType);
+    const saved = serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown);
+    expect(saved).toBe(`${markdown}${separator}${marker}`);
+
+    await destroyEditor(editor);
+
+    const reopenedEditor = await createEditor(saved);
+    const reopenedView = reopenedEditor.ctx.get(editorViewCtx);
+
+    expect(reopenedView.state.doc.childCount).toBe(2);
+    expect(reopenedView.state.doc.lastChild?.type.name).toBe(listNodeType);
+    await destroyEditor(reopenedEditor);
+  });
+
+  it('keeps editor-created root-block boundaries stable across reload', async () => {
+    const blockCases = [
+      ['heading', '## Heading'],
+      ['empty heading', '##'],
+      ['ordered list', '1. Ordered'],
+      ['zero-start ordered list', '0. Ordered'],
+      ['custom-start ordered list', '11. Ordered'],
+      ['maximum-start ordered list', '999999999. Ordered'],
+      ['parenthesized ordered list', '7) Ordered'],
+      ['bullet list', '- Bullet'],
+      ['multiline bullet list', ['- First line', '  continuation'].join('\n')],
+      ['nested bullet list', ['- Parent', '  - Child'].join('\n')],
+      ['list with fenced code', [
+        '- Item',
+        '',
+        '  ```ts',
+        '  const value = 1;',
+        '  ```',
+      ].join('\n')],
+      ['task list', '- [ ] Task'],
+      ['blockquote', '> Quote'],
+      ['empty blockquote', '>'],
+      ['callout', '> 💡 Callout'],
+      ['thematic break', '---'],
+      ['table', ['| A | B |', '| - | - |', '| 1 | 2 |'].join('\n')],
+      ['fenced code', ['```ts', 'const value = 1;', '```'].join('\n')],
+      ['empty fenced code', ['```', '```'].join('\n')],
+      ['indented code', '    const value = 1;'],
+      ['display math', ['$$', 'x + y', '$$'].join('\n')],
+      ['empty display math', ['$$', '$$'].join('\n')],
+      ['footnote definition', '[^note]: Footnote body.'],
+      ['multi-paragraph footnote definition', [
+        '[^note]: First paragraph.',
+        '',
+        '    Second paragraph.',
+      ].join('\n')],
+      ['definition list', ['Term', '', ': Definition'].join('\n')],
+      ['table of contents', '[TOC]'],
+      ['video', '![video](https://example.test/video.mp4)'],
+      ['image', '![alt](image.png)'],
+      ['Mermaid', ['```mermaid', 'flowchart TD', 'A --> B', '```'].join('\n')],
+      ['HTML comment', '<!-- User comment -->'],
+      ['HTML processing instruction', '<?note value?>'],
+      ['HTML declaration', '<!doctype html>'],
+      ['raw HTML', ['<pre>', 'raw', '</pre>'].join('\n')],
+    ] as const;
+    const editor = await createEditor('');
+
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const parser = editor.ctx.get(parserCtx);
+      const serializer = editor.ctx.get(serializerCtx);
+      const paragraph = parser('Paragraph boundary.').firstChild;
+      expect(paragraph).not.toBeNull();
+      const unstableBoundaries: Array<{
+        actual: string;
+        boundary: string;
+        expected: string;
+        pipeline: 'markdown-parser' | 'editor-reopen';
+        serialized: string;
+        saved: string;
+      }> = [];
+      const parsedBlockCases = blockCases.map(([name, markdown]) => {
+        const blockDoc = parser(markdown);
+        expect(blockDoc.childCount, name).toBe(1);
+        const block = blockDoc.firstChild;
+        expect(block, name).not.toBeNull();
+        return { block: block!, name };
+      });
+
+      const checkBoundary = (
+        leftName: string,
+        left: ProseNode,
+        rightName: string,
+        right: ProseNode,
+      ) => {
+        const generatedDoc = view.state.schema.topNodeType.create(null, [left, right]);
+        const serialized = serializer(generatedDoc);
+        const saved = serializeEditorMarkdownSnapshot(serialized, '');
+        const generatedJson = stripSourceBoundaryMetadata(generatedDoc.toJSON());
+        const reopenedDocs = [
+          ['markdown-parser', parser(saved)],
+          ['editor-reopen', parser(prepareEditorMarkdown(saved))],
+        ] as const;
+
+        for (const [pipeline, reopenedDoc] of reopenedDocs) {
+          const reopenedJson = stripSourceBoundaryMetadata(reopenedDoc.toJSON());
+          if (JSON.stringify(reopenedJson) !== JSON.stringify(generatedJson)) {
+            unstableBoundaries.push({
+              actual: reopenedDoc.toString(),
+              boundary: `${leftName} -> ${rightName}`,
+              expected: generatedDoc.toString(),
+              pipeline,
+              serialized,
+              saved,
+            });
+          }
+        }
+      };
+
+      for (const { block, name } of parsedBlockCases) {
+        checkBoundary(name, block, 'paragraph', paragraph!);
+        checkBoundary('paragraph', paragraph!, name, block);
+      }
+
+      const pairwiseNames = new Set([
+        'heading',
+        'custom-start ordered list',
+        'bullet list',
+        'task list',
+        'blockquote',
+        'callout',
+        'thematic break',
+        'table',
+        'fenced code',
+        'display math',
+        'footnote definition',
+        'definition list',
+        'table of contents',
+        'video',
+        'image',
+        'Mermaid',
+        'HTML comment',
+        'HTML processing instruction',
+        'HTML declaration',
+        'raw HTML',
+      ]);
+      const pairwiseCases = parsedBlockCases.filter(({ name }) => pairwiseNames.has(name));
+      for (const left of pairwiseCases) {
+        for (const right of pairwiseCases) {
+          if (left.block.type === right.block.type) continue;
+          checkBoundary(left.name, left.block, right.name, right.block);
+        }
+      }
+
+      expect(unstableBoundaries).toEqual([]);
+    } finally {
+      await destroyEditor(editor);
+    }
   });
 
   it('opens supported math delimiters and math code fences as editable math nodes', async () => {
@@ -938,4 +1369,5 @@ describe('MarkdownEditor compatibility', () => {
 
     await destroyEditor(editor);
   });
+
 });

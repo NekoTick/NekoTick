@@ -43,7 +43,7 @@ export function restoreThematicBreakMarkerStyleFromReference(
   if (breaks.length !== referenceBreaks.length) return markdown;
 
   let changed = false;
-  for (let index = 0; index < breaks.length; index += 1) {
+  for (let index = breaks.length - 1; index >= 0; index -= 1) {
     const line = breaks[index];
     const referenceLine = referenceBreaks[index];
     if (
@@ -52,7 +52,20 @@ export function restoreThematicBreakMarkerStyleFromReference(
       || referenceLine.raw.trim() === '---'
       || line.raw === referenceLine.raw
     ) continue;
-    lines[line.index] = referenceLine.raw;
+
+    const referenceHasTightBoundary =
+      (referenceLines[referenceLine.index - 1] ?? '').trim() !== '';
+    let outputIndex = line.index;
+    if (
+      referenceHasTightBoundary
+      && outputIndex > 0
+      && (lines[outputIndex - 1] ?? '').trim() === ''
+    ) {
+      lines.splice(outputIndex - 1, 1);
+      outputIndex -= 1;
+    }
+
+    lines[outputIndex] = referenceLine.raw;
     changed = true;
   }
 

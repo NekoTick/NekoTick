@@ -295,6 +295,36 @@ describe('markdown source style restoration after a leading thematic break', () 
 });
 
 describe('fenced code source style restoration', () => {
+  it.each([1, 2])(
+    'restores %s structural blank line(s) after contextual indented code',
+    (blankLineCount) => {
+      const reference = [
+        'Term HTML',
+        ': <textarea>',
+        '  nested definition raw HTML',
+        '  </textarea>',
+        '',
+        '    indented code',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '![Image](image.png)',
+      ].join('\n');
+      const serialized = [
+        'Term HTML',
+        ': <textarea>',
+        '  nested definition raw HTML',
+        '  </textarea>',
+        '',
+        '```',
+        'indented code',
+        '```',
+        ...Array.from({ length: Math.max(0, blankLineCount - 1) }, () => ''),
+        '![Image](image.png)',
+      ].join('\n');
+
+      expect(restoreFenceMarkerStyleFromReference(serialized, reference)).toBe(reference);
+    },
+  );
+
   it('restores indented and labelled fences with the same body by source order', () => {
     const serialized = [
       '```',

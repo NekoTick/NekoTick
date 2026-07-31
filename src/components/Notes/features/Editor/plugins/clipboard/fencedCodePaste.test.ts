@@ -272,6 +272,19 @@ describe('extractLargestMarkdownFenceContent', () => {
 describe('normalizeInterruptedOrderedListsForPaste', () => {
     const parserBoundary = '';
 
+    it('separates a paragraph from a parenthesized ordered list on paste', () => {
+        expect(normalizeInterruptedOrderedListsForPaste([
+            'Intro',
+            '2) Second item',
+            '3) Third item',
+        ].join('\n'))).toBe([
+            'Intro',
+            parserBoundary,
+            '2) Second item',
+            '3) Third item',
+        ].join('\n'));
+    });
+
     it('separates a paragraph from a following ordered list that starts after 1', () => {
         expect(normalizeInterruptedOrderedListsForPaste([
             '`mindmap支持是否完整`',

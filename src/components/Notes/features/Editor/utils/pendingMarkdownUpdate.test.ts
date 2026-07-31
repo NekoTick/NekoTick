@@ -151,6 +151,12 @@ describe('resolvePendingMarkdownUpdate', () => {
     expect(serializeEditorMarkdownSnapshot('1\n\n2\n', '1')).toBe('1\n2');
   });
 
+  it('keeps the structural separator before a definition list term', () => {
+    const markdown = ['Paragraph before.', '', 'Term', '', ': Definition', ''].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(markdown, '')).toBe(markdown.trimEnd());
+  });
+
   it('preserves compact blockquote marker spacing from the reference note', () => {
     expect(
       serializeEditorMarkdownSnapshot(

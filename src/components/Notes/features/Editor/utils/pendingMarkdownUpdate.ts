@@ -130,7 +130,8 @@ export function normalizeMarkdownParagraphSeparatorsForEditorComparison(markdown
       previousLine !== null &&
       nextLine !== null &&
       isPlainTextParagraphLine(previousLine) &&
-      isPlainTextParagraphLine(nextLine);
+      isPlainTextParagraphLine(nextLine) &&
+      !beginsDefinitionList(lines, index);
 
     if (isPlainParagraphGap) {
       continue;
@@ -194,7 +195,8 @@ function markEditorParagraphSeparatorsInSegment(markdown: string): string {
     const shouldCompact = previousLine !== null
       && nextLine !== null
       && isPlainTextParagraphLine(previousLine)
-      && isPlainTextParagraphLine(nextLine);
+      && isPlainTextParagraphLine(nextLine)
+      && !beginsDefinitionList(lines, index);
 
     if (!shouldCompact) {
       for (let blankIndex = runStart; blankIndex < index; blankIndex += 1) {
@@ -258,6 +260,16 @@ function isPlainTextParagraphLine(line: string): boolean {
   if (STRUCTURAL_MARKDOWN_LINE_PATTERN.test(line)) return false;
   if (MARKDOWN_IMAGE_ONLY_LINE_PATTERN.test(line)) return false;
   return true;
+}
+
+function beginsDefinitionList(lines: readonly string[], termIndex: number): boolean {
+  if (!isPlainTextParagraphLine(lines[termIndex] ?? '')) return false;
+
+  let descriptionIndex = termIndex + 1;
+  while (descriptionIndex < lines.length && (lines[descriptionIndex] ?? '').trim() === '') {
+    descriptionIndex += 1;
+  }
+  return /^\s{0,3}:\s+\S/.test(lines[descriptionIndex] ?? '');
 }
 
 function isInternalEditorBlankLineComment(line: string): boolean {
