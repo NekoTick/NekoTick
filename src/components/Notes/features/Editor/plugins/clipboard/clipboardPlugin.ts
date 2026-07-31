@@ -1,11 +1,14 @@
 import { $prose } from '@milkdown/kit/utils';
 import { parserCtx, serializerCtx } from '@milkdown/kit/core';
 import { Plugin } from '@milkdown/kit/prose/state';
+import { DOMParser as ProseDOMParser, type Node as ProseNode } from '@milkdown/kit/prose/model';
+import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Parser, Serializer } from '@milkdown/kit/transformer';
 
-import { writeTextToClipboard } from '@/lib/clipboard';
+import { tryWriteTextToClipboardSynchronously, writeTextToClipboard } from '@/lib/clipboard';
 import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { hasHeadingDropPayload } from '../cursor/externalTextDropCursorPlugin';
+import { insertImageNodesAtSelection } from '../image-upload/imageNodeInsertion';
 import { collapseSelectionAndHideFloatingToolbar } from './copyCleanup';
 import { sanitizeHtml } from './sanitizer';
 import { serializeSelectionToClipboardText } from './selectionSerialization';
@@ -17,7 +20,12 @@ import {
     shouldHandleCopyShortcutDirectly,
     shouldHandleCutShortcutDirectly,
 } from './clipboardDirectHandlers';
-import { getClipboardTextPayload } from './clipboardPayload';
+import {
+    getClipboardTextPayload,
+    hasClipboardImageFilePayload,
+    hasClipboardImageOnlyHtmlPayload,
+    normalizeImageOnlyClipboardHtml,
+} from './clipboardPayload';
 import {
     dispatchPlainTextPayload,
     moveSelectionToDropPoint,
@@ -29,6 +37,24 @@ import {
     MAX_MARKDOWN_PASTE_CHARS,
     clipboardPluginKey,
 } from './clipboardPluginConstants';
+
+function parseImageOnlyClipboardNodes(view: EditorView, html: string): ProseNode[] {
+    const container = view.dom.ownerDocument.createElement('div');
+    container.innerHTML = normalizeImageOnlyClipboardHtml(sanitizeHtml(html));
+    const parsed = ProseDOMParser.fromSchema(view.state.schema).parse(container);
+    const imageType = view.state.schema.nodes.image;
+    if (!imageType) return [];
+
+    const images: ProseNode[] = [];
+    parsed.descendants((node: ProseNode) => {
+        if (node.type === imageType) {
+            images.push(node);
+            return false;
+        }
+        return true;
+    });
+    return images;
+}
 
 export {
     MAX_HTML_PASTE_CHARS,
@@ -99,20 +125,18 @@ export const clipboardPlugin = $prose((ctx) => {
                 if (text.length === 0) {
                     return false;
                 }
+                if (!tryWriteTextToClipboardSynchronously(text)) {
+                    return false;
+                }
 
                 const selection = view.state.selection;
                 const doc = view.state.doc;
                 event.preventDefault();
-                void writeTextToClipboard(text).then((didCopy) => {
-                    if (didCopy) {
-                        if (isDirectCut) {
-                            deleteCapturedSelection(view, selection, doc);
-                            return;
-                        }
-
-                        collapseCapturedSelectionAndHideFloatingToolbar(view, selection, doc);
-                    }
-                }).catch(() => undefined);
+                if (isDirectCut) {
+                    deleteCapturedSelection(view, selection, doc);
+                } else {
+                    collapseCapturedSelectionAndHideFloatingToolbar(view, selection, doc);
+                }
                 return true;
             },
             handleDOMEvents: {
@@ -204,6 +228,20 @@ export const clipboardPlugin = $prose((ctx) => {
                 },
             },
             handlePaste(view, event) {
+                if (hasClipboardImageFilePayload(event.clipboardData)) {
+                    event.preventDefault();
+                    return true;
+                }
+                if (hasClipboardImageOnlyHtmlPayload(event.clipboardData)) {
+                    const html = event.clipboardData?.getData('text/html') ?? '';
+                    const imageNodes = parseImageOnlyClipboardNodes(view, html);
+                    if (!insertImageNodesAtSelection(view, imageNodes)) {
+                        return false;
+                    }
+                    event.preventDefault();
+                    return true;
+                }
+
                 const text = getClipboardTextPayload(event.clipboardData);
                 if (!text) {
                     if (shouldReplaceBlockSelectionForEmptyPaste(view, event)) {
@@ -227,7 +265,7 @@ export const clipboardPlugin = $prose((ctx) => {
                 if (html.length > MAX_HTML_PASTE_CHARS) {
                     return '';
                 }
-                return sanitizeHtml(html);
+                return normalizeImageOnlyClipboardHtml(sanitizeHtml(html));
             }
         }
     });

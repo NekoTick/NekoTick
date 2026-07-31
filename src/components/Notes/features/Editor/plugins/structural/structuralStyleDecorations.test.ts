@@ -4,6 +4,7 @@ import * as ProseState from '@milkdown/kit/prose/state';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import type { Decoration } from '@milkdown/kit/prose/view';
 import {
+  STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS,
   STRUCTURAL_EMPTY_PARAGRAPH_CLASS,
   STRUCTURAL_LIST_ITEM_ALIGN_CENTER_CLASS,
   STRUCTURAL_LIST_ITEM_ALIGN_RIGHT_CLASS,
@@ -150,6 +151,22 @@ describe('structuralStyleDecorations', () => {
     expect(getStructuralStyleDecorationClass(paragraphWithChildren([image(), image()]))).toBe(
       `${STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS} ${STRUCTURAL_PARAGRAPH_HAS_MULTIPLE_IMAGE_BLOCKS_CLASS}`,
     );
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      image(),
+      textNode('Visible text'),
+    ]))).toBeNull();
+  });
+
+  it('eagerly lays out only long paragraphs with dense inline structure', () => {
+    const denseChildren = Array.from({ length: 12 }, (_, index) => (
+      schema.text('formatted segment '.repeat(12), index % 2 === 0 ? [schema.marks.strong.create()] : undefined)
+    ));
+
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren(denseChildren))).toBe(
+      STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS,
+    );
+    expect(getStructuralStyleDecorationClass(paragraph('plain text '.repeat(300)))).toBeNull();
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren(denseChildren.slice(0, 6)))).toBeNull();
   });
 
   it('marks list items based on direct child text alignment', () => {
@@ -218,7 +235,7 @@ describe('structuralStyleDecorations', () => {
     expect(scanned).toBe(2);
   });
 
-  it('adds paragraph image classes incrementally when an image is inserted', () => {
+  it('does not collapse a text paragraph when an image is inserted', () => {
     const state = EditorStateCtor.create({
       schema,
       doc: docWith([paragraph('Target')]),
@@ -231,9 +248,7 @@ describe('structuralStyleDecorations', () => {
       decorations: previousDecorations,
     }, tr.doc);
 
-    expect(next.decorations.find().map((decoration: Decoration) => (decoration.type as any).attrs?.class)).toEqual([
-      STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS,
-    ]);
+    expect(next.decorations.find()).toEqual([]);
   });
 
   it('reuses structural decorations for selection-only transactions', () => {

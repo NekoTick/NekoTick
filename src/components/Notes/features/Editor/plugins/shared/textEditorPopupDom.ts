@@ -1,6 +1,10 @@
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { translate } from '@/lib/i18n';
 import { themeTextAreaTokens } from '@/styles/themeTokens';
+import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 export interface TextEditorPopupElements {
   card: HTMLElement;
@@ -137,6 +141,8 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditor
     }
     onInput(textarea.value);
   });
+  textarea.addEventListener('paste', preventImageClipboardTextPaste);
+  textarea.addEventListener('drop', preventImageDataTransferTextDrop);
   textarea.addEventListener('keydown', (event) => {
     if (event.isComposing || isComposing) {
       return;

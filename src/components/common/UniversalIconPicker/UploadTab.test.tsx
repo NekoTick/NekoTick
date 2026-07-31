@@ -127,6 +127,45 @@ describe('UploadTab', () => {
     expect(decoded).not.toContain('onload');
   });
 
+  it('loads an image pasted from the clipboard into the upload preview', async () => {
+    const file = new File(['image'], 'pasted.png', { type: 'image/png' });
+
+    render(<UploadTab onSelect={() => {}} onPreview={() => {}} onClose={() => {}} customIcons={[]} />);
+
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+      },
+    });
+
+    await act(async () => {
+      document.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(screen.getByTestId('cropper')).toHaveAttribute('data-image', expect.stringContaining('data:image/png')));
+    expect(pasteEvent.defaultPrevented).toBe(true);
+  });
+
+  it('leaves non-image clipboard content untouched', () => {
+    render(<UploadTab onSelect={() => {}} onPreview={() => {}} onClose={() => {}} customIcons={[]} />);
+
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+        files: [],
+      },
+    });
+
+    document.dispatchEvent(pasteEvent);
+
+    expect(pasteEvent.defaultPrevented).toBe(false);
+    expect(screen.queryByTestId('cropper')).not.toBeInTheDocument();
+  });
+
   it('supports preview, selection, and context-menu deletion from the custom icon library', async () => {
     const onSelect = vi.fn();
     const onPreview = vi.fn();

@@ -18,6 +18,10 @@ import { installCodeBlockNodeViewStateMethods } from './CodeBlockNodeViewStateMe
 import {
   mapDocumentOffsetToCodeBlockEditorOffset
 } from './codemirror';
+import {
+  clearCodeBlockEditorClipboardCapture,
+  trackCodeBlockEditorClipboardKeydown,
+} from './codemirror/codeBlockEditorClipboard';
 type CodeBlockNodeViewOptions = {
   lazyCodeMirror?: boolean;
 };
@@ -67,6 +71,9 @@ export class CodeBlockNodeView implements NodeView {
   headerStateKey = '';
   pendingMeasureFrame: number | null = null;
   pendingForwardTimer: number | null = null;
+  pendingLazyInitializationTimer: number | null = null;
+  pendingLazyInitializationFrame: number | null = null;
+  lazyCodeBlockIntersecting = false;
   disposeFontMetricsSync: () => void = () => { };
   unsubscribeSettings: () => void = () => { };
   unsubscribeSelectionSync: () => void = () => { };
@@ -92,6 +99,7 @@ export class CodeBlockNodeView implements NodeView {
     if (!this.cm) {
       return;
     }
+    clearCodeBlockEditorClipboardCapture(this.cm);
 
     if (this.pendingForwardTimer !== null) {
       this.clearPendingForwardUpdate();
@@ -181,7 +189,21 @@ export class CodeBlockNodeView implements NodeView {
   };
 
   readonly trackCodeMirrorSelectionKeydown = (event: KeyboardEvent) => {
+    if (this.cm) {
+      trackCodeBlockEditorClipboardKeydown(event, this.cm);
+    }
     this.rememberCodeMirrorSelectionArrowKey(event);
+  };
+
+  readonly clearCodeMirrorClipboardCaptureOnKeyup = (event: KeyboardEvent) => {
+    if (this.cm && (event.key === 'Control' || event.key === 'Meta')) {
+      clearCodeBlockEditorClipboardCapture(this.cm);
+    }
+  };
+
+  readonly flushCodeMirrorClipboardCut = () => {
+    this.clearPendingForwardUpdate();
+    this.forwardFocusedCodeMirrorSnapshot();
   };
 
   readonly syncProseMirrorSelection = () => {

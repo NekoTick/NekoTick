@@ -96,11 +96,15 @@ describe('AboutTab community QR pills', () => {
 
     expect(qqPanel).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(wechatPanel).not.toHaveClass('opacity-[var(--vlaina-opacity-100)]');
+    expect(screen.getByRole('button', { name: 'QQ group' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'WeChat group' })).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.mouseEnter(wechatPill as Element);
 
     expect(qqPanel).not.toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(wechatPanel).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
+    expect(screen.getByRole('button', { name: 'QQ group' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'WeChat group' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('opens the support email from the about community pills', () => {
@@ -288,6 +292,56 @@ describe('AboutTab community QR pills', () => {
     });
   });
 
+  it('keeps an existing available update visible when a manual recheck fails', async () => {
+    const check = vi.fn().mockRejectedValue(new Error('offline'));
+    writeCachedDesktopUpdateInfo({
+      currentVersion: '0.1.16',
+      latestVersion: '99.99.99',
+      updateAvailable: true,
+      downloadUrl: 'https://github.com/vladelaina/vlaina/releases/download/v99.99.99/vlaina-99.99.99-windows-x64-setup.exe',
+      releaseUrl: 'https://github.com/vladelaina/vlaina/releases/tag/v99.99.99',
+      platformAssetName: 'vlaina-99.99.99-windows-x64-setup.exe',
+      hasPlatformAsset: true,
+      releaseNotes: 'Release notes',
+      publishedAt: '2026-06-27T00:00:00.000Z',
+    });
+    electronBridgeMock.current = {
+      app: {
+        getVersion: vi.fn().mockResolvedValue('0.1.16'),
+      },
+      update: {
+        check,
+        getPolicy: vi.fn().mockResolvedValue({
+          distribution: 'direct',
+          checkEnabled: true,
+          backgroundDownloadEnabled: true,
+          localInstallerEnabled: true,
+          externalDownloadEnabled: true,
+          cleanupDownloadedUpdatesEnabled: true,
+        }),
+      },
+    };
+
+    render(
+      <AboutTab
+        community={{
+          qqGroupNumber: '123456',
+          qqQrCodeText: 'qq-code',
+          wechatQrCodeText: 'wechat-code',
+        }}
+      />,
+    );
+
+    expect(await screen.findByText('v99.99.99 available')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Check' }));
+
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(screen.getByText('v99.99.99 available')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Update' })).toBeVisible();
+    });
+  });
+
   it('opens the downloaded installer when the update package is already cached', async () => {
     const openDownloaded = vi.fn().mockResolvedValue(undefined);
     const downloadUrl = 'https://github.com/vladelaina/vlaina/releases/download/v99.99.99/vlaina-99.99.99-linux-x86_64.AppImage';
@@ -335,6 +389,73 @@ describe('AboutTab community QR pills', () => {
       }));
     });
     expect(openExternalHrefMock).not.toHaveBeenCalledWith(downloadUrl);
+  });
+
+  it('uses the current Linux policy instead of a stale cached local-installer policy', async () => {
+    const openDownloaded = vi.fn().mockResolvedValue(undefined);
+    const releaseUrl = 'https://github.com/vladelaina/vlaina/releases/tag/v99.99.99';
+    const downloadUrl = 'https://github.com/vladelaina/vlaina/releases/download/v99.99.99/vlaina-99.99.99-linux-x86_64.AppImage';
+    const downloadedFilePath = '/tmp/vlaina/update-downloads/99.99.99/vlaina-99.99.99-linux-x86_64.AppImage';
+    electronBridgeMock.current = {
+      app: {
+        getVersion: vi.fn().mockResolvedValue('0.1.16'),
+      },
+      update: {
+        getPolicy: vi.fn().mockResolvedValue({
+          distribution: 'direct',
+          checkEnabled: true,
+          backgroundDownloadEnabled: false,
+          localInstallerEnabled: false,
+          externalDownloadEnabled: true,
+          cleanupDownloadedUpdatesEnabled: true,
+        }),
+        openDownloaded,
+      },
+    };
+    writeCachedDesktopUpdateInfo({
+      currentVersion: '0.1.16',
+      latestVersion: '99.99.99',
+      updateAvailable: true,
+      downloadUrl,
+      releaseUrl,
+      platformAssetName: 'vlaina-99.99.99-linux-x86_64.AppImage',
+      platformAssetSha256: 'a'.repeat(64),
+      hasPlatformAsset: true,
+      releaseNotes: 'Release notes',
+      publishedAt: '2026-06-27T00:00:00.000Z',
+      downloadState: 'downloaded',
+      downloadedFilePath,
+      downloadedFileName: 'vlaina-99.99.99-linux-x86_64.AppImage',
+      downloadedAt: '2026-06-27T00:00:00.000Z',
+      updatePolicy: {
+        distribution: 'direct',
+        checkEnabled: true,
+        backgroundDownloadEnabled: true,
+        localInstallerEnabled: true,
+        externalDownloadEnabled: true,
+        cleanupDownloadedUpdatesEnabled: true,
+      },
+    });
+
+    render(
+      <AboutTab
+        community={{
+          qqGroupNumber: '123456',
+          qqQrCodeText: 'qq-code',
+          wechatQrCodeText: 'wechat-code',
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(readCachedDesktopUpdateInfo()?.updatePolicy?.localInstallerEnabled).toBe(false);
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Update' }));
+
+    await waitFor(() => {
+      expect(openExternalHrefMock).toHaveBeenCalledWith(releaseUrl);
+    });
+    expect(openDownloaded).not.toHaveBeenCalled();
   });
 
   it('falls back to the GitHub download URL while the background update is still downloading', async () => {

@@ -141,7 +141,11 @@ test('extends Ctrl+Shift selection through mixed Markdown syntax in both directi
 
     let previousTo = Number(start.to);
     let downState = await collectSelectionState(page);
-    for (let index = 0; index < 32; index += 1) {
+    const maxSelectionSteps = await page.evaluate(() => Math.max(
+      96,
+      (window as any).__vlainaE2E.getNoteSelectableBlocks().length * 8 + 32,
+    ));
+    for (let index = 0; index < maxSelectionSteps && !downState.selectedText.includes(END_TEXT); index += 1) {
       await page.keyboard.press('Control+Shift+ArrowDown');
       await waitForEditorAnimationFrame(page);
       downState = await collectSelectionState(page);
@@ -202,7 +206,7 @@ test('extends Ctrl+Shift selection through mixed Markdown syntax in both directi
 
     let previousFrom = Number(end.from);
     let upState = await collectSelectionState(page);
-    for (let index = 0; index < 32; index += 1) {
+    for (let index = 0; index < maxSelectionSteps && !upState.selectedText.includes(START_TEXT); index += 1) {
       await page.keyboard.press('Control+Shift+ArrowUp');
       await waitForEditorAnimationFrame(page);
       upState = await collectSelectionState(page);

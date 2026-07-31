@@ -87,7 +87,7 @@ export function sanitizeUnifiedData(data: UnifiedData): UnifiedData {
           showLineNumbers: showBodyLineNumbers === true,
         },
         codeBlock: {
-          showLineNumbers: showLineNumbers !== false,
+          showLineNumbers: showLineNumbers === true,
         },
       },
       ui: {

@@ -149,6 +149,7 @@ class CodeBlockNodeViewLifecycleMethods {
 
   destroy(this: any) {
     this.destroyed = true;
+    this.cancelPendingLazyCodeMirrorInitialization();
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = null;
     this.clearCodeMirrorSelectionArrowKey();
@@ -164,7 +165,8 @@ class CodeBlockNodeViewLifecycleMethods {
     const root = this.root;
     (this.getOwnerWindow() ?? globalThis).setTimeout(() => root.unmount(), 0);
     if (this.cm) {
-      this.cm.contentDOM.removeEventListener('keydown', this.trackCodeMirrorSelectionKeydown, true);
+      this.cm.dom.removeEventListener('keydown', this.trackCodeMirrorSelectionKeydown, true);
+      this.cm.dom.removeEventListener('keyup', this.clearCodeMirrorClipboardCaptureOnKeyup, true);
       this.cm.dom.removeEventListener('blur', this.clearEditorSelectionOnBlur, true);
       this.cm.destroy();
     }

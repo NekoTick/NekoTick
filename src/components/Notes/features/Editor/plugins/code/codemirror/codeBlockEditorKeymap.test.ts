@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const blockSelectionMocks = vi.hoisted(() => ({
   deleteSelectedBlocks: vi.fn(() => true),
-  writeTextToClipboard: vi.fn(() => Promise.resolve(true)),
+  tryWriteTextToClipboardSynchronously: vi.fn(() => true),
   getBlockSelectionPluginState: vi.fn(() => ({ selectedBlocks: [] })),
   blankAreaDragBoxPluginKey: { key: 'blank-area-drag-box' },
   clearBlocksAction: { type: 'clear-blocks' },
@@ -20,7 +20,10 @@ vi.mock('@milkdown/kit/prose/state', () => ({
 
 vi.mock('../../cursor/blockSelectionCommands', () => ({
   deleteSelectedBlocks: blockSelectionMocks.deleteSelectedBlocks,
-  writeTextToClipboard: blockSelectionMocks.writeTextToClipboard,
+}));
+
+vi.mock('@/lib/clipboard', () => ({
+  tryWriteTextToClipboardSynchronously: blockSelectionMocks.tryWriteTextToClipboardSynchronously,
 }));
 
 vi.mock('../../cursor/blockSelectionPluginState', () => ({
@@ -30,6 +33,11 @@ vi.mock('../../cursor/blockSelectionPluginState', () => ({
 }));
 
 import {
+  copyCodeMirrorSelection,
+  cutCodeMirrorSelection,
+  trackCodeBlockEditorClipboardKeydown,
+} from './codeBlockEditorClipboard';
+import {
   createCodeBlockEditorClipboardHandlers,
   createCodeBlockEditorKeymap,
 } from './codeBlockEditorKeymap';
@@ -37,7 +45,7 @@ import {
 describe('createCodeBlockEditorKeymap', () => {
   afterEach(() => {
     vi.clearAllMocks();
-    blockSelectionMocks.writeTextToClipboard.mockResolvedValue(true);
+    blockSelectionMocks.tryWriteTextToClipboardSynchronously.mockReturnValue(true);
   });
 
   it('deletes the outer block selection before CodeMirror handles Backspace', () => {
@@ -259,286 +267,11 @@ describe('createCodeBlockEditorKeymap', () => {
     expect(cmFocus).not.toHaveBeenCalled();
   });
 
-  it('copies the CodeMirror selection and collapses mirrored selections after success', async () => {
-    const cmDispatch = vi.fn();
-    const editorDispatch = vi.fn();
-    const editorFocus = vi.fn();
-    const transaction = {
-      scrollIntoView: vi.fn(() => transaction),
-    };
-    const setSelection = vi.fn(() => transaction);
-    const cm = {
-      dispatch: cmDispatch,
-      state: {
-        doc: {
-          sliceString: (from: number, to: number) => '0123456789'.slice(from, to),
-        },
-        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
-        selection: {
-          main: {
-            from: 2,
-            to: 5,
-            head: 5,
-            empty: false,
-          },
-          ranges: [
-            {
-              from: 2,
-              to: 5,
-              empty: false,
-            },
-          ],
-        },
-      },
-    };
-
-    const keymaps = createCodeBlockEditorKeymap({
-      getCodeMirror: () => cm as never,
-      view: {
-        state: {
-          doc: {},
-          tr: {
-            setSelection,
-          },
-        },
-        dispatch: editorDispatch,
-        focus: editorFocus,
-      } as never,
-      getNode: () => ({ textContent: '0123456789' }) as never,
-      getPos: () => 10,
-    });
-
-    const copy = keymaps.find((binding) => binding.key === 'Mod-c');
-
-    expect(copy?.run?.({} as never)).toBe(true);
-    await Promise.resolve();
-
-    expect(blockSelectionMocks.writeTextToClipboard).toHaveBeenCalledWith('234');
-    expect(cmDispatch).toHaveBeenCalledWith({
-      selection: {
-        anchor: 5,
-        head: 5,
-      },
-    });
-    expect(setSelection).toHaveBeenCalledWith('created-text-selection');
-    expect(transaction.scrollIntoView).toHaveBeenCalledTimes(1);
-    expect(editorDispatch).toHaveBeenCalledWith(transaction);
-    expect(editorFocus).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not collapse selections when CodeMirror copy fails', async () => {
-    blockSelectionMocks.writeTextToClipboard.mockResolvedValueOnce(false);
-    const cmDispatch = vi.fn();
-    const editorDispatch = vi.fn();
-    const cm = {
-      dispatch: cmDispatch,
-      state: {
-        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
-        selection: {
-          main: { from: 2, to: 5, head: 5, empty: false },
-          ranges: [{ from: 2, to: 5, empty: false }],
-        },
-      },
-    };
-
-    const keymaps = createCodeBlockEditorKeymap({
-      getCodeMirror: () => cm as never,
-      view: {
-        state: { doc: {}, tr: { setSelection: vi.fn() } },
-        dispatch: editorDispatch,
-        focus: vi.fn(),
-      } as never,
-      getNode: () => ({ textContent: '0123456789' }) as never,
-      getPos: () => 10,
-    });
-
-    const copy = keymaps.find((binding) => binding.key === 'Mod-c');
-
-    expect(copy?.run?.({} as never)).toBe(true);
-    await Promise.resolve();
-
-    expect(cmDispatch).not.toHaveBeenCalled();
-    expect(editorDispatch).not.toHaveBeenCalled();
-  });
-
-  it('cuts the CodeMirror selection only after clipboard write succeeds', async () => {
-    const editorDispatch = vi.fn();
-    const editorFocus = vi.fn();
-    const cmFocus = vi.fn();
-    const transaction = {
-      scrollIntoView: vi.fn(() => transaction),
-    };
-    const setSelection = vi.fn(() => transaction);
-    const selectionRange = { from: 2, to: 5, empty: false };
-    const cm = {
-      dispatch: vi.fn((spec: { changes?: unknown; range?: { from: number; to: number; empty: boolean; head: number } }) => {
-        cm.state.selection.main = spec.range ?? { from: 2, to: 2, head: 2, empty: true };
-      }),
-      focus: cmFocus,
-      state: {
-        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
-        changeByRange: vi.fn((callback: (range: typeof selectionRange) => unknown) => callback(selectionRange)),
-        selection: {
-          main: { from: 2, to: 5, head: 5, empty: false },
-          ranges: [selectionRange],
-        },
-      },
-    };
-
-    const keymaps = createCodeBlockEditorKeymap({
-      getCodeMirror: () => cm as never,
-      view: {
-        editable: true,
-        state: {
-          doc: {},
-          tr: {
-            setSelection,
-          },
-        },
-        dispatch: editorDispatch,
-        focus: editorFocus,
-      } as never,
-      getNode: () => ({ textContent: '0123456789' }) as never,
-      getPos: () => 10,
-    });
-
-    const cut = keymaps.find((binding) => binding.key === 'Mod-x');
-
-    expect(cut?.run?.({} as never)).toBe(true);
-    await Promise.resolve();
-
-    expect(blockSelectionMocks.writeTextToClipboard).toHaveBeenCalledWith('234');
-    expect(cm.state.changeByRange).toHaveBeenCalledTimes(1);
-    expect(cm.dispatch).toHaveBeenCalledWith({
-      changes: { from: 2, to: 5, insert: '' },
-      range: expect.objectContaining({ from: 2, to: 2 }),
-    });
-    expect(setSelection).toHaveBeenCalledWith('created-text-selection');
-    expect(editorDispatch).toHaveBeenCalledWith(transaction);
-    expect(editorFocus).not.toHaveBeenCalled();
-    expect(cmFocus).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not cut CodeMirror content when clipboard write fails', async () => {
-    blockSelectionMocks.writeTextToClipboard.mockResolvedValueOnce(false);
-    const cmDispatch = vi.fn();
-    const cm = {
-      dispatch: cmDispatch,
-      state: {
-        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
-        changeByRange: vi.fn(),
-        selection: {
-          main: { from: 2, to: 5, head: 5, empty: false },
-          ranges: [{ from: 2, to: 5, empty: false }],
-        },
-      },
-    };
-    const editorDispatch = vi.fn();
-
-    const keymaps = createCodeBlockEditorKeymap({
-      getCodeMirror: () => cm as never,
-      view: {
-        editable: true,
-        state: { doc: {}, tr: { setSelection: vi.fn() } },
-        dispatch: editorDispatch,
-        focus: vi.fn(),
-      } as never,
-      getNode: () => ({ textContent: '0123456789' }) as never,
-      getPos: () => 10,
-    });
-
-    const cut = keymaps.find((binding) => binding.key === 'Mod-x');
-
-    expect(cut?.run?.({} as never)).toBe(true);
-    await Promise.resolve();
-
-    expect(cmDispatch).not.toHaveBeenCalled();
-    expect(editorDispatch).not.toHaveBeenCalled();
-  });
-
-  it('does not cut CodeMirror content when the selection changes before clipboard write succeeds', async () => {
-    let resolveClipboard: (didCopy: boolean) => void = () => undefined;
-    blockSelectionMocks.writeTextToClipboard.mockReturnValueOnce(new Promise<boolean>((resolve) => {
-      resolveClipboard = resolve;
-    }));
-    const cmDispatch = vi.fn();
-    const cm = {
-      dispatch: cmDispatch,
-      state: {
-        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
-        changeByRange: vi.fn(),
-        selection: {
-          main: { from: 2, to: 5, head: 5, empty: false },
-          ranges: [{ from: 2, to: 5, empty: false }],
-        },
-      },
-    };
-    const editorDispatch = vi.fn();
-
-    const keymaps = createCodeBlockEditorKeymap({
-      getCodeMirror: () => cm as never,
-      view: {
-        editable: true,
-        state: { doc: {}, tr: { setSelection: vi.fn() } },
-        dispatch: editorDispatch,
-        focus: vi.fn(),
-      } as never,
-      getNode: () => ({ textContent: '0123456789' }) as never,
-      getPos: () => 10,
-    });
-
-    const cut = keymaps.find((binding) => binding.key === 'Mod-x');
-
-    expect(cut?.run?.({} as never)).toBe(true);
-    expect(blockSelectionMocks.writeTextToClipboard).toHaveBeenCalledWith('234');
-
-    cm.state.selection = {
-      main: { from: 6, to: 9, head: 9, empty: false },
-      ranges: [{ from: 6, to: 9, empty: false }],
-    };
-    resolveClipboard(true);
-    await Promise.resolve();
-
-    expect(cm.state.changeByRange).not.toHaveBeenCalled();
-    expect(cmDispatch).not.toHaveBeenCalled();
-    expect(editorDispatch).not.toHaveBeenCalled();
-  });
-
-  it('does not cut CodeMirror content while the editor is readonly', () => {
-    const cm = {
-      dispatch: vi.fn(),
-      state: {
-        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
-        selection: {
-          main: { from: 2, to: 5, head: 5, empty: false },
-          ranges: [{ from: 2, to: 5, empty: false }],
-        },
-      },
-    };
-
-    const keymaps = createCodeBlockEditorKeymap({
-      getCodeMirror: () => cm as never,
-      view: {
-        editable: false,
-      } as never,
-      getNode: () => ({ textContent: '0123456789' }) as never,
-      getPos: () => 10,
-    });
-
-    const cut = keymaps.find((binding) => binding.key === 'Mod-x');
-
-    expect(cut?.run?.({} as never)).toBe(false);
-    expect(blockSelectionMocks.writeTextToClipboard).not.toHaveBeenCalled();
-    expect(cm.dispatch).not.toHaveBeenCalled();
-  });
-
   it('handles native CodeMirror copy events and collapses mirrored selections', () => {
     const cmDispatch = vi.fn();
     const editorDispatch = vi.fn();
     const editorFocus = vi.fn();
-    const transaction = {
-      scrollIntoView: vi.fn(() => transaction),
-    };
+    const transaction = { scrollIntoView: vi.fn(() => transaction) };
     const setSelection = vi.fn(() => transaction);
     const event = {
       preventDefault: vi.fn(),
@@ -581,7 +314,7 @@ describe('createCodeBlockEditorKeymap', () => {
 
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
     expect(event.clipboardData?.setData).toHaveBeenCalledWith('text/plain', '234');
-    expect(blockSelectionMocks.writeTextToClipboard).not.toHaveBeenCalled();
+    expect(blockSelectionMocks.tryWriteTextToClipboardSynchronously).not.toHaveBeenCalled();
     expect(cmDispatch).toHaveBeenCalledWith({
       selection: {
         anchor: 5,
@@ -594,12 +327,107 @@ describe('createCodeBlockEditorKeymap', () => {
     expect(editorFocus).toHaveBeenCalledTimes(1);
   });
 
+  it('copies a CodeMirror selection synchronously before returning', () => {
+    const transaction = { scrollIntoView: vi.fn(() => transaction) };
+    const view = {
+      state: { doc: {}, tr: { setSelection: vi.fn(() => transaction) } },
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+    };
+    const cm = {
+      dispatch: vi.fn(),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        selection: {
+          main: { from: 2, to: 5, head: 5, empty: false },
+          ranges: [{ from: 2, to: 5, empty: false }],
+        },
+      },
+    };
+
+    expect(copyCodeMirrorSelection(
+      () => cm as never,
+      view as never,
+      () => ({ textContent: '0123456789' }) as never,
+      () => 10,
+    )).toBe(true);
+    expect(blockSelectionMocks.tryWriteTextToClipboardSynchronously).toHaveBeenCalledWith('234');
+    expect(cm.dispatch).toHaveBeenCalledWith({ selection: { anchor: 5, head: 5 } });
+    expect(view.dispatch).toHaveBeenCalledWith(transaction);
+    expect(view.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('collapses the original CodeMirror copy selection after a reentrant clipboard write', () => {
+    const selectedState = {
+      main: { from: 2, to: 5, head: 5, empty: false },
+      ranges: [{ from: 2, to: 5, empty: false }],
+    };
+    const cm: any = {
+      dispatch: vi.fn((spec: { selection?: { anchor: number; head: number } }) => {
+        if (!spec.selection) return;
+        cm.state.selection = {
+          main: {
+            from: spec.selection.anchor,
+            to: spec.selection.head,
+            head: spec.selection.head,
+            empty: spec.selection.anchor === spec.selection.head,
+          },
+          ranges: [],
+        };
+      }),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        selection: selectedState,
+      },
+    };
+    blockSelectionMocks.tryWriteTextToClipboardSynchronously.mockImplementationOnce(() => {
+      cm.state.selection = {
+        main: { from: 0, to: 0, head: 0, empty: true },
+        ranges: [{ from: 0, to: 0, empty: true }],
+      };
+      return true;
+    });
+    const transaction = { scrollIntoView: vi.fn(() => transaction) };
+    const view = {
+      state: { doc: {}, tr: { setSelection: vi.fn(() => transaction) } },
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+    };
+
+    expect(copyCodeMirrorSelection(
+      () => cm,
+      view as never,
+      () => ({ textContent: '0123456789' }) as never,
+      () => 10,
+    )).toBe(true);
+    expect(cm.dispatch).toHaveBeenCalledWith({ selection: { anchor: 5, head: 5 } });
+  });
+
+  it('keeps a CodeMirror copy selection when synchronous clipboard writing fails', () => {
+    blockSelectionMocks.tryWriteTextToClipboardSynchronously.mockReturnValueOnce(false);
+    const cm = {
+      dispatch: vi.fn(),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        selection: {
+          main: { from: 2, to: 5, head: 5, empty: false },
+          ranges: [{ from: 2, to: 5, empty: false }],
+        },
+      },
+    };
+
+    expect(copyCodeMirrorSelection(
+      () => cm as never,
+      {} as never,
+      () => ({ textContent: '0123456789' }) as never,
+      () => 10,
+    )).toBe(false);
+    expect(cm.dispatch).not.toHaveBeenCalled();
+  });
+
   it('handles native CodeMirror cut events and deletes the selected content', () => {
     const editorDispatch = vi.fn();
-    const transaction = {
-      scrollIntoView: vi.fn(() => transaction),
-    };
-    const setSelection = vi.fn(() => transaction);
+    const onCut = vi.fn();
     const selectionRange = { from: 2, to: 5, empty: false };
     const event = {
       preventDefault: vi.fn(),
@@ -623,27 +451,258 @@ describe('createCodeBlockEditorKeymap', () => {
     const handlers = createCodeBlockEditorClipboardHandlers({
       view: {
         editable: true,
-        state: {
-          doc: {},
-          tr: { setSelection },
-        },
         dispatch: editorDispatch,
         focus: vi.fn(),
       } as never,
       getNode: () => ({ textContent: '0123456789' }) as never,
       getPos: () => 10,
+      onCut,
     });
 
     expect(handlers.cut?.call(undefined, event, cm as never)).toBe(true);
 
     expect(event.preventDefault).toHaveBeenCalledTimes(1);
     expect(event.clipboardData?.setData).toHaveBeenCalledWith('text/plain', '234');
-    expect(blockSelectionMocks.writeTextToClipboard).not.toHaveBeenCalled();
+    expect(blockSelectionMocks.tryWriteTextToClipboardSynchronously).not.toHaveBeenCalled();
     expect(cm.dispatch).toHaveBeenCalledWith({
       changes: { from: 2, to: 5, insert: '' },
       range: expect.objectContaining({ from: 2, to: 2 }),
     });
-    expect(editorDispatch).toHaveBeenCalledWith(transaction);
+    expect(editorDispatch).not.toHaveBeenCalled();
     expect(cm.focus).toHaveBeenCalledTimes(1);
+    expect(onCut).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not cut CodeMirror content when clipboard writing fails or the editor is readonly', () => {
+    const selectionRange = { from: 2, to: 5, empty: false };
+    const cm = {
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        changeByRange: vi.fn((callback: (range: typeof selectionRange) => unknown) => callback(selectionRange)),
+        selection: {
+          main: { from: 2, to: 5, head: 5, empty: false },
+          ranges: [selectionRange],
+        },
+      },
+    };
+
+    blockSelectionMocks.tryWriteTextToClipboardSynchronously.mockReturnValueOnce(false);
+    expect(cutCodeMirrorSelection(
+      () => cm as never,
+      { editable: true } as never,
+    )).toBe(false);
+    expect(cutCodeMirrorSelection(
+      () => cm as never,
+      { editable: false } as never,
+    )).toBe(false);
+    expect(cm.dispatch).not.toHaveBeenCalled();
+    expect(cm.state.changeByRange).not.toHaveBeenCalled();
+  });
+
+  it('cuts the selection captured before CodeMirror clears it on a modifier keydown', () => {
+    const selectedRange = { from: 2, to: 5, empty: false };
+    const selectedState = {
+      main: { from: 2, to: 5, head: 5, empty: false },
+      ranges: [selectedRange],
+    };
+    const cm: any = {
+      dispatch: vi.fn((spec: { selection?: typeof selectedState }) => {
+        if (spec.selection) cm.state.selection = spec.selection;
+      }),
+      focus: vi.fn(),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        changeByRange: vi.fn((callback: (range: typeof selectedRange) => unknown) => (
+          callback(cm.state.selection.ranges[0])
+        )),
+        selection: selectedState,
+      },
+    };
+
+    trackCodeBlockEditorClipboardKeydown(new KeyboardEvent('keydown', {
+      key: 'Control',
+      ctrlKey: true,
+    }), cm);
+    cm.state.selection = {
+      main: { from: 0, to: 0, head: 0, empty: true },
+      ranges: [{ from: 0, to: 0, empty: true }],
+    };
+
+    expect(cutCodeMirrorSelection(
+      () => cm,
+      { editable: true } as never,
+    )).toBe(true);
+    expect(blockSelectionMocks.tryWriteTextToClipboardSynchronously).toHaveBeenCalledWith('234');
+    expect(cm.dispatch).toHaveBeenNthCalledWith(1, { selection: selectedState });
+    expect(cm.dispatch).toHaveBeenCalledWith({
+      changes: { from: 2, to: 5, insert: '' },
+      range: expect.objectContaining({ from: 2, to: 2 }),
+    });
+  });
+
+  it('deletes the original CodeMirror cut selection after a reentrant clipboard write', () => {
+    const selectedRange = { from: 2, to: 5, empty: false };
+    const selectedState = {
+      main: { from: 2, to: 5, head: 5, empty: false },
+      ranges: [selectedRange],
+    };
+    const cm: any = {
+      dispatch: vi.fn((spec: { selection?: typeof selectedState }) => {
+        if (spec.selection) cm.state.selection = spec.selection;
+      }),
+      focus: vi.fn(),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        changeByRange: vi.fn((callback: (range: typeof selectedRange) => unknown) => (
+          callback(cm.state.selection.ranges[0])
+        )),
+        selection: selectedState,
+      },
+    };
+    blockSelectionMocks.tryWriteTextToClipboardSynchronously.mockImplementationOnce(() => {
+      cm.state.selection = {
+        main: { from: 0, to: 0, head: 0, empty: true },
+        ranges: [{ from: 0, to: 0, empty: true }],
+      };
+      return true;
+    });
+
+    expect(cutCodeMirrorSelection(
+      () => cm,
+      { editable: true } as never,
+    )).toBe(true);
+    expect(cm.dispatch).toHaveBeenNthCalledWith(1, { selection: selectedState });
+    expect(cm.dispatch).toHaveBeenCalledWith({
+      changes: { from: 2, to: 5, insert: '' },
+      range: expect.objectContaining({ from: 2, to: 2 }),
+    });
+  });
+
+  it('does not reuse a captured CodeMirror selection after unrelated input', () => {
+    const selectedState = {
+      main: { from: 2, to: 5, head: 5, empty: false },
+      ranges: [{ from: 2, to: 5, empty: false }],
+    };
+    const cm: any = {
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+      state: {
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        changeByRange: vi.fn(),
+        selection: selectedState,
+      },
+    };
+
+    trackCodeBlockEditorClipboardKeydown(new KeyboardEvent('keydown', {
+      key: 'Control',
+      ctrlKey: true,
+    }), cm);
+    trackCodeBlockEditorClipboardKeydown(new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      ctrlKey: true,
+    }), cm);
+    cm.state.selection = {
+      main: { from: 5, to: 5, head: 5, empty: true },
+      ranges: [{ from: 5, to: 5, empty: true }],
+    };
+
+    expect(cutCodeMirrorSelection(
+      () => cm,
+      { editable: true } as never,
+    )).toBe(false);
+    expect(blockSelectionMocks.tryWriteTextToClipboardSynchronously).not.toHaveBeenCalled();
+    expect(cm.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('does not reuse a captured CodeMirror selection after the document changes', () => {
+    const selectedState = {
+      main: { from: 2, to: 5, head: 5, empty: false },
+      ranges: [{ from: 2, to: 5, empty: false }],
+    };
+    const originalDoc = { eq: vi.fn(() => false) };
+    const cm: any = {
+      dispatch: vi.fn(),
+      state: {
+        doc: originalDoc,
+        sliceDoc: (from: number, to: number) => '0123456789'.slice(from, to),
+        selection: selectedState,
+      },
+    };
+
+    trackCodeBlockEditorClipboardKeydown(new KeyboardEvent('keydown', {
+      key: 'Control',
+      ctrlKey: true,
+    }), cm);
+    cm.state.doc = { eq: vi.fn(() => false) };
+    cm.state.selection = {
+      main: { from: 0, to: 0, head: 0, empty: true },
+      ranges: [{ from: 0, to: 0, empty: true }],
+    };
+
+    expect(copyCodeMirrorSelection(
+      () => cm,
+      { editable: true } as never,
+      () => ({ textContent: 'changed' }) as never,
+      () => 10,
+    )).toBe(false);
+    expect(blockSelectionMocks.tryWriteTextToClipboardSynchronously).not.toHaveBeenCalled();
+    expect(cm.dispatch).not.toHaveBeenCalled();
+  });
+
+  it('blocks image clipboard companion text in CodeMirror while leaving ordinary text paste native', () => {
+    const file = new File(['image'], 'code.png', { type: 'image/png' });
+    const handlers = createCodeBlockEditorClipboardHandlers({
+      view: {} as never,
+      getNode: () => ({ textContent: 'const value = 1;' }) as never,
+      getPos: () => 10,
+    });
+    const imageEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    } as unknown as ClipboardEvent;
+    const htmlImageEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: (type: string) => type === 'text/html'
+          ? '<img src="https://images.example.test/code.png">'
+          : 'https://example.test/companion',
+      },
+    } as unknown as ClipboardEvent;
+    const textEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clipboardData: {
+        items: [],
+        files: [],
+        getData: () => 'ordinary code',
+      },
+    } as unknown as ClipboardEvent;
+
+    expect(handlers.paste?.call(undefined, imageEvent, {} as never)).toBe(true);
+    expect(imageEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(imageEvent.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(handlers.paste?.call(undefined, htmlImageEvent, {} as never)).toBe(true);
+    expect(htmlImageEvent.preventDefault).toHaveBeenCalledTimes(1);
+    expect(htmlImageEvent.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(handlers.paste?.call(undefined, textEvent, {} as never)).toBe(false);
+    expect(textEvent.preventDefault).not.toHaveBeenCalled();
+
+    const dropEvent = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      dataTransfer: imageEvent.clipboardData,
+    } as unknown as DragEvent;
+    expect(handlers.drop?.call(undefined, dropEvent, {} as never)).toBe(true);
+    expect(dropEvent.preventDefault).toHaveBeenCalledTimes(1);
   });
 });

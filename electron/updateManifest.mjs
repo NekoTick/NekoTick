@@ -4,6 +4,7 @@ import { normalizeReleaseVersion } from './updateManifestVersion.mjs';
 export { compareVersions, normalizeReleaseVersion } from './updateManifestVersion.mjs';
 
 const knownArchAliases = ['x64', 'x86_64', 'amd64', 'arm64', 'aarch64', 'ia32', 'x86'];
+const validReleaseVersionPattern = /^\d+(?:\.\d+){1,3}(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function requireNonEmptyString(value, label) {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -109,17 +110,26 @@ function getCurrentPlatformAssetPriority(platform = process.platform) {
   return [];
 }
 
+function getCurrentPlatformAssetMarker(platform = process.platform) {
+  if (platform === 'win32') return 'windows';
+  if (platform === 'darwin') return 'mac';
+  if (platform === 'linux') return 'linux';
+  return '';
+}
+
 export function selectCurrentPlatformAsset(assets, {
   platform = process.platform,
   arch = process.arch,
 } = {}) {
   const platformPriority = getCurrentPlatformAssetPriority(platform);
+  const platformMarker = getCurrentPlatformAssetMarker(platform);
   const normalizedAssets = assets.map((asset) => ({
     ...asset,
     normalizedName: asset.name.toLowerCase(),
     nameParts: splitReleaseAssetNameParts(asset.name),
   }));
   const platformAssets = normalizedAssets.filter((asset) =>
+    asset.nameParts.includes(platformMarker) &&
     platformPriority.some((matchesAsset) => matchesAsset(asset.normalizedName))
   );
   const currentArchAliases = getCurrentAssetArchAliases(arch);
@@ -163,11 +173,17 @@ export function normalizeUpdateManifest(payload, {
     'latest version'
   ).trim();
   const normalizedLatestVersion = normalizeReleaseVersion(latestVersion);
+  if (!validReleaseVersionPattern.test(normalizedLatestVersion)) {
+    throw new Error('latest version is invalid.');
+  }
   const releaseUrl = normalizeHttpUrl(
     payload.downloadUrl ?? payload.html_url ?? defaultDownloadUrl,
     'Download URL'
   );
-  const assets = normalizeReleaseAssets(payload.assets);
+  const releaseAssetPrefix = `vlaina-${normalizedLatestVersion.toLowerCase()}-`;
+  const assets = normalizeReleaseAssets(payload.assets).filter((asset) =>
+    asset.name.toLowerCase().startsWith(releaseAssetPrefix)
+  );
   const platformAsset = selectCurrentPlatformAsset(assets, { platform, arch });
   const releaseNotes = typeof payload.releaseNotes === 'string'
     ? payload.releaseNotes

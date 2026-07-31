@@ -59,22 +59,30 @@ export async function writeResponseBodyToFile(response, filePath, {
         throw new Error('Update download is too large.');
       }
       if (!stream.write(chunk)) {
-        await Promise.race([
-          new Promise((resolve) => stream.once('drain', resolve)),
-          streamErrorPromise,
-        ]);
+        await withUpdateDownloadIdleTimeout(
+          Promise.race([
+            new Promise((resolve) => stream.once('drain', resolve)),
+            streamErrorPromise,
+          ]),
+          'Update download stalled while writing to disk.',
+          () => stream.destroy(),
+        );
       }
     }
 
-    await Promise.race([
-      new Promise((resolve, reject) => {
-        stream.end((error) => {
-          if (error) reject(error);
-          else resolve();
-        });
-      }),
-      streamErrorPromise,
-    ]);
+    await withUpdateDownloadIdleTimeout(
+      Promise.race([
+        new Promise((resolve, reject) => {
+          stream.end((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        }),
+        streamErrorPromise,
+      ]),
+      'Update download stalled while finalizing the file.',
+      () => stream.destroy(),
+    );
   } catch (error) {
     stream.destroy();
     throw error;

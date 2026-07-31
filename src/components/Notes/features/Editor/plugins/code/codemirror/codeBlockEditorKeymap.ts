@@ -12,9 +12,7 @@ import {
 } from '../../cursor/blockSelectionPluginState';
 import { getCodeBlockSourceText } from '../codeBlockText';
 import {
-  copyCodeMirrorSelection,
   createCodeBlockEditorClipboardHandlers,
-  cutCodeMirrorSelection,
 } from './codeBlockEditorClipboard';
 import type { CreateCodeBlockKeymapOptions } from './codeBlockEditorKeymapTypes';
 
@@ -141,14 +139,6 @@ export function createCodeBlockEditorKeymap({
         const cm = getCodeMirror();
         return cm ? deleteLeadingEmptyLine(cm) : false;
       },
-    },
-    {
-      key: 'Mod-c',
-      run: () => copyCodeMirrorSelection(getCodeMirror, view, getNode, getPos),
-    },
-    {
-      key: 'Mod-x',
-      run: () => cutCodeMirrorSelection(getCodeMirror, view, getNode, getPos),
     },
     {
       key: 'Mod-a',

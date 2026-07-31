@@ -119,3 +119,23 @@ export function buildTyporaCheckboxBridge(write: string): CssLines {
     ]),
   ];
 }
+
+export function buildTyporaInlineTokenBridge(write: string): CssLines {
+  return [
+    ...cssRule(
+      `${write} :is(.v-tag, .editor-tag-token, .v-badge-name, .v-badge-value, .v-stepwise, .v-coating)`,
+      [
+        important('max-width', '100%'),
+        important('white-space', 'break-spaces'),
+        important('overflow-wrap', 'break-word'),
+        important('word-break', 'normal'),
+      ],
+    ),
+    ...cssRule(`${write} .editor-tag-token`, [
+      important('display', 'inline'),
+      important('white-space', 'normal'),
+      important('overflow-wrap', 'break-word'),
+      important('word-break', 'normal'),
+    ]),
+  ];
+}

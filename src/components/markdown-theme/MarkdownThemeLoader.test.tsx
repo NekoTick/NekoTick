@@ -166,6 +166,7 @@ describe('MarkdownThemeLoader', () => {
         ':root { --db: #fff; --df: #1c1e1f; --v-write-w: 900px; }',
         '#write.done::before { content: ""; background: red; }',
         '#write .v-caption.full { position: fixed; }',
+        '#write .v-tag { white-space: nowrap !important; }',
       ].join('\n'),
     }));
 
@@ -189,6 +190,9 @@ describe('MarkdownThemeLoader', () => {
       expect(postBridgeStyle?.textContent).toContain('[data-markdown-imported-theme="typora-sample"].theme-typora');
       expect(postBridgeStyle?.textContent).not.toContain('.done::before');
       expect(postBridgeStyle?.textContent).toContain('.v-caption.full');
+      expect(postBridgeStyle?.textContent).toContain(':is(.v-tag, .editor-tag-token, .v-badge-name, .v-badge-value, .v-stepwise, .v-coating)');
+      expect(postBridgeStyle?.textContent).toContain('white-space: break-spaces !important;');
+      expect(postBridgeStyle?.textContent).toContain('white-space: normal !important;');
       expect(postBridgeStyle?.textContent).toContain('max-width: 100% !important;');
       expect(postBridgeStyle?.textContent).toContain('background: transparent !important;');
       expect(Array.from(document.head.children).indexOf(postBridgeStyle as HTMLStyleElement)).toBeGreaterThan(

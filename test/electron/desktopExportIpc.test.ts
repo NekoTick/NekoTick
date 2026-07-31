@@ -93,6 +93,7 @@ vi.mock('electron', () => ({
     },
     BrowserWindow: hoisted.MockBrowserWindow,
     clipboard: {
+      readImage: vi.fn(),
       writeText: vi.fn(),
       writeImage: vi.fn(),
     },
@@ -113,10 +114,14 @@ vi.mock('electron', () => ({
 
 function registerHarness() {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
+  const syncHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
   registerDesktopIpc({
     handleIpc: (name: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(name, handler);
+    },
+    handleSyncIpc: (name: string, handler: (...args: unknown[]) => unknown) => {
+      syncHandlers.set(name, handler);
     },
     normalizeExternalUrl: (url: string) => url,
     resolveTargetWindow: vi.fn(() => null),
@@ -124,7 +129,7 @@ function registerHarness() {
     requireStringArray: (value: string[]) => value,
   });
 
-  return { handlers };
+  return { handlers, syncHandlers };
 }
 
 function createOversizedBase64Body() {
@@ -449,6 +454,13 @@ describe('desktop export ipc', () => {
     expect(isPathInsideDirectory('/notesRoot/docs', '/notesRoot/other')).toBe(false);
   });
 
+  it('writes text to the native clipboard synchronously', () => {
+    const { syncHandlers } = registerHarness();
+
+    expect(syncHandlers.get('desktop:clipboard:write-text-sync')?.({}, 'fresh clipboard text')).toBe(true);
+    expect(electron.clipboard.writeText).toHaveBeenCalledWith('fresh clipboard text');
+  });
+
   it('writes data URL images to the native clipboard', async () => {
     const { handlers } = registerHarness();
     const imageDataUrl = 'data:image/png;base64,eA==';
@@ -457,6 +469,40 @@ describe('desktop export ipc', () => {
 
     expect(electron.nativeImage.createFromDataURL).toHaveBeenCalledWith(imageDataUrl);
     expect(electron.clipboard.writeImage).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads bounded native clipboard images as PNG data URLs', async () => {
+    const { handlers } = registerHarness();
+    const pngBytes = Buffer.from([1, 2, 3, 4]);
+    vi.mocked(electron.clipboard.readImage).mockReturnValueOnce({
+      isEmpty: () => false,
+      toPNG: () => pngBytes,
+    } as Electron.NativeImage);
+
+    await expect(handlers.get('desktop:clipboard:read-image')?.({})).resolves.toBe(
+      `data:image/png;base64,${pngBytes.toString('base64')}`,
+    );
+  });
+
+  it('returns null for an empty native clipboard image', async () => {
+    const { handlers } = registerHarness();
+    vi.mocked(electron.clipboard.readImage).mockReturnValueOnce({
+      isEmpty: () => true,
+    } as Electron.NativeImage);
+
+    await expect(handlers.get('desktop:clipboard:read-image')?.({})).resolves.toBeNull();
+  });
+
+  it('rejects oversized native clipboard images before base64 encoding', async () => {
+    const { handlers } = registerHarness();
+    vi.mocked(electron.clipboard.readImage).mockReturnValueOnce({
+      isEmpty: () => false,
+      toPNG: () => Buffer.alloc(MAX_CLIPBOARD_IMAGE_DATA_URL_BYTES + 1),
+    } as Electron.NativeImage);
+
+    await expect(
+      handlers.get('desktop:clipboard:read-image')?.({}),
+    ).rejects.toThrow('Clipboard image is too large.');
   });
 
   it('rejects oversized clipboard image data URLs before native decoding', async () => {

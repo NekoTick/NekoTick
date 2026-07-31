@@ -10,6 +10,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import { calloutPlugin } from '../callout';
+import { codeBlockSchema } from '../code/codeBlockSchema';
 import { containerBoundaryShiftSelectionPlugin } from './containerBoundaryShiftSelectionPlugin';
 
 function createEditor(markdown = '') {
@@ -19,6 +20,7 @@ function createEditor(markdown = '') {
     })
     .use(commonmark)
     .use(gfm)
+    .use(codeBlockSchema)
     .use(calloutPlugin)
     .use(containerBoundaryShiftSelectionPlugin);
 }
@@ -202,7 +204,7 @@ describe('containerBoundaryShiftSelectionPlugin', () => {
       '```ts',
       'const mixed = true;',
       '```',
-      '',
+      '<!--vlaina-markdown-blank-line-->',
       'After code',
     ].join('\n'));
     await editor.create();
@@ -222,6 +224,67 @@ describe('containerBoundaryShiftSelectionPlugin', () => {
     expect(pastCode.defaultPrevented).toBe(true);
     expect(view.state.selection.anchor).toBe(anchor);
     expect(view.state.selection.head).toBe(findTextStart(view, 'Before code'));
+    await editor.destroy();
+  });
+
+  it('extends downward through an isolating code block without stalling', async () => {
+    const editor = createEditor([
+      'Before code',
+      '',
+      '```ts',
+      'const mixed = true;',
+      '```',
+      '<!--vlaina-markdown-blank-line-->',
+      'After code',
+    ].join('\n'));
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const anchor = findTextStart(view, 'Before code') + 'Before code'.length;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor)));
+
+    const intoCode = pressKey(view, 'ArrowDown', { ctrlKey: true, shiftKey: true });
+    expect(intoCode.defaultPrevented).toBe(true);
+    expect(view.state.selection.anchor).toBe(anchor);
+    expect(view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, '\n'))
+      .toContain('const mixed = true;');
+
+    const pastCode = pressKey(view, 'ArrowDown', { ctrlKey: true, shiftKey: true });
+    expect(pastCode.defaultPrevented).toBe(true);
+    expect(view.state.selection.anchor).toBe(anchor);
+    expect(view.state.selection.head).toBe(findTextStart(view, 'After code') + 'After code'.length);
+    await editor.destroy();
+  });
+
+  it('recovers when an opaque isolating code view maps the selection head back to its boundary', async () => {
+    const editor = createEditor([
+      'Before code',
+      '',
+      '```ts',
+      'const mixed = true;',
+      '```',
+      '<!--vlaina-markdown-blank-line-->',
+      'After code',
+    ].join('\n'));
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const beforeEnd = findTextStart(view, 'Before code') + 'Before code'.length;
+    const codeStart = findTextStart(view, 'const mixed = true;');
+    const codeEnd = codeStart + 'const mixed = true;'.length;
+    const afterStart = findTextStart(view, 'After code');
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, beforeEnd, codeStart)));
+    const down = pressKey(view, 'ArrowDown', { ctrlKey: true, shiftKey: true });
+    expect(down.defaultPrevented).toBe(true);
+    expect(view.state.selection.anchor).toBe(beforeEnd);
+    expect(view.state.selection.head).toBe(afterStart);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, afterStart, codeEnd)));
+    const up = pressKey(view, 'ArrowUp', { ctrlKey: true, shiftKey: true });
+    expect(up.defaultPrevented).toBe(true);
+    expect(view.state.selection.anchor).toBe(afterStart);
+    expect(view.state.selection.head).toBe(beforeEnd);
     await editor.destroy();
   });
 

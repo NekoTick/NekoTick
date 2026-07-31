@@ -134,9 +134,24 @@ describe("editor markdown presentation styles", () => {
 
   it('uses explicit tag token run classes instead of sibling :has selectors', () => {
     const css = readStyleFile('extended.css');
+    const typoraCss = readStyleFile('theme-compatibility/typora/base.css');
+    const typoraTokenRule = extractCssRule(
+      typoraCss,
+      ":where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora) #write :is(.v-tag, .editor-tag-token, .v-badge-name, .v-badge-value, .v-stepwise, .v-coating) {",
+    );
+    const typoraEditorTagRule = extractCssRule(
+      typoraCss,
+      ":where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora) #write .editor-tag-token {",
+    );
 
     expect(css).toContain('.milkdown .editor-tag-token {');
     expect(css).toContain('-webkit-text-fill-color: var(--vlaina-markdown-color-link);');
+    expect(css).toContain('overflow-wrap: break-word;');
+    expect(typoraTokenRule).toContain('max-width: 100%;');
+    expect(typoraTokenRule).toContain('white-space: break-spaces;');
+    expect(typoraTokenRule).toContain('overflow-wrap: break-word;');
+    expect(typoraEditorTagRule).toContain('display: inline;');
+    expect(typoraEditorTagRule).toContain('white-space: normal;');
     expect(css).toContain('.milkdown .ProseMirror .editor-tag-token.editor-tag-token-has-next {');
     expect(css).toContain('.milkdown .ProseMirror .editor-tag-token.editor-text-selection-overlay.editor-tag-token-has-next {');
     expect(css).not.toContain('.editor-tag-token:has(+ .editor-tag-token)');

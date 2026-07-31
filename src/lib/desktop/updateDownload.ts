@@ -19,8 +19,7 @@ function updateDownloadIdentity(updateInfo: DesktopUpdateInfo) {
   ].join('\n');
 }
 
-function preserveDownloadedUpdateState(updateInfo: DesktopUpdateInfo) {
-  const cachedUpdateInfo = readCachedDesktopUpdateInfo();
+function preserveDownloadedUpdateState(updateInfo: DesktopUpdateInfo, cachedUpdateInfo: DesktopUpdateInfo | null) {
   if (
     !cachedUpdateInfo ||
     cachedUpdateInfo.downloadState !== 'downloaded' ||
@@ -50,12 +49,26 @@ export async function clearStaleDesktopUpdateDownload(
   updateInfo: DesktopUpdateInfo,
   currentVersion?: string
 ) {
+  const cachedUpdateInfo = readCachedDesktopUpdateInfo();
+  const cachedDownloadedUpdate = (
+    cachedUpdateInfo?.downloadState === 'downloaded' && cachedUpdateInfo.downloadedFilePath
+  ) ? cachedUpdateInfo : null;
+
   if (isDesktopUpdateNewerThanCurrent(updateInfo, currentVersion)) {
-    return preserveDownloadedUpdateState(updateInfo);
+    if (cachedDownloadedUpdate && updateDownloadIdentity(cachedDownloadedUpdate) === updateDownloadIdentity(updateInfo)) {
+      return preserveDownloadedUpdateState(updateInfo, cachedDownloadedUpdate);
+    }
+    if (cachedDownloadedUpdate) {
+      try {
+        await updateApi.deleteDownloaded?.(cachedDownloadedUpdate);
+      } catch {
+      }
+    }
+    return updateInfo;
   }
 
   try {
-    await updateApi.deleteDownloaded?.(updateInfo);
+    await updateApi.deleteDownloaded?.(cachedDownloadedUpdate ?? updateInfo);
   } catch {
     // Local cache cleanup should still proceed if the downloaded file is already gone.
   }

@@ -158,6 +158,7 @@ export interface NotesState {
   newlyCreatedFolderPath: string | null;
   assetList: AssetEntry[];
   isLoadingAssets: boolean;
+  assetLoadError: string | null;
   uploadProgress: number | null;
   fileTreeSortMode: FileTreeSortMode;
 }

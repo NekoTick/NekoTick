@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useNotesStore } from '@/stores/useNotesStore';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
@@ -7,17 +7,13 @@ import {
   flushPendingEditorMarkdown,
   setPendingEditorMarkdownFlusher,
 } from '@/stores/notes/pendingEditorMarkdown';
-import { themeImageBlockStyleTokens } from '@/styles/themeTokens';
 import { publishLiveMarkdownPreview } from './hooks/pendingMarkdownLivePreview';
 import { registerCurrentEditorSaveFlusher } from './utils/editorSaveRegistry';
-import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
 import { useEditorSave } from './hooks/useEditorSave';
-import {
-  fulfillEditorFocusIntent,
-  subscribeEditorFocusIntent,
-} from './utils/editorFocusIntent';
-
-const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
+import { useSourceEditorFocus } from './hooks/useSourceEditorFocus';
+import { useSourceEditorImageTransfer } from './hooks/useSourceEditorImageTransfer';
+import { useSourceTextareaResize } from './hooks/useSourceTextareaResize';
+import { useSourceEditorHistory } from './hooks/useSourceEditorHistory';
 
 export function MarkdownSourceEditor({
   active = true,
@@ -52,24 +48,14 @@ export function MarkdownSourceEditor({
     markdown: currentNoteContent,
   });
   const isComposingRef = useRef(false);
-  const textareaResizeFrameRef = useRef<number | null>(null);
   const contentCommitFrameRef = useRef<number | null>(null);
   const { debouncedSave: scheduleSave, flushSave: flushQueuedSave } = useEditorSave(saveNote);
-
-  const fulfillFocusIntent = useCallback((path: string) => {
-    if (!active || path !== currentNotePath) return;
-    fulfillEditorFocusIntent(path, () => {
-      const textarea = textareaRef.current;
-      if (!textarea) return false;
-      textarea.focus({ preventScroll: true });
-      return document.activeElement === textarea;
-    });
-  }, [active, currentNotePath]);
-
-  useEffect(() => {
-    fulfillFocusIntent(currentNotePath);
-    return subscribeEditorFocusIntent(fulfillFocusIntent);
-  }, [active, currentNotePath, fulfillFocusIntent]);
+  const scheduleTextareaResize = useSourceTextareaResize(textareaRef);
+  const handleSourceMouseDownCapture = useSourceEditorFocus({
+    active,
+    currentNotePath,
+    textareaRef,
+  });
 
   useEffect(() => {
     if (currentNoteIsDirty) scheduleSave();
@@ -134,25 +120,6 @@ export function MarkdownSourceEditor({
     return false;
   }, [currentNotePath]);
 
-  const resizeTextareaToContent = useCallback(() => {
-    textareaResizeFrameRef.current = null;
-    const textarea = textareaRef.current;
-    if (!textarea) {
-      return;
-    }
-
-    textarea.style.height = themeImageBlockStyleTokens.heightAuto;
-    textarea.style.height = `${Math.max(textarea.scrollHeight, textarea.clientHeight)}px`;
-  }, []);
-
-  const scheduleTextareaResize = useCallback(() => {
-    if (textareaResizeFrameRef.current !== null) {
-      return;
-    }
-
-    textareaResizeFrameRef.current = window.requestAnimationFrame(resizeTextareaToContent);
-  }, [resizeTextareaToContent]);
-
   const flushScheduledContentCommit = useCallback(() => {
     if (contentCommitFrameRef.current !== null) {
       window.cancelAnimationFrame(contentCommitFrameRef.current);
@@ -173,11 +140,32 @@ export function MarkdownSourceEditor({
     });
   }, [updateContentIfCurrentNoteIsActive]);
 
+  const {
+    beginComposition: beginSourceHistoryComposition,
+    captureBeforeInput: captureSourceHistoryBeforeInput,
+    commitComposition: commitSourceHistoryComposition,
+    recordChange: recordSourceHistoryChange,
+    syncCurrentContent: syncSourceHistoryContent,
+    takeHistoryShortcut: takeSourceHistoryShortcut,
+  } = useSourceEditorHistory({
+    currentNoteContent,
+    currentNotePath,
+    textareaRef,
+  });
+
   useEffect(() => {
+    const historySelection = syncSourceHistoryContent();
     if (textareaRef.current && textareaRef.current.value !== currentNoteContent) {
       const textarea = textareaRef.current;
-      const selection = textarea.ownerDocument.activeElement === textarea && lastFlushedSourceDraftRef.current.path === currentNotePath
-        ? [textarea.selectionStart, textarea.selectionEnd, textarea.selectionDirection] as const : null;
+      const selection = historySelection
+        ? [
+            historySelection.selectionStart,
+            historySelection.selectionEnd,
+            historySelection.selectionDirection,
+          ] as const
+        : textarea.ownerDocument.activeElement === textarea && lastFlushedSourceDraftRef.current.path === currentNotePath
+          ? [textarea.selectionStart, textarea.selectionEnd, textarea.selectionDirection] as const
+          : null;
       textareaRef.current.value = currentNoteContent;
       if (selection) textarea.setSelectionRange(...selection);
     }
@@ -189,21 +177,16 @@ export function MarkdownSourceEditor({
       markdown: currentNoteContent,
     };
     scheduleTextareaResize();
-  }, [currentNoteContent, currentNotePath, scheduleTextareaResize]);
+  }, [currentNoteContent, currentNotePath, scheduleTextareaResize, syncSourceHistoryContent]);
 
   useEffect(() => {
-    scheduleTextareaResize();
     return () => {
-      if (textareaResizeFrameRef.current !== null) {
-        window.cancelAnimationFrame(textareaResizeFrameRef.current);
-        textareaResizeFrameRef.current = null;
-      }
       if (contentCommitFrameRef.current !== null) {
         window.cancelAnimationFrame(contentCommitFrameRef.current);
         contentCommitFrameRef.current = null;
       }
     };
-  }, [scheduleTextareaResize]);
+  }, []);
 
   const flushSourceDraft = useCallback((options: { force?: boolean } = {}) => {
     if (isComposingRef.current && !options.force) {
@@ -255,16 +238,29 @@ export function MarkdownSourceEditor({
 
   useEffect(() => registerCurrentEditorSaveFlusher(flushSave), [flushSave]);
 
-  const handleSourceMouseDownCapture = useCallback((event: ReactMouseEvent<HTMLTextAreaElement>) => {
-    if (event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-
-    if (focusCurrentEmptyUntitledDraftTitle(
-      event.currentTarget.closest(NOTE_SCROLL_ROOT_SELECTOR) ?? event.currentTarget.ownerDocument,
-    )) {
-      event.preventDefault();
+  const handleTransferredSourceValue = useCallback((nextValue: string) => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      recordSourceHistoryChange(draftRef.current, textarea, 'insertFromPaste');
     }
-  }, []);
+    updateSourceDraft(nextValue);
+    updateCommittedSourceDraft(nextValue);
+    scheduleContentCommit();
+    scheduleTextareaResize();
+    scheduleSave();
+  }, [
+    scheduleContentCommit,
+    scheduleSave,
+    scheduleTextareaResize,
+    recordSourceHistoryChange,
+    updateCommittedSourceDraft,
+    updateSourceDraft,
+  ]);
+  const { handleSourceDrop, handleSourcePaste } = useSourceEditorImageTransfer({
+    currentNotePath,
+    onValueChange: handleTransferredSourceValue,
+    textareaRef,
+  });
 
   return <div
       className={cn(
@@ -288,12 +284,17 @@ export function MarkdownSourceEditor({
         data-native-caret-overlay-disabled="true"
         defaultValue={currentNoteContent}
         autoFocus={mode === 'source' && active}
-        onCompositionStart={() => {
+        onBeforeInput={(event) => {
+          captureSourceHistoryBeforeInput(event.currentTarget);
+        }}
+        onCompositionStart={(event) => {
           isComposingRef.current = true;
+          beginSourceHistoryComposition(event.currentTarget);
         }}
         onCompositionEnd={(event) => {
           isComposingRef.current = false;
           const nextValue = event.currentTarget.value;
+          commitSourceHistoryComposition(event.currentTarget);
           updateSourceDraft(nextValue);
           updateCommittedSourceDraft(nextValue);
           scheduleContentCommit();
@@ -302,16 +303,37 @@ export function MarkdownSourceEditor({
         }}
         onChange={(event) => {
           const nextValue = event.currentTarget.value;
+          const previousValue = draftRef.current;
           updateSourceDraft(nextValue);
           scheduleTextareaResize();
           if (isComposingRef.current || Boolean((event.nativeEvent as InputEvent).isComposing)) {
             return;
           }
+          recordSourceHistoryChange(
+            previousValue,
+            event.currentTarget,
+            (event.nativeEvent as InputEvent).inputType ?? '',
+          );
           updateCommittedSourceDraft(nextValue);
           scheduleContentCommit();
           scheduleSave();
         }}
         onBlur={flushSave}
+        onKeyDown={(event) => {
+          const result = takeSourceHistoryShortcut(event.nativeEvent);
+          if (!result.handled) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (!result.snapshot) return;
+          const nextValue = result.snapshot.value;
+          updateSourceDraft(nextValue);
+          updateCommittedSourceDraft(nextValue);
+          scheduleContentCommit();
+          scheduleTextareaResize();
+          scheduleSave();
+        }}
+        onPaste={handleSourcePaste}
+        onDrop={handleSourceDrop}
         onMouseDownCapture={handleSourceMouseDownCapture}
         spellCheck={false}
         aria-label={t('editor.markdownSourceEditor')}

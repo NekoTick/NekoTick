@@ -54,4 +54,38 @@ describe('ImageCaption', () => {
 
         expect(input).toHaveFocus();
     });
+
+    it('does not turn image clipboard companion text into a caption', () => {
+        const onChange = vi.fn();
+        render(
+            <ImageCaption
+                originalAlt="Caption"
+                value="Caption"
+                isEditing
+                isVisible
+                onChange={onChange}
+                onSubmit={() => {}}
+                onCancel={() => {}}
+                onEditStart={() => {}}
+            />,
+        );
+        const input = screen.getByRole('textbox');
+        const file = new File(['image'], 'caption.png', { type: 'image/png' });
+
+        expect(fireEvent.paste(input, {
+            clipboardData: {
+                items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+                files: [file],
+                getData: () => 'https://example.test/companion',
+            },
+        })).toBe(false);
+        expect(fireEvent.paste(input, {
+            clipboardData: {
+                items: [],
+                files: [],
+                getData: () => 'ordinary caption',
+            },
+        })).toBe(true);
+        expect(onChange).not.toHaveBeenCalled();
+    });
 });

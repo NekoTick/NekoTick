@@ -1,5 +1,6 @@
 import type { EditorState } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { tryWriteTextToClipboardSynchronously } from '@/lib/clipboard';
 import {
   writeTextToClipboard,
 } from './blockSelectionCommands';
@@ -47,7 +48,7 @@ function clearCapturedBlockSelection(view: EditorView, selectedBlocks: readonly 
   clearBlockSelection(view);
 }
 
-function isClipboardCopyShortcut(event: KeyboardEvent): boolean {
+function isLegacyClipboardCopyShortcut(event: KeyboardEvent): boolean {
   if (event.isComposing) return false;
   if (event.altKey) return false;
 
@@ -55,18 +56,27 @@ function isClipboardCopyShortcut(event: KeyboardEvent): boolean {
   return (
     (event.metaKey || event.ctrlKey) &&
     !event.shiftKey &&
-    (key === 'c' || key === 'insert')
+    key === 'insert'
   );
 }
 
-function isClipboardCutShortcut(event: KeyboardEvent): boolean {
+function isLegacyClipboardCutShortcut(event: KeyboardEvent): boolean {
   if (event.isComposing) return false;
   if (event.altKey) return false;
 
   const key = event.key.toLowerCase();
   return (
-    ((event.metaKey || event.ctrlKey) && !event.shiftKey && key === 'x') ||
     (!(event.metaKey || event.ctrlKey) && event.shiftKey && key === 'delete')
+  );
+}
+
+function isStandardClipboardShortcut(event: KeyboardEvent, key: 'c' | 'x'): boolean {
+  return (
+    !event.isComposing &&
+    !event.altKey &&
+    !event.shiftKey &&
+    (event.metaKey || event.ctrlKey) &&
+    event.key.toLowerCase() === key
   );
 }
 
@@ -114,9 +124,31 @@ export function handleBlockSelectionKeyDown(
   if (event.isComposing) return false;
   if (isTextEditingEventTarget(event, view.dom)) return false;
 
-  if (isClipboardCopyShortcut(event)) {
+  const isStandardCopy = isStandardClipboardShortcut(event, 'c');
+  const isStandardCut = isStandardClipboardShortcut(event, 'x');
+  if (isStandardCopy || isStandardCut) {
+    const text = serializeSelectedBlocks(view.state, selectedBlocks);
+    if (text.length === 0 || !tryWriteTextToClipboardSynchronously(text)) {
+      return false;
+    }
+
+    event.preventDefault();
+    if (isStandardCut) {
+      deleteSelectedBlocks(view, selectedBlocks);
+    } else {
+      clearBlockSelection(view);
+    }
+    return true;
+  }
+
+  if (isLegacyClipboardCopyShortcut(event)) {
     const text = serializeSelectedBlocks(view.state, selectedBlocks);
     if (text.length === 0) return false;
+    if (tryWriteTextToClipboardSynchronously(text)) {
+      event.preventDefault();
+      clearBlockSelection(view);
+      return true;
+    }
 
     const doc = view.state.doc;
     event.preventDefault();
@@ -128,9 +160,14 @@ export function handleBlockSelectionKeyDown(
     return true;
   }
 
-  if (isClipboardCutShortcut(event)) {
+  if (isLegacyClipboardCutShortcut(event)) {
     const text = serializeSelectedBlocks(view.state, selectedBlocks);
     if (text.length === 0) return false;
+    if (tryWriteTextToClipboardSynchronously(text)) {
+      event.preventDefault();
+      deleteSelectedBlocks(view, selectedBlocks);
+      return true;
+    }
 
     const doc = view.state.doc;
     event.preventDefault();

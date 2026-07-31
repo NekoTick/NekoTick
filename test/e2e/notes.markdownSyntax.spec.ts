@@ -400,14 +400,7 @@ test.describe('notes markdown syntax rendering', () => {
       const [page] = await getOpenBridgePages(app, 1);
 
       const openEmptyFixture = async (filename: string) => {
-        const previousEditor = await page.locator(EDITOR_SELECTOR).elementHandle();
         await openMarkdownFixture(page, { filename, content: '' });
-        if (previousEditor) {
-          await expect.poll(() => page.evaluate(
-            (previous) => document.querySelector('.milkdown .ProseMirror') !== previous,
-            previousEditor,
-          ), { timeout: 30_000 }).toBe(true);
-        }
         await expect.poll(() => page.evaluate(
           () => (window as any).__vlainaE2E.focusCurrentEditor()
         ), { timeout: 30_000 }).toBe(true);
@@ -452,6 +445,35 @@ test.describe('notes markdown syntax rendering', () => {
       await expect(page.locator(
         `${EDITOR_SELECTOR} .image-block-container[data-alt="Typed Obsidian image"]`,
       )).toHaveCount(1);
+      const typedImageTail = ' visible image tail';
+      await page.keyboard.type(typedImageTail);
+      const mixedImageText = await page.locator(EDITOR_SELECTOR).evaluate((editor, tail) => {
+        const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+        let textNode: Text | null = null;
+        while (walker.nextNode()) {
+          const candidate = walker.currentNode as Text;
+          if (candidate.data.includes(tail)) {
+            textNode = candidate;
+            break;
+          }
+        }
+        const paragraph = textNode?.parentElement?.closest('p') ?? null;
+        const range = textNode ? document.createRange() : null;
+        const start = textNode?.data.indexOf(tail) ?? -1;
+        if (range && textNode && start >= 0) {
+          range.setStart(textNode, start);
+          range.setEnd(textNode, start + tail.length);
+        }
+        const rect = range?.getBoundingClientRect();
+        return {
+          collapsedAsImageBlock: paragraph?.classList.contains('editor-paragraph-has-image-block') ?? false,
+          height: rect?.height ?? 0,
+          width: rect?.width ?? 0,
+        };
+      }, typedImageTail);
+      expect(mixedImageText.collapsedAsImageBlock).toBe(false);
+      expect(mixedImageText.height).toBeGreaterThan(0);
+      expect(mixedImageText.width).toBeGreaterThan(0);
 
       await openEmptyFixture('typed-footnotes.md');
       await page.keyboard.type('Reference [^typed-ref]');

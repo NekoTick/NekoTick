@@ -20,6 +20,42 @@ import {
   waitForChatSession,
 } from './notesE2E';
 
+const LONG_LAYOUT_TOKEN = 'abcdef0123456789'.repeat(40);
+const LONG_LAYOUT_INLINE_URL = `https://example.com/${LONG_LAYOUT_TOKEN}.webp`;
+const LONG_LAYOUT_TAG = `layout-${'a'.repeat(118)}`;
+
+async function expectNotesUnbrokenTextContained(page: Page) {
+  const metrics = await page.evaluate(({ inlineUrl, tag }) => {
+    const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
+    const inlineCode = Array.from(editor?.querySelectorAll<HTMLElement>('code') ?? [])
+      .find((element) => element.textContent === inlineUrl) ?? null;
+    const tagToken = Array.from(editor?.querySelectorAll<HTMLElement>('.editor-tag-token') ?? [])
+      .find((element) => element.textContent?.includes(tag)) ?? null;
+    const editorRect = editor?.getBoundingClientRect() ?? null;
+    const rightOverflow = (element: HTMLElement | null) => {
+      if (!element || !editorRect) return 0;
+      return Math.max(
+        0,
+        ...Array.from(element.getClientRects(), (rect) => rect.right - editorRect.right),
+      );
+    };
+
+    return {
+      hasEditor: Boolean(editor),
+      hasInlineCode: Boolean(inlineCode),
+      hasTagToken: Boolean(tagToken),
+      inlineCodeRightOverflowPx: rightOverflow(inlineCode),
+      tagRightOverflowPx: rightOverflow(tagToken),
+    };
+  }, { inlineUrl: LONG_LAYOUT_INLINE_URL, tag: LONG_LAYOUT_TAG });
+
+  expect(metrics.hasEditor).toBe(true);
+  expect(metrics.hasInlineCode).toBe(true);
+  expect(metrics.hasTagToken).toBe(true);
+  expect(metrics.inlineCodeRightOverflowPx).toBeLessThanOrEqual(2);
+  expect(metrics.tagRightOverflowPx).toBeLessThanOrEqual(2);
+}
+
 async function expectOverlayScrollbarDraggable(page: Page, viewportSelector: string) {
   const viewport = page.locator(`${viewportSelector}:visible`).first();
   const initialMetrics = await viewport.evaluate((element) => ({
@@ -200,6 +236,10 @@ test.describe('app layout smoke', () => {
               '',
               'Layout smoke sentinel paragraph.',
               '',
+              `Inline URL: \`${LONG_LAYOUT_INLINE_URL}\`.`,
+              '',
+              `Long tag: #${LONG_LAYOUT_TAG}.`,
+              '',
               '| Surface | Expected |',
               '| --- | --- |',
               '| Sidebar | Visible |',
@@ -260,6 +300,7 @@ test.describe('app layout smoke', () => {
       await expect(page.locator(EDITOR_SELECTOR)).toContainText('Layout smoke sentinel paragraph', {
         timeout: 30_000,
       });
+      await expectNotesUnbrokenTextContained(page);
       await expect(page.locator('[data-sidebar-surface="true"]').first()).toHaveCSS(
         'background-color',
         'rgba(0, 0, 0, 0)',
@@ -337,6 +378,7 @@ test.describe('app layout smoke', () => {
       let notesLayout = await collectLayoutSmokeMetrics(page);
       console.info('[layout-smoke-notes-desktop]', notesLayout);
       expect(notesLayout.hasHorizontalDocumentOverflow).toBe(false);
+      await expectNotesUnbrokenTextContained(page);
       await expect(page.locator(NOTES_VIEW_SELECTOR)).toBeVisible();
       await expect(page.locator(NOTES_SIDEBAR_SCROLL_ROOT_SELECTOR).first()).toBeVisible();
       await expect(page.locator(EDITOR_SELECTOR)).toBeVisible();
@@ -347,6 +389,7 @@ test.describe('app layout smoke', () => {
       notesLayout = await collectLayoutSmokeMetrics(page);
       console.info('[layout-smoke-notes-narrow]', notesLayout);
       expect(notesLayout.hasHorizontalDocumentOverflow).toBe(false);
+      await expectNotesUnbrokenTextContained(page);
       await expect(page.locator(NOTES_VIEW_SELECTOR)).toBeVisible();
       await expect(page.locator(EDITOR_SELECTOR)).toBeVisible();
 

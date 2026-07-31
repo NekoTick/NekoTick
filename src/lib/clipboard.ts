@@ -37,8 +37,25 @@ function tryExecCommandCopy(text: string): boolean {
   }
 }
 
+export function tryWriteTextToClipboardSynchronously(text: string): boolean {
+  const desktopClipboard = getElectronBridge()?.clipboard;
+  if (!desktopClipboard?.writeTextSync) {
+    return false;
+  }
+
+  try {
+    return desktopClipboard.writeTextSync(text);
+  } catch {
+    return false;
+  }
+}
+
 export async function writeTextToClipboard(text: string): Promise<boolean> {
   const desktopClipboard = getElectronBridge()?.clipboard;
+  if (tryWriteTextToClipboardSynchronously(text)) {
+    return true;
+  }
+
   if (desktopClipboard?.writeText) {
     try {
       await desktopClipboard.writeText(text);

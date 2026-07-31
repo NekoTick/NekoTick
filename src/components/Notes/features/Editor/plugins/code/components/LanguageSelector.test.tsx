@@ -120,4 +120,28 @@ describe('LanguageSelector', () => {
     expect(onLanguageChange).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
+
+  it('does not treat image clipboard companion text as a language search', () => {
+    render(
+      <LanguageSelector
+        language="ts"
+        displayName="typescript"
+        getNodeText={() => ''}
+        onLanguageChange={vi.fn()}
+        isOpen
+        onOpenChange={vi.fn()}
+      />,
+    );
+    const input = screen.getByPlaceholderText('Search language...');
+    const file = new File(['image'], 'language.png', { type: 'image/png' });
+
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    })).toBe(false);
+    expect(input).toHaveValue('');
+  });
 });

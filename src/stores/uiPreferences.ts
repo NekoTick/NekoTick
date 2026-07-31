@@ -40,7 +40,7 @@ export const STORAGE_KEY_NOTES_CHAT_PANEL_COLLAPSED = 'vlaina_notes_chat_panel_c
 export const STORAGE_KEY_NOTES_CHAT_FLOATING_SIZE = 'vlaina_notes_chat_floating_size';
 
 const MAX_UI_SCALAR_STORAGE_CHARS = 256;
-const MAX_IMAGE_SUBFOLDER_NAME_CHARS = 128;
+export const MAX_IMAGE_SUBFOLDER_NAME_CHARS = 128;
 const CONTROL_OR_BIDI_PATTERN = /[\u0000-\u001F\u007F-\u009F\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
 const UI_DECIMAL_STORAGE_PATTERN = /^(?:\d+(?:\.\d+)?|\.\d+)$/;
 
@@ -55,9 +55,8 @@ function loadScalarString(key: string): string | null {
 export function loadBoolean(key: string, defaultValue: boolean): boolean {
   try {
     const saved = loadScalarString(key);
-    if (saved !== null) {
-      return saved === 'true';
-    }
+    if (saved === 'true') return true;
+    if (saved === 'false') return false;
   } catch {
   }
   return defaultValue;
@@ -113,6 +112,9 @@ function loadFontSize(): number {
 }
 
 export function normalizeFontSize(fontSize: number): number {
+  if (!Number.isFinite(fontSize)) {
+    return UI_FONT_SIZE_DEFAULT;
+  }
   return Math.max(UI_FONT_SIZE_MIN, Math.min(UI_FONT_SIZE_MAX, Math.round(fontSize)));
 }
 
@@ -180,6 +182,9 @@ function loadNotesChatPanelCollapsed(): boolean {
 }
 
 export function clampNotesChatFloatingSize(size: NotesChatFloatingSize): NotesChatFloatingSize {
+  if (!Number.isFinite(size.width) || !Number.isFinite(size.height)) {
+    return { ...NOTES_CHAT_FLOATING_DEFAULT_SIZE };
+  }
   return {
     width: Math.max(
       NOTES_CHAT_FLOATING_MIN_SIZE.width,

@@ -337,7 +337,7 @@ test.describe("notes block selection", () => {
       const singleSelection = await readTableTextColor();
       expect(singleSelection).not.toBeNull();
       expect(singleSelection!.tableSelected, JSON.stringify(singleSelection, null, 2)).toBe(true);
-      expect(singleSelection!.largeActive, JSON.stringify(singleSelection, null, 2)).toBe(false);
+      expect(singleSelection!.largeActive, JSON.stringify(singleSelection, null, 2)).toBe(true);
       expect(singleSelection!.color, JSON.stringify({ baseline, singleSelection }, null, 2)).toBe(baseline!.color);
       expect(singleSelection!.textFillColor, JSON.stringify({ baseline, singleSelection }, null, 2)).toBe(baseline!.textFillColor);
 
@@ -1282,6 +1282,7 @@ test.describe("notes block selection", () => {
 
         return {
           active: editor.classList.contains('editor-block-selection-active'),
+          large: editor.classList.contains('editor-block-selection-large'),
           lineRows,
           paragraphClassName: paragraph.className,
           paragraphRect: rectPayload(paragraphRect),
@@ -1535,13 +1536,15 @@ test.describe("notes block selection", () => {
       await page.waitForTimeout(80);
       const overParagraph = await readHardBreakReport();
       expect(overParagraph, 'dragging over hard-break paragraph report').not.toBeNull();
-      expect(overParagraph!.pending, JSON.stringify({ dragPoints, overParagraph }, null, 2)).toBe(true);
+      expect(overParagraph!.large, JSON.stringify({ dragPoints, overParagraph }, null, 2)).toBe(true);
+      expect(overParagraph!.selectedCount, JSON.stringify({ dragPoints, overParagraph }, null, 2)).toBeGreaterThan(0);
 
       await page.mouse.move(dragPoints!.awayX, dragPoints!.awayY, { steps: 8 });
       await page.waitForTimeout(80);
       const awayFromParagraph = await readHardBreakReport();
       expect(awayFromParagraph, 'dragging away from hard-break paragraph report').not.toBeNull();
-      expect(awayFromParagraph!.pending, JSON.stringify({ dragPoints, awayFromParagraph }, null, 2)).toBe(true);
+      expect(awayFromParagraph!.large, JSON.stringify({ dragPoints, awayFromParagraph }, null, 2)).toBe(true);
+      expect(awayFromParagraph!.selectedCount, JSON.stringify({ dragPoints, awayFromParagraph }, null, 2)).toBeGreaterThan(0);
       await page.mouse.up();
 
       const assertStableReport = (report: NonNullable<typeof initial>, label: string) => {
@@ -1657,11 +1660,11 @@ test.describe("notes block selection", () => {
         filename: 'block-selection-blank-line-margin-audit.md',
         content: [
           'Paragraph before paragraph blank audit',
-          '<!--vlaina-markdown-blank-line-->',
+          '',
           'Paragraph after blank audit',
-          '<!--vlaina-markdown-blank-line-->',
+          '',
           '# Heading after blank audit',
-          '<!--vlaina-markdown-blank-line-->',
+          '',
           'Final paragraph after heading audit',
         ].join('\n'),
       });
@@ -2175,13 +2178,11 @@ test.describe("notes block selection", () => {
           return {
             largeActive: editor?.classList.contains('editor-block-selection-large') ?? false,
             maxIndex: indexes.length > 0 ? Math.max(...indexes) : -1,
-            pending: editor?.classList.contains('editor-block-selection-pending') ?? false,
             scrollTop: Math.round(scrollRoot?.scrollTop ?? 0),
             selectedCount: selectedItems.length,
           };
         });
 
-        expect(metrics.pending, JSON.stringify(metrics, null, 2)).toBe(true);
         expect(metrics.largeActive, JSON.stringify(metrics, null, 2)).toBe(true);
         expect(metrics.selectedCount, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(128);
         expect(metrics.maxIndex, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(150);
@@ -2576,7 +2577,10 @@ test.describe("notes block selection", () => {
       if (!handleBox) {
         throw new Error('Could not resolve block drag handle geometry');
       }
-      await page.locator('.editor-block-control-handle').hover();
+      await page.mouse.move(
+        handleBox.x + handleBox.width / 2,
+        handleBox.y + handleBox.height / 2,
+      );
 
       const handleColor = await page.evaluate(() => {
         const handle = document.querySelector<HTMLElement>('.editor-block-control-handle');

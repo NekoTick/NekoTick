@@ -13,6 +13,7 @@ import {
 } from './floatingToolbarPlugin';
 import { floatingToolbarKey } from './floatingToolbarKey';
 import { resolveDocumentHistoryShortcut } from './floatingToolbarPluginViewUtils';
+import { applyFormatPreview } from './previewStyles';
 
 async function createTextSelection(from: number, to: number) {
   const editor = Editor.make()
@@ -125,6 +126,34 @@ describe('floating toolbar keyboard handling', () => {
     expect(view.state.selection.empty).toBe(true);
     expect(view.state.selection.from).toBe(2);
     expect(floatingToolbarKey.getState(view.state)?.isVisible).toBe(false);
+
+    await editor.destroy();
+  });
+
+  it('restores the real editor when a history shortcut is pressed during a format preview', async () => {
+    const editor = Editor.make()
+      .config((ctx) => {
+        ctx.set(defaultValueCtx, 'hello world');
+      })
+      .use(commonmark)
+      .use(floatingToolbarPlugin);
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+    applyFormatPreview(view, 'bold');
+    expect(view.dom).toHaveAttribute('data-toolbar-preview-hidden', 'true');
+
+    view.dom.dispatchEvent(new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      key: 'z',
+    }));
+
+    expect(view.dom).not.toHaveAttribute('data-toolbar-preview-hidden');
+    expect(view.dom.style.display).not.toBe('none');
+    expect(view.dom.parentElement?.querySelector('.toolbar-applied-preview-overlay')).toBeNull();
 
     await editor.destroy();
   });

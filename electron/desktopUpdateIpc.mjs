@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { readBoundedJsonResponse } from './boundedJsonResponse.mjs';
 import {
   compareVersions,
@@ -18,6 +19,19 @@ const defaultDownloadUrl = (
 ).trim();
 const updateManifestRetryDelaysMs = [300, 1000];
 
+class UpdateManifestMismatchError extends Error {}
+
+function launchWindowsUpdateInstaller(filePath, spawnImpl) {
+  const child = spawnImpl(filePath, ['--updated'], {
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.once('error', (error) => {
+    console.error('[vlaina] Failed to launch the Windows update installer:', error);
+  });
+  child.unref();
+}
+
 export function registerDesktopUpdateIpc({
   app,
   deleteDownloadedUpdateImpl = deleteDownloadedUpdate,
@@ -25,16 +39,28 @@ export function registerDesktopUpdateIpc({
   fetchImpl,
   handleIpc,
   normalizeDownloadedUpdateForOpenImpl = normalizeDownloadedUpdateForOpen,
+  platform = process.platform,
   readTrustedDownloadedUpdateMetadataImpl = readTrustedDownloadedUpdateMetadata,
   shell,
+  spawnImpl = spawn,
   writeTrustedDownloadedUpdateMetadataImpl = writeTrustedDownloadedUpdateMetadata,
 }) {
-  const desktopUpdatePolicy = resolveDesktopUpdatePolicy();
+  const desktopUpdatePolicy = resolveDesktopUpdatePolicy(process.env, {
+    platform,
+    windowsStore: process.windowsStore,
+  });
+  let pendingMacUpdateImagePath = null;
+  let pendingWindowsInstallerPath = null;
   let updateDownloadJob = null;
+  let updateManifestJob = null;
   let trustedUpdateInfo = null;
 
   async function fetchUpdateManifest() {
-    return fetchDesktopUpdateManifest({
+    if (updateManifestJob) {
+      return await updateManifestJob;
+    }
+
+    const promise = fetchDesktopUpdateManifest({
       manifestUrl: updateManifestUrl,
       defaultDownloadUrl,
       appVersion: app.getVersion(),
@@ -43,6 +69,14 @@ export function registerDesktopUpdateIpc({
       allowLocalManifestUrl: !app.isPackaged,
       retryDelaysMs: updateManifestRetryDelaysMs,
     });
+    updateManifestJob = promise;
+    try {
+      return await promise;
+    } finally {
+      if (updateManifestJob === promise) {
+        updateManifestJob = null;
+      }
+    }
   }
 
   function createUpdateInfo(manifest) {
@@ -72,7 +106,7 @@ export function registerDesktopUpdateIpc({
     const candidate = createUpdateInfo(await fetchUpdateManifest());
     trustedUpdateInfo = candidate;
     if (!updateRequestMatchesTrustedInfo(requestedUpdateInfo, candidate)) {
-      throw new Error('Requested update does not match the trusted update manifest.');
+      throw new UpdateManifestMismatchError('Requested update does not match the trusted update manifest.');
     }
     return candidate;
   }
@@ -162,13 +196,63 @@ export function registerDesktopUpdateIpc({
     let updateInfo;
     try {
       updateInfo = await resolveTrustedUpdateInfo(requestedUpdateInfo);
-    } catch {
+    } catch (error) {
+      if (error instanceof UpdateManifestMismatchError) {
+        throw error;
+      }
       updateInfo = readTrustedDownloadedUpdateMetadataImpl(app, requestedUpdateInfo);
     }
     if (compareVersions(updateInfo.latestVersion, app.getVersion()) <= 0) {
       throw new Error('Update version is not newer than the current app version.');
     }
     const normalizedPath = await normalizeDownloadedUpdateForOpenImpl(app, updateInfo);
+
+    if (platform === 'win32') {
+      if (pendingWindowsInstallerPath) {
+        if (pendingWindowsInstallerPath !== normalizedPath) {
+          throw new Error('Another Windows update installer is already pending.');
+        }
+        app.quit();
+        return;
+      }
+
+      pendingWindowsInstallerPath = normalizedPath;
+      app.prependOnceListener('window-all-closed', () => {
+        const installerPath = pendingWindowsInstallerPath;
+        pendingWindowsInstallerPath = null;
+        try {
+          launchWindowsUpdateInstaller(installerPath, spawnImpl);
+        } catch (error) {
+          console.error('[vlaina] Failed to launch the Windows update installer:', error);
+        }
+      });
+      app.quit();
+      return;
+    }
+
+    if (platform === 'darwin') {
+      if (pendingMacUpdateImagePath) {
+        if (pendingMacUpdateImagePath !== normalizedPath) {
+          throw new Error('Another macOS update image is already pending.');
+        }
+        app.quit();
+        return;
+      }
+
+      const result = await shell.openPath(normalizedPath);
+      if (result) {
+        throw new Error(result);
+      }
+
+      pendingMacUpdateImagePath = normalizedPath;
+      app.prependOnceListener('window-all-closed', () => {
+        pendingMacUpdateImagePath = null;
+        app.quit();
+      });
+      app.quit();
+      return;
+    }
+
     const result = await shell.openPath(normalizedPath);
     if (result) {
       throw new Error(result);

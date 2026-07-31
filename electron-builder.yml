@@ -91,6 +91,8 @@ appx:
   publisherDisplayName: vladelaina
   displayName: vlaina
   backgroundColor: transparent
+  minVersion: 10.0.17763.0
+  maxVersionTested: 10.0.26100.0
   languages:
     - en-US
     - zh-CN
@@ -102,6 +104,7 @@ appx:
 nsis:
   artifactName: ${productName}-${version}-windows-${arch}-setup.${ext}
   oneClick: false
+  runAfterFinish: false
   useZip: false
   allowToChangeInstallationDirectory: true
   differentialPackage: false
@@ -115,6 +118,7 @@ linux:
   category: Utility
   icon: build/icon.png
   maintainer: vlaina <noreply@github.com>
+  syncDesktopName: true
   target:
     - AppImage
     - deb

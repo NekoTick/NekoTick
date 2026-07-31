@@ -456,6 +456,44 @@ test.describe('settings modal interaction coverage', () => {
     }
   });
 
+  test('dismisses model suggestions with Escape without closing settings', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('settings-model-suggestion-escape');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.evaluate(async () => {
+        const bridge = (window as any).__vlainaE2E;
+        const providerId = await bridge.addProvider({
+          name: 'Suggestion Provider',
+          apiHost: 'https://settings-models.example.invalid/v1',
+          apiKey: 'sk-randomized-e2e-key',
+        });
+        await bridge.setProviderFetchedModels(providerId, [
+          'gpt-4o-mini',
+          'gemini-2.5-flash',
+        ]);
+      });
+
+      await openSettings(page);
+      await openSettingsTab(page, 'ai');
+
+      const quickAdd = page.locator('[data-settings-provider-action="quick-add-model"]');
+      await quickAdd.fill('gm');
+      await expect(page.getByRole('listbox')).toBeVisible({ timeout: 10_000 });
+      await expect(quickAdd).toHaveAttribute('aria-expanded', 'true');
+
+      await quickAdd.press('Escape');
+
+      await expect(page.getByRole('listbox')).toHaveCount(0);
+      await expect(quickAdd).toBeFocused();
+      await expect(quickAdd).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.locator(SETTINGS_MODAL_SELECTOR)).toBeVisible();
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('keeps every settings tab usable at the minimum desktop window size', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('settings-small-window-layout');
 

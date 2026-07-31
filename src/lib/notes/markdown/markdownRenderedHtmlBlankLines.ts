@@ -2,6 +2,8 @@ import { BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES } from './markdownSerializ
 
 const EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER = '<!--vlaina-markdown-blank-line-->';
 const EDITOR_RENDERED_HTML_BOUNDARY_PLACEHOLDER = '<!--vlaina-rendered-html-boundary-blank-line-->';
+const ESCAPED_RENDERED_HTML_BOUNDARY_PLACEHOLDER =
+  '<!--vlaina-user-authored-internal-comment:vlaina-rendered-html-boundary-blank-line-->';
 const HTML_ONE_LINE_RENDERED_BLOCK_PATTERN =
   /^(?: {0,3})<([A-Za-z][A-Za-z0-9-]*)(?:\s|>|\/>)[\s\S]*?(?:<\/\1>|\/>)[ \t]*$/;
 const HTML_ONE_LINE_RENDERED_VOID_BLOCK_PATTERN =
@@ -53,6 +55,30 @@ export function exposeRenderedHtmlBoundaryBlankLinesForEditor(text: string): str
   }
 
   return changed ? output.join('\n') : text;
+}
+
+export function restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor(text: string): string {
+  if (!text.includes(ESCAPED_RENDERED_HTML_BOUNDARY_PLACEHOLDER)) return text;
+
+  const lines = text.split('\n');
+  let changed = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (line.trim() !== ESCAPED_RENDERED_HTML_BOUNDARY_PLACEHOLDER) continue;
+    if ((lines[index - 1] ?? '').trim() !== '') continue;
+
+    const previous = findNearestNonBlankLine(lines, index, -1);
+    const next = findNearestNonBlankLine(lines, index, 1);
+    if (!next || getHtmlBoundaryPlaceholder(previous) !== EDITOR_RENDERED_HTML_BOUNDARY_PLACEHOLDER) {
+      continue;
+    }
+
+    const indentation = line.slice(0, line.indexOf('<'));
+    lines[index] = `${indentation}${EDITOR_RENDERED_HTML_BOUNDARY_PLACEHOLDER}`;
+    changed = true;
+  }
+
+  return changed ? lines.join('\n') : text;
 }
 
 function getHtmlBoundaryPlaceholder(line: string | null): string | null {

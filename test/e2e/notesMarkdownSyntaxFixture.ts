@@ -4,6 +4,7 @@ export const REMOTE_COVER_IMAGE_URL =
   'https://raw.githubusercontent.com/521xueweihan/img_logo/master/logo/cover.jpg#w=72%25';
 
 export type MarkdownSyntaxRoundtripCase = {
+  allowedInternalPersistencePatterns?: readonly string[];
   expectExactAfterEdit?: boolean;
   label: string;
   markdown: string;
@@ -361,6 +362,32 @@ export function createMarkdownSyntaxRoundtripCases(): MarkdownSyntaxRoundtripCas
         '<video src="xxx.mp4" controls />',
         '',
         '<audio src="xxx.mp3" controls />',
+      ].join('\n'),
+    },
+    {
+      allowedInternalPersistencePatterns: [
+        '<!--vlaina-markdown-blank-line-->',
+        '<!--vlaina-markdown-tight-heading-->',
+        '<!--vlaina-rendered-html-boundary-blank-line-->',
+        '<!--vlaina-user-authored-internal-comment:literal-->',
+      ],
+      expectExactAfterEdit: true,
+      label: 'user-authored-internal-like-html-comments',
+      markdown: [
+        'Before reserved comments.',
+        '<!--vlaina-markdown-blank-line-->',
+        '<!--vlaina-markdown-tight-heading-->',
+        '<!--vlaina-rendered-html-boundary-blank-line-->',
+        '<!--vlaina-user-authored-internal-comment:literal-->',
+        '$$',
+        '<!--vlaina-markdown-blank-line-->',
+        '$$',
+        '- Parent reserved comment math.',
+        '  - $$',
+        '    <!--vlaina-markdown-tight-heading-->',
+        '    $$',
+        '',
+        'After reserved comments.',
       ].join('\n'),
     },
     {

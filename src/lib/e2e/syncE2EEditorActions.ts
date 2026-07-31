@@ -1,4 +1,5 @@
 import { TextSelection } from '@milkdown/kit/prose/state';
+import { redoDepth, undoDepth } from '@milkdown/kit/prose/history';
 import { getElectronBridge } from '@/lib/electron/bridge';
 import {
   getCurrentEditorNotePath,
@@ -37,6 +38,7 @@ type EditorBridgeActions = Pick<
   | 'getEditorPositionAtPoint'
   | 'getEditorTextRange'
   | 'getCurrentEditorNotePath'
+  | 'getEditorHistoryDepth'
   | 'focusEditorAtPoint'
   | 'setEditorSelectionRange'
   | 'focusCurrentEditor'
@@ -89,6 +91,14 @@ export function createSyncE2EEditorActions(): EditorBridgeActions {
       }
     },
     getCurrentEditorNotePath,
+    getEditorHistoryDepth: () => {
+      const view = getCurrentEditorView();
+      if (!view) return null;
+      return {
+        undo: undoDepth(view.state),
+        redo: redoDepth(view.state),
+      };
+    },
     getEditorTextRange: (text, anchorText) => findEditorTextRange(text, anchorText),
     focusEditorAtPoint: (clientX, clientY) => focusCurrentEditorAtViewportPoint({ clientX, clientY }),
     selectEditorTextByText: async (text, anchorText) => {

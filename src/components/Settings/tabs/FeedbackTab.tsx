@@ -96,7 +96,7 @@ export function FeedbackTab({ compact = false }: { compact?: boolean }) {
           <div className="space-y-4">
             <textarea
               value={message}
-              onChange={(event) => setMessage(event.target.value.slice(0, MAX_FEEDBACK_LENGTH + 200))}
+              onChange={(event) => setMessage(event.target.value.slice(0, MAX_FEEDBACK_LENGTH))}
               onCompositionStart={() => {
                 isComposingRef.current = true;
               }}
@@ -104,6 +104,8 @@ export function FeedbackTab({ compact = false }: { compact?: boolean }) {
                 isComposingRef.current = false;
               }}
               placeholder={t('settings.feedback.placeholder')}
+              aria-label={t('settings.feedback.title')}
+              maxLength={MAX_FEEDBACK_LENGTH}
               className={cn(
                 compact ? 'min-h-[var(--vlaina-size-150px)]' : 'min-h-[var(--vlaina-size-220px)]',
                 'w-full resize-y rounded-[var(--vlaina-ui-radius-group)] border border-[var(--vlaina-border)] bg-[var(--vlaina-color-input-surface)] px-4 py-3 text-[var(--vlaina-font-sm)] leading-6 text-[var(--vlaina-sidebar-notes-text)] outline-none transition-colors placeholder:text-[var(--vlaina-sidebar-notes-text-soft)] focus:border-[var(--vlaina-accent)]'

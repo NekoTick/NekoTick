@@ -30,6 +30,12 @@ describe('FeedbackTab', () => {
     mocks.addToast.mockClear();
   });
 
+  it('names the feedback field independently of its placeholder', () => {
+    render(<FeedbackTab />);
+
+    expect(screen.getByRole('textbox', { name: 'settings.feedback.title' })).toBeInTheDocument();
+  });
+
   it('does not submit feedback while IME composition is active', async () => {
     render(<FeedbackTab />);
 
@@ -49,5 +55,19 @@ describe('FeedbackTab', () => {
     await waitFor(() => {
       expect(mocks.submitFeedback).toHaveBeenCalledWith('日本');
     });
+  });
+
+  it('never submits feedback beyond the declared character limit', async () => {
+    render(<FeedbackTab />);
+
+    const textarea = screen.getByPlaceholderText('settings.feedback.placeholder');
+    fireEvent.change(textarea, { target: { value: 'x'.repeat(2200) } });
+    expect(textarea).toHaveValue('x'.repeat(2000));
+    fireEvent.click(screen.getByText('settings.feedback.submit'));
+
+    await waitFor(() => {
+      expect(mocks.submitFeedback).toHaveBeenCalledWith('x'.repeat(2000));
+    });
+    expect(textarea).toHaveAttribute('maxlength', '2000');
   });
 });

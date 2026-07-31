@@ -48,6 +48,7 @@ export function LanguageTab() {
             <button
               key={option.value}
               type="button"
+              aria-pressed={selected}
               data-settings-language-option={option.value}
               data-selected={selected ? 'true' : undefined}
               onClick={() => setLanguagePreference(option.value)}

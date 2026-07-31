@@ -22,6 +22,11 @@ describe('imported markdown theme post bridge', () => {
     expect(css).toContain('.v-caption.full');
     expect(css).toContain('.v-svg-input-checkbox[data-vlook-checkbox=\'checked\']::before');
     expect(css).toContain('.vlook-column-list');
+    expect(css).toContain(':is(.v-tag, .editor-tag-token, .v-badge-name, .v-badge-value, .v-stepwise, .v-coating)');
+    expect(css).toContain('white-space: break-spaces !important;');
+    expect(css).toContain('overflow-wrap: break-word !important;');
+    expect(css).toContain('.editor-tag-token {');
+    expect(css).toContain('white-space: normal !important;');
     expect(css).toContain('#write).ProseMirror,');
     expect(css).toContain(':not(.heading-toggle-btn):not(.editor-collapse-btn):not(.ProseMirror-widget)');
     expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');

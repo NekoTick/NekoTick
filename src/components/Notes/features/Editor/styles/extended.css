@@ -41,7 +41,9 @@
   -webkit-text-fill-color: var(--vlaina-markdown-color-link);
   font-weight: var(--vlaina-font-weight-medium);
   line-height: var(--vlaina-leading-145);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }

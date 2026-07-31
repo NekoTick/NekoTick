@@ -3,6 +3,7 @@ import { getCurrentEditorView } from '@/components/Notes/features/Editor/utils/e
 import { collectSelectableBlockTargets } from '@/components/Notes/features/Editor/plugins/cursor/blockUnitResolver';
 import { getFreshCachedEditorBlockTargets } from '@/components/Notes/features/Editor/utils/editorBlockPositionCache';
 import { floatingToolbarKey } from '@/components/Notes/features/Editor/plugins/floating-toolbar/floatingToolbarKey';
+import { clearFormatPreview } from '@/components/Notes/features/Editor/plugins/floating-toolbar/previewStyles';
 import { TOOLBAR_ACTIONS } from '@/components/Notes/features/Editor/plugins/floating-toolbar/types';
 import type { EditorSelectionSummary } from './syncE2EBridgeTypes';
 
@@ -79,6 +80,7 @@ export async function setEditorSelectionRange(
   const view = getCurrentEditorView();
   if (!view) return null;
 
+  clearFormatPreview(view);
   window.focus();
   view.dom.focus({ preventScroll: true });
   view.focus();
@@ -191,6 +193,7 @@ export async function focusCurrentEditor(): Promise<boolean> {
     );
   };
 
+  clearFormatPreview(view);
   window.focus();
   view.dom.focus({ preventScroll: true });
   view.focus();
@@ -217,6 +220,7 @@ export async function focusCurrentEditorAtEnd(): Promise<boolean> {
     );
   };
 
+  clearFormatPreview(view);
   if (document.activeElement instanceof HTMLElement && document.activeElement !== view.dom) {
     document.activeElement.blur();
   }

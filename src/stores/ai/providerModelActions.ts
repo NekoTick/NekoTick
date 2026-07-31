@@ -2,6 +2,10 @@ import type { AIModel, ProviderBenchmarkRecord } from '@/lib/ai/types'
 import { buildScopedModelId, generateModelGroup, generateModelName } from '@/lib/ai/utils'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { useAIUIStore } from './chatState'
+import {
+  MAX_AI_MODEL_FIELD_CHARS,
+  MAX_AI_PROVIDER_FETCHED_MODELS,
+} from '@/lib/storage/unifiedStorageSaveTypes'
 
 function areStringArraysEqual(left: readonly string[] = [], right: readonly string[] = []): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
@@ -35,12 +39,14 @@ export const modelActions = {
   addModel: (model: Omit<AIModel, 'createdAt'>) => {
     const state = useUnifiedStore.getState();
     const ai = state.data.ai!;
-    if (!model.apiModelId.trim()) return
+    const apiModelId = model.apiModelId.trim().slice(0, MAX_AI_MODEL_FIELD_CHARS)
+    if (!apiModelId) return
     const newModel: AIModel = {
       ...model,
-      id: buildScopedModelId(model.providerId, model.apiModelId),
-      name: model.name || generateModelName(model.apiModelId),
-      group: model.group || generateModelGroup(model.apiModelId),
+      id: buildScopedModelId(model.providerId, apiModelId),
+      apiModelId,
+      name: (model.name || generateModelName(apiModelId)).slice(0, MAX_AI_MODEL_FIELD_CHARS),
+      group: (model.group || generateModelGroup(apiModelId)).slice(0, MAX_AI_MODEL_FIELD_CHARS),
       createdAt: Date.now()
     }
     if (ai.models.some((item) => item.id.toLowerCase() === newModel.id.toLowerCase())) {
@@ -61,9 +67,10 @@ export const modelActions = {
     const existingIds = new Set(ai.models.map((model) => model.id.toLowerCase()))
     const queuedIds = new Set<string>()
     const newModels: AIModel[] = models
-      .filter((model) => model.apiModelId.trim().length > 0)
       .flatMap((model) => {
-        const id = buildScopedModelId(model.providerId, model.apiModelId)
+        const apiModelId = model.apiModelId.trim().slice(0, MAX_AI_MODEL_FIELD_CHARS)
+        if (!apiModelId) return []
+        const id = buildScopedModelId(model.providerId, apiModelId)
         const normalizedId = id.toLowerCase()
         if (existingIds.has(normalizedId) || queuedIds.has(normalizedId)) {
           return []
@@ -72,8 +79,9 @@ export const modelActions = {
         return [{
           ...model,
           id,
-          name: model.name || generateModelName(model.apiModelId),
-          group: model.group || generateModelGroup(model.apiModelId),
+          apiModelId,
+          name: (model.name || generateModelName(apiModelId)).slice(0, MAX_AI_MODEL_FIELD_CHARS),
+          group: (model.group || generateModelGroup(apiModelId)).slice(0, MAX_AI_MODEL_FIELD_CHARS),
           createdAt: now
         }]
       })
@@ -154,7 +162,11 @@ export const modelActions = {
   setProviderFetchedModels: (providerId: string, modelIds: string[]) => {
     const state = useUnifiedStore.getState();
     const ai = state.data.ai!;
-    const nextModelIds = [...new Set(modelIds)];
+    const nextModelIds = [...new Set(
+      modelIds
+        .map((modelId) => modelId.trim().slice(0, MAX_AI_MODEL_FIELD_CHARS))
+        .filter(Boolean),
+    )].slice(0, MAX_AI_PROVIDER_FETCHED_MODELS);
     if (areStringArraysEqual(ai.fetchedModels?.[providerId] || [], nextModelIds)) {
       return;
     }

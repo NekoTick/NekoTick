@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  BLOCK_CONTROLS_SELECTOR,
   EDITOR_SELECTOR,
   NOTE_IMAGE_BLOCK_SELECTOR,
   NOTE_IMAGE_CROPPER_TOOLBAR_SELECTOR,
@@ -19,6 +20,7 @@ import {
   openMarkdownFixture,
   selectNoteBlocksByText,
 } from './notesE2E';
+import { moveMouseToBlockHandleGutter } from './notesBlockSelectionShared';
 
 const TINY_PNG_DATA_URL =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -473,6 +475,12 @@ test.describe('notes image block interaction', () => {
 
       await hoverImageBlockContent(imageBlock);
       await waitForToolbarInteractive(page);
+      await app.evaluate(({ clipboard }) => {
+        clipboard.write({
+          text: 'https://example.test/stale-image-source',
+          html: '<a href="https://example.test/stale-image-source">stale image source</a>',
+        });
+      });
       await page.locator(`${NOTE_IMAGE_TOOLBAR_SELECTOR} [data-image-toolbar-action="copy"]`).click();
 
       await expect.poll(async () => app.evaluate(({ clipboard }) => {
@@ -485,6 +493,10 @@ test.describe('notes image block interaction', () => {
         width: expect.any(Number),
         height: expect.any(Number),
       });
+      expect(await app.evaluate(({ clipboard }) => ({
+        html: clipboard.readHTML(),
+        text: clipboard.readText(),
+      }))).toEqual({ html: '', text: '' });
 
       await app.evaluate(({ clipboard }) => {
         clipboard.clear();
@@ -602,6 +614,111 @@ test.describe('notes image block interaction', () => {
 
       expect(cropOpenMs).toBeLessThan(5_000);
       expect(dragMs).toBeLessThan(5_000);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('keeps immediate typing outside an image dragged to the document end', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-image-block-drag-immediate-typing');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      const fixture = await createNotesRootFilesFixture(page, {
+        name: 'image-block-drag-immediate-typing',
+        files: [
+          { filename: 'drag-image.md', content: createImageBlockMarkdown() },
+          { filename: 'other.md', content: '# Other note' },
+        ],
+      });
+      const notePath = fixture.notePaths[0]!;
+      const typedText = 'Immediate typing after dragged image';
+
+      await openAbsoluteNote(page, notePath);
+      const imageBlock = page.locator(NOTE_IMAGE_BLOCK_SELECTOR).first();
+      await waitForImageBlockReady(imageBlock, 'dragged image');
+      const selectionResult = await page.evaluate(async () => {
+        const blocks = (window as any).__vlainaE2E.getNoteSelectableBlocks() as Array<{
+          className?: string;
+          dataset?: Record<string, string>;
+        }>;
+        const index = blocks.findIndex((block) =>
+          String(block.className ?? '').includes('editor-paragraph-has-image-block')
+          || String(block.className ?? '').includes('image-block-container')
+          || block.dataset?.alt === 'Notes image block alt sentinel'
+        );
+        const count = index >= 0
+          ? await (window as any).__vlainaE2E.selectNoteBlocksByIndexes([index])
+          : 0;
+        return { blocks, count, index };
+      });
+      expect(selectionResult.count, JSON.stringify(selectionResult.blocks)).toBe(1);
+
+      await moveMouseToBlockHandleGutter(page, imageBlock, { assertCentered: false });
+      await expect(page.locator(BLOCK_CONTROLS_SELECTOR)).toBeVisible();
+      const handleBox = await page.locator('.editor-block-control-handle').boundingBox();
+      const targetBox = await page.locator(`${EDITOR_SELECTOR} p`, {
+        hasText: 'Final image block sentinel.',
+      }).boundingBox();
+      if (!handleBox || !targetBox) {
+        throw new Error('Could not resolve image drag geometry');
+      }
+
+      const startX = handleBox.x + handleBox.width / 2;
+      const startY = handleBox.y + handleBox.height / 2;
+      await page.mouse.move(startX, startY);
+      await page.mouse.down();
+      await page.mouse.move(startX + 28, startY, { steps: 4 });
+      await expect.poll(async () => page.evaluate(() =>
+        document.body.classList.contains('editor-block-drag-active')
+      )).toBe(true);
+      await page.mouse.move(
+        targetBox.x + Math.min(40, targetBox.width / 3),
+        targetBox.y + targetBox.height * 0.8,
+        { steps: 12 },
+      );
+      await expect(page.locator('.editor-block-drop-indicator.visible')).toBeVisible();
+      await page.mouse.up();
+      await expect.poll(async () => page.evaluate(() =>
+        document.body.classList.contains('editor-block-drag-active')
+      )).toBe(false);
+
+      await page.keyboard.type(typedText);
+      const typedParagraph = page.locator(`${EDITOR_SELECTOR} p`, { hasText: typedText });
+      await expect(typedParagraph).toBeVisible();
+      const typedMetrics = await typedParagraph.evaluate((paragraph, expectedText) => {
+        const hasImage = Boolean(paragraph.querySelector('.image-block-container, [data-type="image"]'));
+        const textNode = Array.from(paragraph.childNodes).find((node) =>
+          node.nodeType === Node.TEXT_NODE && node.textContent?.includes(expectedText)
+        );
+        const range = textNode ? document.createRange() : null;
+        if (range && textNode) range.selectNodeContents(textNode);
+        const rect = range?.getBoundingClientRect();
+        return { hasImage, height: rect?.height ?? 0, width: rect?.width ?? 0 };
+      }, typedText);
+      expect(typedMetrics.hasImage).toBe(false);
+      expect(typedMetrics.height).toBeGreaterThan(0);
+      expect(typedMetrics.width).toBeGreaterThan(0);
+
+      await page.evaluate(() => (window as any).__vlainaE2E.saveCurrentNote());
+      const saved = await page.evaluate((pathToRead) =>
+        (window as any).__vlainaE2E.readTextFile(pathToRead), notePath);
+      const savedLines = saved.split('\n');
+      const imageLineIndex = savedLines.findIndex((line) => line.includes('Notes image block alt sentinel'));
+      expect(savedLines.slice(imageLineIndex, imageLineIndex + 3)).toEqual([
+        expect.stringContaining('Notes image block alt sentinel'),
+        '',
+        typedText,
+      ]);
+      expect(saved.indexOf('Final image block sentinel.')).toBeLessThan(
+        saved.indexOf('Notes image block alt sentinel'),
+      );
+
+      await openAbsoluteNote(page, fixture.notePaths[1]!);
+      await openAbsoluteNote(page, notePath);
+      await expect(page.locator(NOTE_IMAGE_BLOCK_SELECTOR)).toHaveCount(1);
+      await expect(page.locator(`${EDITOR_SELECTOR} p`, { hasText: typedText })).toBeVisible();
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }
@@ -1170,6 +1287,136 @@ test.describe('notes image block interaction', () => {
 
       expect(textIndex, JSON.stringify(selectableBlocks, null, 2)).toBeGreaterThanOrEqual(0);
       expect(imageIndex, JSON.stringify(selectableBlocks, null, 2)).toBeGreaterThanOrEqual(0);
+
+      const imageBlock = page.locator(
+        `${NOTE_IMAGE_BLOCK_SELECTOR}[data-alt="Notes html image block alt sentinel"]`
+      );
+      await expect.poll(async () => imageBlock.evaluate((element) => {
+        const image = element.querySelector('img');
+        return Boolean(image && image.complete && image.naturalWidth > 0 && image.getBoundingClientRect().width > 0);
+      })).toBe(true);
+
+      const geometryAudit = await page.evaluate(async (targetIndex) => {
+        const block = document.querySelector<HTMLElement>(
+          '.image-block-container[data-alt="Notes html image block alt sentinel"]'
+        );
+        const wrapper = block?.querySelector<HTMLElement>('[data-image-selection-wrapper="true"]') ?? null;
+        const container = wrapper?.firstElementChild instanceof HTMLElement
+          ? wrapper.firstElementChild
+          : null;
+        const image = container?.querySelector<HTMLImageElement>('img') ?? null;
+        if (!block || !wrapper || !container || !image) return null;
+
+        const readRect = (element: HTMLElement) => {
+          const rect = element.getBoundingClientRect();
+          return { height: rect.height, width: rect.width };
+        };
+        const baseline = {
+          container: readRect(container),
+          image: readRect(image),
+          wrapper: readRect(wrapper),
+        };
+        const violations: Array<Record<string, unknown>> = [];
+        let maxDelta = 0;
+
+        const sample = (cycle: number, phase: string) => {
+          const snapshot = {
+            container: readRect(container),
+            image: readRect(image),
+            wrapper: readRect(wrapper),
+          };
+          const deltas = [
+            Math.abs(snapshot.container.width - baseline.container.width),
+            Math.abs(snapshot.container.height - baseline.container.height),
+            Math.abs(snapshot.image.width - baseline.image.width),
+            Math.abs(snapshot.image.height - baseline.image.height),
+            Math.abs(snapshot.wrapper.width - baseline.wrapper.width),
+            Math.abs(snapshot.wrapper.height - baseline.wrapper.height),
+          ];
+          maxDelta = Math.max(maxDelta, ...deltas);
+          const transform = getComputedStyle(container).transform;
+          const dragging = container.dataset.dragging === 'true';
+          if (deltas.some((delta) => delta > 0.75) || transform !== 'none' || dragging) {
+            violations.push({
+              blockClassName: block.className,
+              cycle,
+              dragging,
+              phase,
+              snapshot,
+              transform,
+            });
+          }
+        };
+
+        for (let cycle = 0; cycle < 24; cycle += 1) {
+          const selectPromise = (window as any).__vlainaE2E.selectNoteBlocksByIndexes([targetIndex]);
+          sample(cycle, 'selected-sync');
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          sample(cycle, 'selected-frame');
+          await selectPromise;
+          sample(cycle, 'selected-settled');
+
+          const clearPromise = (window as any).__vlainaE2E.selectNoteBlocksByIndexes([]);
+          sample(cycle, 'cleared-sync');
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+          sample(cycle, 'cleared-frame');
+          await clearPromise;
+          sample(cycle, 'cleared-settled');
+        }
+
+        return { baseline, maxDelta, violations };
+      }, imageIndex);
+
+      expect(geometryAudit).not.toBeNull();
+      expect(geometryAudit!.violations, JSON.stringify(geometryAudit, null, 2)).toEqual([]);
+      expect(geometryAudit!.maxDelta, JSON.stringify(geometryAudit, null, 2)).toBeLessThanOrEqual(0.75);
+
+      const dragTarget = await getBlankAreaDragTarget(page, 'Paragraph before image sentinel');
+      const imageBox = await imageBlock.boundingBox();
+      expect(dragTarget).not.toBeNull();
+      expect(imageBox).not.toBeNull();
+      await page.mouse.move(dragTarget!.startX, dragTarget!.startY);
+      await page.mouse.down();
+      for (let step = 1; step <= 12; step += 1) {
+        const progress = step / 12;
+        await page.mouse.move(
+          dragTarget!.startX + (dragTarget!.endX - dragTarget!.startX) * progress,
+          dragTarget!.startY + (imageBox!.y + imageBox!.height / 2 - dragTarget!.startY) * progress,
+        );
+        const frameGeometry = await imageBlock.evaluate((element) => {
+          const wrapper = element.querySelector<HTMLElement>('[data-image-selection-wrapper="true"]');
+          const container = wrapper?.firstElementChild instanceof HTMLElement
+            ? wrapper.firstElementChild
+            : null;
+          const image = container?.querySelector<HTMLImageElement>('img') ?? null;
+          if (!wrapper || !container || !image) return null;
+          return {
+            containerHeight: container.getBoundingClientRect().height,
+            containerWidth: container.getBoundingClientRect().width,
+            dragging: container.dataset.dragging === 'true',
+            imageHeight: image.getBoundingClientRect().height,
+            imageWidth: image.getBoundingClientRect().width,
+            transform: getComputedStyle(container).transform,
+            wrapperHeight: wrapper.getBoundingClientRect().height,
+            wrapperWidth: wrapper.getBoundingClientRect().width,
+          };
+        });
+        expect(frameGeometry, `physical drag frame ${step}`).not.toBeNull();
+        expect(frameGeometry!.dragging, JSON.stringify(frameGeometry)).toBe(false);
+        expect(frameGeometry!.transform, JSON.stringify(frameGeometry)).toBe('none');
+        expect(Math.abs(frameGeometry!.containerWidth - geometryAudit!.baseline.container.width)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.containerHeight - geometryAudit!.baseline.container.height)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.imageWidth - geometryAudit!.baseline.image.width)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.imageHeight - geometryAudit!.baseline.image.height)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.wrapperWidth - geometryAudit!.baseline.wrapper.width)).toBeLessThanOrEqual(0.75);
+        expect(Math.abs(frameGeometry!.wrapperHeight - geometryAudit!.baseline.wrapper.height)).toBeLessThanOrEqual(0.75);
+      }
+      await page.mouse.up();
+      await expect.poll(async () => imageBlock.evaluate((element) => (
+        element.classList.contains('editor-block-selected')
+        || Boolean(element.closest('.editor-block-selected'))
+      ))).toBe(true);
+      await clearSelectedNoteBlocks(page);
 
       const readSelectionPaint = async (index: number) => {
         const selectedCount = await page.evaluate(async (targetIndex) => {

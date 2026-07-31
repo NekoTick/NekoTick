@@ -127,6 +127,9 @@ export function createAccountCredentialStore({
     const { metaPath, secretsPath } = await getAccountStorePaths();
     const meta = await readJsonFile(metaPath, null);
     const rawSecrets = await readJsonFile(secretsPath, null);
+    if (!meta || !rawSecrets) {
+      return null;
+    }
     if (!isSafeStoragePersistenceAvailable(safeStorage, platform)) {
       return null;
     }

@@ -105,4 +105,20 @@ describe('NoteEditorFindBar', () => {
 
     expect(controller.close).not.toHaveBeenCalled();
   });
+
+  it('does not accept image clipboard companion text as a find or replacement value', () => {
+    const controller = createController({ isReplaceOpen: true });
+    render(<NoteEditorFindBar controller={controller} />);
+    const file = new File(['image'], 'find.png', { type: 'image/png' });
+    const clipboardData = {
+      items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+      files: [file],
+      getData: () => 'https://example.test/companion',
+    };
+
+    expect(fireEvent.paste(screen.getByPlaceholderText('Find'), { clipboardData })).toBe(false);
+    expect(fireEvent.paste(screen.getByPlaceholderText('Replace with'), { clipboardData })).toBe(false);
+    expect(controller.setQuery).not.toHaveBeenCalled();
+    expect(controller.setReplaceValue).not.toHaveBeenCalled();
+  });
 });

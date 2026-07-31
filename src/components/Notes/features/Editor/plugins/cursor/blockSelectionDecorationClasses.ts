@@ -17,6 +17,7 @@ export interface BlockSelectionDecorationContext {
 export const LARGE_BLOCK_SELECTION_DECORATION_CLASS = 'editor-block-selected md-focus editor-block-selected-large-item';
 export const LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS = `${LARGE_BLOCK_SELECTION_DECORATION_CLASS} editor-block-selected-large-textlike`;
 export const LARGE_RICH_BLOCK_SELECTION_DECORATION_CLASS = `${LARGE_BLOCK_SELECTION_DECORATION_CLASS} editor-block-selected-large-rich`;
+export const LARGE_INLINE_LINE_SELECTION_MARKER_CLASS = 'editor-block-selected editor-block-selected-inline-line editor-block-selection-line-marker';
 
 const RICH_BLOCK_SELECTION_NODE_NAMES = new Set([
   'code_block',

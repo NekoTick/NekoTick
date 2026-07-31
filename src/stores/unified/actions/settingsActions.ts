@@ -1,6 +1,12 @@
 import type { UnifiedData } from '@/lib/storage/unifiedStorage';
 import type { UnifiedSavePatch } from '@/lib/storage/unifiedStorage';
 import { createMarkdownSettingsActions } from './markdownSettingsActions';
+import { DEFAULT_SETTINGS } from '@/lib/config';
+import {
+  MAX_SETTINGS_TIMEZONE_CITY_CHARS,
+  MAX_SETTINGS_UI_THEME_ID_CHARS,
+} from '@/lib/storage/unifiedStorage';
+import { normalizeSettingsNotesChatFloatingSize } from '@/lib/storage/unifiedStorageMainNormalize';
 
 type SetState = (fn: (state: { 
   data: UnifiedData; 
@@ -14,9 +20,13 @@ export function createSettingsActions(set: SetState, persist: Persist) {
   return {
     setTimezone: (offset: number, city: string) => {
       set((state) => {
+        const trimmedCity = city.trim();
         const timezone = {
-          offset: Math.max(-12, Math.min(14, offset)),
-          city,
+          offset: Number.isFinite(offset)
+            ? Math.max(-12, Math.min(14, offset))
+            : DEFAULT_SETTINGS.timezone.offset,
+          city: (trimmedCity || DEFAULT_SETTINGS.timezone.city)
+            .slice(0, MAX_SETTINGS_TIMEZONE_CITY_CHARS),
         };
         if (
           state.data.settings.timezone?.offset === timezone.offset &&
@@ -133,7 +143,7 @@ export function createSettingsActions(set: SetState, persist: Persist) {
     },
 
     setThemeId: (themeId: string) => {
-      const normalizedThemeId = themeId.trim() || 'default';
+      const normalizedThemeId = themeId.trim().slice(0, MAX_SETTINGS_UI_THEME_ID_CHARS) || 'default';
       set((state) => {
         if (state.data.settings.ui?.themeId === normalizedThemeId) {
           return {};
@@ -165,9 +175,14 @@ export function createSettingsActions(set: SetState, persist: Persist) {
         return;
       }
 
+      const normalizedSize = normalizeSettingsNotesChatFloatingSize(
+        size,
+        { ...DEFAULT_SETTINGS.ui.notesChatFloatingSize },
+      ) ?? { ...DEFAULT_SETTINGS.ui.notesChatFloatingSize };
+
       set((state) => {
         const current = state.data.settings.ui?.notesChatFloatingSize;
-        if (current?.width === size.width && current?.height === size.height) {
+        if (current?.width === normalizedSize.width && current?.height === normalizedSize.height) {
           return {};
         }
 
@@ -177,14 +192,14 @@ export function createSettingsActions(set: SetState, persist: Persist) {
             ...state.data.settings,
             ui: {
               ...state.data.settings.ui,
-              notesChatFloatingSize: size,
+              notesChatFloatingSize: normalizedSize,
             },
           },
         };
         persist(newData, {
           settings: {
             ui: {
-              notesChatFloatingSize: size,
+              notesChatFloatingSize: normalizedSize,
             },
           },
         });

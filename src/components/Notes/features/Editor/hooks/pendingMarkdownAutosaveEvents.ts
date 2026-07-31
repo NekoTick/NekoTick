@@ -3,6 +3,7 @@ import { editorViewCtx } from '@milkdown/kit/core';
 
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import type { MilkdownContext } from './pendingMarkdownAutosaveTypes';
+import { resolveDocumentHistoryShortcut } from '../plugins/floating-toolbar/floatingToolbarPluginViewUtils';
 
 const CONTENT_EDITING_KEYS = new Set([
   'Backspace',
@@ -55,7 +56,7 @@ export function isContentEditingUserEvent(event: Event): boolean {
     if (ALLOW_SYNTHETIC_USER_EVENTS && event.key === '') return true;
     if (event.isComposing) return true;
     if (event.ctrlKey || event.metaKey || event.altKey) {
-      return false;
+      return resolveDocumentHistoryShortcut(event) !== null;
     }
     return CONTENT_EDITING_KEYS.has(event.key) || event.key.length === 1;
   }

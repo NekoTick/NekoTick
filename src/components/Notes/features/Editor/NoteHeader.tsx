@@ -15,6 +15,9 @@ import { getRandomHeaderEmoji } from '@/components/common/UniversalIconPicker/ra
 import { isDraftNotePath } from '@/stores/notes/draftNote';
 import { resolveEffectiveNotesRootPath } from '@/stores/notes/effectiveNotesRootPath';
 import type { CustomIcon } from '@/lib/storage/unifiedStorage';
+import { useToastStore } from '@/stores/useToastStore';
+import { normalizeUserFacingErrorMessage } from '@/lib/i18n/userFacingErrors';
+import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 
 interface NoteHeaderProps {
     coverUrl: string | null;
@@ -73,6 +76,7 @@ export function NoteHeader({ coverUrl, coverLayoutActive = Boolean(coverUrl), on
     const assetList = useNotesStore(s => s.assetList);
     const loadAssets = useNotesStore(s => s.loadAssets);
     const uploadAsset = useNotesStore(s => s.uploadAsset);
+    const addToast = useToastStore(s => s.addToast);
 
     const customIcons = useMemo<CustomIcon[]>(() => assetList.map((asset) => {
         const uploadedAt = Date.parse(asset.uploadedAt);
@@ -84,10 +88,18 @@ export function NoteHeader({ coverUrl, coverLayoutActive = Boolean(coverUrl), on
         };
     }), [assetList]);
 
-    const handleIconPickerOpen = useCallback(() => {
+    const handleIconPickerOpen = useCallback(async () => {
         if (!notesRootPath) return undefined;
-        return loadAssets(notesRootPath);
-    }, [loadAssets, notesRootPath]);
+        try {
+            await loadAssets(notesRootPath);
+        } catch (error) {
+            addToast(
+                normalizeUserFacingErrorMessage(error, 'asset.loadFailed'),
+                'error',
+                themeUiFeedbackTokens.errorToastDurationMs,
+            );
+        }
+    }, [addToast, loadAssets, notesRootPath]);
 
     const uploadNoteIcon = useCallback(async (file: File) => {
         const result = await uploadAsset(file, currentNotePath);

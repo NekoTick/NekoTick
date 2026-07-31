@@ -8,6 +8,7 @@ import {
   getDisplayBlockRangesForDecorations,
 } from './blockSelectionRanges';
 import {
+  LARGE_INLINE_LINE_SELECTION_MARKER_CLASS,
   LARGE_RICH_BLOCK_SELECTION_DECORATION_CLASS,
   LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS,
   getBlockSelectionDecorationClass,
@@ -128,26 +129,56 @@ export function createBlockSelectionDecorations(doc: EditorState['doc'], blocks:
     if (useLargeSelectionRendering) {
       const rangeKey = getBlockRangeKey(range.from, range.to);
       const structuralClass = getBlockSelectionStructuralClass(doc, range, isNodeRange);
-      const className = [
-        isTextLikeDecorationRange(doc, range, isNodeRange)
-          ? LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS
-          : LARGE_RICH_BLOCK_SELECTION_DECORATION_CLASS,
-        !isNodeRange ? getInlineSelectionLinkClass(doc, range) : '',
-        structuralClass,
-        context.hasNextDisplayRangeKeys.has(rangeKey) ? 'editor-block-selected-has-next' : '',
-        context.hasPreviousDisplayRangeKeys.has(rangeKey) ? 'editor-block-selected-has-previous' : '',
-        isInlineLineSelection ? 'editor-block-selected-inline-line' : '',
-      ].filter(Boolean).join(' ');
+      const hasNextClass = context.hasNextDisplayRangeKeys.has(rangeKey)
+        ? 'editor-block-selected-has-next'
+        : '';
+      const hasPreviousClass = context.hasPreviousDisplayRangeKeys.has(rangeKey)
+        ? 'editor-block-selected-has-previous'
+        : '';
       if (isNodeRange) {
+        const className = [
+          isTextLikeDecorationRange(doc, range, true)
+            ? LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS
+            : LARGE_RICH_BLOCK_SELECTION_DECORATION_CLASS,
+          structuralClass,
+          hasNextClass,
+          hasPreviousClass,
+        ].filter(Boolean).join(' ');
         return [Decoration.node(range.from, range.to, { class: className })];
       }
       const inlineRange = trimTrailingHardBreakFromInlineRange(doc, range);
-      return inlineRange ? [
+      if (!inlineRange) return [];
+
+      const linkClass = getInlineSelectionLinkClass(doc, inlineRange);
+      const linkTextDecorations = createInlineSelectionLinkTextDecorations(doc, inlineRange);
+      if (isInlineLineSelection && !linkClass && linkTextDecorations.length === 0) {
+        return [Decoration.widget(inlineRange.from, (view) => {
+          const marker = view.dom.ownerDocument.createElement('span');
+          marker.className = LARGE_INLINE_LINE_SELECTION_MARKER_CLASS;
+          marker.setAttribute('aria-hidden', 'true');
+          return marker;
+        }, {
+          blockSelectionLineMarker: true,
+          ignoreSelection: true,
+          key: `block-selection-line:${rangeKey}`,
+          side: -1,
+        })];
+      }
+
+      const className = [
+        LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS,
+        linkClass,
+        structuralClass,
+        hasNextClass,
+        hasPreviousClass,
+        isInlineLineSelection ? 'editor-block-selected-inline-line' : '',
+      ].filter(Boolean).join(' ');
+      return [
         Decoration.inline(inlineRange.from, inlineRange.to, {
           class: className,
         }),
-        ...createInlineSelectionLinkTextDecorations(doc, inlineRange),
-      ] : [];
+        ...linkTextDecorations,
+      ];
     }
 
     const rangeKey = getBlockRangeKey(range.from, range.to);

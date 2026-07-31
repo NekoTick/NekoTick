@@ -139,6 +139,7 @@ function openExternalIfAllowed(rawUrl) {
 const {
   assertTrustedIpcSender,
   handleIpc,
+  handleSyncIpc,
   isTrustedRendererUrl,
 } = createTrustedIpc({
   BrowserWindow,
@@ -206,6 +207,7 @@ registerDesktopIpc({
   app,
   dialog: electron.dialog,
   handleIpc,
+  handleSyncIpc,
   normalizeExternalUrl,
   resolveTargetWindow,
   requireNonEmptyString,

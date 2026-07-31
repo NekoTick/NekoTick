@@ -1,6 +1,6 @@
 import { normalizeWheelDelta } from '@/lib/scroll/wheelScroll';
 import { applyBlockMove, canApplyBlockMove } from './blockControlsInteractions';
-import { getCurrentNotePath, getElementsFromPoint, isOverNotesBlockDropTarget, MIN_DROP_DISTANCE_PX, serializeDraggedRangesForComposer, serializeDraggedRangesForMarkdown, serializeSourceMarkdownAfterDelete, setPendingCrossNoteBlockDrag, setPendingCrossNoteBlockDragPreview, updatePendingCrossNoteBlockDragPointer } from './blockControlsViewSessionHelpers';
+import { getCurrentNotePath, getElementsFromPoint, isOverNotesBlockDropTarget, MIN_DROP_DISTANCE_PX, serializeCurrentMarkdownForNotePath, serializeDraggedRangesForComposer, serializeDraggedRangesForMarkdown, serializeSourceMarkdownAfterDelete, setPendingCrossNoteBlockDrag, setPendingCrossNoteBlockDragPreview, updatePendingCrossNoteBlockDragPointer } from './blockControlsViewSessionHelpers';
 import { createBlockDragPreview, createBlockDragSourceMarker } from './blockDragPreview';
 import { setBlockDraggingVisualState } from './blockDragVisualState';
 
@@ -28,7 +28,11 @@ export function installBlockControlsViewSessionDragHandlers(session: any): void 
     session.dragSourceDoc = session.view.state.doc;
     session.dragSourceNotePath = getCurrentNotePath();
     session.draggedMarkdown = serializeDraggedRangesForMarkdown(session.view, draggableRanges);
+    session.dragSourceMarkdownBeforeDelete = session.draggedMarkdown
+      ? serializeCurrentMarkdownForNotePath(session.view, session.dragSourceNotePath)
+      : null;
     session.dragSourceMarkdownAfterDelete = session.draggedMarkdown
+      && session.dragSourceMarkdownBeforeDelete !== null
       ? serializeSourceMarkdownAfterDelete(
         session.view,
         draggableRanges,
@@ -43,6 +47,7 @@ export function installBlockControlsViewSessionDragHandlers(session: any): void 
     setPendingCrossNoteBlockDrag({
       sourceNotePath: session.dragSourceNotePath,
       draggedMarkdown: session.draggedMarkdown,
+      sourceMarkdownBeforeDelete: session.dragSourceMarkdownBeforeDelete,
       sourceMarkdownAfterDelete: session.dragSourceMarkdownAfterDelete,
       dragStartClientX: event.clientX,
       dragStartClientY: event.clientY,

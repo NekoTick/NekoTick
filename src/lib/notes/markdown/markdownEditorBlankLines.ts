@@ -17,8 +17,10 @@ import {
 import {
   exposeRenderedHtmlBoundaryBlankLinesForEditor,
   isBlankTerminatedNonEditableHtmlBoundaryLine,
+  restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor,
 } from './markdownRenderedHtmlBlankLines';
 import { escapeParagraphTrailingBackslashesForEditor } from './plainTextBackslashHardBreaks';
+import { protectUserAuthoredInternalArtifactCommentsForEditor } from './markdownInternalArtifactEscapes';
 
 const BR_ONLY_PATTERN = /^<br\s*\/?>$/i;
 const BLOCKQUOTE_BR_ONLY_PATTERN = /^(\s*(?:>\s*)+)<br\s*\/?>$/i;
@@ -48,7 +50,9 @@ const LIST_ITEM_MARKER_LINE_PATTERN =
 export function preserveMarkdownBlankLinesForEditor(text: string): string {
   if (text.length === 0) return text;
 
-  const expandedText = expandInlineTerminalListBreaksForEditor(text);
+  const expandedText = expandInlineTerminalListBreaksForEditor(
+    protectUserAuthoredInternalArtifactCommentsForEditor(text)
+  );
   const preserved = mapMarkdownOutsideProtectedBlocks(expandedText, (line, index, lines) => {
     const emptyListItemMatch = EMPTY_LIST_ITEM_LINE_PATTERN.exec(line);
     if (emptyListItemMatch) {
@@ -144,7 +148,9 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
     return line;
   });
   return normalizeUserBreakSentinels(
-    exposeRenderedHtmlBoundaryBlankLinesForEditor(preserved)
+    exposeRenderedHtmlBoundaryBlankLinesForEditor(
+      restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor(preserved)
+    )
   );
 }
 

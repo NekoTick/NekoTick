@@ -83,6 +83,18 @@ describe('clipboard integration', () => {
     expect(result).not.toContain('allow-top-navigation');
   });
 
+  it('unwraps navigation links from image-only clipboard HTML', async () => {
+    const editor = await createClipboardEditor();
+    const view = editor.ctx.get(editorViewCtx) as EditorView;
+
+    const result = transformPastedHtml(
+      view,
+      '<a href="https://example.test/page"><img src="https://images.example.test/copied.png" alt="Copied"></a>',
+    );
+
+    expect(result).toBe('<img src="https://images.example.test/copied.png" alt="Copied">');
+  });
+
   it('drops local iframe targets while keeping public sandboxed embeds during editor paste sanitization', async () => {
     const editor = await createClipboardEditor();
     const view = editor.ctx.get(editorViewCtx) as EditorView;

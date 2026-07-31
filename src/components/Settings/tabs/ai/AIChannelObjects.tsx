@@ -167,6 +167,7 @@ export function ChannelObject({
       data-settings-ai-channel-card={providerId}
       data-active={active ? 'true' : undefined}
       draggable
+      aria-pressed={active}
       aria-grabbed={dragging ? true : undefined}
       onClick={onClick}
       onDragStart={onDragStart}
@@ -240,6 +241,7 @@ export function ChannelObject({
           <SettingsSwitch
             data-settings-control="ai-channel-enabled"
             checked={enabled}
+            aria-label={`${t('common.toggleSetting')}: ${name}`}
             onChange={(nextEnabled) => onToggleEnabled?.(nextEnabled)}
             className="origin-right scale-[var(--vlaina-scale-84)]"
             activeColor="bg-[var(--vlaina-sidebar-row-selected-text)]"

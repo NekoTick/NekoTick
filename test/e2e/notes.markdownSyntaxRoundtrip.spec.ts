@@ -77,7 +77,11 @@ async function typeRoundtripEditAtEnd(page: Page): Promise<void> {
     .toContain(ROUNDTRIP_EDIT);
 }
 
-function expectNoInternalPersistenceArtifacts(markdown: string, label: string): void {
+function expectNoInternalPersistenceArtifacts(
+  markdown: string,
+  label: string,
+  allowedPatterns: readonly string[] = [],
+): void {
   const leakedPatterns = [
     '\u0000',
     '\u200B',
@@ -88,6 +92,7 @@ function expectNoInternalPersistenceArtifacts(markdown: string, label: string): 
     '<!--vlaina-markdown-blank-line-->',
     '<!--vlaina-rendered-html-boundary-blank-line-->',
     '<!--vlaina-markdown-tight-heading-->',
+    '<!--vlaina-user-authored-internal-comment:',
     'data-vlaina-empty-line',
     'date-vlaina-empty-line',
     'data-vlaina-list-gap',
@@ -97,6 +102,7 @@ function expectNoInternalPersistenceArtifacts(markdown: string, label: string): 
   ];
 
   for (const pattern of leakedPatterns) {
+    if (allowedPatterns.some((allowed) => allowed.includes(pattern))) continue;
     expect(markdown, `${label} leaked internal persistence artifact ${JSON.stringify(pattern)}`)
       .not.toContain(pattern);
   }
@@ -144,7 +150,11 @@ test.describe('notes markdown syntax roundtrip persistence', () => {
             expect(savedContent, `${syntaxCase.label} should preserve every authored line on first save`)
               .toBe(`${withRoundtripTail(syntaxCase.markdown)}\n${ROUNDTRIP_EDIT}`);
           }
-          expectNoInternalPersistenceArtifacts(savedContent, syntaxCase.label);
+          expectNoInternalPersistenceArtifacts(
+            savedContent,
+            syntaxCase.label,
+            syntaxCase.allowedInternalPersistencePatterns,
+          );
 
           await openAbsoluteNote(page, switchTarget.notePath);
           expect(await getCurrentNoteContent(page)).toBe('# Syntax roundtrip switch target');

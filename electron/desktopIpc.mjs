@@ -42,6 +42,7 @@ export function registerDesktopIpc({
   app: appOverride,
   dialog: dialogOverride,
   handleIpc,
+  handleSyncIpc,
   normalizeExternalUrl,
   resolveTargetWindow,
   requireNonEmptyString,
@@ -70,6 +71,22 @@ export function registerDesktopIpc({
 
   handleIpc('desktop:clipboard:write-text', async (_event, text) => {
     clipboard.writeText(typeof text === 'string' ? text : '');
+  });
+
+  handleSyncIpc('desktop:clipboard:write-text-sync', (_event, text) => {
+    clipboard.writeText(typeof text === 'string' ? text : '');
+    return true;
+  });
+
+  handleIpc('desktop:clipboard:read-image', async () => {
+    const image = clipboard.readImage();
+    if (image.isEmpty()) return null;
+
+    const png = image.toPNG();
+    if (png.byteLength > MAX_CLIPBOARD_IMAGE_DATA_URL_BYTES) {
+      throw new Error('Clipboard image is too large.');
+    }
+    return `data:image/png;base64,${png.toString('base64')}`;
   });
 
   handleIpc('desktop:clipboard:write-image', async (_event, dataUrl) => {

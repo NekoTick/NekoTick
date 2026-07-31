@@ -1,5 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, type ComponentPropsWithoutRef } from 'react';
 import { themeTextAreaTokens } from '@/styles/themeTokens';
+import {
+  preventImageClipboardTextPaste,
+  preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface SidebarInlineRenameInputProps
   extends Omit<
@@ -20,6 +24,8 @@ export function SidebarInlineRenameInput({
   onCancel,
   selectOnMount = true,
   onClick,
+  onDrop,
+  onPaste,
   className,
   ...props
 }: SidebarInlineRenameInputProps) {
@@ -115,6 +121,16 @@ export function SidebarInlineRenameInput({
         if (event.key === 'Escape') {
           event.preventDefault();
           onCancel();
+        }
+      }}
+      onPaste={(event) => {
+        if (!preventImageClipboardTextPaste(event)) {
+          onPaste?.(event);
+        }
+      }}
+      onDrop={(event) => {
+        if (!preventImageDataTransferTextDrop(event)) {
+          onDrop?.(event);
         }
       }}
       onClick={(event) => {

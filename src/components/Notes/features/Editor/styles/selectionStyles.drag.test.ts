@@ -96,6 +96,7 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('.milkdown .editor-block-selection-line-fill-host {');
     expect(css).toContain('.milkdown .editor-block-selection-line-fill-layer {');
     expect(css).toContain('.milkdown .editor-block-selection-line-fill {');
+    expect(css).toContain('.milkdown .ProseMirror .editor-block-selection-line-marker {');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selected-inline-line {');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selected-inline-line::after,');
     expect(css).toContain('.milkdown .ProseMirror.editor-block-selection-large .editor-block-selected-inline-line::after {');
@@ -164,6 +165,7 @@ describe("editor block drag interaction styles", () => {
     expect(lazyRule).toContain("[data-type='html-block'],");
     expect(lazyRule).toContain("[data-type='math-block'],");
     expect(lazyRule).toContain("[data-type='toc']");
+    expect(lazyRule).toContain(':not(.editor-eager-layout-paragraph)');
     expect(lazyRule).toContain('content-visibility: auto;');
     expect(lazyRule).toContain('contain-intrinsic-size: auto var(--vlaina-height-block-intrinsic);');
   });

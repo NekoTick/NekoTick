@@ -14,7 +14,10 @@ import React from 'react';
 import {
   codeMirrorFindHighlightExtensions
 } from '../find/editorFindCodeMirrorHighlights';
-import { MAX_LAZY_CODE_BLOCK_LINE_NUMBER_PLACEHOLDER_LINES } from './CodeBlockNodeViewConstants';
+import {
+  LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS,
+  MAX_LAZY_CODE_BLOCK_LINE_NUMBER_PLACEHOLDER_LINES,
+} from './CodeBlockNodeViewConstants';
 import { CodeBlockView } from './CodeBlockView';
 import { subscribeCodeBlockSelectionSync } from './codeBlockSelectionSync';
 import {
@@ -53,18 +56,72 @@ class CodeBlockNodeViewInitializationMethods {
     this.dom.addEventListener('focusin', this.activateCodeMirrorFromInteraction);
 
     this.intersectionObserver = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        this.initializeCodeMirror();
+      this.lazyCodeBlockIntersecting = entries.some((entry) => entry.isIntersecting);
+      if (this.lazyCodeBlockIntersecting) {
+        this.scheduleLazyCodeMirrorInitialization();
+      } else {
+        this.cancelPendingLazyCodeMirrorInitialization();
       }
     }, { rootMargin: themeLazyLoadTokens.codeBlockRootMargin });
     this.intersectionObserver.observe(this.dom);
   }
 
-  readonly activateCodeMirrorFromInteraction = () => {
-    this.initializeCodeMirror();
-  };
+  cancelPendingLazyCodeMirrorInitialization(this: any) {
+    const ownerWindow = this.getOwnerWindow();
+    if (this.pendingLazyInitializationTimer !== null) {
+      ownerWindow?.clearTimeout(this.pendingLazyInitializationTimer);
+      this.pendingLazyInitializationTimer = null;
+    }
+    if (this.pendingLazyInitializationFrame !== null) {
+      ownerWindow?.cancelAnimationFrame(this.pendingLazyInitializationFrame);
+      this.pendingLazyInitializationFrame = null;
+    }
+  }
+
+  scheduleLazyCodeMirrorInitialization(this: any) {
+    if (this.cm || this.pendingLazyInitializationTimer !== null || this.pendingLazyInitializationFrame !== null) {
+      return;
+    }
+    const ownerWindow = this.getOwnerWindow();
+    if (!ownerWindow) {
+      this.initializeCodeMirror();
+      return;
+    }
+    this.pendingLazyInitializationTimer = ownerWindow.setTimeout(() => {
+      this.pendingLazyInitializationTimer = null;
+      const scrollRoot = this.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+      const scrollLeft = scrollRoot?.scrollLeft ?? ownerWindow.scrollX;
+      const scrollTop = scrollRoot?.scrollTop ?? ownerWindow.scrollY;
+      this.pendingLazyInitializationFrame = ownerWindow.requestAnimationFrame(() => {
+        this.pendingLazyInitializationFrame = ownerWindow.requestAnimationFrame(() => {
+          this.pendingLazyInitializationFrame = null;
+          if (this.destroyed || !this.lazyCodeBlockIntersecting) return;
+          const currentScrollLeft = scrollRoot?.scrollLeft ?? ownerWindow.scrollX;
+          const currentScrollTop = scrollRoot?.scrollTop ?? ownerWindow.scrollY;
+          if (currentScrollLeft !== scrollLeft || currentScrollTop !== scrollTop) {
+            this.scheduleLazyCodeMirrorInitialization();
+            return;
+          }
+          const blockRect = this.dom.getBoundingClientRect();
+          const scrollRootRect = scrollRoot?.getBoundingClientRect();
+          const viewportTop = scrollRootRect?.top ?? 0;
+          const viewportBottom = scrollRootRect?.bottom ?? ownerWindow.innerHeight;
+          const verticalRootMargin = Number.parseFloat(themeLazyLoadTokens.codeBlockRootMargin) || 0;
+          if (
+            blockRect.bottom >= viewportTop - verticalRootMargin
+            && blockRect.top <= viewportBottom + verticalRootMargin
+          ) {
+            this.initializeCodeMirror();
+          }
+        });
+      });
+    }, LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+  }
+
+  readonly activateCodeMirrorFromInteraction = () => this.initializeCodeMirror();
 
   initializeCodeMirror(this: any) {
+    this.cancelPendingLazyCodeMirrorInitialization();
     if (this.cm) {
       return;
     }
@@ -106,7 +163,8 @@ class CodeBlockNodeViewInitializationMethods {
     });
     this.lineNumbersStateKey = this.getLineNumbersStateKey(this.node);
     this.wrapStateKey = this.getWrapStateKey(this.node);
-    this.cm.contentDOM.addEventListener('keydown', this.trackCodeMirrorSelectionKeydown, true);
+    this.cm.dom.addEventListener('keydown', this.trackCodeMirrorSelectionKeydown, true);
+    this.cm.dom.addEventListener('keyup', this.clearCodeMirrorClipboardCaptureOnKeyup, true);
     this.cm.dom.addEventListener('blur', this.clearEditorSelectionOnBlur, true);
     this.disposeFontMetricsSync = bindCodeBlockFontMetricsSync(
       this.dom.ownerDocument,
@@ -223,6 +281,7 @@ class CodeBlockNodeViewInitializationMethods {
       view: this.view,
       getNode: () => this.node,
       getPos: this.getPos,
+      onCut: this.flushCodeMirrorClipboardCut,
     });
   }
 

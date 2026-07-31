@@ -257,6 +257,44 @@ describe('usePendingMarkdownAutosave', () => {
     }
   });
 
+  it('invalidates delayed composition finalization before an undo shortcut', async () => {
+    const editor = createEditor('啊');
+    await editor.create();
+    const updateContent = vi.fn();
+    const debouncedSave = vi.fn();
+    const { result, unmount } = renderHook(() => usePendingMarkdownAutosave({
+      currentNotePath: 'docs/alpha.md',
+      currentNoteDiskRevision: 0,
+      currentNoteContent: '啊',
+      updateContent,
+      debouncedSave,
+    }));
+
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const textEnd = findTextEndPos(view, '啊');
+      const markUserInput = result.current.createUserInputMarker(view, null);
+
+      act(() => {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, textEnd)));
+        markUserInput(new Event('compositionstart'));
+        markUserInput(new InputEvent('beforeinput', {
+          inputType: 'insertCompositionText',
+          data: 'a',
+        }));
+        markUserInput(new CompositionEvent('compositionend', { data: '啊' }));
+        markUserInput(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
+        view.dispatch(view.state.tr.insertText('a', textEnd));
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(getDocText(view)).toBe('啊a');
+    } finally {
+      unmount();
+      await editor.destroy();
+    }
+  });
+
   it('repairs pinyin residue split around committed composition text', async () => {
     const editor = createEditor(['# alpha', '', 'h好a'].join('\n'));
     await editor.create();
@@ -718,6 +756,88 @@ describe('usePendingMarkdownAutosave', () => {
       expect(getDocText(view)).not.toContain('nihao');
       expect(view.state.selection.empty).toBe(true);
       expect(view.state.selection.from).toBeGreaterThanOrEqual(chineseEnd);
+    } finally {
+      unmount();
+      await editor.destroy();
+    }
+  });
+
+  it('persists one IME replacement when committed text is followed immediately by Enter', async () => {
+    const initialContent = '# alpha\n\nTyping caret paragraph 45 sentinel text';
+    const committedText = '马上回车中文-45-e2e';
+    const followUpText = 'AfterEnter45E2E';
+    const editor = createEditor(initialContent);
+    await editor.create();
+    const updateContent = vi.fn((content: string) => {
+      useNotesStore.setState((state) => ({
+        currentNote: state.currentNote ? { ...state.currentNote, content } : state.currentNote,
+      }));
+    });
+    const debouncedSave = vi.fn();
+    const { result, unmount } = renderHook(() => usePendingMarkdownAutosave({
+      currentNotePath: 'docs/alpha.md',
+      currentNoteDiskRevision: 0,
+      currentNoteContent: initialContent,
+      updateContent,
+      debouncedSave,
+    }));
+
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const serializer = editor.ctx.get(serializerCtx);
+      const targetText = 'paragraph 45 sentinel';
+      const targetEnd = findTextEndPos(view, targetText);
+      const targetFrom = targetEnd - targetText.length;
+      const markUserInput = result.current.createUserInputMarker(view, null);
+      const markdownListener = result.current.configureMarkdownListener({
+        get: vi.fn((token) => (token === editorViewCtx ? view : null)),
+      } as never, initialContent);
+
+      act(() => {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, targetFrom, targetEnd)));
+        markUserInput(new Event('compositionstart'));
+        markUserInput(new InputEvent('beforeinput', {
+          inputType: 'insertCompositionText',
+          data: committedText,
+        }));
+        const committedInput = new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: committedText,
+        });
+        markUserInput(committedInput);
+        if (!committedInput.defaultPrevented) {
+          view.dispatch(view.state.tr.insertText(committedText));
+        }
+        markUserInput(new CompositionEvent('compositionend', { data: committedText }));
+
+        const enter = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          bubbles: true,
+          cancelable: true,
+        });
+        markUserInput(enter);
+        expect(baseKeymap.Enter(view.state, view.dispatch, view)).toBe(true);
+
+        markUserInput(new InputEvent('beforeinput', {
+          bubbles: true,
+          cancelable: true,
+          inputType: 'insertText',
+          data: followUpText,
+        }));
+        view.dispatch(view.state.tr.insertText(followUpText));
+        markdownListener(serializer(view.state.doc));
+        vi.advanceTimersByTime(16);
+        vi.advanceTimersByTime(120);
+      });
+
+      const editorText = getDocText(view);
+      expect(editorText.split(committedText)).toHaveLength(2);
+      expect(editorText).toContain(`Typing caret ${committedText}\n${followUpText} text`);
+      expect(updateContent).toHaveBeenCalledTimes(1);
+      expect(updateContent.mock.calls[0]?.[0].split(committedText)).toHaveLength(2);
+      expect(debouncedSave).toHaveBeenCalledTimes(1);
     } finally {
       unmount();
       await editor.destroy();

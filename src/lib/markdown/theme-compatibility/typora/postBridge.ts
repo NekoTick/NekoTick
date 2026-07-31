@@ -20,6 +20,7 @@ import {
 import {
   buildTyporaCheckboxBridge,
   buildTyporaColumnBridge,
+  buildTyporaInlineTokenBridge,
 } from './postBridgeSemantic';
 
 export function buildTyporaPostBridgeCss(importedThemeId: string): string {
@@ -36,6 +37,7 @@ export function buildTyporaPostBridgeCss(importedThemeId: string): string {
     ...buildTyporaCardBridge(write),
     ...buildTyporaColumnBridge(write),
     ...buildTyporaCheckboxBridge(write),
+    ...buildTyporaInlineTokenBridge(write),
     ...buildTyporaBlockSelectionBridge(write),
   ].join('\n').trimEnd();
 }

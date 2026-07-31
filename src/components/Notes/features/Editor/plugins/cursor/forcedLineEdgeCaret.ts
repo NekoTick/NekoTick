@@ -128,7 +128,7 @@ export function resolveVisualLineEdgePos(
     },
   });
 
-  let lineEdgeRect: DOMRect | null = null;
+  const lineEdgeRectRef = { current: null as DOMRect | null };
   let measuredTextNodes = 0;
   let measuredRects = 0;
   const considerRect = (rect: DOMRect): boolean => {
@@ -137,12 +137,12 @@ export function resolveVisualLineEdgePos(
     if (rect.width <= 0 || rect.height <= 0) return true;
     if (!isPointVerticallyInsideRect(rect, clientY)) return true;
 
-    if (!lineEdgeRect) {
-      lineEdgeRect = rect;
+    if (!lineEdgeRectRef.current) {
+      lineEdgeRectRef.current = rect;
     } else if (action.bias === -1) {
-      if (rect.right > lineEdgeRect.right) lineEdgeRect = rect;
-    } else if (rect.left < lineEdgeRect.left) {
-      lineEdgeRect = rect;
+      if (rect.right > lineEdgeRectRef.current.right) lineEdgeRectRef.current = rect;
+    } else if (rect.left < lineEdgeRectRef.current.left) {
+      lineEdgeRectRef.current = rect;
     }
     return true;
   };
@@ -183,21 +183,21 @@ export function resolveVisualLineEdgePos(
     }
   }
 
-  const resolvedLineEdgeRect = lineEdgeRect as DOMRect | null;
-  if (!resolvedLineEdgeRect) {
+  const lineEdgeRect = lineEdgeRectRef.current;
+  if (!lineEdgeRect) {
     return null;
   }
 
   if (action.bias === -1) {
-    if (clientX < resolvedLineEdgeRect.right + TRAILING_LINE_END_CLICK_GAP_PX) {
+    if (clientX < lineEdgeRect.right + TRAILING_LINE_END_CLICK_GAP_PX) {
       return null;
     }
-  } else if (clientX > resolvedLineEdgeRect.left - LEADING_LINE_START_CLICK_GAP_PX) {
+  } else if (clientX > lineEdgeRect.left - LEADING_LINE_START_CLICK_GAP_PX) {
     return null;
   }
 
-  const forcedCaretX = action.bias === -1 ? resolvedLineEdgeRect.right : resolvedLineEdgeRect.left;
-  const serializedTextRect = serializeRect(resolvedLineEdgeRect);
+  const forcedCaretX = action.bias === -1 ? lineEdgeRect.right : lineEdgeRect.left;
+  const serializedTextRect = serializeRect(lineEdgeRect);
   return { pos: action.targetPos, textRect: serializedTextRect, forcedCaretX };
 }
 

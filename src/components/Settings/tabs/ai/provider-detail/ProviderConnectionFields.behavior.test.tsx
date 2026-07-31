@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ProviderConnectionFields, isDefaultChannelName } from './ProviderConnectionFields';
+import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorageSaveTypes';
 
 function buildProps(overrides: Partial<Parameters<typeof ProviderConnectionFields>[0]> = {}) {
   const props: Parameters<typeof ProviderConnectionFields>[0] = {
@@ -28,6 +29,25 @@ function renderFields(overrides: Partial<Parameters<typeof ProviderConnectionFie
 }
 
 describe('ProviderConnectionFields API key input', () => {
+  it('names every provider connection field', () => {
+    renderFields({ apiHost: 'https://api.example.com' });
+
+    expect(screen.getByRole('textbox', { name: 'Channel Name' })).toHaveValue('Channel 1');
+    expect(screen.getByRole('textbox', { name: 'Base URL' })).toHaveValue('https://api.example.com');
+    expect(screen.getByRole('textbox', { name: 'API Key' })).toBeInTheDocument();
+  });
+
+  it('matches provider text field limits to the persistence contract', () => {
+    renderFields({ apiHost: 'https://api.example.com' });
+
+    expect(screen.getByRole('textbox', { name: 'Channel Name' }))
+      .toHaveAttribute('maxlength', String(MAX_AI_MODEL_FIELD_CHARS));
+    expect(screen.getByRole('textbox', { name: 'Base URL' }))
+      .toHaveAttribute('maxlength', String(MAX_AI_MODEL_FIELD_CHARS));
+    expect(screen.getByRole('textbox', { name: 'API Key' }))
+      .toHaveAttribute('maxlength', String(MAX_AI_MODEL_FIELD_CHARS));
+  });
+
   it('shows a prefix and suffix mask for an existing key by default', () => {
     const props = renderFields();
     const input = screen.getByDisplayValue('sk-1234••••••cdef');

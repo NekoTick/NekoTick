@@ -113,6 +113,8 @@ export function SectionHeader({
   actionDisabled?: boolean;
   onAction?: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
       <div className="flex min-w-0 items-center gap-2">
@@ -121,6 +123,7 @@ export function SectionHeader({
       </div>
       <button
         type="button"
+        aria-label={`${t('settings.ai.benchmarkAll')}: ${label}`}
         disabled={disabled && !busy}
         onClick={() => {
           void Promise.resolve(onBenchmark()).catch(() => undefined);
@@ -194,7 +197,10 @@ export function ModelRow({
 
   if (onClick) {
     return (
-      <div role="button" tabIndex={0} onClick={onClick} onKeyDown={(e) => {
+      <div role="button" tabIndex={0} aria-pressed={selected} onClick={onClick} onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) {
+          return;
+        }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onClick();
@@ -223,12 +229,14 @@ export function ModelSearchInput({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={t('settings.ai.filterModels')}
+      aria-label={t('settings.ai.filterModels')}
       leading={<Icon name="common.search" size="sm" className="text-[var(--vlaina-sidebar-notes-text-soft)]" />}
       inputClassName={cn(providerInputClassName, 'pl-11', value && 'pr-20')}
       shellClassName={providerInputShellClassName}
       trailing={value ? (
         <button
           type="button"
+          aria-label={t('common.close')}
           onClick={() => onChange('')}
           className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--vlaina-sidebar-notes-text-soft)] transition-colors hover:bg-[var(--vlaina-hover)] hover:text-[var(--vlaina-sidebar-notes-text)]"
         >

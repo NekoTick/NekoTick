@@ -14,9 +14,9 @@ describe('handleEditorImageFiles', () => {
             return tr;
         });
         const replaceSelectionWith = vi.fn(function () {
-            return { scrollIntoView, docChanged: true };
+            return tr;
         });
-        const tr = { replaceSelectionWith };
+        const tr = { docChanged: true, replaceSelectionWith, scrollIntoView };
         const dispatch = vi.fn();
         const create = vi.fn(() => ({ type: 'image-node' }));
         const uploadAsset = vi.fn().mockResolvedValue({
@@ -54,9 +54,9 @@ describe('handleEditorImageFiles', () => {
             return tr;
         });
         const replaceSelectionWith = vi.fn(function () {
-            return { scrollIntoView, docChanged: true };
+            return tr;
         });
-        const tr = { replaceSelectionWith };
+        const tr = { docChanged: true, replaceSelectionWith, scrollIntoView };
         const dispatch = vi.fn();
         const create = vi.fn(() => ({ type: 'image-node' }));
         const uploadAsset = vi.fn().mockReturnValue(new Promise((resolve) => {
@@ -104,9 +104,9 @@ describe('handleEditorImageFiles', () => {
             return tr;
         });
         const replaceSelectionWith = vi.fn(function () {
-            return { scrollIntoView, docChanged: true };
+            return tr;
         });
-        const tr = { replaceSelectionWith };
+        const tr = { docChanged: true, replaceSelectionWith, scrollIntoView };
         const dispatch = vi.fn();
         const create = vi.fn(() => ({ type: 'image-node' }));
         const uploadAsset = vi.fn().mockReturnValue(new Promise((resolve) => {
@@ -171,9 +171,9 @@ describe('handleEditorImageFiles', () => {
             return tr;
         });
         const replaceSelectionWith = vi.fn(function () {
-            return { scrollIntoView, docChanged: true };
+            return tr;
         });
-        const tr = { replaceSelectionWith };
+        const tr = { docChanged: true, replaceSelectionWith, scrollIntoView };
         const dispatch = vi.fn();
         const create = vi.fn(() => ({ type: 'image-node' }));
         const uploadAsset = vi.fn()
@@ -214,9 +214,9 @@ describe('handleEditorImageFiles', () => {
             return tr;
         });
         const replaceSelectionWith = vi.fn(function () {
-            return { scrollIntoView, docChanged: true };
+            return tr;
         });
-        const tr = { replaceSelectionWith };
+        const tr = { docChanged: true, replaceSelectionWith, scrollIntoView };
         const dispatch = vi.fn();
         const create = vi.fn(() => ({ type: 'image-node' }));
         const uploadAsset = vi.fn().mockResolvedValue({
@@ -253,9 +253,9 @@ describe('handleEditorImageFiles', () => {
             return tr;
         });
         const replaceSelectionWith = vi.fn(function () {
-            return { scrollIntoView, docChanged: true };
+            return tr;
         });
-        const tr = { replaceSelectionWith };
+        const tr = { docChanged: true, replaceSelectionWith, scrollIntoView };
         const dispatch = vi.fn();
         const create = vi.fn(() => ({ type: 'image-node' }));
         const uploadAsset = vi.fn().mockResolvedValue({

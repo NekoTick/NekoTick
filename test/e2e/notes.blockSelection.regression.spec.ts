@@ -1775,7 +1775,7 @@ test.describe("notes block selection regressions", () => {
           selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
         };
       }, EDITOR_SELECTOR)).toMatchObject({
-        active: true,
+        active: false,
         large: true,
       });
 
@@ -2141,7 +2141,7 @@ test.describe("notes block selection regressions", () => {
           selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
         };
       }, EDITOR_SELECTOR)).toMatchObject({
-          active: true,
+          active: false,
           large: true,
       });
 
@@ -2311,7 +2311,7 @@ test.describe("notes block selection regressions", () => {
           selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
         };
       }, EDITOR_SELECTOR)).toMatchObject({
-        active: true,
+        active: false,
         large: true,
       });
 
@@ -2604,6 +2604,9 @@ test.describe("notes block selection regressions", () => {
 
         const selected = selectedElements[0];
         const selectedStyle = getComputedStyle(selected);
+        const strong = Array.from(editor.querySelectorAll<HTMLElement>('strong'))
+          .find((element) => element.textContent?.includes('zsh + oh-my-zsh')) ?? null;
+        const strongStyle = strong ? getComputedStyle(strong) : null;
         const after = getComputedStyle(selected, '::after');
         return {
           textClips: nodeRects.map((rect) => ({
@@ -2618,6 +2621,8 @@ test.describe("notes block selection regressions", () => {
           selectedClassName: selected.className,
           selectedColor: selectedStyle.color,
           selectedTextFillColor: selectedStyle.webkitTextFillColor,
+          strongColor: strongStyle?.color ?? null,
+          strongTextFillColor: strongStyle?.webkitTextFillColor ?? null,
           afterBackground: after.backgroundColor,
           afterContent: after.content,
           afterDisplay: after.display,
@@ -2627,18 +2632,10 @@ test.describe("notes block selection regressions", () => {
       });
 
       expect(visibility, 'selected block visibility diagnostics').not.toBeNull();
-      expect(visibility!.nodeRects, JSON.stringify(visibility, null, 2)).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            text: expect.stringContaining('现在来安装'),
-            textFillColor: 'rgb(180, 35, 24)',
-          }),
-          expect.objectContaining({
-            text: expect.stringContaining('zsh + oh-my-zsh'),
-            textFillColor: 'rgb(180, 35, 24)',
-          }),
-        ]),
-      );
+      expect(visibility, JSON.stringify(visibility, null, 2)).toMatchObject({
+        strongColor: 'rgb(180, 35, 24)',
+        strongTextFillColor: 'rgb(180, 35, 24)',
+      });
       expect(
         visibility!.nodeRects.some((rect) => (
           rect.text.includes('现在来安装') &&

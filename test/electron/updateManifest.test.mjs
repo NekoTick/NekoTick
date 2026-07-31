@@ -24,12 +24,12 @@ describe('electron update manifest helpers', () => {
       published_at: '2026-06-24T00:00:00.000Z',
       assets: [
         {
-          name: 'vlaina-1.2.3-arm64.AppImage',
-          browser_download_url: 'https://github.com/vladelaina/vlaina/releases/download/v1.2.3/arm64.AppImage',
+          name: 'vlaina-1.2.3-linux-arm64.AppImage',
+          browser_download_url: 'https://github.com/vladelaina/vlaina/releases/download/v1.2.3/vlaina-1.2.3-linux-arm64.AppImage',
         },
         {
-          name: 'vlaina-1.2.3-x86_64.AppImage',
-          browser_download_url: 'https://github.com/vladelaina/vlaina/releases/download/v1.2.3/x86_64.AppImage',
+          name: 'vlaina-1.2.3-linux-x86_64.AppImage',
+          browser_download_url: 'https://github.com/vladelaina/vlaina/releases/download/v1.2.3/vlaina-1.2.3-linux-x86_64.AppImage',
           digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         },
       ],
@@ -39,9 +39,9 @@ describe('electron update manifest helpers', () => {
       arch: 'x64',
     })).toEqual({
       latestVersion: '1.2.3',
-      downloadUrl: 'https://github.com/vladelaina/vlaina/releases/download/v1.2.3/x86_64.AppImage',
+      downloadUrl: 'https://github.com/vladelaina/vlaina/releases/download/v1.2.3/vlaina-1.2.3-linux-x86_64.AppImage',
       releaseUrl: 'https://github.com/vladelaina/vlaina/releases/tag/v1.2.3',
-      platformAssetName: 'vlaina-1.2.3-x86_64.AppImage',
+      platformAssetName: 'vlaina-1.2.3-linux-x86_64.AppImage',
       platformAssetSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       hasPlatformAsset: true,
       releaseNotes: 'Release notes',
@@ -125,7 +125,7 @@ describe('electron update manifest helpers', () => {
   it('does not select a known wrong-architecture platform asset', () => {
     const assets = normalizeReleaseAssets([
       {
-        name: 'vlaina-1.2.3-arm64.AppImage',
+        name: 'vlaina-1.2.3-linux-arm64.AppImage',
         browser_download_url: 'https://example.com/arm64.AppImage',
       },
     ]);
@@ -133,13 +133,54 @@ describe('electron update manifest helpers', () => {
     expect(selectCurrentPlatformAsset(assets, { platform: 'linux', arch: 'x64' })).toBeNull();
   });
 
+  it('does not select unrelated, wrong-platform, or wrong-version release assets', () => {
+    const releaseUrl = 'https://github.com/vladelaina/vlaina/releases/tag/v1.2.3';
+    expect(normalizeUpdateManifest({
+      version: '1.2.3',
+      downloadUrl: releaseUrl,
+      assets: [
+        {
+          name: 'other-1.2.3-windows-x64-setup.exe',
+          browser_download_url: 'https://example.com/other-1.2.3-windows-x64-setup.exe',
+        },
+        {
+          name: 'vlaina-1.2.2-windows-x64-setup.exe',
+          browser_download_url: 'https://example.com/vlaina-1.2.2-windows-x64-setup.exe',
+        },
+        {
+          name: 'vlaina-1.2.3-linux-x64-setup.exe',
+          browser_download_url: 'https://example.com/vlaina-1.2.3-linux-x64-setup.exe',
+        },
+      ],
+    }, {
+      defaultDownloadUrl: releaseUrl,
+      platform: 'win32',
+      arch: 'x64',
+    })).toMatchObject({
+      downloadUrl: releaseUrl,
+      platformAssetName: '',
+      hasPlatformAsset: false,
+    });
+  });
+
+  it('rejects malformed release versions', () => {
+    expect(() => normalizeUpdateManifest({
+      version: 'next-release',
+      downloadUrl: 'https://example.com/releases/latest',
+    }, {
+      defaultDownloadUrl: 'https://example.com/releases/latest',
+      platform: 'linux',
+      arch: 'x64',
+    })).toThrow('latest version is invalid');
+  });
+
   it('ignores malformed release assets without failing the whole update check', () => {
     expect(normalizeUpdateManifest({
       version: '1.2.3',
       downloadUrl: 'https://example.com/releases/latest',
       assets: [
-        { name: 'vlaina-1.2.3-x64.AppImage', browser_download_url: 'file:///tmp/app.AppImage' },
-        { name: 'vlaina-1.2.3-x64.AppImage', browser_download_url: 'https://example.com/app.AppImage' },
+        { name: 'vlaina-1.2.3-linux-x64.AppImage', browser_download_url: 'file:///tmp/app.AppImage' },
+        { name: 'vlaina-1.2.3-linux-x64.AppImage', browser_download_url: 'https://example.com/app.AppImage' },
       ],
     }, {
       defaultDownloadUrl: 'https://example.com/releases/latest',
@@ -154,7 +195,7 @@ describe('electron update manifest helpers', () => {
       downloadUrl: 'https://example.com/releases/latest',
       assets: [
         {
-          name: 'vlaina-1.2.3-x64.AppImage',
+          name: 'vlaina-1.2.3-linux-x64.AppImage',
           downloadUrl: 'https://example.com/app.AppImage',
           sha256: 'SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
         },

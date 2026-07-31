@@ -92,6 +92,7 @@ vi.mock('@/lib/i18n', () => ({
   useI18n: () => ({
     t: (key: string) => ({
       'common.close': 'Close',
+      'account.settings': 'Settings',
       'settings.general': 'General',
       'settings.tabs.markdown': 'Markdown',
       'settings.tabs.ai': 'AI',
@@ -138,6 +139,20 @@ describe('SettingsModal', () => {
     cleanup();
     clearCachedDesktopUpdateInfo();
     vi.clearAllMocks();
+  });
+
+  it('names the dialog and exposes the active settings section', () => {
+    render(
+      <SettingsModal
+        open
+        communitySettings={communitySettings}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Markdown' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'AI' })).not.toHaveAttribute('aria-current');
   });
 
   it('hides the native Windows titlebar overlay while settings is open', async () => {

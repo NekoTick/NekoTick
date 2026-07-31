@@ -532,6 +532,16 @@ describe('notes metadata storage', () => {
     );
   });
 
+  it('propagates workspace state write failures to the persistence coordinator', async () => {
+    adapter.writeFile.mockRejectedValueOnce(new Error('Workspace disk unavailable'));
+
+    await expect(saveWorkspaceState('/notes-root-a', {
+      currentNotePath: 'alpha.md',
+      expandedFolders: ['docs'],
+      fileTreeSortMode: 'updated-desc',
+    })).rejects.toThrow('Workspace disk unavailable');
+  });
+
   it('overwrites expanded workspace folders when saving a current snapshot', async () => {
     const workspaceFile = `/app/.vlaina/notes/notes-roots/${getNotesRootStorageKey('/notes-root-a')}/workspace.json`;
 

@@ -3,6 +3,10 @@ import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import {
+    preventImageClipboardTextPaste,
+    preventImageDataTransferTextDrop,
+} from '@/lib/clipboardImagePayload';
 
 interface ImageCaptionProps {
     originalAlt: string;
@@ -141,6 +145,8 @@ export const ImageCaption: React.FC<ImageCaptionProps> = ({
                         onSubmit();
                     }}
                     onKeyDown={handleKeyDown}
+                    onPaste={preventImageClipboardTextPaste}
+                    onDrop={preventImageDataTransferTextDrop}
                     onKeyUp={stopPropagation}
                     onKeyPress={stopPropagation}
                     onMouseDown={stopPropagation}

@@ -147,6 +147,25 @@ function hasDescendantOfType(node: ProseNode, typeName: string): boolean {
   return found;
 }
 
+function findBlockContainingNodeType(view: EditorView, typeName: string): BlockRange {
+  const block = collectSelectableBlockRanges(view.state.doc).find((range) => {
+    const content = view.state.doc.slice(range.from, range.to).content;
+    let found = false;
+    content.descendants((node: ProseNode) => {
+      if (node.type.name === typeName) {
+        found = true;
+        return false;
+      }
+      return true;
+    });
+    return found;
+  });
+  if (!block) {
+    throw new Error(`Expected selectable block containing ${typeName}`);
+  }
+  return block;
+}
+
 describe('applyBlockMove content integrity', () => {
   it('reorders top-level paragraphs without duplicating or dropping content', async () => {
     const markdown = 'A\n\nB\n\nC';
@@ -232,6 +251,81 @@ describe('applyBlockMove content integrity', () => {
     expect(view.state.selection.empty).toBe(true);
     expect(view.state.selection.$from.parent.textContent).toBe('B');
     expect(view.state.selection.$from.parentOffset).toBe(1);
+
+    await editor.destroy();
+  });
+
+  it('places the cursor at the moved paragraph tail when moving into text', async () => {
+    const editor = await createEditor('Moved\n\nTarget suffix');
+    const view = editor.ctx.get(editorViewCtx);
+    const blocks = collectSelectableBlockRanges(view.state.doc);
+    const target = findTopLevelBlockByText(view, 'Target suffix');
+
+    expect(applyBlockMove(view, [blocks[0]], target.from + 1 + 'Target '.length)).toBe(true);
+    expect(view.state.selection.$from.parent.textContent).toBe('Moved');
+    expect(view.state.selection.$from.parentOffset).toBe('Moved'.length);
+
+    await editor.destroy();
+  });
+
+  it('keeps typing outside an image moved into the middle of a text paragraph', async () => {
+    const editor = await createEditor([
+      'Before',
+      '',
+      '![Moved image](https://images.example.test/moved.png)',
+      '',
+      'Target suffix',
+    ].join('\n'));
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+    const imageBlock = findBlockContainingNodeType(view, 'image');
+    const target = findTopLevelBlockByText(view, 'Target suffix');
+    const insertPos = target.from + 1 + 'Target '.length;
+
+    expect(applyBlockMove(view, [imageBlock], insertPos)).toBe(true);
+    expect(view.state.selection.$from.parent.type.name).toBe('paragraph');
+    expect(hasDescendantOfType(view.state.selection.$from.parent, 'image')).toBe(false);
+
+    view.dispatch(view.state.tr.insertText('Typed after move'));
+    expect(normalizeMarkdown(serializer(view.state.doc))).toBe([
+      'Before',
+      '',
+      'Target ',
+      '',
+      '![Moved image](https://images.example.test/moved.png)',
+      '',
+      'Typed after movesuffix',
+    ].join('\n'));
+
+    await editor.destroy();
+  });
+
+  it('creates an editable paragraph after an image moved to the document end', async () => {
+    const editor = await createEditor([
+      'Before',
+      '',
+      '![Moved image](https://images.example.test/moved-end.png)',
+      '',
+      'Target',
+    ].join('\n'));
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+    const imageBlock = findBlockContainingNodeType(view, 'image');
+
+    expect(applyBlockMove(view, [imageBlock], view.state.doc.content.size)).toBe(true);
+    expect(view.state.selection.$from.parent.type.name).toBe('paragraph');
+    expect(view.state.selection.$from.parent.childCount).toBe(0);
+
+    view.dispatch(view.state.tr.insertText('Typed after moved image'));
+    expect(normalizeMarkdown(serializer(view.state.doc))).toBe([
+      'Before',
+      '',
+      'Target',
+      '',
+      '![Moved image](https://images.example.test/moved-end.png)',
+      '',
+      'Typed after moved image',
+    ].join('\n'));
 
     await editor.destroy();
   });

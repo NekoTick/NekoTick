@@ -72,6 +72,7 @@ export function SettingsSidebar({
                       <div key={item.id} className="group/chat-sidebar-row flex items-center max-[900px]:shrink-0">
                         <button
                           type="button"
+                          aria-current={isActive ? 'page' : undefined}
                           aria-label={showUpdateIndicator ? `${label} ${updateIndicatorLabel}` : undefined}
                           data-settings-tab={item.id}
                           data-active={isActive ? 'true' : undefined}

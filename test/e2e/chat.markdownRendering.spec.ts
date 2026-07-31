@@ -29,6 +29,7 @@ type ChatMarkdownRenderMetrics = {
   imageComplete: boolean;
   imageRightOverflowPx: number;
   imageWidth: number;
+  inlineCodeHorizontalOverflowPx: number;
   inlineCodeMaxWidth: number;
   inlineCodeRightOverflowPx: number;
   mermaidBlockCount: number;
@@ -59,7 +60,7 @@ function createWideMarkdownTable(): string {
 }
 
 function createRichMarkdown(): string {
-  const longInlineCode = `CHAT_INLINE_CODE_${'abcdef0123456789'.repeat(18)}`;
+  const longInlineCode = `https://example.com/${'abcdef0123456789'.repeat(40)}.webp`;
   const longCodeLine = `const providerToken = "${'chat-code-line-segment-'.repeat(28)}";`;
   const longLink = `https://example.com/${'chat-rendering-path/'.repeat(24)}final`;
 
@@ -208,6 +209,7 @@ async function collectChatMarkdownRenderMetrics(page: Page): Promise<ChatMarkdow
         imageComplete: false,
         imageRightOverflowPx: 0,
         imageWidth: 0,
+        inlineCodeHorizontalOverflowPx: 0,
         inlineCodeMaxWidth: 0,
         inlineCodeRightOverflowPx: 0,
         mermaidBlockCount: 0,
@@ -276,6 +278,10 @@ async function collectChatMarkdownRenderMetrics(page: Page): Promise<ChatMarkdow
       (max, element) => Math.max(max, rightOverflow(element)),
       0,
     );
+    const maxInlineCodeHorizontalOverflow = inlineCodes.reduce(
+      (max, element) => Math.max(max, element.scrollWidth - element.clientWidth),
+      0,
+    );
     const maxInlineCodeWidth = Math.max(0, ...inlineCodeRects.map((rect) => rect.width));
     const firstTableWrapper = tableWrappers[0] ?? null;
     const headingFontSizePx = heading
@@ -298,6 +304,7 @@ async function collectChatMarkdownRenderMetrics(page: Page): Promise<ChatMarkdow
       imageComplete: Boolean(image && image.complete && image.naturalWidth > 0),
       imageRightOverflowPx: rightOverflow(image),
       imageWidth: image?.getBoundingClientRect().width ?? 0,
+      inlineCodeHorizontalOverflowPx: maxInlineCodeHorizontalOverflow,
       inlineCodeMaxWidth: maxInlineCodeWidth,
       inlineCodeRightOverflowPx: maxInlineCodeRightOverflow,
       mermaidBlockCount: mermaidBlocks.length,
@@ -331,6 +338,7 @@ function expectStableMarkdownLayout(metrics: ChatMarkdownRenderMetrics) {
   expect(metrics.codeBlockBodyHorizontalScroll).toBe(true);
   expect(metrics.codeBlockBodyRectRightOverflowPx).toBeLessThanOrEqual(2);
   expect(metrics.inlineCodeMaxWidth).toBeLessThanOrEqual(metrics.surfaceWidth + 2);
+  expect(metrics.inlineCodeHorizontalOverflowPx).toBeLessThanOrEqual(2);
   expect(metrics.inlineCodeRightOverflowPx).toBeLessThanOrEqual(2);
   expect(metrics.imageComplete).toBe(true);
   expect(metrics.imageWidth).toBeGreaterThan(0);

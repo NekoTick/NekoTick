@@ -25,6 +25,7 @@ import {
 import { normalizeLeadingFrontmatterMarkdown } from './plugins/frontmatter/frontmatterMarkdown';
 import { isEditorMarkdownEquivalentToNoteContent } from './milkdownEditorMarkdownReplacement';
 import { wikiLinkExpansionPluginKey } from './plugins/links/wiki-link/wikiLinkExpansionPlugin';
+import { serializeEditorMarkdownSnapshot } from './utils/pendingMarkdownUpdate';
 
 function typeText(view: EditorView, input: string): void {
   for (const text of input) {
@@ -88,6 +89,31 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('preserves user-authored comments that share editor placeholder names', async () => {
+    const markdown = [
+      '# User comments',
+      '<!--vlaina-markdown-blank-line-->',
+      '<!--vlaina-markdown-tight-heading-->',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
+      '<!--vlaina-user-authored-internal-comment:literal-->',
+      '$$',
+      '<!--vlaina-markdown-blank-line-->',
+      '$$',
+      '- Parent',
+      '  - $$',
+      '    <!--vlaina-markdown-tight-heading-->',
+      '    $$',
+      '',
+      'After comments.',
+    ].join('\n');
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown)).toBe(markdown);
+    await destroyEditor(editor);
+  });
+
   it('keeps the reported mixed-list note equivalent after serialization', async () => {
     const markdown = [
       '1. 国内的==下载蹭小青==蛙',

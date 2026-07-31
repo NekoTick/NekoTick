@@ -27,6 +27,7 @@ import {
   getCompositionSelectionAppend,
   getSelectedCompositionText,
   insertCompositionAppendText,
+  replaceCompositionStartSelectionWithCommittedText,
   splitBlockAfterCommittedCompositionSelection,
 } from './pendingMarkdownCompositionSelection';
 
@@ -163,6 +164,21 @@ export function usePendingMarkdownUserInputMarker({
         pendingMarkdownApplyTimeoutRef.current = null;
         pendingMarkdownRef.current = null;
       };
+      const finishCommittedCompositionSession = () => {
+        compositionSessionRef.current += 1;
+        isCompositionActiveRef.current = false;
+        compositionStartSelectionRef.current = null;
+        deferredCompositionMarkdownRef.current = null;
+        deferredCompositionUserInputVersionRef.current = 0;
+        allowDeferredCompositionMarkdownWithoutCommitRef.current = false;
+        if (compositionSettleTimeoutRef.current !== null) {
+          clearTimeout(compositionSettleTimeoutRef.current);
+          compositionSettleTimeoutRef.current = null;
+        }
+        hasCompositionEndedRef.current = false;
+        lastCompositionCommitAtRef.current = 0;
+        clearCompositionAppendGuard();
+      };
       const now = getCompositionClockMs();
       const activeAppendPosition = compositionAppendPositionRef.current !== null &&
         now - lastCompositionAppendAtRef.current <= COMPOSITION_APPEND_GUARD_MS
@@ -211,6 +227,7 @@ export function usePendingMarkdownUserInputMarker({
       ) {
         clearPendingApplyForFreshInput();
         markUserInputVersion();
+        finishCommittedCompositionSession();
         compositionSelectionSplitPosition = splitBlockAfterCommittedCompositionSelection(
           view,
           event,
@@ -231,8 +248,31 @@ export function usePendingMarkdownUserInputMarker({
         hasCompositionEndedRef.current ||
         activeAppendPosition !== null ||
         lastCompositionAppendPositionRef.current !== null;
+      const isPendingCompositionTextCommit = isCompositionActiveRef.current &&
+        !hasCompositionEndedRef.current &&
+        isInputEvent(event) &&
+        !event.isComposing &&
+        event.inputType === 'insertText';
+      if (isPendingCompositionTextCommit && event.cancelable) {
+        const committedText = getEventData(event);
+        if (committedText) {
+          clearPendingApplyForFreshInput();
+          markUserInputVersion();
+          latestCompositionDataRef.current = committedText;
+          if (replaceCompositionStartSelectionWithCommittedText(
+            view,
+            compositionStartSelectionRef.current,
+            committedText,
+          )) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return;
+          }
+        }
+      }
       if (
         !isCompositionEvent &&
+        !isPendingCompositionTextCommit &&
         shouldRepairCompositionSelection &&
         !isCompositionSelectionRepairSuppressedRef.current
       ) {
@@ -264,6 +304,13 @@ export function usePendingMarkdownUserInputMarker({
       }
       if (shouldClearAppendGuard) {
         clearCompositionAppendGuard();
+      }
+      if (
+        !isCompositionEvent &&
+        isContentEditingEvent &&
+        hasCompositionEndedRef.current
+      ) {
+        finishCommittedCompositionSession();
       }
 
       if (isInputEvent(event)) {
@@ -303,5 +350,5 @@ export function usePendingMarkdownUserInputMarker({
       }
       markUserInputVersion();
     };
-  }, [clearCompositionAppendGuard]);
+  }, [clearCompositionAppendGuard, currentNotePath]);
 }

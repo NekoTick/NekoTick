@@ -40,6 +40,9 @@ export function useModalBehavior({
       if (e.isComposing) {
         return;
       }
+      if (e.defaultPrevented) {
+        return;
+      }
 
       const targetDialog = e.target instanceof Element
         ? e.target.closest('[role="dialog"]')

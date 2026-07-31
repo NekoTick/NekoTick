@@ -139,6 +139,31 @@ describe('SidebarInlineRenameInput', () => {
     expect(onValueChange).toHaveBeenCalledWith('Alpha Beta Gamma');
   });
 
+  it('does not turn image clipboard companion text into a file or folder name', () => {
+    const onValueChange = vi.fn();
+    render(
+      <SidebarInlineRenameInput
+        value="Example"
+        onValueChange={onValueChange}
+        onSubmit={() => {}}
+        onCancel={() => {}}
+        aria-label="Rename"
+      />,
+    );
+    const input = screen.getByLabelText('Rename');
+    const file = new File(['image'], 'rename.png', { type: 'image/png' });
+
+    expect(fireEvent.paste(input, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    })).toBe(false);
+    expect(onValueChange).not.toHaveBeenCalled();
+    expect(input).toHaveValue('Example');
+  });
+
   it('stops click and mouse down propagation', () => {
     const onParentClick = vi.fn();
     const onParentMouseDown = vi.fn();

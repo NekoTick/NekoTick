@@ -9,6 +9,7 @@ const hoisted = vi.hoisted(() => ({
   uploadAsset: vi.fn(),
   assetList: [] as Array<{ filename: string }>,
   isLoadingAssets: false,
+  assetLoadError: null as string | null,
 }));
 
 const supportedImageFilenames = [
@@ -27,6 +28,7 @@ vi.mock('@/stores/notes/useNotesStore', () => ({
   useNotesStore: (selector: (state: any) => unknown) => selector({
     assetList: hoisted.assetList,
     isLoadingAssets: hoisted.isLoadingAssets,
+    assetLoadError: hoisted.assetLoadError,
     loadAssets: hoisted.loadAssets,
     uploadAsset: hoisted.uploadAsset,
   }),
@@ -82,6 +84,7 @@ describe('CoverPicker', () => {
     hoisted.loadAssets.mockReturnValue(new Promise(() => undefined));
     hoisted.assetList = [];
     hoisted.isLoadingAssets = false;
+    hoisted.assetLoadError = null;
   });
 
   it('uses the shared composer pill surface for the picker shell', () => {
@@ -348,6 +351,69 @@ describe('CoverPicker', () => {
     expect(pasteEvent.defaultPrevented).toBe(true);
   });
 
+  it('uploads a pasted image exposed only through clipboard files', async () => {
+    const file = new File(['image'], 'files-only.png', { type: 'image/png' });
+    hoisted.uploadAsset.mockResolvedValue({
+      success: true,
+      path: './assets/files-only.png',
+      isDuplicate: false,
+    });
+    const onSelect = vi.fn();
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        notesRootPath="/notesRoot"
+        currentNotePath="note.md"
+      />,
+    );
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+        files: [file],
+        getData: () => 'https://example.test/companion',
+      },
+    });
+
+    await act(async () => {
+      document.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    expect(hoisted.uploadAsset).toHaveBeenCalledTimes(1);
+    expect(hoisted.uploadAsset).toHaveBeenCalledWith(file, 'note.md');
+    expect(onSelect).toHaveBeenCalledWith('./assets/files-only.png');
+    expect(pasteEvent.defaultPrevented).toBe(true);
+  });
+
+  it('does not consume a paste event already handled by the note editor', () => {
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        notesRootPath="/notesRoot"
+        currentNotePath="note.md"
+      />,
+    );
+    const file = new File(['image'], 'handled.png', { type: 'image/png' });
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => '',
+      },
+    });
+    pasteEvent.preventDefault();
+
+    document.dispatchEvent(pasteEvent);
+
+    expect(hoisted.uploadAsset).not.toHaveBeenCalled();
+  });
+
   it('starts asset reload when the picker opens and uses the latest note scope', async () => {
     hoisted.assetList = [{ filename: 'a.png' }];
 
@@ -403,6 +469,67 @@ describe('CoverPicker', () => {
       await Promise.resolve();
     });
     await waitFor(() => expect(screen.getByTestId('asset-grid')).toBeInTheDocument());
+  });
+
+  it('keeps existing assets visible and lets the user retry a failed library refresh', async () => {
+    hoisted.loadAssets.mockResolvedValue(undefined);
+    hoisted.assetList = [{ filename: 'existing.png' }];
+    hoisted.assetLoadError = 'Library read failed';
+
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={vi.fn()}
+        notesRootPath="/notesRoot"
+        currentNotePath="one.md"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('asset-grid')).toBeInTheDocument());
+    expect(screen.getByRole('alert')).toHaveTextContent('Library read failed');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(hoisted.loadAssets).toHaveBeenCalledTimes(2));
+  });
+
+  it('reports a failed pasted image upload without selecting a cover', async () => {
+    hoisted.loadAssets.mockResolvedValue(undefined);
+    hoisted.uploadAsset.mockResolvedValue({
+      success: false,
+      path: null,
+      isDuplicate: false,
+      error: 'Disk write failed',
+    });
+    const onSelect = vi.fn();
+    const file = new File(['image'], 'failed.png', { type: 'image/png' });
+
+    render(
+      <CoverPicker
+        isOpen
+        onClose={vi.fn()}
+        onSelect={onSelect}
+        notesRootPath="/notesRoot"
+        currentNotePath="one.md"
+      />,
+    );
+
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', {
+      value: {
+        items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }],
+        files: [file],
+        getData: () => '',
+      },
+    });
+
+    await act(async () => {
+      document.dispatchEvent(pasteEvent);
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Disk write failed');
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it('does not refetch only because the asset count changes while open', async () => {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Cropper from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import { UploadTabLibrary } from './UploadTabLibrary';
 import { UploadFormatBadge } from './UploadFormatBadge';
 import { UploadSaveSpinner } from './UploadSaveSpinner';
 import { createUploadIconFile } from './uploadIconFile';
+import { extractImageFilesFromClipboardData } from '@/lib/assets/imageClipboardFiles';
 
 export interface CustomIcon {
     id: string;
@@ -59,20 +60,39 @@ export function UploadTab({
         position: SidebarMenuPosition;
     } | null>(null);
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
-        if (acceptedFiles && acceptedFiles.length > 0) {
-            const file = acceptedFiles[0];
-            readUploadPreviewDataUrl(file)
-                .then((dataUrl) => {
-                    setOriginalFile(dataUrl ? file : null);
-                    setImageSrc(dataUrl);
-                })
-                .catch(() => {
-                    setOriginalFile(null);
-                    setImageSrc(null);
-                });
-        }
+    const handleImageFile = useCallback((file: File | undefined) => {
+        if (!file) return;
+
+        void readUploadPreviewDataUrl(file)
+            .then((dataUrl) => {
+                setOriginalFile(dataUrl ? file : null);
+                setImageSrc(dataUrl);
+            })
+            .catch(() => {
+                setOriginalFile(null);
+                setImageSrc(null);
+            });
     }, []);
+
+    const onDrop = useCallback((acceptedFiles: File[]) => {
+        handleImageFile(acceptedFiles[0]);
+    }, [handleImageFile]);
+
+    useEffect(() => {
+        const handlePaste = (event: ClipboardEvent) => {
+            if (event.defaultPrevented) return;
+
+            const file = extractImageFilesFromClipboardData(event.clipboardData)[0];
+            if (!file) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            handleImageFile(file);
+        };
+
+        document.addEventListener('paste', handlePaste, true);
+        return () => document.removeEventListener('paste', handlePaste, true);
+    }, [handleImageFile]);
 
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         onDrop,

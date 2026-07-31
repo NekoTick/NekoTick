@@ -5,8 +5,56 @@ import {
 } from './markdownSerializationUtils';
 import { normalizeInternalMarkdownBlankLineComments } from './markdownSerializationInternalBlankComments';
 import { LIST_GAP_SENTINEL } from './markdownSerializationShared';
+import { preserveMarkdownBlankLinesForEditor } from './markdownEditorBlankLines';
 
 describe('markdown internal artifact protection', () => {
+  it.each([
+    '<!--vlaina-markdown-blank-line-->',
+    '<!--VLAINA-MARKDOWN-TIGHT-HEADING-->',
+    '<!--vlaina-rendered-html-boundary-blank-line-->',
+    '> <!--vlaina-markdown-blank-line-->',
+  ])('preserves the user-authored standalone comment %s in note state', (comment) => {
+    const markdown = ['Before', comment, 'After'].join('\n');
+
+    expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(markdown);
+  });
+
+  it('round-trips user-authored internal-like comments through editor placeholders', () => {
+    const markdown = [
+      'Before',
+      '<!--vlaina-markdown-blank-line-->',
+      '<!--vlaina-markdown-tight-heading-->',
+      '<!--vlaina-rendered-html-boundary-blank-line-->',
+      '<!--vlaina-user-authored-internal-comment:literal-->',
+      'After',
+    ].join('\n');
+
+    expect(
+      normalizeSerializedMarkdownDocument(preserveMarkdownBlankLinesForEditor(markdown))
+    ).toBe(markdown);
+  });
+
+  it.each([
+    ['dollar math', ['$$', '<!--vlaina-markdown-blank-line-->', '$$'].join('\n')],
+    ['bracket math', ['\\[', '<!--vlaina-markdown-tight-heading-->', '\\]'].join('\n')],
+    ['blockquote math', [
+      '> $$',
+      '> <!--vlaina-rendered-html-boundary-blank-line-->',
+      '> $$',
+    ].join('\n')],
+    ['nested-list math', [
+      '- Parent',
+      '  - $$',
+      '    <!--vlaina-markdown-blank-line-->',
+      '    $$',
+    ].join('\n')],
+  ])('preserves a user-authored reserved comment inside %s', (_label, markdown) => {
+    expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(markdown);
+    expect(
+      normalizeSerializedMarkdownDocument(preserveMarkdownBlankLinesForEditor(markdown))
+    ).toBe(markdown);
+  });
+
   it('removes editor blank-line comments outside protected content', () => {
     expect(
       normalizeSerializedMarkdownDocument(['A', '<!--vlaina-markdown-blank-line-->', 'B'].join('\n'))
@@ -75,7 +123,7 @@ describe('markdown internal artifact protection', () => {
     expect(normalizeSerializedMarkdownDocument(serialized)).toBe(expected);
   });
 
-  it('removes editor-generated rendered HTML boundary helper comments', () => {
+  it('removes editor-generated rendered HTML boundary helper comments from serialized editor output', () => {
     const markdown = [
       '<img src="./assets/demo.svg" alt="Demo" />',
       '',
@@ -89,7 +137,7 @@ describe('markdown internal artifact protection', () => {
     ].join('\n');
 
     expect(normalizeSerializedMarkdownDocument(markdown)).toBe(expected);
-    expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(expected);
+    expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(markdown);
   });
 
   it('removes rendered HTML boundary helpers after serializer-escaped closing tags', () => {

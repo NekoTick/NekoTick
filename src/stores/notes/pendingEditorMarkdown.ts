@@ -89,9 +89,19 @@ export function flushPendingEditorMarkdown(notePath: string | null | undefined, 
 export async function savePendingEditorMarkdown(
   notePath: string | null | undefined,
   markdown: string | null,
+  options: { replaceConcurrentContentIfEqualTo?: string } = {},
 ): Promise<boolean> {
   if (!notePath || isDraftNotePath(notePath)) {
     return false;
+  }
+  if (options.replaceConcurrentContentIfEqualTo !== undefined) {
+    const current = useNotesStore.getState();
+    const currentContent = current.currentNote?.path === notePath
+      ? current.currentNote.content
+      : current.noteContentsCache.get(notePath)?.content;
+    if (currentContent !== options.replaceConcurrentContentIfEqualTo) {
+      return false;
+    }
   }
   if (!applyPendingEditorMarkdown(notePath, markdown, { markDirty: false })) {
     return false;
@@ -137,8 +147,12 @@ export async function savePendingEditorMarkdown(
         ? latest.currentNote?.content
         : latest.noteContentsCache.get(notePath)?.content;
     const hasNewerEdit = latestContent !== undefined && latestContent !== content;
+    const replacesExpectedConcurrentContent = hasNewerEdit
+      && options.replaceConcurrentContentIfEqualTo !== undefined
+      && latestContent === options.replaceConcurrentContentIfEqualTo;
+    const keepNewerEdit = hasNewerEdit && !replacesExpectedConcurrentContent;
     const clearsTargetSaveError = latest.saveErrorPath === notePath;
-    const nextContent = hasNewerEdit ? latestContent : saved.content;
+    const nextContent = keepNewerEdit ? latestContent : saved.content;
     const metadataBase = latest.noteMetadata ?? noteMetadata ?? createEmptyMetadataFile();
     const nextMetadata = setNoteEntry(
       metadataBase,
@@ -168,7 +182,7 @@ export async function savePendingEditorMarkdown(
       currentNoteRevision: isCurrentNote && nextContent !== latest.currentNote?.content
         ? latest.currentNoteRevision + 1
         : latest.currentNoteRevision,
-      isDirty: isCurrentNote ? hasNewerEdit : latest.isDirty,
+      isDirty: isCurrentNote ? keepNewerEdit : latest.isDirty,
       noteMetadata: nextMetadata,
       rootFolder: nextRootFolder,
       noteContentsCache: setCachedNoteContent(
@@ -176,17 +190,17 @@ export async function savePendingEditorMarkdown(
         notePath,
         nextContent,
         saved.modifiedAt,
-        hasNewerEdit
+        keepNewerEdit
           ? { baselineContent: saved.content, size: saved.size }
           : { updateBaseline: true, size: saved.size },
       ),
-      openTabs: setNoteTabDirtyState(latest.openTabs, notePath, hasNewerEdit),
+      openTabs: setNoteTabDirtyState(latest.openTabs, notePath, keepNewerEdit),
       error: clearsTargetSaveError ? null : latest.error,
       saveError: clearsTargetSaveError ? null : latest.saveError,
       saveErrorPath: clearsTargetSaveError ? null : latest.saveErrorPath,
     });
 
-    return !hasNewerEdit;
+    return !keepNewerEdit;
   } catch (error) {
     const latest = useNotesStore.getState();
     useNotesStore.setState({

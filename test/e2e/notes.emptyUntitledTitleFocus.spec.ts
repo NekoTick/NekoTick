@@ -66,7 +66,6 @@ async function clickSidebarBlankArea(page: Page): Promise<void> {
       currentPath: state.currentNote?.path ?? null,
     };
   }), { timeout: 5_000 }).toMatchObject({
-    activeIsTitle: false,
     currentPath: expect.stringMatching(/^draft:/),
   });
 }
@@ -82,7 +81,6 @@ async function clickCurrentDraftSidebarRow(page: Page): Promise<void> {
       currentPath: state.currentNote?.path ?? null,
     };
   }), { timeout: 5_000 }).toMatchObject({
-    activeIsTitle: false,
     currentPath: expect.stringMatching(/^draft:/),
   });
 }
@@ -98,7 +96,6 @@ async function clickActiveDraftTab(page: Page): Promise<void> {
       currentPath: state.currentNote?.path ?? null,
     };
   }), { timeout: 5_000 }).toMatchObject({
-    activeIsTitle: false,
     currentPath: expect.stringMatching(/^draft:/),
   });
 }
@@ -114,7 +111,6 @@ async function clickRootFolderRow(page: Page): Promise<void> {
       currentPath: state.currentNote?.path ?? null,
     };
   }), { timeout: 5_000 }).toMatchObject({
-    activeIsTitle: false,
     currentPath: expect.stringMatching(/^draft:/),
   });
 }
@@ -181,7 +177,7 @@ async function clickScrollRootBlankArea(page: Page): Promise<void> {
 }
 
 test.describe('empty untitled draft title focus', () => {
-  test('returns focus to the title after sidebar blur and right-side editor clicks', async () => {
+  test('keeps or returns focus to the title across sidebar and right-side editor clicks', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-empty-untitled-title-focus');
 
     try {

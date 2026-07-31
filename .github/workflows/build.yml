@@ -680,6 +680,7 @@ jobs:
       - name: Download installer artifacts
         uses: actions/download-artifact@v7
         with:
+          pattern: vlaina-*-run-${{ github.run_number }}
           path: release-artifacts
           merge-multiple: true
 
@@ -690,7 +691,6 @@ jobs:
           RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
         shell: bash
         run: |
-          find release-artifacts -type f -name '*.msix' -delete
           shopt -s nullglob
           artifacts=(release-artifacts/*)
 
