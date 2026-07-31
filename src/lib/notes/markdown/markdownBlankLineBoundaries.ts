@@ -3,6 +3,7 @@ import {
   parseMarkdownContainerFenceLine,
   parseMarkdownContainerLinePrefix,
 } from './markdownFenceProtectedLines';
+import { parseStandaloneMathBlockLine } from './markdownSerializationMathFences';
 
 const LIST_ITEM_MARKER_PATTERN =
   /^(\s*(?:>\s*)*)(?:[-+*]|\d+[.)])(?:\s+(?:\[(?: |x|X)\](?:\s+|$))?|$)/;
@@ -22,6 +23,98 @@ const HTML_IMAGE_LINE_PATTERN = /^(?: {0,3})<img(?:\s|\/?>|$)/i;
 const REFERENCE_DEFINITION_PATTERN = /^\s{0,3}\[[^\]]+]:\s+\S+/;
 const FOOTNOTE_DEFINITION_PATTERN = /^\s{0,3}\[\^[^\]]+]:/;
 const DEFINITION_LIST_MARKER_PATTERN = /^\s{0,3}:\s+\S/;
+const ABBREVIATION_DEFINITION_PATTERN = /^\s{0,3}\*\[[^\]]+]:\s+\S/;
+const ATX_HEADING_PATTERN = /^\s{0,3}#{1,6}(?:\s+|$)/;
+const BLOCKQUOTE_PATTERN = /^\s{0,3}>/;
+const DISPLAY_MATH_FENCE_PATTERN = /^\s*(?:\${2,}|\\\[|\\\])\s*$/;
+const FENCED_CODE_PATTERN = /^\s{0,3}(?:`{3,}|~{3,})/;
+const TOC_PATTERN = /^\s*\[TOC\]\s*$/;
+const OBSIDIAN_IMAGE_EMBED_PATTERN = /^\s{0,3}!\[\[[^\]\n]+\]\]\s*$/;
+const HTML_BLOCK_OPEN_PATTERN = /^\s{0,3}(?:<!--|<\?|<![A-Za-z]|<!\[CDATA\[)/i;
+const RAW_TEXT_HTML_BLOCK_BOUNDARY_PATTERN =
+  /^\s{0,3}<(?:script|pre|style|textarea)(?:\s|>)/i;
+const SETEXT_HEADING_UNDERLINE_PATTERN = /^\s{0,3}(?:=+|-+)\s*$/;
+
+type StableParseBoundarySide = 'after-previous' | 'before-next';
+
+function getStableParseBoundarySide(
+  lines: readonly string[],
+  previousIndex: number,
+  nextIndex: number,
+): StableParseBoundarySide | null {
+  const previous = lines[previousIndex] ?? '';
+  const next = lines[nextIndex] ?? '';
+  const previousNeedsParagraphSeparator = isParagraphListItemLine(previous)
+    || isTrailingParagraphBlockquoteContent(previous)
+    || FOOTNOTE_DEFINITION_PATTERN.test(previous)
+    || isTrailingParagraphContainerContent(lines, previousIndex)
+    || isTableRowInTable(lines, previousIndex)
+    || isDefinitionListMarkerLine(previous)
+    || isGeneratedBlockParagraphLine(previous);
+  const previousNeedsTableSeparator = isParagraphListItemLine(previous)
+    || isTrailingParagraphBlockquoteContent(previous)
+    || FOOTNOTE_DEFINITION_PATTERN.test(previous)
+    || isTableRowInTable(lines, previousIndex);
+  if (
+    (
+      previousNeedsParagraphSeparator
+      && isParagraphLikeBoundaryLine(lines, nextIndex)
+    )
+    || (
+      previousNeedsTableSeparator
+      && isTableStartAt(lines, nextIndex)
+    )
+  ) {
+    return 'after-previous';
+  }
+
+  if (
+    BLOCKQUOTE_PATTERN.test(previous)
+    && BLOCKQUOTE_PATTERN.test(next)
+  ) {
+    return 'after-previous';
+  }
+
+  if (RAW_TEXT_HTML_BLOCK_BOUNDARY_PATTERN.test(next)) {
+    return 'before-next';
+  }
+
+  const nextNeedsSeparator = isNonInterruptingListStartLine(next)
+    || isThematicBreakLine(next)
+    || beginsDefinitionListAt(lines, nextIndex)
+    || isGeneratedBlockParagraphLine(next);
+  if (
+    isDefinitionListMarkerLine(previous)
+    && nextNeedsSeparator
+  ) {
+    return 'after-previous';
+  }
+  return isParagraphLikeBoundaryLine(lines, previousIndex)
+    && nextNeedsSeparator
+    ? 'before-next'
+    : null;
+}
+
+export function requiresStableParseBoundary(
+  lines: readonly string[],
+  previousIndex: number,
+  nextIndex: number,
+): boolean {
+  return getStableParseBoundarySide(lines, previousIndex, nextIndex) !== null;
+}
+
+export function isStableParseBoundaryBlankLine(lines: readonly string[], index: number): boolean {
+  if (lines[index]?.trim() !== '') return false;
+
+  const previousIndex = findNearestNonBlankLineIndex(lines, index, -1);
+  const nextIndex = findNearestNonBlankLineIndex(lines, index, 1);
+  if (previousIndex === null || nextIndex === null) return false;
+
+  const side = getStableParseBoundarySide(lines, previousIndex, nextIndex);
+  return side === 'after-previous'
+    ? previousIndex + 1 === index
+    : side === 'before-next' && nextIndex - 1 === index;
+}
 
 export function isListBoundaryBlankLine(lines: readonly string[], index: number): boolean {
   if (lines[index]?.trim() !== '') return false;
@@ -321,6 +414,107 @@ function isFootnoteDefinitionLine(line: string | null): boolean {
 
 function isDefinitionListMarkerLine(line: string | null): boolean {
   return line !== null && DEFINITION_LIST_MARKER_PATTERN.test(line);
+}
+
+function beginsDefinitionListAt(lines: readonly string[], termIndex: number): boolean {
+  if (!isParagraphLikeBoundaryLine(lines, termIndex)) return false;
+  const descriptionIndex = findNearestNonBlankLineIndex(lines, termIndex, 1);
+  return descriptionIndex !== null && isDefinitionListMarkerLine(lines[descriptionIndex] ?? null);
+}
+
+function isGeneratedBlockParagraphLine(line: string): boolean {
+  return TOC_PATTERN.test(line)
+    || isMarkdownImageLine(line)
+    || OBSIDIAN_IMAGE_EMBED_PATTERN.test(line);
+}
+
+function isNonInterruptingListStartLine(line: string): boolean {
+  const match = /^\s{0,3}(?:([-+*])|(\d+)[.)])(?:[ \t]+(.*)|[ \t]*$)/.exec(line);
+  if (!match) return false;
+
+  const content = (match[3] ?? '').trim();
+  return content.length === 0 || (match[2] !== undefined && Number(match[2]) !== 1);
+}
+
+function isParagraphLikeBoundaryLine(lines: readonly string[], index: number): boolean {
+  const line = lines[index] ?? '';
+  const trimmed = line.trim();
+  if (trimmed.length === 0 || /^(?: {2,}|\t)/.test(line)) return false;
+  if (isGeneratedBlockParagraphLine(line)) return true;
+
+  return !ATX_HEADING_PATTERN.test(line)
+    && !isSetextHeadingAt(lines, index)
+    && !BLOCKQUOTE_PATTERN.test(line)
+    && !isDisplayMathBlockLine(line)
+    && !FENCED_CODE_PATTERN.test(line)
+    && !HTML_BLOCK_OPEN_PATTERN.test(line)
+    && !HTML_BLOCK_TAG_PATTERN.test(line)
+    && !REFERENCE_DEFINITION_PATTERN.test(line)
+    && !FOOTNOTE_DEFINITION_PATTERN.test(line)
+    && !ABBREVIATION_DEFINITION_PATTERN.test(line)
+    && !DEFINITION_LIST_MARKER_PATTERN.test(line)
+    && !isListItemLine(line)
+    && !isThematicBreakLine(line)
+    && !isTableRowInTable(lines, index)
+    && !isTableStartAt(lines, index);
+}
+
+function isSetextHeadingAt(lines: readonly string[], index: number): boolean {
+  return SETEXT_HEADING_UNDERLINE_PATTERN.test(lines[index + 1] ?? '');
+}
+
+function isParagraphListItemLine(line: string): boolean {
+  if (!isListItemLine(line)) return false;
+
+  const match = /^(?:\s*(?:>\s*)*)(?:[-+*]|\d+[.)])(?:\s+\[(?: |x|X)\])?\s*(.*)$/.exec(line);
+  const content = match?.[1] ?? '';
+  if (content.length === 0) return true;
+
+  return !ATX_HEADING_PATTERN.test(content)
+    && !isDisplayMathBlockLine(content)
+    && !FENCED_CODE_PATTERN.test(content)
+    && !HTML_BLOCK_OPEN_PATTERN.test(content)
+    && !HTML_BLOCK_TAG_PATTERN.test(content)
+    && !isThematicBreakLine(content);
+}
+
+function isDisplayMathBlockLine(line: string): boolean {
+  return DISPLAY_MATH_FENCE_PATTERN.test(line)
+    || parseStandaloneMathBlockLine(line) !== null;
+}
+
+function isTrailingParagraphBlockquoteContent(line: string): boolean {
+  const container = parseMarkdownContainerLinePrefix(line);
+  if (!container || container.blockquoteDepth === 0) return false;
+
+  const content = line.slice(container.markerStart);
+  if (content.trim().length === 0) return true;
+  if (isGeneratedBlockParagraphLine(content)) return true;
+
+  return !ATX_HEADING_PATTERN.test(content)
+    && !SETEXT_HEADING_UNDERLINE_PATTERN.test(content)
+    && !isDisplayMathBlockLine(content)
+    && !FENCED_CODE_PATTERN.test(content)
+    && !HTML_BLOCK_OPEN_PATTERN.test(content)
+    && !HTML_BLOCK_TAG_PATTERN.test(content)
+    && !REFERENCE_DEFINITION_PATTERN.test(content)
+    && !FOOTNOTE_DEFINITION_PATTERN.test(content)
+    && !ABBREVIATION_DEFINITION_PATTERN.test(content)
+    && !DEFINITION_LIST_MARKER_PATTERN.test(content)
+    && !isThematicBreakLine(content)
+    && !TABLE_ROW_PATTERN.test(content);
+}
+
+function isTrailingParagraphContainerContent(lines: readonly string[], startIndex: number): boolean {
+  if (!/^(?: {2,}|\t)/.test(lines[startIndex] ?? '')) return false;
+
+  for (let index = startIndex; index >= 0; index -= 1) {
+    const line = lines[index] ?? '';
+    if (line.trim() === '' || /^(?: {2,}|\t)/.test(line)) continue;
+    if (isListItemLine(line)) return isParagraphListItemLine(line);
+    return isFootnoteDefinitionLine(line) || isDefinitionListMarkerLine(line);
+  }
+  return false;
 }
 
 function isListItemLine(line: string | null): line is string {

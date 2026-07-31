@@ -102,7 +102,7 @@ const normalizeOrderedListMarker = (value: string) =>
 /// Input rule for wrapping a block in ordered list node.
 export const wrapInOrderedListInputRule = $inputRule((ctx) =>
   wrappingInputRule(
-    /^\s*([0-9０-９]+)[.．]\s$/,
+    /^\s*([0-9０-９]{1,9})[.．]\s$/,
     orderedListSchema.type(ctx),
     (match) => ({ order: Number(normalizeOrderedListMarker(match[1])) }),
     (match, node) =>

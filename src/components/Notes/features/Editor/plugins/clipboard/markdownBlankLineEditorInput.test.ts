@@ -15,6 +15,82 @@ const RENDERED_HTML_BOUNDARY_PLACEHOLDER = '<!--vlaina-rendered-html-boundary-bl
 const NON_PERSISTED_BLOCK_BOUNDARY_PLACEHOLDER = '<!--vlaina-markdown-tight-heading-->';
 
 describe('preserveMarkdownBlankLinesForEditor editor input', () => {
+  it.each([
+    {
+      name: 'unescaped markers',
+      source: [
+        '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+        '2. Second item',
+        '3. Third item',
+        '4. Fourth item',
+      ].join('\n'),
+    },
+    {
+      name: 'legacy serializer escapes',
+      source: [
+        '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+        '2\\. Second item',
+        '3\\. Third item',
+        '4\\. Fourth item',
+      ].join('\n'),
+    },
+  ])('opens an interrupted ordered-list run without synthetic backslashes: $name', ({ source }) => {
+    expect(preserveMarkdownBlankLinesForEditor(source)).toBe([
+      '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+      '',
+      '2. Second item',
+      '3. Third item',
+      '4. Fourth item',
+    ].join('\n'));
+  });
+
+  it('keeps a single user-authored escaped ordered-list marker literal', () => {
+    const markdown = ['Intro', '2\\. Literal marker'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
+  it('keeps a non-sequential escaped ordered-marker run literal', () => {
+    const markdown = ['2\\. Literal marker', '4\\. Literal marker', '5\\. Literal marker'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
+  it.each([
+    {
+      name: 'unescaped markers',
+      source: ['> Intro', '> 2. Second item', '> 3. Third item'].join('\n'),
+    },
+    {
+      name: 'legacy serializer escapes',
+      source: ['> Intro', '> 2\\. Second item', '> 3\\. Third item'].join('\n'),
+    },
+  ])('opens an interrupted ordered-list run inside a blockquote: $name', ({ source }) => {
+    expect(preserveMarkdownBlankLinesForEditor(source)).toBe([
+      '> Intro',
+      '>',
+      '> 2. Second item',
+      '> 3. Third item',
+    ].join('\n'));
+  });
+
+  it.each([
+    ['fenced code', ['```md', '2\\. Literal', '3\\. Literal', '```']],
+    ['raw HTML', ['<pre>', '2\\. Literal', '3\\. Literal', '</pre>']],
+    ['display math', ['$$', '2\\. Literal', '3\\. Literal', '$$']],
+    ['indented code', ['    2\\. Literal', '    3\\. Literal']],
+  ])('does not migrate escaped ordered markers inside %s', (_name, lines) => {
+    const markdown = lines.join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
+  it('does not add an editor-load boundary before parenthesized ordered markers', () => {
+    const markdown = ['Intro', '2) Second item', '3) Third item'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
   it('uses editor-only blocks for ordinary markdown blank lines', () => {
     expect(preserveMarkdownBlankLinesForEditor('1\n\n2')).toBe(
       ['1', MARKDOWN_BLANK_LINE_PLACEHOLDER, '2'].join('\n')
@@ -193,6 +269,64 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     },
   );
 
+  it('keeps a blank after a list-first heading editable', () => {
+    expect(preserveMarkdownBlankLinesForEditor([
+      '- # Nested heading',
+      '',
+      '[TOC]',
+    ].join('\n'))).toBe([
+      '- # Nested heading',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      '[TOC]',
+    ].join('\n'));
+  });
+
+  it('distinguishes paragraph and fenced-code endings inside blockquotes', () => {
+    expect(preserveMarkdownBlankLinesForEditor(['> Quote', '', 'Body'].join('\n'))).toBe(
+      ['> Quote', '', 'Body'].join('\n')
+    );
+    expect(preserveMarkdownBlankLinesForEditor([
+      '> ```md',
+      '> code',
+      '> ```',
+      '',
+      'Body',
+    ].join('\n'))).toBe([
+      '> ```md',
+      '> code',
+      '> ```',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      'Body',
+    ].join('\n'));
+  });
+
+  it.each([
+    ['comment', '<!-- User comment -->'],
+    ['processing instruction', '<?note value?>'],
+    ['declaration', '<!doctype html>'],
+    ['CDATA', '<![CDATA[value]]>'],
+  ])('keeps a blank before interrupting HTML %s editable', (_label, html) => {
+    expect(preserveMarkdownBlankLinesForEditor([
+      '7. ```md',
+      '   code',
+      '   ```',
+      '',
+      html,
+    ].join('\n'))).toBe([
+      '7. ```md',
+      '   code',
+      '   ```',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      html,
+    ].join('\n'));
+  });
+
+  it('keeps the separator before a standalone Obsidian image embed structural', () => {
+    const markdown = ['Body', '', '![[assets/image.png|Local image]]'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
   it('handles long blank line runs inside indented code blocks within the default test timeout', () => {
     const blankRun = Array.from({ length: 8_000 }, () => '').join('\n');
     const markdown = ['    before', blankRun, '    after', '', 'body'].join('\n');
@@ -223,6 +357,14 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
       '> Beta',
       `> > ${placeholder}`,
       '> > Gamma',
+    ].join('\n'));
+  });
+
+  it('reopens a standalone empty blockquote as an empty quoted paragraph', () => {
+    expect(preserveMarkdownBlankLinesForEditor(['>', '', 'Body'].join('\n'))).toBe([
+      '> <br />',
+      '',
+      'Body',
     ].join('\n'));
   });
 
@@ -525,11 +667,24 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
     expect(normalizeSerializedMarkdownDocument(editorInput)).toBe(markdown);
   });
 
-  it('uses an editor-only block for an image blank line before a paragraph', () => {
-    const markdown = ['![alt](image.png)', '', 'Body'].join('\n');
+  it('keeps one image separator structural and exposes additional authored blank lines', () => {
+    const markdown = ['![alt](image.png)', '', '', 'Body'].join('\n');
 
     expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
       '![alt](image.png)',
+      '',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      'Body',
+    ].join('\n'));
+  });
+
+  it('keeps one multiline-list separator structural and exposes an additional blank line', () => {
+    const markdown = ['- First', '  continuation', '', '', 'Body'].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
+      '- First',
+      '  continuation',
+      '',
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
       'Body',
     ].join('\n'));
@@ -612,6 +767,32 @@ describe('preserveMarkdownBlankLinesForEditor editor input', () => {
       '    const value = 1;',
       MARKDOWN_BLANK_LINE_PLACEHOLDER,
       '1. Ordered',
+    ].join('\n'));
+  });
+
+  it('keeps structural and authored blanks distinct after indented code following definition list raw html', () => {
+    const markdown = [
+      'Term HTML',
+      ': <textarea>',
+      '  nested definition raw HTML',
+      '  </textarea>',
+      '',
+      '    indented code',
+      '',
+      '',
+      '![Image](image.png)',
+    ].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe([
+      'Term HTML',
+      ': <textarea>',
+      '  nested definition raw HTML',
+      '  </textarea>',
+      '',
+      '    indented code',
+      '',
+      MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      '![Image](image.png)',
     ].join('\n'));
   });
 

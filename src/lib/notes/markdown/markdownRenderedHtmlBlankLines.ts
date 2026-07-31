@@ -42,6 +42,7 @@ export function exposeRenderedHtmlBoundaryBlankLinesForEditor(text: string): str
     const line = lines[index] ?? '';
     output.push(line);
     if (line.trim() !== '') continue;
+    if (isInlineImageInterruptedListBoundary(lines, index)) continue;
 
     const previous = findNearestNonBlankLine(lines, index, -1);
     const next = findNearestNonBlankLine(lines, index, 1);
@@ -55,6 +56,18 @@ export function exposeRenderedHtmlBoundaryBlankLinesForEditor(text: string): str
   }
 
   return changed ? output.join('\n') : text;
+}
+
+function isInlineImageInterruptedListBoundary(
+  lines: readonly string[],
+  index: number,
+): boolean {
+  const previous = lines[index - 1] ?? '';
+  const next = lines[index + 1] ?? '';
+  if (!/^ {0,3}<img(?:\s|\/?>|$)/i.test(previous)) return false;
+
+  const match = /^ {0,3}(\d{1,9})\.(?:[ \t]+|$)/.exec(next);
+  return match !== null && Number(match[1]) !== 1;
 }
 
 export function restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor(text: string): string {

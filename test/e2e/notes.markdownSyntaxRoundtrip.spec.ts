@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  closeElectron,
   cleanupIsolatedElectron,
+  EDITOR_SELECTOR,
   getOpenBridgePages,
   launchIsolatedElectron,
   openAbsoluteNote,
@@ -173,6 +175,84 @@ test.describe('notes markdown syntax roundtrip persistence', () => {
       }
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('migrates a legacy escaped list after inline image prose across relaunch', async () => {
+    const first = await launchIsolatedElectron('notes-escaped-numbered-list-relaunch-a');
+    let second: Awaited<ReturnType<typeof launchIsolatedElectron>> | null = null;
+    const legacyMarkdown = [
+      '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+      '2\\. Skin display',
+      '3\\. Default visibility',
+      '4\\. Memory audit',
+      '5\\. Edge smoothing',
+      '6\\. License change',
+      '7\\. Position limits',
+      '8\\. Project credits',
+      '9\\. Window sizing',
+      '10\\. C rewrite',
+      '11\\. Final item',
+    ].join('\n');
+    const expectedMarkdown = [
+      '<img src="./assets/example.png" alt="Example" width="61%" />Intro',
+      '',
+      '2. Skin display',
+      '3. Default visibility',
+      '4. Memory audit',
+      '5. Edge smoothing',
+      '6. License change',
+      '7. Position limits',
+      '8. Project credits',
+      '9. Window sizing',
+      '10. C rewrite',
+      '11. Final item',
+      '12. Twelfth item',
+    ].join('\n');
+
+    try {
+      await first.app.firstWindow();
+      const [page] = await getOpenBridgePages(first.app, 1);
+      const opened = await openMarkdownFixture(page, {
+        filename: 'escaped-numbered-list-relaunch.md',
+        content: legacyMarkdown,
+      });
+
+      await expect(page.locator(`${EDITOR_SELECTOR} ol[start="2"] > li`)).toHaveCount(10);
+
+      const focused = await page.evaluate(async () => {
+        const bridge = (window as any).__vlainaE2E;
+        const range = await bridge.selectEditorTextByText('Final item');
+        if (!range?.selected || typeof range.to !== 'number') return false;
+        return Boolean(await bridge.setEditorSelectionRange(range.to));
+      });
+      expect(focused).toBe(true);
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('Twelfth item');
+      await expect(page.locator(`${EDITOR_SELECTOR} ol[start="2"] > li`)).toHaveCount(11);
+
+      await closeElectron(first.app);
+      second = await launchIsolatedElectron('notes-escaped-numbered-list-relaunch-b', {
+        envOverrides: { VLAINA_USER_DATA_DIR: first.userDataDir },
+      });
+      await second.app.firstWindow();
+      const [reopenedPage] = await getOpenBridgePages(second.app, 1);
+      await openAbsoluteNote(reopenedPage, opened.notePath);
+
+      await expect(reopenedPage.locator(`${EDITOR_SELECTOR} ol[start="2"] > li`)).toHaveCount(11, {
+        timeout: 30_000,
+      });
+      await expect(reopenedPage.locator(`${EDITOR_SELECTOR} ol[start="2"] > li`).last())
+        .toContainText('Twelfth item');
+      const saved = await reopenedPage.evaluate((pathToRead) =>
+        (window as any).__vlainaE2E.readTextFile(pathToRead), opened.notePath
+      );
+      expect(saved).toBe(expectedMarkdown);
+    } finally {
+      if (second) {
+        await cleanupIsolatedElectron(second.app, second.userDataRoot);
+      }
+      await cleanupIsolatedElectron(first.app, first.userDataRoot);
     }
   });
 });

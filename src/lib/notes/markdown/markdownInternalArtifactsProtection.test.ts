@@ -62,6 +62,32 @@ describe('markdown internal artifact protection', () => {
   });
 
   it.each([
+    ['paragraph before thematic break', ['Body', '<!--vlaina-markdown-blank-line-->', '', '---']],
+    ['image before paragraph', ['![alt](image.png)', '<!--vlaina-markdown-blank-line-->', '', 'Body']],
+    ['definition before paragraph', ['Term', '', ': Definition', '<!--vlaina-markdown-blank-line-->', '', 'Body']],
+  ])('keeps the structural separator plus an authored blank for %s', (_, serializedLines) => {
+    const expectedLines = [...serializedLines];
+    expectedLines[serializedLines.indexOf('<!--vlaina-markdown-blank-line-->')] = '';
+
+    expect(normalizeSerializedMarkdownDocument(serializedLines.join('\n'))).toBe(
+      expectedLines.join('\n')
+    );
+  });
+
+  it.each([
+    ['root dollar math', ['$$x = y$$', '<!--vlaina-markdown-blank-line-->', '![alt](image.png)']],
+    ['ordered-list dollar math', ['7. $$x = y$$', '<!--vlaina-markdown-blank-line-->', '![alt](image.png)']],
+    ['bullet-list bracket math', ['- \\[x = y\\]', '<!--vlaina-markdown-blank-line-->', '[TOC]']],
+  ])('restores one authored blank after %s without adding a structural duplicate', (_, serializedLines) => {
+    const expectedLines = [...serializedLines];
+    expectedLines[serializedLines.indexOf('<!--vlaina-markdown-blank-line-->')] = '';
+
+    expect(normalizeSerializedMarkdownDocument(serializedLines.join('\n'))).toBe(
+      expectedLines.join('\n')
+    );
+  });
+
+  it.each([
     ['root fenced code', ['```ts', 'code', '```']],
     ['list-first fenced code', ['- ```ts', '  code', '  ```']],
     ['ordered-list-first fenced code', ['7. ```ts', '   code', '   ```']],
@@ -138,6 +164,18 @@ describe('markdown internal artifact protection', () => {
 
     expect(normalizeSerializedMarkdownDocument(markdown)).toBe(expected);
     expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(markdown);
+  });
+
+  it('restores one blank line for each rendered HTML boundary helper', () => {
+    const helper = '<!--vlaina-rendered-html-boundary-blank-line-->';
+    const serialized = ['<div>Raw</div>', '', helper, '', helper, '<!-- User comment -->'].join('\n');
+
+    expect(normalizeSerializedMarkdownDocument(serialized)).toBe([
+      '<div>Raw</div>',
+      '',
+      '',
+      '<!-- User comment -->',
+    ].join('\n'));
   });
 
   it('removes rendered HTML boundary helpers after serializer-escaped closing tags', () => {

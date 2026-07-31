@@ -4,6 +4,7 @@ import {
   parseMarkdownContainerFenceCloseLine,
   parseMarkdownContainerFenceLine,
 } from './markdownFenceProtectedLines';
+import { isStableParseBoundaryBlankLine } from './markdownBlankLineBoundaries';
 
 interface FenceBlock {
   close: string;
@@ -20,6 +21,7 @@ interface CodeBlockReference {
   info: string;
   key: string;
   openIndex: number;
+  structuralBlankAfter: boolean;
 }
 
 const TIGHT_INDENTED_CODE_PREDECESSOR_PATTERNS = [
@@ -65,6 +67,7 @@ export function restoreFenceMarkerStyleFromReference(
     body: string[];
     closeIndex: number;
     openIndex: number;
+    restoreStructuralBlankAfter: boolean;
   }> = [];
 
   for (const [key, references] of referenceByKey) {
@@ -83,6 +86,8 @@ export function restoreFenceMarkerStyleFromReference(
           body,
           closeIndex: block.closeIndex,
           openIndex: block.openIndex,
+          restoreStructuralBlankAfter: reference.structuralBlankAfter
+            && !hasStableBlankLineAfter(lines, block.closeIndex),
         });
         changed = true;
         continue;
@@ -106,6 +111,7 @@ export function restoreFenceMarkerStyleFromReference(
       replacement.openIndex,
       replacement.closeIndex - replacement.openIndex + 1,
       ...replacement.body,
+      ...(replacement.restoreStructuralBlankAfter ? [''] : []),
     );
   }
 
@@ -178,6 +184,7 @@ function collectCodeBlockReferences(lines: readonly string[]): CodeBlockReferenc
     info: block.info,
     key: block.key,
     openIndex: block.openIndex,
+    structuralBlankAfter: false,
   }));
   for (const block of fencedBlocks) {
     for (let index = block.openIndex; index <= block.closeIndex; index += 1) {
@@ -218,10 +225,19 @@ function collectCodeBlockReferences(lines: readonly string[]): CodeBlockReferenc
       info: '',
       key: body.join('\n'),
       openIndex,
+      structuralBlankAfter: hasStableBlankLineAfter(lines, index - 1),
     });
   }
 
   return references.sort((left, right) => left.openIndex - right.openIndex);
+}
+
+function hasStableBlankLineAfter(lines: readonly string[], blockEndIndex: number): boolean {
+  for (let index = blockEndIndex + 1; index < lines.length; index += 1) {
+    if ((lines[index] ?? '').trim() !== '') return false;
+    if (isStableParseBoundaryBlankLine(lines, index)) return true;
+  }
+  return false;
 }
 
 function matchCodeBlockReferences(

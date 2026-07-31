@@ -827,6 +827,56 @@ describe('markdown syntax persistence matrix', () => {
     await expectStableMarkdownRoundTrip(markdown);
   });
 
+  it.each([1, 2])(
+    'preserves %s authored blank line(s) after definition list raw html',
+    async (blankLineCount) => {
+      const markdown = [
+        'Term HTML',
+        ': <textarea>',
+        '  nested definition raw HTML',
+        '  </textarea>',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '7. ~~~~md',
+        '   ordered list code',
+        '   > ~~~~',
+        '   ~~~~',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([1, 2])(
+    'preserves %s authored blank line(s) between a TOC and an aligned paragraph',
+    async (blankLineCount) => {
+      const markdown = [
+        '[TOC]',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        'Aligned paragraph.',
+        '<!--align:center-->',
+        '',
+        '## After',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([1, 2])(
+    'preserves %s authored blank line(s) after indented code following definition list raw html',
+    async (blankLineCount) => {
+      const markdown = [
+        'Term HTML',
+        ': <textarea>',
+        '  nested definition raw HTML',
+        '  </textarea>',
+        '',
+        '    indented code',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '![Image](image.png "Title")',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
   it.each([
     {
       block: 'heading',
