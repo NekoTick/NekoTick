@@ -43,6 +43,7 @@ export function startBlankAreaSelectionSession(
     scrollRootSelector,
     initialSelectedBlocks,
     onSelectionChange,
+    onPendingPlainClick,
     onPlainClick,
     onActivateSelectionState,
     onSyncSelectionState,
@@ -59,6 +60,7 @@ export function startBlankAreaSelectionSession(
     scrollRootSelector,
     usePositionCache: true,
   });
+  let pendingPlainClickHandled = false;
 
   let dragBox: HTMLDivElement | null = null;
   let pendingDragBoxRect: RectBounds | null = null;
@@ -91,6 +93,28 @@ export function startBlankAreaSelectionSession(
     shouldFilterExternalEdgeGrazes,
     onSelectionChange,
   });
+
+  if (
+    startZone === 'outside-editor' &&
+    initialSelectedBlocks.length === 0 &&
+    onPendingPlainClick
+  ) {
+    const blockRects = rectResolver.getTopLevelBlockRects();
+    const action = resolveBlankAreaPlainClickAction({
+      blockRects,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+    if (action) {
+      pendingPlainClickHandled = onPendingPlainClick({
+        zone: startZone,
+        action,
+        blockRects,
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    }
+  }
 
   const handleGeometryResize: ResizeObserverCallback = (entries) => {
     if (entries.length > 0) {
@@ -204,6 +228,7 @@ export function startBlankAreaSelectionSession(
       selectionResolver.applyDragRectSelectionIfNeeded(dragRect);
     },
     onPlainClick(zone) {
+      if (pendingPlainClickHandled) return;
       const blockRects = rectResolver.getTopLevelBlockRects();
       const action = zone === 'below-last-block'
         ? null

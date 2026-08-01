@@ -16,6 +16,7 @@ export function useHeroIconHeaderPicker({
   sliderValue,
   onIconChange,
   onIconPickerOpen,
+  onIconPickerClose,
   onRequestRandomIcon,
   onSizeChange,
   onSizeConfirm,
@@ -28,11 +29,13 @@ export function useHeroIconHeaderPicker({
   sliderValue?: number;
   onIconChange: (icon: string | null) => void;
   onIconPickerOpen?: () => void | Promise<void>;
+  onIconPickerClose?: () => void;
   onRequestRandomIcon?: () => string | null;
   onSizeChange?: (size: number) => void;
   onSizeConfirm?: (size: number) => void;
 }) {
   const headerRef = useRef<HTMLDivElement>(null);
+  const pickerOpenRef = useRef(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [isHoveringHeader, setIsHoveringHeader] = useState(false);
   const [committedIcon, setCommittedIcon] = useState<string | null>(icon ?? null);
@@ -116,6 +119,7 @@ export function useHeroIconHeaderPicker({
   useEffect(() => {
     return onNotesOverlayOpen(({ source }) => {
       if (source === 'header-icon-picker') return;
+      pickerOpenRef.current = false;
       setShowIconPicker(false);
       setIsHoveringHeader(false);
       clearPreview();
@@ -159,6 +163,7 @@ export function useHeroIconHeaderPicker({
     }
     logIconPickerDebug('header-open-picker', { id, committedIcon });
     notifyNotesOverlayOpen('header-icon-picker');
+    pickerOpenRef.current = true;
     setShowIconPicker(true);
     void Promise.resolve(onIconPickerOpen?.()).catch(() => undefined);
   }, [committedIcon, id, onIconPickerOpen, readOnly]);
@@ -171,12 +176,15 @@ export function useHeroIconHeaderPicker({
   }, [clearPreview, commitIconChange, committedIcon, id]);
 
   const handlePickerClose = useCallback(() => {
+    if (!pickerOpenRef.current) return;
+    pickerOpenRef.current = false;
     logIconPickerDebug('header-close-picker', { id, committedIcon });
     commitPendingRandomRecentIcon('picker-close');
     setShowIconPicker(false);
     setIsHoveringHeader(false);
     clearPreview();
-  }, [clearPreview, commitPendingRandomRecentIcon, committedIcon, id]);
+    onIconPickerClose?.();
+  }, [clearPreview, commitPendingRandomRecentIcon, committedIcon, id, onIconPickerClose]);
 
   const handleLocalSizeChange = useCallback((newSize: number) => {
     if (sliderValue === undefined && headerRef.current) {

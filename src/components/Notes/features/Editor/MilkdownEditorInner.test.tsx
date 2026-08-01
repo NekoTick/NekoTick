@@ -750,7 +750,7 @@ describe('MilkdownEditorInner shell focus', () => {
     return { proseMirror, shell };
   }
 
-  it('focuses the editor at the nearest ProseMirror edge for shell blank-area clicks', () => {
+  it('focuses the editor from the original shell blank-area click point', () => {
     const { shell } = renderEditorShellWithProseMirror();
 
     const wasNotPrevented = fireEvent.mouseDown(shell, {
@@ -761,7 +761,7 @@ describe('MilkdownEditorInner shell focus', () => {
 
     expect(wasNotPrevented).toBe(false);
     expect(mocks.focusCurrentEditorAtViewportPoint).toHaveBeenCalledWith({
-      clientX: 101,
+      clientX: 80,
       clientY: 120,
     });
   });

@@ -296,6 +296,46 @@ describe('clearTextSelectionForDragSession', () => {
 });
 
 describe('startInsideBlockTrailingPlainClickSession', () => {
+  it('moves directly from the first line to a later line end on pointer down', async () => {
+    const editor = Editor.make().use(commonmark).use(gfm);
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const { paragraph } = view.state.schema.nodes;
+      const firstText = view.state.schema.text('first');
+      const secondText = view.state.schema.text('second');
+      const first = paragraph.create(null, firstText);
+      const second = paragraph.create(null, secondText);
+      const secondFrom = first.nodeSize;
+      const tr = view.state.tr.replaceWith(
+        0,
+        view.state.doc.content.size,
+        [first, second],
+      );
+      view.dispatch(tr.setSelection(TextSelection.create(tr.doc, 1 + firstText.nodeSize)));
+
+      const event = new MouseEvent('mousedown', {
+        button: 0,
+        cancelable: true,
+        clientX: 400,
+        clientY: 80,
+      });
+      const stop = startInsideBlockTrailingPlainClickSession(view, event, {
+        blockFrom: secondFrom,
+        targetPos: secondFrom + 1 + secondText.nodeSize,
+        bias: -1,
+      });
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.selection.from).toBe(secondFrom + 1 + secondText.nodeSize);
+      expect(view.state.selection.to).toBe(secondFrom + 1 + secondText.nodeSize);
+      stop();
+    } finally {
+      await editor.destroy();
+    }
+  });
+
   it('focuses an empty text block before the first typed character can reach a neighbor', async () => {
     const editor = Editor.make().use(commonmark).use(gfm);
     await editor.create();

@@ -26,7 +26,8 @@ import {
 } from '../Sidebar/sidebarSearchNavigation';
 import { getNoteMetadataEntry } from '@/stores/notes/noteMetadataState';
 import { themeEditorLayoutTokens, themeRenderingTokens } from '@/styles/themeTokens';
-import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
+import { focusEditorFromNoteUpperBlankArea } from './utils/focusEditorFromNoteUpperBlankArea';
+import { focusNoteInitialPosition } from './utils/focusNoteInitialPosition';
 import 'katex/dist/katex.min.css';
 import './styles/index.css';
 
@@ -150,22 +151,9 @@ export function MarkdownEditor({
     isEditorViewReady,
   });
 
-  const handleEditorClick = (e: React.MouseEvent) => {
-    if (!hasActiveNote) {
-      return;
-    }
-
-    if (e.target === e.currentTarget) {
-      if (focusCurrentEmptyUntitledDraftTitle(e.currentTarget)) {
-        return;
-      }
-
-      const editor = document.querySelector(
-        isSourceMode
-          ? '[data-note-source-editor="true"]'
-          : '.milkdown .ProseMirror'
-      ) as HTMLElement;
-      editor?.focus();
+  const handleEditorClick = (event: React.MouseEvent) => {
+    if (hasActiveNote && event.target === event.currentTarget) {
+      focusNoteInitialPosition(event.currentTarget);
     }
   };
 
@@ -224,6 +212,7 @@ export function MarkdownEditor({
 
         <div
           className="w-full flex flex-col items-center relative"
+          onClick={hasActiveNote ? focusEditorFromNoteUpperBlankArea : undefined}
           style={{
             marginLeft: contentOffset,
             transition: themeEditorLayoutTokens.contentOffsetTransition,

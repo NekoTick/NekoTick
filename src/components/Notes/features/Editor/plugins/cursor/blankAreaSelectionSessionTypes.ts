@@ -21,6 +21,7 @@ export interface StartBlankAreaSelectionSessionOptions {
   scrollRootSelector: string;
   initialSelectedBlocks: readonly BlockRange[];
   onSelectionChange: (blocks: BlockRange[]) => void;
+  onPendingPlainClick?: (result: BlankAreaSelectionPlainClickResult) => boolean;
   onPlainClick: (result: BlankAreaSelectionPlainClickResult) => void;
   onActivateSelectionState: () => void;
   onSyncSelectionState: () => void;

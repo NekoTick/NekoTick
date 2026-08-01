@@ -35,6 +35,7 @@ interface HeroIconHeaderProps {
   onUploadFile?: (file: File) => Promise<{ success: boolean; url?: string; error?: string }>;
   onDeleteCustomIcon?: (id: string) => void | Promise<void>;
   onIconPickerOpen?: () => void | Promise<void>;
+  onIconPickerClose?: () => void;
   imageLoader?: (src: string) => Promise<string>;
   allowLegacyImageScheme?: boolean;
   onRequestRandomIcon?: () => string | null;
@@ -64,6 +65,7 @@ export function HeroIconHeader({
   onUploadFile,
   onDeleteCustomIcon,
   onIconPickerOpen,
+  onIconPickerClose,
   imageLoader,
   allowLegacyImageScheme = false,
   onRequestRandomIcon,
@@ -103,6 +105,7 @@ export function HeroIconHeader({
     sliderValue,
     onIconChange,
     onIconPickerOpen,
+    onIconPickerClose,
     onRequestRandomIcon,
     onSizeChange,
     onSizeConfirm,
@@ -162,6 +165,7 @@ export function HeroIconHeader({
                   ) : (
                     <button
                         ref={iconButtonRef}
+                        data-note-header-icon-button="true"
                         onClick={() => {
                           handleOpenIconPicker();
                         }}
@@ -194,6 +198,7 @@ export function HeroIconHeader({
               )}>
                   <button
                       ref={iconButtonRef}
+                      data-note-header-icon-button="true"
                       onClick={handleAddRandomIcon}
                       className={cn("flex items-center gap-1.5 py-1 rounded-md text-sm text-[var(--vlaina-soft-placeholder)] hover:text-[var(--vlaina-sidebar-row-selected-text)] transition-colors")}
                   >

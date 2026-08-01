@@ -257,6 +257,7 @@ export function dispatchBlankAreaPlainClick(
   action: BlankAreaPlainClickAction,
   clientX?: number,
   clientY?: number,
+  scrollIntoView = true,
 ): void {
   const refinedAction = refineBlankAreaPlainClickAction(view, action, clientX, clientY);
   let tr = applyBlankAreaPlainClickSelection(view.state.tr, refinedAction);
@@ -264,7 +265,7 @@ export function dispatchBlankAreaPlainClick(
     .setMeta(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION)
     .setMeta(floatingToolbarKey, { type: TOOLBAR_ACTIONS.HIDE })
     .setMeta('addToHistory', false);
-  view.dispatch(tr.scrollIntoView());
+  view.dispatch(scrollIntoView ? tr.scrollIntoView() : tr);
   view.focus();
   const refreshedAction = refreshForcedCaretGeometry(
     view,

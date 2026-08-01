@@ -2297,9 +2297,9 @@ describe('blankAreaDragBoxPlugin trailing plain clicks', () => {
       const firstParagraphEnd = findTextRange(view.state.doc, 'pasted log ending index.css').to;
       const nextParagraphStart = findTextRange(view.state.doc, '8:08 next pasted log line').from;
       view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, nextParagraphStart)));
-      await waitForPointerClickSettled();
-
-      expect(view.state.selection.from).toBe(firstParagraphEnd);
+      await vi.waitFor(() => {
+        expect(view.state.selection.from).toBe(firstParagraphEnd);
+      });
     } finally {
       vi.restoreAllMocks();
       await editor.destroy();
