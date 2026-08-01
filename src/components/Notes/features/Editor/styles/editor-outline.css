@@ -3,47 +3,53 @@
 }
 
 .editor-outline-rail {
-  position: static;
-  display: flex;
-  width: var(--vlaina-size-32px);
-  height: var(--vlaina-size-32px);
-  flex: 0 0 var(--vlaina-size-32px);
-  align-items: center;
-  justify-content: center;
+  position: absolute;
+  top: var(--vlaina-editor-outline-rail-top);
+  right: 0;
+  z-index: var(--vlaina-z-200);
+  width: var(--vlaina-editor-outline-rail-compact-width);
+  height: var(--vlaina-editor-outline-rail-max-height);
 }
 
 .editor-outline-panel {
   position: absolute;
-  top: calc(100% + var(--vlaina-space-8px));
+  top: 0;
   right: 0;
-  z-index: var(--vlaina-z-200);
-  display: flex;
-  width: min(var(--vlaina-size-224px), calc(100cqw - var(--vlaina-space-16px)));
-  max-height: min(var(--vlaina-size-420px), calc(100vh - var(--vlaina-size-80px)));
-  min-height: 0;
-  flex-direction: column;
+  box-sizing: border-box;
+  display: block;
+  width: var(--vlaina-editor-outline-rail-compact-width);
+  max-height: var(--vlaina-editor-outline-rail-max-height);
   overflow: hidden;
+  border: var(--vlaina-size-1px) solid transparent;
+  border-radius: var(--vlaina-ui-radius-panel);
+  background: transparent;
+  box-shadow: none;
   color: var(--vlaina-color-text-secondary);
+  transition:
+    width var(--vlaina-duration-100) var(--vlaina-ease-css-default),
+    background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
+    border-color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
+    box-shadow var(--vlaina-duration-100) var(--vlaina-ease-css-default);
 }
 
-.editor-outline-panel[hidden] {
-  display: none;
-}
-
-.editor-outline-panel-title {
-  flex: 0 0 auto;
-  padding: var(--vlaina-space-12px) var(--vlaina-space-12px) var(--vlaina-space-4px);
-  color: var(--vlaina-color-text-tertiary);
-  font-size: var(--vlaina-font-11);
-  font-weight: var(--vlaina-font-weight-medium);
-  line-height: var(--vlaina-leading-1);
+.editor-outline-rail[data-expanded='true'] .editor-outline-panel {
+  width: min(
+    var(--vlaina-editor-outline-rail-panel-width),
+    calc(100cqw - var(--vlaina-space-16px))
+  );
+  border-color: var(--vlaina-editor-outline-rail-panel-border);
+  background: var(--vlaina-color-pill-surface);
+  box-shadow: var(--vlaina-shadow-menu-hover);
 }
 
 .editor-outline-list {
   position: relative;
+  width: 100%;
+  max-height: inherit;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: var(--vlaina-space-4px) var(--vlaina-space-8px) var(--vlaina-space-8px);
+  padding-block: var(--vlaina-space-2px);
   scrollbar-width: none;
 }
 
@@ -55,10 +61,9 @@
   position: relative;
   display: block;
   width: 100%;
-  min-height: var(--vlaina-size-28px);
-  padding-block: var(--vlaina-space-6px);
-  padding-inline-end: var(--vlaina-space-4px);
-  padding-inline-start: var(--vlaina-size-16px);
+  height: var(--vlaina-editor-outline-rail-compact-row-height);
+  padding: 0;
+  overflow: hidden;
   border: 0;
   background: transparent;
   color: var(--vlaina-color-text-secondary);
@@ -67,80 +72,120 @@
   font-size: var(--vlaina-font-125);
   line-height: var(--vlaina-leading-125);
   text-align: start;
-  transition: color var(--vlaina-duration-100) var(--vlaina-ease-css-default);
+  transition:
+    height var(--vlaina-duration-100) var(--vlaina-ease-css-default),
+    color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
+    background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default);
 }
 
 .editor-outline-row::before {
   position: absolute;
-  top: var(--vlaina-space-6px);
-  bottom: var(--vlaina-space-6px);
-  left: var(--vlaina-size-6px);
-  width: var(--vlaina-size-2px);
+  top: calc(50% - var(--vlaina-size-1px));
+  right: var(--vlaina-space-4px);
+  width: var(--vlaina-editor-outline-rail-marker-width);
+  height: var(--vlaina-editor-outline-rail-marker-height);
   border-radius: var(--vlaina-radius-pill);
-  background: transparent;
+  background: var(--vlaina-editor-outline-rail-marker);
   content: '';
   transition: background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default);
-  z-index: var(--vlaina-z-1);
 }
 
-.editor-outline-row::after {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: var(--vlaina-size-7px);
-  width: var(--vlaina-size-1px);
-  background: var(--vlaina-color-border);
-  content: '';
-  pointer-events: none;
+.editor-outline-row[data-level='2']::before {
+  width: calc(var(--vlaina-editor-outline-rail-marker-width) - var(--vlaina-size-2px));
 }
 
-.editor-outline-row[data-level='2'] {
-  padding-inline-start: var(--vlaina-size-28px);
+.editor-outline-row[data-level='3']::before {
+  width: calc(var(--vlaina-editor-outline-rail-marker-width) - var(--vlaina-size-4px));
 }
 
-.editor-outline-row[data-level='3'] {
-  padding-inline-start: var(--vlaina-size-40px);
+.editor-outline-row[data-level='4']::before {
+  width: calc(var(--vlaina-editor-outline-rail-marker-width) - var(--vlaina-size-6px));
 }
 
-.editor-outline-row[data-level='4'],
-.editor-outline-row[data-level='5'],
-.editor-outline-row[data-level='6'] {
-  padding-inline-start: var(--vlaina-size-56px);
+.editor-outline-row[data-level='5']::before {
+  width: calc(var(--vlaina-editor-outline-rail-marker-width) - var(--vlaina-size-8px));
 }
 
-.editor-outline-row:hover,
-.editor-outline-row:focus-visible {
-  color: var(--vlaina-sidebar-row-selected-text);
-}
-
-.editor-outline-row:focus-visible {
-  border-radius: var(--vlaina-radius-4px);
-  outline: var(--vlaina-size-2px) solid var(--vlaina-color-accent-soft);
-  outline-offset: calc(0px - var(--vlaina-size-2px));
-}
-
-.editor-outline-row-active {
-  color: var(--vlaina-color-accent);
-  font-weight: var(--vlaina-font-weight-medium);
+.editor-outline-row[data-level='6']::before {
+  width: calc(var(--vlaina-editor-outline-rail-marker-width) - var(--vlaina-size-10px));
 }
 
 .editor-outline-row-active::before {
-  background: var(--vlaina-color-accent);
-}
-
-.editor-outline-row-active:hover,
-.editor-outline-row-active:focus-visible {
-  color: var(--vlaina-sidebar-row-selected-text);
+  background: var(--vlaina-editor-outline-rail-marker-active);
 }
 
 .editor-outline-row-text {
   display: block;
   overflow: hidden;
+  opacity: var(--vlaina-opacity-0);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.editor-outline-rail[data-expanded='true'] .editor-outline-list {
+  padding: var(--vlaina-space-8px);
+  scrollbar-color: var(--vlaina-editor-outline-rail-scrollbar) transparent;
+  scrollbar-width: thin;
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-list::-webkit-scrollbar {
+  display: block;
+  width: var(--vlaina-size-8px);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-list::-webkit-scrollbar-thumb {
+  border-radius: var(--vlaina-radius-pill);
+  background: var(--vlaina-editor-outline-rail-scrollbar);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row {
+  height: var(--vlaina-editor-outline-rail-row-height);
+  padding-block: var(--vlaina-space-6px);
+  padding-inline-end: var(--vlaina-space-4px);
+  padding-inline-start: var(--vlaina-size-16px);
+  border-radius: var(--vlaina-radius-4px);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row::before {
+  display: none;
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row[data-level='2'] {
+  padding-inline-start: var(--vlaina-size-28px);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row[data-level='3'] {
+  padding-inline-start: var(--vlaina-size-40px);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row[data-level='4'],
+.editor-outline-rail[data-expanded='true'] .editor-outline-row[data-level='5'],
+.editor-outline-rail[data-expanded='true'] .editor-outline-row[data-level='6'] {
+  padding-inline-start: var(--vlaina-size-56px);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row:hover,
+.editor-outline-rail[data-expanded='true'] .editor-outline-row:focus-visible {
+  background: var(--vlaina-color-control-hover-bg);
+  color: var(--vlaina-sidebar-row-selected-text);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row:focus-visible {
+  outline: var(--vlaina-size-2px) solid var(--vlaina-color-accent-soft);
+  outline-offset: calc(0px - var(--vlaina-size-2px));
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row-active {
+  color: var(--vlaina-color-accent);
+  font-weight: var(--vlaina-font-weight-medium);
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-row-text {
+  opacity: var(--vlaina-opacity-100);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .editor-outline-panel,
   .editor-outline-row,
   .editor-outline-row::before {
     transition: none;
