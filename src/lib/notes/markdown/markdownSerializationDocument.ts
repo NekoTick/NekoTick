@@ -197,11 +197,11 @@ export function normalizeEditorRuntimeMarkdownArtifactsForState(text: string): s
   const afterStandaloneBreakHtml = normalizeStandaloneBreakHtmlToMarkdown(afterTableCellBreaks);
   const afterInlineHtmlText = normalizeInlineHtmlTextForPersistence(afterStandaloneBreakHtml);
   const afterMarkdownSpaceEntities = normalizeMarkdownSpaceEntityArtifacts(afterInlineHtmlText);
-  const afterEscapedAngleBracketText = normalizeEscapedAngleBracketText(afterMarkdownSpaceEntities);
-  const afterRedundantMarkdownEscapes = normalizeRedundantMarkdownEscapes(afterEscapedAngleBracketText);
 
   return restoreUserAuthoredInternalArtifactComments(
-    normalizeUrlSerializationArtifacts(afterRedundantMarkdownEscapes)
+    normalizeMailtoEmailMarkdownLinks(
+      normalizeMarkdownAutolinkLiterals(afterMarkdownSpaceEntities)
+    )
   );
 }
 
