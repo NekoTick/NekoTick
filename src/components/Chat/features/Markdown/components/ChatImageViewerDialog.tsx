@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, PointerEvent, SetStateAction } from "react";
 import Cropper from "react-easy-crop";
-import { DialogCloseIconButton, dialogCloseIconButtonClassName } from "@/components/common/DialogCloseIconButton";
+import { DialogCloseIconButton, dialogActionIconButtonClassName } from "@/components/common/DialogCloseIconButton";
 import { Icon } from "@/components/ui/icons";
 import { cn, iconButtonStyles } from "@/lib/utils";
 import { downloadImageWithPrompt } from "@/components/Chat/common/imageDownload";
@@ -234,7 +234,7 @@ export function ChatImageViewerDialog({
               type="button"
               aria-label={t('chat.zoomOut')}
               data-no-focus-input="true"
-              className={dialogCloseIconButtonClassName}
+              className={dialogActionIconButtonClassName}
               onMouseDown={stopViewerControlMouseDown}
               onClick={() => setZoom((value) => clampZoom(value - ZOOM_STEP))}
             >
@@ -247,7 +247,7 @@ export function ChatImageViewerDialog({
               type="button"
               aria-label={t('chat.zoomIn')}
               data-no-focus-input="true"
-              className={dialogCloseIconButtonClassName}
+              className={dialogActionIconButtonClassName}
               onMouseDown={stopViewerControlMouseDown}
               onClick={() => setZoom((value) => clampZoom(value + ZOOM_STEP))}
             >
@@ -266,7 +266,7 @@ export function ChatImageViewerDialog({
               data-no-focus-input="true"
               data-action="copy"
               className={cn(
-                dialogCloseIconButtonClassName,
+                dialogActionIconButtonClassName,
                 copied && "text-[var(--vlaina-accent)] bg-[var(--vlaina-accent-soft)]"
               )}
               onMouseDown={stopViewerControlMouseDown}
@@ -282,7 +282,7 @@ export function ChatImageViewerDialog({
               type="button"
               aria-label={t('chat.downloadImage')}
               data-no-focus-input="true"
-              className={dialogCloseIconButtonClassName}
+              className={dialogActionIconButtonClassName}
               onMouseDown={stopViewerControlMouseDown}
               onClick={(event) => {
                 event.preventDefault();
