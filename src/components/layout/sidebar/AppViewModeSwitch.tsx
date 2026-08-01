@@ -5,7 +5,7 @@ import { useI18n } from '@/lib/i18n';
 import { APP_VIEW_MODE_SWITCH_MIN_WIDTH } from '@/lib/layout/sidebarWidth';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/uiSlice';
-import { themeIconTokens, themeMotionTokens } from '@/styles/themeTokens';
+import { themeIconTokens } from '@/styles/themeTokens';
 import {
   fulfillAppViewModeFocus,
   requestAppViewModeFocus,
@@ -126,7 +126,6 @@ export function AppViewModeSwitch() {
     },
   ];
   if (!options.some((option) => option.key === appViewMode)) return null;
-  const selectedIndex = Math.max(0, options.findIndex((option) => option.key === visualAppViewMode));
   const collapsedButtonsWidth = Array.from(
     { length: options.length - 1 },
     () => 'var(--vlaina-size-44px)',
@@ -146,14 +145,6 @@ export function AppViewModeSwitch() {
       )}
       style={{ minWidth: APP_VIEW_MODE_SWITCH_MIN_WIDTH }}
     >
-      <span
-        aria-hidden="true"
-        className="absolute inset-y-1.5 left-1.5 rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-transform duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none"
-        style={{
-          width: expandedButtonWidth,
-          transform: `translate3d(${selectedIndex * themeMotionTokens.appViewSwitchCollapsedWidth}px, 0, 0)`,
-        }}
-      />
       {options.map((option, optionIndex) => {
         const selected = visualAppViewMode === option.key;
         const highlighted = selected || highlightedAppViewMode === option.key;
@@ -190,7 +181,8 @@ export function AppViewModeSwitch() {
             onFocus={() => setHighlightedAppViewMode(option.key)}
             onBlur={() => setHighlightedAppViewMode(null)}
             className={cn(
-              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width,background-color,box-shadow] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+              selected && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]',
             )}
             style={{
               width: selected ? expandedButtonWidth : 'var(--vlaina-size-44px)',

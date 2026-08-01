@@ -42,7 +42,7 @@ describe('AppViewModeSwitch', () => {
   });
 
   it('optimistically expands only the selected view while switching', () => {
-    const { container } = render(<AppViewModeSwitch />);
+    render(<AppViewModeSwitch />);
     const notesTab = screen.getByRole('tab', { name: 'Notes' });
     const boardTab = screen.getByRole('tab', { name: 'Board' });
     const chatTab = screen.getByRole('tab', { name: 'Chat' });
@@ -68,10 +68,15 @@ describe('AppViewModeSwitch', () => {
     }
     expect(chatTab.style.width).toContain('calc(');
     expect(notesTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
-    const activeBackground = container.querySelector('[aria-hidden="true"]');
-    expect(activeBackground).toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
-    expect(activeBackground).toHaveClass('ease-[var(--vlaina-ease-in-out)]');
-    expect(chatTab).toHaveClass('transition-[width]', 'ease-[var(--vlaina-ease-in-out)]');
+    expect(chatTab).toHaveClass(
+      'bg-[var(--vlaina-sidebar-row-selected-bg)]',
+      'shadow-[var(--vlaina-shadow-selection-soft)]',
+    );
+    expect(notesTab).not.toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
+    expect(chatTab).toHaveClass(
+      'transition-[width,background-color,box-shadow]',
+      'ease-[var(--vlaina-ease-in-out)]',
+    );
     expect(screen.getByText('Chat')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(screen.getByText('Notes')).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
     expect(screen.getByText('Board')).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
@@ -85,12 +90,16 @@ describe('AppViewModeSwitch', () => {
     expect(notesTab.className).not.toContain('transition-colors');
     expect(notesTab).toHaveStyle({ color: 'var(--vlaina-sidebar-row-selected-text)' });
     expect(notesTab.style.width).toContain('calc(');
+    expect(notesTab).toHaveClass(
+      'bg-[var(--vlaina-sidebar-row-selected-bg)]',
+      'shadow-[var(--vlaina-shadow-selection-soft)]',
+    );
     expect(screen.getByText('Notes')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(screen.getByText('Notes')).toHaveClass('motion-reduce:transition-none');
     expect(chatTab).toHaveAttribute('aria-selected', 'false');
     expect(chatTab).toHaveAttribute('tabindex', '-1');
     expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
-    expect(container.querySelector('[aria-hidden="true"]')).toBe(activeBackground);
+    expect(chatTab).not.toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
   });
 
   it('preserves the previous widths for one frame before squeezing to an external view change', () => {
