@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode, type RefObject } from 'react';
+import { useCallback, useState, type ReactNode, type RefObject } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
@@ -18,8 +18,11 @@ import { useI18n } from '@/lib/i18n';
 import type { AppLanguage } from '@/lib/i18n/languages';
 import type { NoteExportFormat } from '../Export/noteExportTypes';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
-import { useDeferredTextStats } from './hooks/useDeferredTextStats';
 import { themeDomStyleTokens } from '@/styles/themeTokens';
+import {
+  NoteToolbarMoreMenuStats,
+  type PreloadedBacklinkCount,
+} from './NoteToolbarMoreMenuStats';
 
 type NoteMetadata =
   | {
@@ -80,6 +83,23 @@ export function NoteToolbarMoreMenu({
   sourceModeShortcutKeys,
 }: NoteToolbarMoreMenuProps) {
   const { language, t } = useI18n();
+  const [preloadedBacklinkCount, setPreloadedBacklinkCount] = useState<PreloadedBacklinkCount | null>(null);
+  const preloadBacklinkCount = useCallback(() => {
+    if (!currentNotePath) return;
+
+    const notesState = useNotesStore.getState();
+    if (
+      preloadedBacklinkCount?.notePath === currentNotePath
+      && preloadedBacklinkCount.noteContentsCacheRevision === notesState.noteContentsCacheRevision
+    ) {
+      return;
+    }
+    setPreloadedBacklinkCount({
+      count: notesState.getBacklinks(currentNotePath).length,
+      noteContentsCacheRevision: notesState.noteContentsCacheRevision,
+      notePath: currentNotePath,
+    });
+  }, [currentNotePath, preloadedBacklinkCount]);
 
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
@@ -90,6 +110,7 @@ export function NoteToolbarMoreMenu({
               ref={moreButtonRef}
               type="button"
               aria-label={t('notes.moreActions')}
+              onPointerEnter={preloadBacklinkCount}
               onClick={(event) => event.stopPropagation()}
               className={cn(
                 buttonClassName,
@@ -212,7 +233,10 @@ export function NoteToolbarMoreMenu({
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <NoteMenuSeparator />
-        <NoteStats currentNotePath={currentNotePath} />
+        <NoteToolbarMoreMenuStats
+          currentNotePath={currentNotePath}
+          preloadedBacklinkCount={preloadedBacklinkCount}
+        />
         <NoteMenuSeparator />
         <div className="grid grid-cols-[78px_max-content] gap-1 px-2 py-1.5 text-xs text-[var(--vlaina-sidebar-notes-text)]">
           <span className="font-medium">{t('notes.created')}</span>
@@ -250,32 +274,4 @@ function NoteMenuButton({
 
 function NoteMenuSeparator() {
   return <div role="separator" className="-mx-1 my-1 h-px bg-[var(--muted)]" />;
-}
-
-function NoteStats({ currentNotePath }: { currentNotePath: string | null | undefined }) {
-  const { t } = useI18n();
-  const currentNoteContent = useNotesStore(
-    useCallback((state) => {
-      const currentNote = state.currentNote;
-      if (currentNote && currentNote.path === currentNotePath) {
-        return currentNote.content;
-      }
-
-      return currentNotePath ? state.noteContentsCache.get(currentNotePath)?.content ?? '' : '';
-    }, [currentNotePath])
-  );
-  const textStats = useDeferredTextStats(currentNotePath, currentNoteContent);
-
-  return (
-    <div className="grid grid-cols-[78px_max-content] gap-1 px-2 py-1.5 text-xs text-[var(--vlaina-sidebar-notes-text)]">
-      <span className="font-medium">{t('notes.lines')}</span>
-      <span className="tabular-nums">{textStats.lineCount}</span>
-
-      <span className="font-medium">{t('notes.words')}</span>
-      <span className="tabular-nums">{textStats.wordCount}</span>
-
-      <span className="font-medium">{t('notes.characters')}</span>
-      <span className="tabular-nums">{textStats.characterCount}</span>
-    </div>
-  );
 }

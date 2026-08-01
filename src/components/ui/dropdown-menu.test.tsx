@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
   DropdownMenu,
@@ -9,6 +9,37 @@ import {
 } from './dropdown-menu';
 
 describe('dropdown-menu', () => {
+  it('stays open when the application window loses focus', async () => {
+    render(
+      <DropdownMenu defaultOpen>
+        <DropdownMenuContent>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Export</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <span>Menu content</span>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>,
+    );
+
+    fireEvent.pointerMove(screen.getByText('Export'), { pointerType: 'mouse' });
+    await waitFor(() => {
+      expect(screen.getByText('Menu content')).toBeInTheDocument();
+    });
+
+    fireEvent(window, new Event('blur'));
+
+    expect(screen.getByText('Menu content')).toBeInTheDocument();
+    await Promise.resolve();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Menu content')).not.toBeInTheDocument();
+    });
+  });
+
   it('renders submenu content in a portal', () => {
     const { container } = render(
       <DropdownMenu open>

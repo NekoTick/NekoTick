@@ -310,6 +310,7 @@
   "sidebar.rename": "名前を変更",
   "sidebar.search": "検索",
   "sidebar.unpin": "ピン留め解除",
+  "notes.backlinks": "被リンク:",
   "notes.characters": "文字数:",
   "notes.closeSidebarSearch": "サイドバー検索を閉じる",
   "notes.created": "作成日:",

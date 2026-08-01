@@ -310,6 +310,7 @@
   "sidebar.rename": "重命名",
   "sidebar.search": "搜索",
   "sidebar.unpin": "取消置顶",
+  "notes.backlinks": "反向链接：",
   "notes.characters": "字符：",
   "notes.closeSidebarSearch": "关闭侧边栏搜索",
   "notes.created": "创建：",

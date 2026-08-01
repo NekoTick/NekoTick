@@ -310,6 +310,7 @@
   "sidebar.rename": "이름 변경",
   "sidebar.search": "검색",
   "sidebar.unpin": "고정 해제",
+  "notes.backlinks": "백링크:",
   "notes.characters": "문자:",
   "notes.closeSidebarSearch": "사이드바 검색 닫기",
   "notes.created": "생성됨:",

@@ -7,10 +7,12 @@ import { MENU_PANEL_CLASS_NAME } from '@/components/layout/sidebar/context-menu/
 
 const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
+  backlinks: [] as { path: string; name: string; context: string }[],
   currentNote: null as { path: string; content: string } | null,
   dropdownMenuCloseAutoFocus: undefined as undefined | ((event: { preventDefault: () => void }) => void),
   exportNote: vi.fn(),
   flushCurrentPendingEditorMarkdown: vi.fn(),
+  getBacklinks: vi.fn(() => [] as { path: string; name: string; context: string }[]),
   lastCloseAutoFocusPreventDefault: vi.fn(),
   notesChatPanelCollapsed: true,
   notesChatFloatingOpen: false,
@@ -118,20 +120,26 @@ vi.mock('@/stores/notes/useNotesStore', () => ({
   useNotesStore: Object.assign(
     (selector: (state: {
       currentNote: typeof mocks.currentNote;
+      getBacklinks: () => typeof mocks.backlinks;
       noteContentsCache: Map<string, { content: string }>;
+      noteContentsCacheRevision: number;
     }) => unknown) =>
       selector({
         currentNote: mocks.currentNote,
+        getBacklinks: mocks.getBacklinks,
         noteContentsCache: new Map(
           mocks.currentNote ? [[mocks.currentNote.path, { content: mocks.currentNote.content }]] : [],
         ),
+        noteContentsCacheRevision: 1,
       }),
     {
       getState: () => ({
         currentNote: mocks.currentNote,
+        getBacklinks: mocks.getBacklinks,
         noteContentsCache: new Map(
           mocks.currentNote ? [[mocks.currentNote.path, { content: mocks.currentNote.content }]] : [],
         ),
+        noteContentsCacheRevision: 1,
         isDirty: false,
         openTabs: mocks.currentNote ? [{ path: mocks.currentNote.path, name: 'Current', isDirty: false }] : [],
       }),
@@ -217,10 +225,13 @@ function createEditorFindController(
 describe('EditorTopRightToolbar', () => {
   beforeEach(() => {
     mocks.addToast.mockReset();
+    mocks.backlinks = [];
     mocks.currentNote = null;
     mocks.dropdownMenuCloseAutoFocus = undefined;
     mocks.exportNote.mockReset();
     mocks.flushCurrentPendingEditorMarkdown.mockReset();
+    mocks.getBacklinks.mockReset();
+    mocks.getBacklinks.mockImplementation(() => mocks.backlinks);
     mocks.lastCloseAutoFocusPreventDefault.mockReset();
     mocks.languagePreference = 'en';
     mocks.notesChatPanelCollapsed = true;
@@ -237,6 +248,59 @@ describe('EditorTopRightToolbar', () => {
   function openExportMenu(getByRole: ReturnType<typeof render>['getByRole']) {
     fireEvent.mouseEnter(getByRole('menuitem', { name: 'Export' }));
   }
+
+  it('shows the current note backlink count below the character count', () => {
+    mocks.currentNote = { path: 'alpha.md', content: 'Alpha note' };
+    mocks.backlinks = [
+      { path: 'one.md', name: 'One', context: '[[Alpha]]' },
+      { path: 'two.md', name: 'Two', context: 'See [[Alpha]]' },
+    ];
+    const { getByRole, getByText } = render(
+      <EditorTopRightToolbar
+        editorFind={createEditorFindController()}
+        currentNotePath="alpha.md"
+        currentNoteTitle="Alpha"
+        getCurrentNoteContent={() => 'Alpha note'}
+        notesPath="/notesRoot"
+        starred={false}
+        toggleStarred={vi.fn()}
+        currentNoteMetadata={undefined}
+      />,
+    );
+
+    openMoreMenu(getByRole);
+
+    const charactersLabel = getByText('Characters:');
+    const backlinksLabel = getByText('Backlinks:');
+    expect(charactersLabel.nextElementSibling).toHaveTextContent('10');
+    expect(backlinksLabel.nextElementSibling).toHaveTextContent('2');
+    expect(charactersLabel.compareDocumentPosition(backlinksLabel) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it('preloads the current note backlinks when the more button is hovered', () => {
+    mocks.currentNote = { path: 'alpha.md', content: 'Alpha note' };
+    const { getByRole } = render(
+      <EditorTopRightToolbar
+        editorFind={createEditorFindController()}
+        currentNotePath="alpha.md"
+        currentNoteTitle="Alpha"
+        getCurrentNoteContent={() => 'Alpha note'}
+        notesPath="/notesRoot"
+        starred={false}
+        toggleStarred={vi.fn()}
+        currentNoteMetadata={undefined}
+      />,
+    );
+    mocks.getBacklinks.mockClear();
+
+    const moreButton = getByRole('button', { name: 'More' });
+    fireEvent.pointerEnter(moreButton);
+    fireEvent.pointerEnter(moreButton);
+
+    expect(mocks.getBacklinks).toHaveBeenCalledWith('alpha.md');
+    expect(mocks.getBacklinks).toHaveBeenCalledTimes(1);
+  });
 
   it('marks toolbar chrome and menus as ignored by editor blank-area pointer handling', () => {
     const { container, getByRole, getByTestId } = render(

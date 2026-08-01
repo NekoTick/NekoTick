@@ -310,6 +310,7 @@
   "sidebar.rename": "重新命名",
   "sidebar.search": "搜尋",
   "sidebar.unpin": "取消釘選",
+  "notes.backlinks": "反向連結：",
   "notes.characters": "字元數：",
   "notes.closeSidebarSearch": "關閉側邊欄搜尋",
   "notes.created": "建立於：",

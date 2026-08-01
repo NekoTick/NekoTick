@@ -6,7 +6,56 @@ import { Icon } from "@/components/ui/icons"
 
 import { cn } from "@/lib/utils"
 
-const DropdownMenu = DropdownMenuPrimitive.Root
+function useWindowBlurStableOpen({
+    defaultOpen,
+    onOpenChange,
+    open: controlledOpen,
+}: Pick<React.ComponentProps<typeof DropdownMenuPrimitive.Root>, 'defaultOpen' | 'onOpenChange' | 'open'>) {
+    const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false)
+    const windowBlurRef = React.useRef(false)
+    const open = controlledOpen ?? uncontrolledOpen
+
+    React.useEffect(() => {
+        const handleWindowBlur = () => {
+            windowBlurRef.current = true
+            queueMicrotask(() => {
+                windowBlurRef.current = false
+            })
+        }
+
+        window.addEventListener("blur", handleWindowBlur, true)
+        return () => window.removeEventListener("blur", handleWindowBlur, true)
+    }, [])
+
+    const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+        if (!nextOpen && windowBlurRef.current) return
+        if (controlledOpen === undefined) setUncontrolledOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+    }, [controlledOpen, onOpenChange])
+
+    return [open, handleOpenChange] as const
+}
+
+const DropdownMenu = ({
+    defaultOpen,
+    onOpenChange,
+    open: controlledOpen,
+    ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) => {
+    const [open, handleOpenChange] = useWindowBlurStableOpen({
+        defaultOpen,
+        onOpenChange,
+        open: controlledOpen,
+    })
+
+    return (
+        <DropdownMenuPrimitive.Root
+            {...props}
+            open={open}
+            onOpenChange={handleOpenChange}
+        />
+    )
+}
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 
@@ -14,7 +63,26 @@ const DropdownMenuGroup = DropdownMenuPrimitive.Group
 
 const DropdownMenuPortal = DropdownMenuPrimitive.Portal
 
-const DropdownMenuSub = DropdownMenuPrimitive.Sub
+const DropdownMenuSub = ({
+    defaultOpen,
+    onOpenChange,
+    open: controlledOpen,
+    ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) => {
+    const [open, handleOpenChange] = useWindowBlurStableOpen({
+        defaultOpen,
+        onOpenChange,
+        open: controlledOpen,
+    })
+
+    return (
+        <DropdownMenuPrimitive.Sub
+            {...props}
+            open={open}
+            onOpenChange={handleOpenChange}
+        />
+    )
+}
 
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
 
