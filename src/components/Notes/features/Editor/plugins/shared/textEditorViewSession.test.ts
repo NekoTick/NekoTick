@@ -251,6 +251,27 @@ describe('createTextEditorViewSession', () => {
     session.destroy();
   });
 
+  it('saves before editor blank-area handling stops the event at document capture', () => {
+    vi.useFakeTimers();
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    const stopAtDocumentCapture = (event: MouseEvent) => event.stopImmediatePropagation();
+    document.addEventListener('mousedown', stopAtDocumentCapture, true);
+    const { saveSession, session } = createSessionHarness();
+
+    try {
+      session.update();
+      vi.advanceTimersByTime(0);
+
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+      expect(saveSession).toHaveBeenCalledTimes(1);
+    } finally {
+      session.destroy();
+      document.removeEventListener('mousedown', stopAtDocumentCapture, true);
+    }
+  });
+
   it('does not save from outside click or save shortcut while text composition is active', () => {
     vi.useFakeTimers();
     const outside = document.createElement('button');

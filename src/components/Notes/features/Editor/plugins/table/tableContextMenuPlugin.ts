@@ -202,7 +202,7 @@ export const tableContextMenuPlugin = $prose(() => {
         closeMenu();
       };
 
-      document.addEventListener('click', handleClickOutside);
+      window.addEventListener('mousedown', handleClickOutside, true);
 
       return {
         update() {
@@ -256,7 +256,7 @@ export const tableContextMenuPlugin = $prose(() => {
           }
         },
         destroy() {
-          document.removeEventListener('click', handleClickOutside);
+          window.removeEventListener('mousedown', handleClickOutside, true);
           if (menuElement) {
             menuElement.removeEventListener('click', handleMenuClick);
             menuElement.remove();

@@ -241,6 +241,32 @@ describe('previewContextMenu', () => {
     session.destroy();
   });
 
+  it('closes before editor blank-area handling stops the event at document capture', () => {
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    const stopAtDocumentCapture = (event: MouseEvent) => event.stopImmediatePropagation();
+    document.addEventListener('mousedown', stopAtDocumentCapture, true);
+    const session = attachPreviewContextMenu({
+      element,
+      fileBaseName: 'preview',
+      getPos: () => 0,
+      node: { isInline: false } as never,
+      view: createViewStub(),
+    });
+
+    try {
+      openMenu(element);
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+      expect(document.querySelector('.editor-preview-context-menu')).toBeNull();
+    } finally {
+      session.destroy();
+      document.removeEventListener('mousedown', stopAtDocumentCapture, true);
+    }
+  });
+
   it('opens submenus to the left when the right side is constrained', () => {
     const element = document.createElement('div');
     Object.defineProperty(element, 'getBoundingClientRect', {
@@ -352,21 +378,21 @@ describe('previewContextMenu', () => {
 
     expect(windowAdd).not.toHaveBeenCalledWith('scroll', expect.any(Function), true);
     expect(windowAdd).not.toHaveBeenCalledWith('resize', expect.any(Function));
-    expect(documentAdd).not.toHaveBeenCalledWith('mousedown', expect.any(Function));
+    expect(windowAdd).not.toHaveBeenCalledWith('mousedown', expect.any(Function), true);
     expect(documentAdd).not.toHaveBeenCalledWith('keydown', expect.any(Function));
 
     openMenu(element);
 
     expect(windowAdd).toHaveBeenCalledWith('scroll', expect.any(Function), true);
     expect(windowAdd).toHaveBeenCalledWith('resize', expect.any(Function));
-    expect(documentAdd).toHaveBeenCalledWith('mousedown', expect.any(Function), true);
+    expect(windowAdd).toHaveBeenCalledWith('mousedown', expect.any(Function), true);
     expect(documentAdd).toHaveBeenCalledWith('keydown', expect.any(Function));
 
     document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 
     expect(windowRemove).toHaveBeenCalledWith('scroll', expect.any(Function), true);
     expect(windowRemove).toHaveBeenCalledWith('resize', expect.any(Function));
-    expect(documentRemove).toHaveBeenCalledWith('mousedown', expect.any(Function), true);
+    expect(windowRemove).toHaveBeenCalledWith('mousedown', expect.any(Function), true);
     expect(documentRemove).toHaveBeenCalledWith('keydown', expect.any(Function));
 
     session.destroy();

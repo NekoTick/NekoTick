@@ -241,7 +241,7 @@ export function createTextEditorViewSession<
     textareaFocusController.focusAtEnd();
   };
 
-  document.addEventListener('mousedown', handleClickOutside, true);
+  window.addEventListener('mousedown', handleClickOutside, true);
 
   return {
     update() {
@@ -274,7 +274,7 @@ export function createTextEditorViewSession<
       }
     },
     destroy() {
-      document.removeEventListener('mousedown', handleClickOutside, true);
+      window.removeEventListener('mousedown', handleClickOutside, true);
       outsideMouseDownSuppression.clear();
       anchorPositionRefreshScheduler.clear();
       popupVisibilityScrollScheduler.clear();

@@ -128,7 +128,7 @@ export function attachPreviewContextMenu(options: PreviewContextMenuOptions) {
     }
 
     transientListenersAttached = true;
-    document.addEventListener('mousedown', handleDocumentPointer, true);
+    window.addEventListener('mousedown', handleWindowMouseDown, true);
     document.addEventListener('keydown', handleDocumentKey);
     window.addEventListener('resize', handleWindowResize);
     window.addEventListener('scroll', handleScroll, true);
@@ -140,7 +140,7 @@ export function attachPreviewContextMenu(options: PreviewContextMenuOptions) {
     }
 
     transientListenersAttached = false;
-    document.removeEventListener('mousedown', handleDocumentPointer, true);
+    window.removeEventListener('mousedown', handleWindowMouseDown, true);
     document.removeEventListener('keydown', handleDocumentKey);
     window.removeEventListener('resize', handleWindowResize);
     window.removeEventListener('scroll', handleScroll, true);
@@ -251,7 +251,7 @@ export function attachPreviewContextMenu(options: PreviewContextMenuOptions) {
     event.stopPropagation();
   };
 
-  const handleDocumentPointer = (event: MouseEvent) => {
+  const handleWindowMouseDown = (event: MouseEvent) => {
     if (menu && !menu.contains(event.target as Node)) {
       closeMenu();
     }
