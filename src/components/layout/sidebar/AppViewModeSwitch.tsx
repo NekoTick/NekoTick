@@ -27,16 +27,27 @@ export function AppViewModeSwitch() {
   const { t } = useI18n();
   const appViewMode = useUIStore((state) => state.appViewMode);
   const setAppViewMode = useUIStore((state) => state.setAppViewMode);
-  const [optimisticAppViewMode, setOptimisticAppViewMode] = useState<typeof appViewMode | null>(null);
+  const [visualAppViewMode, setVisualAppViewMode] = useState(appViewMode);
   const [highlightedAppViewMode, setHighlightedAppViewMode] = useState<SwitchableAppViewMode | null>(null);
   const switchRootRef = useRef<HTMLDivElement | null>(null);
+  const visualAppViewModeRef = useRef(appViewMode);
   const viewModeButtonRefs = useRef<Partial<Record<SwitchableAppViewMode, HTMLButtonElement | null>>>({});
 
   useEffect(() => {
-    setOptimisticAppViewMode(null);
-  }, [appViewMode]);
+    if (
+      appViewMode !== 'notes'
+      && appViewMode !== 'chat'
+      && appViewMode !== 'whiteboard'
+      && appViewMode !== 'graph'
+    ) return;
+    if (visualAppViewModeRef.current === appViewMode) return;
 
-  const visualAppViewMode = optimisticAppViewMode ?? appViewMode;
+    const animationFrame = window.requestAnimationFrame(() => {
+      visualAppViewModeRef.current = appViewMode;
+      setVisualAppViewMode(appViewMode);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [appViewMode]);
 
   const tryFulfillViewModeFocus = useCallback((viewMode: SwitchableAppViewMode) => {
     if (viewMode !== appViewMode) return false;
@@ -69,7 +80,8 @@ export function AppViewModeSwitch() {
     ) {
       requestAppViewModeFocus(viewMode);
     }
-    setOptimisticAppViewMode(viewMode);
+    visualAppViewModeRef.current = viewMode;
+    setVisualAppViewMode(viewMode);
     setAppViewMode(viewMode);
   }, [appViewMode, setAppViewMode]);
 
@@ -119,6 +131,7 @@ export function AppViewModeSwitch() {
     { length: options.length - 1 },
     () => 'var(--vlaina-size-44px)',
   ).join(' - ');
+  const expandedButtonWidth = `calc(100% - var(--vlaina-space-075rem) - ${collapsedButtonsWidth})`;
 
   return (
     <div
@@ -135,9 +148,9 @@ export function AppViewModeSwitch() {
     >
       <span
         aria-hidden="true"
-        className="absolute inset-y-1.5 left-1.5 rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-transform duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none"
+        className="absolute inset-y-1.5 left-1.5 rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-transform duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none"
         style={{
-          width: `calc(100% - var(--vlaina-space-075rem) - ${collapsedButtonsWidth})`,
+          width: expandedButtonWidth,
           transform: `translate3d(${selectedIndex * themeMotionTokens.appViewSwitchCollapsedWidth}px, 0, 0)`,
         }}
       />
@@ -177,13 +190,10 @@ export function AppViewModeSwitch() {
             onFocus={() => setHighlightedAppViewMode(option.key)}
             onBlur={() => setHighlightedAppViewMode(null)}
             className={cn(
-              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] basis-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[flex-grow,gap,padding] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
-              selected
-                ? 'gap-2 px-3'
-                : 'gap-0 px-0',
+              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
             )}
             style={{
-              flexGrow: selected ? 1 : 0,
+              width: selected ? expandedButtonWidth : 'var(--vlaina-size-44px)',
               color: highlighted ? 'var(--vlaina-sidebar-row-selected-text)' : 'var(--vlaina-sidebar-notes-text)',
             }}
           >
@@ -192,10 +202,10 @@ export function AppViewModeSwitch() {
             </span>
             <span
               className={cn(
-                'relative inline-flex min-w-0 items-center truncate whitespace-nowrap leading-none transition-[max-width,opacity,transform] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
+                'relative inline-flex min-w-0 items-center overflow-hidden whitespace-nowrap pl-2 leading-none transition-[max-width,opacity] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
                 selected
-                  ? 'max-w-[var(--vlaina-size-128px)] translate-x-0 opacity-[var(--vlaina-opacity-100)]'
-                  : 'max-w-0 -translate-x-1 opacity-[var(--vlaina-opacity-0)]',
+                  ? 'max-w-[var(--vlaina-size-128px)] opacity-[var(--vlaina-opacity-100)]'
+                  : 'max-w-0 opacity-[var(--vlaina-opacity-0)]',
               )}
             >
               {option.label}

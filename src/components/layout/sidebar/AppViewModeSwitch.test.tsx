@@ -64,12 +64,14 @@ describe('AppViewModeSwitch', () => {
       expect(tab).toHaveClass(
         'h-[var(--vlaina-size-44px)]',
         'min-w-[var(--vlaina-size-44px)]',
-        'basis-[var(--vlaina-size-44px)]',
       );
     }
-    expect(chatTab).toHaveStyle({ flexGrow: 1 });
+    expect(chatTab.style.width).toContain('calc(');
+    expect(notesTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
     const activeBackground = container.querySelector('[aria-hidden="true"]');
     expect(activeBackground).toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
+    expect(activeBackground).toHaveClass('ease-[var(--vlaina-ease-in-out)]');
+    expect(chatTab).toHaveClass('transition-[width]', 'ease-[var(--vlaina-ease-in-out)]');
     expect(screen.getByText('Chat')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(screen.getByText('Notes')).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
     expect(screen.getByText('Board')).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
@@ -82,12 +84,45 @@ describe('AppViewModeSwitch', () => {
     expect(notesTab.className).toContain('text-[length:var(--vlaina-font-15)]');
     expect(notesTab.className).not.toContain('transition-colors');
     expect(notesTab).toHaveStyle({ color: 'var(--vlaina-sidebar-row-selected-text)' });
-    expect(notesTab).toHaveStyle({ flexGrow: 1 });
+    expect(notesTab.style.width).toContain('calc(');
     expect(screen.getByText('Notes')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
+    expect(screen.getByText('Notes')).toHaveClass('motion-reduce:transition-none');
     expect(chatTab).toHaveAttribute('aria-selected', 'false');
     expect(chatTab).toHaveAttribute('tabindex', '-1');
-    expect(chatTab).toHaveStyle({ flexGrow: 0 });
+    expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
     expect(container.querySelector('[aria-hidden="true"]')).toBe(activeBackground);
+  });
+
+  it('preserves the previous widths for one frame before squeezing to an external view change', () => {
+    let revealFrame: FrameRequestCallback | null = null;
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        revealFrame = callback;
+        return 1;
+      });
+    const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+
+    try {
+      const view = render(<AppViewModeSwitch />);
+      const notesTab = screen.getByRole('tab', { name: 'Notes' });
+      const chatTab = screen.getByRole('tab', { name: 'Chat' });
+
+      hoisted.uiState.appViewMode = 'notes';
+      view.rerender(<AppViewModeSwitch />);
+
+      expect(chatTab).toHaveAttribute('aria-selected', 'true');
+      expect(chatTab.style.width).toContain('calc(');
+      expect(notesTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
+
+      act(() => revealFrame?.(0));
+
+      expect(notesTab).toHaveAttribute('aria-selected', 'true');
+      expect(notesTab.style.width).toContain('calc(');
+      expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
+    } finally {
+      requestAnimationFrame.mockRestore();
+      cancelAnimationFrame.mockRestore();
+    }
   });
 
   it('activates and focuses view tabs with roving navigation keys', () => {
