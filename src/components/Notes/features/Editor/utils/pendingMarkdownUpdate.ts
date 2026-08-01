@@ -10,6 +10,7 @@ import { restoreSetextHeadingStyleFromReference } from '@/lib/notes/markdown/mar
 import { restoreListMarkerStyleFromReference } from '@/lib/notes/markdown/markdownListMarkerStyle';
 import { restoreReferenceLinkStyleFromReference } from '@/lib/notes/markdown/markdownReferenceLinkStyle';
 import { restoreThematicBreakMarkerStyleFromReference } from '@/lib/notes/markdown/markdownThematicBreakMarkerStyle';
+import { restoreUnrequestedMarkdownEscapesFromReference } from '@/lib/notes/markdown/markdownEscapeStyle';
 import { mapMarkdownOutsideProtectedSegments } from '@/lib/notes/markdown/markdownProtectedBlocks';
 import { serializeLeadingFrontmatterMarkdown } from '../plugins/frontmatter/frontmatterMarkdown';
 import { restoreMermaidFenceSourceFromReference } from '../plugins/mermaid/mermaidFenceSourceRestore';
@@ -82,7 +83,7 @@ export function serializeEditorMarkdownSnapshot(markdown: string, referenceMarkd
     normalizedMarkdown,
     referenceMarkdown,
   )));
-  return restoreHardBreakStyleFromReference(restoreBlockquoteMarkerSpacingFromReference(
+  const sourceStyledMarkdown = restoreHardBreakStyleFromReference(restoreBlockquoteMarkerSpacingFromReference(
     restoreThematicBreakMarkerStyleFromReference(
       restoreListMarkerStyleFromReference(
         restoreFenceMarkerStyleFromReference(
@@ -104,6 +105,7 @@ export function serializeEditorMarkdownSnapshot(markdown: string, referenceMarkd
     ),
     referenceMarkdown,
   ), referenceMarkdown);
+  return restoreUnrequestedMarkdownEscapesFromReference(sourceStyledMarkdown, referenceMarkdown);
 }
 
 export function normalizeMarkdownParagraphSeparatorsForEditorComparison(markdown: string): string {

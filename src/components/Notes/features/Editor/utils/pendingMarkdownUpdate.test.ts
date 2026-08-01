@@ -151,6 +151,98 @@ describe('resolvePendingMarkdownUpdate', () => {
     expect(serializeEditorMarkdownSnapshot('1\n\n2\n', '1')).toBe('1\n2');
   });
 
+  it('restores only serializer-added punctuation escapes from the reference note', () => {
+    const reference = [
+      'Intro',
+      '2. item',
+      '2) item',
+      '2)item',
+      '#tag',
+      '##tag',
+      '[label]',
+      '[ label ]',
+      'https:/example.test',
+      '-: text',
+      '-| text',
+      '--text',
+      '=text',
+      '| text',
+      'Dollar $ value',
+      'Backtick ` value',
+    ].join('\n');
+    const serialized = [
+      'Intro',
+      '2\\. item',
+      '2\\) item',
+      '2\\)item',
+      '\\#tag',
+      '\\##tag',
+      '\\[label]',
+      '\\[ label ]',
+      'https\\:/example.test',
+      '\\-: text',
+      '\\-| text',
+      '\\--text',
+      '\\=text',
+      '\\| text',
+      'Dollar \\$ value',
+      'Backtick \\` value',
+    ].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe(reference);
+  });
+
+  it('restores escapes after a reference-only line is removed', () => {
+    const serialized = ['Header', '\\[label]'].join('\n');
+    const reference = ['Header', 'removed reference line', '[label]'].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe('Header\n[label]');
+  });
+
+  it('preserves explicit reference escapes and escapes on edited lines', () => {
+    expect(serializeEditorMarkdownSnapshot('Intro\n2\\. item', 'Intro\n2\\. item')).toBe(
+      'Intro\n2\\. item'
+    );
+    expect(serializeEditorMarkdownSnapshot('left\\\\right', 'left\\\\right')).toBe(
+      'left\\\\right'
+    );
+    expect(serializeEditorMarkdownSnapshot('Intro\n2\\. changed', 'Intro\n2. item')).toBe(
+      'Intro\n2\\. changed'
+    );
+  });
+
+  it('does not restore an authored escape over a structural formatting change', () => {
+    expect(serializeEditorMarkdownSnapshot('# Heading', '\\# Heading')).toBe('# Heading');
+    expect(serializeEditorMarkdownSnapshot('2. item', '2\\. item')).toBe('2. item');
+    expect(serializeEditorMarkdownSnapshot('*literal*', '\\*literal\\*')).toBe('*literal*');
+  });
+
+  it('restores missing authored escapes beside serializer-preserved escapes', () => {
+    const reference = [
+      'Authored escapes:',
+      'left\\!right left\\@right left\\_right left\\|right',
+      '\\# literal heading',
+    ].join('\n');
+    const serialized = [
+      'Authored escapes:',
+      'left\\!right left@right left_right left\\|right',
+      '\\# literal heading edited',
+    ].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe([
+      'Authored escapes:',
+      'left\\!right left\\@right left\\_right left\\|right',
+      '\\# literal heading edited',
+    ].join('\n'));
+  });
+
+  it('keeps generated bracket math fences inside containers', () => {
+    const serialized = ['> \\[', '> x + y', '> \\]'].join('\n');
+    const reference = ['> [', '> x + y', '> ]'].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe(serialized);
+  });
+
   it('keeps the structural separator before a definition list term', () => {
     const markdown = ['Paragraph before.', '', 'Term', '', ': Definition', ''].join('\n');
 
@@ -313,6 +405,45 @@ describe('resolvePendingMarkdownUpdate', () => {
         ['Read [Docs][docs].', '', '[docs]: https://example.com?a=1&b=2 "Docs"'].join('\n'),
       )
     ).toBe(['Read [Docs][docs].', '', '[docs]: https://example.com?a=1&b=2 "Docs"'].join('\n'));
+  });
+
+  it('preserves unescaped query separators in inline links and images', () => {
+    const reference = [
+      '[Docs](https://example.test?a=1&b=2)',
+      '![Image](image.png?a=1&b=2)',
+    ].join('\n');
+    const serialized = [
+      '[Docs](https://example.test?a=1\\&b=2)',
+      '![Image](image.png?a=1\\&b=2)',
+    ].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe(reference);
+  });
+
+  it('preserves explicit link ampersand escapes per source occurrence', () => {
+    const reference = [
+      '[Plain](https://example.test?a=1&b=2)',
+      '[Escaped](https://example.test?a=1\\&b=2)',
+    ].join('\n');
+    const serialized = [
+      '[Plain](https://example.test?a=1\\&b=2)',
+      '[Escaped](https://example.test?a=1\\&b=2)',
+    ].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe(reference);
+  });
+
+  it('uses unescaped ampersands for new links without a source reference', () => {
+    expect(
+      serializeEditorMarkdownSnapshot('[Docs](https://example.test?a=1\\&b=2)', '')
+    ).toBe('[Docs](https://example.test?a=1&b=2)');
+  });
+
+  it('does not rewrite link-like text inside fenced code', () => {
+    const reference = ['```md', '[Docs](https://example.test?a=1&b=2)', '```'].join('\n');
+    const serialized = ['```md', '[Docs](https://example.test?a=1\\&b=2)', '```'].join('\n');
+
+    expect(serializeEditorMarkdownSnapshot(serialized, reference)).toBe(serialized);
   });
 
   it('preserves collapsed and shortcut reference link styles from the reference note', () => {

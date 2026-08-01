@@ -96,6 +96,29 @@ describe('NoteEditorFindBar', () => {
     expect(controller.close).toHaveBeenCalledWith(false);
   });
 
+  it('closes before editor blank-area handling stops the event at document capture', () => {
+    const controller = createController();
+    const stopAtDocumentCapture = (event: MouseEvent) => event.stopImmediatePropagation();
+    document.addEventListener('mousedown', stopAtDocumentCapture, true);
+
+    try {
+      render(
+        <div>
+          <NoteEditorFindBar controller={controller} />
+          <button type="button" data-testid="editor-bottom-blank">
+            Blank
+          </button>
+        </div>,
+      );
+
+      fireEvent.mouseDown(screen.getByTestId('editor-bottom-blank'));
+
+      expect(controller.close).toHaveBeenCalledWith(false);
+    } finally {
+      document.removeEventListener('mousedown', stopAtDocumentCapture, true);
+    }
+  });
+
   it('stays open when clicking inside the find bar', () => {
     const controller = createController();
 

@@ -108,6 +108,28 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('keeps authored punctuation escapes when rich text is appended', async () => {
+    const source = [
+      'Authored escapes:',
+      'left\\!right left\\@right left\\_right left\\|right',
+      '\\# literal heading',
+      '2\\. literal list item',
+      '\\*literal emphasis\\*',
+    ].join('\n');
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)));
+    typeText(view, ' edited');
+
+    const rawSerialized = serializer(view.state.doc);
+    expect(serializeEditorMarkdownSnapshot(rawSerialized, source)).toBe(
+      `${source} edited`,
+    );
+    await destroyEditor(editor);
+  });
+
   it.each([
     {
       name: 'unescaped input',

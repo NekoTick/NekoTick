@@ -51,7 +51,7 @@ export class SlashMenuView {
 
     window.addEventListener('resize', this.handleViewportChange);
     this.scrollRoot?.addEventListener('scroll', this.handleViewportChange, { passive: true });
-    document.addEventListener('mousedown', this.handleDocumentMouseDown, true);
+    window.addEventListener('mousedown', this.handleWindowMouseDown, true);
     document.addEventListener('keydown', this.handleDocumentKeyDown, true);
     this.unlistenOverlayOpen = onNotesOverlayOpen(({ source }) => {
       if (source === 'slash-menu') return;
@@ -124,7 +124,7 @@ export class SlashMenuView {
     }
     window.removeEventListener('resize', this.handleViewportChange);
     this.scrollRoot?.removeEventListener('scroll', this.handleViewportChange);
-    document.removeEventListener('mousedown', this.handleDocumentMouseDown, true);
+    window.removeEventListener('mousedown', this.handleWindowMouseDown, true);
     document.removeEventListener('keydown', this.handleDocumentKeyDown, true);
     this.unlistenOverlayOpen();
     this.resizeObserver?.disconnect();
@@ -205,7 +205,7 @@ export class SlashMenuView {
     this.scheduleViewportChange();
   };
 
-  private handleDocumentMouseDown = (event: MouseEvent) => {
+  private handleWindowMouseDown = (event: MouseEvent) => {
     if (!slashPluginKey.getState(this.editorView.state)?.isOpen) return;
 
     const target = event.target;

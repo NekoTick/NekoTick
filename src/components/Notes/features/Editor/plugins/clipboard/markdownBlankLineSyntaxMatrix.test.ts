@@ -248,7 +248,7 @@ describe('markdown blank line syntax matrix', () => {
         '',
         '|A|B|',
         '|-|-|',
-        '|**bold**|[link](https://example.com?a=1\\&b=2)|',
+        '|**bold**|[link](https://example.com?a=1&b=2)|',
         '',
         'After',
       ]),
@@ -450,7 +450,7 @@ describe('markdown blank line syntax matrix', () => {
     {
       name: 'markdown links keep blank paragraphs around them',
       markdown: lines(['Alpha', '', '[Docs](https://example.com?a=1&b=2 "Title")', '', '', 'Tail']),
-      expected: lines(['Alpha', '', '[Docs](https://example.com?a=1\\&b=2 "Title")', '', '', 'Tail']),
+      expected: lines(['Alpha', '', '[Docs](https://example.com?a=1&b=2 "Title")', '', '', 'Tail']),
     },
     {
       name: 'reference link followed by list gap keeps both constructs',

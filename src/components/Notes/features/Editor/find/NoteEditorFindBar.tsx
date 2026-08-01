@@ -73,8 +73,8 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
       controller.close(false);
     };
 
-    document.addEventListener('mousedown', handleMouseDown, true);
-    return () => document.removeEventListener('mousedown', handleMouseDown, true);
+    window.addEventListener('mousedown', handleMouseDown, true);
+    return () => window.removeEventListener('mousedown', handleMouseDown, true);
   }, [controller.close, controller.isOpen]);
 
   if (!controller.isOpen) {

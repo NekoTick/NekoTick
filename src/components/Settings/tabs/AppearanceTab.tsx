@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import { selectMarkdownImportedThemeId } from '@/stores/unified/settings/markdownSettings';
-import { dialogCloseIconButtonClassName } from '@/components/common/DialogCloseIconButton';
+import { dialogActionIconButtonClassName } from '@/components/common/DialogCloseIconButton';
 import { SettingsItem, SettingsSectionHeader } from '../components/SettingsControls';
 import { AppearanceFontSizeControl } from './appearance/AppearanceFontSizeControl';
 import { ThemeAppearanceControl } from './appearance/ThemeAppearanceControl';
@@ -130,7 +130,7 @@ export function AppearanceTab({ onFontSizePreviewingChange }: AppearanceTabProps
             aria-label={t('settings.appearance.openThemeFolder')}
             data-settings-action="open-theme-folder"
             onClick={() => void handleOpenThemeDirectory()}
-            className={dialogCloseIconButtonClassName}
+            className={dialogActionIconButtonClassName}
           >
             <Icon name="file.folderOpenArrow" size="md" />
           </button>

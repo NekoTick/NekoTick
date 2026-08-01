@@ -3,16 +3,65 @@ import * as PopoverPrimitive from "@radix-ui/react-popover"
 
 import { cn } from "@/lib/utils"
 
+const PopoverOwnerContext = React.createContext<string | null>(null)
+
 function Popover({
+  dismissOnWindowPointerDown = true,
+  open: controlledOpen,
+  defaultOpen,
+  onOpenChange,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+}: React.ComponentProps<typeof PopoverPrimitive.Root> & {
+  dismissOnWindowPointerDown?: boolean
+}) {
+  const ownerId = React.useId()
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false)
+  const open = controlledOpen ?? uncontrolledOpen
+  const handleOpenChange = React.useCallback((nextOpen: boolean) => {
+    if (controlledOpen === undefined) {
+      setUncontrolledOpen(nextOpen)
+    }
+    onOpenChange?.(nextOpen)
+  }, [controlledOpen, onOpenChange])
+
+  React.useEffect(() => {
+    if (!open || !dismissOnWindowPointerDown) return
+
+    const handleWindowPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest(`[data-vlaina-popover-owner="${ownerId}"]`)) return
+      if (target.closest('[data-slot="popover-content"]')) return
+      handleOpenChange(false)
+    }
+
+    window.addEventListener('pointerdown', handleWindowPointerDown, true)
+    return () => window.removeEventListener('pointerdown', handleWindowPointerDown, true)
+  }, [dismissOnWindowPointerDown, handleOpenChange, open, ownerId])
+
+  return (
+    <PopoverOwnerContext.Provider value={ownerId}>
+      <PopoverPrimitive.Root
+        data-slot="popover"
+        {...props}
+        open={open}
+        onOpenChange={handleOpenChange}
+      />
+    </PopoverOwnerContext.Provider>
+  )
 }
 
 function PopoverTrigger({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
+  const ownerId = React.useContext(PopoverOwnerContext)
+  return (
+    <PopoverPrimitive.Trigger
+      data-slot="popover-trigger"
+      data-vlaina-popover-owner={ownerId ?? undefined}
+      {...props}
+    />
+  )
 }
 
 function PopoverContent({
@@ -21,10 +70,12 @@ function PopoverContent({
   sideOffset = 4,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  const ownerId = React.useContext(PopoverOwnerContext)
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
         data-slot="popover-content"
+        data-vlaina-popover-owner={ownerId ?? undefined}
         align={align}
         sideOffset={sideOffset}
         className={cn(
@@ -40,7 +91,14 @@ function PopoverContent({
 function PopoverAnchor({
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
-  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
+  const ownerId = React.useContext(PopoverOwnerContext)
+  return (
+    <PopoverPrimitive.Anchor
+      data-slot="popover-anchor"
+      data-vlaina-popover-owner={ownerId ?? undefined}
+      {...props}
+    />
+  )
 }
 
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }

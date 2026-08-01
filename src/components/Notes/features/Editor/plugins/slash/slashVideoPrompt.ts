@@ -32,7 +32,7 @@ export function openSlashVideoPrompt(args: {
   const positionRoot = getToolbarRoot(view) ?? scrollRoot;
   const prompt = document.createElement('div');
   const close = () => {
-    document.removeEventListener('mousedown', handleOutsideMouseDown, true);
+    window.removeEventListener('mousedown', handleOutsideMouseDown, true);
     prompt.remove();
   };
   const handleOutsideMouseDown = (event: MouseEvent) => {
@@ -86,5 +86,5 @@ export function openSlashVideoPrompt(args: {
 
   prompt.style.left = `${Math.round(x)}px`;
   prompt.style.top = `${Math.round(containerPosition.y)}px`;
-  document.addEventListener('mousedown', handleOutsideMouseDown, true);
+  window.addEventListener('mousedown', handleOutsideMouseDown, true);
 }

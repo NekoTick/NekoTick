@@ -276,15 +276,60 @@ describe('normalizeRedundantMarkdownEscapes', () => {
     expect(normalizeRedundantMarkdownEscapes('a\\~b')).toBe('a~b');
     expect(normalizeRedundantMarkdownEscapes('a\\`b')).toBe('a`b');
     expect(normalizeRedundantMarkdownEscapes('\\#tag')).toBe('#tag');
+    expect(normalizeRedundantMarkdownEscapes('left\\$right')).toBe('left$right');
+    expect(normalizeRedundantMarkdownEscapes('\\$value')).toBe('$value');
+    expect(normalizeRedundantMarkdownEscapes('left\\$\\$right')).toBe('left$$right');
+    expect(normalizeRedundantMarkdownEscapes('left\\&right')).toBe('left&right');
+    expect(normalizeRedundantMarkdownEscapes('left\\@right')).toBe('left@right');
+    expect(normalizeRedundantMarkdownEscapes('left \\[')).toBe('left [');
+    expect(normalizeRedundantMarkdownEscapes('left \\_')).toBe('left _');
+    expect(normalizeRedundantMarkdownEscapes('left\\*\\*right')).toBe('left**right');
+    expect(normalizeRedundantMarkdownEscapes('left\\`\\`right')).toBe('left``right');
+    expect(normalizeRedundantMarkdownEscapes('\\`value')).toBe('`value');
+    expect(normalizeRedundantMarkdownEscapes('left\\~\\~right')).toBe('left~~right');
+    expect(
+      normalizeRedundantMarkdownEscapes('[Docs](https://example.test?a=1\\&b=2)')
+    ).toBe('[Docs](https://example.test?a=1\\&b=2)');
+    expect(
+      normalizeRedundantMarkdownEscapes([
+        'Dollar \\$ value',
+        '',
+        'Second dollar \\$ value',
+        '',
+        'Backtick \\` value',
+        '',
+        'Second backtick \\` value',
+      ].join('\n'))
+    ).toBe([
+      'Dollar $ value',
+      '',
+      'Second dollar $ value',
+      '',
+      'Backtick ` value',
+      '',
+      'Second backtick ` value',
+    ].join('\n'));
   });
 
   it('keeps syntax-protecting escaped underscores and protected content intact', () => {
     expect(normalizeRedundantMarkdownEscapes('\\_literal\\_')).toBe('\\_literal\\_');
     expect(normalizeRedundantMarkdownEscapes('\\*literal\\*')).toBe('\\*literal\\*');
+    expect(normalizeRedundantMarkdownEscapes('\\_literal emphasis\\_')).toBe('\\_literal emphasis\\_');
+    expect(normalizeRedundantMarkdownEscapes('\\*literal emphasis\\*')).toBe('\\*literal emphasis\\*');
+    expect(normalizeRedundantMarkdownEscapes('\\*\\*literal strong text\\*\\*')).toBe(
+      '\\*\\*literal strong text\\*\\*'
+    );
+    expect(normalizeRedundantMarkdownEscapes('H\\~two atoms\\~O')).toBe('H\\~two atoms\\~O');
     expect(normalizeRedundantMarkdownEscapes('H\\~2\\~O')).toBe('H\\~2\\~O');
     expect(normalizeRedundantMarkdownEscapes('\\`not code\\`')).toBe('\\`not code\\`');
     expect(normalizeRedundantMarkdownEscapes('\\[not a link]')).toBe('\\[not a link]');
     expect(normalizeRedundantMarkdownEscapes('\\# Heading')).toBe('\\# Heading');
+    expect(normalizeRedundantMarkdownEscapes('\\$math\\$')).toBe('\\$math\\$');
+    expect(normalizeRedundantMarkdownEscapes('\\&copy;')).toBe('\\&copy;');
+    expect(normalizeRedundantMarkdownEscapes('user\\@example.test')).toBe('user\\@example.test');
+    expect(normalizeRedundantMarkdownEscapes('\\*\\*literal\\*\\*')).toBe('\\*\\*literal\\*\\*');
+    expect(normalizeRedundantMarkdownEscapes('\\`\\`code\\`\\`')).toBe('\\`\\`code\\`\\`');
+    expect(normalizeRedundantMarkdownEscapes('\\~\\~strike\\~\\~')).toBe('\\~\\~strike\\~\\~');
     expect(normalizeRedundantMarkdownEscapes(['```md', 'h\\_i', '```'].join('\n'))).toBe(
       ['```md', 'h\\_i', '```'].join('\n')
     );
@@ -1058,6 +1103,20 @@ describe('normalizeSerializedMarkdownDocument', () => {
     expect(
       normalizeEditorStateMarkdownDocument(['1', '', '2'].join('\n'))
     ).toBe(['1', '', '2'].join('\n'));
+  });
+
+  it('keeps user-authored punctuation escapes on the editor-state persistence path', () => {
+    const punctuation = [
+      '!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':',
+      ';', '<', '=', '>', '?', '@', '[', ']', '^', '_', '`', '{', '|', '}', '~',
+    ];
+    const markdown = [
+      ...punctuation.map((marker) => `left\\${marker}right`),
+      'left\\\\right',
+      'Use \\<p and https\\://example.test/path',
+    ].join('\n');
+
+    expect(normalizeEditorStateMarkdownDocument(markdown)).toBe(markdown);
   });
 
   it('preserves long body and terminal blank line runs during document normalization', () => {

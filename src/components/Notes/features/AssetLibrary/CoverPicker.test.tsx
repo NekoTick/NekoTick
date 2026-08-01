@@ -189,6 +189,36 @@ describe('CoverPicker', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('closes before blank-area editor handling stops the mouse down event', () => {
+    const onClose = vi.fn();
+    const onPreview = vi.fn();
+    const stopAtDocumentCapture = (event: MouseEvent) => event.stopImmediatePropagation();
+
+    document.addEventListener('mousedown', stopAtDocumentCapture, true);
+    try {
+      render(
+        <>
+          <div data-testid="editor-bottom-blank">blank</div>
+          <CoverPicker
+            isOpen
+            onClose={onClose}
+            onSelect={vi.fn()}
+            onPreview={onPreview}
+            notesRootPath="/notesRoot"
+            currentNotePath="note.md"
+          />
+        </>,
+      );
+
+      fireEvent.mouseDown(screen.getByTestId('editor-bottom-blank'));
+
+      expect(onPreview).toHaveBeenCalledWith(null);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener('mousedown', stopAtDocumentCapture, true);
+    }
+  });
+
   it('clears the preview before closing on Escape', () => {
     const onClose = vi.fn();
     const onPreview = vi.fn();
