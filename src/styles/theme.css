@@ -679,6 +679,17 @@
   --vlaina-notes-ui-radius-floating: var(--vlaina-ui-radius-floating);
   --vlaina-notes-ui-radius-panel: var(--vlaina-ui-radius-panel);
   --vlaina-notes-ui-radius-tooltip: var(--vlaina-ui-radius-tooltip);
+  --vlaina-editor-outline-rail-top: var(--vlaina-size-180px);
+  --vlaina-editor-outline-rail-compact-width: var(--vlaina-size-24px);
+  --vlaina-editor-outline-rail-panel-width: var(--vlaina-size-240px);
+  --vlaina-editor-outline-rail-max-height: min(var(--vlaina-size-420px), calc(100vh - var(--vlaina-size-220px)));
+  --vlaina-editor-outline-rail-compact-row-height: var(--vlaina-size-14px);
+  --vlaina-editor-outline-rail-row-height: var(--vlaina-size-28px);
+  --vlaina-editor-outline-rail-marker-width: var(--vlaina-size-16px);
+  --vlaina-editor-outline-rail-marker-height: var(--vlaina-size-2px);
+  --vlaina-editor-outline-rail-marker: var(--vlaina-color-border);
+  --vlaina-editor-outline-rail-marker-active: var(--vlaina-color-text-primary);
+  --vlaina-editor-outline-rail-scrollbar: var(--vlaina-color-border);
   --vlaina-settings-select-arrow-size: var(--vlaina-size-7px) var(--vlaina-size-12px);
   --vlaina-settings-select-arrow-position: right var(--vlaina-size-5px) center;
   --vlaina-width-slash-video-prompt: min(var(--vlaina-size-360px), calc(100vw - var(--vlaina-size-24px)));
