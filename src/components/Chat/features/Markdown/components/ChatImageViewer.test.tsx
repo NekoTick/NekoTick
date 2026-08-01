@@ -2,7 +2,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { convertToBase64 } from '@/lib/storage/attachmentStorage';
 import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/components/Chat/common/messageClipboard';
-import { dialogCloseIconButtonClassName } from '@/components/common/DialogCloseIconButton';
+import {
+  dialogActionIconButtonClassName,
+  dialogCloseIconButtonClassName,
+} from '@/components/common/DialogCloseIconButton';
 import {
   ChatImageViewer,
   RESOLVED_VIEWER_IMAGE_CACHE_CHAR_LIMIT,
@@ -160,9 +163,18 @@ describe('ChatImageViewer', () => {
     const closeButton = await screen.findByRole('button', { name: 'Close preview' });
 
     expect(closeButton).toHaveClass('top-[var(--vlaina-size-72px)]');
-    for (const buttonName of ['Close preview', 'Zoom out', 'Zoom in', 'Copy image', 'Download image']) {
+    expect(closeButton).toHaveClass(
+      'bg-transparent',
+      'hover:bg-transparent',
+      'hover:text-[var(--vlaina-accent)]',
+    );
+    expect(closeButton.querySelector('svg')).toHaveStyle({ width: '24px', height: '24px' });
+    for (const className of dialogCloseIconButtonClassName.split(' ')) {
+      expect(closeButton).toHaveClass(className);
+    }
+    for (const buttonName of ['Zoom out', 'Zoom in', 'Copy image', 'Download image']) {
       const button = screen.getByRole('button', { name: buttonName });
-      for (const className of dialogCloseIconButtonClassName.split(' ')) {
+      for (const className of dialogActionIconButtonClassName.split(' ')) {
         expect(button).toHaveClass(className);
       }
     }

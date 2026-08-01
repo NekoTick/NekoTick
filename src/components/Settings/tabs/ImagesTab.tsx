@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
-import { dialogCloseIconButtonClassName } from '@/components/common/DialogCloseIconButton';
+import { dialogActionIconButtonClassName } from '@/components/common/DialogCloseIconButton';
 import { StorageFolderNameEditor, StorageLocationDropdown } from './ImageStorageControls';
 import { FilenameFormatDropdown } from './ImageFilenameFormatDropdown';
 
@@ -35,7 +35,7 @@ export function ImagesTab() {
                             type="button"
                             onClick={resetImageStorageLocation}
                             aria-label={t('common.reset')}
-                            className={dialogCloseIconButtonClassName}
+                            className={dialogActionIconButtonClassName}
                         >
                             <Icon name="common.refresh" size="md" />
                         </button>
