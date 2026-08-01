@@ -1,5 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getSidebarIdleRowSurfaceClass,
+  getSidebarSelectedRowSurfaceClass,
+} from '@/components/layout/sidebar/sidebarLabelStyles';
+import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { EditorOutlineRail } from './EditorOutlineRail';
 
 const mocks = vi.hoisted(() => ({
@@ -69,15 +74,21 @@ describe('EditorOutlineRail', () => {
   it('expands on hover and keyboard focus, then collapses after leaving', () => {
     const { container } = render(<EditorOutlineRail enabled />);
     const rail = container.querySelector<HTMLElement>('[data-editor-outline-rail="true"]')!;
+    const panel = container.querySelector<HTMLElement>('[data-editor-outline-panel="true"]');
     const overview = screen.getByRole('button', { name: 'Overview' });
 
     expect(rail).toHaveAttribute('data-expanded', 'false');
 
     fireEvent.mouseEnter(rail);
     expect(rail).toHaveAttribute('data-expanded', 'true');
+    expect(panel?.className).toContain(raisedPillSurfaceClass);
+    expect(screen.getByRole('button', { name: 'Introduction' }).className)
+      .toContain(getSidebarIdleRowSurfaceClass('notes'));
+    expect(overview.className).toContain(getSidebarSelectedRowSurfaceClass('notes'));
 
     fireEvent.mouseLeave(rail);
     expect(rail).toHaveAttribute('data-expanded', 'false');
+    expect(panel?.className).not.toContain(raisedPillSurfaceClass);
 
     fireEvent.focus(overview);
     expect(rail).toHaveAttribute('data-expanded', 'true');

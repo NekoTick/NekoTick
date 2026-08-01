@@ -37,9 +37,6 @@
     var(--vlaina-editor-outline-rail-panel-width),
     calc(100cqw - var(--vlaina-space-16px))
   );
-  border-color: var(--vlaina-editor-outline-rail-panel-border);
-  background: var(--vlaina-color-pill-surface);
-  box-shadow: var(--vlaina-shadow-menu-hover);
 }
 
 .editor-outline-list {
@@ -143,7 +140,6 @@
   padding-block: var(--vlaina-space-6px);
   padding-inline-end: var(--vlaina-space-4px);
   padding-inline-start: var(--vlaina-size-16px);
-  border-radius: var(--vlaina-radius-4px);
 }
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-row::before {
@@ -164,20 +160,9 @@
   padding-inline-start: var(--vlaina-size-56px);
 }
 
-.editor-outline-rail[data-expanded='true'] .editor-outline-row:hover,
-.editor-outline-rail[data-expanded='true'] .editor-outline-row:focus-visible {
-  background: var(--vlaina-color-control-hover-bg);
-  color: var(--vlaina-sidebar-row-selected-text);
-}
-
 .editor-outline-rail[data-expanded='true'] .editor-outline-row:focus-visible {
   outline: var(--vlaina-size-2px) solid var(--vlaina-color-accent-soft);
   outline-offset: calc(0px - var(--vlaina-size-2px));
-}
-
-.editor-outline-rail[data-expanded='true'] .editor-outline-row-active {
-  color: var(--vlaina-color-accent);
-  font-weight: var(--vlaina-font-weight-medium);
 }
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-row-text {

@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  getSidebarIdleRowSurfaceClass,
+  getSidebarLabelClass,
+  getSidebarSelectedRowSurfaceClass,
+} from '@/components/layout/sidebar/sidebarLabelStyles';
+import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useNotesOutline } from '../Sidebar/Outline/useNotesOutline';
@@ -47,7 +53,7 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
       }}
     >
       <div
-        className="editor-outline-panel"
+        className={cn('editor-outline-panel', isExpanded && raisedPillSurfaceClass)}
         data-editor-outline-panel="true"
       >
         <nav
@@ -60,14 +66,28 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
               ref={heading.id === activeId ? activeRowRef : undefined}
               type="button"
               className={cn(
-                'editor-outline-row',
+                'editor-outline-row group/sidebar-row',
                 heading.id === activeId && 'editor-outline-row-active',
+                isExpanded && (
+                  heading.id === activeId
+                    ? getSidebarSelectedRowSurfaceClass('notes')
+                    : getSidebarIdleRowSurfaceClass('notes')
+                ),
               )}
               data-level={heading.level}
               aria-current={heading.id === activeId ? 'location' : undefined}
               onClick={() => jumpToHeading(heading.id)}
             >
-              <span className="editor-outline-row-text">{heading.text}</span>
+              <span
+                className={cn(
+                  'editor-outline-row-text',
+                  isExpanded && getSidebarLabelClass('notes', {
+                    selected: heading.id === activeId,
+                  }),
+                )}
+              >
+                {heading.text}
+              </span>
             </button>
           ))}
         </nav>

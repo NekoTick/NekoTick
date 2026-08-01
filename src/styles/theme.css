@@ -687,7 +687,6 @@
   --vlaina-editor-outline-rail-row-height: var(--vlaina-size-28px);
   --vlaina-editor-outline-rail-marker-width: var(--vlaina-size-16px);
   --vlaina-editor-outline-rail-marker-height: var(--vlaina-size-2px);
-  --vlaina-editor-outline-rail-panel-border: var(--vlaina-color-border);
   --vlaina-editor-outline-rail-marker: var(--vlaina-color-border);
   --vlaina-editor-outline-rail-marker-active: var(--vlaina-color-text-primary);
   --vlaina-editor-outline-rail-scrollbar: var(--vlaina-color-border);
