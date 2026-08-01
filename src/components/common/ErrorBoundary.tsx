@@ -2,7 +2,8 @@ import { Component, Fragment, version as reactVersion, type ErrorInfo, type Reac
 import { writeTextToClipboard } from '@/lib/clipboard';
 import { getElectronBridge } from '@/lib/electron/bridge';
 import { ErrorWindowChrome } from './ErrorBoundaryChrome';
-import { GITHUB_ISSUES_URL, SUPPORT_EMAIL, SUPPORT_EMAIL_HREF, safeTranslate } from './errorBoundaryMessages';
+import { GITHUB_ISSUES_URL, SUPPORT_EMAIL, SUPPORT_EMAIL_HREF, safeTranslate, sanitizeReportLocationHref } from './errorBoundaryMessages';
+import { prepareNotesForReload } from '@/stores/notes/prepareNotesForReload';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -16,8 +17,9 @@ interface ErrorBoundaryState {
   copied: boolean;
   appVersion: string | null;
   logFilePath: string | null;
-  logsDir: string | null;
   reportedAt: string | null;
+  isReloading: boolean;
+  reloadFailed: boolean;
 }
 
 const SUPPORT_EMAIL_LINK_CLASS =
@@ -30,8 +32,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     copied: false,
     appVersion: null,
     logFilePath: null,
-    logsDir: null,
     reportedAt: null,
+    isReloading: false,
+    reloadFailed: false,
   };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -41,8 +44,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       copied: false,
       appVersion: null,
       logFilePath: null,
-      logsDir: null,
       reportedAt: new Date().toISOString(),
+      isReloading: false,
+      reloadFailed: false,
     };
   }
 
@@ -75,7 +79,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       this.setState({
         appVersion,
         logFilePath: logInfo?.logFilePath ?? logInfo?.currentLogFilePath ?? null,
-        logsDir: logInfo?.logsDir ?? null,
       });
     });
   }
@@ -88,13 +91,22 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         copied: false,
         appVersion: null,
         logFilePath: null,
-        logsDir: null,
         reportedAt: null,
+        isReloading: false,
+        reloadFailed: false,
       });
     }
   }
 
-  private handleReload = () => {
+  private handleReload = async () => {
+    if (this.state.isReloading) return;
+
+    this.setState({ isReloading: true, reloadFailed: false });
+    const isSafeToReload = await prepareNotesForReload();
+    if (!isSafeToReload) {
+      this.setState({ isReloading: false, reloadFailed: true });
+      return;
+    }
     window.location.reload();
   };
 
@@ -105,13 +117,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       copied: false,
       appVersion: null,
       logFilePath: null,
-      logsDir: null,
       reportedAt: null,
+      isReloading: false,
+      reloadFailed: false,
     });
   };
 
   private buildErrorReport = () => {
-    const { error, componentStack, appVersion, logFilePath, logsDir, reportedAt } = this.state;
+    const { error, componentStack, appVersion, reportedAt } = this.state;
     if (!error) return '';
 
     const lines = [
@@ -121,9 +134,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       `React: ${reactVersion}`,
       `Build: mode=${import.meta.env.MODE} dev=${String(import.meta.env.DEV)} prod=${String(import.meta.env.PROD)}`,
       `Support email: ${SUPPORT_EMAIL}`,
-      `URL: ${window.location.href}`,
-      `Log file: ${logFilePath ?? 'not available'}`,
-      `Log folder: ${logsDir ?? 'not available'}`,
+      `URL: ${sanitizeReportLocationHref(window.location.href)}`,
       `User agent: ${navigator.userAgent}`,
       `Language: ${navigator.language}`,
       `Viewport: ${window.innerWidth}x${window.innerHeight} @ ${window.devicePixelRatio}x`,
@@ -221,6 +232,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   {safeTranslate('common.logFile')}: {this.state.logFilePath}
                 </p>
               ) : null}
+              {this.state.reloadFailed ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {safeTranslate('storage.saveFailed')}
+                </p>
+              ) : null}
               <div>
                 <div className="mb-2 text-sm font-medium text-foreground">
                   {safeTranslate('common.errorDetails')}
@@ -258,6 +274,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 <button
                   type="button"
                   onClick={this.handleReload}
+                  disabled={this.state.isReloading}
                   className="rounded-md border border-border px-4 py-2 text-sm text-foreground hover:bg-muted"
                 >
                   {safeTranslate('common.reload')}

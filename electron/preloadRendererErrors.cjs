@@ -35,6 +35,17 @@ function safeReadErrorReportValue(readValue, fallback = undefined) {
   }
 }
 
+function sanitizeLocationHref(href) {
+  try {
+    const url = new URL(primitiveToString(href) || '');
+    url.search = '';
+    url.hash = '';
+    return truncateErrorReportField(url.href);
+  } catch {
+    return '';
+  }
+}
+
 function storageAvailable(storage) {
   try {
     if (!storage) {
@@ -65,7 +76,7 @@ function createRendererDiagnosticsReport() {
       protocol: truncateErrorReportField(globalThis.location?.protocol),
       origin: truncateErrorReportField(globalThis.location?.origin),
       pathname: truncateErrorReportField(globalThis.location?.pathname),
-      hash: truncateErrorReportField(globalThis.location?.hash),
+      hash: '',
       searchKeys: searchParams ? [...searchParams.keys()].map((key) => truncateErrorReportField(key)).slice(0, 32) : [],
     },
     screen: {
@@ -107,7 +118,7 @@ function createRendererErrorReport(details = {}) {
     message: truncateErrorReportField(details.message || serializedError.message),
     stack: truncateErrorReportField(details.stack || serializedError.stack),
     componentStack: truncateErrorReportField(details.componentStack),
-    href: truncateErrorReportField(globalThis.location?.href),
+    href: sanitizeLocationHref(globalThis.location?.href),
     userAgent: truncateErrorReportField(globalThis.navigator?.userAgent),
     language: truncateErrorReportField(globalThis.navigator?.language),
     languages: Array.isArray(globalThis.navigator?.languages)
@@ -158,4 +169,5 @@ function installRendererErrorReporting(ipcRenderer) {
 module.exports = {
   createRendererErrorReport,
   installRendererErrorReporting,
+  sanitizeLocationHref,
 };

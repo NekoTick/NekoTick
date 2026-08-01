@@ -18,6 +18,7 @@ const FALLBACK_MESSAGES = {
   'common.tryAgain': 'Try again',
   'common.reload': 'Reload',
   'common.reportOnGitHub': 'Open GitHub Issues',
+  'storage.saveFailed': 'Failed to save changes securely. Please try again.',
 } satisfies Partial<Record<MessageKey, string>>;
 
 export function safeTranslate(key: keyof typeof FALLBACK_MESSAGES) {
@@ -25,5 +26,16 @@ export function safeTranslate(key: keyof typeof FALLBACK_MESSAGES) {
     return translate(key);
   } catch {
     return FALLBACK_MESSAGES[key];
+  }
+}
+
+export function sanitizeReportLocationHref(href: string): string {
+  try {
+    const url = new URL(href);
+    url.search = '';
+    url.hash = '';
+    return url.href;
+  } catch {
+    return '';
   }
 }

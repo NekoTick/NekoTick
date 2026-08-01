@@ -25,6 +25,7 @@ export function createWindowManager({
   isDevelopment,
   openExternalIfAllowed,
   isTrustedRendererUrl,
+  beforeRendererReload = async () => {},
   reportError = () => {},
 }) {
   const closeApprovedWebContents = new Set();
@@ -137,6 +138,7 @@ export function createWindowManager({
       isTrustedRendererUrl,
       openExternalIfAllowed,
       reportError,
+      beforeRendererReload,
       getWindowLabel,
       shouldFocusOnReveal,
       rendererDevUrl,

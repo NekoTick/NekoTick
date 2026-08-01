@@ -2,7 +2,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createErrorLogService } from '../../electron/errorLog.mjs';
+import {
+  createErrorLogService,
+  ERROR_LOG_DEDUPE_LIMIT,
+  ERROR_LOG_MAX_FILE_BYTES,
+  ERROR_LOG_MAX_RETAINED_FILES,
+} from '../../electron/errorLog.mjs';
 
 let tempDirs: string[] = [];
 
@@ -32,9 +37,9 @@ afterEach(() => {
 });
 
 describe('error log service', () => {
-  it('persists renderer diagnostics without query parameter values', () => {
+  it('persists renderer diagnostics without query parameter values', async () => {
     const service = createErrorLogService({ app: createMockApp() });
-    const logFilePath = service.logRendererError({
+    const logFilePath = await service.logRendererError({
       source: 'react-error-boundary',
       type: 'react',
       name: 'TypeError',
@@ -43,6 +48,7 @@ describe('error log service', () => {
       buildMode: 'production',
       isDev: false,
       isProd: true,
+      href: 'file:///app/index.html?notesRootPath=/private/notes&notePath=secret.md#heading',
       location: {
         protocol: 'file:',
         origin: 'file://',
@@ -111,9 +117,11 @@ describe('error log service', () => {
       },
     });
     expect(JSON.stringify(entry)).not.toContain('C:/Users/example/private-note.md');
+    expect(JSON.stringify(entry)).not.toContain('/private/notes');
+    expect(JSON.stringify(entry)).not.toContain('secret.md');
   });
 
-  it('redacts sensitive values and stores logs with private POSIX permissions', () => {
+  it('redacts sensitive values and stores logs with private POSIX permissions', async () => {
     const service = createErrorLogService({ app: createMockApp() });
     const error = new Error(
       'Request failed Authorization: Bearer sk-secret-value-123456 x-api-key=secret_header_value url=https://example.com/?token=nts_query_secret_123456'
@@ -124,7 +132,7 @@ describe('error log service', () => {
       'at demo (app.js:1:1)',
     ].join('\n');
 
-    const logFilePath = service.logMainError(error, 'main');
+    const logFilePath = await service.logMainError(error, 'main');
 
     expect(logFilePath).toBeTruthy();
     const rawLog = fs.readFileSync(logFilePath!, 'utf8');
@@ -137,6 +145,33 @@ describe('error log service', () => {
     if (process.platform !== 'win32') {
       expect(fs.statSync(path.dirname(logFilePath!)).mode & 0o777).toBe(0o700);
       expect(fs.statSync(logFilePath!).mode & 0o777).toBe(0o600);
+    }
+  });
+
+  it('deduplicates repeated renderer errors', async () => {
+    const service = createErrorLogService({ app: createMockApp() });
+    for (let index = 0; index < ERROR_LOG_DEDUPE_LIMIT + 5; index += 1) {
+      await service.logRendererError({ source: 'note-save', message: 'same failure' });
+    }
+
+    const { currentLogFilePath } = service.getInfo();
+    const rawLog = fs.readFileSync(currentLogFilePath, 'utf8');
+    expect(rawLog.match(/"schemaVersion"/g)).toHaveLength(ERROR_LOG_DEDUPE_LIMIT);
+  });
+
+  it('rotates oversized logs and bounds retained files', async () => {
+    const service = createErrorLogService({ app: createMockApp() });
+    for (let index = 0; index < 40; index += 1) {
+      await service.logMainError(new Error(`${index}-${'x'.repeat(32 * 1024)}`), `main-${index}`);
+    }
+
+    const { logsDir } = service.getInfo();
+    const logFiles = fs.readdirSync(logsDir).filter((name) => name.startsWith('vlaina-error-'));
+    expect(logFiles.length).toBeLessThanOrEqual(ERROR_LOG_MAX_RETAINED_FILES);
+    for (const fileName of logFiles) {
+      expect(fs.statSync(path.join(logsDir, fileName)).size).toBeLessThanOrEqual(
+        ERROR_LOG_MAX_FILE_BYTES,
+      );
     }
   });
 });

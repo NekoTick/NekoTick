@@ -12,6 +12,7 @@ describe('useEditorSave', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    delete (window as any).vlainaDesktop;
   });
 
   it('cancels pending debounced saves on unmount', async () => {
@@ -64,6 +65,11 @@ describe('useEditorSave', () => {
   });
 
   it('retries a failed autosave and clears the pending queue after recovery', async () => {
+    const reportRendererError = vi.fn().mockResolvedValue({});
+    (window as any).vlainaDesktop = {
+      platform: 'electron',
+      app: { reportRendererError },
+    };
     const saveNote = vi
       .fn<(options?: { explicit?: boolean }) => Promise<void>>()
       .mockRejectedValueOnce(new Error('disk busy'))
@@ -94,6 +100,12 @@ describe('useEditorSave', () => {
         errorMessage: 'disk busy',
       }),
     }));
+    expect(reportRendererError).toHaveBeenCalledWith({
+      source: 'note-save',
+      type: 'persistence',
+      name: 'Error',
+      message: 'Autosave could not persist note changes.',
+    });
   });
 
   it('saves immediately for explicit saves', async () => {

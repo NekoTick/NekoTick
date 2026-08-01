@@ -13,6 +13,7 @@ import {
 import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
 import { closeCurrentNoteTab, closeWorkspaceTab } from './workspaceTabCloseActions';
 import type { NotesGet, NotesSet, WorkspaceSlice } from './workspaceSliceTypes';
+import { clearNoteRecovery, stageNoteRecoveryForPath } from '../noteRecovery';
 
 type NotesState = ReturnType<NotesGet>;
 
@@ -98,6 +99,7 @@ export function createWorkspaceTabActions(set: NotesSet, get: NotesGet): Workspa
           },
         },
       });
+      stageNoteRecoveryForPath(get(), path);
     },
 
     discardDraftNote: (path, options) => {
@@ -148,6 +150,7 @@ export function createWorkspaceTabActions(set: NotesSet, get: NotesGet): Workspa
           path,
         ),
       });
+      void clearNoteRecovery(get().notesPath, path);
 
       if (isCurrentDraft && activateFallback) {
         const lastTab = updatedTabs[updatedTabs.length - 1];

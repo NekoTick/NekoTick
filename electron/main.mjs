@@ -13,6 +13,7 @@ import { configureDevelopmentUserDataPath } from './userDataPath.mjs';
 import { authorizeFsPath } from './fsAccess.mjs';
 import { installApplicationMenu } from './appMenu.mjs';
 import { createErrorLogService } from './errorLog.mjs';
+import { createNoteRecoveryService } from './noteRecovery.mjs';
 import { createManagedRequestHelpers } from './managedRequestHelpers.mjs';
 import { createMarkdownOpenController } from './markdownOpenController.mjs';
 import {
@@ -56,6 +57,7 @@ const desktopAccountService = createDesktopAccountService({
   fetchImpl: fetchWithElectronSession,
 });
 const errorLogService = createErrorLogService({ app });
+const noteRecoveryService = createNoteRecoveryService({ app });
 const { fetchWithStoredSession, readJsonResponse } = desktopAccountService;
 const readOnlyNetworkRetryDelaysMs = [300];
 const readOnlyFastFailureRetryWindowMs = 2000;
@@ -85,12 +87,12 @@ const {
 });
 
 process.on('uncaughtException', (error) => {
-  errorLogService.logMainError(error, 'uncaughtException');
+  void errorLogService.logMainError(error, 'uncaughtException');
   console.error('[vlaina] Uncaught exception in Electron main process:', error);
 });
 
 process.on('unhandledRejection', (reason) => {
-  errorLogService.logMainError(reason, 'unhandledRejection');
+  void errorLogService.logMainError(reason, 'unhandledRejection');
   console.error('[vlaina] Unhandled rejection in Electron main process:', reason);
 });
 
@@ -154,8 +156,9 @@ const windowManager = createWindowManager({
   isDevelopment,
   openExternalIfAllowed,
   isTrustedRendererUrl,
+  beforeRendererReload: () => noteRecoveryService.flush(),
   reportError(error, context) {
-    errorLogService.logMainError(error, context);
+    void errorLogService.logMainError(error, context);
   },
 });
 const { createMainWindow, isReadyToReveal, resolveTargetWindow } = windowManager;
@@ -253,6 +256,7 @@ registerDesktopAppIpc({
   errorLogService,
   handleIpc,
   ipcMain,
+  noteRecoveryService,
   openPathInFileManager,
   trayController,
 });
@@ -297,8 +301,8 @@ app.whenReady().then(async () => {
       createMainWindow();
     }
   });
-}).catch((error) => {
-  errorLogService.logMainError(error, 'app.whenReady');
+}).catch(async (error) => {
+  await errorLogService.logMainError(error, 'app.whenReady');
   console.error('[vlaina] Application startup failed:', error);
   app.exit(1);
 });

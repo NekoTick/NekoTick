@@ -112,6 +112,52 @@ export interface ElectronAppApi {
     currentLogFilePath: string;
     logFilePath: string | null;
   }>;
+  stageNoteRecovery?(snapshot: ElectronNoteRecoverySnapshot): void;
+  readNoteRecovery?(request: ElectronNoteRecoveryReadRequest): Promise<ElectronNoteRecoveryReadResult | null>;
+  listDraftNoteRecoveries?(notesPath: string): Promise<ElectronDraftNoteRecovery[]>;
+  clearNoteRecovery?(request: ElectronNoteRecoveryClearRequest): Promise<boolean>;
+  flushNoteRecovery?(): Promise<void>;
+}
+
+export interface ElectronNoteRecoveryDraft {
+  parentPath: string | null;
+  name: string;
+  originNotesPath?: string;
+  kind?: 'scratch' | 'notesRoot';
+}
+
+export interface ElectronNoteRecoverySnapshot {
+  notesPath: string;
+  notePath: string;
+  content: string;
+  baselineContent: string;
+  draft?: ElectronNoteRecoveryDraft | null;
+}
+
+export interface ElectronNoteRecoveryReadRequest {
+  notesPath: string;
+  notePath: string;
+  currentDiskContent: string;
+}
+
+export interface ElectronNoteRecoveryReadResult {
+  content: string;
+  diskMatchesBaseline: boolean;
+  draft: ElectronNoteRecoveryDraft | null;
+  updatedAt: string;
+}
+
+export interface ElectronDraftNoteRecovery {
+  notePath: string;
+  content: string;
+  draft: ElectronNoteRecoveryDraft;
+  updatedAt: string;
+}
+
+export interface ElectronNoteRecoveryClearRequest {
+  notesPath: string;
+  notePath: string;
+  expectedContent?: string;
 }
 
 export type ElectronGitChangeStatus =
