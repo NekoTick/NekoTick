@@ -213,17 +213,18 @@ describe('resolveBlankAreaPlainClickAction', () => {
     });
   });
 
-  it('falls back to the first block when clicking above all blocks', () => {
+  it('uses the opening-file selection when clicking above all blocks', () => {
     expect(
       resolveBlankAreaPlainClickAction({
         blockRects,
-        clientX: 24,
+        clientX: 720,
         clientY: 8,
       })
     ).toEqual({
-      targetPos: 1,
-      bias: 1,
+      targetPos: 4,
+      bias: -1,
       blockFrom: 0,
+      useInitialSelection: true,
     });
   });
 
@@ -690,6 +691,38 @@ describe('resolveInsideBlockTrailingPlainClickAction', () => {
 });
 
 describe('applyBlankAreaPlainClickSelection', () => {
+  it('places upper blank-area clicks at the first line end', () => {
+    const selection = Object.create(TextSelection.prototype);
+    const setSelection = vi.fn().mockImplementation(() => tr);
+    const createSpy = vi.spyOn(TextSelection, 'create').mockReturnValue(selection as any);
+    const tr = {
+      doc: {
+        descendants: (callback: (node: unknown, pos: number) => void) => callback({
+          isTextblock: true,
+          forEach: (childCallback: (child: unknown) => void) => childCallback({
+            isText: true,
+            nodeSize: 'First line'.length,
+            text: 'First line',
+            type: { name: 'text' },
+          }),
+        }, 0),
+        resolve: vi.fn().mockReturnValue({ parent: { inlineContent: true } }),
+      },
+      setSelection,
+    } as any;
+
+    applyBlankAreaPlainClickSelection(tr, {
+      targetPos: 99,
+      bias: -1,
+      blockFrom: 0,
+      useInitialSelection: true,
+    });
+
+    expect(createSpy).toHaveBeenCalledWith(tr.doc, 1 + 'First line'.length);
+    expect(setSelection).toHaveBeenCalledWith(selection);
+    createSpy.mockRestore();
+  });
+
   it('places list item right-side blank clicks at the head paragraph end, not nested child end', () => {
     const selection = Object.create(TextSelection.prototype);
     const setSelection = vi.fn().mockImplementation(() => tr);

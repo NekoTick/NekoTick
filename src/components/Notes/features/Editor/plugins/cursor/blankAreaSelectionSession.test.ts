@@ -197,6 +197,92 @@ describe('startBlankAreaSelectionSession', () => {
     session.stop();
   });
 
+  it('resolves an outside-editor plain click target on pointer down', () => {
+    const view = createView();
+    rectResolverMockState.currentRects = [
+      blockRect(1, 6, 100, 160),
+      blockRect(7, 12, 180, 240),
+    ];
+    const onPendingPlainClick = vi.fn(() => true);
+    const onPlainClick = vi.fn();
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 540,
+      clientY: 200,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 4,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPendingPlainClick,
+      onPlainClick,
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    expect(onPendingPlainClick).toHaveBeenCalledWith(expect.objectContaining({
+      zone: 'outside-editor',
+      action: expect.objectContaining({ blockFrom: 7 }),
+      clientX: 540,
+      clientY: 200,
+    }));
+
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    expect(onPlainClick).not.toHaveBeenCalled();
+
+    session.stop();
+  });
+
+  it('does not move the caret early when a block selection already exists', () => {
+    const view = createView();
+    rectResolverMockState.currentRects = [blockRect(1, 6, 100, 160)];
+    const onPendingPlainClick = vi.fn();
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 540,
+      clientY: 120,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 4,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [{ from: 1, to: 6 }],
+      onSelectionChange: vi.fn(),
+      onPendingPlainClick,
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    expect(onPendingPlainClick).not.toHaveBeenCalled();
+
+    session.stop();
+  });
+
   it('absorbs small pointer-edge geometry gaps while dragging downward', () => {
     const animationFrames: FrameRequestCallback[] = [];
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {

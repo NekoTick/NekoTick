@@ -1,6 +1,7 @@
 import { Selection, TextSelection, type Transaction } from '@milkdown/kit/prose/state';
 import type { BlockRect } from './blockSelectionUtils';
 import { TEXT_ONLY_BLOCK_EDGE_NODE_NAMES } from '../shared/blockNodeTypes';
+import { createDocumentFirstLineEndTextSelection } from '../../utils/editorSelection';
 
 const INSIDE_BLOCK_TRAILING_CLICK_MIN_GAP_PX = 24;
 const INSIDE_BLOCK_TRAILING_LINE_CLICK_MIN_GAP_PX = 8;
@@ -12,6 +13,7 @@ export interface BlankAreaPlainClickAction {
   targetPos: number;
   bias: 1 | -1;
   blockFrom: number;
+  useInitialSelection?: boolean;
 }
 
 type ContentLineRect = NonNullable<BlockRect['contentLineRects']>[number];
@@ -85,6 +87,24 @@ function resolveBlockCaretPos(block: BlockRect, bias: 1 | -1): number {
   return block.caretRange?.to ?? Math.max(block.from + 1, block.to - 1);
 }
 
+export function resolveAboveAllBlocksPlainClickAction(args: {
+  blockRects: readonly BlockRect[];
+  clientY: number;
+}): BlankAreaPlainClickAction | null {
+  const { blockRects, clientY } = args;
+  if (blockRects.length === 0 || blockRects.some((block) => clientY >= block.top)) {
+    return null;
+  }
+
+  const firstBlock = blockRects[0];
+  return {
+    targetPos: resolveBlockCaretPos(firstBlock, -1),
+    bias: -1,
+    blockFrom: firstBlock.from,
+    useInitialSelection: true,
+  };
+}
+
 function createListItemHeadTextSelection(
   doc: Transaction['doc'],
   itemFrom: number,
@@ -115,6 +135,9 @@ export function resolveBlankAreaPlainClickAction(args: {
 }): BlankAreaPlainClickAction | null {
   const { blockRects, clientX, clientY } = args;
   if (blockRects.length === 0) return null;
+
+  const aboveAllBlocksAction = resolveAboveAllBlocksPlainClickAction({ blockRects, clientY });
+  if (aboveAllBlocksAction) return aboveAllBlocksAction;
 
   let nearestBlock = blockRects[0];
   let nearestDistance = resolveVerticalDistance(nearestBlock, clientY);
@@ -194,6 +217,10 @@ export function applyBlankAreaPlainClickSelection(
   tr: Transaction,
   action: BlankAreaPlainClickAction,
 ): Transaction {
+  if (action.useInitialSelection) {
+    return tr.setSelection(createDocumentFirstLineEndTextSelection(tr.doc));
+  }
+
   const docEnd = tr.doc.content.size;
   const safeBlockFrom = Math.max(0, Math.min(action.blockFrom, docEnd));
   const block = tr.doc.nodeAt(safeBlockFrom);

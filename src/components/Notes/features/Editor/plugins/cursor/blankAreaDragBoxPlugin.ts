@@ -47,6 +47,7 @@ import {
 import { createBlankAreaDragBoxPluginView } from './blankAreaDragBoxPluginView';
 import { createBlankAreaDragBoxPluginProps } from './blankAreaDragBoxPluginProps';
 import { resolveTextblockLineEndPlainClick } from './listParagraphEndPlainClick';
+import type { BlankAreaPlainClickAction } from './blankAreaPlainClick';
 
 export { blankAreaDragBoxPluginKey } from './blockSelectionPluginState';
 export { shouldClearBlockSelectionForTransaction } from './blankAreaDragBoxState';
@@ -116,6 +117,22 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
     clearTextSelectionForDragSession(view);
     clearSession();
 
+    const dispatchResolvedPlainClickAction = (
+      action: BlankAreaPlainClickAction | null,
+      clientX: number,
+      clientY: number,
+    ): boolean => {
+      const textblockLineEndAction = resolveTextblockLineEndPlainClick(view, event);
+      const resolvedAction = textblockLineEndAction ?? action;
+      if (!resolvedAction) return false;
+      if (textblockLineEndAction) {
+        dispatchBlankAreaPlainClick(view, resolvedAction);
+      } else {
+        dispatchBlankAreaPlainClick(view, resolvedAction, clientX, clientY);
+      }
+      return true;
+    };
+
     const session = startBlankAreaSelectionSession({
       view,
       event,
@@ -130,9 +147,10 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
           ? { type: 'set-blocks', blocks }
           : CLEAR_BLOCKS_ACTION);
       },
+      onPendingPlainClick({ action, clientX, clientY }) {
+        return dispatchResolvedPlainClickAction(action, clientX, clientY);
+      },
       onPlainClick({ zone, action, clientX, clientY }) {
-        const textblockLineEndAction = resolveTextblockLineEndPlainClick(view, event);
-        const resolvedAction = textblockLineEndAction ?? action;
         if (zone === 'below-last-block') {
           dispatchTailBlankClickAction(view);
           return;
@@ -141,15 +159,9 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
           clearBlockSelection(view);
           return;
         }
-        if (!resolvedAction) {
+        if (!dispatchResolvedPlainClickAction(action, clientX, clientY)) {
           clearBlockSelection(view);
-          return;
         }
-        if (textblockLineEndAction) {
-          dispatchBlankAreaPlainClick(view, resolvedAction);
-          return;
-        }
-        dispatchBlankAreaPlainClick(view, resolvedAction, clientX, clientY);
       },
       onActivateSelectionState() {
         setBlockSelectionVisualState(view, true);

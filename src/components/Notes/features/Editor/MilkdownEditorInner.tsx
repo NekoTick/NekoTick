@@ -362,12 +362,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     if (editor && isBlockSelectionInteractionPending(editor)) {
       return;
     }
-    const editorRect = editor?.getBoundingClientRect();
-    const clientX = editorRect && editorRect.width > 0
-      ? Math.min(Math.max(event.clientX, editorRect.left + 1), editorRect.right - 1)
-      : event.clientX;
-
-    if (focusCurrentEditorAtViewportPoint({ clientX, clientY: event.clientY })) {
+    if (focusCurrentEditorAtViewportPoint({ clientX: event.clientX, clientY: event.clientY })) {
       event.preventDefault();
     }
   }, []);

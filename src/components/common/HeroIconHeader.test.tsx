@@ -30,6 +30,11 @@ vi.mock('@/components/common/UniversalIconPicker/index', () => ({
         onSelect?.('misc.heart');
         onClose();
       }}>Select heart</button>
+      <button type="button" onClick={() => {
+        onSelect?.('assets/logo.png');
+        onClose();
+        onClose();
+      }}>Select uploaded icon</button>
       <button type="button" onClick={() => onClose()}>Close picker</button>
       <button type="button" onClick={() => {
         onRemove?.();
@@ -121,6 +126,27 @@ describe('HeroIconHeader', () => {
 
     expect(onIconChange).toHaveBeenLastCalledWith('misc.heart');
     expect(JSON.parse(localStorage.getItem(RECENT_ICONS_KEY) || '[]')).toEqual([]);
+  });
+
+  it('notifies once after selecting or removing an icon closes the picker', async () => {
+    const onIconPickerClose = vi.fn();
+
+    render(
+      <HeroIconHeader
+        id="note-1"
+        icon="misc.star"
+        onIconChange={vi.fn()}
+        onIconPickerClose={onIconPickerClose}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('header-icon').closest('button')!);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select uploaded icon' }));
+    expect(onIconPickerClose).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId('header-icon').closest('button')!);
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove icon' }));
+    expect(onIconPickerClose).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the latest regenerated icon when older icon prop updates arrive late', async () => {

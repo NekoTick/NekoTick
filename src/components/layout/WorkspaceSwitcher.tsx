@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react';
-import * as Popover from '@radix-ui/react-popover';
 import { useAccountSessionStore } from '@/stores/accountSession';
 import { actions as aiActions } from '@/stores/useAIStore';
 import { useAIUIStore } from '@/stores/ai/chatState';
@@ -8,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { ACCOUNT_LOGIN_REQUESTED_EVENT } from '@/lib/account/sessionEvent';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { LoginPrompt } from './LoginPrompt';
 import { AccountLoginDialog } from './AccountLoginDialog';
 import { UserIdentityCard } from './UserIdentityCard';
@@ -103,11 +103,11 @@ const WorkspaceSwitcherBase = ({ onOpenSettings, className }: WorkspaceSwitcherP
     <div
       className={cn('app-no-drag flex min-w-0 items-center', className)}
     >
-      <Popover.Root
+      <Popover
         open={isOpen}
         onOpenChange={setIsOpen}
       >
-        <Popover.Trigger asChild>
+        <PopoverTrigger asChild>
           <button
             type="button"
             className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-center justify-start overflow-visible rounded-[var(--vlaina-radius-10px)] bg-transparent text-[var(--vlaina-text-primary)] outline-none select-none"
@@ -129,38 +129,36 @@ const WorkspaceSwitcherBase = ({ onOpenSettings, className }: WorkspaceSwitcherP
               className="pointer-events-none absolute left-0 top-0 h-12 w-12 opacity-[var(--vlaina-opacity-0)]"
             />
           </button>
-        </Popover.Trigger>
+        </PopoverTrigger>
 
-        <Popover.Portal>
-          <Popover.Content
-            className={cn(
-              'z-[var(--vlaina-z-50)] w-[var(--vlaina-width-workspace-switcher)] rounded-[var(--vlaina-ui-radius-panel)] p-2 text-[var(--vlaina-sidebar-chat-text)] select-none animate-in fade-in-0 zoom-in-95 duration-[var(--vlaina-duration-75)] data-[side=bottom]:slide-in-from-top-2',
-              'user-menu-popover border !border-transparent bg-[var(--vlaina-color-floating-surface)]'
+        <PopoverContent
+          className={cn(
+            'z-[var(--vlaina-z-50)] w-[var(--vlaina-width-workspace-switcher)] rounded-[var(--vlaina-ui-radius-panel)] p-2 text-[var(--vlaina-sidebar-chat-text)] select-none animate-in fade-in-0 zoom-in-95 duration-[var(--vlaina-duration-75)] data-[side=bottom]:slide-in-from-top-2',
+            'user-menu-popover border !border-transparent bg-[var(--vlaina-color-floating-surface)]'
+          )}
+          sideOffset={8}
+          align="start"
+          onCloseAutoFocus={(event) => {
+            if (!skipPopoverCloseAutoFocusRef.current) {
+              return;
+            }
+            skipPopoverCloseAutoFocusRef.current = false;
+            event.preventDefault();
+          }}
+        >
+          <div className="flex flex-col">
+            {!isConnected ? (
+              <LoginPrompt onOpenDialog={handleOpenLoginDialog} />
+            ) : (
+              <UserIdentityCard onLogout={handleLogout} onSwitchAccount={handleSwitchAccount} />
             )}
-            sideOffset={8}
-            align="start"
-            onCloseAutoFocus={(event) => {
-              if (!skipPopoverCloseAutoFocusRef.current) {
-                return;
-              }
-              skipPopoverCloseAutoFocusRef.current = false;
-              event.preventDefault();
-            }}
-          >
-            <div className="flex flex-col">
-              {!isConnected ? (
-                <LoginPrompt onOpenDialog={handleOpenLoginDialog} />
-              ) : (
-                <UserIdentityCard onLogout={handleLogout} onSwitchAccount={handleSwitchAccount} />
-              )}
 
-              {isConnected && <div className="mx-3 my-1 h-[var(--vlaina-size-1px)] bg-[var(--vlaina-border)] opacity-[var(--vlaina-opacity-50)]" />}
+            {isConnected && <div className="mx-3 my-1 h-[var(--vlaina-size-1px)] bg-[var(--vlaina-border)] opacity-[var(--vlaina-opacity-50)]" />}
 
-              <AppMenu onOpenSettings={handleOpenSettings} onCloseMenu={() => setIsOpen(false)} />
-            </div>
-          </Popover.Content>
-        </Popover.Portal>
-      </Popover.Root>
+            <AppMenu onOpenSettings={handleOpenSettings} onCloseMenu={() => setIsOpen(false)} />
+          </div>
+        </PopoverContent>
+      </Popover>
 
       <AccountLoginDialog open={isLoginDialogOpen} onOpenChange={setIsLoginDialogOpen} />
       <ConfirmDialog
