@@ -3,9 +3,20 @@ import { getErrorDiagnosticDetails } from '@/lib/diagnostics/errorDetails';
 import { logDiagnostic } from '@/lib/diagnostics/diagnosticsLog';
 import { createPersistenceQueue, type PersistenceQueue } from '@/lib/storage/persistenceEngine';
 import { registerCurrentEditorSaveFlusher } from '../utils/editorSaveRegistry';
+import { getElectronBridge } from '@/lib/electron/bridge';
 
 const SAVE_DEBOUNCE_MS = 800;
 const SAVE_MAX_WAIT_MS = 2500;
+
+function reportSaveFailure(error: unknown, message: string): void {
+  const name = error instanceof Error ? error.name : 'Error';
+  void getElectronBridge()?.app?.reportRendererError?.({
+    source: 'note-save',
+    type: 'persistence',
+    name,
+    message,
+  }).catch(() => undefined);
+}
 
 export function useEditorSave(saveNote: (options?: {
   explicit?: boolean;
@@ -29,6 +40,7 @@ export function useEditorSave(saveNote: (options?: {
           willRetry: true,
           ...getErrorDiagnosticDetails(error),
         });
+        reportSaveFailure(error, 'Autosave could not persist note changes.');
       },
     });
   }
@@ -54,6 +66,7 @@ export function useEditorSave(saveNote: (options?: {
         explicit,
         ...getErrorDiagnosticDetails(error),
       });
+      reportSaveFailure(error, 'Editor save flush could not persist note changes.');
       // The queue retains failed autosaves and retries them with backoff.
     }
   }, []);

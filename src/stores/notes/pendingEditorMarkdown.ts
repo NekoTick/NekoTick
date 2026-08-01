@@ -10,6 +10,7 @@ import {
   shouldRebuildRootFolderForMetadataChange,
 } from './utils/fs/rootFolderState';
 import { isDraftNotePath } from './draftNote';
+import { clearNoteRecovery, stageNoteRecoveryForPath } from './noteRecovery';
 
 export {
   flushCurrentPendingEditorMarkdown,
@@ -78,6 +79,7 @@ function applyPendingEditorMarkdown(
       ),
     };
   });
+  stageNoteRecoveryForPath(useNotesStore.getState(), notePath);
 
   return true;
 }
@@ -130,6 +132,7 @@ export async function savePendingEditorMarkdown(
       currentNote: { path: notePath, content },
       cache: noteContentsCache,
     });
+    void clearNoteRecovery(notesPath, notePath, content);
 
     const latest = useNotesStore.getState();
     if (latest.notesPath !== notesPath) {

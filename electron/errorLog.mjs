@@ -1,13 +1,17 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import util from 'node:util';
+import { createBoundedErrorLogWriter } from './errorLogWriter.mjs';
+
+export {
+  ERROR_LOG_DEDUPE_LIMIT,
+  ERROR_LOG_MAX_FILE_BYTES,
+  ERROR_LOG_MAX_RETAINED_FILES,
+} from './errorLogWriter.mjs';
 
 const MAX_FIELD_CHARS = 32 * 1024;
 const MAX_RENDERER_DETAILS_CHARS = 128 * 1024;
 const ERROR_LOG_SCHEMA_VERSION = 2;
 const UNSAFE_LOG_FIELD_CHARS_PATTERN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
-const PRIVATE_LOG_DIR_MODE = 0o700;
-const PRIVATE_LOG_FILE_MODE = 0o600;
 const SENSITIVE_LOG_QUERY_PARAM_PATTERN =
   /([?&](?:api[_-]?key|auth|code|key|password|secret|session|state|token)=)[^&#\s"']+/gi;
 const SENSITIVE_LOG_HEADER_PATTERN =
@@ -47,13 +51,6 @@ function redactSensitiveLogText(value) {
     .replace(SENSITIVE_LOG_TOKEN_PATTERN, (match) => (
       /^Bearer\s+/i.test(match) ? 'Bearer [redacted]' : '[redacted]'
     ));
-}
-
-function chmodSyncIfSupported(filePath, mode) {
-  try {
-    fs.chmodSync(filePath, mode);
-  } catch {
-  }
 }
 
 function serializeError(error, depth = 0) {
@@ -156,6 +153,17 @@ function normalizeRendererDiagnosticsPayload(detail) {
   };
 }
 
+function normalizeRendererHref(value) {
+  try {
+    const url = new URL(typeof value === 'string' ? value : '');
+    url.search = '';
+    url.hash = '';
+    return normalizeLogText(url.href);
+  } catch {
+    return '';
+  }
+}
+
 function normalizeRendererPayload(payload) {
   const detail = payload && typeof payload === 'object' ? payload : {};
   return {
@@ -165,7 +173,7 @@ function normalizeRendererPayload(payload) {
     name: normalizeLogText(detail.name),
     stack: normalizeLogText(detail.stack, MAX_RENDERER_DETAILS_CHARS),
     componentStack: normalizeLogText(detail.componentStack, MAX_RENDERER_DETAILS_CHARS),
-    href: normalizeLogText(detail.href),
+    href: normalizeRendererHref(detail.href),
     userAgent: normalizeLogText(detail.userAgent),
     language: normalizeLogText(detail.language),
     languages: Array.isArray(detail.languages)
@@ -256,33 +264,20 @@ export function createErrorLogService({ app }) {
     };
   }
 
-  function appendEntry(entry) {
-    try {
-      const { currentLogFilePath } = getInfo();
-      const logsDir = path.dirname(currentLogFilePath);
-      fs.mkdirSync(logsDir, { recursive: true, mode: PRIVATE_LOG_DIR_MODE });
-      chmodSyncIfSupported(logsDir, PRIVATE_LOG_DIR_MODE);
-      fs.appendFileSync(currentLogFilePath, `${JSON.stringify(entry, null, 2)}\n`, {
-        encoding: 'utf8',
-        mode: PRIVATE_LOG_FILE_MODE,
-      });
-      chmodSyncIfSupported(currentLogFilePath, PRIVATE_LOG_FILE_MODE);
-      return currentLogFilePath;
-    } catch (writeError) {
-      console.error('[vlaina] Failed to write error log:', writeError);
-      return null;
-    }
-  }
+  const writer = createBoundedErrorLogWriter({
+    getCurrentLogFilePath: () => getInfo().currentLogFilePath,
+  });
 
   function logMainError(error, context = 'main') {
-    return appendEntry(buildLogEntry({ app, processType: 'main', error, context }));
+    return writer.append(buildLogEntry({ app, processType: 'main', error, context }));
   }
 
   function logRendererError(payload, context = 'renderer') {
-    return appendEntry(buildLogEntry({ app, processType: 'renderer', payload, context }));
+    return writer.append(buildLogEntry({ app, processType: 'renderer', payload, context }));
   }
 
   return {
+    flush: writer.flush,
     getInfo,
     logMainError,
     logRendererError,

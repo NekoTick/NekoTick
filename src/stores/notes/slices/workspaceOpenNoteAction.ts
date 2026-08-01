@@ -16,6 +16,8 @@ import { persistWorkspaceSnapshot } from '../workspacePersistence';
 import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
 import { normalizeNotesRootRelativePath } from '../utils/fs/notesRootPathContainment';
 import type { NotesGet, NotesSet, WorkspaceSlice } from './workspaceSliceTypes';
+import { setNoteTabDirtyState } from '../document/noteTabState';
+import { resolveNoteRecovery } from '../noteRecovery';
 import {
   awaitStartedOrCancelQueuedNotePrefetch,
   createOpenNoteRequestId,
@@ -119,6 +121,12 @@ export function createOpenNoteAction(set: NotesSet, get: NotesGet): Pick<Workspa
           cache: noteContentsCache,
           allowStaleCachedContent: existingTabIsDirty,
         });
+        const loadedDiskContent = loadedCache.get(path)?.savedContent ?? content;
+        const recovery = await resolveNoteRecovery({
+          notesPath,
+          notePath: path,
+          diskContent: loadedDiskContent,
+        });
         if (!isLatestOpenNoteRequestId(openRequestId) || get().notesPath !== notesPath) {
           return;
         }
@@ -129,7 +137,12 @@ export function createOpenNoteAction(set: NotesSet, get: NotesGet): Pick<Workspa
         const latestOpenTabs = latestState.openTabs;
         const latestCurrentNote = latestState.currentNote;
         const latestExistingTab = latestOpenTabs.find((tab) => tab.path === path);
-        const latestOpenedContent = resolveLatestOpenedContent(latestState, path, content);
+        const latestOpenedContent = resolveLatestOpenedContent(
+          latestState,
+          path,
+          recovery?.content ?? content,
+        );
+        const usesRecovery = Boolean(recovery && latestOpenedContent.dirtyContent === undefined);
         const nextMetadata = setNoteEntry(
           latestState.noteMetadata ?? createEmptyMetadataFile(),
           path,
@@ -138,18 +151,21 @@ export function createOpenNoteAction(set: NotesSet, get: NotesGet): Pick<Workspa
         const fileName = getNoteTitleFromPath(path);
         const tabName = fileName;
         const updatedRecent = addToRecentNotes(path, latestState.recentNotes ?? recentNotes);
-        const updatedTabs = mergeOpenedTab(
+        const openedTabs = mergeOpenedTab(
           latestOpenTabs,
           latestCurrentNote,
           path,
           tabName,
           shouldOpenInNewTab,
         );
+        const updatedTabs = usesRecovery
+          ? setNoteTabDirtyState(openedTabs, path, true)
+          : openedTabs;
         const nextCache = mergeLoadedNoteCacheEntry(
           latestState.noteContentsCache,
           loadedCache,
           path,
-          latestOpenedContent.dirtyContent,
+          usesRecovery ? latestOpenedContent.content : latestOpenedContent.dirtyContent,
         );
         const navigationHistoryUpdate = shouldUpdateNavigationHistory
           ? pushNoteNavigationHistory(latestState, path)
@@ -163,8 +179,10 @@ export function createOpenNoteAction(set: NotesSet, get: NotesGet): Pick<Workspa
           workspaceRestoredNote: options?.restoredFromWorkspace
             ? { path, revision: nextCurrentNoteRevision }
             : null,
-          isDirty: latestExistingTab?.isDirty ?? false,
-          error: preservedDirtySaveError,
+          isDirty: usesRecovery || (latestExistingTab?.isDirty ?? false),
+          error: usesRecovery && recovery?.conflictError
+            ? recovery.conflictError
+            : preservedDirtySaveError,
           recentNotes: updatedRecent,
           openTabs: updatedTabs,
           isNewlyCreated: false,
@@ -174,6 +192,9 @@ export function createOpenNoteAction(set: NotesSet, get: NotesGet): Pick<Workspa
             currentNote: { path, content: latestOpenedContent.content },
           }),
           noteMetadata: nextMetadata,
+          ...(usesRecovery && recovery?.conflictError
+            ? { saveError: recovery.conflictError, saveErrorPath: path }
+            : {}),
           ...(navigationHistoryUpdate ?? {}),
         });
 

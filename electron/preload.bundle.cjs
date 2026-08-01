@@ -308,6 +308,21 @@
           reportRendererError(details) {
             return ipcRenderer.invoke('desktop:app:report-renderer-error', createRendererErrorReport(details));
           },
+          stageNoteRecovery(snapshot) {
+            ipcRenderer.send('desktop:app:stage-note-recovery', snapshot);
+          },
+          readNoteRecovery(request) {
+            return ipcRenderer.invoke('desktop:app:read-note-recovery', request);
+          },
+          listDraftNoteRecoveries(notesPath) {
+            return ipcRenderer.invoke('desktop:app:list-draft-note-recoveries', notesPath);
+          },
+          clearNoteRecovery(request) {
+            return ipcRenderer.invoke('desktop:app:clear-note-recovery', request);
+          },
+          flushNoteRecovery() {
+            return ipcRenderer.invoke('desktop:app:flush-note-recovery');
+          },
         },
         git: {
           status(rootPath) {
@@ -773,6 +788,17 @@
       }
     }
     
+    function sanitizeLocationHref(href) {
+      try {
+        const url = new URL(primitiveToString(href) || '');
+        url.search = '';
+        url.hash = '';
+        return truncateErrorReportField(url.href);
+      } catch {
+        return '';
+      }
+    }
+
     function storageAvailable(storage) {
       try {
         if (!storage) {
@@ -803,7 +829,7 @@
           protocol: truncateErrorReportField(globalThis.location?.protocol),
           origin: truncateErrorReportField(globalThis.location?.origin),
           pathname: truncateErrorReportField(globalThis.location?.pathname),
-          hash: truncateErrorReportField(globalThis.location?.hash),
+          hash: '',
           searchKeys: searchParams ? [...searchParams.keys()].map((key) => truncateErrorReportField(key)).slice(0, 32) : [],
         },
         screen: {
@@ -845,7 +871,7 @@
         message: truncateErrorReportField(details.message || serializedError.message),
         stack: truncateErrorReportField(details.stack || serializedError.stack),
         componentStack: truncateErrorReportField(details.componentStack),
-        href: truncateErrorReportField(globalThis.location?.href),
+        href: sanitizeLocationHref(globalThis.location?.href),
         userAgent: truncateErrorReportField(globalThis.navigator?.userAgent),
         language: truncateErrorReportField(globalThis.navigator?.language),
         languages: Array.isArray(globalThis.navigator?.languages)
@@ -896,6 +922,7 @@
     module.exports = {
       createRendererErrorReport,
       installRendererErrorReporting,
+      sanitizeLocationHref,
     };
     
   }

@@ -60,6 +60,7 @@ const hoisted = vi.hoisted(() => {
     show = vi.fn();
     focus = vi.fn();
     close = vi.fn();
+    reload = vi.fn();
     loadURL = vi.fn(async () => undefined);
     loadFile = vi.fn(async () => undefined);
     maximize = vi.fn(() => {
@@ -163,13 +164,17 @@ vi.mock('electron', () => ({
   },
 }));
 
-function createHarness() {
+function createHarness(options: {
+  isDevelopment?: boolean;
+  beforeRendererReload?: () => Promise<void>;
+} = {}) {
   const manager = createWindowManager({
     rendererDevUrl: 'http://localhost:3000',
     appIconPath: 'icon.png',
-    isDevelopment: () => true,
+    isDevelopment: () => options.isDevelopment ?? true,
     openExternalIfAllowed: vi.fn(),
     isTrustedRendererUrl: vi.fn(() => true),
+    beforeRendererReload: options.beforeRendererReload,
   });
 
   return manager.createMainWindow() as unknown as InstanceType<typeof hoisted.MockBrowserWindow>;
@@ -264,6 +269,24 @@ describe('window manager reveal timing', () => {
     expect(window.show).toHaveBeenCalledTimes(1);
     expect(window.focus).toHaveBeenCalledTimes(1);
     expect(window.loadURL).toHaveBeenCalledWith('http://localhost:3000/?newWindow=true&viewMode=chat');
+  });
+
+  it('flushes recovery data before reloading a crashed production renderer', async () => {
+    let finishFlush: (() => void) | undefined;
+    const beforeRendererReload = vi.fn(() => new Promise<void>((resolve) => {
+      finishFlush = resolve;
+    }));
+    const window = createHarness({ isDevelopment: false, beforeRendererReload });
+
+    window.webContents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 });
+    await Promise.resolve();
+    expect(beforeRendererReload).toHaveBeenCalledTimes(1);
+    expect(window.reload).not.toHaveBeenCalled();
+
+    finishFlush?.();
+    await vi.waitFor(() => {
+      expect(window.reload).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('passes notes root launch targets through the renderer URL', () => {

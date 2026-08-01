@@ -19,6 +19,7 @@ import {
   getExternalPathMutationRevision,
   wasPathExternallyMutatedSince,
 } from '../document/externalPathMutationRegistry';
+import { clearNoteRecovery, NOTE_RECOVERY_CONFLICT_ERROR, stageNoteRecoveryForPath } from '../noteRecovery';
 
 type WorkspaceDocumentActions = Pick<
   WorkspaceSlice,
@@ -52,6 +53,8 @@ export function createWorkspaceDocumentActions(
       rootFolder,
       fileTreeSortMode,
       draftNotes,
+      saveError,
+      saveErrorPath,
     } = get();
     if (!currentNote) {
       return;
@@ -60,6 +63,11 @@ export function createWorkspaceDocumentActions(
     const contentAtSaveStart = currentNote.content;
     const wasDirtyAtSaveStart = get().isDirty;
     const pathMutationRevision = getExternalPathMutationRevision();
+
+    if (
+      !options?.explicit && saveErrorPath === notePathAtSaveStart &&
+      saveError === NOTE_RECOVERY_CONFLICT_ERROR
+    ) return;
 
     try {
       const draftNote = draftNotes[currentNote.path];
@@ -83,6 +91,7 @@ export function createWorkspaceDocumentActions(
         currentNote,
         cache: noteContentsCache,
       });
+      void clearNoteRecovery(notesPath, notePathAtSaveStart, contentAtSaveStart);
       const latestState = get();
       if (latestState.notesPath !== notesPath) {
         return;
@@ -284,6 +293,7 @@ export function createWorkspaceDocumentActions(
           ? { saveError: null, saveErrorPath: null }
           : {}),
       });
+      stageNoteRecoveryForPath(get(), currentNote.path);
     },
   };
 }
