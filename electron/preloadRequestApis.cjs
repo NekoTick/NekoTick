@@ -6,10 +6,17 @@ function createAiProviderApi({ ipcRenderer, callIpcCallback, requireSafeIpcReque
     cancelRequest(requestId) {
       return ipcRenderer.invoke('desktop:ai-provider:request:cancel', requireSafeIpcRequestId(requestId, 'AI provider request id'));
     },
+    acknowledgeRequestChunk(requestId, sequence) {
+      return ipcRenderer.invoke(
+        'desktop:ai-provider:request:ack',
+        requireSafeIpcRequestId(requestId, 'AI provider request id'),
+        sequence,
+      );
+    },
     onRequestChunk(requestId, callback) {
       const id = requireSafeIpcRequestId(requestId, 'AI provider request id');
       const channel = `desktop:ai-provider:request:${id}:chunk`;
-      const handler = (_event, chunk) => callIpcCallback(callback, chunk);
+      const handler = (_event, payload) => callIpcCallback(callback, payload?.bytes, payload?.sequence);
       ipcRenderer.on(channel, handler);
       return () => {
         ipcRenderer.removeListener(channel, handler);
@@ -69,16 +76,6 @@ function createComputerApi({ ipcRenderer, callIpcCallback, requireSafeIpcRequest
     respondToApproval(requestId, decision) {
       const id = requireSafeIpcRequestId(requestId, 'Computer command request id');
       return ipcRenderer.invoke('desktop:computer-command:approve', id, decision);
-    },
-    listApprovals() {
-      return ipcRenderer.invoke('desktop:computer-command:approvals:list');
-    },
-    revokeApproval(approvalId) {
-      const id = requireSafeIpcRequestId(approvalId, 'Computer command approval id');
-      return ipcRenderer.invoke('desktop:computer-command:approvals:revoke', id);
-    },
-    clearApprovals() {
-      return ipcRenderer.invoke('desktop:computer-command:approvals:clear');
     },
     onCommandEvent(requestId, callback) {
       const id = requireSafeIpcRequestId(requestId, 'Computer command request id');

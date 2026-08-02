@@ -1,6 +1,13 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import {
+  assertDesktopCommandSandboxAvailable,
+  buildManagedShellCommand,
+  buildSandboxedDesktopCommandLaunch,
+} from './desktopCommandSandbox.mjs';
+
+export { assertDesktopCommandSandboxAvailable };
 
 export const MAX_DESKTOP_COMMAND_OUTPUT_BYTES = 64 * 1024;
 const FORCE_KILL_DELAY_MS = 1500;
@@ -65,16 +72,27 @@ export function runDesktopCommandProcess(request, options = {}) {
   const spawnImpl = options.spawnImpl ?? spawn;
   const startedAt = Date.now();
   let child;
+  let cleanupSandbox = () => {};
 
   try {
-    child = spawnImpl(request.shell, [...request.shellArgs, request.command], {
+    const launch = options.disableSandbox === true
+      ? {
+          args: [...request.shellArgs, buildManagedShellCommand(request.command, platform)],
+          command: request.shell,
+          env: request.env,
+          cleanup: cleanupSandbox,
+        }
+      : buildSandboxedDesktopCommandLaunch(request, platform, options);
+    cleanupSandbox = launch.cleanup;
+    child = spawnImpl(launch.command, launch.args, {
       cwd: request.cwd,
-      env: request.env,
+      env: launch.env,
       detached: platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
   } catch (error) {
+    cleanupSandbox();
     return Promise.resolve({
       status: 'failed',
       exitCode: null,
@@ -139,6 +157,10 @@ export function runDesktopCommandProcess(request, options = {}) {
       settled = true;
       clearTimeout(timeout);
       if (!cancelled && !timedOut) clearForcedKill();
+      if (!cancelled && !timedOut && platform !== 'win32') {
+        stopProcessTree(child, platform, request.shell, spawnImpl, true);
+      }
+      cleanupSandbox();
       options.signal?.removeEventListener('abort', abort);
       stdoutDecoder.end();
       stderrDecoder.end();

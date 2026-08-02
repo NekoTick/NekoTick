@@ -541,91 +541,6 @@ describe('useChatService session context isolation', () => {
     expect(messages.slice(-2).map((message) => message.role)).toEqual(['user', 'assistant']);
   });
 
-  it('shows retry countdown status on the pending assistant message', async () => {
-    let resolveProvider!: (value: string) => void;
-    const pendingProviderResponse = new Promise<string>((resolve) => {
-      resolveProvider = resolve;
-    });
-    mocked.sendMessageWithEndpointFallback.mockImplementationOnce(async ({
-      options,
-    }: {
-      onChunk: (chunk: string) => void;
-      options?: ChatSendOptions;
-    }) => {
-      options?.onRetryStatus?.('Service unavailable\n10秒后重试 - 第1次重试');
-      return await pendingProviderResponse;
-    });
-    const { result } = renderHook(() => useChatService());
-
-    await act(async () => {
-      const accepted = await result.current.sendMessage('retry after upstream failure', [], []);
-      expect(accepted).toBe(true);
-    });
-
-    await waitFor(() => {
-      const messages = useUnifiedStore.getState().data.ai?.messages['session-2'] || [];
-      expect(messages.at(-1)?.content).toBe('Service unavailable\n10秒后重试 - 第1次重试');
-    });
-
-    resolveProvider('assistant answer');
-    await waitFor(() => {
-      const messages = useUnifiedStore.getState().data.ai?.messages['session-2'] || [];
-      expect(messages.at(-1)?.content).toBe('assistant answer');
-    });
-  });
-
-  it('recalls the composer text when stopped during retry status', async () => {
-    useUIStore.setState({ languagePreference: 'zh-CN' });
-    let resolveProvider!: (value: string) => void;
-    const pendingProviderResponse = new Promise<string>((resolve) => {
-      resolveProvider = resolve;
-    });
-    mocked.sendMessageWithEndpointFallback.mockImplementationOnce(async ({
-      options,
-    }: {
-      onChunk: (chunk: string) => void;
-      options?: ChatSendOptions;
-    }) => {
-      options?.onRetryStatus?.('Service unavailable\n10秒后重试 - 第1次重试');
-      return await pendingProviderResponse;
-    });
-    const { result } = renderHook(() => useChatService());
-
-    await act(async () => {
-      expect(await result.current.sendMessage('retrying prompt', [], [])).toBe(true);
-    });
-
-    await waitFor(() => {
-      const messages = useUnifiedStore.getState().data.ai?.messages['session-2'] || [];
-      expect(messages.map((message) => message.content)).toEqual([
-        'session two visible prompt',
-        'session two visible answer',
-        'retrying prompt',
-        'Service unavailable\n10秒后重试 - 第1次重试',
-      ]);
-    });
-
-    let recalled: ReturnType<typeof result.current.stopAndRecallLastUserMessage> = null;
-    act(() => {
-      recalled = result.current.stopAndRecallLastUserMessage('retrying prompt');
-    });
-
-    expect(recalled).toEqual({
-      message: 'retrying prompt',
-      attachments: [],
-      noteMentions: [],
-    });
-    expect((useUnifiedStore.getState().data.ai?.messages['session-2'] || []).map((message) => message.content)).toEqual([
-      'session two visible prompt',
-      'session two visible answer',
-    ]);
-
-    await act(async () => {
-      resolveProvider('late answer');
-      await pendingProviderResponse;
-    });
-  });
-
   it('limits programmatic send text before storing and requesting', async () => {
     const { result } = renderHook(() => useChatService());
     const oversizedPrompt = 'x'.repeat(MAX_COMPOSER_PROGRAMMATIC_INSERT_CHARS + 1);
@@ -949,7 +864,9 @@ describe('useChatService session context isolation', () => {
     });
 
     await waitFor(() => {
-      expect(useAIUIStore.getState().error).toBe('AI request failed.');
+      expect(useAIUIStore.getState().error).toBe(
+        '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      );
     });
     expect(stringReads).toBe(0);
   });

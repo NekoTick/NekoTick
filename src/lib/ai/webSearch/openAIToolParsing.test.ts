@@ -39,6 +39,33 @@ describe('openAIToolParsing', () => {
     }]);
   });
 
+  it('preserves typed DSML numbers and arrays', () => {
+    const content = [
+      '<｜｜DSML｜｜tool_calls>',
+      '<｜｜DSML｜｜invoke name="run_command">',
+      '<｜｜DSML｜｜parameter name="command">printf ok</｜｜DSML｜｜parameter>',
+      '<｜｜DSML｜｜parameter name="purpose">Print output</｜｜DSML｜｜parameter>',
+      '<｜｜DSML｜｜parameter name="timeout_seconds">30</｜｜DSML｜｜parameter>',
+      '</｜｜DSML｜｜invoke>',
+      '<｜｜DSML｜｜invoke name="read_web_pages">',
+      '<｜｜DSML｜｜parameter name="urls">["https://example.test/a","https://example.test/b"]</｜｜DSML｜｜parameter>',
+      '<｜｜DSML｜｜parameter name="contentLimit">1250</｜｜DSML｜｜parameter>',
+      '</｜｜DSML｜｜invoke>',
+      '</｜｜DSML｜｜tool_calls>',
+    ].join('');
+
+    const message = extractOpenAIMessageFromJson({ choices: [{ message: { content } }] });
+
+    expect(JSON.parse(message.toolCalls[0]?.function.arguments || '{}')).toMatchObject({
+      command: 'printf ok',
+      timeout_seconds: 30,
+    });
+    expect(JSON.parse(message.toolCalls[1]?.function.arguments || '{}')).toEqual({
+      urls: ['https://example.test/a', 'https://example.test/b'],
+      contentLimit: 1250,
+    });
+  });
+
   it('skips DSML regex extraction for overlong assistant content', () => {
     const content = `${'a'.repeat(MAX_DSML_TOOL_MARKUP_CHARS + 1)}<｜｜DSML｜｜tool_calls>`;
     const message = extractOpenAIMessageFromJson({
@@ -65,6 +92,13 @@ describe('openAIToolParsing', () => {
 
   it('skips overlong OpenAI payload lines before trimming', () => {
     expect(parseOpenAIPayloadText(`${' '.repeat(MAX_OPENAI_PAYLOAD_LINE_CHARS + 1)}{"ok":true}`)).toBeNull();
+  });
+
+  it('ignores OpenAI payload values that are not objects', () => {
+    for (const value of ['null', 'true', '1', '"text"', '[]']) {
+      expect(parseOpenAIPayloadText(`data: ${value}`)).toBeNull();
+    }
+    expect(parseOpenAIPayloadText('data: {"ok":true}')).toEqual({ ok: true });
   });
 
   it('ignores loosely formatted or overlong tool call indexes', () => {

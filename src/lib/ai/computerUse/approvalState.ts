@@ -9,15 +9,21 @@ export interface ComputerCommandApprovalRequest {
   commandId: string;
   command: string;
   cwd: string;
+  workspaceRoot: string;
   purpose: string;
   timeoutSeconds: number;
-  risk: 'standard' | 'elevated';
-  canAlwaysAllow: boolean;
 }
 
 export type ComputerCommandApprovalDecision = 'run_once' | 'always' | 'cancel';
 
+type ComputerCommandAlwaysRunApproval = Pick<
+  ComputerCommandApprovalRequest,
+  'sessionId' | 'command' | 'cwd' | 'workspaceRoot'
+>;
+
 let pending: ComputerCommandApprovalRequest[] = [];
+let alwaysRunApprovals: ComputerCommandAlwaysRunApproval[] = [];
+let alwaysRunApprovalGeneration = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -55,6 +61,24 @@ export function getPendingComputerCommandApprovalsSnapshot(): readonly ComputerC
   return pending;
 }
 
+export function isComputerCommandAlwaysRunApproved(
+  request: ComputerCommandAlwaysRunApproval,
+): boolean {
+  if (!request.sessionId) return false;
+  const sessionId = resolveSessionIdAlias(request.sessionId);
+  return alwaysRunApprovals.some((approval) => (
+    resolveSessionIdAlias(approval.sessionId) === sessionId
+    && approval.command === request.command
+    && approval.cwd === request.cwd
+    && approval.workspaceRoot === request.workspaceRoot
+  ));
+}
+
+export function clearComputerCommandAlwaysRunApprovals() {
+  alwaysRunApprovals = [];
+  alwaysRunApprovalGeneration += 1;
+}
+
 export function isComputerCommandApprovalForSession(
   approval: ComputerCommandApprovalRequest,
   sessionId: string | null | undefined,
@@ -67,12 +91,33 @@ export async function respondToComputerCommandApproval(
   requestId: string,
   decision: ComputerCommandApprovalDecision,
 ): Promise<boolean> {
-  const accepted = await getElectronBridge()?.computer?.respondToApproval(requestId, decision) ?? false;
-  if (accepted) clearComputerCommandApproval(requestId);
+  const approval = pending.find((item) => item.id === requestId);
+  if (decision === 'always' && !approval?.sessionId) return false;
+  const approvalGeneration = alwaysRunApprovalGeneration;
+  const bridgeDecision = decision === 'always' ? 'run_once' : decision;
+  const accepted = await getElectronBridge()?.computer?.respondToApproval(requestId, bridgeDecision) ?? false;
+  if (accepted) {
+    if (
+      decision === 'always'
+      && approval
+      && approvalGeneration === alwaysRunApprovalGeneration
+      && !isComputerCommandAlwaysRunApproved(approval)
+    ) {
+      alwaysRunApprovals = [...alwaysRunApprovals, {
+        sessionId: approval.sessionId,
+        command: approval.command,
+        cwd: approval.cwd,
+        workspaceRoot: approval.workspaceRoot,
+      }];
+    }
+    clearComputerCommandApproval(requestId);
+  }
   return accepted;
 }
 
 export function resetComputerCommandApprovalsForTests() {
   pending = [];
+  alwaysRunApprovals = [];
+  alwaysRunApprovalGeneration += 1;
   emit();
 }

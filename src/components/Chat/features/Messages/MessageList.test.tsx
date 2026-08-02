@@ -1,9 +1,10 @@
 import { act, createRef } from "react";
 import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ChatMessage } from "@/lib/ai/types";
 import { useAccountSessionStore } from "@/stores/accountSession";
 import { initialAccountSessionState } from "@/stores/accountSession/state";
+import { rememberMeasuredChatMessageHeight } from "@/components/Chat/features/Layout/chatMessageFrames";
 
 const { messageItemSpy } = vi.hoisted(() => ({
   messageItemSpy: vi.fn(),
@@ -317,6 +318,72 @@ describe("MessageList", () => {
 
     expect(screen.getByTestId("chat-loading")).toBeInTheDocument();
     expect(document.querySelector('[data-chat-scrollable="true"]')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it("drops the previous response height when regeneration replaces the active version", async () => {
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 800 });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 600 });
+
+    try {
+      const previousResponse = createMessage("a-regenerate", "assistant");
+      previousResponse.content = "";
+      previousResponse.versions[0] = {
+        ...previousResponse.versions[0]!,
+        content: "",
+      };
+      rememberMeasuredChatMessageHeight(previousResponse, {
+        cacheKey: "chat-regenerate-height",
+        containerWidth: 800,
+        isSessionActive: true,
+        height: 520,
+      });
+
+      const props = {
+        chatId: "chat-regenerate-height",
+        getImageGallery: () => [],
+        isSessionActive: true,
+        showLoading: true,
+        spacerHeight: 0,
+        containerRef: createRef<HTMLDivElement>(),
+        onCopy: () => {},
+        onRegenerate: () => {},
+        onSwitchVersion: () => {},
+      };
+      const view = render(<MessageList {...props} messages={[previousResponse]} />);
+
+      const getLoadingTop = () => Number.parseFloat(
+        screen.getByTestId("chat-loading").parentElement?.style.top || "0",
+      );
+      await waitFor(() => expect(getLoadingTop()).toBeGreaterThan(500));
+
+      const regeneration = {
+        ...previousResponse,
+        versions: [
+          {
+            content: "",
+            createdAt: previousResponse.timestamp + 1,
+            kind: "regeneration" as const,
+            subsequentMessages: [],
+          },
+        ],
+      };
+      view.rerender(<MessageList {...props} messages={[regeneration]} />);
+
+      await waitFor(() => expect(getLoadingTop()).toBeLessThan(200));
+    } finally {
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", widthDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+      }
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, "clientHeight", heightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+      }
+    }
   });
 
   it("navigates to virtualized user prompts using the full frame layout", () => {

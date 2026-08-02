@@ -13,35 +13,11 @@ describe("ErrorBlock", () => {
       .toHaveAttribute("data-chat-selection-start", "true");
   });
 
-  it("links public HTTP URLs in readable error text", () => {
+  it("renders URLs as inert error text", () => {
     render(<ErrorBlock content="Read https://example.com/docs then retry." />);
 
-    expect(screen.getByRole("link", { name: "https://example.com/docs" }))
-      .toHaveAttribute("href", "https://example.com/docs");
-  });
-
-  it("does not link local-network HTTP URLs in readable error text", () => {
-    render(
-      <ErrorBlock content="Blocked http://localhost:3000/admin http://2130706433/admin http://[::1]/admin. Read https://example.com/docs" />,
-    );
-
-    expect(screen.getByText(/http:\/\/localhost:3000\/admin/)).toBeInTheDocument();
-    expect(screen.getByText(/http:\/\/2130706433\/admin/)).toBeInTheDocument();
-    expect(screen.getByText(/http:\/\/\[::1\]\/admin/)).toBeInTheDocument();
-    expect(screen.getAllByRole("link")).toHaveLength(1);
-    expect(screen.getByRole("link", { name: "https://example.com/docs" }))
-      .toHaveAttribute("href", "https://example.com/docs");
-  });
-
-  it("caps linked URLs in readable error text", () => {
-    render(
-      <ErrorBlock
-        content={Array.from({ length: 60 }, (_, index) => `https://example.com/${index}`).join(" ")}
-      />,
-    );
-
-    expect(screen.getAllByRole("link")).toHaveLength(50);
-    expect(screen.getByText(/https:\/\/example.com\/59/)).toBeInTheDocument();
+    expect(screen.getByText("Read https://example.com/docs then retry.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("renders a sign-in prompt that opens the account login flow", () => {

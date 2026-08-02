@@ -1,29 +1,56 @@
 import { describe, expect, it } from 'vitest';
-import { buildChatErrorPayload } from './errorHandling';
+import { buildChatErrorPayload, extractRawErrorMessage } from './errorHandling';
 
 describe('buildChatErrorPayload', () => {
   it('localizes desktop custom provider transport failures for custom providers', () => {
     const result = buildChatErrorPayload(
       new Error(
-        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI provider request to https://api.example.com/v1/chat/completions failed before an HTTP response was received: TypeError: fetch failed"
+        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED"
       ),
       false,
     );
 
     expect(result.message).toBe(
-      'The custom channel still could not be reached after automatic retries. Check your network or the upstream service, then try again.',
+      'The custom channel could not be reached. Check your network or the upstream service, then try again.',
     );
     expect(result.xml).toBe(
-      '<error type="NETWORK_ERROR" code="">The custom channel still could not be reached after automatic retries. Check your network or the upstream service, then try again.</error>',
+      '<error type="NETWORK_ERROR" code="ai_provider_connection_failed">The custom channel could not be reached. Check your network or the upstream service, then try again.</error>',
     );
   });
 
-  it('preserves custom provider upstream messages', () => {
+  it('does not expose custom provider error text', () => {
+    const result = buildChatErrorPayload(
+      new Error(`Custom provider\u202Eerror\n${'x'.repeat(9000)}`),
+      false,
+    );
+
+    expect(result.message).toBe(
+      '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+    );
+    expect(result.xml).not.toContain('Custom provider');
+    expect(result.xml).not.toContain('x'.repeat(100));
+  });
+
+  it('maps custom provider upstream messages to local copy', () => {
     const result = buildChatErrorPayload(new Error('Custom provider rejected the request'), false);
 
     expect(result).toEqual({
-      message: 'Custom provider rejected the request',
-      xml: '<error type="custom_provider" code="">Custom provider rejected the request</error>',
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      xml: '<error type="SERVER_ERROR" code="">๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~</error>',
+    });
+  });
+
+  it('fails closed when an error message getter throws', () => {
+    const error = Object.defineProperty({}, 'message', {
+      get() {
+        throw new Error('hostile getter');
+      },
+    });
+
+    expect(extractRawErrorMessage(error)).toBe('AI request failed.');
+    expect(buildChatErrorPayload(error, false)).toEqual({
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      xml: '<error type="SERVER_ERROR" code="">๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~</error>',
     });
   });
 });

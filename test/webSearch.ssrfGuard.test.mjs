@@ -40,6 +40,20 @@ describe('web search SSRF guard', () => {
     expect(isBlockedIp('2002::1')).toBe(true);
   });
 
+  it('blocks IPv6 translation and special-purpose ranges', () => {
+    expect(isBlockedIp('64:ff9b::c000:201')).toBe(true);
+    expect(isBlockedIp('64:ff9b:1::1')).toBe(true);
+    expect(isBlockedIp('100::1')).toBe(true);
+    expect(isBlockedIp('2001:1ff:ffff::1')).toBe(true);
+    expect(isBlockedIp('3fff:fff::1')).toBe(true);
+    expect(isBlockedIp('5f00::1')).toBe(true);
+
+    expect(isBlockedIp('64:ff9b:2::1')).toBe(false);
+    expect(isBlockedIp('101::1')).toBe(false);
+    expect(isBlockedIp('2001:200::1')).toBe(false);
+    expect(isBlockedIp('3fff:1000::1')).toBe(false);
+  });
+
   it('allows only http and https URL protocols', () => {
     expect(normalizePublicHttpUrl('https://example.com/path').toString()).toBe('https://example.com/path');
     expect(() => normalizePublicHttpUrl('file:///etc/passwd')).toThrow('Only HTTP and HTTPS URLs are supported.');
@@ -72,5 +86,6 @@ describe('web search SSRF guard', () => {
     await expect(resolvePublicUrl('http://router/admin')).rejects.toMatchObject({ code: 'blocked_url' });
     await expect(resolvePublicUrl('http://service.home.arpa/admin')).rejects.toMatchObject({ code: 'blocked_url' });
     await expect(resolvePublicUrl('http://assets.localhost/admin')).rejects.toMatchObject({ code: 'blocked_url' });
+    await expect(resolvePublicUrl('http://[64:ff9b::c000:201]/admin')).rejects.toMatchObject({ code: 'blocked_url' });
   });
 });

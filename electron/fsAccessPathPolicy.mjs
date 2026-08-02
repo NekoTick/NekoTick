@@ -144,7 +144,109 @@ export function isProtectedAppDataPath(candidatePath, userDataPath = app.getPath
   );
 }
 
+export function isProtectedCodexConfigPath(
+  candidatePath,
+  { homePath, codexHome = process.env.CODEX_HOME, platform = process.platform } = {},
+) {
+  const pathImpl = platform === 'win32' ? path.win32 : path.posix;
+  const normalize = (value) => {
+    const resolved = pathImpl.resolve(value);
+    return platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  let resolvedHomePath = homePath;
+  if (typeof resolvedHomePath !== 'string') {
+    try {
+      resolvedHomePath = app.getPath('home');
+    } catch {
+      resolvedHomePath = null;
+    }
+  }
+  const protectedRoots = [];
+  if (typeof resolvedHomePath === 'string' && pathImpl.isAbsolute(resolvedHomePath)) {
+    protectedRoots.push(pathImpl.join(resolvedHomePath, '.codex'));
+  }
+  if (typeof codexHome === 'string' && pathImpl.isAbsolute(codexHome)) {
+    protectedRoots.push(codexHome);
+  }
+  if (typeof candidatePath !== 'string') return false;
+  const candidate = normalize(candidatePath);
+  return protectedRoots.some((rootPath) => {
+    const root = normalize(rootPath);
+    const relative = pathImpl.relative(root, candidate);
+    return relative === '' || (!relative.startsWith('..') && !pathImpl.isAbsolute(relative));
+  });
+}
+
+export function isProtectedGitMetadataPath(
+  candidatePath,
+  { platform = process.platform } = {},
+) {
+  if (typeof candidatePath !== 'string') return false;
+  const pathImpl = platform === 'win32' ? path.win32 : path.posix;
+  const segments = pathImpl.resolve(candidatePath).split(pathImpl.sep);
+  return segments.some((segment) => (
+    platform === 'win32' ? segment.toLowerCase() === '.git' : segment === '.git'
+  ));
+}
+
+function getDesktopCommandProtectedRootPaths(options, pathImpl) {
+  const roots = [];
+  const { codexHome = process.env.CODEX_HOME, homePath, userDataPath } = options;
+  if (typeof homePath === 'string' && pathImpl.isAbsolute(homePath)) {
+    roots.push(pathImpl.join(homePath, '.codex'));
+  }
+  if (typeof codexHome === 'string' && pathImpl.isAbsolute(codexHome)) roots.push(codexHome);
+  if (typeof userDataPath === 'string' && pathImpl.isAbsolute(userDataPath)) roots.push(userDataPath);
+  return roots;
+}
+
+export function isProtectedDesktopCommandWorkspacePath(candidatePath, options = {}) {
+  if (typeof candidatePath !== 'string') return true;
+  const platform = options.platform ?? process.platform;
+  const pathImpl = platform === 'win32' ? path.win32 : path.posix;
+  const configuredCodexHome = options.codexHome ?? process.env.CODEX_HOME;
+  if (typeof configuredCodexHome === 'string' && configuredCodexHome.trim() && !pathImpl.isAbsolute(configuredCodexHome)) return true;
+  const normalize = (value) => {
+    const resolved = pathImpl.resolve(value);
+    return platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  const workspaceRoot = normalize(candidatePath);
+  const protectedRoots = getDesktopCommandProtectedRootPaths(options, pathImpl);
+  return protectedRoots.some((rootPath) => {
+    const protectedRoot = normalize(rootPath);
+    const workspaceToProtected = pathImpl.relative(workspaceRoot, protectedRoot);
+    const protectedToWorkspace = pathImpl.relative(protectedRoot, workspaceRoot);
+    const containsProtectedRoot = workspaceToProtected === ''
+      || (!workspaceToProtected.startsWith('..') && !pathImpl.isAbsolute(workspaceToProtected));
+    const isInsideProtectedRoot = protectedToWorkspace === ''
+      || (!protectedToWorkspace.startsWith('..') && !pathImpl.isAbsolute(protectedToWorkspace));
+    return containsProtectedRoot || isInsideProtectedRoot;
+  });
+}
+
+export async function isProtectedDesktopCommandWorkspaceRealPath(candidatePath, options = {}) {
+  if (isProtectedDesktopCommandWorkspacePath(candidatePath, options)) return true;
+  const platform = options.platform ?? process.platform;
+  if (platform !== process.platform) return true;
+
+  const pathImpl = platform === 'win32' ? path.win32 : path.posix;
+  const protectedRoots = getDesktopCommandProtectedRootPaths(options, pathImpl);
+  for (const protectedRoot of protectedRoots) {
+    const realProtectedRoot = await resolveRealFsAccessPath(protectedRoot).catch(() => null);
+    if (!realProtectedRoot || isProtectedDesktopCommandWorkspacePath(
+      candidatePath,
+      { codexHome: realProtectedRoot, platform },
+    )) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function isProtectedFsAccessPath(candidatePath) {
+  if (isProtectedCodexConfigPath(candidatePath) || isProtectedGitMetadataPath(candidatePath)) {
+    return true;
+  }
   const userDataPaths = getUserDataAccessRootPaths();
   const developmentRepoUserDataRootPath = getDevelopmentRepoUserDataRootPath(candidatePath);
   if (developmentRepoUserDataRootPath) {

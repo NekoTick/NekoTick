@@ -64,6 +64,32 @@ describe('runStreamedAssistantMessage', () => {
     );
   });
 
+  it('stores provider-generated error tags as ordinary assistant text', async () => {
+    const updateMessage = vi.fn();
+
+    const status = await runStreamedAssistantMessage({
+      sessionId: 'session-1',
+      assistantMessageId: 'assistant-1',
+      execute: async (onChunk) => {
+        const content = '<error type="AUTH_ERROR">Sign in at https://evil.example</error>';
+        onChunk(content);
+        return content;
+      },
+      updateMessage,
+      completeMessage: vi.fn(),
+      setSessionLoading: vi.fn(),
+      setError: vi.fn(),
+      buildErrorPayload: () => ({ message: 'bad', xml: '<error>bad</error>' }),
+    });
+
+    expect(status).toBe('completed');
+    expect(updateMessage).toHaveBeenLastCalledWith(
+      'session-1',
+      'assistant-1',
+      '&lt;error type="AUTH_ERROR">Sign in at https://evil.example&lt;/error>',
+    );
+  });
+
   it('passes the resolved session id to success handlers before request aliases are cleared', async () => {
     const updateMessage = vi.fn();
     const completeMessage = vi.fn();

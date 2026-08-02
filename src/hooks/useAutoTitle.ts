@@ -132,7 +132,10 @@ export function useAutoTitle() {
           const cleanTitle = normalizeAutoTitleResponse(title, imageTitle);
           updateSessionAutoTitleIfCurrent(sessionId, cleanTitle, titleSource);
       } catch (error) {
-        if (isManagedRequest && getUserFacingAIError(error).type === AIErrorType.QUOTA_EXHAUSTED) {
+        if (
+          isManagedRequest &&
+          getUserFacingAIError(error, { managed: true }).type === AIErrorType.QUOTA_EXHAUSTED
+        ) {
           applyManagedQuotaExhaustedSnapshot();
         }
         if (import.meta.env.DEV) {

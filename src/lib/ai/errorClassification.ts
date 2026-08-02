@@ -1,5 +1,3 @@
-import { AIErrorType } from './types';
-
 export {
   inferErrorTypeByMessage,
   inferErrorTypeByStatus,
@@ -7,9 +5,26 @@ export {
 
 export const MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS = 8192;
 export const MAX_USER_FACING_AI_ERROR_CODE_CHARS = 512;
+const UNSAFE_USER_FACING_ERROR_CHARS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\uFFFD]/gu;
+const USER_FACING_ERROR_CODE_PATTERN = /^[A-Za-z0-9._:-]+$/;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+export function readErrorField(error: unknown, key: string): unknown {
+  if (!isRecord(error)) {
+    return undefined;
+  }
+  try {
+    return error[key];
+  } catch {
+    return undefined;
+  }
+}
+
+export function isErrorNamed(error: unknown, name: string): boolean {
+  return readErrorField(error, 'name') === name;
 }
 
 export function primitiveToString(value: unknown): string {
@@ -27,7 +42,7 @@ export function primitiveToString(value: unknown): string {
 }
 
 export function normalizeUserFacingMessage(message: string): string {
-  return message.replace(/\s+/g, ' ').trim();
+  return message.replace(UNSAFE_USER_FACING_ERROR_CHARS, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function stripErrorPrefix(message: string): string {
@@ -59,23 +74,16 @@ function extractMachineErrorCodeFromMessage(message: string): string {
 }
 
 export function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message.slice(0, MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS);
-  }
-
-  if (isRecord(error) && typeof error.message === 'string') {
-    return error.message.slice(0, MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS);
+  const message = readErrorField(error, 'message');
+  if (typeof message === 'string') {
+    return message.slice(0, MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS);
   }
 
   return primitiveToString(error).slice(0, MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS);
 }
 
 export function extractErrorDetails(error: unknown): string {
-  if (!isRecord(error)) {
-    return '';
-  }
-
-  const details = error.details;
+  const details = readErrorField(error, 'details');
   return typeof details === 'string' ? details.slice(0, MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS) : '';
 }
 
@@ -87,32 +95,29 @@ export function extractErrorCode(error: unknown): string {
   }
 
   for (const key of ['errorCode', 'code'] as const) {
-    const codeValue = error[key];
+    const codeValue = readErrorField(error, key);
     if (typeof codeValue === 'string' && codeValue.length <= MAX_USER_FACING_AI_ERROR_CODE_CHARS) {
       const trimmed = codeValue.trim();
-      if (trimmed) {
+      if (USER_FACING_ERROR_CODE_PATTERN.test(trimmed)) {
         return trimmed;
       }
     }
   }
 
-  const value = error.statusCode ?? error.status;
+  const statusCode = readErrorField(error, 'statusCode');
+  const value = statusCode ?? readErrorField(error, 'status');
   if (typeof value === 'number' && Number.isFinite(value)) {
     return String(value);
   }
   if (typeof value === 'string' && value.length <= MAX_USER_FACING_AI_ERROR_CODE_CHARS) {
     const trimmed = value.trim();
-    if (trimmed) {
+    if (USER_FACING_ERROR_CODE_PATTERN.test(trimmed)) {
       return trimmed;
     }
   }
 
   const statusMatch = message.match(/\b(?:status|http)\s+(\d{3})\b/i);
   return statusMatch?.[1] || extractMachineErrorCodeFromMessage(message);
-}
-
-function includesAny(text: string, keywords: string[]): boolean {
-  return keywords.some((keyword) => text.includes(keyword));
 }
 
 export function isLikelyHtmlErrorDocument(message: string): boolean {
@@ -129,63 +134,4 @@ export function isLikelyHtmlErrorDocument(message: string): boolean {
     hasCloudflareErrorShell ||
     normalized.includes('error code 524')
   );
-}
-
-export function isLowSignalServerMessage(message: string): boolean {
-  const normalized = normalizeUserFacingMessage(message).toLowerCase();
-  if (!normalized) {
-    return true;
-  }
-
-  if (/^http\s+\d{3}\s+error$/i.test(normalized)) {
-    return true;
-  }
-
-  return includesAny(normalized, [
-    'server error',
-    'internal server error',
-    'service unavailable',
-    'temporarily unavailable',
-    'bad gateway',
-    'gateway timeout',
-    'upstream returned error',
-    'upstream request failed',
-    'managed api request failed',
-    'unknown error',
-    'http 500',
-    'http 502',
-    'http 503',
-    'http 504',
-  ]);
-}
-
-export function shouldPreserveOriginalMessage(type: AIErrorType, message: string): boolean {
-  const normalized = normalizeUserFacingMessage(message);
-  if (!normalized) {
-    return false;
-  }
-
-  switch (type) {
-    case AIErrorType.NETWORK_ERROR:
-      if (normalized.toLowerCase().startsWith('managed api request failed')) {
-        return false;
-      }
-      return ![
-        'failed to fetch',
-        'fetch failed',
-        'network error',
-        'network request failed',
-      ].includes(normalized.toLowerCase());
-    case AIErrorType.TIMEOUT:
-    case AIErrorType.AUTH_ERROR:
-    case AIErrorType.QUOTA_EXHAUSTED:
-      return false;
-    case AIErrorType.RATE_LIMIT:
-    case AIErrorType.INVALID_REQUEST:
-      return true;
-    case AIErrorType.SERVER_ERROR:
-    case AIErrorType.UNKNOWN:
-    default:
-      return !isLowSignalServerMessage(normalized);
-  }
 }

@@ -13,7 +13,8 @@ const MAX_DIFF_MATRIX_CELLS = 100_000;
 const MAX_CHANGE_PATH_CHARS = 256;
 const SKIPPED_DIRECTORIES = new Set([
   '.git', '.hg', '.svn', '.cache', '.next', '.nuxt', '.output', '.pnpm',
-  'build', 'coverage', 'dist', 'node_modules', 'target',
+  'build', 'coverage', 'credentials', 'dist', 'keyrings', 'node_modules',
+  'secrets', 'target',
 ]);
 const UNSAFE_PATH_CHARS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\uFFFD]/u;
 
@@ -69,6 +70,7 @@ export async function captureDesktopCommandSnapshot(rootPath) {
         budget.truncated = true;
         break;
       }
+      if (entry.name.startsWith('.')) continue;
       const relative = current.relative ? path.join(current.relative, entry.name) : entry.name;
       const safePath = safeRelativePath(relative);
       if (!safePath || entry.isSymbolicLink()) continue;

@@ -12,6 +12,7 @@ import {
   parseManagedError,
 } from './managed/errors';
 import { AIErrorType } from './types';
+import { isErrorNamed } from './errorClassification';
 
 describe('getUserFacingAIError', () => {
   it('maps fetch failures to the network error message', () => {
@@ -24,7 +25,7 @@ describe('getUserFacingAIError', () => {
     });
   });
 
-  it('preserves detailed direct provider transport failures', () => {
+  it('does not expose detailed direct provider transport failures', () => {
     const result = getUserFacingAIError({
       type: AIErrorType.NETWORK_ERROR,
       message: 'Failed to fetch',
@@ -34,8 +35,7 @@ describe('getUserFacingAIError', () => {
     expect(result).toEqual({
       type: AIErrorType.NETWORK_ERROR,
       code: '',
-      message:
-        'OpenAI-compatible chat request to https://api.example.com/v1/chat/completions failed: fetch failed: certificate has expired',
+      message: 'Network connection error. Please check your connection and try again.',
     });
   });
 
@@ -79,8 +79,36 @@ describe('getUserFacingAIError', () => {
     });
   });
 
+  it('checks error names without invoking hostile getters', () => {
+    const error = Object.defineProperty({}, 'name', {
+      get: () => { throw new Error('hostile name getter'); },
+    });
+
+    expect(() => isErrorNamed(error, 'AbortError')).not.toThrow();
+    expect(isErrorNamed(error, 'AbortError')).toBe(false);
+    expect(isErrorNamed(new DOMException('Aborted', 'AbortError'), 'AbortError')).toBe(true);
+  });
+
+  it('fails closed when error field getters throw', () => {
+    const hostileError = new Proxy({}, {
+      get() {
+        throw new Error('hostile getter');
+      },
+    });
+
+    expect(parseAPIError(hostileError)).toMatchObject({
+      type: AIErrorType.UNKNOWN,
+      message: 'Unknown error',
+    });
+    expect(getUserFacingAIError(hostileError)).toEqual({
+      type: AIErrorType.SERVER_ERROR,
+      code: '',
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+    });
+  });
+
   it('maps managed auth failures to the auth message', () => {
-    const result = getUserFacingAIError(new Error('vlaina sign-in required'));
+    const result = getUserFacingAIError(new Error('vlaina sign-in required'), { managed: true });
 
     expect(result).toEqual({
       type: AIErrorType.AUTH_ERROR,
@@ -95,31 +123,34 @@ describe('getUserFacingAIError', () => {
     expect(result).toEqual({
       type: AIErrorType.RATE_LIMIT,
       code: '429',
-      message: 'Too many requests',
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
     });
   });
 
-  it('maps channel failures to the unified service message', () => {
+  it('does not expose channel failure details', () => {
     const result = getUserFacingAIError(new Error('No available channel for model test'));
 
     expect(result).toEqual({
       type: AIErrorType.SERVER_ERROR,
       code: '',
-      message: 'No available channel for model test',
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
     });
   });
 
-  it('preserves detailed invalid request messages', () => {
-    const result = getUserFacingAIError(new Error('Managed chat currently supports text-only messages'));
+  it('does not expose invalid request details', () => {
+    const result = getUserFacingAIError(
+      new Error('Managed chat currently supports text-only messages'),
+      { managed: true },
+    );
 
     expect(result).toEqual({
       type: AIErrorType.INVALID_REQUEST,
       code: '',
-      message: 'Managed chat currently supports text-only messages',
+      message: 'Invalid request. Check your input and try again.',
     });
   });
 
-  it('bounds provider error fields before exposing preserved messages', () => {
+  it('bounds provider error fields without exposing messages', () => {
     const result = getUserFacingAIError({
       type: AIErrorType.INVALID_REQUEST,
       message: 'x'.repeat(MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS + 1),
@@ -127,7 +158,7 @@ describe('getUserFacingAIError', () => {
     });
 
     expect(result.type).toBe(AIErrorType.INVALID_REQUEST);
-    expect(result.message).toHaveLength(MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS);
+    expect(result.message).toBe('Invalid request. Check your input and try again.');
     expect(result.code).toBe('');
   });
 
@@ -140,8 +171,17 @@ describe('getUserFacingAIError', () => {
     expect(result).toEqual({
       type: AIErrorType.SERVER_ERROR,
       code: '',
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+    });
+  });
+
+  it('drops provider error codes with unsafe characters', () => {
+    const result = getUserFacingAIError({
+      code: 'safe\u202Ecode',
       message: 'opaque failure',
     });
+
+    expect(result.code).toBe('');
   });
 
   it('maps managed unsupported input codes to a clear model capability message', () => {
@@ -149,7 +189,7 @@ describe('getUserFacingAIError', () => {
     error.errorCode = 'unsupported_model_input';
     error.statusCode = 400;
 
-    const result = getUserFacingAIError(error);
+    const result = getUserFacingAIError(error, { managed: true });
 
     expect(result).toEqual({
       type: AIErrorType.INVALID_REQUEST,
@@ -191,14 +231,14 @@ describe('getUserFacingAIError', () => {
   it('classifies Electron direct provider fetch failures as network errors', () => {
     const result = getUserFacingAIError(
       new Error(
-        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI provider request to https://api.example.com/v1/chat/completions failed before an HTTP response was received: TypeError: fetch failed"
+        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED"
       )
     );
 
     expect(result).toEqual({
       type: AIErrorType.NETWORK_ERROR,
-      code: '',
-      message: 'The custom channel still could not be reached after automatic retries. Check your network or the upstream service, then try again.',
+      code: 'ai_provider_connection_failed',
+      message: 'The custom channel could not be reached. Check your network or the upstream service, then try again.',
     });
   });
 
@@ -206,15 +246,15 @@ describe('getUserFacingAIError', () => {
     const result = getUserFacingAIError({
       type: AIErrorType.NETWORK_ERROR,
       message:
-        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI provider request to https://api.example.com/v1/chat/completions failed before an HTTP response was received: TypeError: fetch failed",
+        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED",
       details:
-        "OpenAI-compatible chat request to https://api.example.com/v1/chat/completions failed: Error invoking remote method 'desktop:ai-provider:request:start': Error: AI provider request to https://api.example.com/v1/chat/completions failed before an HTTP response was received: TypeError: fetch failed",
+        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED",
     });
 
     expect(result).toEqual({
       type: AIErrorType.NETWORK_ERROR,
-      code: '',
-      message: 'The custom channel still could not be reached after automatic retries. Check your network or the upstream service, then try again.',
+      code: 'ai_provider_connection_failed',
+      message: 'The custom channel could not be reached. Check your network or the upstream service, then try again.',
     });
   });
 
@@ -222,7 +262,8 @@ describe('getUserFacingAIError', () => {
     const result = getUserFacingAIError(
       new Error(
         'Managed API failed with status 403: {"error":{"message":"openai_error","type":"bad_response_status_code","param":"","code":"bad_response_status_code"}}'
-      )
+      ),
+      { managed: true },
     );
 
     expect(result).toEqual({
@@ -233,7 +274,7 @@ describe('getUserFacingAIError', () => {
   });
 
   it('maps managed session expiry failures to the auth message', () => {
-    const result = getUserFacingAIError(new Error('Managed API session expired'));
+    const result = getUserFacingAIError(new Error('Managed API session expired'), { managed: true });
 
     expect(result).toEqual({
       type: AIErrorType.AUTH_ERROR,
@@ -243,7 +284,7 @@ describe('getUserFacingAIError', () => {
   });
 
   it('localizes managed upstream machine errors', () => {
-    const result = getUserFacingAIError(new Error('UPSTREAM_UNAVAILABLE'));
+    const result = getUserFacingAIError(new Error('UPSTREAM_UNAVAILABLE'), { managed: true });
 
     expect(result).toEqual({
       type: AIErrorType.SERVER_ERROR,
@@ -254,7 +295,8 @@ describe('getUserFacingAIError', () => {
 
   it('does not expose Electron managed invalid request IPC wrappers', () => {
     const result = getUserFacingAIError(
-      new Error("Error invoking remote method 'desktop:managed:chat-completion': Error: INVALID_REQUEST")
+      new Error("Error invoking remote method 'desktop:managed:chat-completion': Error: INVALID_REQUEST"),
+      { managed: true },
     );
 
     expect(result).toEqual({
@@ -265,11 +307,14 @@ describe('getUserFacingAIError', () => {
   });
 
   it('uses structured managed error codes before falling back to messages', () => {
-    const result = getUserFacingAIError({
-      errorCode: 'upstream_unavailable',
-      statusCode: 502,
-      message: 'Managed API request failed',
-    });
+    const result = getUserFacingAIError(
+      {
+        errorCode: 'upstream_unavailable',
+        statusCode: 502,
+        message: 'Managed API request failed',
+      },
+      { managed: true },
+    );
 
     expect(result).toEqual({
       type: AIErrorType.SERVER_ERROR,
@@ -279,7 +324,7 @@ describe('getUserFacingAIError', () => {
   });
 
   it('localizes managed upstream rate limit machine errors', () => {
-    const result = getUserFacingAIError(new Error('UPSTREAM_RATE_LIMITED'));
+    const result = getUserFacingAIError(new Error('UPSTREAM_RATE_LIMITED'), { managed: true });
 
     expect(result).toEqual({
       type: AIErrorType.RATE_LIMIT,
@@ -290,7 +335,8 @@ describe('getUserFacingAIError', () => {
 
   it('preserves managed business 403 reasons instead of treating them as auth failures', () => {
     const result = getUserFacingAIError(
-      new Error('Managed API failed with status 403: Points exhausted')
+      new Error('Managed API failed with status 403: Points exhausted'),
+      { managed: true },
     );
 
     expect(result).toEqual({
@@ -301,10 +347,13 @@ describe('getUserFacingAIError', () => {
   });
 
   it('preserves direct business 403 reasons instead of treating them as auth failures', () => {
-    const result = getUserFacingAIError({
-      statusCode: 403,
-      message: 'No active points balance',
-    });
+    const result = getUserFacingAIError(
+      {
+        statusCode: 403,
+        message: 'No active points balance',
+      },
+      { managed: true },
+    );
 
     expect(result).toEqual({
       type: AIErrorType.QUOTA_EXHAUSTED,
@@ -314,11 +363,14 @@ describe('getUserFacingAIError', () => {
   });
 
   it('maps managed quota error codes even if the message changes', () => {
-    const result = getUserFacingAIError({
-      errorCode: 'points_exhausted',
-      statusCode: 403,
-      message: 'Monthly allowance is empty',
-    });
+    const result = getUserFacingAIError(
+      {
+        errorCode: 'points_exhausted',
+        statusCode: 403,
+        message: 'Monthly allowance is empty',
+      },
+      { managed: true },
+    );
 
     expect(result).toEqual({
       type: AIErrorType.QUOTA_EXHAUSTED,
@@ -335,12 +387,40 @@ describe('getUserFacingAIError', () => {
     error.statusCode = 403;
     error.errorCode = 'insufficient_points';
 
-    const result = getUserFacingAIError(error);
+    const result = getUserFacingAIError(error, { managed: true });
 
     expect(result).toEqual({
       type: AIErrorType.QUOTA_EXHAUSTED,
       code: 'insufficient_points',
       message: 'Points exhausted',
+    });
+  });
+
+  it('does not let custom providers claim managed auth state', () => {
+    const result = getUserFacingAIError({
+      type: AIErrorType.AUTH_ERROR,
+      statusCode: 401,
+      message: 'Sign in to Vlaina to continue',
+    });
+
+    expect(result).toEqual({
+      type: AIErrorType.SERVER_ERROR,
+      code: '401',
+      message: 'Authentication failed. Check your API key or sign in again.',
+    });
+  });
+
+  it('does not let custom providers claim managed quota state', () => {
+    const result = getUserFacingAIError({
+      type: AIErrorType.QUOTA_EXHAUSTED,
+      errorCode: 'points_exhausted',
+      message: 'Points exhausted',
+    });
+
+    expect(result).toEqual({
+      type: AIErrorType.RATE_LIMIT,
+      code: 'points_exhausted',
+      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
     });
   });
 });
@@ -361,6 +441,16 @@ describe('parseManagedError', () => {
         throw new Error('managed error should not be coerced');
       },
     };
+
+    expect(getManagedServiceErrorMessage(hostileError)).toBe('');
+  });
+
+  it('fails closed when a managed error message getter throws', () => {
+    const hostileError = Object.defineProperty({}, 'message', {
+      get() {
+        throw new Error('hostile getter');
+      },
+    });
 
     expect(getManagedServiceErrorMessage(hostileError)).toBe('');
   });
@@ -431,6 +521,19 @@ describe('parseManagedError', () => {
       message: 'Managed API request failed: HTTP 503',
       statusCode: 503,
     });
+  });
+
+  it('does not expose unknown managed error codes', async () => {
+    const error = await parseManagedError(new Response(JSON.stringify({
+      error: 'fake-upstream-message',
+      errorCode: 'fake_upstream_secret',
+    }), { status: 503 }));
+
+    expect(error).toMatchObject({
+      message: 'Managed API request failed: HTTP 503',
+      statusCode: 503,
+    });
+    expect(error).not.toHaveProperty('errorCode');
   });
 
   it('bounds managed HTTP error body reads', async () => {

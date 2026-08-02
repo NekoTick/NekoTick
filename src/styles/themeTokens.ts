@@ -688,11 +688,12 @@ export const themeMotionTokens = {
   standardEase: [0.22, 1, 0.36, 1],
   notesRootModalEase: [0.19, 1, 0.22, 1],
   chatEmbeddedOverlayDuration: 0.1,
-  chatEmbeddedSidebarHiddenX: '-100%',
-  chatEmbeddedSidebarVisibleX: 0,
-  chatEmbeddedSidebarSpringStiffness: 520,
-  chatEmbeddedSidebarSpringDamping: 44,
-  chatEmbeddedSidebarSpringMass: 0.82,
+  sidebarSlideHiddenX: '-100%',
+  sidebarSlideRightHiddenX: '100%',
+  sidebarSlideVisibleX: 0,
+  sidebarSlideSpringStiffness: 520,
+  sidebarSlideSpringDamping: 44,
+  sidebarSlideSpringMass: 0.82,
   chatUserEditInitialOpacity: 0.85,
   chatUserEditInitialX: 12,
   chatUserEditVisibleX: 0,
@@ -843,6 +844,10 @@ export const themeEmojiPickerTokens = {
 
 export const themeChatLayoutTokens = {
   embeddedSidebarWidth: 'min(clamp(16rem, 80%, 21rem), 86vw)',
+  userMessageContentGapPx: 8,
+  userMessageMaxWidthRatio: 0.9,
+  userMessageMultipleImageTileSizePx: 152,
+  userMessageSingleImageMaxHeightPx: 256,
 } as const;
 
 export const themeChatComposerTokens = {

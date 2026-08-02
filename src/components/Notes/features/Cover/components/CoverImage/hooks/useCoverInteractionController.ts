@@ -29,6 +29,7 @@ interface UseCoverInteractionControllerProps {
   setContainerSize: React.Dispatch<React.SetStateAction<{ width: number; height: number } | null>>;
   suspendPositionSync: boolean;
   containerObserveKey?: string | null;
+  suspendContainerObservation?: boolean;
 }
 
 export function useCoverInteractionController({
@@ -56,6 +57,7 @@ export function useCoverInteractionController({
   setContainerSize,
   suspendPositionSync,
   containerObserveKey,
+  suspendContainerObservation = false,
 }: UseCoverInteractionControllerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -125,6 +127,7 @@ export function useCoverInteractionController({
     setContainerSize,
     setIsContainerResizing,
     observeKey: containerObserveKey,
+    suspended: suspendContainerObservation,
   });
 
   return {

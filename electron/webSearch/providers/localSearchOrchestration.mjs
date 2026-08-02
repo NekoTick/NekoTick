@@ -31,6 +31,7 @@ export async function searchEngine(
         'User-Agent': USER_AGENT,
       },
       cache: 'no-store',
+      redirect: 'error',
       signal,
     }), signal);
 

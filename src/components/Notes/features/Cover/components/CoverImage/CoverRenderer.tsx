@@ -45,7 +45,7 @@ export const CoverRenderer = React.memo(({
     Boolean(placeholderDisplaySrc) &&
     (layoutPanelDragging || isContainerResizing);
   const cropperSuspended =
-    (isResizing && frozenLayerVisible);
+    layoutPanelDragging || isContainerResizing || (isResizing && frozenLayerVisible);
 
   return (
     <>

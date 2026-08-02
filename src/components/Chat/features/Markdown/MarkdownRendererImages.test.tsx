@@ -131,7 +131,7 @@ describe('MarkdownRenderer images', () => {
     expect(screen.getByText('nested').closest('span')).toHaveStyle({ color: '#123456' });
   });
 
-  it('sanitizes raw picture srcset candidates before rendering', () => {
+  it('drops raw picture sources so they cannot bypass remote image approval', () => {
     const { container } = render(
       <MarkdownRenderer
         content={[
@@ -151,19 +151,17 @@ describe('MarkdownRenderer images', () => {
       />
     );
 
-    const sources = Array.from(container.querySelectorAll('source'));
-    expect(sources[0]).not.toHaveAttribute('srcset');
-    expect(sources[1]).toHaveAttribute('srcset', 'images/safe.webp 1x, https://example.com/safe@2x.webp 2x');
-    expect(sources[2]).toHaveAttribute('srcset', 'data:image/png;base64,abc 1x, data:image/webp;base64,def 2x');
+    expect(container.querySelector('source')).toBeNull();
     expect(container.innerHTML).not.toContain('127.0.0.1');
+    expect(container.innerHTML).not.toContain('safe@2x.webp');
   });
 
-  it('sanitizes raw media URL attributes before rendering', () => {
+  it('does not mount raw HTML media elements from assistant content', () => {
     const { container } = render(
       <MarkdownRenderer
         content={[
-          '<video src="http://127.0.0.1:3000/secret.mp4" poster="http://localhost:3000/poster.png" controls></video>',
-          '<audio src="javascript:alert(1)" controls></audio>',
+          '<video src="https://example.com/secret.mp4" poster="https://example.com/poster.png" autoplay preload="auto" controls></video>',
+          '<audio src="https://example.com/secret.mp3" autoplay preload="auto" controls></audio>',
           '<picture>',
           '<source src="http://192.168.1.8/secret.webp" srcset="//127.0.0.1:3000/secret.webp 1x">',
           '<img src="https://example.com/fallback.png" alt="fallback">',
@@ -172,10 +170,12 @@ describe('MarkdownRenderer images', () => {
       />
     );
 
-    expect(container.innerHTML).not.toContain('127.0.0.1');
-    expect(container.innerHTML).not.toContain('localhost');
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('audio')).toBeNull();
+    expect(container.querySelector('source')).toBeNull();
     expect(container.innerHTML).not.toContain('192.168.1.8');
-    expect(container.innerHTML).not.toContain('javascript:alert');
+    expect(container.innerHTML).not.toContain('secret.mp4');
+    expect(container.innerHTML).not.toContain('secret.mp3');
   });
 
   it('loads sanitized raw HTML iframes only after explicit user action', () => {
@@ -205,10 +205,9 @@ describe('MarkdownRenderer images', () => {
     expect(container.querySelector('iframe[src="https://example.com/embed"]')).toHaveAttribute('allow', 'fullscreen');
     expect(container.querySelector('iframe[src="https://example.com/embed"]')).toHaveAttribute('referrerpolicy', 'no-referrer');
     expect(container.querySelector('iframe[src^="http://127.0.0.1"]')).toBeNull();
-    expect(container.querySelector('video')).toHaveAttribute('src', 'https://example.com/movie.mp4');
-    expect(container.querySelector('video')).not.toHaveAttribute('poster');
-    expect(container.querySelector('audio')).not.toHaveAttribute('src');
-    expect(container.querySelector('track')).not.toHaveAttribute('src');
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('audio')).toBeNull();
+    expect(container.querySelector('track')).toBeNull();
     expect(container.innerHTML).not.toContain('allow-same-origin');
     expect(container.innerHTML).not.toContain('camera');
     expect(container.innerHTML).not.toContain('microphone');
@@ -219,7 +218,7 @@ describe('MarkdownRenderer images', () => {
     expect(container.innerHTML).not.toContain('javascript:alert');
   });
 
-  it('renders video markdown outside paragraph elements', () => {
+  it('loads direct video markdown only after explicit user action', () => {
     const { container } = render(
       <MarkdownRenderer content={'![video](https://example.com/movie.mp4)'} />
     );
@@ -227,6 +226,12 @@ describe('MarkdownRenderer images', () => {
     const videoBlock = container.querySelector('.video-block');
     expect(videoBlock).toBeInTheDocument();
     expect(videoBlock?.closest('p')).toBeNull();
+    expect(container.querySelector('video')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Load remote content' }));
+
+    expect(container.querySelector('video')).toHaveAttribute('src', 'https://example.com/movie.mp4');
+    expect(container.querySelector('video')).toHaveAttribute('preload', 'none');
   });
 
   it('drops dangerous schemes from non-url raw HTML attributes', () => {
@@ -253,7 +258,7 @@ describe('MarkdownRenderer images', () => {
     expect(container.innerHTML).not.toContain('data:text/html');
   });
 
-  it('keeps safe relative raw HTML media sources in read-only markdown', () => {
+  it('drops relative raw HTML media sources in chat markdown', () => {
     const { container } = render(
       <MarkdownRenderer
         content={[
@@ -263,10 +268,10 @@ describe('MarkdownRenderer images', () => {
       />
     );
 
-    expect(container.querySelector('video')).toHaveAttribute('src', 'media/demo.mp4');
-    expect(container.querySelector('video source')).toHaveAttribute('src', 'media/fallback.webm');
-    expect(container.querySelector('video track')).toHaveAttribute('src', 'media/captions.vtt');
-    expect(container.querySelector('audio')).toHaveAttribute('src', './media/demo.mp3');
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('source')).toBeNull();
+    expect(container.querySelector('track')).toBeNull();
+    expect(container.querySelector('audio')).toBeNull();
   });
 
   it('drops document-relative raw HTML iframe sources and gates protocol-relative sources', () => {
@@ -308,11 +313,9 @@ describe('MarkdownRenderer images', () => {
     );
 
     expect(screen.queryByTestId('local-image')).not.toBeInTheDocument();
-    expect(container.querySelector('source')).not.toHaveAttribute('src');
-    expect(container.querySelector('source')).not.toHaveAttribute('srcset');
-    expect(container.querySelector('video')).not.toHaveAttribute('poster');
-    expect(container.querySelector('video source')).not.toHaveAttribute('src');
-    expect(container.querySelector('track')).not.toHaveAttribute('src');
+    expect(container.querySelector('source')).toBeNull();
+    expect(container.querySelector('video')).toBeNull();
+    expect(container.querySelector('track')).toBeNull();
     expect(container.innerHTML).not.toContain('.vlaina');
     expect(container.innerHTML).not.toContain('.GIT');
     expect(container.innerHTML).not.toContain('%2evlaina');

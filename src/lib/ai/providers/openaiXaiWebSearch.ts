@@ -13,6 +13,7 @@ import {
   throwIfAborted,
 } from './openaiRuntime'
 import { buildChatCompletionOptions, extractTextPrompt } from './openaiRouting'
+import { runWithOpenAIRequestTimeout } from './openaiRequestTimeout'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -123,6 +124,7 @@ export async function sendXaiNativeWebSearchMessage({
   onChunk,
   signal,
   options,
+  timeoutMs,
 }: {
   baseUrl: string
   headers: Record<string, string>
@@ -130,6 +132,7 @@ export async function sendXaiNativeWebSearchMessage({
   onChunk: (chunk: string) => void
   signal?: AbortSignal
   options?: ChatSendOptions
+  timeoutMs: number
 }): Promise<string> {
   throwIfAborted(signal)
   emitWebSearchStatus(
@@ -139,30 +142,32 @@ export async function sendXaiNativeWebSearchMessage({
   )
   emitChunk(onChunk, signal, buildWebSearchStatusMarkup({ phase: 'searching' }))
 
-  const response = await providerFetch(`${baseUrl}/responses`, {
-    method: 'POST',
-    headers,
-    body: stringifyProviderJsonRequestBody({
-      model: body.model,
-      input: buildXaiResponsesInput(body.messages),
-      tools: [{ type: 'web_search' }],
-      ...buildChatCompletionOptions(options),
-    }),
-    signal,
-  })
+  const payload = await runWithOpenAIRequestTimeout(signal, timeoutMs, async (requestSignal) => {
+    const response = await providerFetch(`${baseUrl}/responses`, {
+      method: 'POST',
+      headers,
+      body: stringifyProviderJsonRequestBody({
+        model: body.model,
+        input: buildXaiResponsesInput(body.messages),
+        tools: [{ type: 'web_search' }],
+        ...buildChatCompletionOptions(options),
+      }),
+      signal: requestSignal,
+    })
 
-  if (!response.ok) {
-    const errorText = await readResponseTextOrFallback(response, signal)
-    let errorBody
-    try {
-      errorBody = JSON.parse(errorText)
-    } catch {
-      errorBody = { message: errorText }
+    if (!response.ok) {
+      const errorText = await readResponseTextOrFallback(response, requestSignal)
+      let errorBody
+      try {
+        errorBody = JSON.parse(errorText)
+      } catch {
+        errorBody = { message: errorText }
+      }
+      throw parseHTTPError(response.status, errorBody)
     }
-    throw parseHTTPError(response.status, errorBody)
-  }
 
-  const payload = await readResponseJson<Record<string, unknown>>(response, signal)
+    return await readResponseJson<Record<string, unknown>>(response, requestSignal)
+  })
   throwIfAborted(signal)
   const content = rejectHtmlErrorContent(extractXaiResponsesText(payload))
   if (!content.trim()) {

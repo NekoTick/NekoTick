@@ -19,9 +19,10 @@ function sessionsData(computerUseEnabled: boolean) {
 }
 
 describe('computer operation preference storage', () => {
-  it('round-trips the enabled preference in the bounded sessions file', () => {
+  it('does not restore execution permission from the sessions file', () => {
     const serialized = serializeAISessionsFile(sessionsData(true));
-    expect(parseAISessionsFile(JSON.parse(serialized))?.computerUseEnabled).toBe(true);
+    expect(JSON.parse(serialized).data.computerUseEnabled).toBe(false);
+    expect(parseAISessionsFile(JSON.parse(serialized))?.computerUseEnabled).toBe(false);
   });
 
   it('defaults missing legacy preferences to disabled', () => {

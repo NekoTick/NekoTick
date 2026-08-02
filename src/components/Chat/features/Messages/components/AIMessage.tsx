@@ -8,7 +8,6 @@ import { isManagedModelId } from '@/lib/ai/managedService';
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
 import { WebSearchStatusBlock } from '@/components/Chat/features/WebSearch/WebSearchStatusBlock';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
-import { parseRetryStatusMessage } from '@/lib/ai/retryStatusMessage';
 import { extractComputerCommandStatuses } from '@/lib/ai/computerUse/transcript';
 import { ComputerCommandStatusBlock } from '@/components/Chat/features/ComputerUse/ComputerCommandStatusBlock';
 
@@ -39,20 +38,6 @@ function rememberVisibleStreamStartTime(messageId: string): Date {
   }
   visibleStreamStartTimeByMessageId.set(messageId, startedAt);
   return new Date(startedAt);
-}
-
-function RetryStatusMessage({ detail, countdown }: { detail: string; countdown: string }) {
-  return (
-    <div
-      aria-label={detail ? `${detail}\n${countdown}` : countdown}
-      className="text-[var(--vlaina-color-brand-pink)]"
-      data-retry-countdown-message="true"
-      role="status"
-    >
-      {detail ? <div className="whitespace-pre-wrap break-words">{detail}</div> : null}
-      <div className="whitespace-pre-wrap break-words tabular-nums">{countdown}</div>
-    </div>
-  );
 }
 
 interface AIMessageProps {
@@ -129,7 +114,6 @@ export function AIMessage({
     && isManagedModelId(msg.modelId);
   const shouldHideManagedAuthError = isManagedAuthErrorMessage;
   const shouldForceToolbarVisible = isEmptyCompletedResponse && !isManagedAuthErrorMessage;
-  const retryStatus = parseRetryStatusMessage(contentWithoutError.trim());
   const startTime = useMemo(() => {
     if (isStreamingContentVisible) {
       return rememberVisibleStreamStartTime(msg.id);
@@ -184,22 +168,18 @@ export function AIMessage({
                 isLoading={isLoading}
                 statuses={computerCommandStatuses}
             />
-            {retryStatus ? (
-                <RetryStatusMessage detail={retryStatus.detail} countdown={retryStatus.countdown} />
-            ) : (
-                <LazyMarkdownRenderer
-                    content={visibleContent}
-                    imageGallery={imageGallery}
-                    getImageGallery={getImageGallery}
-                    imageIdBase={msg.id}
-                    codeBlockIdBase={msg.id}
-                    copiedCodeBlockId={copiedCodeBlockId}
-                    onCopyCodeBlock={handleCodeBlockCopy}
-                    startTime={startTime}
-                    isStreaming={isStreamingContentVisible}
-                    suspendStreamAnimation={suspendStreamAnimation}
-                />
-            )}
+            <LazyMarkdownRenderer
+                content={visibleContent}
+                imageGallery={imageGallery}
+                getImageGallery={getImageGallery}
+                imageIdBase={msg.id}
+                codeBlockIdBase={msg.id}
+                copiedCodeBlockId={copiedCodeBlockId}
+                onCopyCodeBlock={handleCodeBlockCopy}
+                startTime={startTime}
+                isStreaming={isStreamingContentVisible}
+                suspendStreamAnimation={suspendStreamAnimation}
+            />
         </div>
 
         {errorContent && !shouldHideManagedAuthError && (

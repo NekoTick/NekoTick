@@ -104,7 +104,7 @@ export function useRegenerateMessage({
       }
 
       const requestStartedAt = Date.now();
-      const requestController = requestManager.start(sessionId);
+      const requestController = requestManager.start(sessionId, { computerUse: computerUseEnabled });
       const ensureRequestActive = () => {
         if (isChatRequestCancelled(sessionId, requestController)) {
           throw new DOMException('Aborted', 'AbortError');
@@ -135,7 +135,8 @@ export function useRegenerateMessage({
           : 0;
         const history = latestMessages.slice(0, messageIndex - 1);
 
-        aiActions.addVersion(messageId, sessionId);
+        const rollbackVersionIndex = aiActions.addVersion(messageId, sessionId)
+          ?? previousVersionIndex;
 
         addChatDebugLog('chat', 'regenerate started', {
           sessionId,
@@ -228,12 +229,6 @@ export function useRegenerateMessage({
                   }
                   aiActions.updateMessageApiTranscript(sessionId, messageId, apiTranscript);
                 },
-                onRetryStatus: (message) => {
-                  if (!isActiveRequest()) {
-                    return;
-                  }
-                  aiActions.updateMessage(sessionId, messageId, message);
-                },
               },
             });
           },
@@ -250,7 +245,7 @@ export function useRegenerateMessage({
             if (!isManagedProviderId(provider.id)) {
               return false;
             }
-            return handleManagedQuotaErrorForVersionRollback(sessionId, messageId, previousVersionIndex, error);
+            return handleManagedQuotaErrorForVersionRollback(sessionId, messageId, rollbackVersionIndex, error);
           },
           createEmptyResponseError: () => createEmptyResponseError(provider.id),
           onSuccess: ({ resolvedSessionId }) => {

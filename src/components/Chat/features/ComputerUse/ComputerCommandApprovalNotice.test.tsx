@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { DesktopApi } from '@/lib/electron/bridge';
 import {
+  isComputerCommandAlwaysRunApproved,
   publishComputerCommandApproval,
   resetComputerCommandApprovalsForTests,
 } from '@/lib/ai/computerUse/approvalState';
@@ -31,7 +32,7 @@ describe('ComputerCommandApprovalNotice', () => {
     delete (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop;
   });
 
-  it('submits an exact persistent approval choice to the desktop bridge', async () => {
+  it('offers run once, session-scoped always run, and cancel controls', async () => {
     act(() => {
       publishComputerCommandApproval('approval-1', {
         sessionId: 'session-1',
@@ -39,29 +40,54 @@ describe('ComputerCommandApprovalNotice', () => {
         commandId: 'command-1',
         command: 'uname -a',
         cwd: '/tmp/project',
+        workspaceRoot: '/tmp/project',
         purpose: 'Inspect the system',
         timeoutSeconds: 600,
-        risk: 'standard',
-        canAlwaysAllow: true,
       });
     });
     render(<ComputerCommandApprovalNotice sessionId="session-1" />);
 
-    const alwaysRunButton = screen.getByRole('button', { name: 'chat.computerUse.alwaysRun' });
-    expect(fireEvent.mouseDown(alwaysRunButton)).toBe(false);
+    expect(screen.getAllByRole('button')).toHaveLength(3);
+    expect(fireEvent.mouseDown(screen.getByRole('button', { name: 'chat.computerUse.runOnce' }))).toBe(false);
     expect(fireEvent.mouseDown(screen.getByText('uname -a'))).toBe(true);
-
-    await act(async () => {
-      fireEvent.click(alwaysRunButton);
-    });
+    fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse.alwaysRun' }));
 
     await waitFor(() => {
-      expect(respondToApproval).toHaveBeenCalledWith('approval-1', 'always');
-      expect(screen.queryByLabelText('chat.computerUse')).not.toBeInTheDocument();
+      expect(respondToApproval).toHaveBeenCalledWith('approval-1', 'run_once');
     });
+    expect(isComputerCommandAlwaysRunApproved({
+      sessionId: 'session-1',
+      command: 'uname -a',
+      cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
+    })).toBe(true);
+    expect(isComputerCommandAlwaysRunApproved({
+      sessionId: 'session-1',
+      command: 'uname -a',
+      cwd: '/tmp/project',
+      workspaceRoot: '/tmp',
+    })).toBe(false);
+    expect(isComputerCommandAlwaysRunApproved({
+      sessionId: 'session-2',
+      command: 'uname -a',
+      cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
+    })).toBe(false);
+    expect(isComputerCommandAlwaysRunApproved({
+      sessionId: 'session-1',
+      command: 'uname -s',
+      cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
+    })).toBe(false);
+    expect(isComputerCommandAlwaysRunApproved({
+      sessionId: 'session-1',
+      command: 'uname -a',
+      cwd: '/tmp/project/packages/app',
+      workspaceRoot: '/tmp/project',
+    })).toBe(false);
   });
 
-  it('disables persistent approval for commands rejected by the main-process policy', () => {
+  it('does not add a separate risk warning above the command', () => {
     act(() => {
       publishComputerCommandApproval('approval-2', {
         sessionId: 'session-1',
@@ -69,15 +95,14 @@ describe('ComputerCommandApprovalNotice', () => {
         commandId: 'command-2',
         command: 'rm -rf ./cache',
         cwd: '/tmp/project',
+        workspaceRoot: '/tmp/project',
         purpose: 'Clear generated files',
         timeoutSeconds: 600,
-        risk: 'elevated',
-        canAlwaysAllow: false,
       });
     });
     render(<ComputerCommandApprovalNotice sessionId="session-1" />);
 
-    expect(screen.getByRole('button', { name: 'chat.computerUse.alwaysRun' })).toBeDisabled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getAllByRole('button')).toHaveLength(3);
     expect(screen.getByText('rm -rf ./cache')).toBeInTheDocument();
     expect(screen.getByText('chat.computerUse.purpose: Clear generated files')).toBeInTheDocument();
@@ -92,10 +117,9 @@ describe('ComputerCommandApprovalNotice', () => {
         commandId: 'command-1',
         command: 'uname -a',
         cwd: '/tmp/project',
+        workspaceRoot: '/tmp/project',
         purpose: 'Inspect the system',
         timeoutSeconds: 600,
-        risk: 'standard',
-        canAlwaysAllow: true,
       });
       publishComputerCommandApproval('approval-second', {
         sessionId: 'session-1',
@@ -103,10 +127,9 @@ describe('ComputerCommandApprovalNotice', () => {
         commandId: 'command-2',
         command: 'df -h',
         cwd: '/tmp/project',
+        workspaceRoot: '/tmp/project',
         purpose: 'Inspect disk usage',
         timeoutSeconds: 600,
-        risk: 'standard',
-        canAlwaysAllow: true,
       });
     });
     render(<ComputerCommandApprovalNotice sessionId="session-1" />);
@@ -134,10 +157,9 @@ describe('ComputerCommandApprovalNotice', () => {
         commandId: 'command-2',
         command: 'uname -a',
         cwd: '/tmp/project',
+        workspaceRoot: '/tmp/project',
         purpose: 'Inspect the system',
         timeoutSeconds: 600,
-        risk: 'standard',
-        canAlwaysAllow: true,
       });
     });
 
@@ -154,10 +176,9 @@ describe('ComputerCommandApprovalNotice', () => {
         commandId: 'command-1',
         command: 'pwd',
         cwd: '/tmp/project',
+        workspaceRoot: '/tmp/project',
         purpose: 'Inspect the working directory',
         timeoutSeconds: 600,
-        risk: 'standard',
-        canAlwaysAllow: true,
       });
       aliasSessionId('temp-session-1', 'session-1');
     });

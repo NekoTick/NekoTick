@@ -176,6 +176,45 @@ describe('useCoverContainerObserver', () => {
     expect(result.current.size).toEqual({ width: 500, height: 220 });
   });
 
+  it('defers measurement until suspended layout work finishes', () => {
+    const el = document.createElement('div');
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      width: 720,
+      height: 240,
+      top: 0,
+      left: 0,
+      right: 720,
+      bottom: 240,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const { result, rerender } = renderHook(
+      ({ suspended }: { suspended: boolean }) => {
+        const containerRef = useRef<HTMLDivElement | null>(el);
+        const isManualResizingRef = useRef(false);
+        const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+        useCoverContainerObserver({
+          containerRef,
+          isManualResizingRef,
+          setContainerSize: setSize,
+          suspended,
+        });
+        return size;
+      },
+      { initialProps: { suspended: true } }
+    );
+
+    expect(result.current).toBeNull();
+    expect(resizeObserverState.observe).not.toHaveBeenCalled();
+
+    rerender({ suspended: false });
+
+    expect(result.current).toEqual({ width: 720, height: 240 });
+    expect(resizeObserverState.observe).toHaveBeenCalledWith(el);
+  });
+
   it('rebinds observer when observe key changes to a new container node', () => {
     const firstEl = document.createElement('div');
     const secondEl = document.createElement('div');

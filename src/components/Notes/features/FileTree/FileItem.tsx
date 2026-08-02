@@ -12,7 +12,6 @@ import {
   getSidebarTextClass,
   SIDEBAR_LABEL_TEXT_METRICS_CLASS,
 } from '@/components/layout/sidebar/sidebarLabelStyles';
-import { useSidebarHoverPrefetch } from '@/components/layout/sidebar/useSidebarHoverPrefetch';
 import { NOTES_SIDEBAR_ICON_SIZE } from '../Sidebar/sidebarLayout';
 import { NoteDisambiguatedTitle } from '../common/noteDisambiguation';
 import { SidebarStarBadge } from '../common/SidebarStarBadge';
@@ -26,6 +25,7 @@ import { useI18n } from '@/lib/i18n';
 import { areFileItemPropsEqual, type FileItemProps } from './FileItemProps';
 import { canDeleteDraftWithoutConfirmation } from './draftDeleteConfirmation';
 import { NoteFileNameBackground } from './NoteFileNameBackground';
+import { useFileItemHoverPrefetch } from './hooks/useFileItemHoverPrefetch';
 
 const TreeItemMenu = lazy(async () => {
   const mod = await import('./components/TreeItemMenu');
@@ -71,24 +71,16 @@ export const FileItem = memo(function FileItem({
   } = useFileItemState(node, effectiveDragEnabled);
   const isNewlyCreated = useNotesStore((state) => state.isNewlyCreated);
   const notesPath = useNotesStore((state) => state.notesPath);
-  const prefetchNote = useNotesStore((state) => state.prefetchNote);
-  const cancelPrefetchNote = useNotesStore((state) => state.cancelPrefetchNote);
   const canSkipDraftDeleteConfirmation = useNotesStore((state) => canDeleteDraftWithoutConfirmation(node.path, state));
   const { handleCopyPath, handleOpenInNewWindow, handleOpenLocation } = useTreeItemPathActions({
     notesPath,
     itemPath: node.path,
   });
   const isActive = useNotesStore((state) => state.currentNote?.path === node.path);
-  const cancelHoverPrefetch = useCallback(() => {
-    cancelPrefetchNote(node.path);
-  }, [cancelPrefetchNote, node.path]);
-  const hoverPrefetch = useSidebarHoverPrefetch(
-    useCallback(() => prefetchNote(node.path), [node.path, prefetchNote]),
-    {
-      enabled: !isDraftNote && !isActive && !isRenaming,
-      cancel: cancelHoverPrefetch,
-    },
-  );
+  const hoverPrefetch = useFileItemHoverPrefetch({
+    notePath: node.path,
+    enabled: !isDraftNote && !isActive && !isRenaming,
+  });
 
   const displayName = useDisplayName(node.path) || node.name;
   const handleRenameFromDoubleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {

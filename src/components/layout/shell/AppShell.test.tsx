@@ -5,13 +5,16 @@ import { AppShell } from './AppShell';
 
 const mocks = vi.hoisted(() => ({
   setLayoutPanelDragging: vi.fn(),
+  setLayoutPanelTransitioning: vi.fn(),
 }));
 
 vi.mock('@/stores/uiSlice', () => ({
   useUIStore: (selector: (state: {
     setLayoutPanelDragging: typeof mocks.setLayoutPanelDragging;
+    setLayoutPanelTransitioning: typeof mocks.setLayoutPanelTransitioning;
   }) => unknown) => selector({
     setLayoutPanelDragging: mocks.setLayoutPanelDragging,
+    setLayoutPanelTransitioning: mocks.setLayoutPanelTransitioning,
   }),
 }));
 
@@ -38,12 +41,14 @@ vi.mock('./UnifiedSidebarContainer', () => ({
     collapsed,
     peeking,
     onPeekChange,
+    onLayoutAnimationComplete,
     widthScopeRef,
   }: {
     children: ReactNode;
     collapsed: boolean;
     peeking?: boolean;
     onPeekChange?: (peeking: boolean) => void;
+    onLayoutAnimationComplete?: () => void;
     widthScopeRef?: Ref<HTMLDivElement>;
   }) => (
     <aside
@@ -52,11 +57,15 @@ vi.mock('./UnifiedSidebarContainer', () => ({
       data-shell-sidebar-peek={collapsed ? 'true' : undefined}
       data-open={collapsed ? (peeking ? 'true' : 'false') : undefined}
       aria-hidden={collapsed ? !peeking : undefined}
-      className={collapsed ? 'duration-[var(--vlaina-duration-100)]' : undefined}
       onMouseEnter={collapsed ? () => onPeekChange?.(true) : undefined}
       onMouseLeave={collapsed ? () => onPeekChange?.(false) : undefined}
     >
       {children}
+      <button
+        type="button"
+        data-testid="sidebar-layout-animation-complete"
+        onClick={onLayoutAnimationComplete}
+      />
     </aside>
   ),
 }));
@@ -139,8 +148,6 @@ describe('AppShell', () => {
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'true');
     expect(hotzone!.style.width).toBe('48px');
     expect(peekSidebar!.style.getPropertyValue('--vlaina-shell-sidebar-width')).toBe('300px');
-    expect(peekSidebar).toHaveClass('duration-[var(--vlaina-duration-100)]');
-
     fireEvent.mouseEnter(hotzone!);
 
     expect(peekSidebar).toHaveAttribute('data-open', 'true');
@@ -247,5 +254,37 @@ describe('AppShell', () => {
 
     expect(container.querySelector<HTMLElement>('[data-testid="sidebar"]')).toBe(sidebar);
     expect(sidebar).not.toHaveAttribute('data-shell-sidebar-peek');
+  });
+
+  it('marks layout transitioning until the sidebar slide completes', () => {
+    const { getByTestId, rerender } = render(
+      <AppShell
+        sidebarWidth={300}
+        sidebarCollapsed={false}
+        sidebarContent={<div>Sidebar</div>}
+        onSidebarWidthChange={() => {}}
+        onSidebarToggle={() => {}}
+      >
+        <div>Main</div>
+      </AppShell>
+    );
+    mocks.setLayoutPanelTransitioning.mockClear();
+
+    rerender(
+      <AppShell
+        sidebarWidth={300}
+        sidebarCollapsed
+        sidebarContent={<div>Sidebar</div>}
+        onSidebarWidthChange={() => {}}
+        onSidebarToggle={() => {}}
+      >
+        <div>Main</div>
+      </AppShell>
+    );
+
+    expect(mocks.setLayoutPanelTransitioning).toHaveBeenCalledWith('shell-sidebar', true);
+
+    fireEvent.click(getByTestId('sidebar-layout-animation-complete'));
+    expect(mocks.setLayoutPanelTransitioning).toHaveBeenLastCalledWith('shell-sidebar', false);
   });
 });

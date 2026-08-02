@@ -89,7 +89,7 @@ export function markManagedQuotaExhausted(): void {
 }
 
 export function isManagedQuotaError(error: unknown): boolean {
-  return getUserFacingAIError(error).type === AIErrorType.QUOTA_EXHAUSTED;
+  return getUserFacingAIError(error, { managed: true }).type === AIErrorType.QUOTA_EXHAUSTED;
 }
 
 export function buildRecalledDraft(

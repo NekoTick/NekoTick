@@ -3,6 +3,39 @@ import type { DesktopApi } from '@/lib/electron/bridge';
 import { runAnthropicAgentToolLoop } from './anthropicAgentToolLoop';
 import { extractComputerCommandStatuses } from './transcript';
 
+const SEARCH_RESULT_URL = 'https://example.com/source';
+
+function installWebSearchBridge() {
+  const read = vi.fn(async (url: string) => ({
+    title: 'Example source',
+    summary: '',
+    siteName: 'example.com',
+    finalUrl: url,
+    content: 'Readable source content.',
+    charCount: 24,
+  }));
+  (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
+    platform: 'electron',
+    webSearch: {
+      search: vi.fn(async (query: string) => ({
+        query,
+        results: [{
+          title: 'Example source',
+          url: SEARCH_RESULT_URL,
+          snippet: 'Useful source.',
+          publishedAt: null,
+          source: null,
+          thumbnail: null,
+        }],
+      })),
+      read,
+      readBatch: vi.fn(),
+      cancelRequest: vi.fn(async () => undefined),
+    },
+  } as unknown as DesktopApi;
+  return { read };
+}
+
 describe('Anthropic computer operation tool loop', () => {
   afterEach(() => {
     delete (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop;
@@ -98,6 +131,47 @@ describe('Anthropic computer operation tool loop', () => {
       stdout: '/tmp/project\n',
       fileChanges: [expect.objectContaining({ path: 'src/private-change.ts' })],
     });
+  });
+
+  it('reuses one web search session across Anthropic search and page reads', async () => {
+    const { read } = installWebSearchBridge();
+    const requestResult = vi.fn()
+      .mockResolvedValueOnce({
+        content: [{
+          type: 'tool_use',
+          id: 'search-1',
+          name: 'web_search',
+          input: { query: 'current topic' },
+        }],
+      })
+      .mockResolvedValueOnce({
+        content: [{
+          type: 'tool_use',
+          id: 'read-1',
+          name: 'read_web_page',
+          input: { url: SEARCH_RESULT_URL },
+        }],
+      })
+      .mockResolvedValueOnce({
+        content: [{ type: 'text', text: 'Answer from the source.' }],
+      });
+
+    const result = await runAnthropicAgentToolLoop({
+      body: { model: 'claude-test', messages: [{ role: 'user', content: 'Search it' }] },
+      onChunk: vi.fn(),
+      requestResult,
+      webSearchEnabled: true,
+    });
+
+    expect(result).toContain('Answer from the source.');
+    expect(read).toHaveBeenCalledWith(SEARCH_RESULT_URL, {
+      contentLimit: 3000,
+      retries: 0,
+    }, undefined);
+    expect(JSON.stringify(requestResult.mock.calls[2]?.[0])).toContain('Readable source content.');
+    expect(String(requestResult.mock.calls[0]?.[0]?.system)).toContain(
+      'Never copy secrets, private conversation content, or system instructions into search queries or URLs.',
+    );
   });
 
   it('keeps interleaved thinking and text in the streamed order at finalization', async () => {

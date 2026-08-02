@@ -1,6 +1,7 @@
 import { translate } from '@/lib/i18n';
 import { AIErrorType } from './types';
 import { normalizeUserFacingMessage } from './errorClassification';
+import { AI_PROVIDER_CONNECTION_FAILURE_CODE } from './providerHttpErrors';
 
 export interface UserFacingAIError {
   type: AIErrorType
@@ -38,9 +39,7 @@ const MANAGED_INVALID_REQUEST_CODES = new Set([
 
 export function isDesktopCustomProviderConnectionFailureMessage(message: string): boolean {
   const normalizedMessage = normalizeUserFacingMessage(message).toLowerCase()
-  return normalizedMessage.includes('desktop:ai-provider:request:start')
-    && normalizedMessage.includes('ai provider request to ')
-    && normalizedMessage.includes('failed before an http response was received')
+  return normalizedMessage.includes(AI_PROVIDER_CONNECTION_FAILURE_CODE.toLowerCase())
 }
 
 export function getUserFacingMessage(type: AIErrorType): string {
@@ -64,7 +63,11 @@ export function getUserFacingMessage(type: AIErrorType): string {
   }
 }
 
-export function getSpecificUserFacingOverride(message: string, code: string): UserFacingAIError | null {
+export function getSpecificUserFacingOverride(
+  message: string,
+  code: string,
+  managed: boolean,
+): UserFacingAIError | null {
   const normalized = normalizeUserFacingMessage(message).toLowerCase()
   const normalizedCode = code.trim()
   const normalizedCodeLower = normalizedCode.toLowerCase()
@@ -133,20 +136,23 @@ export function getSpecificUserFacingOverride(message: string, code: string): Us
     }
   }
 
-  for (const knownMessage of KNOWN_MANAGED_BUSINESS_ERRORS) {
-    if (
-      normalized.includes(knownMessage.toLowerCase()) ||
-      MANAGED_QUOTA_EXHAUSTED_CODES.has(normalizedCode)
-    ) {
-      return {
-        type: AIErrorType.QUOTA_EXHAUSTED,
-        code: code || 'quota_exhausted',
-        message: translate('chat.error.pointsExhausted'),
+  if (managed) {
+    for (const knownMessage of KNOWN_MANAGED_BUSINESS_ERRORS) {
+      if (
+        normalized.includes(knownMessage.toLowerCase()) ||
+        MANAGED_QUOTA_EXHAUSTED_CODES.has(normalizedCode)
+      ) {
+        return {
+          type: AIErrorType.QUOTA_EXHAUSTED,
+          code: code || 'quota_exhausted',
+          message: translate('chat.error.pointsExhausted'),
+        }
       }
     }
   }
 
   if (
+    managed &&
     normalized.includes('managed api failed with status 403') &&
     (normalized.includes('bad_response_status_code') || normalized.includes('openai_error'))
   ) {

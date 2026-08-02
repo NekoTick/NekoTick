@@ -165,14 +165,15 @@ export function fetchAddress(resolvedUrl, addressEntry, signal) {
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let request;
     const rejectRequest = (error) => {
       if (settled) return;
       settled = true;
       reject(error);
-      request.destroy(error);
+      request?.destroy(error);
     };
     const transport = parsedUrl.protocol === 'https:' ? https : http;
-    const request = transport.request({
+    request = transport.request({
       hostname: address,
       port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
       path: `${parsedUrl.pathname}${parsedUrl.search}`,
@@ -189,11 +190,28 @@ export function fetchAddress(resolvedUrl, addressEntry, signal) {
       let totalBytes = 0;
       const resolveResponse = () => {
         if (settled) return;
-        settled = true;
-        resolve(new Response(Buffer.concat(chunks), {
-          status: response.statusCode || 0,
-          headers: headersToRecord(response.headers),
-        }));
+        try {
+          const status = response.statusCode;
+          if (!Number.isInteger(status) || status < 200 || status > 599) {
+            throw new WebSearchError('http_error', 'The page returned an invalid HTTP response.');
+          }
+          const body = status === 204 || status === 205 || status === 304
+            ? null
+            : Buffer.concat(chunks);
+          const result = new Response(body, {
+            status,
+            headers: headersToRecord(response.headers),
+          });
+          settled = true;
+          resolve(result);
+        } catch (error) {
+          rejectRequest(error);
+        }
+      };
+      const rejectResponse = (error) => {
+        rejectRequest(error instanceof WebSearchError
+          ? error
+          : new WebSearchError('network_error', 'The page response was interrupted.', error));
       };
 
       response.on('data', (chunk) => {
@@ -206,6 +224,10 @@ export function fetchAddress(resolvedUrl, addressEntry, signal) {
         }
       });
       response.on('end', resolveResponse);
+      response.on('error', rejectResponse);
+      response.on('aborted', () => {
+        rejectResponse(new WebSearchError('network_error', 'The page response was interrupted.'));
+      });
     });
 
     const abort = () => {

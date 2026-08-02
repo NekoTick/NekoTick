@@ -6,7 +6,7 @@ import { useAccountSessionStore } from '@/stores/accountSession';
 import { useAIUIStore } from '@/stores/ai/chatState';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { useNotesRootStore } from '@/stores/useNotesRootStore';
-import { isElectronRuntime } from '@/lib/electron/bridge';
+import { isComputerUseRuntimeAvailable } from '@/lib/electron/bridge';
 import { useAutoTitle } from './useAutoTitle';
 import {
   MAX_TEMPORARY_ATTACHMENT_EPHEMERAL_CONCURRENCY,
@@ -42,7 +42,7 @@ export function useChatService(active = true) {
   const webSearchEnabled = useUnifiedStore((state) => state.data.ai?.webSearchEnabled === true);
   const storedComputerUseEnabled = useUnifiedStore((state) => state.data.ai?.computerUseEnabled === true);
   const computerUseCwd = useNotesRootStore((state) => state.currentNotesRoot?.path || '');
-  const computerUseEnabled = storedComputerUseEnabled && isElectronRuntime();
+  const computerUseEnabled = storedComputerUseEnabled && isComputerUseRuntimeAvailable();
   const isAccountConnected = useAccountSessionStore((state) => state.isConnected);
   const setSessionLoading = useAIUIStore((state) => state.setSessionLoading);
   const markSessionUnread = useAIUIStore((state) => state.markSessionUnread);

@@ -78,7 +78,7 @@ export function ComputerCommandApprovalNotice({ sessionId }: ComputerCommandAppr
           size="sm"
           variant="secondary"
           className="!rounded-[var(--vlaina-radius-pill)]"
-          disabled={responding || !approval.canAlwaysAllow}
+          disabled={responding || !approval.sessionId}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => void respond('always')}
         >

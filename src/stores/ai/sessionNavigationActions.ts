@@ -39,7 +39,7 @@ function restoreSessionModelSelection(sessionId: string): void {
     return
   }
 
-  state.updateAIData({ selectedModelId: modelId })
+  state.updateAIData({ selectedModelId: modelId, computerUseEnabled: false })
 }
 
 export async function switchSession(sessionId: string) {

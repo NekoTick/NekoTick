@@ -32,6 +32,8 @@ export function useCoverImageController({
   onPreviewLayoutActiveChange,
 }: UseCoverImageControllerProps): CoverImageControllerModel {
   const layoutPanelDragging = useUIStore((state) => state.layoutPanelDragging);
+  const layoutPanelTransitioning = useUIStore((state) => state.layoutPanelTransitioning);
+  const layoutPanelBusy = layoutPanelDragging || layoutPanelTransitioning;
   const {
     coverHeight, setCoverHeight,
     containerSize, setContainerSize,
@@ -169,6 +171,7 @@ export function useCoverImageController({
     setContainerSize,
     suspendPositionSync,
     containerObserveKey: url || previewSrc,
+    suspendContainerObservation: layoutPanelBusy,
   });
 
   useAutomaticCoverHeight({
@@ -221,7 +224,7 @@ export function useCoverImageController({
       onUpdate(url, positionX, positionY, undefined, scale);
     },
     rendererProps: {
-      layoutPanelDragging,
+      layoutPanelDragging: layoutPanelBusy,
       isContainerResizing,
       placeholderSrc,
       placeholderMediaSize,

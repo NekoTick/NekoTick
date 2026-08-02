@@ -22,6 +22,7 @@ installRendererErrorReporting(ipcRenderer);
 const desktopApi = createDesktopApi({
   callIpcCallback,
   createRendererErrorReport,
+  hostPlatform: process.platform,
   ipcRenderer,
   normalizeDesktopBinaryWritePayload,
   normalizeDesktopTextWritePayload,

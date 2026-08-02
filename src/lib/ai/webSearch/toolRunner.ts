@@ -1,4 +1,5 @@
 import { createWebSearchClient, type WebSearchClient } from './client';
+import { readErrorField } from '@/lib/ai/errorClassification';
 import {
   formatBatchPagesForModel,
   formatPageForModel,
@@ -72,14 +73,19 @@ function invalidToolArgumentsResult(
 }
 
 function errorCode(error: unknown): string | undefined {
-  return error && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string'
-    ? (error as { code: string }).code
+  const code = readErrorField(error, 'code');
+  return typeof code === 'string'
+    ? code
     : undefined;
 }
 
 function friendlyToolErrorMessage(toolName: string, error?: unknown): string {
-  if (error instanceof WebSearchPolicyError) {
-    return error.message;
+  try {
+    if (error instanceof WebSearchPolicyError) {
+      const message = readErrorField(error, 'message');
+      return typeof message === 'string' ? message : 'Tool call failed.';
+    }
+  } catch {
   }
   if (toolName === WEB_SEARCH_TOOL_NAMES.search) {
     return 'Web search is temporarily unavailable.';
@@ -104,8 +110,7 @@ function throwIfAborted(signal?: AbortSignal): void {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError';
+  return readErrorField(error, 'name') === 'AbortError';
 }
 
 function emitStatus(

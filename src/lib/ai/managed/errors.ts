@@ -3,6 +3,18 @@ import { MANAGED_AUTH_REQUIRED_ERROR } from './constants';
 const MAX_MANAGED_ERROR_BODY_BYTES = 64 * 1024;
 export const MAX_MANAGED_SERVICE_ERROR_MESSAGE_CHARS = 8192;
 const MAX_MANAGED_SERVICE_ERROR_CODE_CHARS = 512;
+const MANAGED_SERVICE_ERROR_CODE_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const MANAGED_PUBLIC_ERROR_CODES = new Set([
+  'points_exhausted',
+  'inactive_points',
+  'insufficient_points',
+  'upstream_rate_limited',
+  'upstream_unavailable',
+  'unsupported_message_content',
+  'unsupported_model_input',
+  'unsupported_tool_calling',
+  'invalid_request',
+]);
 
 function createAbortError(): DOMException {
   return new DOMException('Aborted', 'AbortError');
@@ -80,12 +92,15 @@ function createManagedServiceError(
 }
 
 export function getManagedServiceErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return normalizeManagedErrorText(error.message);
-  }
-
-  if (error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string') {
-    return normalizeManagedErrorText((error as { message: string }).message);
+  if (error && typeof error === 'object') {
+    try {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string') {
+        return normalizeManagedErrorText(message);
+      }
+    } catch {
+      return '';
+    }
   }
 
   return normalizeManagedErrorText(error);
@@ -105,11 +120,14 @@ function normalizeManagedErrorText(value: unknown): string {
   }
 }
 
-function normalizeManagedErrorCode(value: unknown): string {
+export function normalizeManagedPublicErrorCode(value: unknown): string {
   if (typeof value !== 'string' || value.length > MAX_MANAGED_SERVICE_ERROR_CODE_CHARS) {
     return '';
   }
-  return value.trim();
+  const normalized = value.trim().toLowerCase();
+  return MANAGED_SERVICE_ERROR_CODE_PATTERN.test(normalized) && MANAGED_PUBLIC_ERROR_CODES.has(normalized)
+    ? normalized
+    : '';
 }
 
 export function isManagedServiceRecoverableError(error: unknown): boolean {
@@ -163,13 +181,13 @@ function extractManagedErrorPayloadMessage(payload: Record<string, unknown>): st
 }
 
 function extractManagedErrorPayloadCode(payload: Record<string, unknown>): string {
-  const errorCode = normalizeManagedErrorCode(payload.errorCode);
+  const errorCode = normalizeManagedPublicErrorCode(payload.errorCode);
   if (errorCode) return errorCode;
 
   const nestedError = payload.error;
   if (nestedError && typeof nestedError === 'object') {
     const nested = nestedError as Record<string, unknown>;
-    return normalizeManagedErrorCode(nested.code) || normalizeManagedErrorCode(nested.type);
+    return normalizeManagedPublicErrorCode(nested.code) || normalizeManagedPublicErrorCode(nested.type);
   }
 
   return '';
