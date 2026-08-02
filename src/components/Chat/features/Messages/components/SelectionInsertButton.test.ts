@@ -65,6 +65,14 @@ describe("resolveOutsideMoveDecision", () => {
 });
 
 describe("SelectionInsertButton selection lock", () => {
+  it("marks its portal as a transient content layer", () => {
+    const { unmount } = render(React.createElement(SelectionInsertButton));
+
+    expect(document.querySelector('[data-chat-selection-insert-layer="true"]')).not.toBeNull();
+
+    unmount();
+  });
+
   it("does not enable the global selection lock while dragging inside assistant text", () => {
     const { unmount } = render(React.createElement(SelectionInsertButton));
     const container = document.createElement("div");

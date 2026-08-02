@@ -134,6 +134,29 @@ describe('caret styles', () => {
     expect(css).toContain('visibility: hidden !important;');
   });
 
+  it('hides non-modal text overlays while the collapsed sidebar is peeking', () => {
+    const css = readIndexStyles();
+    const selector = "body:has([data-shell-sidebar-peek='true'][data-open='true']) :is(";
+    const ruleStart = css.indexOf(selector);
+
+    expect(ruleStart).toBeGreaterThanOrEqual(0);
+    const rule = css.slice(ruleStart, css.indexOf('}', ruleStart) + 1);
+    expect(rule).toContain('.native-caret-overlay');
+    expect(rule).toContain('.editor-textblock-caret-overlay');
+    expect(rule).toContain('.editor-forced-line-end-caret');
+    expect(rule).toContain("[data-chat-selection-insert-layer='true']");
+    expect(rule).toContain('visibility: hidden !important;');
+  });
+
+  it('keeps the collapsed sidebar hotzone clear of the chat selection insert layer', () => {
+    const css = readIndexStyles();
+
+    expect(css).toContain(
+      "body:has([data-shell-sidebar-peek='true'])\n  [data-chat-selection-insert-layer='true']"
+    );
+    expect(css).toContain('clip-path: inset(0 0 0 var(--vlaina-size-48px));');
+  });
+
   it('keeps embedded code block carets sourced from the shared caret token', () => {
     const source = readCodeBlockEditorTheme();
 

@@ -194,7 +194,7 @@ export function NotesViewLayout({
               aria-hidden={!chatFloatingOpen}
               inert={!chatFloatingOpen}
               className={cn(
-                'absolute bottom-4 right-4 z-[var(--vlaina-z-40)] overflow-hidden !rounded-[var(--vlaina-notes-ui-radius-panel)] transform-gpu',
+                'absolute bottom-4 right-4 z-[var(--vlaina-z-30)] overflow-hidden !rounded-[var(--vlaina-notes-ui-radius-panel)] transform-gpu',
                 !chatFloatingOpen && 'pointer-events-none',
                 isFloatingChatPresent ? 'will-change-transform' : 'invisible',
                 isFloatingChatResizing && 'will-change-[width,height]',

@@ -26,7 +26,10 @@ export function SelectionInsertButton() {
   }
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-0 z-[var(--vlaina-z-115)]">
+    <div
+      data-chat-selection-insert-layer="true"
+      className="pointer-events-none fixed inset-0 z-[var(--vlaina-z-115)]"
+    >
       {state && (
         <button
           type="button"

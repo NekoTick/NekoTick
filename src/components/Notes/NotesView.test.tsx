@@ -2030,6 +2030,8 @@ describe('NotesView', () => {
     expect(panel).toBeInTheDocument();
     expect(panel.style.width).toBe('512px');
     expect(panel.style.height).toBe('720px');
+    expect(panel).toHaveClass('z-[var(--vlaina-z-30)]');
+    expect(panel).not.toHaveClass('z-[var(--vlaina-z-40)]');
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="left"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="top"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="top-left"]')).toBeInTheDocument();

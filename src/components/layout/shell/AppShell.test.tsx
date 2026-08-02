@@ -141,8 +141,10 @@ describe('AppShell', () => {
     expect(container.querySelector('[data-testid="sidebar"]')).toBeInTheDocument();
 
     const hotzone = container.querySelector<HTMLElement>('[data-shell-sidebar-peek-hotzone="true"]');
+    const peekLayer = container.querySelector<HTMLElement>('[data-shell-sidebar-peek-layer="true"]');
     const peekSidebar = container.querySelector<HTMLElement>('[data-shell-sidebar-peek="true"]');
     expect(hotzone).not.toBeNull();
+    expect(peekLayer).toHaveClass('z-[var(--vlaina-z-40)]');
     expect(peekSidebar).not.toBeNull();
     expect(peekSidebar).toHaveAttribute('data-open', 'false');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'true');

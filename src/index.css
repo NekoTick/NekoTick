@@ -338,6 +338,20 @@ html[data-link-tooltip-hover-active='true'] :is(
   visibility: hidden !important;
 }
 
+body:has([data-shell-sidebar-peek='true'])
+  [data-chat-selection-insert-layer='true'] {
+  clip-path: inset(0 0 0 var(--vlaina-size-48px));
+}
+
+body:has([data-shell-sidebar-peek='true'][data-open='true']) :is(
+  .native-caret-overlay,
+  .editor-textblock-caret-overlay,
+  .editor-forced-line-end-caret,
+  [data-chat-selection-insert-layer='true']
+) {
+  visibility: hidden !important;
+}
+
 .appearance-font-size-slider::-webkit-slider-runnable-track {
   height: var(--vlaina-size-6px);
   background: transparent;
