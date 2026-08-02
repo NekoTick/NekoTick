@@ -43,8 +43,6 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
       data-editor-outline-rail="true"
       data-expanded={isExpanded ? 'true' : 'false'}
       data-no-editor-drag-box="true"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       onFocusCapture={() => setHasFocus(true)}
       onBlurCapture={(event) => {
         const nextTarget = event.relatedTarget;
@@ -61,6 +59,8 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
           className="editor-outline-scroll-area"
           viewportClassName="editor-outline-list"
           scrollbarVariant="compact"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
           <nav aria-label={t('notes.documentOutline')}>
             {headings.map((heading) => (

@@ -7,9 +7,12 @@
   top: var(--vlaina-editor-outline-rail-top);
   right: 0;
   z-index: var(--vlaina-z-200);
-  width: var(--vlaina-editor-outline-rail-compact-width);
+  width: min(
+    var(--vlaina-editor-outline-rail-panel-width),
+    calc(100cqw - var(--vlaina-space-16px))
+  );
   max-height: var(--vlaina-editor-outline-rail-max-height);
-  transition: width var(--vlaina-duration-100) var(--vlaina-ease-css-default);
+  pointer-events: none;
 }
 
 .editor-outline-panel {
@@ -24,16 +27,9 @@
   box-shadow: none;
   color: var(--vlaina-color-text-secondary);
   transition:
-    background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
-    border-color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
-    box-shadow var(--vlaina-duration-100) var(--vlaina-ease-css-default);
-}
-
-.editor-outline-rail[data-expanded='true'] {
-  width: min(
-    var(--vlaina-editor-outline-rail-panel-width),
-    calc(100cqw - var(--vlaina-space-16px))
-  );
+    background-color var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    border-color var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    box-shadow var(--vlaina-duration-300) var(--vlaina-ease-in-out);
 }
 
 .editor-outline-scroll-area,
@@ -43,9 +39,27 @@
   min-height: 0;
 }
 
+.editor-outline-scroll-area {
+  border-radius: inherit;
+  clip-path: inset(
+    0 0 0 calc(100% - var(--vlaina-editor-outline-rail-compact-width))
+  );
+  pointer-events: auto;
+  transition: clip-path var(--vlaina-duration-300) var(--vlaina-ease-in-out);
+  will-change: clip-path;
+}
+
+.editor-outline-rail[data-expanded='true'] .editor-outline-scroll-area {
+  clip-path: inset(0);
+}
+
 .editor-outline-list {
   position: relative;
   padding-block: var(--vlaina-space-2px);
+  transition:
+    padding-block var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    padding-inline-start var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    padding-inline-end var(--vlaina-duration-300) var(--vlaina-ease-in-out);
 }
 
 .editor-outline-row {
@@ -64,9 +78,12 @@
   line-height: var(--vlaina-leading-125);
   text-align: start;
   transition:
-    height var(--vlaina-duration-100) var(--vlaina-ease-css-default),
-    color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
-    background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default);
+    height var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    padding-block var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    padding-inline-start var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    padding-inline-end var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    color var(--vlaina-duration-300) var(--vlaina-ease-in-out),
+    background-color var(--vlaina-duration-300) var(--vlaina-ease-in-out);
 }
 
 .editor-outline-row::before {
@@ -78,7 +95,10 @@
   border-radius: var(--vlaina-radius-pill);
   background: var(--vlaina-editor-outline-rail-marker);
   content: '';
-  transition: background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default);
+  opacity: var(--vlaina-opacity-100);
+  transition:
+    opacity var(--vlaina-duration-150) var(--vlaina-ease-in-out),
+    background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default);
 }
 
 .editor-outline-row[data-level='2']::before {
@@ -111,6 +131,7 @@
   opacity: var(--vlaina-opacity-0);
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: opacity var(--vlaina-duration-150) var(--vlaina-ease-in);
 }
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-list {
@@ -125,7 +146,7 @@
 }
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-row::before {
-  display: none;
+  opacity: var(--vlaina-opacity-0);
 }
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-row[data-level='2'] {
@@ -149,13 +170,18 @@
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-row-text {
   opacity: var(--vlaina-opacity-100);
+  transition-delay: var(--vlaina-duration-100);
+  transition-duration: var(--vlaina-duration-200);
+  transition-timing-function: var(--vlaina-ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .editor-outline-rail,
   .editor-outline-panel,
+  .editor-outline-scroll-area,
+  .editor-outline-list,
   .editor-outline-row,
-  .editor-outline-row::before {
+  .editor-outline-row::before,
+  .editor-outline-row-text {
     transition: none;
   }
 }

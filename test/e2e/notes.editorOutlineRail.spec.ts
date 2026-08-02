@@ -55,6 +55,7 @@ test.describe('notes editor outline rail', () => {
         const toolbarRect = toolbarElement.getBoundingClientRect();
         return {
           markerColors: rows.map((row) => getComputedStyle(row, '::before').backgroundColor),
+          markerOpacities: rows.map((row) => getComputedStyle(row, '::before').opacity),
           markerWidths: rows.map((row) => Math.round(
             Number.parseFloat(getComputedStyle(row, '::before').width),
           )),
@@ -75,6 +76,26 @@ test.describe('notes editor outline rail', () => {
           viewportWidth: window.innerWidth,
         };
       }, OUTLINE_RAIL_SELECTOR);
+      const hoverOutlineMarkers = async () => {
+        const box = await rail.boundingBox();
+        if (!box) throw new Error('Outline rail is not visible');
+        await page.mouse.move(
+          box.x + box.width - 2,
+          box.y + Math.min(10, box.height / 2),
+        );
+      };
+      const pointHitsOutline = (x: number, y: number) => page.evaluate(
+        ({ selector, pointX, pointY }) => {
+          const railElement = document.querySelector(selector);
+          const hitElement = document.elementFromPoint(pointX, pointY);
+          return Boolean(railElement && hitElement && railElement.contains(hitElement));
+        },
+        {
+          selector: OUTLINE_RAIL_SELECTOR,
+          pointX: x,
+          pointY: y,
+        },
+      );
 
       await expect(rail).toBeVisible({ timeout: 10_000 });
       await expect(outline).toBeVisible();
@@ -114,24 +135,34 @@ test.describe('notes editor outline rail', () => {
       expect(geometry).not.toBeNull();
       expect(geometry!.panelTop).toBeGreaterThan(geometry!.toolbarBottom);
       expect(geometry!.panelRight).toBeLessThanOrEqual(geometry!.viewportWidth);
-      expect(geometry!.panelWidth).toBe(24);
+      expect(geometry!.panelWidth).toBe(240);
       expect(geometry!.railHeight).toBe(geometry!.panelHeight);
       expect(geometry!.railHeight).toBeLessThan(100);
       expect(geometry!.markerWidths).toEqual([16, 14, 12, 10]);
+      expect(new Set(geometry!.markerOpacities)).toEqual(new Set(['1']));
       expect(new Set(geometry!.rowHeights)).toEqual(new Set([14]));
       expect(new Set(geometry!.rowTextOpacities)).toEqual(new Set(['0']));
       expect(geometry!.markerColors[0]).not.toBe(geometry!.markerColors[1]);
 
+      const clippedPointX = geometry!.panelRight - 40;
+      const outlinePointY = geometry!.panelTop + 10;
+      await page.mouse.move(clippedPointX, outlinePointY);
+      await expect(rail).toHaveAttribute('data-expanded', 'false');
+      expect(await pointHitsOutline(clippedPointX, outlinePointY)).toBe(false);
+
       await page.mouse.move(geometry!.panelRight - 2, geometry!.panelBottom + 32);
       await expect(rail).toHaveAttribute('data-expanded', 'false');
 
-      await rail.hover();
+      const panel = rail.locator('[data-editor-outline-panel="true"]');
+      await hoverOutlineMarkers();
       await expect(rail).toHaveAttribute('data-expanded', 'true');
-      await expect(rail.locator('[data-editor-outline-panel="true"]')).toHaveCSS('width', '240px');
+      await expect(panel).toHaveCSS('width', '240px');
+      await expect(rail.locator('.editor-outline-row-text').first()).toHaveCSS('opacity', '1');
 
       const expandedGeometry = await getGeometry();
       expect(expandedGeometry).not.toBeNull();
       expect(expandedGeometry!.panelWidth).toBe(240);
+      expect(new Set(expandedGeometry!.markerOpacities)).toEqual(new Set(['0']));
       expect(new Set(expandedGeometry!.rowHeights)).toEqual(new Set([28]));
       expect(new Set(expandedGeometry!.rowTextOpacities)).toEqual(new Set(['1']));
       expect(expandedGeometry!.rowTextLefts[0]).toBeLessThan(expandedGeometry!.rowTextLefts[1]);
@@ -155,6 +186,20 @@ test.describe('notes editor outline rail', () => {
         );
       });
 
+      await page.mouse.move(0, 0);
+      await expect(rail).toHaveAttribute('data-expanded', 'false');
+      await expect.poll(() => pointHitsOutline(clippedPointX, outlinePointY)).toBe(false);
+      await expect(panel).toHaveCSS('width', '240px');
+      const collapsedAgainGeometry = await getGeometry();
+      expect(collapsedAgainGeometry).not.toBeNull();
+      expect(new Set(collapsedAgainGeometry!.markerOpacities)).toEqual(new Set(['1']));
+      expect(new Set(collapsedAgainGeometry!.rowTextOpacities)).toEqual(new Set(['0']));
+
+      await hoverOutlineMarkers();
+      await expect(rail).toHaveAttribute('data-expanded', 'true');
+      await expect(panel).toHaveCSS('width', '240px');
+      await expect(rail.locator('.editor-outline-row-text').first()).toHaveCSS('opacity', '1');
+
       await outline.getByRole('button', { name: 'Deep Dive' }).click();
 
       await expect.poll(async () => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate((element) => element.scrollTop))
@@ -172,7 +217,7 @@ test.describe('notes editor outline rail', () => {
 
       await page.setViewportSize({ width: 700, height: 860 });
       await expect(rail).toBeVisible();
-      await rail.hover();
+      await hoverOutlineMarkers();
       await expect(rail.locator('[data-editor-outline-panel="true"]')).toHaveCSS('width', '240px');
       const narrowGeometry = await getGeometry();
       expect(narrowGeometry).not.toBeNull();
