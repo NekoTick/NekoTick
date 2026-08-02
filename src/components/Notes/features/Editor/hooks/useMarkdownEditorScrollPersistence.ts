@@ -25,12 +25,14 @@ export function useMarkdownEditorScrollPersistence({
   hasActiveNote,
   notesPath,
   openTabPathsKey,
+  startAtTop,
 }: {
   active: boolean;
   currentNotePath: string | undefined;
   hasActiveNote: boolean;
   notesPath: string | null;
   openTabPathsKey: string;
+  startAtTop: boolean;
 }) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const scrollPositionsRef = useRef(new Map<string, number>());
@@ -214,10 +216,15 @@ export function useMarkdownEditorScrollPersistence({
       return;
     }
 
-    const targetScrollTop =
-      scrollPositionsRef.current.get(currentNotePath)
-      ?? loadPersistedNoteScrollPosition(notesPath, currentNotePath)
-      ?? 0;
+    if (startAtTop) {
+      scrollPositionsRef.current.set(currentNotePath, 0);
+      persistNoteScrollPosition(notesPath, currentNotePath, 0);
+    }
+    const targetScrollTop = startAtTop
+      ? 0
+      : scrollPositionsRef.current.get(currentNotePath)
+        ?? loadPersistedNoteScrollPosition(notesPath, currentNotePath)
+        ?? 0;
     restoreSessionRef.current = {
       path: currentNotePath,
       targetScrollTop,
@@ -285,7 +292,7 @@ export function useMarkdownEditorScrollPersistence({
         restoreSessionRef.current = null;
       }
     };
-  }, [active, currentNotePath, flushPendingPersistedScrollPosition, hasActiveNote, notesPath]);
+  }, [active, currentNotePath, flushPendingPersistedScrollPosition, hasActiveNote, notesPath, startAtTop]);
 
   return scrollRootRef;
 }

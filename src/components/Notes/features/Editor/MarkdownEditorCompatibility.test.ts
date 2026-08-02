@@ -13,6 +13,7 @@ import { gfm } from '@milkdown/kit/preset/gfm';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener } from '@milkdown/kit/plugin/listener';
 import { tableBlock } from '@milkdown/kit/component/table-block';
+import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { redo, undo } from '@milkdown/kit/prose/history';
@@ -25,7 +26,11 @@ import {
   preserveMarkdownBlankLinesForEditor,
 } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { normalizeLeadingFrontmatterMarkdown } from './plugins/frontmatter/frontmatterMarkdown';
-import { isEditorMarkdownEquivalentToNoteContent } from './milkdownEditorMarkdownReplacement';
+import {
+  isEditorMarkdownEquivalentToNoteContent,
+  normalizeInitialEditorSelection,
+  replaceEditorMarkdown,
+} from './milkdownEditorMarkdownReplacement';
 import { wikiLinkExpansionPluginKey } from './plugins/links/wiki-link/wikiLinkExpansionPlugin';
 import { serializeEditorMarkdownSnapshot } from './utils/pendingMarkdownUpdate';
 
@@ -108,6 +113,24 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('opens a horizontal-rule-only document with a gap cursor without changing Markdown', async () => {
+    const source = '---';
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(normalizeInitialEditorSelection(view)).toBe(true);
+    expect(view.state.selection).toBeInstanceOf(GapCursor);
+    expect(view.state.selection.from).toBe(view.state.doc.content.size);
+    expect(isEditorMarkdownEquivalentToNoteContent(serializer(view.state.doc), source)).toBe(true);
+
+    expect(replaceEditorMarkdown(editor.ctx, source)).toBe(true);
+    expect(view.state.selection).toBeInstanceOf(GapCursor);
+    expect(view.state.selection.from).toBe(view.state.doc.content.size);
+
+    await destroyEditor(editor);
+  });
+
   it('keeps authored punctuation escapes when rich text is appended', async () => {
     const source = [
       'Authored escapes:',

@@ -1,5 +1,6 @@
 import type { Ctx } from '@milkdown/kit/ctx';
 import { editorViewCtx, parserCtx } from '@milkdown/kit/core';
+import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import { Slice, type Node as ProseNode } from '@milkdown/kit/prose/model';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
@@ -10,6 +11,7 @@ import { blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION } from './plugins/cursor
 import {
   createDocumentFirstLineEndTextSelection,
   createDocumentStartTextSelection,
+  createGapCursorSelectionAt,
 } from './utils/editorSelection';
 import {
   normalizeMarkdownParagraphSeparatorsForEditorComparison,
@@ -52,6 +54,16 @@ function createInlineTextSelection(doc: ProseNode, from: number, to = from): Tex
 function createPreservedEditorSelection(doc: ProseNode, previousSelection: Selection): Selection {
   const maxPos = doc.content.size;
   const clampPos = (pos: number) => Math.max(0, Math.min(maxPos, pos));
+
+  if (previousSelection instanceof GapCursor) {
+    const pos = clampPos(previousSelection.from);
+    const gapSelection = createGapCursorSelectionAt(doc, pos)
+      ?? createGapCursorSelectionAt(doc, maxPos)
+      ?? createGapCursorSelectionAt(doc, 0);
+    if (gapSelection) {
+      return gapSelection;
+    }
+  }
 
   if (previousSelection.empty) {
     const pos = clampPos(previousSelection.from);
@@ -96,7 +108,13 @@ function resetEditorPointerClickSequence(view: EditorView): void {
 
 export function normalizeInitialEditorSelection(view: EditorView): boolean {
   const nextSelection = createDocumentFirstLineEndTextSelection(view.state.doc);
-  if (!(nextSelection instanceof TextSelection) || nextSelection.eq(view.state.selection)) {
+  if (
+    !(nextSelection instanceof TextSelection) &&
+    !(nextSelection instanceof GapCursor)
+  ) {
+    return false;
+  }
+  if (nextSelection.eq(view.state.selection)) {
     return false;
   }
 

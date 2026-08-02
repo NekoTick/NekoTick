@@ -36,7 +36,7 @@ export {
   replaceEditorMarkdown,
 } from './milkdownEditorMarkdownReplacement';
 
-interface MilkdownEditorInnerProps { active?: boolean; showBodyLineNumbers?: boolean; preserveStartupEditorPosition?: boolean; onEditorViewReady?: () => void; }
+interface MilkdownEditorInnerProps { active?: boolean; showBodyLineNumbers?: boolean; onEditorViewReady?: () => void; }
 
 const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
 const EDITOR_CONTENT_INTERACTIVE_SELECTOR = [
@@ -52,7 +52,6 @@ const EDITOR_CONTENT_INTERACTIVE_SELECTOR = [
 export function MilkdownEditorRuntime({
   active = true,
   showBodyLineNumbers = false,
-  preserveStartupEditorPosition = false,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   return (
@@ -60,7 +59,6 @@ export function MilkdownEditorRuntime({
       <MilkdownEditorInner
         active={active}
         showBodyLineNumbers={showBodyLineNumbers}
-        preserveStartupEditorPosition={preserveStartupEditorPosition}
         onEditorViewReady={onEditorViewReady}
       />
     </MilkdownProvider>
@@ -70,7 +68,6 @@ export function MilkdownEditorRuntime({
 export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   active = true,
   showBodyLineNumbers = false,
-  preserveStartupEditorPosition = false,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   const updateContent = useNotesStore(s => s.updateContent);
@@ -202,7 +199,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     currentNoteDiskRevision,
     currentNotePath,
     onEditorViewReadyRef,
-    preserveStartupEditorPosition,
     readyReportedRef,
     setActivatedRevision,
   });
@@ -334,7 +330,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     isDraftNote,
     isNewlyCreated,
     lazyBlockVisibilityRef,
-    preserveStartupEditorPosition,
   });
 
   const handleContentMouseDownCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {

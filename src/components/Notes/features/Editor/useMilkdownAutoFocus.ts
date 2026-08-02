@@ -20,7 +20,6 @@ export function useMilkdownAutoFocus(args: {
     path: string | undefined;
     value: boolean;
   } | null>;
-  preserveStartupEditorPosition: boolean;
 }) {
   const {
     active,
@@ -35,7 +34,6 @@ export function useMilkdownAutoFocus(args: {
     isDraftNote,
     isNewlyCreated,
     lazyBlockVisibilityRef,
-    preserveStartupEditorPosition,
   } = args;
 
   const isEmptyContent = useMemo(() => {
@@ -81,7 +79,7 @@ export function useMilkdownAutoFocus(args: {
 
   useEffect(() => {
     if (!active || !get || hasAutoFocused.current || hasScheduledAutoFocus.current) return;
-    if (preserveStartupEditorPosition || isNewlyCreated || shouldKeepFocusOnEmptyDraftTitle) {
+    if (isNewlyCreated || shouldKeepFocusOnEmptyDraftTitle) {
       return;
     }
 
@@ -106,12 +104,11 @@ export function useMilkdownAutoFocus(args: {
     focusEditorBody,
     get,
     isNewlyCreated,
-    preserveStartupEditorPosition,
     shouldKeepFocusOnEmptyDraftTitle,
   ]);
 
   useEffect(() => {
-    if (!active || preserveStartupEditorPosition || !shouldFocusEmptyDraftBody || hasAutoFocused.current) return;
+    if (!active || !shouldFocusEmptyDraftBody || hasAutoFocused.current) return;
     const frame = requestAnimationFrame(() => {
       if (!shouldFocusEmptyDraftBody || hasAutoFocused.current) return;
       const focused = focusEditorBody();
@@ -123,7 +120,7 @@ export function useMilkdownAutoFocus(args: {
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [active, currentNotePath, focusEditorBody, preserveStartupEditorPosition, shouldFocusEmptyDraftBody]);
+  }, [active, currentNotePath, focusEditorBody, shouldFocusEmptyDraftBody]);
 
   return { useLazyBlockVisibility };
 }
