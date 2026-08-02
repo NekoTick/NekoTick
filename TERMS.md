@@ -1,6 +1,6 @@
 # Terms of Service
 
-Last updated: July 8, 2026
+Last updated: July 28, 2026
 
 These Terms of Service explain the rules for using vlaina, including the desktop app, website, API, account features, managed AI service, billing features, support systems, redirect links, and related services operated by vlaina.
 
@@ -33,6 +33,8 @@ You are responsible for deciding what content to store locally, what content to 
 You may need an account to use managed AI, billing, feedback, or other online features.
 
 You are responsible for keeping your account, email access, device, and session secure. If you believe your account has been misused, contact us.
+
+Each account may have up to five active desktop app installations and five active website browser profiles. These limits are calculated separately, so signing in on the website will not sign out a desktop app, and signing in on the desktop app will not sign out a website session. Signing in again on the same installation or browser profile replaces its previous session. If a sixth distinct device signs in within either category, the least recently used active device in that category will be signed out automatically.
 
 We may refuse, suspend, restrict, or terminate access to accounts or online services when needed to protect vlaina, users, infrastructure, billing systems, or legal compliance.
 

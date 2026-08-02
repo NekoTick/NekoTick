@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ 无法保存登录状态",
   "account.error.network": "๑ᵒᯅᵒ๑ 网络连接异常",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ 请重新登录",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ 登录设备已达到 5 台上限，此设备已退出。请重新登录以继续使用。",
   "account.error.timeout": "๑ᵒᯅᵒ๑ 登录超时",
   "app.checkoutCanceled": "结账已取消。",
   "app.checkoutCompleted": "结账已完成。会员状态将很快刷新。",

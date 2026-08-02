@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Unable to save sign-in",
   "account.error.network": "๑ᵒᯅᵒ๑ Network connection error",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Please sign in again",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ This device was signed out because your account reached the 5-device limit. Sign in again to continue.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Sign-in timed out",
   "app.checkoutCanceled": "Checkout was canceled.",
   "app.checkoutCompleted": "Checkout completed. Membership will refresh shortly.",

@@ -72,6 +72,17 @@ export function getSpecificUserFacingOverride(
   const normalizedCode = code.trim()
   const normalizedCodeLower = normalizedCode.toLowerCase()
 
+  if (
+    normalizedCodeLower === 'session_device_limit' ||
+    normalized.includes('session signed out because device limit was reached')
+  ) {
+    return {
+      type: AIErrorType.AUTH_ERROR,
+      code: normalizedCode || 'session_device_limit',
+      message: translate('account.error.deviceLimit'),
+    }
+  }
+
   if (isDesktopCustomProviderConnectionFailureMessage(message)) {
     return {
       type: AIErrorType.NETWORK_ERROR,

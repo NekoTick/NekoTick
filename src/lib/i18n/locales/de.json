@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Anmeldung kann nicht gespeichert werden",
   "account.error.network": "๑ᵒᯅᵒ๑ Netzwerkverbindung fehlgeschlagen",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Bitte erneut anmelden",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Dieses Gerät wurde abgemeldet, weil das Konto das Limit von 5 Geräten erreicht hat. Melden Sie sich erneut an.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Anmeldung abgelaufen",
   "app.checkoutCanceled": "Die Kasse wurde abgebrochen.",
   "app.checkoutCompleted": "Kasse abgeschlossen. Die Mitgliedschaft wird in Kürze aktualisiert.",

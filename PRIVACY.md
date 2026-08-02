@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: July 8, 2026
+Last updated: July 28, 2026
 
 This Privacy Policy explains how vlaina handles information when you use the vlaina desktop app, website, API, account features, managed AI service, billing features, support/admin systems, and redirect links operated by vlaina.
 
@@ -49,6 +49,7 @@ For OAuth sign-in, Google may provide profile information such as your email add
 vlaina may collect and store security and operational metadata to authenticate users, prevent abuse, diagnose issues, and protect the service. This may include:
 
 - Session token hashes.
+- A randomly generated app or browser device identifier. For account session records, vlaina stores only its SHA-256 hash.
 - Session creation, expiration, and last-used timestamps.
 - IP address.
 - User agent.
@@ -57,6 +58,8 @@ vlaina may collect and store security and operational metadata to authenticate u
 - API endpoint, method, status, latency, and error information.
 
 Session tokens are stored as hashes where applicable. Rate-limit records are used to reduce abuse and may be cleaned up automatically after a short period. Other account and security records may be kept as long as needed to provide the service, protect the system, resolve disputes, or comply with legal obligations.
+
+The random device identifier is used to distinguish active sign-in installations, enforce account device limits, and sign out older sessions when the limit is exceeded. It is not derived from hardware serial numbers or other hardware fingerprinting data.
 
 ## Managed AI Features
 
@@ -223,7 +226,7 @@ If California privacy law applies to you, this section provides additional notic
 
 The categories of personal information vlaina may collect include:
 
-- Identifiers, such as email address, account ID, provider account ID, IP address, user agent, session token hash, Stripe identifiers, and pseudonymous redirect visitor keys.
+- Identifiers, such as email address, account ID, provider account ID, IP address, user agent, session token hash, hashed random device identifier, Stripe identifiers, and pseudonymous redirect visitor keys.
 - Customer records and commercial information, such as membership tier, subscription status, checkout type, billing status, purchases, top-ups, refunds, and related payment processor identifiers.
 - Internet or network activity information, such as API endpoint, request method, timestamps, status, latency, rate-limit records, update checks, redirect analytics, and external link or web feature metadata.
 - Geolocation-like information at a coarse level, such as country code provided by hosting or network infrastructure for redirect analytics.

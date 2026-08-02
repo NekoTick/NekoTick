@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Impossibile salvare l'accesso",
   "account.error.network": "๑ᵒᯅᵒ๑ Errore di connessione di rete",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Accedi di nuovo",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Questo dispositivo è stato disconnesso perché l'account ha raggiunto il limite di 5 dispositivi. Accedi di nuovo.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Accesso scaduto",
   "app.checkoutCanceled": "Checkout annullato.",
   "app.checkoutCompleted": "Checkout completato. L'abbonamento verrà aggiornato a breve.",

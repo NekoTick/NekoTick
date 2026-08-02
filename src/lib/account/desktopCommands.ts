@@ -52,6 +52,7 @@ export const accountCommands = {
     membershipTier: MembershipTier | null;
     membershipName: string | null;
     sessionInvalidated?: boolean;
+    sessionInvalidationReason?: 'device_limit';
     persistent?: boolean;
     budget?: ManagedBudgetPayload | null;
   }> {
@@ -64,6 +65,7 @@ export const accountCommands = {
       membershipTier: MembershipTier | null;
       membershipName: string | null;
       sessionInvalidated?: boolean;
+      sessionInvalidationReason?: 'device_limit';
       persistent?: boolean;
       budget?: ManagedBudgetPayload | null;
     };

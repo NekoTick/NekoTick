@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Tidak dapat menyimpan sesi masuk",
   "account.error.network": "๑ᵒᯅᵒ๑ Kesalahan koneksi jaringan",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Silakan masuk lagi",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Perangkat ini dikeluarkan karena akun Anda mencapai batas 5 perangkat. Silakan masuk lagi.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Waktu masuk habis",
   "app.checkoutCanceled": "Checkout dibatalkan.",
   "app.checkoutCompleted": "Checkout selesai. Keanggotaan akan diperbarui segera.",

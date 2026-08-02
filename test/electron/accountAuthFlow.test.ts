@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
   const persistDesktopAuthResult = vi.fn();
   const bindDesktopAuthLoopbackServer = vi.fn();
   const openExternal = vi.fn();
+  const getDesktopDeviceId = vi.fn();
 
   return {
     readStoredAccountCredentials,
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => {
     persistDesktopAuthResult,
     bindDesktopAuthLoopbackServer,
     openExternal,
+    getDesktopDeviceId,
   };
 });
 
@@ -40,6 +42,16 @@ vi.mock('electron', () => ({
       openExternal: mocks.openExternal,
     },
   },
+}));
+
+vi.mock('../../electron/accountDeviceIdentity.mjs', () => ({
+  buildDesktopDeviceHeaders: (deviceId: string | null, headers: Record<string, string> = {}) => ({
+    ...headers,
+    ...(deviceId ? { 'x-vlaina-device-id': deviceId } : {}),
+  }),
+  createDesktopDeviceIdentityStore: () => ({
+    getDesktopDeviceId: mocks.getDesktopDeviceId,
+  }),
 }));
 
 vi.mock('../../electron/accountCredentialStore.mjs', () => ({
@@ -97,6 +109,7 @@ describe('desktop account auth flow', () => {
       mock.mockReset();
     }
     mocks.openExternal.mockResolvedValue(undefined);
+    mocks.getDesktopDeviceId.mockResolvedValue(`vld_${'11'.repeat(16)}`);
     mocks.persistDesktopAuthResult.mockResolvedValue({
       success: true,
       provider: 'google',
@@ -482,6 +495,9 @@ describe('desktop account auth flow', () => {
       code: '123456',
       target: 'desktop',
     });
+    expect(mocks.fetchDesktopJson.mock.calls[0]?.[1]?.headers).toMatchObject({
+      'x-vlaina-device-id': `vld_${'11'.repeat(16)}`,
+    });
   });
 
   it('coalesces matching email verification IPC calls across renderer windows', async () => {
@@ -497,7 +513,7 @@ describe('desktop account auth flow', () => {
     const first = verify({}, ' VLA@example.com ', ' 123456 ');
     const second = verify({}, 'vla@example.com', '123456');
 
-    expect(mocks.fetchDesktopJson).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mocks.fetchDesktopJson).toHaveBeenCalledTimes(1));
     resolveVerification({
       data: {
         success: true,
@@ -545,6 +561,9 @@ describe('desktop account auth flow', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('error');
     expect(mocks.clearStoredAccountCredentialsIfCurrent).toHaveBeenCalledWith('nts_old_session');
     expect(mocks.clearStoredAccountCredentials).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      'x-vlaina-device-id': `vld_${'11'.repeat(16)}`,
+    });
   });
 
   it('rejects invalid desktop email verification payloads before network access', async () => {

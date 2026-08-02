@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Не удалось сохранить вход",
   "account.error.network": "๑ᵒᯅᵒ๑ Ошибка сетевого подключения",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Войдите снова",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ На этом устройстве выполнен выход, потому что аккаунт достиг лимита в 5 устройств. Войдите снова.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Время входа истекло",
   "app.checkoutCanceled": "Оформление заказа отменено.",
   "app.checkoutCompleted": "Оформление заказа завершено. Подписка скоро обновится.",

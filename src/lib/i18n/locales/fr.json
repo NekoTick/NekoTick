@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Impossible d'enregistrer la connexion",
   "account.error.network": "๑ᵒᯅᵒ๑ Erreur de connexion réseau",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Reconnectez-vous",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Cet appareil a été déconnecté car votre compte a atteint la limite de 5 appareils. Reconnectez-vous.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Connexion expirée",
   "app.checkoutCanceled": "Le paiement a été annulé.",
   "app.checkoutCompleted": "Paiement terminé. L'abonnement sera actualisé sous peu.",

@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Não foi possível salvar o login",
   "account.error.network": "๑ᵒᯅᵒ๑ Erro de conexão de rede",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Entre novamente",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Este dispositivo foi desconectado porque sua conta atingiu o limite de 5 dispositivos. Entre novamente.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Tempo de login esgotado",
   "app.checkoutCanceled": "Pagamento cancelado.",
   "app.checkoutCompleted": "Pagamento concluído. Sua assinatura será atualizada em breve.",

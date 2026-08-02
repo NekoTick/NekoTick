@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ ไม่สามารถบันทึกการเข้าสู่ระบบได้",
   "account.error.network": "๑ᵒᯅᵒ๑ การเชื่อมต่อเครือข่ายผิดพลาด",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ โปรดเข้าสู่ระบบอีกครั้ง",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ อุปกรณ์นี้ถูกออกจากระบบเนื่องจากบัญชีของคุณใช้งานครบขีดจำกัด 5 อุปกรณ์ โปรดเข้าสู่ระบบอีกครั้ง",
   "account.error.timeout": "๑ᵒᯅᵒ๑ หมดเวลาเข้าสู่ระบบ",
   "app.checkoutCanceled": "การชำระเงินถูกยกเลิก",
   "app.checkoutCompleted": "การชำระเงินเสร็จสมบูรณ์ สมาชิกภาพจะรีเฟรชในไม่ช้า",

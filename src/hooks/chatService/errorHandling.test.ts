@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { ACCOUNT_AUTH_INVALIDATED_EVENT } from '@/lib/account/sessionEvent';
 import { buildChatErrorPayload, extractRawErrorMessage } from './errorHandling';
 
 describe('buildChatErrorPayload', () => {
@@ -52,5 +53,19 @@ describe('buildChatErrorPayload', () => {
       message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
       xml: '<error type="SERVER_ERROR" code="">๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~</error>',
     });
+  });
+
+  it('propagates the device-limit reason when Electron only preserves the error text', () => {
+    const invalidated = vi.fn();
+    window.addEventListener(ACCOUNT_AUTH_INVALIDATED_EVENT, invalidated, { once: true });
+
+    const result = buildChatErrorPayload(new Error(
+      "Error invoking remote method 'desktop:managed:chat-completion': Session signed out because device limit was reached",
+    ));
+
+    expect(result.message).toContain('5-device limit');
+    expect(invalidated).toHaveBeenCalledTimes(1);
+    expect(invalidated.mock.calls[0]?.[0]).toBeInstanceOf(CustomEvent);
+    expect((invalidated.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ reason: 'device_limit' });
   });
 });

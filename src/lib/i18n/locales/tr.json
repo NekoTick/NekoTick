@@ -43,6 +43,7 @@
   "account.error.secureStorageUnavailable": "๑ᵒᯅᵒ๑ Oturum kaydedilemedi",
   "account.error.network": "๑ᵒᯅᵒ๑ Ağ bağlantısı hatası",
   "account.error.signInAgain": "๑ᵒᯅᵒ๑ Lütfen yeniden oturum açın",
+  "account.error.deviceLimit": "๑ᵒᯅᵒ๑ Hesabınız 5 cihaz sınırına ulaştığı için bu cihazdaki oturum kapatıldı. Lütfen yeniden oturum açın.",
   "account.error.timeout": "๑ᵒᯅᵒ๑ Oturum açma zaman aşımına uğradı",
   "app.checkoutCanceled": "Ödeme iptal edildi.",
   "app.checkoutCompleted": "Ödeme tamamlandı. Üyelik kısa süre içinde yenilenecek.",
