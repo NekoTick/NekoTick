@@ -106,7 +106,7 @@ function ColorChoices({ colors, tool, onChange }: {
             aria-pressed={selectedColor === color.toLowerCase()}
             data-whiteboard-dock-visual="true"
             onClick={() => onChange(tool, color)}
-            className="relative size-[var(--vlaina-size-32px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
+            className="relative size-[var(--vlaina-size-32px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)] shadow-none hover:shadow-none"
             style={{ backgroundColor: color }}
           >
             {selectedColor === color.toLowerCase() ? (
@@ -141,10 +141,10 @@ function SizeChoices({ sizes, tool, onChange }: {
             data-whiteboard-dock-visual="true"
             onClick={() => onChange(tool, size)}
             className={cn(
-              'flex size-[var(--vlaina-size-36px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] transition-colors',
+              'flex size-[var(--vlaina-size-36px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] shadow-none transition-colors hover:shadow-none',
               sizes[tool] === size
                 ? 'bg-[var(--vlaina-accent-light)]'
-                : 'hover:bg-[var(--vlaina-color-control-hover-bg)]',
+                : 'hover:bg-transparent',
             )}
           >
             <span
