@@ -826,6 +826,8 @@
   "settings.ai.fetchModelsMissingCredentials": "Kredensial kurang",
   "settings.ai.fetchModelsEmpty": "Tidak ada model",
   "settings.ai.fetchModelsFailed": "Gagal mengambil",
+  "settings.ai.fetchModelsResponseTooLarge": "Respons daftar model terlalu besar",
+  "settings.ai.fetchModelsInvalidResponse": "Respons daftar model tidak valid",
   "settings.ai.stopBenchmark": "Hentikan benchmark",
   "settings.ai.benchmarkAll": "Benchmark semua",
   "settings.ai.selectedModels": "Dipilih",

@@ -826,6 +826,8 @@
   "settings.ai.fetchModelsMissingCredentials": "Kimlik bilgisi yok",
   "settings.ai.fetchModelsEmpty": "Model yok",
   "settings.ai.fetchModelsFailed": "Getirme basarisiz",
+  "settings.ai.fetchModelsResponseTooLarge": "Model listesi yanıtı çok büyük",
+  "settings.ai.fetchModelsInvalidResponse": "Geçersiz model listesi yanıtı",
   "settings.ai.stopBenchmark": "Benchmarku durdur",
   "settings.ai.benchmarkAll": "Tumunu benchmark et",
   "settings.ai.selectedModels": "Secilenler",

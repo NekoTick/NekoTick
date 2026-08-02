@@ -41,6 +41,7 @@ function assertClipboardImageDataUrl(dataUrl) {
 export function registerDesktopIpc({
   app: appOverride,
   dialog: dialogOverride,
+  fetchImpl,
   handleIpc,
   handleSyncIpc,
   normalizeExternalUrl,
@@ -105,7 +106,7 @@ export function registerDesktopIpc({
     return new Uint8Array(await renderHtmlToPdf(html, options));
   });
 
-  registerDesktopAiProviderIpc({ handleIpc });
+  registerDesktopAiProviderIpc({ fetchImpl, handleIpc });
 
   registerDesktopCommandIpc({
     app: activeApp,

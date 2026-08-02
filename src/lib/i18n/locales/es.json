@@ -826,6 +826,8 @@
   "settings.ai.fetchModelsMissingCredentials": "Faltan credenciales",
   "settings.ai.fetchModelsEmpty": "Sin modelos",
   "settings.ai.fetchModelsFailed": "Error al obtener",
+  "settings.ai.fetchModelsResponseTooLarge": "La respuesta de modelos es demasiado grande",
+  "settings.ai.fetchModelsInvalidResponse": "Respuesta de modelos no válida",
   "settings.ai.stopBenchmark": "Detener benchmark",
   "settings.ai.benchmarkAll": "Benchmark de todo",
   "settings.ai.selectedModels": "Seleccionados",

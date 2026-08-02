@@ -95,12 +95,12 @@ function delayAiProviderRetry(ms, signal) {
   });
 }
 
-export async function fetchAiProviderRequestWithRetry(request, signal) {
+export async function fetchAiProviderRequestWithRetry(request, signal, fetchImpl = fetch) {
   const shouldRetry = request.method === 'GET';
   for (let attempt = 0; ; attempt += 1) {
     const startedAt = Date.now();
     try {
-      return await raceWithAbort(fetch(request.url, {
+      return await raceWithAbort(fetchImpl(request.url, {
         method: request.method,
         headers: request.headers,
         body: request.body,

@@ -3,6 +3,7 @@ import { generateId } from '@/lib/id'
 import {
   isManagedProviderId,
 } from '@/lib/ai/managedService'
+import { backgroundBenchmarkRunner } from '@/lib/ai/healthCheck'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { createChatActions } from './chatActions'
 import {
@@ -132,7 +133,14 @@ export const actions = {
       dataUpdates.computerUseEnabled = false;
     }
     if (connectionChanged) {
+      backgroundBenchmarkRunner.stop(id);
+      const nextBenchmarkResults = { ...(ai.benchmarkResults || {}) };
+      const nextFetchedModels = { ...(ai.fetchedModels || {}) };
+      delete nextBenchmarkResults[id];
+      delete nextFetchedModels[id];
       dataUpdates.models = nextModels;
+      dataUpdates.benchmarkResults = nextBenchmarkResults;
+      dataUpdates.fetchedModels = nextFetchedModels;
     }
     state.updateAIData(dataUpdates)
   },

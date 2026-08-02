@@ -128,11 +128,12 @@ vi.mock('electron', () => ({
   },
 }));
 
-function registerHarness() {
+function registerHarness({ fetchImpl }: { fetchImpl?: typeof fetch } = {}) {
   const handlers = new Map<string, (...args: unknown[]) => unknown>();
   const syncHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
   registerDesktopIpc({
+    fetchImpl,
     handleIpc: (name: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(name, handler);
     },
@@ -809,6 +810,19 @@ describe('desktop export ipc', () => {
         body: Buffer.from('multipart-body'),
       }),
     );
+  });
+
+  it('passes the injected fetch implementation to AI provider requests', async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
+    const { handlers } = registerHarness({ fetchImpl });
+
+    await expect(handlers.get('desktop:ai-provider:request:start')?.(
+      { sender: { isDestroyed: () => false, send: vi.fn() } },
+      'request-injected-fetch',
+      { url: 'https://api.example.com/v1/models', method: 'GET' },
+    )).resolves.toMatchObject({ status: 204 });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it('rejects oversized base64 AI provider request bodies before fetch', async () => {

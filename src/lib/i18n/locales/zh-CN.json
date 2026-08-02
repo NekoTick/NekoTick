@@ -826,6 +826,8 @@
   "settings.ai.fetchModelsMissingCredentials": "缺少凭据",
   "settings.ai.fetchModelsEmpty": "未找到模型",
   "settings.ai.fetchModelsFailed": "获取失败",
+  "settings.ai.fetchModelsResponseTooLarge": "模型列表响应过大",
+  "settings.ai.fetchModelsInvalidResponse": "模型列表响应无效",
   "settings.ai.stopBenchmark": "停止测速",
   "settings.ai.benchmarkAll": "全部测速",
   "settings.ai.selectedModels": "已选择",
