@@ -63,7 +63,13 @@ describe('AppViewModeSwitch', () => {
     for (const tab of [notesTab, graphTab, boardTab, chatTab]) {
       expect(tab).toHaveClass(
         'h-[var(--vlaina-size-44px)]',
-        'min-w-[var(--vlaina-size-44px)]',
+      );
+    }
+    expect(chatTab).toHaveClass('min-w-max', 'shrink-0');
+    for (const tab of [notesTab, graphTab, boardTab]) {
+      expect(tab).toHaveClass(
+        'min-w-[var(--vlaina-size-32px)]',
+        'shrink',
       );
     }
     expect(chatTab.style.width).toContain('calc(');
@@ -91,6 +97,8 @@ describe('AppViewModeSwitch', () => {
     expect(notesTab).toHaveStyle({ color: 'var(--vlaina-sidebar-row-selected-text)' });
     expect(notesTab.style.width).toContain('calc(');
     expect(notesTab).toHaveClass(
+      'min-w-max',
+      'shrink-0',
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
     );
@@ -99,6 +107,7 @@ describe('AppViewModeSwitch', () => {
     expect(chatTab).toHaveAttribute('aria-selected', 'false');
     expect(chatTab).toHaveAttribute('tabindex', '-1');
     expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
+    expect(chatTab).toHaveClass('min-w-[var(--vlaina-size-32px)]', 'shrink');
     expect(chatTab).not.toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
   });
 

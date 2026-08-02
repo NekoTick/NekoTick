@@ -181,8 +181,10 @@ export function AppViewModeSwitch() {
             onFocus={() => setHighlightedAppViewMode(option.key)}
             onBlur={() => setHighlightedAppViewMode(null)}
             className={cn(
-              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] min-w-[var(--vlaina-size-44px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width,background-color,box-shadow] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
-              selected && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]',
+              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width,background-color,box-shadow] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+              selected
+                ? 'min-w-max shrink-0 bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]'
+                : 'min-w-[var(--vlaina-size-32px)] shrink',
             )}
             style={{
               width: selected ? expandedButtonWidth : 'var(--vlaina-size-44px)',
