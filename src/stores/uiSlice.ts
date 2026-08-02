@@ -84,6 +84,20 @@ export const useUIStore = create<UIStore>()((set) => ({
   },
   layoutPanelDragging: false,
   setLayoutPanelDragging: (dragging) => set({ layoutPanelDragging: dragging }),
+  layoutPanelTransitioning: false,
+  layoutPanelTransitionSources: [],
+  setLayoutPanelTransitioning: (source, transitioning) => set((state) => {
+    const sourceActive = state.layoutPanelTransitionSources.includes(source);
+    if (sourceActive === transitioning) return state;
+
+    const layoutPanelTransitionSources = transitioning
+      ? [...state.layoutPanelTransitionSources, source]
+      : state.layoutPanelTransitionSources.filter((activeSource) => activeSource !== source);
+    return {
+      layoutPanelTransitionSources,
+      layoutPanelTransitioning: layoutPanelTransitionSources.length > 0,
+    };
+  }),
   devPlatformPreview: 'system',
   setDevPlatformPreview: (platformPreview) =>
     set({ devPlatformPreview: normalizeDevPlatformPreview(platformPreview) }),

@@ -4,40 +4,13 @@ import {
     getCachedResolvedCoverAssetUrl,
     rememberDisplayedCoverAssetUrl,
     resolveCoverAssetUrl,
-    shouldPreserveAssetAnimation,
 } from '../utils/resolveCoverAssetUrl';
+import { getCoverDimensionProbeSrc, getCoverResolveOptions } from '../utils/coverImagePreload';
 import { coverSourceReducer, initialCoverSourceState, type CoverSourceState } from './coverSourceState';
 import { logNotesSplitDiagnostic } from '@/lib/diagnostics/notesSplitDiagnostics';
 import { useImageCacheGeneration } from '@/hooks/useImageCacheGeneration';
 
-const COVER_DISPLAY_THUMBNAIL_MAX_EDGE_PX = 1280;
-const ANIMATED_COVER_DIMENSION_PROBE_TOKEN = 'vlaina-dimension-probe=1';
-
-export function getCoverDimensionProbeSrc(assetPath: string, resolvedSrc: string): string {
-    if (!shouldPreserveAssetAnimation(assetPath)) return resolvedSrc;
-    return `${resolvedSrc}${resolvedSrc.includes('#') ? '&' : '#'}${ANIMATED_COVER_DIMENSION_PROBE_TOKEN}`;
-}
-
-export function getCoverResolveOptions({
-    url,
-    notesRootPath,
-    currentNotePath,
-}: {
-    url: string;
-    notesRootPath: string;
-    currentNotePath?: string;
-}) {
-    const preserveAnimation = shouldPreserveAssetAnimation(url);
-    return {
-        assetPath: url,
-        notesRootPath,
-        currentNotePath,
-        thumbnail: !preserveAnimation,
-        thumbnailMaxEdgePx: preserveAnimation ? undefined : COVER_DISPLAY_THUMBNAIL_MAX_EDGE_PX,
-        replayAnimated: preserveAnimation,
-        animatedPlaybackKey: currentNotePath,
-    };
-}
+export { getCoverDimensionProbeSrc, getCoverResolveOptions } from '../utils/coverImagePreload';
 
 function getCoverSourceKey({
     url,

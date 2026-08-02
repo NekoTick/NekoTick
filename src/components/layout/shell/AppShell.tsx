@@ -48,10 +48,12 @@ export function AppShell({
 }: AppShellProps) {
   const titleBarWidthScopeRef = useRef<HTMLDivElement>(null);
   const sidebarWidthScopeRef = useRef<HTMLDivElement>(null);
+  const previousSidebarCollapsedRef = useRef(sidebarCollapsed);
   const sidebarPeekCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
   const [isSidebarPeeking, setIsSidebarPeeking] = useState(false);
   const setLayoutPanelDragging = useUIStore((state) => state.setLayoutPanelDragging);
+  const setLayoutPanelTransitioning = useUIStore((state) => state.setLayoutPanelTransitioning);
 
   const clearSidebarPeekCloseTimer = useCallback(() => {
     if (!sidebarPeekCloseTimerRef.current) return;
@@ -105,9 +107,22 @@ export function AppShell({
     setLayoutPanelDragging(dragging);
   }, [setLayoutPanelDragging]);
 
+  const handleSidebarLayoutAnimationComplete = useCallback(() => {
+    setLayoutPanelTransitioning('shell-sidebar', false);
+  }, [setLayoutPanelTransitioning]);
+
   useLayoutEffect(() => {
     applySidebarWidth(sidebarWidth);
   }, [applySidebarWidth, sidebarCollapsed, sidebarWidth]);
+
+  useLayoutEffect(() => {
+    if (previousSidebarCollapsedRef.current === sidebarCollapsed) return;
+    previousSidebarCollapsedRef.current = sidebarCollapsed;
+
+    // A visible peek docks without a slide animation when the sidebar expands.
+    if (!sidebarCollapsed && isSidebarPeeking) return;
+    setLayoutPanelTransitioning('shell-sidebar', true);
+  }, [isSidebarPeeking, setLayoutPanelTransitioning, sidebarCollapsed]);
 
   useLayoutEffect(() => {
     if (!sidebarCollapsed || !sidebarHoverPeekEnabled) {
@@ -117,6 +132,10 @@ export function AppShell({
   }, [clearSidebarPeekCloseTimer, sidebarCollapsed, sidebarHoverPeekEnabled]);
 
   useEffect(() => clearSidebarPeekCloseTimer, [clearSidebarPeekCloseTimer]);
+  useEffect(
+    () => () => setLayoutPanelTransitioning('shell-sidebar', false),
+    [setLayoutPanelTransitioning],
+  );
 
   return (
     <div
@@ -165,6 +184,7 @@ export function AppShell({
             onWidthChange={onSidebarWidthChange}
             onLiveWidthChange={applySidebarWidth}
             onDragStateChange={handleSidebarDragStateChange}
+            onLayoutAnimationComplete={handleSidebarLayoutAnimationComplete}
             widthScopeRef={sidebarWidthScopeRef}
             backgroundColor={backgroundColor}
           >
