@@ -115,26 +115,38 @@ export function scrollCurrentTurnIntoViewForContainer({
   return "estimated";
 }
 
-export function restoreShortCompletedTurnAnchorForContainer({
+export function restoreCurrentTurnAnchorIfOutputFitsForContainer({
+  active,
   container,
   isCurrentTurnAnchored,
   userDetachedFromCurrentTurn,
   messages,
+  chatId,
+  isStreaming,
   currentTurnAnchorMode,
+  currentTurnTopSpacerHeight,
   setProgrammaticScrollTop,
 }: {
+  active: boolean;
   container: HTMLElement | null;
   isCurrentTurnAnchored: boolean;
   userDetachedFromCurrentTurn: boolean;
   messages: ChatMessage[];
+  chatId: string | null;
+  isStreaming: boolean;
   currentTurnAnchorMode: CurrentTurnAnchorMode;
+  currentTurnTopSpacerHeight: number;
   setProgrammaticScrollTop: (container: HTMLElement, nextScrollTop: number) => number;
-}): void {
-  if (!container || !isCurrentTurnAnchored || userDetachedFromCurrentTurn) {
-    return;
+}): boolean {
+  if (!active || !container || !isCurrentTurnAnchored || userDetachedFromCurrentTurn) {
+    return false;
   }
 
   const lastUserIndex = findLastUserMessageIndex(messages);
+  if (lastUserIndex < 0) {
+    return false;
+  }
+
   const userRow = lastUserIndex >= 0
     ? container.querySelector<HTMLElement>(`[data-message-index="${lastUserIndex}"]`)
     : null;
@@ -142,22 +154,62 @@ export function restoreShortCompletedTurnAnchorForContainer({
     ? container.querySelector<HTMLElement>(`[data-message-index="${messages.length - 1}"]`)
     : null;
 
-  if (!userRow || !lastRow) {
-    return;
+  if (userRow && lastRow) {
+    const containerRect = container.getBoundingClientRect();
+    const userRect = userRow.getBoundingClientRect();
+    const lastRect = lastRow.getBoundingClientRect();
+    const desiredUserTopOffset = resolveUserMessageAnchorTop(
+      container.clientHeight,
+      userRect.height,
+      currentTurnAnchorMode,
+    );
+    const currentTurnHeight = Math.max(
+      userRect.height,
+      lastRect.bottom - userRect.top,
+    );
+    if (desiredUserTopOffset + currentTurnHeight > container.clientHeight + 1) {
+      return false;
+    }
+
+    const restoreOffset = userRect.top - containerRect.top - desiredUserTopOffset;
+    if (Math.abs(restoreOffset) > 1) {
+      setProgrammaticScrollTop(container, container.scrollTop + restoreOffset);
+    }
+    return true;
   }
 
-  const containerRect = container.getBoundingClientRect();
-  const userRect = userRow.getBoundingClientRect();
-  const lastRect = lastRow.getBoundingClientRect();
-  const userTopOffset = userRect.top - containerRect.top;
-  const outputBottomOffset = lastRect.bottom - containerRect.top;
-  const outputFitsInViewport = outputBottomOffset <= container.clientHeight + 1;
-  const restoreOffset = userTopOffset - resolveUserMessageAnchorTop(
+  const layoutWidth = normalizeChatContainerWidth(container.clientWidth);
+  const estimatedLayout = buildChatMessageFrameLayout(messages, {
+    cacheKey: chatId,
+    containerWidth: layoutWidth,
+    isSessionActive: isStreaming,
+  });
+  const targetFrame = estimatedLayout.items[lastUserIndex];
+  const lastFrame = estimatedLayout.items[estimatedLayout.items.length - 1];
+  if (!targetFrame || !lastFrame) {
+    return false;
+  }
+
+  const desiredUserTopOffset = resolveUserMessageAnchorTop(
     container.clientHeight,
-    userRect.height,
+    targetFrame.height,
     currentTurnAnchorMode,
   );
-  if (Math.abs(restoreOffset) > 1 && outputFitsInViewport) {
-    setProgrammaticScrollTop(container, container.scrollTop + restoreOffset);
+  if (
+    desiredUserTopOffset + lastFrame.bottom - targetFrame.top >
+    container.clientHeight + 1
+  ) {
+    return false;
   }
+
+  return scrollCurrentTurnIntoViewForContainer({
+    active,
+    container,
+    messages,
+    chatId,
+    isStreaming,
+    currentTurnAnchorMode,
+    currentTurnTopSpacerHeight,
+    setProgrammaticScrollTop,
+  }) !== false;
 }

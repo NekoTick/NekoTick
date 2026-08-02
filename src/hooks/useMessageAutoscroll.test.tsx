@@ -2495,6 +2495,180 @@ describe('useMessageAutoscroll', () => {
     requestAnimationFrameSpy.mockRestore();
   });
 
+  it.each([
+    ['restores the prompt anchor when expanded thinking collapses into a short answer', false, false, 1468],
+    ['restores a virtualized prompt after expanded thinking collapses', false, true, 1468],
+    ['does not restore the prompt anchor after the user detaches from the streaming turn', true, false, 2000],
+  ])('%s', (_name, detachFromTurn, virtualizePrompt, expectedScrollTop) => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+
+    class ResizeObserverMock {
+      static instances: ResizeObserverMock[] = [];
+
+      callback: ResizeObserverCallback;
+      observed: Element | null = null;
+      observe = vi.fn((target: Element) => {
+        this.observed = target;
+      });
+      disconnect = vi.fn();
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+        ResizeObserverMock.instances.push(this);
+      }
+    }
+
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+
+    const initialMessages = [
+      createMessage('u1', 'user'),
+      createMessage('a1', 'assistant'),
+    ];
+    const activeMessages = [
+      ...initialMessages,
+      createMessage('u2', 'user'),
+      createMessage('a2', 'assistant'),
+    ];
+
+    function TestHarness({
+      messages,
+      showPromptIndex = true,
+    }: {
+      messages: ChatMessage[];
+      showPromptIndex?: boolean;
+    }) {
+      const { containerRef, handleNewUserMessage } = useMessageAutoscroll({
+        messages,
+        isStreaming: true,
+        chatId: 'chat-1',
+        showLoading: false,
+      });
+
+      return (
+        <div data-testid="scrollable-thinking-collapse" ref={containerRef}>
+          <div data-testid="content-thinking-collapse">
+            <button type="button" onClick={handleNewUserMessage}>send</button>
+            <div
+              data-message-index={showPromptIndex ? '2' : undefined}
+              data-testid="current-user-row-thinking-collapse"
+            />
+            <div data-message-index="3" data-testid="assistant-row-thinking-collapse" />
+          </div>
+        </div>
+      );
+    }
+
+    const view = render(<TestHarness messages={initialMessages} />);
+    const scrollable = rtlScreen.getByTestId('scrollable-thinking-collapse');
+    const currentUserRow = rtlScreen.getByTestId('current-user-row-thinking-collapse');
+    const assistantRow = rtlScreen.getByTestId('assistant-row-thinking-collapse');
+    let scrollTop = 1000;
+    let assistantDocumentBottom = 2600;
+    const currentUserDocumentTop = 1500;
+
+    Object.defineProperty(scrollable, 'clientHeight', {
+      configurable: true,
+      get: () => 600,
+    });
+    Object.defineProperty(scrollable, 'clientWidth', {
+      configurable: true,
+      get: () => 900,
+    });
+    Object.defineProperty(scrollable, 'scrollHeight', {
+      configurable: true,
+      get: () => 2800,
+    });
+    Object.defineProperty(scrollable, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value;
+      },
+    });
+    scrollable.getBoundingClientRect = () => ({
+      bottom: 700,
+      height: 600,
+      left: 0,
+      right: 900,
+      top: 100,
+      width: 900,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    currentUserRow.getBoundingClientRect = () => ({
+      bottom: 100 + currentUserDocumentTop + 80 - scrollTop,
+      height: 80,
+      left: 0,
+      right: 900,
+      top: 100 + currentUserDocumentTop - scrollTop,
+      width: 900,
+      x: 0,
+      y: 100 + currentUserDocumentTop - scrollTop,
+      toJSON: () => ({}),
+    });
+    assistantRow.getBoundingClientRect = () => ({
+      bottom: 100 + assistantDocumentBottom - scrollTop,
+      height: assistantDocumentBottom - 1600,
+      left: 0,
+      right: 900,
+      top: 100 + 1600 - scrollTop,
+      width: 900,
+      x: 0,
+      y: 100 + 1600 - scrollTop,
+      toJSON: () => ({}),
+    });
+
+    act(() => {
+      rtlScreen.getByRole('button', { name: 'send' }).click();
+    });
+    act(() => {
+      view.rerender(<TestHarness messages={activeMessages} />);
+    });
+
+    expect(scrollTop).toBe(2000);
+
+    if (detachFromTurn) {
+      act(() => {
+        fireEvent.wheel(scrollable, { deltaY: -80 });
+      });
+    }
+    if (virtualizePrompt) {
+      act(() => {
+        view.rerender(<TestHarness messages={activeMessages} showPromptIndex={false} />);
+      });
+    }
+
+    assistantDocumentBottom = 1850;
+    const contentObserver = ResizeObserverMock.instances.find(
+      (instance) => instance.observed === rtlScreen.getByTestId('content-thinking-collapse'),
+    );
+    expect(contentObserver).toBeTruthy();
+
+    act(() => {
+      contentObserver!.callback([], contentObserver! as unknown as ResizeObserver);
+    });
+
+    if (virtualizePrompt) {
+      expect(scrollTop).toBeLessThan(2000);
+      act(() => {
+        view.rerender(<TestHarness messages={activeMessages} />);
+      });
+      act(() => {
+        contentObserver!.callback([], contentObserver! as unknown as ResizeObserver);
+      });
+    }
+
+    expect(scrollTop).toBe(expectedScrollTop);
+    requestAnimationFrameSpy.mockRestore();
+  });
+
   it('coalesces repeated content resize spacer updates into one animation frame', () => {
     const rafCallbacks = new Map<number, FrameRequestCallback>();
     let nextRafId = 1;
