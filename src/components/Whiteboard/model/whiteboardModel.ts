@@ -1,6 +1,14 @@
 import type { MessageKey } from '@/lib/i18n';
 import type { IconName } from '@/components/ui/icons';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
+import coloredPencilImage from '../assets/brushes/colored-pencil.png';
+import crayonImage from '../assets/brushes/crayon.png';
+import eraserImage from '../assets/brushes/eraser.png';
+import markerImage from '../assets/brushes/marker.png';
+import penImage from '../assets/brushes/pen.png';
+import pencilImage from '../assets/brushes/pencil.png';
+import selectImage from '../assets/brushes/select.png';
+import watercolorImage from '../assets/brushes/watercolor.png';
 
 export type WhiteboardTool =
   | 'select'
@@ -61,6 +69,7 @@ interface WhiteboardToolConfig {
   id: WhiteboardTool;
   labelKey: MessageKey;
   icon: IconName;
+  imageSrc: string;
 }
 
 export interface WhiteboardBrush {
@@ -77,18 +86,18 @@ export const WHITEBOARD_INITIAL_VIEWPORT: WhiteboardViewport = {
 };
 
 export const WHITEBOARD_DRAWING_TOOLS: WhiteboardToolConfig[] = [
-  { id: 'pen', labelKey: 'whiteboard.tool.pen', icon: 'whiteboard.pen' },
-  { id: 'pencil', labelKey: 'whiteboard.tool.pencil', icon: 'whiteboard.pencil' },
-  { id: 'marker', labelKey: 'whiteboard.tool.marker', icon: 'whiteboard.marker' },
-  { id: 'colored-pencil', labelKey: 'whiteboard.tool.coloredPencil', icon: 'whiteboard.coloredPencil' },
-  { id: 'watercolor', labelKey: 'whiteboard.tool.watercolor', icon: 'whiteboard.watercolor' },
-  { id: 'crayon', labelKey: 'whiteboard.tool.crayon', icon: 'whiteboard.crayon' },
+  { id: 'pen', labelKey: 'whiteboard.tool.pen', icon: 'whiteboard.pen', imageSrc: penImage },
+  { id: 'pencil', labelKey: 'whiteboard.tool.pencil', icon: 'whiteboard.pencil', imageSrc: pencilImage },
+  { id: 'marker', labelKey: 'whiteboard.tool.marker', icon: 'whiteboard.marker', imageSrc: markerImage },
+  { id: 'colored-pencil', labelKey: 'whiteboard.tool.coloredPencil', icon: 'whiteboard.coloredPencil', imageSrc: coloredPencilImage },
+  { id: 'watercolor', labelKey: 'whiteboard.tool.watercolor', icon: 'whiteboard.watercolor', imageSrc: watercolorImage },
+  { id: 'crayon', labelKey: 'whiteboard.tool.crayon', icon: 'whiteboard.crayon', imageSrc: crayonImage },
 ];
 
 export const WHITEBOARD_ERASER_TOOLS: WhiteboardToolConfig[] = [
-  { id: 'select', labelKey: 'whiteboard.tool.select', icon: 'whiteboard.select' },
-  { id: 'eraser', labelKey: 'whiteboard.tool.eraser', icon: 'whiteboard.areaEraser' },
-  { id: 'stroke-eraser', labelKey: 'whiteboard.tool.strokeEraser', icon: 'whiteboard.eraser' },
+  { id: 'select', labelKey: 'whiteboard.tool.select', icon: 'whiteboard.select', imageSrc: selectImage },
+  { id: 'eraser', labelKey: 'whiteboard.tool.eraser', icon: 'whiteboard.areaEraser', imageSrc: eraserImage },
+  { id: 'stroke-eraser', labelKey: 'whiteboard.tool.strokeEraser', icon: 'whiteboard.eraser', imageSrc: eraserImage },
 ];
 
 export const WHITEBOARD_BRUSHES: Record<WhiteboardDrawingTool, WhiteboardBrush> = {
