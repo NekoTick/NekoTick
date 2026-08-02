@@ -12,6 +12,7 @@ export interface OutlineHeadingMetric extends NotesOutlineHeading {
 
 export const MAX_OUTLINE_HEADING_METRICS = 5000;
 export const MAX_OUTLINE_HEADING_DOM_SCAN_ELEMENTS = 20_000;
+const SCROLL_END_TOLERANCE_PX = 2;
 
 function isHeadingElement(element: HTMLElement): boolean {
   return getHeadingLevelFromTagName(element.tagName) !== null;
@@ -106,9 +107,17 @@ export function selectActiveOutlineHeadingId(
   scrollTop: number,
   activeOffsetPx: number,
   activeSnapPx: number,
+  maxScrollTop?: number,
 ): string | null {
   if (metrics.length === 0) {
     return null;
+  }
+
+  if (maxScrollTop !== undefined && maxScrollTop > 0) {
+    const scrollEndTolerance = Math.min(SCROLL_END_TOLERANCE_PX, maxScrollTop / 2);
+    if (scrollTop >= maxScrollTop - scrollEndTolerance) {
+      return metrics.at(-1)?.id ?? null;
+    }
   }
 
   const anchorY = scrollTop + activeOffsetPx;

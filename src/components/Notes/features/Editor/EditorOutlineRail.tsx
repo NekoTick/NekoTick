@@ -4,6 +4,7 @@ import {
   getSidebarLabelClass,
   getSidebarSelectedRowSurfaceClass,
 } from '@/components/layout/sidebar/sidebarLabelStyles';
+import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -56,41 +57,44 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
         className={cn('editor-outline-panel', isExpanded && raisedPillSurfaceClass)}
         data-editor-outline-panel="true"
       >
-        <nav
-          className="editor-outline-list"
-          aria-label={t('notes.documentOutline')}
+        <OverlayScrollArea
+          className="editor-outline-scroll-area"
+          viewportClassName="editor-outline-list"
+          scrollbarVariant="compact"
         >
-          {headings.map((heading) => (
-            <button
-              key={heading.id}
-              ref={heading.id === activeId ? activeRowRef : undefined}
-              type="button"
-              className={cn(
-                'editor-outline-row group/sidebar-row',
-                heading.id === activeId && 'editor-outline-row-active',
-                isExpanded && (
-                  heading.id === activeId
-                    ? getSidebarSelectedRowSurfaceClass('notes')
-                    : getSidebarIdleRowSurfaceClass('notes')
-                ),
-              )}
-              data-level={heading.level}
-              aria-current={heading.id === activeId ? 'location' : undefined}
-              onClick={() => jumpToHeading(heading.id)}
-            >
-              <span
+          <nav aria-label={t('notes.documentOutline')}>
+            {headings.map((heading) => (
+              <button
+                key={heading.id}
+                ref={heading.id === activeId ? activeRowRef : undefined}
+                type="button"
                 className={cn(
-                  'editor-outline-row-text',
-                  isExpanded && getSidebarLabelClass('notes', {
-                    selected: heading.id === activeId,
-                  }),
+                  'editor-outline-row group/sidebar-row',
+                  heading.id === activeId && 'editor-outline-row-active',
+                  isExpanded && (
+                    heading.id === activeId
+                      ? getSidebarSelectedRowSurfaceClass('notes')
+                      : getSidebarIdleRowSurfaceClass('notes')
+                  ),
                 )}
+                data-level={heading.level}
+                aria-current={heading.id === activeId ? 'location' : undefined}
+                onClick={() => jumpToHeading(heading.id)}
               >
-                {heading.text}
-              </span>
-            </button>
-          ))}
-        </nav>
+                <span
+                  className={cn(
+                    'editor-outline-row-text',
+                    isExpanded && getSidebarLabelClass('notes', {
+                      selected: heading.id === activeId,
+                    }),
+                  )}
+                >
+                  {heading.text}
+                </span>
+              </button>
+            ))}
+          </nav>
+        </OverlayScrollArea>
       </div>
     </aside>
   );

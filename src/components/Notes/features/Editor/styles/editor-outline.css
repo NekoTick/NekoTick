@@ -8,16 +8,14 @@
   right: 0;
   z-index: var(--vlaina-z-200);
   width: var(--vlaina-editor-outline-rail-compact-width);
-  height: var(--vlaina-editor-outline-rail-max-height);
+  max-height: var(--vlaina-editor-outline-rail-max-height);
+  transition: width var(--vlaina-duration-100) var(--vlaina-ease-css-default);
 }
 
 .editor-outline-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
   box-sizing: border-box;
   display: block;
-  width: var(--vlaina-editor-outline-rail-compact-width);
+  width: 100%;
   max-height: var(--vlaina-editor-outline-rail-max-height);
   overflow: hidden;
   border: var(--vlaina-size-1px) solid transparent;
@@ -26,32 +24,28 @@
   box-shadow: none;
   color: var(--vlaina-color-text-secondary);
   transition:
-    width var(--vlaina-duration-100) var(--vlaina-ease-css-default),
     background-color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
     border-color var(--vlaina-duration-100) var(--vlaina-ease-css-default),
     box-shadow var(--vlaina-duration-100) var(--vlaina-ease-css-default);
 }
 
-.editor-outline-rail[data-expanded='true'] .editor-outline-panel {
+.editor-outline-rail[data-expanded='true'] {
   width: min(
     var(--vlaina-editor-outline-rail-panel-width),
     calc(100cqw - var(--vlaina-space-16px))
   );
 }
 
+.editor-outline-scroll-area,
 .editor-outline-list {
-  position: relative;
   width: 100%;
   max-height: inherit;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding-block: var(--vlaina-space-2px);
-  scrollbar-width: none;
 }
 
-.editor-outline-list::-webkit-scrollbar {
-  display: none;
+.editor-outline-list {
+  position: relative;
+  padding-block: var(--vlaina-space-2px);
 }
 
 .editor-outline-row {
@@ -121,18 +115,6 @@
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-list {
   padding: var(--vlaina-space-8px);
-  scrollbar-color: var(--vlaina-editor-outline-rail-scrollbar) transparent;
-  scrollbar-width: thin;
-}
-
-.editor-outline-rail[data-expanded='true'] .editor-outline-list::-webkit-scrollbar {
-  display: block;
-  width: var(--vlaina-size-8px);
-}
-
-.editor-outline-rail[data-expanded='true'] .editor-outline-list::-webkit-scrollbar-thumb {
-  border-radius: var(--vlaina-radius-pill);
-  background: var(--vlaina-editor-outline-rail-scrollbar);
 }
 
 .editor-outline-rail[data-expanded='true'] .editor-outline-row {
@@ -170,6 +152,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .editor-outline-rail,
   .editor-outline-panel,
   .editor-outline-row,
   .editor-outline-row::before {

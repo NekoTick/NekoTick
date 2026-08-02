@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  EDITOR_SELECTOR,
   NOTE_SCROLL_ROOT_SELECTOR,
   cleanupIsolatedElectron,
   getOpenBridgePages,
@@ -50,15 +51,19 @@ test.describe('notes editor outline rail', () => {
         );
         if (!railElement || !panelElement || !toolbarElement || rows.length === 0) return null;
         const panelRect = panelElement.getBoundingClientRect();
+        const railRect = railElement.getBoundingClientRect();
         const toolbarRect = toolbarElement.getBoundingClientRect();
         return {
           markerColors: rows.map((row) => getComputedStyle(row, '::before').backgroundColor),
           markerWidths: rows.map((row) => Math.round(
             Number.parseFloat(getComputedStyle(row, '::before').width),
           )),
+          panelBottom: panelRect.bottom,
+          panelHeight: Math.round(panelRect.height),
           panelRight: panelRect.right,
           panelTop: panelRect.top,
           panelWidth: Math.round(panelRect.width),
+          railHeight: Math.round(railRect.height),
           rowHeights: rows.map((row) => Math.round(row.getBoundingClientRect().height)),
           rowTextOpacities: rows.map((row) => getComputedStyle(
             row.querySelector<HTMLElement>('.editor-outline-row-text')!,
@@ -82,16 +87,43 @@ test.describe('notes editor outline rail', () => {
       ]);
       await expect(outline.locator('[aria-current="location"]')).toHaveText('Introduction');
 
+      const scrollRoot = page.locator(NOTE_SCROLL_ROOT_SELECTOR);
+      const overviewDocumentTop = await page.locator(`${EDITOR_SELECTOR} h2`, { hasText: 'Overview' })
+        .evaluate((heading) => {
+          const scrollElement = heading.closest<HTMLElement>('[data-note-scroll-root="true"]');
+          if (!scrollElement) return 0;
+          return heading.getBoundingClientRect().top
+            - scrollElement.getBoundingClientRect().top
+            + scrollElement.scrollTop;
+        });
+      await scrollRoot.evaluate((element, top) => {
+        element.scrollTo({ top, behavior: 'auto' });
+      }, overviewDocumentTop - 100);
+      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Introduction');
+      await scrollRoot.evaluate((element, top) => {
+        element.scrollTo({ top, behavior: 'auto' });
+      }, overviewDocumentTop - 60);
+      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Overview');
+      await scrollRoot.evaluate((element) => {
+        element.scrollTo({ top: 0, behavior: 'auto' });
+      });
+      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Introduction');
+
       const geometry = await getGeometry();
 
       expect(geometry).not.toBeNull();
       expect(geometry!.panelTop).toBeGreaterThan(geometry!.toolbarBottom);
       expect(geometry!.panelRight).toBeLessThanOrEqual(geometry!.viewportWidth);
       expect(geometry!.panelWidth).toBe(24);
+      expect(geometry!.railHeight).toBe(geometry!.panelHeight);
+      expect(geometry!.railHeight).toBeLessThan(100);
       expect(geometry!.markerWidths).toEqual([16, 14, 12, 10]);
       expect(new Set(geometry!.rowHeights)).toEqual(new Set([14]));
       expect(new Set(geometry!.rowTextOpacities)).toEqual(new Set(['0']));
       expect(geometry!.markerColors[0]).not.toBe(geometry!.markerColors[1]);
+
+      await page.mouse.move(geometry!.panelRight - 2, geometry!.panelBottom + 32);
+      await expect(rail).toHaveAttribute('data-expanded', 'false');
 
       await rail.hover();
       await expect(rail).toHaveAttribute('data-expanded', 'true');
@@ -106,12 +138,37 @@ test.describe('notes editor outline rail', () => {
       expect(expandedGeometry!.rowTextLefts[1]).toBeLessThan(expandedGeometry!.rowTextLefts[2]);
       expect(expandedGeometry!.rowTextLefts[2]).toBeLessThan(expandedGeometry!.rowTextLefts[3]);
 
+      await page.evaluate(() => {
+        document.documentElement.style.setProperty(
+          '--vlaina-editor-outline-rail-max-height',
+          '96px',
+        );
+      });
+      const outlineViewport = rail.locator('.editor-outline-list');
+      await expect.poll(async () => outlineViewport.evaluate((element) => (
+        element.scrollHeight > element.clientHeight
+      ))).toBe(true);
+      await expect(rail.locator('[data-overlay-scrollbar-rail="true"]')).toHaveCSS('opacity', '1');
+      await page.evaluate(() => {
+        document.documentElement.style.removeProperty(
+          '--vlaina-editor-outline-rail-max-height',
+        );
+      });
+
       await outline.getByRole('button', { name: 'Deep Dive' }).click();
 
       await expect.poll(async () => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate((element) => element.scrollTop))
         .toBeGreaterThan(0);
       await expect(outline.locator('.editor-outline-row-active')).toHaveText('Deep Dive');
       await expect(outline.locator('.editor-outline-row-active')).toHaveAttribute('data-level', '3');
+
+      await scrollRoot.evaluate((element) => {
+        element.scrollTo({ top: element.scrollHeight, behavior: 'auto' });
+      });
+      await expect.poll(async () => scrollRoot.evaluate((element) => (
+        Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop)
+      ))).toBeLessThanOrEqual(2);
+      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Conclusion');
 
       await page.setViewportSize({ width: 700, height: 860 });
       await expect(rail).toBeVisible();
