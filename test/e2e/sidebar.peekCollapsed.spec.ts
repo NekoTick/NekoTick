@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
+import { SIDEBAR_MIN_WIDTH } from '../../src/lib/layout/sidebarWidth';
 import {
   EDITOR_SELECTOR,
   FILE_TREE_FILE_SELECTOR,
@@ -9,30 +10,52 @@ import {
   openNotesRootInNotes,
 } from './notesE2E';
 
-async function getMaxMotionDurationMs(locator: Locator) {
-  return locator.evaluate((element: HTMLElement) => {
-    const parseCssTimeMs = (value: string) =>
-      value
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .map((part) => {
-          if (part.endsWith('ms')) return Number.parseFloat(part);
-          if (part.endsWith('s')) return Number.parseFloat(part) * 1000;
-          return Number.parseFloat(part) || 0;
-        });
+async function sampleSidebarToggleMotion(toggle: Locator) {
+  return toggle.evaluate(async (element) => {
+    const layout = document.querySelector<HTMLElement>('[data-shell-sidebar-layout="true"]');
+    const sidebar = document.querySelector<HTMLElement>('[data-shell-sidebar-width-scope="true"] aside');
+    if (!layout || !sidebar) throw new Error('Sidebar motion elements are unavailable');
 
-    const style = window.getComputedStyle(element);
-    return Math.max(
-      0,
-      ...parseCssTimeMs(style.transitionDuration),
-      ...parseCssTimeMs(style.animationDuration),
-    );
+    let previousFrameTime = performance.now();
+    const capture = () => {
+      const cover = document.querySelector<HTMLElement>('[data-note-cover-region="true"]');
+      const cropper = cover?.querySelector<HTMLElement>('[data-testid="cover-cropper"]') ?? null;
+      const backdrop = cover?.querySelector<HTMLImageElement>('img[aria-hidden="true"]') ?? null;
+      const now = performance.now();
+      const sample = {
+        layoutWidth: layout.getBoundingClientRect().width,
+        sidebarLeft: sidebar.getBoundingClientRect().left,
+        frameGap: now - previousFrameTime,
+        coverHasVisibleImage: cover
+          ? Array.from(cover.querySelectorAll('img')).some((image) =>
+              Number.parseFloat(getComputedStyle(image).opacity) > 0
+            )
+          : null,
+        coverBackdropVisible: Boolean(
+          backdrop && Number.parseFloat(getComputedStyle(backdrop).opacity) > 0
+        ),
+        coverCropperHidden: Boolean(
+          cropper && Number.parseFloat(getComputedStyle(cropper).opacity) === 0
+        ),
+      };
+      previousFrameTime = now;
+      return sample;
+    };
+
+    const samples = [capture()];
+    (element as HTMLElement).click();
+
+    for (let frame = 0; frame < 20; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      samples.push(capture());
+    }
+
+    return samples;
   });
 }
 
 test.describe('collapsed sidebar peek', () => {
-  test('keeps the current sidebar mounted when manually collapsing and expanding', async () => {
+  test('keeps the current sidebar and covered note smooth while collapsing and expanding', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('sidebar-manual-toggle-mounted');
 
     try {
@@ -40,20 +63,68 @@ test.describe('collapsed sidebar peek', () => {
       const [page] = await getOpenBridgePages(app, 1);
       await page.setViewportSize({ width: 1100, height: 760 });
 
+      const fixture = await createNotesRootFilesFixture(page, {
+        name: 'sidebar-covered-toggle',
+        files: [
+          {
+            filename: 'covered-toggle.md',
+            content: [
+              '---',
+              'vlaina_cover: "./assets/cover.svg" x=38 y=62 height=240 scale=1.2',
+              '---',
+              '',
+              '# Covered Toggle',
+              '',
+              'COVERED_TOGGLE_SENTINEL',
+            ].join('\n'),
+          },
+          {
+            filename: 'assets/cover.svg',
+            content: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><rect width="1600" height="900" fill="#2f6f59"/><rect x="900" width="700" height="900" fill="#d4b24c"/></svg>',
+          },
+        ],
+      });
+      await openNotesRootInNotes(page, {
+        notesRootPath: fixture.notesRootPath,
+        name: 'Sidebar Covered Toggle NotesRoot',
+        minFileCount: 1,
+      });
+      await page.locator(FILE_TREE_FILE_SELECTOR, { hasText: 'covered-toggle' }).first().click();
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText('COVERED_TOGGLE_SENTINEL', {
+        timeout: 30_000,
+      });
+      const cover = page.locator('[data-note-cover-region="true"]').first();
+      await expect(cover.locator('img').first()).toBeVisible({ timeout: 30_000 });
+
       await expect(page.locator('.sidebar-user-header')).toBeVisible({ timeout: 30_000 });
-      const sidebar = page.locator('[data-shell-sidebar-width-scope="true"] > aside').first();
+      const sidebar = page.locator('[data-shell-sidebar-width-scope="true"] aside').first();
       await sidebar.evaluate((element) => {
         (element as HTMLElement & { __vlainaSidebarMountedMarker?: boolean }).__vlainaSidebarMountedMarker = true;
       });
 
       await page.locator('.sidebar-user-header').hover();
-      await page.locator('.sidebar-user-header-collapse').click();
+      const collapseSamples = await sampleSidebarToggleMotion(
+        page.locator('.sidebar-user-header-collapse'),
+      );
 
       await expect(sidebar).toHaveAttribute('data-shell-sidebar-peek', 'true');
       await expect(sidebar).toHaveAttribute('data-open', 'false');
-      await expect.poll(() => getMaxMotionDurationMs(sidebar), {
-        message: 'collapsed sidebar should keep the faster manual toggle duration',
-      }).toBeLessThanOrEqual(110);
+      const expandedWidth = collapseSamples[0]!.layoutWidth;
+      expect(new Set(collapseSamples.map(({ layoutWidth }) => Math.round(layoutWidth))).size).toBeLessThanOrEqual(2);
+      expect(collapseSamples.some(({ sidebarLeft }) =>
+        sidebarLeft < -1 && sidebarLeft > -expandedWidth + 1
+      )).toBe(true);
+      expect(collapseSamples.every(({ coverHasVisibleImage }) => coverHasVisibleImage)).toBe(true);
+      expect(collapseSamples.some(({ coverBackdropVisible, coverCropperHidden }) =>
+        coverBackdropVisible && coverCropperHidden
+      )).toBe(true);
+      expect(Math.max(...collapseSamples.slice(1).map(({ frameGap }) => frameGap))).toBeLessThan(100);
+      await expect.poll(() => cover.evaluate((element) => ({
+        backdrop: Boolean(element.querySelector('img[aria-hidden="true"]')),
+        cropperOpacity: Number.parseFloat(getComputedStyle(
+          element.querySelector<HTMLElement>('[data-testid="cover-cropper"]')!
+        ).opacity),
+      }))).toEqual({ backdrop: false, cropperOpacity: 1 });
       await expect.poll(() => sidebar.evaluate((element) =>
         Boolean((element as HTMLElement & { __vlainaSidebarMountedMarker?: boolean }).__vlainaSidebarMountedMarker)
       )).toBe(true);
@@ -62,12 +133,26 @@ test.describe('collapsed sidebar peek', () => {
         return Boolean(activeElement?.closest('[data-shell-sidebar-peek="true"]'));
       })).toBe(false);
 
-      await page.getByRole('button', { name: /Toggle sidebar|切换侧边栏/i }).click();
+      const expandSamples = await sampleSidebarToggleMotion(
+        page.getByRole('button', { name: /Toggle sidebar|切换侧边栏/i }),
+      );
 
       await expect(sidebar).not.toHaveAttribute('data-shell-sidebar-peek', 'true');
-      await expect.poll(() => getMaxMotionDurationMs(sidebar), {
-        message: 'expanded sidebar should keep the faster manual toggle duration',
-      }).toBeLessThanOrEqual(110);
+      expect(new Set(expandSamples.map(({ layoutWidth }) => Math.round(layoutWidth))).size).toBeLessThanOrEqual(2);
+      expect(expandSamples.some(({ sidebarLeft }) =>
+        sidebarLeft < -1 && sidebarLeft > -expandedWidth + 1
+      )).toBe(true);
+      expect(expandSamples.every(({ coverHasVisibleImage }) => coverHasVisibleImage)).toBe(true);
+      expect(expandSamples.some(({ coverBackdropVisible, coverCropperHidden }) =>
+        coverBackdropVisible && coverCropperHidden
+      )).toBe(true);
+      expect(Math.max(...expandSamples.slice(1).map(({ frameGap }) => frameGap))).toBeLessThan(100);
+      await expect.poll(() => cover.evaluate((element) => ({
+        backdrop: Boolean(element.querySelector('img[aria-hidden="true"]')),
+        cropperOpacity: Number.parseFloat(getComputedStyle(
+          element.querySelector<HTMLElement>('[data-testid="cover-cropper"]')!
+        ).opacity),
+      }))).toEqual({ backdrop: false, cropperOpacity: 1 });
       await expect.poll(() => sidebar.evaluate((element) =>
         Boolean((element as HTMLElement & { __vlainaSidebarMountedMarker?: boolean }).__vlainaSidebarMountedMarker)
       )).toBe(true);
@@ -112,7 +197,7 @@ test.describe('collapsed sidebar peek', () => {
       await page.mouse.up();
 
       const metrics = await page.evaluate(() => {
-        const sidebar = document.querySelector<HTMLElement>('[data-shell-sidebar-width-scope="true"] > aside');
+        const sidebar = document.querySelector<HTMLElement>('[data-shell-sidebar-width-scope="true"] aside');
         const capsule = sidebar?.querySelector<HTMLElement>(
           '[aria-hidden="false"] [data-sidebar-capsule-panel="true"]',
         ) ?? null;
@@ -136,8 +221,8 @@ test.describe('collapsed sidebar peek', () => {
         };
       });
       expect(metrics).not.toBeNull();
-      expect(metrics!.sidebarWidth).toBeGreaterThanOrEqual(223);
-      expect(metrics!.sidebarWidth).toBeLessThanOrEqual(226);
+      expect(metrics!.sidebarWidth).toBeGreaterThanOrEqual(SIDEBAR_MIN_WIDTH - 1);
+      expect(metrics!.sidebarWidth).toBeLessThanOrEqual(SIDEBAR_MIN_WIDTH + 1);
       expect(metrics!.capsuleBorderRadius).toBeGreaterThan(12);
       expect(metrics!.capsuleOverflow).toBe('hidden');
       expect(metrics!.capsuleLeft).toBeGreaterThanOrEqual(metrics!.sidebarLeft + 7);

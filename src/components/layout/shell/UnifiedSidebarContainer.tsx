@@ -1,5 +1,7 @@
 import { useEffect, useRef, type FocusEvent, type ReactNode, type Ref } from 'react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { SIDEBAR_SLIDE_TRANSITION, SIDEBAR_SLIDE_VARIANTS } from '@/lib/animations';
 import { useShellSidebarResize } from './useShellSidebarResize';
 import { RESIZE_HANDLE_HALF_WIDTH } from './ResizeDividerVisual';
 import { ResizeHandle } from './ResizeHandle';
@@ -13,6 +15,7 @@ interface UnifiedSidebarContainerProps {
   onWidthChange: (width: number) => void;
   onLiveWidthChange?: (width: number) => void;
   onDragStateChange?: (isDragging: boolean) => void;
+  onLayoutAnimationComplete?: () => void;
   widthScopeRef?: Ref<HTMLDivElement>;
   backgroundColor?: string;
 }
@@ -26,11 +29,13 @@ export function UnifiedSidebarContainer({
   onWidthChange,
   onLiveWidthChange,
   onDragStateChange,
+  onLayoutAnimationComplete,
   widthScopeRef,
   backgroundColor = 'transparent',
 }: UnifiedSidebarContainerProps) {
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarPointerInsideRef = useRef(false);
+
   useEffect(() => {
     if (!collapsed) sidebarPointerInsideRef.current = false;
   }, [collapsed]);
@@ -101,48 +106,49 @@ export function UnifiedSidebarContainer({
       ref={widthScopeRef}
       data-shell-sidebar-width-scope="true"
     >
-      <aside
-        ref={sidebarRef}
-        data-shell-sidebar-peek={collapsed ? 'true' : undefined}
-        data-open={collapsed ? (peeking ? 'true' : 'false') : undefined}
-        aria-hidden={collapsed ? !peeking : undefined}
-        className={cn(
-          'flex min-h-0 flex-col overflow-hidden select-none app-scrollbar',
-          isDragging && 'will-change-[width]',
-          collapsed
-            ? cn(
-              'absolute inset-y-0 left-0 z-[var(--vlaina-z-40)] transition-[opacity,transform] duration-[var(--vlaina-duration-100)] ease-out',
-              peeking
-                ? 'translate-x-0 opacity-[var(--vlaina-opacity-100)] pointer-events-auto'
-                : '-translate-x-full opacity-[var(--vlaina-opacity-0)] pointer-events-none',
-            )
-            : 'relative z-[var(--vlaina-z-20)] flex-shrink-0',
-          !collapsed && !isDragging && 'transition-[width] duration-[var(--vlaina-duration-100)] ease-out',
-        )}
-        style={{
-          backgroundColor,
-          width: 'var(--vlaina-shell-sidebar-width)',
-        }}
-        onMouseEnter={collapsed ? handleMouseEnter : undefined}
-        onMouseLeave={collapsed ? handleMouseLeave : undefined}
-        onBlur={collapsed ? handleFocusOut : undefined}
+      <div
+        data-shell-sidebar-layout="true"
+        className="relative min-h-0 flex-shrink-0"
+        style={{ width: collapsed ? 0 : 'var(--vlaina-shell-sidebar-width)' }}
       >
-        {children}
-      </aside>
+        <motion.aside
+          ref={sidebarRef}
+          data-shell-sidebar-peek={collapsed ? 'true' : undefined}
+          data-open={collapsed ? (peeking ? 'true' : 'false') : undefined}
+          aria-hidden={collapsed ? !peeking : undefined}
+          className={cn(
+            'absolute inset-y-0 left-0 flex min-h-0 flex-col overflow-hidden select-none app-scrollbar transform-gpu will-change-transform',
+            collapsed ? 'z-[var(--vlaina-z-40)]' : 'z-[var(--vlaina-z-20)]',
+            collapsed && !peeking ? 'pointer-events-none' : 'pointer-events-auto',
+          )}
+          style={{
+            backgroundColor,
+            width: 'var(--vlaina-shell-sidebar-width)',
+          }}
+          variants={SIDEBAR_SLIDE_VARIANTS}
+          initial={false}
+          animate={collapsed && !peeking ? 'hidden' : 'visible'}
+          transition={SIDEBAR_SLIDE_TRANSITION}
+          onAnimationComplete={onLayoutAnimationComplete}
+          onMouseEnter={collapsed ? handleMouseEnter : undefined}
+          onMouseLeave={collapsed ? handleMouseLeave : undefined}
+          onBlur={collapsed ? handleFocusOut : undefined}
+        >
+          {children}
+        </motion.aside>
+      </div>
 
       {!collapsed && (
-        <>
-          <ResizeHandle
-            dataResizeHandleScope="shell-sidebar"
-            onMouseDown={handleDragStart}
-            onDoubleClick={handleDoubleClick}
-            isDragging={isDragging}
-            positionStyle={{
-              left: `calc(var(--vlaina-shell-sidebar-width) - ${RESIZE_HANDLE_HALF_WIDTH}px)`,
-              pointerEvents: 'auto',
-            }}
-          />
-        </>
+        <ResizeHandle
+          dataResizeHandleScope="shell-sidebar"
+          onMouseDown={handleDragStart}
+          onDoubleClick={handleDoubleClick}
+          isDragging={isDragging}
+          positionStyle={{
+            left: `calc(var(--vlaina-shell-sidebar-width) - ${RESIZE_HANDLE_HALF_WIDTH}px)`,
+            pointerEvents: 'auto',
+          }}
+        />
       )}
     </div>
   );

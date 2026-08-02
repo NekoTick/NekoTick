@@ -317,8 +317,8 @@ describe('CoverRenderer', () => {
     expect(backdrop).not.toBeNull();
     expect(backdrop?.className).toContain('object-cover');
     expect(backdrop?.style.objectPosition).toBe('33% 67%');
-    expect(cropper?.className.includes('opacity-[var(--vlaina-opacity-100)]')).toBe(true);
-    expect(cropper?.className.includes('pointer-events-none')).toBe(false);
+    expect(cropper?.className.includes('opacity-[var(--vlaina-opacity-0)]')).toBe(true);
+    expect(cropper?.className.includes('pointer-events-none')).toBe(true);
   });
 
   it('does not show a static layout backdrop during ordinary rendering', () => {
