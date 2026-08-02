@@ -75,6 +75,7 @@ export function NoteHeader({ coverUrl, coverLayoutActive = Boolean(coverUrl), on
     const notesPath = useNotesStore(s => s.notesPath);
     const notesRootPath = resolveEffectiveNotesRootPath({ notesPath, currentNotePath });
     const assetList = useNotesStore(s => s.assetList);
+    const isLoadingAssets = useNotesStore(s => s.isLoadingAssets);
     const loadAssets = useNotesStore(s => s.loadAssets);
     const uploadAsset = useNotesStore(s => s.uploadAsset);
     const addToast = useToastStore(s => s.addToast);
@@ -192,6 +193,7 @@ export function NoteHeader({ coverUrl, coverLayoutActive = Boolean(coverUrl), on
             coverLayoutActive={coverLayoutActive}
 
             customIcons={customIcons}
+            customIconsLoading={isLoadingAssets}
             onUploadFile={uploadNoteIcon}
             onIconPickerOpen={handleIconPickerOpen}
             onIconPickerClose={focusNoteInitialPosition}

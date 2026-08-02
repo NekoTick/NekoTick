@@ -32,6 +32,7 @@ interface HeroIconHeaderProps {
   onSizeConfirm?: (size: number) => void;
 
   customIcons?: CustomIcon[];
+  customIconsLoading?: boolean;
   onUploadFile?: (file: File) => Promise<{ success: boolean; url?: string; error?: string }>;
   onDeleteCustomIcon?: (id: string) => void | Promise<void>;
   onIconPickerOpen?: () => void | Promise<void>;
@@ -62,6 +63,7 @@ export function HeroIconHeader({
   title,
   renderTitle,
   customIcons,
+  customIconsLoading,
   onUploadFile,
   onDeleteCustomIcon,
   onIconPickerOpen,
@@ -232,6 +234,7 @@ export function HeroIconHeader({
                         onSizeConfirm={!compact ? handleLocalSizeConfirm : undefined}
 
                         customIcons={customIcons}
+                        customIconsLoading={customIconsLoading}
                         onUploadFile={onUploadFile}
                         onDeleteCustomIcon={onDeleteCustomIcon}
                         imageLoader={imageLoader}

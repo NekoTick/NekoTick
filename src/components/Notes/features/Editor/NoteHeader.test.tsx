@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
         uploadedAt: '2026-05-12T10:51:54.912Z',
       },
     ],
+    isLoadingAssets: false,
     loadAssets,
     uploadAsset,
     noteIconSize: 60,
