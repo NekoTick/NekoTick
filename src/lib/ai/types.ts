@@ -132,7 +132,6 @@ export interface ChatSendOptions {
   onWebSearchStatus?: (status: WebSearchStatus) => void
   onComputerCommandStatus?: (status: ComputerCommandStatus) => void
   onApiTranscript?: (messages: ApiTranscriptMessage[]) => void
-  onRetryStatus?: (message: string) => void
 }
 
 export interface ChatCompletionResponse {

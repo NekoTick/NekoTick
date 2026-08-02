@@ -332,7 +332,7 @@ describe('selectionRequest', () => {
   it('localizes custom provider desktop transport failures', async () => {
     mockSendMessageWithEndpointFallback.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI provider request to https://api.example.com/v1/chat/completions failed before an HTTP response was received: TypeError: fetch failed"
+        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED"
       ),
     );
 
@@ -346,13 +346,13 @@ describe('selectionRequest', () => {
 
     expect(result).toEqual({
       suggestion: null,
-      errorMessage: 'The custom channel still could not be reached after automatic retries. Check your network or the upstream service, then try again.',
+      errorMessage: 'The custom channel could not be reached. Check your network or the upstream service, then try again.',
       errorType: 'NETWORK_ERROR',
-      errorCode: '',
+      errorCode: 'ai_provider_connection_failed',
     });
   });
 
-  it('preserves custom provider upstream editor AI errors', async () => {
+  it('does not expose custom provider upstream editor AI errors', async () => {
     mockSendMessageWithEndpointFallback.mockRejectedValueOnce(new Error('Custom upstream validation failed'));
 
     const result = await createAiSelectionSuggestionResult(
@@ -365,9 +365,9 @@ describe('selectionRequest', () => {
 
     expect(result).toEqual({
       suggestion: null,
-      errorMessage: 'Custom upstream validation failed',
-      errorType: null,
-      errorCode: null,
+      errorMessage: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      errorType: 'SERVER_ERROR',
+      errorCode: '',
     });
   });
 

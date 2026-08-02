@@ -27,15 +27,15 @@ interface PreloadApi {
   };
   fs: PreloadFsApi;
   aiProvider: {
-    onRequestChunk(requestId: string, callback: (chunk: unknown) => void | Promise<void>): () => void;
+    onRequestChunk(
+      requestId: string,
+      callback: (chunk: unknown, sequence: number) => void | Promise<void>,
+    ): () => void;
   };
-  computer: {
+  computer?: {
     startCommand(requestId: string, request: Record<string, unknown>): Promise<unknown>;
     cancelCommand(requestId: string): Promise<unknown>;
     respondToApproval(requestId: string, decision: string): Promise<unknown>;
-    listApprovals(): Promise<unknown>;
-    revokeApproval(approvalId: string): Promise<unknown>;
-    clearApprovals(): Promise<unknown>;
     onCommandEvent(requestId: string, callback: (payload: unknown) => void | Promise<void>): () => void;
   };
   account: {
@@ -43,7 +43,7 @@ interface PreloadApi {
   };
 }
 
-async function loadPreloadApi(): Promise<{
+async function loadPreloadApi(hostPlatform = 'linux'): Promise<{
   api: PreloadApi;
   fs: PreloadFsApi;
   ipcRenderer: {
@@ -97,6 +97,7 @@ async function loadPreloadApi(): Promise<{
   const context = vm.createContext({
     Buffer,
     console,
+    process: { platform: hostPlatform },
     require: (id: string) => {
       if (id === 'electron') {
         return { contextBridge, ipcRenderer, webUtils };
@@ -328,10 +329,11 @@ describe('preload filesystem budgets', () => {
       throw new Error('stream handlers were not registered.');
     }
 
-    expect(chunkHandler({}, [1, 2, 3])).toBeUndefined();
+    const bytes = Uint8Array.from([1, 2, 3]);
+    expect(chunkHandler({}, { bytes, sequence: 7 })).toBeUndefined();
     expect(errorHandler({}, { message: 'failed' })).toBeUndefined();
     await Promise.resolve();
-    expect(chunkCallback).toHaveBeenCalledWith([1, 2, 3]);
+    expect(chunkCallback).toHaveBeenCalledWith(bytes, 7);
     expect(errorCallback).toHaveBeenCalledWith({ message: 'failed' });
 
     disposeChunk();
@@ -348,10 +350,14 @@ describe('preload filesystem budgets', () => {
 
   it('exposes computer command IPC through safe request-scoped channels', async () => {
     const { api, ipcRenderer } = await loadPreloadApi();
+    const computer = api.computer;
+    if (!computer) {
+      throw new Error('Expected computer command API on Linux.');
+    }
     const callback = vi.fn(async () => {
       throw new Error('command callback failed');
     });
-    const dispose = api.computer.onCommandEvent('command-1', callback);
+    const dispose = computer.onCommandEvent('command-1', callback);
     const handler = ipcRenderer.on.mock.calls.find(
       ([channel]) => channel === 'desktop:computer-command:command-1:event',
     )?.[1];
@@ -359,36 +365,23 @@ describe('preload filesystem budgets', () => {
       throw new Error('computer command handler was not registered.');
     }
 
-    await api.computer.startCommand('command-1', { command: 'printf ok' });
+    await computer.startCommand('command-1', { command: 'printf ok' });
     expect(ipcRenderer.invoke).toHaveBeenCalledWith(
       'desktop:computer-command:start',
       'command-1',
       { command: 'printf ok' },
     );
-    await api.computer.respondToApproval('command-1', 'run_once');
+    await computer.respondToApproval('command-1', 'run_once');
     expect(ipcRenderer.invoke).toHaveBeenCalledWith(
       'desktop:computer-command:approve',
       'command-1',
       'run_once',
     );
-    await api.computer.listApprovals();
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
-      'desktop:computer-command:approvals:list',
-    );
-    await api.computer.revokeApproval('a'.repeat(64));
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
-      'desktop:computer-command:approvals:revoke',
-      'a'.repeat(64),
-    );
-    await api.computer.clearApprovals();
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
-      'desktop:computer-command:approvals:clear',
-    );
     expect(handler({}, { type: 'started' })).toBeUndefined();
     await Promise.resolve();
     expect(callback).toHaveBeenCalledWith({ type: 'started' });
 
-    expect(() => api.computer.onCommandEvent('../unsafe', () => undefined)).toThrow(
+    expect(() => computer.onCommandEvent('../unsafe', () => undefined)).toThrow(
       'Computer command request id must contain only safe channel characters.',
     );
     dispose();
@@ -396,5 +389,11 @@ describe('preload filesystem budgets', () => {
       'desktop:computer-command:command-1:event',
       handler,
     );
+  });
+
+  it('does not expose computer commands on unsupported host platforms', async () => {
+    const { api } = await loadPreloadApi('win32');
+
+    expect(api.computer).toBeUndefined();
   });
 });

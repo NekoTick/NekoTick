@@ -88,7 +88,7 @@ export function parseAISessionsFile(value: unknown): AISessionsFileData | null {
     customSystemPrompt: normalizeBoundedString(data.customSystemPrompt, MAX_AI_CUSTOM_SYSTEM_PROMPT_CHARS),
     includeTimeContext: data.includeTimeContext !== false,
     webSearchEnabled: data.webSearchEnabled === true,
-    computerUseEnabled: data.computerUseEnabled === true,
+    computerUseEnabled: false,
     providerIds: normalizeBoundedIdList(data.providerIds, isSafeProviderId, MAX_AI_PROVIDERS),
     deletedSessionIds: normalizeBoundedIdList(data.deletedSessionIds, isSafeChatSessionId, MAX_AI_ID_LIST_ENTRIES),
     deletedProviderIds: normalizeBoundedIdList(data.deletedProviderIds, isSafeProviderId, MAX_AI_ID_LIST_ENTRIES),
@@ -99,7 +99,7 @@ export function serializeAISessionsFile(data: AISessionsFileData): string {
   const payload: AISessionsFile = {
     version: AI_SESSIONS_FILE_VERSION,
     updatedAt: Date.now(),
-    data,
+    data: { ...data, computerUseEnabled: false },
   };
   return JSON.stringify(payload, null, 2);
 }

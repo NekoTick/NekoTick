@@ -70,8 +70,20 @@ export function useMessageListMeasurement({
       historicalMessagesRevisionRef.current += 1;
     }
   }
+  const activeMessage = isSessionActive
+    ? renderedMessages[renderedMessages.length - 1]
+    : undefined;
+  const activeMessageVersionIndex = activeMessage?.currentVersionIndex ?? null;
+  const activeMessageVersionCreatedAt = activeMessageVersionIndex === null
+    ? null
+    : activeMessage?.versions?.[activeMessageVersionIndex]?.createdAt ?? null;
   const measuredHeightRestoreTrigger = isSessionActive
-    ? `${renderedMessages.length}:${historicalMessagesRevisionRef.current}`
+    ? [
+        renderedMessages.length,
+        historicalMessagesRevisionRef.current,
+        activeMessageVersionIndex,
+        activeMessageVersionCreatedAt,
+      ].join(':')
     : renderedMessages;
 
   measuredHeightsRef.current = measuredHeights;

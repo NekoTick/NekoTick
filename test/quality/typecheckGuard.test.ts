@@ -136,11 +136,6 @@ describe('typecheck quality gate', () => {
       // E2E-only bridge activation persistence, guarded behind import.meta.env.DEV.
       "src/lib/e2e/syncE2EBridgeState.ts:window.localStorage.setItem(E2E_LOCAL_STORAGE_KEY, '1');",
 
-      // Dev-only retry simulation toggles, guarded behind import.meta.env.DEV.
-      "src/hooks/chatService/preStreamRetry.ts:window.localStorage.removeItem(DEV_RETRY_SIMULATION_STORAGE_KEY);",
-      "src/hooks/chatService/preStreamRetry.ts:window.localStorage.removeItem(DEV_VISIBLE_RETRY_DELAY_STORAGE_KEY);",
-      "src/hooks/chatService/preStreamRetry.ts:window.localStorage.setItem(DEV_RETRY_SIMULATION_STORAGE_KEY, 'true');",
-      "src/hooks/chatService/preStreamRetry.ts:window.localStorage.setItem(DEV_VISIBLE_RETRY_DELAY_STORAGE_KEY, 'true');",
     ];
 
     expect(findStorageWriteSites()).toEqual([...expectedSites].sort());

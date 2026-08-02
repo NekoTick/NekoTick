@@ -95,7 +95,7 @@ export function useEditMessage({
       }
 
       const requestStartedAt = Date.now();
-      const requestController = requestManager.start(sessionId);
+      const requestController = requestManager.start(sessionId, { computerUse: computerUseEnabled });
       const ensureRequestActive = () => {
         if (isChatRequestCancelled(sessionId, requestController)) {
           throw new DOMException('Aborted', 'AbortError');
@@ -117,7 +117,8 @@ export function useEditMessage({
           ? targetMessageBeforeEdit.currentVersionIndex
           : 0;
 
-        aiActions.editMessageAndBranch(sessionId, messageId, newContent);
+        const rollbackVersionIndex = aiActions.editMessageAndBranch(sessionId, messageId, newContent)
+          ?? previousVersionIndex;
 
         const assistantMessageId = aiActions.addMessage({
           role: 'assistant',
@@ -220,12 +221,6 @@ export function useEditMessage({
                   }
                   aiActions.updateMessageApiTranscript(sessionId, assistantMessageId, apiTranscript);
                 },
-                onRetryStatus: (message) => {
-                  if (!isActiveRequest()) {
-                    return;
-                  }
-                  aiActions.updateMessage(sessionId, assistantMessageId, message);
-                },
               },
             });
           },
@@ -242,7 +237,7 @@ export function useEditMessage({
             if (!isManagedProviderId(provider.id)) {
               return false;
             }
-            return handleManagedQuotaErrorForVersionRollback(sessionId, messageId, previousVersionIndex, error);
+            return handleManagedQuotaErrorForVersionRollback(sessionId, messageId, rollbackVersionIndex, error);
           },
           createEmptyResponseError: () => createEmptyResponseError(provider.id),
           onSuccess: ({ resolvedSessionId }) => {

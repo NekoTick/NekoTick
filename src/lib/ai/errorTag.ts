@@ -92,6 +92,11 @@ function findErrorTag(content: string, fromIndex = 0): ErrorTagMatch | null {
     if (start < 0) {
       return null;
     }
+    const delimiter = content[start + ERROR_OPEN_TAG.length];
+    if (delimiter !== '>' && !(delimiter && /\s/.test(delimiter))) {
+      cursor = start + ERROR_OPEN_TAG.length;
+      continue;
+    }
 
     const startTagEnd = content.indexOf('>', start + ERROR_OPEN_TAG.length);
     if (startTagEnd < 0) {
@@ -143,6 +148,12 @@ export function buildErrorTag(type: string | undefined, code: string | number | 
   const safeCode = escapeXmlAttribute(normalizeErrorTagCode(code));
   const safeDetail = escapeXmlText(detail.slice(0, MAX_ERROR_TAG_CONTENT_CHARS));
   return `<error type="${safeType}" code="${safeCode}">${safeDetail}</error>`;
+}
+
+export function escapeUntrustedErrorTags(content: string): string {
+  return content
+    .replace(/<error(?=[\s>])/gi, '&lt;error')
+    .replace(/<\/error>/gi, '&lt;/error>');
 }
 
 export function parseErrorTag(content: string): ParsedErrorTag | null {

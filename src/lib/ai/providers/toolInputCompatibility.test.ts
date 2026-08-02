@@ -14,4 +14,22 @@ describe('isToolInputUnsupported', () => {
       'Error invoking remote method desktop:managed:chat-completion: Error: INVALID_REQUEST',
     ))).toBe(false);
   });
+
+  it('reads hostile error objects without invoking unsafe coercion', () => {
+    const error = Object.defineProperties({}, {
+      errorCode: {
+        get() {
+          throw new Error('hostile errorCode getter');
+        },
+      },
+      message: {
+        get() {
+          throw new Error('hostile message getter');
+        },
+      },
+    });
+
+    expect(() => isToolInputUnsupported(error)).not.toThrow();
+    expect(isToolInputUnsupported(error)).toBe(false);
+  });
 });

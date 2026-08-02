@@ -60,18 +60,19 @@ describe('desktop account json client', () => {
 
   it('does not log raw account data on successful json requests', async () => {
     const logDesktopAuth = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      appSessionToken: 'nts_body_secret',
+      username: 'alice',
+    }), {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        'x-app-session-token': 'nts_header_secret',
+      },
+    }));
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({
-        appSessionToken: 'nts_body_secret',
-        username: 'alice',
-      }), {
-        status: 200,
-        headers: {
-          'content-type': 'application/json',
-          'x-app-session-token': 'nts_header_secret',
-        },
-      })),
+      fetchMock,
     );
     const client = createDesktopAccountJsonClient({ logDesktopAuth });
 
@@ -101,6 +102,7 @@ describe('desktop account json client', () => {
     });
     expect(JSON.stringify(doneLog)).not.toContain('nts_body_secret');
     expect(JSON.stringify(doneLog)).not.toContain('nts_header_secret');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: 'error' });
   });
 
   it('rejects promptly when fetch ignores abort for json requests', async () => {

@@ -5,6 +5,11 @@ import {
   MAX_OPENAI_STREAM_ERROR_FIELD_CHARS,
   MAX_OPENAI_STREAM_LINE_CHARS,
 } from './streaming';
+import {
+  addAiStreamResponseChunkBytes,
+  MAX_AI_STREAM_RESPONSE_BYTES,
+} from './streamingResponseBudget';
+import { parsePayloadText } from './streamingPayload';
 
 function streamResponse(lines: string[]): Response {
   const encoder = new TextEncoder();
@@ -141,6 +146,46 @@ describe('consumeOpenAIStream', () => {
     )).rejects.toThrow('mapped error');
 
     expect(mapper).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid stream chunks without reading spoofed byte lengths', async () => {
+    const byteLength = vi.fn(() => {
+      throw new Error('untrusted getter');
+    });
+    const value = Object.defineProperty({}, 'byteLength', { get: byteLength });
+    const reader = {
+      read: vi.fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value,
+        })
+        .mockResolvedValueOnce({ done: true, value: undefined }),
+      cancel: vi.fn(async () => undefined),
+      releaseLock: vi.fn(),
+    };
+    const response = { body: { getReader: () => reader } } as unknown as Response;
+
+    await expect(consumeOpenAIStream(response, () => {})).rejects.toThrow(
+      'Invalid AI stream response chunk',
+    );
+
+    expect(byteLength).not.toHaveBeenCalled();
+    expect(reader.cancel).toHaveBeenCalled();
+    expect(reader.releaseLock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects stream byte totals above the response limit', () => {
+    expect(() => addAiStreamResponseChunkBytes(
+      MAX_AI_STREAM_RESPONSE_BYTES,
+      new Uint8Array(1),
+    )).toThrow('AI stream response is too large');
+  });
+
+  it('ignores streaming JSON values that are not payload objects', () => {
+    for (const value of ['null', 'true', '1', '"text"', '[]']) {
+      expect(parsePayloadText(`data: ${value}`)).toBeNull();
+    }
+    expect(parsePayloadText('data: {"ok":true}')).toEqual({ ok: true });
   });
 
   it('rejects oversized stream lines before parsing them', async () => {

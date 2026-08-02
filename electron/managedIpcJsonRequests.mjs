@@ -1,16 +1,60 @@
 import { requireSafeIpcRequestId } from './managedIpcCommon.mjs';
-import { createAbortError, raceWithAbort } from './managedIpcErrors.mjs';
+import {
+  createAbortError,
+  raceWithAbort,
+  sanitizeManagedJsonIpcError,
+} from './managedIpcErrors.mjs';
+import { createIpcSenderAbortRegistry } from './ipcSenderAbortRegistry.mjs';
 
 const activeManagedJsonRequests = new Map();
+const activeManagedJsonOperations = new Set();
+const managedJsonSenderAbortRegistry = createIpcSenderAbortRegistry(createAbortError);
+const MAX_ACTIVE_MANAGED_JSON_REQUESTS = 16;
 
-function deleteActiveManagedJsonRequest(requestId, controller) {
-  if (activeManagedJsonRequests.get(requestId) === controller) {
-    activeManagedJsonRequests.delete(requestId);
+function deleteActiveManagedJsonRequest(active) {
+  if (active.requestId && activeManagedJsonRequests.get(active.requestId) === active) {
+    activeManagedJsonRequests.delete(active.requestId);
   }
+  activeManagedJsonOperations.delete(active);
+  active.untrackSender();
 }
 
-function isCurrentManagedJsonRequest(requestId, controller) {
-  return activeManagedJsonRequests.get(requestId) === controller;
+function isCurrentManagedJsonRequest(active) {
+  if (!activeManagedJsonOperations.has(active)) return false;
+  if (active.requestId && activeManagedJsonRequests.get(active.requestId) !== active) {
+    return false;
+  }
+  return true;
+}
+
+function beginManagedJsonRequest(requestId, sender) {
+  const previous = requestId ? activeManagedJsonRequests.get(requestId) : null;
+  if (previous) {
+    throw new Error('A managed request with this id is already active.');
+  }
+  if (activeManagedJsonOperations.size >= MAX_ACTIVE_MANAGED_JSON_REQUESTS) {
+    throw new Error('Too many managed requests are active.');
+  }
+
+  const controller = new AbortController();
+  const active = {
+    controller,
+    requestId,
+    sender,
+    untrackSender: () => {},
+  };
+  activeManagedJsonOperations.add(active);
+  if (requestId) {
+    activeManagedJsonRequests.set(requestId, active);
+  }
+  active.untrackSender = managedJsonSenderAbortRegistry.track(sender, controller);
+  if (sender?.isDestroyed?.()) controller.abort(createAbortError());
+  return active;
+}
+
+function cancelActiveManagedJsonRequest(active) {
+  active.controller.abort();
+  deleteActiveManagedJsonRequest(active);
 }
 
 export function parseOptionalManagedRequestId(requestIdOrPayload, maybePayload, label) {
@@ -24,43 +68,48 @@ export function parseOptionalManagedRequestId(requestIdOrPayload, maybePayload, 
   };
 }
 
-export async function requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, pathname, init) {
-  const controller = requestId ? new AbortController() : null;
-
-  if (requestId && controller) {
-    activeManagedJsonRequests.get(requestId)?.abort();
-    activeManagedJsonRequests.set(requestId, controller);
-  }
+export async function runManagedJsonOperation(operation, requestId, sender) {
+  const active = beginManagedJsonRequest(requestId, sender);
+  const { controller } = active;
 
   try {
-    const managedRequest = Promise.resolve(requestManagedJson(pathname, {
-      ...init,
-      ...(controller ? { signal: controller.signal } : {}),
-    }));
-    const result = controller
-      ? await raceWithAbort(managedRequest, controller.signal)
-      : await managedRequest;
-    if (requestId && controller && (!isCurrentManagedJsonRequest(requestId, controller) || controller.signal.aborted)) {
+    const managedRequest = Promise.resolve().then(() => {
+      if (controller.signal.aborted) throw createAbortError();
+      return operation(controller.signal);
+    });
+    const result = await raceWithAbort(managedRequest, controller.signal);
+    if (!isCurrentManagedJsonRequest(active) || controller.signal.aborted) {
       throw createAbortError();
     }
     return result;
   } catch (error) {
-    if (requestId && controller && (!isCurrentManagedJsonRequest(requestId, controller) || controller.signal.aborted)) {
+    if (!isCurrentManagedJsonRequest(active) || controller.signal.aborted) {
       throw createAbortError();
     }
-    throw error;
+    throw sanitizeManagedJsonIpcError(error);
   } finally {
-    if (requestId && controller) {
-      deleteActiveManagedJsonRequest(requestId, controller);
-    }
+    deleteActiveManagedJsonRequest(active);
   }
 }
 
-export function cancelManagedJsonRequest(requestId, label) {
+export async function requestManagedJsonWithOptionalCancel(
+  requestManagedJson,
+  requestId,
+  sender,
+  pathname,
+  init,
+) {
+  return await runManagedJsonOperation(
+    (signal) => requestManagedJson(pathname, { ...init, signal }),
+    requestId,
+    sender,
+  );
+}
+
+export function cancelManagedJsonRequest(requestId, label, sender) {
   const id = requireSafeIpcRequestId(requestId, label);
-  const controller = activeManagedJsonRequests.get(id);
-  if (controller) {
-    controller.abort();
-    deleteActiveManagedJsonRequest(id, controller);
-  }
+  const active = activeManagedJsonRequests.get(id);
+  if (!active || active.sender !== sender) return false;
+  cancelActiveManagedJsonRequest(active);
+  return true;
 }

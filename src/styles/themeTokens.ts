@@ -843,6 +843,10 @@ export const themeEmojiPickerTokens = {
 
 export const themeChatLayoutTokens = {
   embeddedSidebarWidth: 'min(clamp(16rem, 80%, 21rem), 86vw)',
+  userMessageContentGapPx: 8,
+  userMessageMaxWidthRatio: 0.9,
+  userMessageMultipleImageTileSizePx: 152,
+  userMessageSingleImageMaxHeightPx: 256,
 } as const;
 
 export const themeChatComposerTokens = {

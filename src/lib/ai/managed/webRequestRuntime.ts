@@ -1,3 +1,5 @@
+import { isErrorNamed } from '../errorClassification';
+
 export const MANAGED_JSON_TIMEOUT_MS = 30_000;
 export const MANAGED_STREAM_TIMEOUT_MS = 300_000;
 
@@ -7,8 +9,7 @@ const MAX_MANAGED_JSON_RESPONSE_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_MANAGED_CONTENT_LENGTH_CHARS = 32;
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError';
+  return isErrorNamed(error, 'AbortError');
 }
 
 function createAbortError(): DOMException {

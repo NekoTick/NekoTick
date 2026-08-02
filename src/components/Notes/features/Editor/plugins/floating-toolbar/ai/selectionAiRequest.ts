@@ -6,9 +6,9 @@ import { translate } from '@/lib/i18n';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { sendMessageWithEndpointFallback } from '@/hooks/chatService/sendMessageWithEndpointFallback';
 import { getUserFacingAIError } from '@/lib/ai/errors';
+import { isErrorNamed } from '@/lib/ai/errorClassification';
 import { isManagedProviderId } from '@/lib/ai/managedService';
 import { isManagedBudgetExhausted } from '@/lib/ai/managedQuota';
-import { isDesktopCustomProviderConnectionFailureMessage } from '@/lib/ai/userFacingErrorMessages';
 import { applyManagedQuotaExhaustedSnapshot, useManagedAIStore } from '@/stores/useManagedAIStore';
 import { parseStandaloneFencedCodeBlock } from '../../clipboard/fencedCodePaste';
 import {
@@ -145,32 +145,26 @@ export async function requestAiEdit(
       errorMessage: null,
     };
   } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (isErrorNamed(error, 'AbortError')) {
       return {
         suggestedText: null,
         errorMessage: null,
       };
     }
 
-    const fallbackMessage =
-      error instanceof Error && error.message.trim().length > 0
-        ? error.message
-        : translate('editor.ai.editFailed');
-    const normalized = isManaged || isDesktopCustomProviderConnectionFailureMessage(fallbackMessage)
-      ? getUserFacingAIError(error)
-      : null;
-    if (normalized?.type === AIErrorType.QUOTA_EXHAUSTED) {
+    const normalized = getUserFacingAIError(error, { managed: isManaged });
+    if (isManaged && normalized.type === AIErrorType.QUOTA_EXHAUSTED) {
       applyManagedQuotaExhaustedSnapshot();
     }
-    const message = normalized?.message || fallbackMessage;
+    const message = normalized.message;
     if (!options?.suppressToast) {
       useToastStore.getState().addToast(message, 'error', 4000);
     }
     return {
       suggestedText: null,
       errorMessage: message,
-      errorType: normalized?.type ?? null,
-      errorCode: normalized?.code ?? null,
+      errorType: normalized.type,
+      errorCode: normalized.code,
     };
   }
 }

@@ -121,6 +121,21 @@ export function areModelsEqual(left: AIModel[], right: AIModel[]): boolean {
   })
 }
 
+export function areModelExecutionContextsEqual(
+  left: AIModel | undefined,
+  right: AIModel | undefined,
+): boolean {
+  if (!left || !right) return left === right
+
+  return left.id === right.id &&
+    left.apiModelId === right.apiModelId &&
+    left.name === right.name &&
+    left.providerId === right.providerId &&
+    left.endpointType === right.endpointType &&
+    left.group === right.group &&
+    left.enabled === right.enabled
+}
+
 export function filterModelsByEnabledProviders(models: AIModel[], providers: Provider[]): AIModel[] {
   const enabledProviderIds = new Set(
     providers.filter((provider) => provider.enabled !== false).map((provider) => provider.id)

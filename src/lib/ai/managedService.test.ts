@@ -102,6 +102,7 @@ describe('managedService', () => {
       method: 'GET',
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       signal: expect.any(AbortSignal),
       headers: {
         Accept: 'application/json',
@@ -196,6 +197,7 @@ describe('managedService', () => {
       method: 'GET',
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       signal: expect.any(AbortSignal),
       headers: {
         Accept: 'application/json',
@@ -720,6 +722,7 @@ describe('managedService', () => {
       method: 'POST',
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       signal: expect.any(AbortSignal),
       headers: {
         Accept: 'application/json',
@@ -794,6 +797,7 @@ describe('managedService', () => {
       method: 'POST',
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       headers: {
         Accept: 'text/event-stream',
         'Content-Type': 'application/json',
@@ -939,6 +943,36 @@ describe('managedService', () => {
       vi.fn()
     )).rejects.toThrow('MANAGED_QUOTA_EXHAUSTED');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not expose unknown managed web stream error codes', async () => {
+    hasElectronDesktopBridgeMock.mockReturnValue(false);
+    const encoder = new TextEncoder();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(
+            'data: {"error":{"message":"fake-upstream-message","code":"fake_upstream_secret"}}\n\n',
+          ));
+          controller.close();
+        },
+      }),
+    }));
+
+    const { requestManagedChatCompletionStream } = await import('./managedService');
+    let result: unknown;
+    try {
+      await requestManagedChatCompletionStream(
+        { model: 'gpt-5.4', messages: [{ role: 'user', content: 'hi' }], stream: true },
+        vi.fn(),
+      );
+    } catch (error) {
+      result = error;
+    }
+
+    expect(result).toMatchObject({ message: 'Managed API request failed: HTTP 502' });
+    expect(result).not.toHaveProperty('errorCode');
   });
 
   it('sanitizes managed HTTP error payload types', async () => {

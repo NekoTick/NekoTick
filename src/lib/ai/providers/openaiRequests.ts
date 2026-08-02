@@ -1,7 +1,6 @@
 import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody'
 import { consumeOpenAIStream } from '@/lib/ai/streaming'
-import { addChatDebugLog } from '@/lib/debug/chatDebugLog'
-import { parseHTTPError } from '../errors'
+import { parseAPIError, parseHTTPError } from '../errors'
 import { providerFetch } from '../providerHttp'
 import type { ChatCompletionRequest, ChatSendOptions } from '../types'
 import { buildImageEditMultipartBody, normalizeGeneratedImageMarkdown } from './openaiImages'
@@ -16,92 +15,55 @@ import {
   createHtmlRejectingChunkHandler,
   emitApiTranscript,
   emitChunk,
-  hasHttpStatus,
   isAbortError,
-  isTransientHttpStatus,
   readResponseJson,
   readResponseTextOrFallback,
   rejectHtmlErrorContent,
-  summarizeError,
   throwIfAborted,
-  throwParsedOpenAIError,
-  waitForProviderRetry,
 } from './openaiRuntime'
 
-export async function requestOpenAIChatCompletionWithRetry({
+export async function requestOpenAIChatCompletionOnce({
   url,
   headers,
   body,
   signal,
-  scope,
-  retryDelayMs,
   timeoutMs,
 }: {
   url: string
   headers: Record<string, string>
   body: ChatCompletionRequest
   signal?: AbortSignal
-  scope: string
-  retryDelayMs: number
   timeoutMs: number
 }): Promise<Response> {
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (attempt > 0) {
-      addChatDebugLog(scope, 'retrying transient model request', { attempt })
-      await waitForProviderRetry(retryDelayMs, signal)
+  const timeout = createOpenAIRequestTimeout(signal, timeoutMs)
+  let responseOwnsTimeout = false
+  try {
+    const response = await providerFetch(url, {
+      method: 'POST',
+      headers,
+      body: stringifyProviderJsonRequestBody(body),
+      signal: timeout.signal,
+    })
+    if (response.ok) {
+      const timedResponse = wrapResponseWithRequestTimeout(response, timeout)
+      responseOwnsTimeout = true
+      return timedResponse
     }
 
-    const timeout = createOpenAIRequestTimeout(signal, timeoutMs)
-    let responseOwnsTimeout = false
+    const errorText = await readResponseTextOrFallback(response, timeout.signal)
+    let errorBody
     try {
-      const response = await providerFetch(url, {
-        method: 'POST',
-        headers,
-        body: stringifyProviderJsonRequestBody(body),
-        signal: timeout.signal,
-      })
-      if (response.ok) {
-        const timedResponse = wrapResponseWithRequestTimeout(response, timeout)
-        responseOwnsTimeout = true
-        return timedResponse
-      }
-
-      const errorText = await readResponseTextOrFallback(response, timeout.signal)
-      let errorBody
-      try {
-        errorBody = JSON.parse(errorText)
-      } catch {
-        errorBody = { message: errorText }
-      }
-      const parsedError = parseHTTPError(response.status, errorBody)
-      if (attempt === 0 && isTransientHttpStatus(response.status)) {
-        lastError = parsedError
-        addChatDebugLog(scope, 'transient model request failed before response body stream', {
-          status: response.status,
-        }, 'warn')
-        continue
-      }
-      throw parsedError
-    } catch (error) {
-      if (timeout.didTimeOut()) throw requestTimeoutError()
-      if (signal?.aborted) throw error
-      if (hasHttpStatus(error)) throw error
-      if (attempt === 0) {
-        lastError = error
-        addChatDebugLog(scope, 'model request failed before response body stream', {
-          error: summarizeError(error),
-        }, 'warn')
-        continue
-      }
-      throw error
-    } finally {
-      if (!responseOwnsTimeout) timeout.cleanup()
+      errorBody = JSON.parse(errorText)
+    } catch {
+      errorBody = { message: errorText }
     }
+    throw parseHTTPError(response.status, errorBody)
+  } catch (error) {
+    if (timeout.didTimeOut()) throw requestTimeoutError()
+    throw error
+  } finally {
+    if (!responseOwnsTimeout) timeout.cleanup()
   }
-
-  throw lastError
 }
 
 export async function sendImageGeneration(
@@ -244,7 +206,7 @@ export async function streamResponse({
       if (timedOut) throw new Error('The AI request timed out.')
       throw error
     }
-    return throwParsedOpenAIError(error, url)
+    throw parseAPIError(error)
   } finally {
     clearTimeout(timeoutId)
     signal?.removeEventListener('abort', forwardAbort)

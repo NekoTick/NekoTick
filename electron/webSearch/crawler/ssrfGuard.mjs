@@ -8,6 +8,16 @@ const MAX_PUBLIC_HTTP_URL_CHARS = 4096;
 const MAX_IP_LITERAL_CHARS = 128;
 const SCHEME_PATTERN = /^([A-Za-z][A-Za-z0-9+.-]*):/;
 const UNSAFE_PUBLIC_URL_CHARS_PATTERN = /[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069\uFFFD]/;
+const BLOCKED_IPV6_PREFIXES = [
+  { words: [0x0064, 0xff9b, 0, 0, 0, 0], bits: 96 },
+  { words: [0x0064, 0xff9b, 0x0001], bits: 48 },
+  { words: [0x0100, 0, 0, 0], bits: 64 },
+  { words: [0x2001, 0], bits: 23 },
+  { words: [0x2001, 0x0db8], bits: 32 },
+  { words: [0x2002], bits: 16 },
+  { words: [0x3fff, 0], bits: 20 },
+  { words: [0x5f00], bits: 16 },
+];
 
 function isPrivateIpv4(ip) {
   const parts = ip.split('.').map((part) => Number(part));
@@ -65,6 +75,19 @@ function parseIpv6Words(ip) {
   return words.every((word) => Number.isInteger(word) && word >= 0 && word <= 0xffff) ? words : null;
 }
 
+function hasIpv6Prefix(words, prefix) {
+  let remainingBits = prefix.bits;
+  for (let index = 0; remainingBits > 0; index += 1) {
+    const bits = Math.min(remainingBits, 16);
+    const mask = (0xffff << (16 - bits)) & 0xffff;
+    if ((words[index] & mask) !== ((prefix.words[index] ?? 0) & mask)) {
+      return false;
+    }
+    remainingBits -= bits;
+  }
+  return true;
+}
+
 function isPrivateIpv6(ip) {
   const words = parseIpv6Words(ip);
   if (!words) {
@@ -91,8 +114,7 @@ function isPrivateIpv6(ip) {
     (first & 0xffc0) === 0xfe80 ||
     (first & 0xffc0) === 0xfec0 ||
     (first & 0xff00) === 0xff00 ||
-    (words[0] === 0x2001 && words[1] === 0x0db8) ||
-    words[0] === 0x2002
+    BLOCKED_IPV6_PREFIXES.some((prefix) => hasIpv6Prefix(words, prefix))
   );
 }
 

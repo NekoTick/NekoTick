@@ -13,7 +13,9 @@ import {
 } from '@/lib/ai/webSearch/openAIToolLoopShared';
 import { extractOpenAIMessageFromJson } from '@/lib/ai/webSearch/openAIToolParsing';
 import type { OpenAIToolCall, OpenAIWireMessage } from '@/lib/ai/webSearch/openAIToolTypes';
+import { createWebSearchExecutionSession } from '@/lib/ai/webSearch/executionSession';
 import { sanitizeWebSearchStatus } from '@/lib/ai/webSearch/statusMarkup';
+import { WEB_SEARCH_SYSTEM_INSTRUCTION } from '@/lib/ai/webSearch/toolDefinitions';
 import type { WebSearchStatus } from '@/lib/ai/webSearch/types';
 import { translate } from '@/lib/i18n';
 import { executeAgentToolCall } from './agentToolRuntime';
@@ -59,11 +61,12 @@ function buildProtocolInstruction(webSearchEnabled: boolean): string {
   const tools = [
     'run_command parameters: command (required string), purpose (required string), cwd (optional absolute path), timeout_seconds (optional number from 1 to 1800).',
     webSearchEnabled
-      ? 'web_search parameters: query (required string), category and timeRange (optional strings). read_web_page parameters: url (required string). read_web_pages parameters: urls (required array).'
+      ? 'web_search parameters: query (required string), category and timeRange (optional strings). read_web_page parameters: url (required string). read_web_pages parameters: urls (required JSON string array such as ["https://example.test/a"]).'
       : '',
   ].filter(Boolean).join(' ');
   return [
     COMPUTER_USE_SYSTEM_INSTRUCTION,
+    webSearchEnabled ? WEB_SEARCH_SYSTEM_INSTRUCTION : '',
     'The managed API does not expose native tool calling. The desktop app will recognize only the strict DSML text protocol below.',
     'To propose a tool call, reply with a complete block and no surrounding prose:',
     '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="run_command"><｜｜DSML｜｜parameter name="command">printf ok</｜｜DSML｜｜parameter><｜｜DSML｜｜parameter name="purpose">Print a test value</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>',
@@ -196,6 +199,7 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
   const sourceUrls: string[] = [];
   const responseTranscript: OpenAIWireMessage[] = [];
   const deniedCommandKeys = new Set<string>();
+  const webSearchSession = options.webSearchEnabled ? createWebSearchExecutionSession() : undefined;
   let messages = appendProtocolInstruction(options.body.messages as OpenAIWireMessage[], options.webSearchEnabled);
   let commandApprovalCount = 0;
   let totalToolCalls = 0;
@@ -280,6 +284,7 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
         defaultCwd: options.defaultCwd,
         signal: options.signal,
         webSearchEnabled: options.webSearchEnabled,
+        webSearchSession,
         onWebSearchStatus: emitWebStatus,
         onCommandStatus: (status) => {
           toolMessage.content = serializeComputerCommandStatus(status);

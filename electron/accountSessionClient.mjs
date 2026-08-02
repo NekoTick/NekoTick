@@ -47,6 +47,7 @@ export function createDesktopAccountSessionClient({
     throwIfAborted(init.signal);
     const response = await raceWithAbort(fetchImpl(url, {
       ...init,
+      redirect: 'error',
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -68,9 +69,11 @@ export function createDesktopAccountSessionClient({
     }
 
     let response = await performStoredSessionRequest(credentials, url, init);
+    const method = String(init.method ?? 'GET').toUpperCase();
+    const retryUnauthorized = method === 'GET' || method === 'HEAD';
 
     for (let attempt = 0; attempt < desktopSessionRetryDelaysMs.length; attempt += 1) {
-      if (response.status !== 401) {
+      if (!retryUnauthorized || response.status !== 401) {
         break;
       }
       if (!shouldGraceDesktopSession(credentials)) {
@@ -108,6 +111,7 @@ export function createDesktopAccountSessionClient({
 
     const response = await raceWithAbort(fetchImpl(url, {
       ...init,
+      redirect: 'error',
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),

@@ -7,7 +7,7 @@ import { MAX_OPENAI_STREAM_ERROR_FIELD_CHARS, MAX_OPENAI_STREAM_LINE_CHARS } fro
 import { MAX_PROVIDER_ERROR_BODY_BYTES, MAX_PROVIDER_JSON_RESPONSE_BODY_BYTES } from './boundedResponseText';
 import { MAX_INLINE_IMAGE_BYTES } from '@/lib/markdown/dataImagePolicy';
 import { MAX_THINKING_TAG_MATCHES } from '@/lib/ai/stripThinkingContent';
-import { MAX_API_TRANSCRIPT_MESSAGES } from '@/lib/ai/apiTranscript';
+import { MAX_API_TRANSCRIPT_MESSAGES, MAX_API_TRANSCRIPT_STRING_CHARS } from '@/lib/ai/apiTranscript';
 import { MAX_CURRENT_REQUEST_CONTENT_PARTS, MAX_CURRENT_REQUEST_MESSAGE_CHARS } from '@/lib/ai/requestContext';
 import { translate } from '@/lib/i18n';
 
@@ -1625,6 +1625,53 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     ]);
   });
 
+  it('does not replay xAI native search when the model rejects web search input', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      error: { message: 'Tool calling is unsupported for this model.' },
+    }), { status: 400 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(new OpenAICompatibleClient().sendMessage(
+      'search current xAI docs',
+      [],
+      buildModel({ apiModelId: 'grok-4', name: 'Grok 4' }),
+      buildProvider({ name: 'xAI', apiHost: 'https://api.x.ai', endpointType: 'openai' }),
+      vi.fn(),
+      undefined,
+      { webSearchEnabled: true },
+    )).rejects.toThrow('Web search is unavailable for this model.');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('times out xAI native web search when the provider never responds', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(() => new Promise<Response>(() => undefined));
+      vi.stubGlobal('fetch', fetchMock);
+      const client = new OpenAICompatibleClient();
+      (client as unknown as { timeout: number }).timeout = 50;
+
+      const request = client.sendMessage(
+        'what is new with xai?',
+        [],
+        buildModel({ apiModelId: 'grok-4', name: 'Grok 4' }),
+        buildProvider({ name: 'xAI', apiHost: 'https://api.x.ai', endpointType: 'openai' }),
+        vi.fn(),
+        undefined,
+        { webSearchEnabled: true },
+      );
+      request.catch(() => undefined);
+
+      await vi.advanceTimersByTimeAsync(50);
+
+      await expect(request).rejects.toThrow('The AI request timed out.');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('filters local network xAI native search citation URLs before emitting sources', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       output_text: 'Grok answer with filtered sources.',
@@ -2183,20 +2230,12 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to the bounded text protocol only when managed native tools are unsupported', async () => {
-    const commandMarkup = '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="run_command"><｜｜DSML｜｜parameter name="command">pwd</｜｜DSML｜｜parameter><｜｜DSML｜｜parameter name="purpose">Inspect working directory</｜｜DSML｜｜parameter></｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>';
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        success: false,
-        error: 'UNSUPPORTED_TOOL_CALLING',
-        errorCode: 'unsupported_tool_calling',
-      }), { status: 400 }))
-      .mockResolvedValueOnce(streamResponse(
-        `data: ${JSON.stringify({ choices: [{ delta: { content: commandMarkup } }] })}\n\ndata: [DONE]\n\n`,
-      ))
-      .mockResolvedValueOnce(streamResponse(
-        'data: {"choices":[{"delta":{"content":"Working directory inspected."}}]}\n\ndata: [DONE]\n\n',
-      ));
+  it('does not replay managed computer-use requests when native tools are unsupported', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      success: false,
+      error: 'UNSUPPORTED_TOOL_CALLING',
+      errorCode: 'unsupported_tool_calling',
+    }), { status: 400 }));
     vi.stubGlobal('fetch', fetchMock);
     mocks.bridge = {
       computer: {
@@ -2214,7 +2253,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       },
     };
 
-    const result = await new OpenAICompatibleClient().sendMessage(
+    await expect(new OpenAICompatibleClient().sendMessage(
       'Inspect the working directory',
       [],
       buildModel({ id: 'vlaina-managed:test-model', apiModelId: 'test-model', providerId: 'vlaina-managed' }),
@@ -2222,17 +2261,16 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       vi.fn(),
       undefined,
       { computerUseEnabled: true, computerUseCwd: '/tmp/project' },
-    );
+    )).rejects.toMatchObject({
+      type: AIErrorType.INVALID_REQUEST,
+      message: translate('chat.computerUse.unavailableForModel'),
+    });
 
-    expect(result).toBe('Working directory inspected.');
-    expect(mocks.bridge.computer?.startCommand).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(mocks.bridge.computer?.startCommand).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const nativeBody = JSON.parse(fetchMock.mock.calls[0][1].body);
-    const fallbackBody = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(nativeBody.tools).toEqual(expect.any(Array));
     expect(nativeBody.stream).toBe(true);
-    expect(fallbackBody.tools).toBeUndefined();
-    expect(fallbackBody.stream).toBe(true);
   });
 
   it('never falls back after a managed native command has entered the local approval flow', async () => {
@@ -2282,8 +2320,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       undefined,
       { computerUseEnabled: true, computerUseCwd: '/tmp/project' },
     )).rejects.toMatchObject({
-      message: 'UNSUPPORTED_TOOL_CALLING',
-      errorCode: 'unsupported_tool_calling',
+      type: AIErrorType.INVALID_REQUEST,
+      message: translate('chat.computerUse.unavailableForModel'),
     });
 
     expect(startCommand).toHaveBeenCalledTimes(1);
@@ -2956,15 +2994,14 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(secondBody.messages.at(-1).content).toContain('Readable sample app content.');
   });
 
-  it('retries one transient OpenAI-compatible web search model request before failing the tool loop', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('<!DOCTYPE html><html><body>Cloudflare 502</body></html>', { status: 502 }))
-      .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"web answer"}}]}\n\ndata: [DONE]\n\n'));
+  it('does not replay a transient OpenAI-compatible web search model request', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response('<!DOCTYPE html><html><body>Cloudflare 502</body></html>', { status: 502 }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const chunks: string[] = [];
 
-    const result = await new OpenAICompatibleClient().sendMessage(
+    await expect(new OpenAICompatibleClient().sendMessage(
       'search current docs',
       [],
       buildModel({ apiModelId: 'gpt-4o-mini', name: 'GPT-4o Mini' }),
@@ -2972,11 +3009,29 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       (chunk) => chunks.push(chunk),
       undefined,
       { webSearchEnabled: true },
-    );
+    )).rejects.toMatchObject({ statusCode: 502 });
 
-    expect(result).toBe('web answer');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(chunks[chunks.length - 1]).toBe('web answer');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(chunks).toEqual([]);
+  });
+
+  it('does not replay OpenAI-compatible search when the model rejects tool input', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      error: { message: 'This model does not support tool calling.' },
+    }), { status: 400 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(new OpenAICompatibleClient().sendMessage(
+      'search current docs',
+      [],
+      buildModel({ apiModelId: 'gpt-4o-mini', name: 'GPT-4o Mini' }),
+      buildProvider({ endpointType: 'openai' }),
+      vi.fn(),
+      undefined,
+      { webSearchEnabled: true },
+    )).rejects.toThrow('Web search is unavailable for this model.');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('wraps Anthropic thinking deltas in think tags', async () => {
@@ -3158,6 +3213,66 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       history[0].apiTranscript![2],
       { role: 'user', content: 'continue' },
     ]);
+  });
+
+  it('does not replay local computer file changes to DeepSeek-compatible history', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      streamResponse('data: {"choices":[{"delta":{"content":"next"}}]}\n\ndata: [DONE]\n\n'),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const history = [{
+      id: 'm1',
+      role: 'assistant' as const,
+      content: 'Command complete',
+      apiTranscript: [{
+        role: 'assistant' as const,
+        content: '',
+        tool_calls: [{
+          id: 'call-1',
+          type: 'function' as const,
+          function: { name: 'run_command', arguments: '{"command":"printf ok"}' },
+        }],
+      }, {
+        role: 'tool' as const,
+        tool_call_id: 'call-1',
+        name: 'run_command',
+        content: JSON.stringify({
+          kind: 'vlaina-computer-command',
+          version: 1,
+          phase: 'completed',
+          command: 'printf ok',
+          cwd: '/tmp/project',
+          fileChanges: [{
+            path: 'src/private.ts',
+            kind: 'modified',
+            additions: 1,
+            deletions: 1,
+            patch: `+private-value-${'x'.repeat(MAX_API_TRANSCRIPT_STRING_CHARS)}`,
+          }],
+        }),
+      }, {
+        role: 'assistant' as const,
+        content: 'Command complete',
+      }],
+      modelId: 'previous-model',
+      timestamp: 1,
+      versions: [{ content: 'Command complete', createdAt: 1, kind: 'original' as const, subsequentMessages: [] }],
+      currentVersionIndex: 0,
+    }];
+
+    await new OpenAICompatibleClient().sendMessage(
+      'continue',
+      history,
+      buildModel({ apiModelId: 'deepseek-chat', name: 'DeepSeek Chat' }),
+      buildProvider({ name: 'DeepSeek', apiHost: 'https://api.deepseek.com', endpointType: 'openai' }),
+      vi.fn(),
+    );
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(JSON.stringify(body.messages)).not.toContain('fileChanges');
+    expect(JSON.stringify(body.messages)).not.toContain('private-value');
+    expect(JSON.stringify(body.messages)).toContain('printf ok');
   });
 
   it('bounds hidden API transcript replay for DeepSeek-compatible history', async () => {
@@ -3899,20 +4014,24 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(onChunk).not.toHaveBeenCalled();
   });
 
-  it('preserves direct provider transport details for chat failures', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+  it('does not expose direct provider URLs or transport details for chat failures', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed with fake-transport-secret')));
 
-    await expect(
+    const request =
       new OpenAICompatibleClient().sendMessage(
         'hi',
         [],
         buildModel({ apiModelId: 'gpt-4o-mini' }),
         buildProvider(),
         vi.fn(),
-      ),
-    ).rejects.toMatchObject({
-      details: 'OpenAI-compatible chat request to https://api.example.com/v1/chat/completions failed: fetch failed',
+      );
+
+    await expect(request).rejects.toMatchObject({
+      type: AIErrorType.NETWORK_ERROR,
+      message: 'AI_PROVIDER_CONNECTION_FAILED',
+      details: undefined,
     });
+    await expect(request).rejects.not.toThrow('fake-transport-secret');
 
     try {
       await new OpenAICompatibleClient().sendMessage(
@@ -3924,7 +4043,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       );
     } catch (error) {
       expect(getUserFacingAIError(error).message).toBe(
-        'OpenAI-compatible chat request to https://api.example.com/v1/chat/completions failed: fetch failed',
+        'The custom channel could not be reached. Check your network or the upstream service, then try again.',
       );
     }
   });
@@ -3950,8 +4069,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
         vi.fn(),
       ),
     ).rejects.toMatchObject({
-      type: AIErrorType.UNKNOWN,
-      message: 'Unknown error',
+      type: AIErrorType.NETWORK_ERROR,
+      message: 'AI_PROVIDER_CONNECTION_FAILED',
     });
 
     await expect(
@@ -3963,8 +4082,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
         vi.fn(),
       ),
     ).rejects.toMatchObject({
-      type: AIErrorType.UNKNOWN,
-      message: 'Unknown error',
+      type: AIErrorType.NETWORK_ERROR,
+      message: 'AI_PROVIDER_CONNECTION_FAILED',
     });
   });
 });

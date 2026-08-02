@@ -9,7 +9,6 @@ import {
 import { extractChatMessageImageSources } from '@/lib/ai/chatImageSourcePolicy'
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent'
 import { sanitizeWebSearchStatuses } from '@/lib/ai/webSearch/statusMarkup'
-import { isRetryStatusMessage } from '@/lib/ai/retryStatusMessage'
 
 const MAX_MESSAGE_VERSIONS = 20
 const MAX_VERSION_BRANCH_MESSAGES = 100
@@ -91,7 +90,7 @@ export function hasSession(ai: { sessions: Array<{ id: string }> }, sessionId: s
 
 export function hasVisibleAssistantReply(content: string): boolean {
   const visibleContent = stripThinkingContent(content || '')
-  return visibleContent.length > 0 && !isRetryStatusMessage(visibleContent)
+  return visibleContent.length > 0
 }
 
 function selectMessageIdScanVersions(message: ChatMessage): MessageVersion[] {

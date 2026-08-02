@@ -113,6 +113,7 @@ describe('desktop account session client', () => {
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer legacy_session_token');
     expect(headers['x-app-session-token']).toBe('legacy_session_token');
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('error');
   });
 
   it('cancels 401 activation retry delays before retrying', async () => {
@@ -136,6 +137,24 @@ describe('desktop account session client', () => {
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(options.rotateStoredSessionToken).not.toHaveBeenCalled();
+  });
+
+  it('does not replay non-idempotent requests after a 401 during activation', async () => {
+    const fetchMock = vi.fn(async () => new Response('', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { client } = createHarness({
+      readStoredAccountCredentials: vi.fn(async () => ({
+        ...credentials,
+        authenticatedAt: Date.now(),
+      })),
+    });
+
+    await expect(client.fetchWithStoredSession('https://api.example.com/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ message: 'test' }),
+    })).rejects.toThrow('vlaina session is still activating');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('requests budget data during desktop session status probes', async () => {

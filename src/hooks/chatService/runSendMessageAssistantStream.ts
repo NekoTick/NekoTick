@@ -128,12 +128,6 @@ export function runSendMessageAssistantStream({
             });
             aiActions.updateMessageApiTranscript(targetSessionId, assistantMessageId, apiTranscript);
           },
-          onRetryStatus: (message) => {
-            if (!isActiveRequest()) {
-              return;
-            }
-            aiActions.updateMessage(targetSessionId, assistantMessageId, message);
-          },
         },
       });
     },

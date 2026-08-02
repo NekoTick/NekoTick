@@ -18,12 +18,14 @@ import {
   extractChatMessageImageSources,
   stripChatMessageImageTokens,
 } from '@/lib/ai/chatImageSourcePolicy';
+import {
+  COLLAPSED_USER_MESSAGE_VISIBLE_LINES,
+  getLongUserMessagePreviewText,
+} from '@/components/Chat/features/Messages/components/userMessageCollapse';
+import { themeChatLayoutTokens } from '@/styles/themeTokens';
 
-const USER_BUBBLE_MAX_RATIO = 0.9;
 const USER_BUBBLE_PADDING_X = 32;
 const USER_BUBBLE_PADDING_Y = 12;
-const USER_IMAGE_HEIGHT = 256;
-const USER_STACK_GAP = 8;
 const USER_TOOLBAR_HEIGHT = 30;
 
 type EstimatedChatMessageHeightOptions = {
@@ -62,6 +64,20 @@ function countRenderableImages(content: string): number {
   }).length;
 }
 
+function estimateUserImageGridHeight(imageCount: number, contentWidth: number): number {
+  if (imageCount <= 0) return 0;
+  if (imageCount === 1) return themeChatLayoutTokens.userMessageSingleImageMaxHeightPx;
+
+  const gap = themeChatLayoutTokens.userMessageContentGapPx;
+  const tileSize = themeChatLayoutTokens.userMessageMultipleImageTileSizePx;
+  const gridWidth = Math.max(1, Math.floor(
+    contentWidth * themeChatLayoutTokens.userMessageMaxWidthRatio,
+  ));
+  const columns = Math.max(1, Math.floor((gridWidth + gap) / (tileSize + gap)));
+  const rows = Math.ceil(imageCount / columns);
+  return rows * tileSize + Math.max(0, rows - 1) * gap;
+}
+
 function estimateUserMessageHeight(
   message: ChatMessage,
   containerWidth: number,
@@ -70,29 +86,43 @@ function estimateUserMessageHeight(
 ): number {
   const lineHeight = getMarkdownBodyLineHeight(fontSize);
   const contentWidth = getChatContentWidth(containerWidth);
-  const bubbleWidth = Math.max(120, Math.floor(contentWidth * USER_BUBBLE_MAX_RATIO));
+  const bubbleWidth = Math.max(
+    120,
+    Math.floor(contentWidth * themeChatLayoutTokens.userMessageMaxWidthRatio),
+  );
   const textWidth = Math.max(1, bubbleWidth - USER_BUBBLE_PADDING_X);
-  const text = stripChatMessageImageTokens(clampEstimatedText(message.content), {
+  const fullText = stripChatMessageImageTokens(clampEstimatedText(message.content), {
     maxTokens: MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES,
   }).trim();
+  const collapsedPreview = getLongUserMessagePreviewText(fullText);
+  const text = collapsedPreview ?? fullText;
   const imageCount = countRenderableImages(message.content);
 
   let height = 0;
 
   if (imageCount > 0) {
-    height += imageCount * USER_IMAGE_HEIGHT + Math.max(0, imageCount - 1) * USER_STACK_GAP;
+    height += estimateUserImageGridHeight(imageCount, contentWidth);
   }
 
   if (text.length > 0) {
     if (height > 0) {
-      height += USER_STACK_GAP;
+      height += themeChatLayoutTokens.userMessageContentGapPx;
     }
-    height += measureTextBlockHeight(text, textWidth, {
+    const measuredTextHeight = measureTextBlockHeight(text, textWidth, {
       font: getMarkdownBodyFont(fontSize),
       lineHeight,
       minHeight: lineHeight,
       prepareOptions: { whiteSpace: 'pre-wrap' },
-    }) + estimateLongTextRemainderHeight(message.content, fontSize) + USER_BUBBLE_PADDING_Y;
+    }) + (collapsedPreview === null
+      ? estimateLongTextRemainderHeight(message.content, fontSize)
+      : 0);
+    const collapsedTextHeight = lineHeight * COLLAPSED_USER_MESSAGE_VISIBLE_LINES;
+    const isLongMessage = collapsedPreview !== null || measuredTextHeight > collapsedTextHeight;
+    height += Math.min(measuredTextHeight, collapsedTextHeight)
+      + (isLongMessage
+        ? lineHeight + USER_BUBBLE_PADDING_Y + themeChatLayoutTokens.userMessageContentGapPx
+        : 0)
+      + USER_BUBBLE_PADDING_Y;
   }
 
   if (height === 0) {

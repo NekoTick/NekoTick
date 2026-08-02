@@ -54,7 +54,7 @@ describe('checkModelHealth', () => {
     expect(body.input).toBe('hello world');
   });
 
-  it('reports upstream business errors even when HTTP status is 200', async () => {
+  it('does not expose upstream business errors when HTTP status is 200', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ error: { message: 'quota exceeded' } }), {
         status: 200,
@@ -64,10 +64,11 @@ describe('checkModelHealth', () => {
 
     const result = await checkModelHealth(provider, createModel('gpt-4o-mini'));
     expect(result.status).toBe('error');
-    expect(result.error).toContain('quota exceeded');
+    expect(result.error).not.toContain('quota exceeded');
+    expect(result.error).toContain('My brain needs a breather');
   });
 
-  it('reports embedded xml errors returned inside chat success payloads', async () => {
+  it('does not expose embedded xml errors returned inside chat success payloads', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -89,10 +90,11 @@ describe('checkModelHealth', () => {
 
     const result = await checkModelHealth(provider, createModel('grok-4.1'));
     expect(result.status).toBe('error');
-    expect(result.error).toContain('No available channel for model grok-4.1 under group default');
+    expect(result.error).not.toContain('No available channel for model grok-4.1 under group default');
+    expect(result.error).toContain('My brain needs a breather');
   });
 
-  it('treats plain-text 200 responses as errors', async () => {
+  it('treats plain-text 200 responses as errors without exposing the body', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('No available channel for model grok-4.1 under group default', {
         status: 200,
@@ -102,7 +104,8 @@ describe('checkModelHealth', () => {
 
     const result = await checkModelHealth(provider, createModel('grok-4.1'));
     expect(result.status).toBe('error');
-    expect(result.error).toContain('No available channel for model grok-4.1 under group default');
+    expect(result.error).not.toContain('No available channel for model grok-4.1 under group default');
+    expect(result.error).toContain('My brain needs a breather');
   });
 
   it('treats unexpected 200 payloads as errors', async () => {
@@ -189,7 +192,7 @@ describe('checkModelHealth', () => {
 
     expect(result).toMatchObject({
       status: 'error',
-      error: 'Managed API request failed: HTTP 502',
+      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
       endpoint: 'chat',
     });
   });
@@ -414,7 +417,7 @@ describe('checkModelHealth', () => {
     expect(result).toMatchObject({
       status: 'error',
       endpoint: 'chat',
-      error: 'Forbidden request. Check model access.',
+      error: 'Authentication failed. Check your API key or sign in again.',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -462,7 +465,7 @@ describe('checkModelHealth', () => {
     expect(result).toMatchObject({
       status: 'error',
       endpoint: 'chat',
-      error: 'Too many requests',
+      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0][0]).toBe('https://api.example.com/v1/chat/completions');
@@ -475,7 +478,7 @@ describe('checkModelHealth', () => {
 
     expect(result).toMatchObject({
       status: 'error',
-      error: 'Aborted',
+      error: 'The custom channel could not be reached. Check your network or the upstream service, then try again.',
       endpoint: 'chat',
     });
   });
@@ -613,7 +616,7 @@ describe('checkModelHealth', () => {
 
     expect(result).toMatchObject({
       status: 'error',
-      error: 'Unknown error',
+      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
       endpoint: 'chat',
     });
     expect(cancel).toHaveBeenCalledTimes(1);

@@ -8,11 +8,43 @@ import {
 } from './mermaidRenderer';
 import { getMermaidDiagramType } from './mermaidDiagramType';
 import { sanitizeMermaidMarkup } from './mermaidSanitizer';
+import { containsExternalSvgStyleElementReference } from '@/lib/markdown/svgResourceReferences';
+import { decodeCssEscapesForUrl } from '@/lib/markdown/theme-compatibility/cssUrls/cssEscapes';
 
 const READONLY_MERMAID_RENDER_CACHE_LIMIT = 80;
 export const MAX_PENDING_READONLY_MERMAID_RENDERS = 80;
 const readOnlyMermaidMarkupCache = new Map<string, string>();
 const readOnlyMermaidRenderPromiseCache = new Map<string, Promise<string>>();
+const REMOTE_MERMAID_SCHEME_PATTERN = /(?:https?|file|ftp|blob):/i;
+const PROTOCOL_RELATIVE_MERMAID_URL_PATTERN = /(?:^|[\s"'([{=,:])\/\/(?:[A-Za-z0-9]|\[)/m;
+
+function decodeAsciiCodePoint(value: string, radix: number): string {
+  const codePoint = Number.parseInt(value, radix);
+  return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x7f
+    ? String.fromCharCode(codePoint)
+    : '';
+}
+
+function normalizeMermaidResourceScanText(code: string): string {
+  const decodedCode = code
+    .replace(/\\u\{([0-9a-f]{1,6})\}/gi, (_match, value: string) => decodeAsciiCodePoint(value, 16))
+    .replace(/\\u([0-9a-f]{4})/gi, (_match, value: string) => decodeAsciiCodePoint(value, 16))
+    .replace(/\\x([0-9a-f]{2})/gi, (_match, value: string) => decodeAsciiCodePoint(value, 16))
+    .replace(/&#x([0-9a-f]{1,6});?/gi, (_match, value: string) => decodeAsciiCodePoint(value, 16))
+    .replace(/&#([0-9]{1,7});?/g, (_match, value: string) => decodeAsciiCodePoint(value, 10))
+    .replace(/&colon;/gi, ':')
+    .replace(/&sol;/gi, '/');
+
+  return decodeCssEscapesForUrl(decodedCode)
+    .replace(/[\u0000-\u0020\u007f]/g, '');
+}
+
+function containsRemoteMermaidResource(code: string): boolean {
+  const normalized = normalizeMermaidResourceScanText(code);
+  return REMOTE_MERMAID_SCHEME_PATTERN.test(normalized)
+    || PROTOCOL_RELATIVE_MERMAID_URL_PATTERN.test(normalized)
+    || containsExternalSvgStyleElementReference(normalized);
+}
 
 function getReadOnlyMermaidCacheKey(code: string, language: string) {
   return `${language}\0${code}`;
@@ -51,7 +83,7 @@ export function getPendingReadOnlyMermaidRenderCount() {
 }
 
 export async function resolveReadOnlyMermaidMarkup(code: string, language = '') {
-  if (code.length > MAX_MERMAID_CODE_CHARS) {
+  if (code.length > MAX_MERMAID_CODE_CHARS || containsRemoteMermaidResource(code)) {
     return sanitizeMermaidMarkup(mermaidRenderErrorMarkup());
   }
 

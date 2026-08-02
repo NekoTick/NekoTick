@@ -1,26 +1,26 @@
-import type { ChatMessageContent } from '../types'
-
-export function isTextOnlyMessage(content: ChatMessageContent): boolean {
-  return typeof content === 'string' || content.every((part) => part.type === 'text')
-}
+import { readErrorField } from '../errorClassification'
 
 export function isToolInputUnsupported(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
-  const errorCode = typeof (error as { errorCode?: unknown }).errorCode === 'string'
-    ? (error as { errorCode: string }).errorCode.toLowerCase()
+  const rawErrorCode = readErrorField(error, 'errorCode')
+  const rawMessage = readErrorField(error, 'message')
+  const rawStatusCode = readErrorField(error, 'statusCode')
+  const rawStatus = readErrorField(error, 'status')
+  const errorCode = typeof rawErrorCode === 'string'
+    ? rawErrorCode.slice(0, 512).toLowerCase()
     : ''
-  const rawMessage = typeof (error as { message?: unknown }).message === 'string'
-    ? (error as { message: string }).message
+  const message = typeof rawMessage === 'string'
+    ? rawMessage.slice(0, 8192).trim().toLowerCase()
     : ''
-  const message = rawMessage.trim().toLowerCase()
-  const statusCode = typeof (error as { statusCode?: unknown }).statusCode === 'number'
-    ? (error as { statusCode: number }).statusCode
-    : typeof (error as { status?: unknown }).status === 'number'
-      ? (error as { status: number }).status
+  const statusCode = typeof rawStatusCode === 'number'
+    ? rawStatusCode
+    : typeof rawStatus === 'number'
+      ? rawStatus
       : undefined
   const mentionsToolProtocol = message.includes('tool') || message.includes('function call')
   const rejectsToolProtocol = /(?:not support|unsupported|unavailable|disabled|unknown|unrecognized|unexpected|not permitted|no endpoints? found)/.test(message)
   return errorCode === 'unsupported_model_input' || errorCode === 'unsupported_message_content'
+    || errorCode === 'unsupported_tool_calling'
     || message.includes('unsupported_model_input')
     || message.includes('unsupported_message_content')
     || message.includes('unsupported model input')

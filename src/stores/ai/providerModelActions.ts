@@ -2,6 +2,7 @@ import type { AIModel, ProviderBenchmarkRecord } from '@/lib/ai/types'
 import { buildScopedModelId, generateModelGroup, generateModelName } from '@/lib/ai/utils'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { useAIUIStore } from './chatState'
+import { areModelExecutionContextsEqual } from './providerStoreUtils'
 import {
   MAX_AI_MODEL_FIELD_CHARS,
   MAX_AI_PROVIDER_FETCHED_MODELS,
@@ -53,9 +54,12 @@ export const modelActions = {
       return;
     }
 
-    const updates: { models: AIModel[]; selectedModelId?: string } = { models: [...ai.models, newModel] };
+    const updates: { models: AIModel[]; selectedModelId?: string; computerUseEnabled?: boolean } = {
+      models: [...ai.models, newModel],
+    };
     if (!ai.selectedModelId) {
       updates.selectedModelId = newModel.id;
+      updates.computerUseEnabled = false;
     }
     state.updateAIData(updates);
   },
@@ -90,9 +94,12 @@ export const modelActions = {
       return
     }
 
-    const updates: { models: AIModel[]; selectedModelId?: string } = { models: [...ai.models, ...newModels] };
+    const updates: { models: AIModel[]; selectedModelId?: string; computerUseEnabled?: boolean } = {
+      models: [...ai.models, ...newModels],
+    };
     if (!ai.selectedModelId && newModels.length > 0) {
       updates.selectedModelId = newModels[0].id;
+      updates.computerUseEnabled = false;
     }
     state.updateAIData(updates);
   },
@@ -106,9 +113,13 @@ export const modelActions = {
     const hasModelChanges = (Object.entries(updates) as Array<[keyof AIModel, AIModel[keyof AIModel]]>)
       .some(([key, value]) => !Object.is(model[key], value));
     if (!hasModelChanges) return;
+    const nextModel = { ...model, ...updates };
 
     state.updateAIData({
-      models: ai.models.map((m) => m.id === id ? { ...m, ...updates } : m)
+      models: ai.models.map((m) => m.id === id ? nextModel : m),
+      ...(ai.selectedModelId === id && !areModelExecutionContextsEqual(model, nextModel)
+        ? { computerUseEnabled: false }
+        : {}),
     })
   },
 
@@ -129,10 +140,12 @@ export const modelActions = {
         updatedAt: Date.now(),
       }
     }
+    const deletingSelectedModel = ai.selectedModelId === id;
     state.updateAIData({
       models: ai.models.filter((m) => m.id !== id),
       benchmarkResults: nextBenchmarkResults,
-      selectedModelId: ai.selectedModelId === id ? null : ai.selectedModelId
+      selectedModelId: deletingSelectedModel ? null : ai.selectedModelId,
+      ...(deletingSelectedModel ? { computerUseEnabled: false } : {}),
     })
   },
 
@@ -194,6 +207,10 @@ export const modelActions = {
     const ai = state.data.ai!
     const currentSessionId = useAIUIStore.getState().currentSessionId
     const updates: Parameters<typeof state.updateAIData>[0] = { selectedModelId: modelId }
+
+    if (ai.selectedModelId !== modelId) {
+      updates.computerUseEnabled = false
+    }
 
     if (modelId && currentSessionId) {
       const session = ai.sessions.find((item) => item.id === currentSessionId)

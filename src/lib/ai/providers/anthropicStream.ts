@@ -8,10 +8,11 @@ import {
   createAnthropicTextStreamAccumulator,
   type AnthropicStreamResult,
 } from './anthropicStreamAccumulator'
+import { addAiStreamResponseChunkBytes } from '@/lib/ai/streamingResponseBudget'
+import { isErrorNamed, readErrorField } from '@/lib/ai/errorClassification'
 
 export function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError'
+  return isErrorNamed(error, 'AbortError')
 }
 
 function createAbortError(): DOMException {
@@ -91,6 +92,7 @@ async function consumeAnthropicEventStream(
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let responseBytesRead = 0
   const accumulator = collectBlocks
     ? createAnthropicStreamAccumulator(onChunk)
     : createAnthropicTextStreamAccumulator(onChunk)
@@ -135,8 +137,9 @@ async function consumeAnthropicEventStream(
 
     if (payload.type === 'error') {
       const error = payload.error
-      if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-        throw new Error(error.message.slice(0, MAX_OPENAI_STREAM_ERROR_FIELD_CHARS))
+      const message = readErrorField(error, 'message')
+      if (typeof message === 'string') {
+        throw new Error(message.slice(0, MAX_OPENAI_STREAM_ERROR_FIELD_CHARS))
       }
     }
 
@@ -159,6 +162,7 @@ async function consumeAnthropicEventStream(
       const { done, value } = await raceWithAbort(reader.read(), signal)
       throwIfStreamAborted()
       if (done) break
+      responseBytesRead = addAiStreamResponseChunkBytes(responseBytesRead, value)
       buffer = appendOpenAIStreamBuffer(buffer, decoder.decode(value, { stream: true }))
       const lines = buffer.split(/\r?\n/)
       buffer = lines.pop() || ''

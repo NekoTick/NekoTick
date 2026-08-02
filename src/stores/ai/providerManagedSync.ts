@@ -8,6 +8,7 @@ import { useAccountSessionStore } from '../accountSession'
 import { useManagedAIStore } from '../useManagedAIStore'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import {
+  areModelExecutionContextsEqual,
   areModelsEqual,
   ensureManagedProvider,
   replaceProviderModels,
@@ -74,12 +75,17 @@ async function syncManagedProviderModels(
     nextProviders.some((provider, index) => ai.providers[index]?.id !== provider.id)
   const modelsChanged = !areModelsEqual(ai.models, nextModels)
   const selectedModelChanged = ai.selectedModelId !== selectedModelId
+  const selectedModelContextChanged = !areModelExecutionContextsEqual(
+    ai.models.find((model) => model.id === ai.selectedModelId),
+    nextModels.find((model) => model.id === selectedModelId),
+  )
 
   if (providersChanged || modelsChanged || selectedModelChanged) {
     store.updateAIData({
       providers: nextProviders,
       models: nextModels,
       selectedModelId,
+      ...(selectedModelChanged || selectedModelContextChanged ? { computerUseEnabled: false } : {}),
     }, options.suppressPersist)
   }
 

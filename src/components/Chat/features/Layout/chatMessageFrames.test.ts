@@ -64,6 +64,23 @@ describe('chatMessageFrames', () => {
     expect(layout.endOffset).toBe(CHAT_MESSAGE_LIST_TOP_PADDING + 120 + CHAT_MESSAGE_LIST_GAP + 180);
   });
 
+  it('builds layouts for legacy messages without version metadata', () => {
+    const legacyMessage = {
+      id: 'legacy-assistant',
+      role: 'assistant',
+      content: 'legacy response',
+      modelId: 'model-a',
+      timestamp: 1,
+    } as unknown as ChatMessage;
+
+    const layout = buildChatMessageFrameLayout([legacyMessage], {
+      containerWidth: 900,
+      isSessionActive: false,
+    });
+
+    expect(layout.items[0]).toMatchObject({ id: 'legacy-assistant', index: 0 });
+  });
+
   it('reuses cached estimated layouts for the same session and width', () => {
     const messages = [
       createMessage('u1', 'user', 'hello'),
@@ -461,6 +478,34 @@ describe('chatMessageFrames', () => {
     });
 
     expect(restored.has('u1')).toBe(false);
+  });
+
+  it('invalidates cached measured heights when a version is replaced at the same index', () => {
+    const previous = createMessage('a-replaced-version', 'assistant', '');
+    rememberMeasuredChatMessageHeight(previous, {
+      cacheKey: 'chat-replaced-version',
+      containerWidth: 900,
+      isSessionActive: true,
+      height: 520,
+    });
+
+    const replacement = {
+      ...previous,
+      versions: [{
+        content: '',
+        createdAt: previous.timestamp + 1,
+        kind: 'regeneration' as const,
+        subsequentMessages: [],
+      }],
+    };
+    const restored = restoreCachedMeasuredHeights([replacement], {
+      activeMessageId: replacement.id,
+      cacheKey: 'chat-replaced-version',
+      containerWidth: 900,
+      isSessionActive: true,
+    });
+
+    expect(restored.has(replacement.id)).toBe(false);
   });
 
   it('does not restore measured heights across idle and active session states', () => {

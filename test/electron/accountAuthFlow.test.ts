@@ -404,6 +404,7 @@ describe('desktop account auth flow', () => {
       email: 'vla@example.com',
       locale: null,
     });
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('error');
   });
 
   it('uses the injected Electron fetch implementation for desktop email requests', async () => {
@@ -541,6 +542,7 @@ describe('desktop account auth flow', () => {
     await expect(handlers.get('desktop:account:disconnect')?.({})).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('error');
     expect(mocks.clearStoredAccountCredentialsIfCurrent).toHaveBeenCalledWith('nts_old_session');
     expect(mocks.clearStoredAccountCredentials).not.toHaveBeenCalled();
   });

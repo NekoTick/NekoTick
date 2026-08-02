@@ -1,16 +1,75 @@
 const MAX_MANAGED_STREAM_LINE_CHARS = 1024 * 1024;
 const MAX_MANAGED_ERROR_BODY_BYTES = 64 * 1024;
+const MAX_MANAGED_STREAM_ERROR_CODE_CHARS = 512;
+const MANAGED_STREAM_ERROR_CODE_PATTERN = /^[A-Za-z0-9._:-]+$/;
+const MANAGED_PUBLIC_ERROR_MESSAGES = new Map([
+  ['points_exhausted', 'MANAGED_QUOTA_EXHAUSTED'],
+  ['inactive_points', 'MANAGED_QUOTA_EXHAUSTED'],
+  ['insufficient_points', 'MANAGED_QUOTA_EXHAUSTED'],
+  ['upstream_rate_limited', 'UPSTREAM_RATE_LIMITED'],
+  ['upstream_unavailable', 'UPSTREAM_UNAVAILABLE'],
+  ['unsupported_message_content', 'UNSUPPORTED_MODEL_INPUT'],
+  ['unsupported_model_input', 'UNSUPPORTED_MODEL_INPUT'],
+  ['unsupported_tool_calling', 'UNSUPPORTED_TOOL_CALLING'],
+  ['invalid_request', 'INVALID_REQUEST'],
+]);
+const SAFE_MANAGED_JSON_ERROR_MESSAGES = new Set([
+  ...MANAGED_PUBLIC_ERROR_MESSAGES.values(),
+  'Invalid managed JSON request body.',
+  'Managed API request timed out.',
+  'Managed JSON request body is too large.',
+  'vlaina session is still activating',
+  'vlaina session is temporarily unavailable',
+  'vlaina sign-in required',
+]);
 export const MANAGED_BACKEND_STREAM_ERROR = Symbol('managedBackendStreamError');
+
+export function normalizeManagedStreamErrorCode(value) {
+  if (typeof value !== 'string' || value.length > MAX_MANAGED_STREAM_ERROR_CODE_CHARS) {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized && MANAGED_STREAM_ERROR_CODE_PATTERN.test(normalized) ? normalized : null;
+}
+
+export function normalizeManagedPublicErrorCode(value) {
+  const normalized = normalizeManagedStreamErrorCode(value)?.toLowerCase() ?? null;
+  return normalized && MANAGED_PUBLIC_ERROR_MESSAGES.has(normalized) ? normalized : null;
+}
+
+function readManagedErrorProperty(error, key) {
+  if (!error || typeof error !== 'object') return undefined;
+  try {
+    return error[key];
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeManagedErrorStatus(value) {
+  return Number.isInteger(value) && value >= 100 && value <= 599 ? value : null;
+}
+
+function createManagedJsonError(message, statusCode, errorCode) {
+  const error = new Error(message);
+  if (statusCode !== null) {
+    error.statusCode = statusCode;
+  }
+  if (errorCode) {
+    error.errorCode = errorCode;
+  }
+  return error;
+}
 
 export function extractManagedPayloadErrorCode(payload) {
   if (typeof payload?.errorCode === 'string' && payload.errorCode.trim()) {
-    return payload.errorCode.trim();
+    return normalizeManagedPublicErrorCode(payload.errorCode);
   }
   if (typeof payload?.error?.code === 'string' && payload.error.code.trim()) {
-    return payload.error.code.trim();
+    return normalizeManagedPublicErrorCode(payload.error.code);
   }
   if (typeof payload?.error?.type === 'string' && payload.error.type.trim()) {
-    return payload.error.type.trim();
+    return normalizeManagedPublicErrorCode(payload.error.type);
   }
   return null;
 }
@@ -18,31 +77,45 @@ export function extractManagedPayloadErrorCode(payload) {
 export function normalizeManagedErrorPayload(payload, status) {
   const fallback = `Managed stream failed: HTTP ${status}`;
   const errorCode = extractManagedPayloadErrorCode(payload);
-  const normalizedCode = typeof errorCode === 'string' ? errorCode.toLowerCase() : '';
-  let message = fallback;
-  if (normalizedCode === 'points_exhausted' || normalizedCode === 'inactive_points' || normalizedCode === 'insufficient_points') {
-    message = 'MANAGED_QUOTA_EXHAUSTED';
-  } else if (normalizedCode === 'upstream_rate_limited') {
-    message = 'UPSTREAM_RATE_LIMITED';
-  } else if (normalizedCode === 'upstream_unavailable') {
-    message = 'UPSTREAM_UNAVAILABLE';
-  } else if (normalizedCode === 'unsupported_message_content' || normalizedCode === 'unsupported_model_input') {
-    message = 'UNSUPPORTED_MODEL_INPUT';
-  } else if (normalizedCode === 'unsupported_tool_calling') {
-    message = 'UNSUPPORTED_TOOL_CALLING';
-  } else if (normalizedCode === 'invalid_request') {
-    message = 'INVALID_REQUEST';
-  }
+  const message = errorCode ? MANAGED_PUBLIC_ERROR_MESSAGES.get(errorCode) : fallback;
 
   return { message, statusCode: status, errorCode };
 }
 
+export function sanitizeManagedJsonIpcError(error) {
+  if (readManagedErrorProperty(error, 'name') === 'AbortError') {
+    return createAbortError();
+  }
+
+  const message = readManagedErrorProperty(error, 'message');
+  const statusCode = normalizeManagedErrorStatus(
+    readManagedErrorProperty(error, 'statusCode') ?? readManagedErrorProperty(error, 'status'),
+  );
+  const errorCode = normalizeManagedPublicErrorCode(readManagedErrorProperty(error, 'errorCode'));
+  if (errorCode) {
+    return createManagedJsonError(
+      MANAGED_PUBLIC_ERROR_MESSAGES.get(errorCode),
+      statusCode,
+      errorCode,
+    );
+  }
+  if (typeof message === 'string' && SAFE_MANAGED_JSON_ERROR_MESSAGES.has(message)) {
+    return createManagedJsonError(message, statusCode, null);
+  }
+
+  return createManagedJsonError(
+    statusCode === null
+      ? 'Managed API request failed.'
+      : `Managed API request failed: HTTP ${statusCode}`,
+    statusCode,
+    null,
+  );
+}
+
 export function createManagedBackendStreamError(payload) {
-  const message = typeof payload?.error?.message === 'string'
-    ? payload.error.message
-    : 'Managed stream failed';
-  const error = new Error(message);
-  const errorCode = extractManagedPayloadErrorCode(payload);
+  const normalized = normalizeManagedErrorPayload(payload, 502);
+  const error = new Error(normalized.message);
+  const errorCode = normalized.errorCode;
   if (errorCode) {
     error.errorCode = errorCode;
   }
@@ -61,7 +134,7 @@ export function createManagedStreamTimeoutError() {
 }
 
 export function isManagedStreamTimeoutError(error) {
-  return !!error && typeof error === 'object' && error.errorCode === 'managed_stream_timeout';
+  return readManagedErrorProperty(error, 'errorCode') === 'managed_stream_timeout';
 }
 
 export function throwIfAborted(signal) {

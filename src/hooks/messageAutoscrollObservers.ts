@@ -29,12 +29,11 @@ export function useMessageAutoscrollObservers({
   pendingScrollToCurrentTurnRef,
   programmaticScrollTopRef,
   resizeObserverRef,
+  restoreCurrentTurnAnchorIfOutputFitsRef,
   scheduleSpacerHeightUpdate,
   scrollActiveOutputIfNeeded,
   scrollActiveOutputIfNeededRef,
-  scrollCurrentTurnIntoView,
   setProgrammaticScrollTop,
-  updateSpacerHeightRef,
   userDetachedFromCurrentTurnRef,
 }: {
   active: boolean;
@@ -61,12 +60,11 @@ export function useMessageAutoscrollObservers({
   pendingScrollToCurrentTurnRef: MutableValue<boolean>;
   programmaticScrollTopRef: MutableValue<number | null>;
   resizeObserverRef: MutableValue<ResizeObserver | null>;
+  restoreCurrentTurnAnchorIfOutputFitsRef: MutableValue<() => boolean>;
   scheduleSpacerHeightUpdate: () => void;
   scrollActiveOutputIfNeeded: () => void;
   scrollActiveOutputIfNeededRef: MutableValue<() => void>;
-  scrollCurrentTurnIntoView: () => "estimated" | "rendered" | false;
   setProgrammaticScrollTop: (container: HTMLElement, nextScrollTop: number) => number;
-  updateSpacerHeightRef: MutableValue<() => void>;
   userDetachedFromCurrentTurnRef: MutableValue<boolean>;
 }): void {
   useEffect(() => {
@@ -135,12 +133,8 @@ export function useMessageAutoscrollObservers({
         if (
           isCurrentTurnAnchoredRef.current &&
           !userDetachedFromCurrentTurnRef.current &&
-          !hasVisibleAssistantOutput
+          restoreCurrentTurnAnchorIfOutputFitsRef.current()
         ) {
-          requestAnimationFrame(() => {
-            updateSpacerHeightRef.current();
-            scrollCurrentTurnIntoView();
-          });
           return;
         }
         scrollActiveOutputIfNeededRef.current();
@@ -160,10 +154,9 @@ export function useMessageAutoscrollObservers({
     isStreamingRef,
     messages.length,
     observedContentRef,
+    restoreCurrentTurnAnchorIfOutputFitsRef,
     scheduleSpacerHeightUpdate,
     scrollActiveOutputIfNeededRef,
-    scrollCurrentTurnIntoView,
-    updateSpacerHeightRef,
     userDetachedFromCurrentTurnRef,
   ]);
 

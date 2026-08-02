@@ -20,10 +20,11 @@ describe('LocalSearchProvider', () => {
     const requestedHosts = [];
     let active = 0;
     let maxActive = 0;
-    const fetchImpl = vi.fn(async (url) => {
+    const fetchImpl = vi.fn(async (url, options) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
       requestedHosts.push(new URL(url).hostname);
+      expect(options.redirect).toBe('error');
       await Promise.resolve();
       active -= 1;
       if (url.includes('google.com')) return htmlResponse('');

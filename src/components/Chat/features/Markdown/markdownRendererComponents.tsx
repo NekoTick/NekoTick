@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import { normalizeRenderableImageSrc } from '@/components/common/markdown/imagePolicy';
 import { normalizeChatMessageImageSource } from '@/lib/ai/chatImageSourcePolicy';
 import { ReadOnlyMermaidBlock } from '@/components/common/markdown/ReadOnlyMermaidBlock';
-import { ReadOnlyVideoBlock } from '@/components/common/markdown/ReadOnlyVideoBlock';
 import { isMermaidFenceLanguage } from '@/components/common/markdown/mermaidLanguage';
 import { parseVideoUrl } from '@/lib/markdown/videoUrl';
 import { translate } from '@/lib/i18n';
@@ -12,6 +11,7 @@ import { resolveCompactedChatImageSrc } from './chatInlineImageTokens';
 import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/components/Chat/common/messageClipboard';
 import { MarkdownImage, type ImageGalleryItem } from './MarkdownImage';
 import { ChatRemoteIframe } from './ChatRemoteIframe';
+import { ChatRemoteVideoBlock } from './ChatRemoteVideoBlock';
 
 const ReadOnlyCodeBlock = React.lazy(async () => {
   const mod = await import('@/components/common/code-block');
@@ -197,6 +197,9 @@ export function createMarkdownComponents({
   let codeBlockRenderIndex = codeBlockIndexOffset;
 
   return {
+    audio() {
+      return null;
+    },
     a({ href, children, ...props }: MarkdownAnchorProps) {
       if (isInternalHashHref(href)) {
         return (
@@ -289,7 +292,7 @@ export function createMarkdownComponents({
 
       const resolvedSrc = resolveCompactedChatImageSrc(normalizedRawSrc, imageSrcByToken);
       if (parseVideoUrl(resolvedSrc)) {
-        return <ReadOnlyVideoBlock src={resolvedSrc} title={typeof alt === 'string' ? alt : ''} />;
+        return <ChatRemoteVideoBlock src={resolvedSrc} title={typeof alt === 'string' ? alt : ''} />;
       }
 
       const safeSrc = normalizeChatMessageImageSource(resolvedSrc);
@@ -317,6 +320,15 @@ export function createMarkdownComponents({
           currentImageId={currentImageId}
         />
       );
+    },
+    source() {
+      return null;
+    },
+    track() {
+      return null;
+    },
+    video() {
+      return null;
     },
   };
 }

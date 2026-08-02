@@ -203,4 +203,23 @@ describe('web search tool runner', () => {
       signal: controller.signal,
     })).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('contains hostile page-read error fields inside a generic tool result', async () => {
+    const client = createClient();
+    const session = createWebSearchExecutionSession();
+    await runWebSearchToolCall({
+      name: 'web_search',
+      arguments: JSON.stringify({ query: 'example' }),
+    }, { client, session });
+    const error = Object.defineProperties({}, {
+      code: { get: () => { throw new Error('hostile code getter'); } },
+      name: { get: () => { throw new Error('hostile name getter'); } },
+    });
+    vi.mocked(client.readWebPage).mockRejectedValueOnce(error);
+
+    await expect(runWebSearchToolCall({
+      name: 'read_web_page',
+      arguments: JSON.stringify({ url: RESULT_URL }),
+    }, { client, session })).resolves.toContain('Unable to read this page.');
+  });
 });

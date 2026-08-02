@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UnifiedData } from '@/lib/storage/unifiedStorage';
+import { requestManager } from '@/lib/ai/requestManager';
 
 const mocks = vi.hoisted(() => ({
   loadUnifiedData: vi.fn(),
@@ -133,13 +134,23 @@ describe('updateAIData', () => {
     expect(mocks.saveUnifiedData).not.toHaveBeenCalled();
   });
 
-  it('persists the desktop computer operation preference with session settings', () => {
+  it('keeps desktop computer permission runtime-only', () => {
     useUnifiedStore.getState().updateAIData({ computerUseEnabled: true });
 
     expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(true);
-    expect(mocks.saveUnifiedData).toHaveBeenCalledWith(expect.objectContaining({
-      ai: expect.objectContaining({ computerUseEnabled: true }),
-    }), { ai: { sessions: true, providers: undefined } });
+    expect(mocks.saveUnifiedData).not.toHaveBeenCalled();
+  });
+
+  it('aborts only computer-use requests when execution permission is revoked', () => {
+    useUnifiedStore.getState().updateAIData({ computerUseEnabled: true });
+    const computerController = requestManager.start('computer-session', { computerUse: true });
+    const regularController = requestManager.start('regular-session');
+
+    useUnifiedStore.getState().updateAIData({ computerUseEnabled: false });
+
+    expect(computerController.signal.aborted).toBe(true);
+    expect(regularController.signal.aborted).toBe(false);
+    requestManager.abort('regular-session');
   });
 
   it('persists custom icons with an app-only patch', () => {

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
     aiProvider: {
       startRequest: ReturnType<typeof vi.fn>;
       cancelRequest: ReturnType<typeof vi.fn>;
+      acknowledgeRequestChunk: ReturnType<typeof vi.fn>;
       onRequestChunk: ReturnType<typeof vi.fn>;
       onRequestDone: ReturnType<typeof vi.fn>;
       onRequestError: ReturnType<typeof vi.fn>;
@@ -13,8 +14,9 @@ const mocks = vi.hoisted(() => ({
   bridge: {
     aiProvider: {
       startRequest: vi.fn(),
-      cancelRequest: vi.fn(async () => undefined),
-      onRequestChunk: vi.fn((_requestId: string, _callback: (chunk: number[]) => void) => vi.fn()),
+      cancelRequest: vi.fn(async () => true),
+      acknowledgeRequestChunk: vi.fn(async () => true),
+      onRequestChunk: vi.fn((_requestId: string, _callback: (chunk: Uint8Array, sequence: number) => void) => vi.fn()),
       onRequestDone: vi.fn((_requestId: string, _callback: () => void) => vi.fn()),
       onRequestError: vi.fn((_requestId: string, _callback: (payload: { message: string }) => void) => vi.fn()),
     },
@@ -49,6 +51,7 @@ describe('providerFetch', () => {
     mocks.bridgeValue = mocks.bridge;
     mocks.bridge.aiProvider.startRequest.mockReset();
     mocks.bridge.aiProvider.cancelRequest.mockClear();
+    mocks.bridge.aiProvider.acknowledgeRequestChunk.mockClear();
     mocks.bridge.aiProvider.onRequestChunk.mockClear();
     mocks.bridge.aiProvider.onRequestDone.mockClear();
     mocks.bridge.aiProvider.onRequestError.mockClear();
@@ -95,6 +98,79 @@ describe('providerFetch', () => {
     });
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mocks.bridge.aiProvider.cancelRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns an empty desktop response when done arrives before metadata', async () => {
+    const sendDoneRef: { current: (() => void) | null } = { current: null };
+    const cleanupChunk = vi.fn();
+    const cleanupDone = vi.fn();
+    const cleanupError = vi.fn();
+    let resolveMetadata: ((metadata: {
+      status: number;
+      statusText: string;
+      headers: Array<[string, string]>;
+    }) => void) | undefined;
+    mocks.bridge.aiProvider.startRequest.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveMetadata = resolve;
+    }));
+    mocks.bridge.aiProvider.onRequestChunk.mockImplementationOnce(() => cleanupChunk);
+    mocks.bridge.aiProvider.onRequestDone.mockImplementationOnce((_requestId, callback) => {
+      sendDoneRef.current = callback;
+      return cleanupDone;
+    });
+    mocks.bridge.aiProvider.onRequestError.mockImplementationOnce(() => cleanupError);
+
+    const request = providerFetch('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+    });
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.startRequest).toHaveBeenCalledTimes(1));
+    sendDoneRef.current?.();
+    resolveMetadata?.({ status: 204, statusText: 'No Content', headers: [] });
+
+    const response = await request;
+    expect(response.status).toBe(204);
+    await expect(response.text()).resolves.toBe('');
+    expect(cleanupChunk).toHaveBeenCalledTimes(1);
+    expect(cleanupDone).toHaveBeenCalledTimes(1);
+    expect(cleanupError).toHaveBeenCalledTimes(1);
+    expect(mocks.bridge.aiProvider.cancelRequest).not.toHaveBeenCalled();
+  });
+
+  it('rejects when cancelled after done arrives but metadata remains pending', async () => {
+    const controller = new AbortController();
+    const sendDoneRef: { current: (() => void) | null } = { current: null };
+    mocks.bridge.aiProvider.startRequest.mockImplementationOnce(() => new Promise(() => undefined));
+    mocks.bridge.aiProvider.onRequestDone.mockImplementationOnce((_requestId, callback) => {
+      sendDoneRef.current = callback;
+      return vi.fn();
+    });
+
+    const request = providerFetch('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+    });
+    request.catch(() => undefined);
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.startRequest).toHaveBeenCalledTimes(1));
+
+    sendDoneRef.current?.();
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(mocks.bridge.aiProvider.cancelRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels desktop requests when response construction rejects invalid metadata', async () => {
+    mocks.bridge.aiProvider.startRequest.mockResolvedValueOnce({
+      status: 99,
+      statusText: 'Invalid',
+      headers: [],
+    });
+
+    await expect(providerFetch('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+    })).rejects.toThrow();
+
     expect(mocks.bridge.aiProvider.cancelRequest).toHaveBeenCalledTimes(1);
   });
 
@@ -252,7 +328,38 @@ describe('providerFetch', () => {
     await expect(providerFetch(hostileUrl as unknown as string, {
       method: 'GET',
     })).rejects.toThrow('AI provider request URL is not supported.');
+    await expect(providerFetch('http://api.example.com/v1/models', {
+      method: 'GET',
+    })).rejects.toThrow('AI provider request URL must use HTTPS unless it targets the local computer.');
 
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows loopback HTTP providers and disables browser redirects', async () => {
+    mocks.bridgeValue = null;
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(providerFetch('http://localhost:11434/v1/models', {
+      method: 'GET',
+    })).resolves.toMatchObject({ status: 204 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:11434/v1/models',
+      expect.objectContaining({ redirect: 'error' }),
+    );
+  });
+
+  it.each([
+    'http://0.0.0.0:11434/v1/models',
+    'http://[::]:11434/v1/models',
+  ])('rejects unspecified-address HTTP providers before fetch: %s', async (url) => {
+    mocks.bridgeValue = null;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(providerFetch(url, { method: 'GET' }))
+      .rejects.toThrow('AI provider request URL must use HTTPS unless it targets the local computer.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -330,18 +437,21 @@ describe('providerFetch', () => {
 
   it('does not retry web POST provider requests', async () => {
     mocks.bridgeValue = null;
-    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed with fake-query-secret'));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(providerFetch('https://api.example.com/v1/images/generations', {
+    const request = providerFetch('https://api.example.com/v1/images/generations?token=fake-query-secret', {
       method: 'POST',
       body: JSON.stringify({ prompt: 'test' }),
-    })).rejects.toThrow('fetch failed');
+    });
+
+    await expect(request).rejects.toThrow('AI_PROVIDER_CONNECTION_FAILED');
+    await expect(request).rejects.not.toThrow('fake-query-secret');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('preserves desktop provider UTF-8 bytes split across IPC chunks', async () => {
-    const sendChunkRef: { current: ((chunk: number[]) => void) | null } = { current: null };
+    const sendChunkRef: { current: ((chunk: Uint8Array, sequence: number) => void) | null } = { current: null };
     const sendDoneRef: { current: (() => void) | null } = { current: null };
     const cleanupChunk = vi.fn();
     const cleanupDone = vi.fn();
@@ -373,11 +483,16 @@ describe('providerFetch', () => {
       method: 'POST',
     });
 
-    sendChunkRef.current?.(Array.from(responseBytes.subarray(0, emojiStart + 1)));
-    sendChunkRef.current?.(Array.from(responseBytes.subarray(emojiStart + 1)));
+    const responseTextPromise = response.text();
+    sendChunkRef.current?.(responseBytes.subarray(0, emojiStart + 1), 0);
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.acknowledgeRequestChunk)
+      .toHaveBeenCalledWith(expect.any(String), 0));
+    sendChunkRef.current?.(responseBytes.subarray(emojiStart + 1), 1);
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.acknowledgeRequestChunk)
+      .toHaveBeenCalledWith(expect.any(String), 1));
     sendDoneRef.current?.();
 
-    await expect(response.text()).resolves.toBe(responseText);
+    await expect(responseTextPromise).resolves.toBe(responseText);
     expect(cleanupChunk).toHaveBeenCalledTimes(1);
     expect(cleanupDone).toHaveBeenCalledTimes(1);
     expect(cleanupError).toHaveBeenCalledTimes(1);
@@ -410,9 +525,31 @@ describe('providerFetch', () => {
     expect(mocks.bridge.aiProvider.cancelRequest).not.toHaveBeenCalled();
   });
 
+  it('rejects safely when a desktop stream error payload has a throwing message getter', async () => {
+    const sendErrorRef: { current: ((payload: { message: string }) => void) | null } = { current: null };
+    mocks.bridge.aiProvider.startRequest.mockImplementation(() => new Promise(() => undefined));
+    mocks.bridge.aiProvider.onRequestError.mockImplementationOnce((_requestId, callback) => {
+      sendErrorRef.current = callback;
+      return vi.fn();
+    });
+    const payload = Object.defineProperty({}, 'message', {
+      get() {
+        throw new Error('hostile getter');
+      },
+    });
+
+    const request = providerFetch('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+    });
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.startRequest).toHaveBeenCalledTimes(1));
+
+    expect(() => sendErrorRef.current?.(payload as { message: string })).not.toThrow();
+    await expect(request).rejects.toThrow('AI provider request failed');
+  });
+
   it('ignores desktop provider chunks that arrive after the request is aborted', async () => {
     const controller = new AbortController();
-    const sendChunkRef: { current: ((chunk: number[]) => void) | null } = { current: null };
+    const sendChunkRef: { current: ((chunk: Uint8Array, sequence: number) => void) | null } = { current: null };
     const cleanupChunk = vi.fn();
     const cleanupDone = vi.fn();
     const cleanupError = vi.fn();
@@ -434,7 +571,7 @@ describe('providerFetch', () => {
     });
 
     controller.abort();
-    expect(() => sendChunkRef.current?.([65])).not.toThrow();
+    expect(() => sendChunkRef.current?.(new Uint8Array([65]), 0)).not.toThrow();
     await expect(response.text()).rejects.toMatchObject({ name: 'AbortError' });
     expect(cleanupChunk).toHaveBeenCalledTimes(1);
     expect(cleanupDone).toHaveBeenCalledTimes(1);
@@ -443,7 +580,7 @@ describe('providerFetch', () => {
   });
 
   it('cancels desktop provider streams when bridge response bytes exceed the limit', async () => {
-    const sendChunkRef: { current: ((chunk: number[]) => void) | null } = { current: null };
+    const sendChunkRef: { current: ((chunk: Uint8Array, sequence: number) => void) | null } = { current: null };
     const cleanupChunk = vi.fn();
     const cleanupDone = vi.fn();
     const cleanupError = vi.fn();
@@ -463,12 +600,41 @@ describe('providerFetch', () => {
       method: 'POST',
     });
 
-    sendChunkRef.current?.(new Array(MAX_DESKTOP_PROVIDER_RESPONSE_BYTES + 1));
+    sendChunkRef.current?.(new Uint8Array(MAX_DESKTOP_PROVIDER_RESPONSE_BYTES + 1), 0);
 
     await expect(response.text()).rejects.toThrow('Desktop AI provider response body is too large.');
     expect(cleanupChunk).toHaveBeenCalledTimes(1);
     expect(cleanupDone).toHaveBeenCalledTimes(1);
     expect(cleanupError).toHaveBeenCalledTimes(1);
     expect(mocks.bridge.aiProvider.cancelRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('acknowledges desktop chunks only when the response stream can accept them', async () => {
+    const sendChunkRef: { current: ((chunk: Uint8Array, sequence: number) => void) | null } = { current: null };
+    mocks.bridge.aiProvider.startRequest.mockResolvedValueOnce({
+      status: 200,
+      statusText: 'OK',
+      headers: [],
+    });
+    mocks.bridge.aiProvider.onRequestChunk.mockImplementationOnce((_requestId, callback) => {
+      sendChunkRef.current = callback;
+      return vi.fn();
+    });
+
+    const response = await providerFetch('https://api.example.com/v1/chat/completions', {
+      method: 'POST',
+    });
+
+    sendChunkRef.current?.(new Uint8Array([1]), 10);
+    sendChunkRef.current?.(new Uint8Array([2]), 11);
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.acknowledgeRequestChunk)
+      .toHaveBeenCalledWith(expect.any(String), 10));
+    expect(mocks.bridge.aiProvider.acknowledgeRequestChunk).toHaveBeenCalledTimes(1);
+
+    const reader = response.body?.getReader();
+    await expect(reader?.read()).resolves.toMatchObject({ value: new Uint8Array([1]), done: false });
+    await vi.waitFor(() => expect(mocks.bridge.aiProvider.acknowledgeRequestChunk)
+      .toHaveBeenCalledWith(expect.any(String), 11));
+    await expect(reader?.read()).resolves.toMatchObject({ value: new Uint8Array([2]), done: false });
   });
 });

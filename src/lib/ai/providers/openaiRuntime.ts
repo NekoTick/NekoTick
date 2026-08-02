@@ -1,31 +1,8 @@
 import type { ApiTranscriptMessage, ChatSendOptions } from '../types'
-import { createAIError, parseAPIError } from '../errors'
+import { isErrorNamed } from '../errorClassification'
+import { createAIError } from '../errors'
 import { AIErrorType } from '../types'
 import { readBoundedProviderJsonResponse, readBoundedProviderResponseText } from './boundedResponseText'
-
-const MAX_PROVIDER_ERROR_SUMMARY_CHARS = 8192
-
-export function summarizeError(error: unknown): string {
-  let message = ''
-  if (error instanceof Error) {
-    message = error.message
-  } else if (error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string') {
-    message = (error as { message: string }).message
-  } else {
-    switch (typeof error) {
-      case 'string':
-      case 'number':
-      case 'boolean':
-      case 'bigint':
-      case 'symbol':
-        message = String(error)
-        break
-      default:
-        message = ''
-    }
-  }
-  return (message || 'Unknown error').slice(0, MAX_PROVIDER_ERROR_SUMMARY_CHARS)
-}
 
 function isLikelyHtmlErrorContent(content: string): boolean {
   const normalized = content.slice(0, 2000).trim().toLowerCase()
@@ -51,8 +28,7 @@ export function rejectHtmlErrorContent(content: string): string {
 }
 
 export function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError'
+  return isErrorNamed(error, 'AbortError')
 }
 
 export function createAbortError(): DOMException {
@@ -103,45 +79,4 @@ export async function readResponseTextOrFallback(response: Response, signal?: Ab
 
 export async function readResponseJson<T>(response: Response, signal?: AbortSignal): Promise<T> {
   return await readBoundedProviderJsonResponse<T>(response, signal)
-}
-
-export function isTransientHttpStatus(status: number): boolean {
-  return status === 408 || status === 500 || status === 502 || status === 503 || status === 504
-}
-
-export function waitForProviderRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
-  if (delayMs <= 0) return Promise.resolve()
-  if (signal?.aborted) {
-    return Promise.reject(new DOMException('Aborted', 'AbortError'))
-  }
-
-  return new Promise((resolve, reject) => {
-    let timer: ReturnType<typeof setTimeout>
-    const abort = () => {
-      clearTimeout(timer)
-      reject(new DOMException('Aborted', 'AbortError'))
-    }
-    const finish = () => {
-      signal?.removeEventListener('abort', abort)
-      resolve()
-    }
-
-    signal?.addEventListener('abort', abort, { once: true })
-    timer = setTimeout(finish, delayMs)
-  })
-}
-
-export function hasHttpStatus(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-  return typeof (error as { statusCode?: unknown }).statusCode === 'number'
-    || typeof (error as { status?: unknown }).status === 'number'
-}
-
-export function throwParsedOpenAIError(error: unknown, url: string): never {
-  const parsedError = parseAPIError(error)
-  const detail = `OpenAI-compatible chat request to ${url} failed: ${summarizeError(error)}`
-  if (parsedError.type === AIErrorType.NETWORK_ERROR) {
-    throw createAIError(parsedError.type, parsedError.message, detail, parsedError.statusCode)
-  }
-  throw parsedError
 }

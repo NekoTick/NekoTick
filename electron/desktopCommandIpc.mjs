@@ -1,19 +1,25 @@
 import { stat } from 'node:fs/promises';
 import {
+  assertDesktopCommandAllowed,
   buildDesktopCommandEnvironment,
-  canAlwaysAllowDesktopCommand,
-  getDesktopCommandRisk,
   getDesktopCommandShell,
   normalizeDesktopCommandRequest,
 } from './desktopCommandPolicy.mjs';
-import { createDesktopCommandApprovalStore } from './desktopCommandApprovalStore.mjs';
-import { runDesktopCommandProcess } from './desktopCommandProcess.mjs';
+import {
+  assertDesktopCommandSandboxAvailable,
+  runDesktopCommandProcess,
+} from './desktopCommandProcess.mjs';
 import {
   captureDesktopCommandSnapshot,
   compareDesktopCommandSnapshots,
 } from './desktopCommandChanges.mjs';
+import { assertAuthorizedFsPath } from './fsAccess.mjs';
 import {
+  isProtectedCodexConfigPath,
+  isProtectedDesktopCommandWorkspacePath,
+  isProtectedDesktopCommandWorkspaceRealPath,
   isProtectedFsAccessPath,
+  isSameOrChildPath,
   resolveRealFsAccessPath,
 } from './fsAccessPathPolicy.mjs';
 
@@ -36,7 +42,7 @@ function safeSend(sender, channel, payload) {
   }
 }
 
-function requestApproval(active, channel, request, canAlwaysAllow) {
+function requestApproval(active, channel, request) {
   return new Promise((resolve) => {
     if (active.controller.signal.aborted) {
       resolve('cancel');
@@ -53,7 +59,6 @@ function requestApproval(active, channel, request, canAlwaysAllow) {
     };
     const abort = () => finish('cancel');
     active.approval = {
-      canAlwaysAllow,
       respond: finish,
     };
     active.controller.signal.addEventListener('abort', abort, { once: true });
@@ -61,10 +66,9 @@ function requestApproval(active, channel, request, canAlwaysAllow) {
       type: 'approval_requested',
       command: request.command,
       cwd: request.cwd,
+      workspaceRoot: request.workspaceRoot,
       purpose: request.purpose,
       timeoutSeconds: Math.round(request.timeoutMs / 1000),
-      risk: getDesktopCommandRisk(request.command),
-      canAlwaysAllow,
     })) {
       finish('cancel');
     }
@@ -79,37 +83,25 @@ function removeActiveCommand(requestId, controller) {
 
 export function registerDesktopCommandIpc({
   app,
-  approvalStore: approvalStoreOverride,
   handleIpc,
   requireSafeIpcRequestId,
   isProtectedPath = isProtectedFsAccessPath,
   runProcess = runDesktopCommandProcess,
   captureSnapshot = captureDesktopCommandSnapshot,
   compareSnapshots = compareDesktopCommandSnapshots,
+  assertSandboxAvailable = assertDesktopCommandSandboxAvailable,
+  assertWorkspaceAuthorized = assertAuthorizedFsPath,
+  isProtectedWorkspace,
 }) {
-  const approvalStore = approvalStoreOverride ?? createDesktopCommandApprovalStore({ app });
   app.on?.('before-quit', () => abortActiveDesktopCommands('app_quit'));
-
-  handleIpc('desktop:computer-command:approvals:list', async () => approvalStore.list());
-
-  handleIpc('desktop:computer-command:approvals:revoke', async (_event, rawApprovalId) => {
-    const approvalId = requireSafeIpcRequestId(rawApprovalId, 'Computer command approval id');
-    return approvalStore.revoke(approvalId);
-  });
-
-  handleIpc('desktop:computer-command:approvals:clear', async () => approvalStore.clear());
 
   handleIpc('desktop:computer-command:approve', async (event, rawRequestId, decision) => {
     const requestId = requireSafeIpcRequestId(rawRequestId, 'Computer command request id');
-    if (!['run_once', 'always', 'cancel'].includes(decision)) {
+    if (decision !== 'run_once' && decision !== 'cancel') {
       throw new Error('Invalid computer command approval decision.');
     }
     const active = activeDesktopCommands.get(requestId);
     if (!active || active.sender !== event.sender || !active.approval) return false;
-    if (decision === 'always' && !active.approval.canAlwaysAllow) {
-      active.approval.respond('cancel');
-      return false;
-    }
     return active.approval.respond(decision);
   });
 
@@ -122,7 +114,22 @@ export function registerDesktopCommandIpc({
       throw new Error('Too many computer commands are active.');
     }
 
-    const normalizedRequest = normalizeDesktopCommandRequest(rawRequest, app.getPath('home'));
+    const normalizedRequest = normalizeDesktopCommandRequest(rawRequest);
+    assertDesktopCommandAllowed(normalizedRequest.command);
+    const sandboxExecutable = assertSandboxAvailable();
+    const protectedWorkspaceOptions = {
+      homePath: app.getPath('home'),
+      userDataPath: app.getPath('userData'),
+    };
+    const workspaceIsProtected = isProtectedWorkspace ?? ((candidatePath) => (
+      isProtectedDesktopCommandWorkspacePath(candidatePath, protectedWorkspaceOptions)
+    ));
+    if (workspaceIsProtected(normalizedRequest.workspaceRoot)) {
+      throw new Error('Active workspace contains protected desktop data.');
+    }
+    if (isProtectedCodexConfigPath(normalizedRequest.cwd, { homePath: app.getPath('home') })) {
+      throw new Error('Command working directory is protected from computer operations.');
+    }
     const controller = new AbortController();
     const sender = event.sender;
     const channel = `desktop:computer-command:${requestId}:event`;
@@ -132,50 +139,77 @@ export function registerDesktopCommandIpc({
     activeDesktopCommands.set(requestId, active);
 
     try {
-      if (await isProtectedPath(normalizedRequest.cwd)) {
+      try {
+        await assertWorkspaceAuthorized(normalizedRequest.workspaceRoot);
+      } catch {
+        throw new Error('Active workspace is not authorized for computer operations.');
+      }
+      if (await isProtectedPath(normalizedRequest.workspaceRoot) || await isProtectedPath(normalizedRequest.cwd)) {
         throw new Error('Command working directory is reserved for internal desktop storage.');
       }
+      let realWorkspaceRoot;
       let realCwd;
       try {
+        realWorkspaceRoot = await resolveRealFsAccessPath(normalizedRequest.workspaceRoot);
         realCwd = await resolveRealFsAccessPath(normalizedRequest.cwd);
       } catch {
         throw new Error('Command working directory is unavailable.');
       }
-      if (await isProtectedPath(realCwd)) {
+      if (!isSameOrChildPath(realWorkspaceRoot, realCwd)) {
+        throw new Error('Command working directory must stay inside the active workspace.');
+      }
+      if (await isProtectedPath(realWorkspaceRoot) || await isProtectedPath(realCwd)) {
         throw new Error('Command working directory is reserved for internal desktop storage.');
+      }
+      const realWorkspaceIsProtected = isProtectedWorkspace
+        ? workspaceIsProtected(realWorkspaceRoot)
+        : await isProtectedDesktopCommandWorkspaceRealPath(
+            realWorkspaceRoot,
+            protectedWorkspaceOptions,
+          );
+      if (realWorkspaceIsProtected) {
+        throw new Error('Active workspace contains protected desktop data.');
+      }
+      if (isProtectedCodexConfigPath(realCwd, { homePath: app.getPath('home') })) {
+        throw new Error('Command working directory is protected from computer operations.');
+      }
+      try {
+        await assertWorkspaceAuthorized(realWorkspaceRoot);
+      } catch {
+        throw new Error('Active workspace is not authorized for computer operations.');
       }
       let info;
       try {
+        const workspaceInfo = await stat(realWorkspaceRoot);
         info = await stat(realCwd);
+        if (!workspaceInfo.isDirectory()) {
+          throw new Error('invalid workspace');
+        }
       } catch {
         throw new Error('Command working directory is unavailable.');
       }
       if (!info.isDirectory()) {
         throw new Error('Command working directory must be a directory.');
       }
-      const request = { ...normalizedRequest, cwd: realCwd };
+      const request = {
+        ...normalizedRequest,
+        cwd: realCwd,
+        sandboxExecutable,
+        sandboxRoot: realWorkspaceRoot,
+        workspaceRoot: realWorkspaceRoot,
+      };
 
-      const canAlwaysAllow = canAlwaysAllowDesktopCommand(request.command);
-      let approved = canAlwaysAllow && await approvalStore.isApproved(request);
-      if (!approved) {
-        const decision = await requestApproval(active, channel, request, canAlwaysAllow);
-        if (decision === 'always') {
-          await approvalStore.remember(request);
-          approved = true;
-        } else {
-          approved = decision === 'run_once';
-        }
-      }
+      const decision = await requestApproval(active, channel, request);
       if (controller.signal.aborted) {
         return { status: 'cancelled', command: request.command, cwd: request.cwd };
       }
-      if (!approved) {
+      if (decision !== 'run_once') {
         return { status: 'denied', command: request.command, cwd: request.cwd };
       }
 
       let beforeSnapshot = null;
       try {
-        beforeSnapshot = await captureSnapshot(request.cwd);
+        beforeSnapshot = await captureSnapshot(request.workspaceRoot);
       } catch {}
       if (controller.signal.aborted) {
         return { status: 'cancelled', command: request.command, cwd: request.cwd };
@@ -198,7 +232,7 @@ export function registerDesktopCommandIpc({
       let fileChangesTruncated = false;
       if (beforeSnapshot) {
         try {
-          const afterSnapshot = await captureSnapshot(request.cwd);
+          const afterSnapshot = await captureSnapshot(request.workspaceRoot);
           const compared = compareSnapshots(beforeSnapshot, afterSnapshot);
           fileChanges = compared.changes;
           fileChangesTruncated = compared.truncated;

@@ -1,5 +1,6 @@
 import { runWebSearchToolCall } from '@/lib/ai/webSearch/toolRunner';
 import { WEB_SEARCH_TOOL_NAMES } from '@/lib/ai/webSearch/toolDefinitions';
+import type { WebSearchExecutionSession } from '@/lib/ai/webSearch/executionSession';
 import type { WebSearchStatus } from '@/lib/ai/webSearch/types';
 import type { OpenAIToolCall } from '@/lib/ai/webSearch/openAIToolTypes';
 import { runDesktopComputerCommand } from './client';
@@ -20,6 +21,7 @@ export interface AgentToolRuntimeOptions {
   defaultCwd?: string;
   signal?: AbortSignal;
   webSearchEnabled: boolean;
+  webSearchSession?: WebSearchExecutionSession;
   onCommandStatus: (status: ComputerCommandStatus) => void;
   onWebSearchStatus?: (status: WebSearchStatus) => void;
 }
@@ -96,6 +98,7 @@ export async function executeAgentToolCall(
       content: await runWebSearchToolCall(toolCall.function, {
         onStatus: options.onWebSearchStatus,
         signal: options.signal,
+        session: options.webSearchSession,
       }),
       commandApprovalCount: options.commandApprovalCount,
     };
