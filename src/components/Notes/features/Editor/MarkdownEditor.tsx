@@ -102,12 +102,11 @@ export function MarkdownEditor({
   );
   const isSidebarSearchJumpPending =
     Boolean(currentNotePath && pendingSidebarSearchNavigationPath === currentNotePath);
-  const shouldPreserveStartupEditorPosition =
-    Boolean(
-      currentNotePath &&
-      workspaceRestoredNote?.path === currentNotePath &&
-      workspaceRestoredNote.revision === currentNoteRevision
-    );
+  const shouldStartWorkspaceRestoredNoteAtTop = Boolean(
+    currentNotePath &&
+    workspaceRestoredNote?.path === currentNotePath &&
+    workspaceRestoredNote.revision === currentNoteRevision
+  );
 
   const hasRenderableNote = Boolean(currentNotePath);
   const hasActiveNote = active && hasRenderableNote;
@@ -117,6 +116,7 @@ export function MarkdownEditor({
     hasActiveNote,
     notesPath,
     openTabPathsKey,
+    startAtTop: shouldStartWorkspaceRestoredNoteAtTop,
   });
   const editorFind = useNoteEditorFind(currentNotePath);
   useHeldPageScroll(scrollRootRef, {
@@ -261,7 +261,6 @@ export function MarkdownEditor({
                     <MilkdownEditorRuntime
                       active={active}
                       showBodyLineNumbers={showBodyLineNumbers}
-                      preserveStartupEditorPosition={shouldPreserveStartupEditorPosition}
                       onEditorViewReady={handleEditorViewReady}
                     />
                   </ErrorBoundary>
@@ -280,7 +279,6 @@ export function MarkdownEditor({
                 <MilkdownEditorRuntime
                   active={false}
                   showBodyLineNumbers={false}
-                  preserveStartupEditorPosition={false}
                 />
               </Suspense>
             </div>

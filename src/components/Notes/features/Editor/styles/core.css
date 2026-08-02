@@ -131,6 +131,32 @@ body.editor-block-drag-active .editor-block-drag-preview-layer * {
   caret-color: transparent;
 }
 
+.milkdown .ProseMirror-gapcursor {
+  display: none;
+  position: absolute;
+  pointer-events: none;
+}
+
+.milkdown .ProseMirror-gapcursor::after {
+  position: absolute;
+  top: calc(-1 * var(--vlaina-space-2px));
+  display: block;
+  width: var(--vlaina-space-20px);
+  border-top: var(--vlaina-border-width-1) solid var(--vlaina-caret-color);
+  animation: editor-gap-cursor-blink var(--vlaina-duration-1200) steps(2, start) infinite;
+  content: '';
+}
+
+.milkdown .ProseMirror-focused .ProseMirror-gapcursor {
+  display: block;
+}
+
+@keyframes editor-gap-cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
 /* See nestedListPointerCaretPlugin: Electron drops mouse events when nested lists are the direct hit target. */
 .milkdown .ProseMirror li > :is(ol, ul) {
   pointer-events: none;

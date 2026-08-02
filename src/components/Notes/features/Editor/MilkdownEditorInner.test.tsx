@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
+import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import * as ProseModel from '@milkdown/kit/prose/model';
 import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
 import {
@@ -969,6 +970,34 @@ describe('createDocumentFirstLineEndTextSelection', () => {
     expect(selection.from).toBe(2 + text.length);
     expect(selection.empty).toBe(true);
   });
+
+  it('places a gap cursor after a document that contains only an atomic block', () => {
+    const schema = new ProseSchema({
+      nodes: {
+        doc: { content: 'block+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          toDOM: () => ['p', 0],
+          parseDOM: [{ tag: 'p' }],
+        },
+        text: { group: 'inline' },
+        atom_block: {
+          group: 'block',
+          atom: true,
+          toDOM: () => ['div'],
+          parseDOM: [{ tag: 'div' }],
+        },
+      },
+    });
+    const doc = schema.node('doc', null, [schema.nodes.atom_block.create()]);
+
+    const selection = createDocumentFirstLineEndTextSelection(doc);
+
+    expect(selection).toBeInstanceOf(GapCursor);
+    expect(selection.from).toBe(doc.content.size);
+    expect(selection.empty).toBe(true);
+  });
 });
 
 describe('normalizeInitialEditorSelection', () => {
@@ -1022,6 +1051,7 @@ describe('normalizeInitialEditorSelection', () => {
     expect(transaction.setMeta).toHaveBeenCalledWith(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION);
     expect(view.dispatch).toHaveBeenCalledWith(transaction);
   });
+
 });
 
 describe('createLargePlainMarkdownDocJSON', () => {

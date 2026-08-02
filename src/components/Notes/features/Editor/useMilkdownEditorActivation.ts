@@ -27,7 +27,6 @@ export function useMilkdownEditorActivation(args: {
   currentNoteDiskRevision: number;
   currentNotePath: string | undefined;
   onEditorViewReadyRef: React.MutableRefObject<(() => void) | undefined>;
-  preserveStartupEditorPosition: boolean;
   readyReportedRef: React.MutableRefObject<{
     content: string;
     diskRevision: number;
@@ -45,7 +44,6 @@ export function useMilkdownEditorActivation(args: {
     currentNoteDiskRevision,
     currentNotePath,
     onEditorViewReadyRef,
-    preserveStartupEditorPosition,
     readyReportedRef,
     setActivatedRevision,
   } = args;
@@ -109,12 +107,10 @@ export function useMilkdownEditorActivation(args: {
 
       setCurrentEditorView(view, currentNotePath);
       setCurrentEditorBlockSelectionClearer(() => clearBlockSelection(view));
-      if (!preserveStartupEditorPosition) {
-        try {
-          normalizeInitialEditorSelection(view);
-        } catch {
-          // Keep editor activation alive even if a plugin rejects the startup selection normalization.
-        }
+      try {
+        normalizeInitialEditorSelection(view);
+      } catch {
+        // Keep editor activation alive even if a plugin rejects the startup selection normalization.
       }
       setActivatedRevision((revision) => revision + 1);
 
@@ -176,7 +172,6 @@ export function useMilkdownEditorActivation(args: {
     cleanupActivatedEditor,
     createUserInputMarker,
     currentNotePath,
-    preserveStartupEditorPosition,
   ]);
 
 

@@ -68,7 +68,9 @@ async function waitForExpandedFolders(page: Page, expandedFolders: string[]) {
 
 function createLongRestoreMarkdown(): string {
   return [
-    '# Startup Restore Scroll',
+    '---',
+    '',
+    'Startup restore first editable line.',
     '',
     ...Array.from({ length: 90 }, (_, index) => (
       `Restore paragraph ${index + 1}: enough content to make the saved scroll position meaningful after relaunch.`
@@ -293,7 +295,7 @@ test.describe('notes open folder restore', () => {
     }
   });
 
-  test('does not focus the workspace-restored note at the first line on app relaunch', async () => {
+  test('focuses the workspace-restored note at the first editable line end on app relaunch', async () => {
     const first = await launchIsolatedElectron('notes-open-folder-restore-scroll-a');
     let second: Awaited<ReturnType<typeof launchIsolatedElectron>> | null = null;
     const notePath = 'startup-restore-scroll.md';
@@ -365,10 +367,19 @@ test.describe('notes open folder restore', () => {
       await expect(restoredPage.locator(EDITOR_SELECTOR)).toContainText('Restored workspace scroll sentinel', {
         timeout: 30_000,
       });
-      await restoredPage.waitForTimeout(350);
+      await expect.poll(async () => restoredPage.evaluate(() => (
+        window as any
+      ).__vlainaE2E.getEditorTextRange('Startup restore first editable line.')), {
+        timeout: 30_000,
+      }).not.toBeNull();
+      const firstLineRange = await restoredPage.evaluate(() => (
+        window as any
+      ).__vlainaE2E.getEditorTextRange('Startup restore first editable line.'));
+      if (!firstLineRange) {
+        throw new Error('Missing first editable startup line range');
+      }
 
-      const restoredState = await restoredPage.evaluate((scrollSelector) => {
-        const scrollRoot = document.querySelector<HTMLElement>(scrollSelector);
+      await expect.poll(async () => restoredPage.evaluate(() => {
         const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
         const activeElement = document.activeElement;
         const notesState = (window as any).__vlainaE2E.getNotesState();
@@ -379,17 +390,42 @@ test.describe('notes open folder restore', () => {
           editorContainsFocus: Boolean(
             editor && activeElement instanceof Node && editor.contains(activeElement)
           ),
-          scrollTop: Math.round(scrollRoot?.scrollTop ?? 0),
+          selection: (window as any).__vlainaE2E.getEditorSelectionSummary(),
         };
-      }, NOTE_SCROLL_ROOT_SELECTOR);
-
-      expect(restoredState).toMatchObject({
+      }), { timeout: 30_000 }).toMatchObject({
         currentNotesRootPath: fixture.notesRootPath,
         currentNotePath: notePath,
-        editorContainsFocus: false,
+        editorContainsFocus: true,
+        selection: {
+          empty: true,
+          from: firstLineRange.to,
+          to: firstLineRange.to,
+        },
       });
-      expect(Math.abs(restoredState.scrollTop - savedScroll.scrollTop)).toBeLessThanOrEqual(180);
-      expect(restoredState.scrollTop).toBeGreaterThan(300);
+
+      await expect.poll(async () => restoredPage.evaluate(({
+        notePath,
+        notesRootPath,
+        scrollSelector,
+        storageKey,
+      }) => {
+        const scrollRoot = document.querySelector<HTMLElement>(scrollSelector);
+        const identity = JSON.stringify([notesRootPath, notePath]);
+        const positions = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+        const persistedScrollTop = positions[identity]?.scrollTop;
+        if (typeof persistedScrollTop !== 'number') {
+          return Number.POSITIVE_INFINITY;
+        }
+        return Math.max(
+          Math.round(scrollRoot?.scrollTop ?? 0),
+          Math.round(persistedScrollTop),
+        );
+      }, {
+        notePath,
+        notesRootPath: fixture.notesRootPath,
+        scrollSelector: NOTE_SCROLL_ROOT_SELECTOR,
+        storageKey: 'vlaina-note-scroll-positions',
+      })).toBeLessThanOrEqual(180);
     } finally {
       if (second) {
         await cleanupIsolatedElectron(second.app, second.userDataRoot);

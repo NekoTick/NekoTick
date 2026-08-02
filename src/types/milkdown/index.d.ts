@@ -688,6 +688,10 @@ declare module '@milkdown/kit/plugin/history' {
   export const history: any;
 }
 
+declare module '@milkdown/kit/plugin/cursor' {
+  export const gapCursorPlugin: MilkdownPlugin;
+}
+
 declare module '@milkdown/kit/plugin/listener' {
   interface ListenerApi {
     markdownUpdated(callback: (ctx: MilkdownCtx, markdown: string) => void): void;
@@ -886,6 +890,21 @@ declare module '@milkdown/prose/inputrules' {
 
 declare module '@milkdown/prose/keymap' {
   export function keymap(bindings: Record<string, MilkdownCommand>): any;
+}
+
+declare module '@milkdown/kit/prose/gapcursor' {
+  export class GapCursor extends import('@milkdown/kit/prose/state').Selection {
+    from: number;
+    to: number;
+    empty: boolean;
+    $from: import('@milkdown/kit/prose/model').ResolvedPos;
+    $to: import('@milkdown/kit/prose/model').ResolvedPos;
+    constructor($pos: import('@milkdown/kit/prose/model').ResolvedPos);
+    eq(other: import('@milkdown/kit/prose/state').Selection): boolean;
+    static valid($pos: import('@milkdown/kit/prose/model').ResolvedPos): boolean;
+  }
+
+  export function gapCursor(): import('@milkdown/kit/prose/state').Plugin;
 }
 
 declare module '@milkdown/kit/prose/model' {

@@ -27,13 +27,16 @@ export function NoteToolbarMoreMenuStats({
   );
   const getBacklinks = useNotesStore((state) => state.getBacklinks);
   const noteContentsCacheRevision = useNotesStore((state) => state.noteContentsCacheRevision);
-  const backlinkCount = useMemo(
-    () => preloadedBacklinkCount?.notePath === currentNotePath
-      && preloadedBacklinkCount.noteContentsCacheRevision === noteContentsCacheRevision
-      ? preloadedBacklinkCount.count
-      : currentNotePath ? getBacklinks(currentNotePath).length : 0,
-    [currentNotePath, getBacklinks, noteContentsCacheRevision, preloadedBacklinkCount],
-  );
+  const backlinkCount = useMemo(() => {
+    if (
+      preloadedBacklinkCount &&
+      preloadedBacklinkCount.notePath === currentNotePath &&
+      preloadedBacklinkCount.noteContentsCacheRevision === noteContentsCacheRevision
+    ) {
+      return preloadedBacklinkCount.count;
+    }
+    return currentNotePath ? getBacklinks(currentNotePath).length : 0;
+  }, [currentNotePath, getBacklinks, noteContentsCacheRevision, preloadedBacklinkCount]);
   const textStats = useDeferredTextStats(currentNotePath, currentNoteContent);
 
   return (
