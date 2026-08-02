@@ -34,7 +34,7 @@ async function collectModules(filePath, modules = new Map()) {
 function indent(code) {
   return code
     .split('\n')
-    .map((line) => `    ${line}`)
+    .map((line) => line.length > 0 ? `    ${line}` : '')
     .join('\n');
 }
 

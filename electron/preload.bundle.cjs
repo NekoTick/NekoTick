@@ -19,10 +19,10 @@
       createRendererErrorReport,
       installRendererErrorReporting,
     } = require('./preloadRendererErrors.cjs');
-    
+
     installOpenMarkdownFileHandler(ipcRenderer);
     installRendererErrorReporting(ipcRenderer);
-    
+
     const desktopApi = createDesktopApi({
       callIpcCallback,
       createRendererErrorReport,
@@ -33,14 +33,14 @@
       requireSafeIpcRequestId,
       webUtils,
     });
-    
+
     contextBridge.exposeInMainWorld('vlainaDesktop', deepFreeze(desktopApi));
-    
+
   },
   "./preloadIpcUtils.cjs": function(require, module, exports) {
     const IPC_REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{1,160}$/;
     const MAX_DESKTOP_FS_WRITE_BYTES = 64 * 1024 * 1024;
-    
+
     function primitiveToString(value) {
       if (value == null) {
         return '';
@@ -57,7 +57,7 @@
           return null;
       }
     }
-    
+
     function requireSafeIpcRequestId(value, label) {
       const rawId = primitiveToString(value);
       const id = rawId === null ? '' : rawId.trim();
@@ -66,7 +66,7 @@
       }
       return id;
     }
-    
+
     function assertDesktopFsWritePayloadBytes(byteLength, maxBytes = MAX_DESKTOP_FS_WRITE_BYTES) {
       if (
         !Number.isSafeInteger(byteLength) ||
@@ -81,29 +81,29 @@
         throw new Error('Desktop content is too large to write.');
       }
     }
-    
+
     function isUint8ArrayPayload(value) {
       return Object.prototype.toString.call(value) === '[object Uint8Array]';
     }
-    
+
     function normalizeDesktopBinaryWritePayload(bytes) {
       if (isUint8ArrayPayload(bytes)) {
         assertDesktopFsWritePayloadBytes(bytes.byteLength);
         return bytes;
       }
-    
+
       const byteLength = bytes && typeof bytes.length === 'number'
         ? bytes.length
         : Number.NaN;
       assertDesktopFsWritePayloadBytes(byteLength);
-    
+
       const normalized = new Array(byteLength);
       for (let index = 0; index < byteLength; index += 1) {
         normalized[index] = bytes[index];
       }
       return normalized;
     }
-    
+
     function normalizeDesktopTextWritePayload(content, maxBytes) {
       const text = primitiveToString(content);
       if (text === null) {
@@ -118,7 +118,7 @@
       }
       return text;
     }
-    
+
     function callIpcCallback(callback, ...args) {
       try {
         Promise.resolve(callback(...args)).catch(() => undefined);
@@ -126,19 +126,19 @@
         // Renderer callbacks should not surface as preload IPC listener failures.
       }
     }
-    
+
     function deepFreeze(value) {
       if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
         return value;
       }
-    
+
       Object.freeze(value);
       for (const nested of Object.values(value)) {
         deepFreeze(nested);
       }
       return value;
     }
-    
+
     module.exports = {
       callIpcCallback,
       deepFreeze,
@@ -147,7 +147,7 @@
       primitiveToString,
       requireSafeIpcRequestId,
     };
-    
+
   },
   "./preloadDesktopApi.cjs": function(require, module, exports) {
     const {
@@ -156,7 +156,7 @@
       createComputerApi,
       createWebSearchApi,
     } = require('./preloadRequestApis.cjs');
-    
+
     function createDesktopApi(deps) {
       const {
         callIpcCallback,
@@ -168,7 +168,7 @@
         requireSafeIpcRequestId,
         webUtils,
       } = deps;
-    
+
       return {
         platform: 'electron',
         getPlatform() {
@@ -456,7 +456,7 @@
               const channel = `desktop:fs:watch:${id}`;
               const handler = (_event, payload) => callIpcCallback(callback, payload);
               ipcRenderer.on(channel, handler);
-    
+
               return async () => {
                 ipcRenderer.removeListener(channel, handler);
                 await ipcRenderer.invoke('desktop:fs:unwatch', id);
@@ -492,11 +492,11 @@
         account: createAccountApi(deps),
       };
     }
-    
+
     module.exports = {
       createDesktopApi,
     };
-    
+
   },
   "./preloadRequestApis.cjs": function(require, module, exports) {
     function createAiProviderApi({ ipcRenderer, callIpcCallback, requireSafeIpcRequestId }) {
@@ -536,7 +536,7 @@
         },
       };
     }
-    
+
     function createWebSearchApi({ ipcRenderer, requireSafeIpcRequestId }) {
       return {
         search(query, options, requestId) {
@@ -556,7 +556,7 @@
         },
       };
     }
-    
+
     function createComputerApi({ ipcRenderer, callIpcCallback, requireSafeIpcRequestId }) {
       return {
         startCommand(requestId, request) {
@@ -598,7 +598,7 @@
       }
       return ipcRenderer.invoke(channel, label(requestId), body);
     }
-    
+
     function createManagedStreamListener({ ipcRenderer, callIpcCallback, requireSafeIpcRequestId }, suffix) {
       return (requestId, callback) => {
         const id = requireSafeIpcRequestId(requestId, 'managed stream request id');
@@ -610,14 +610,14 @@
         };
       };
     }
-    
+
     function createAccountApi(deps) {
       const { ipcRenderer, requireSafeIpcRequestId } = deps;
       const managedChatRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed chat completion request id');
       const managedImageRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed image generation request id');
       const managedImageEditRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed image edit request id');
       const managedStreamRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed stream request id');
-    
+
       return {
         getSessionStatus() {
           return ipcRenderer.invoke('desktop:account:get-session-status');
@@ -684,14 +684,14 @@
         onManagedStreamError: createManagedStreamListener(deps, 'error'),
       };
     }
-    
+
     module.exports = {
       createAccountApi,
       createAiProviderApi,
       createComputerApi,
       createWebSearchApi,
     };
-    
+
   },
   "./preloadOpenMarkdownFiles.cjs": function(require, module, exports) {
     const MAX_PENDING_OPEN_MARKDOWN_FILES = 32;
@@ -700,7 +700,7 @@
     const UNSAFE_OPEN_MARKDOWN_FILE_PATH_PATTERN = /[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069\uFFFD]/;
     const pendingOpenMarkdownFiles = [];
     const openMarkdownFileListeners = new Set();
-    
+
     function isSafeOpenMarkdownFilePath(filePath) {
       return (
         typeof filePath === 'string' &&
@@ -710,13 +710,13 @@
         !UNSAFE_OPEN_MARKDOWN_FILE_PATH_PATTERN.test(filePath)
       );
     }
-    
+
     function installOpenMarkdownFileHandler(ipcRenderer) {
       ipcRenderer.on('desktop:app:open-markdown-file', (_event, filePath) => {
         if (!isSafeOpenMarkdownFilePath(filePath)) {
           return;
         }
-    
+
         if (openMarkdownFileListeners.size === 0) {
           if (pendingOpenMarkdownFiles.length >= MAX_PENDING_OPEN_MARKDOWN_FILES) {
             pendingOpenMarkdownFiles.shift();
@@ -724,37 +724,37 @@
           pendingOpenMarkdownFiles.push(filePath);
           return;
         }
-    
+
         for (const listener of openMarkdownFileListeners) {
           listener(filePath);
         }
       });
     }
-    
+
     function onOpenMarkdownFile(callback, callIpcCallback) {
       const listener = (filePath) => callIpcCallback(callback, filePath);
       openMarkdownFileListeners.add(listener);
-    
+
       while (pendingOpenMarkdownFiles.length > 0) {
         listener(pendingOpenMarkdownFiles.shift());
       }
-    
+
       return () => {
         openMarkdownFileListeners.delete(listener);
       };
     }
-    
+
     module.exports = {
       installOpenMarkdownFileHandler,
       onOpenMarkdownFile,
     };
-    
+
   },
   "./preloadRendererErrors.cjs": function(require, module, exports) {
     const { primitiveToString } = require('./preloadIpcUtils.cjs');
-    
+
     const MAX_ERROR_REPORT_FIELD_CHARS = 32 * 1024;
-    
+
     function truncateErrorReportField(value) {
       const text = primitiveToString(value);
       const normalized = text === null ? '' : text;
@@ -763,7 +763,7 @@
       }
       return `${normalized.slice(0, MAX_ERROR_REPORT_FIELD_CHARS)}\n...[truncated ${normalized.length - MAX_ERROR_REPORT_FIELD_CHARS} chars]`;
     }
-    
+
     function serializeErrorForReport(error) {
       if (error && typeof error === 'object') {
         return {
@@ -772,14 +772,14 @@
           stack: truncateErrorReportField(error.stack),
         };
       }
-    
+
       return {
         name: typeof error,
         message: truncateErrorReportField(error),
         stack: '',
       };
     }
-    
+
     function safeReadErrorReportValue(readValue, fallback = undefined) {
       try {
         return readValue();
@@ -787,7 +787,7 @@
         return fallback;
       }
     }
-    
+
     function sanitizeLocationHref(href) {
       try {
         const url = new URL(primitiveToString(href) || '');
@@ -812,13 +812,13 @@
         return false;
       }
     }
-    
+
     function createRendererDiagnosticsReport() {
       const searchParams = safeReadErrorReportValue(
         () => new URLSearchParams(globalThis.location?.search || ''),
         null,
       );
-    
+
       return {
         document: {
           title: truncateErrorReportField(globalThis.document?.title),
@@ -861,7 +861,7 @@
         },
       };
     }
-    
+
     function createRendererErrorReport(details = {}) {
       const serializedError = serializeErrorForReport(details.error);
       return {
@@ -892,14 +892,14 @@
         timestamp: new Date().toISOString(),
       };
     }
-    
+
     function reportRendererErrorBestEffort(ipcRenderer, details) {
       try {
         ipcRenderer.send('desktop:app:report-renderer-error', createRendererErrorReport(details));
       } catch {
       }
     }
-    
+
     function installRendererErrorReporting(ipcRenderer) {
       globalThis.addEventListener?.('error', (event) => {
         reportRendererErrorBestEffort(ipcRenderer, {
@@ -909,7 +909,7 @@
           error: event.error,
         });
       });
-    
+
       globalThis.addEventListener?.('unhandledrejection', (event) => {
         reportRendererErrorBestEffort(ipcRenderer, {
           source: 'window.unhandledrejection',
@@ -918,13 +918,13 @@
         });
       });
     }
-    
+
     module.exports = {
       createRendererErrorReport,
       installRendererErrorReporting,
       sanitizeLocationHref,
     };
-    
+
   }
   };
   const cache = Object.create(null);
