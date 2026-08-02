@@ -54,11 +54,13 @@ export function useNotesOutline(enabled: boolean) {
       return;
     }
 
+    const maxScrollTop = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
     const nextActiveId = selectActiveOutlineHeadingId(
       headingMetricsRef.current,
       nextScrollTop,
       ACTIVE_OFFSET_PX,
       ACTIVE_SNAP_PX,
+      maxScrollTop,
     );
     setActiveId((previous) => (previous === nextActiveId ? previous : nextActiveId));
   }, []);
