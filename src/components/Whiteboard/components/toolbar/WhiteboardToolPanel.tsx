@@ -53,18 +53,18 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
       onPointerLeave={dock.onPointerLeave}
       onPointerMove={dock.onPointerMove}
       className={cn(
-        'flex h-[var(--vlaina-size-56px)] max-w-full items-center gap-3 overflow-x-auto rounded-[var(--vlaina-radius-16px)] px-2 py-1.5 sm:overflow-visible',
+        'flex h-[var(--vlaina-size-120px)] max-w-full items-center gap-3 overflow-x-auto rounded-[var(--vlaina-radius-16px)] px-2 py-1.5 sm:overflow-visible',
         whiteboardFloatingPanelClassName,
       )}
     >
-      <WhiteboardToolbarGroup>
+      <WhiteboardToolbarGroup className="gap-2">
         {tools.map((item) => (
           <WhiteboardToolbarButton
             dock
             key={item.id}
             active={props.tool === item.id}
             icon={item.icon}
-            indicatorColor={isDrawingTool(item.id) ? props.brushColors[item.id] : undefined}
+            imageSrc={item.imageSrc}
             label={t(item.labelKey)}
             onClick={() => props.onToolChange(item.id)}
           />
@@ -106,7 +106,7 @@ function ColorChoices({ colors, tool, onChange }: {
             aria-pressed={selectedColor === color.toLowerCase()}
             data-whiteboard-dock-visual="true"
             onClick={() => onChange(tool, color)}
-            className="relative size-[var(--vlaina-size-24px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
+            className="relative size-[var(--vlaina-size-32px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
             style={{ backgroundColor: color }}
           >
             {selectedColor === color.toLowerCase() ? (
@@ -141,7 +141,7 @@ function SizeChoices({ sizes, tool, onChange }: {
             data-whiteboard-dock-visual="true"
             onClick={() => onChange(tool, size)}
             className={cn(
-              'flex size-[var(--vlaina-size-28px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] transition-colors',
+              'flex size-[var(--vlaina-size-36px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] transition-colors',
               sizes[tool] === size
                 ? 'bg-[var(--vlaina-accent-light)]'
                 : 'hover:bg-[var(--vlaina-color-control-hover-bg)]',
@@ -161,5 +161,5 @@ function SizeChoices({ sizes, tool, onChange }: {
 }
 
 function PanelDivider() {
-  return <span className="h-6 w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />;
+  return <span className="h-[var(--vlaina-size-40px)] w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />;
 }
