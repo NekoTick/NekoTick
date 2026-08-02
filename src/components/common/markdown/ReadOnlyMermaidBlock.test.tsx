@@ -181,4 +181,30 @@ describe('ReadOnlyMermaidBlock', () => {
     expect(renderMermaid).not.toHaveBeenCalled();
     expect(getPendingReadOnlyMermaidRenderCount()).toBe(0);
   });
+
+  it.each([
+    'flowchart TD\nA@{ img: "https://tracker.example/pixel.png" }',
+    String.raw`flowchart TD\nA@{ img: "\u0068ttps://tracker.example/pixel.png" }`,
+    String.raw`flowchart TD\nA@{ img: "h\74 tps://tracker.example/pixel.png" }`,
+    'flowchart TD\nA@{ img: "https&#58;//tracker.example/pixel.png" }',
+    'flowchart TD\nA@{ img: "//tracker.example/pixel.png" }',
+    String.raw`flowchart TD\nstyle A background-image:u\72 l(images/pixel.png)`,
+    String.raw`%%{init: {"themeCSS": "@im\70 ort 'theme.css'"}}%%\nflowchart TD\nA-->B`,
+  ])('rejects remote Mermaid resources before invoking the renderer', async (code) => {
+    const markup = await resolveReadOnlyMermaidMarkup(code);
+
+    expect(markup).toContain('mermaid-error');
+    expect(renderMermaid).not.toHaveBeenCalled();
+    expect(getPendingReadOnlyMermaidRenderCount()).toBe(0);
+  });
+
+  it('allows fragment-only CSS references to reach the renderer', async () => {
+    const code = 'flowchart TD\nstyle A filter:url(#local-filter)';
+    vi.mocked(renderMermaid).mockResolvedValueOnce('<svg><text>rendered</text></svg>');
+
+    const markup = await resolveReadOnlyMermaidMarkup(code);
+
+    expect(renderMermaid).toHaveBeenCalledWith(code, expect.any(String));
+    expect(markup).toContain('rendered');
+  });
 });

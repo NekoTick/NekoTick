@@ -1,4 +1,5 @@
 import type { ProviderFetchInit } from './providerHttpTypes';
+import { AI_PROVIDER_CONNECTION_FAILURE_CODE } from './providerHttpErrors';
 import { raceWithAbort, throwIfAborted, createAbortError } from './providerHttpAbort';
 
 const PROVIDER_GET_RETRY_DELAYS_MS = [300];
@@ -36,8 +37,19 @@ export function normalizeProviderRequestUrl(url: unknown): string {
   ) {
     throw new Error('AI provider request URL is not supported.');
   }
+  if (parsed.protocol === 'http:' && !isLoopbackProviderHostname(parsed.hostname)) {
+    throw new Error('AI provider request URL must use HTTPS unless it targets the local computer.');
+  }
 
   return parsed.toString();
+}
+
+function isLoopbackProviderHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  return normalized === 'localhost'
+    || normalized.endsWith('.localhost')
+    || normalized === '::1'
+    || /^127(?:\.\d{1,3}){3}$/.test(normalized);
 }
 
 function delayProviderRetry(ms: number, signal?: AbortSignal): Promise<void> {
@@ -66,14 +78,17 @@ export async function fetchWithGetRetry(url: string, init: ProviderFetchInit): P
     const startedAt = Date.now();
     try {
       throwIfAborted(init.signal);
-      const response = await raceWithAbort(fetch(url, init), init.signal);
+      const response = await raceWithAbort(fetch(url, { ...init, redirect: 'error' }), init.signal);
       throwIfAborted(init.signal);
       return response;
     } catch (error) {
       const retryDelayMs = shouldRetry ? PROVIDER_GET_RETRY_DELAYS_MS[attempt] : undefined;
       const failedQuickly = Date.now() - startedAt <= PROVIDER_FAST_FAILURE_RETRY_WINDOW_MS;
-      if (init.signal?.aborted || retryDelayMs == null || !failedQuickly) {
+      if (init.signal?.aborted) {
         throw error;
+      }
+      if (retryDelayMs == null || !failedQuickly) {
+        throw new Error(AI_PROVIDER_CONNECTION_FAILURE_CODE);
       }
       await delayProviderRetry(retryDelayMs, init.signal);
     }

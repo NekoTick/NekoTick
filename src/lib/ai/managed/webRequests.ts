@@ -1,5 +1,5 @@
 import { MANAGED_API_BASE } from './constants';
-import { parseManagedError } from './errors';
+import { normalizeManagedPublicErrorCode, parseManagedError } from './errors';
 import {
   fetchManagedJsonWithRetry,
   MANAGED_JSON_TIMEOUT_MS,
@@ -14,7 +14,6 @@ import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody';
 import { consumeOpenAIStreamWithTools } from '@/lib/ai/webSearch/openAIStreamWithTools';
 import type { OpenAIStreamToolResult } from '@/lib/ai/webSearch/openAIToolTypes';
 
-const MAX_MANAGED_STREAM_ERROR_CODE_CHARS = 512;
 const MANAGED_BACKEND_STREAM_ERROR = Symbol('managedBackendStreamError');
 
 interface ManagedJsonRequestInit extends RequestInit {
@@ -27,7 +26,7 @@ type ManagedBackendStreamError = Error & {
 };
 
 function publicManagedStreamErrorMessage(message: string | undefined, errorCode: string | undefined): string {
-  const normalizedCode = normalizeManagedStreamErrorCode(errorCode).toLowerCase();
+  const normalizedCode = normalizeManagedPublicErrorCode(errorCode);
   switch (normalizedCode) {
     case 'points_exhausted':
     case 'inactive_points':
@@ -40,6 +39,8 @@ function publicManagedStreamErrorMessage(message: string | undefined, errorCode:
     case 'unsupported_message_content':
     case 'unsupported_model_input':
       return 'UNSUPPORTED_MODEL_INPUT';
+    case 'unsupported_tool_calling':
+      return 'UNSUPPORTED_TOOL_CALLING';
     case 'invalid_request':
       return 'INVALID_REQUEST';
     default:
@@ -47,13 +48,6 @@ function publicManagedStreamErrorMessage(message: string | undefined, errorCode:
         ? message
         : 'Managed API request failed: HTTP 502';
   }
-}
-
-function normalizeManagedStreamErrorCode(errorCode: unknown): string {
-  if (typeof errorCode !== 'string' || errorCode.length > MAX_MANAGED_STREAM_ERROR_CODE_CHARS) {
-    return '';
-  }
-  return errorCode.trim();
 }
 
 export async function requestManagedWebJson<T>(path: string, init?: ManagedJsonRequestInit): Promise<T> {
@@ -79,6 +73,7 @@ export async function requestManagedWebJson<T>(path: string, init?: ManagedJsonR
       signal: combinedSignal,
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       headers: {
         Accept: 'application/json',
         ...(fetchInit.body ? { 'Content-Type': 'application/json' } : {}),
@@ -132,6 +127,7 @@ export async function requestManagedWebBinaryJson<T>(
       method: 'POST',
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       signal: combinedSignal,
       headers: {
         Accept: 'application/json',
@@ -173,6 +169,7 @@ export async function requestManagedWebStream(
       method: 'POST',
       cache: 'no-store',
       credentials: 'include',
+      redirect: 'error',
       signal: combinedSignal,
       headers: {
         Accept: 'text/event-stream',
@@ -197,7 +194,7 @@ export async function requestManagedWebStream(
       mapErrorPayload(message, code) {
         const error = new Error(publicManagedStreamErrorMessage(message, code)) as ManagedBackendStreamError;
         error[MANAGED_BACKEND_STREAM_ERROR] = true;
-        const normalizedCode = normalizeManagedStreamErrorCode(code);
+        const normalizedCode = normalizeManagedPublicErrorCode(code);
         if (normalizedCode) {
           error.errorCode = normalizedCode;
         }

@@ -23,7 +23,7 @@ const MAX_OPENAI_TEXT_NODES = 2000;
 const MAX_OPENAI_TEXT_CHARS = 1024 * 1024;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function parseOpenAIPayloadText(text: string): Record<string, unknown> | null {
@@ -36,7 +36,8 @@ export function parseOpenAIPayloadText(text: string): Record<string, unknown> | 
   if (!payloadText || payloadText === '[DONE]') return null;
 
   try {
-    return JSON.parse(payloadText) as Record<string, unknown>;
+    const payload: unknown = JSON.parse(payloadText);
+    return isRecord(payload) ? payload : null;
   } catch {
     return null;
   }
@@ -202,6 +203,23 @@ const DSML_PARAMETER_RE = new RegExp(
   'gi',
 );
 
+function parseDsmlParameterValue(name: string, value: string): unknown {
+  if (name === 'timeout_seconds' || name === 'timeoutSeconds' || name === 'contentLimit') {
+    return /^-?\d+(?:\.\d+)?$/.test(value) ? Number(value) : value;
+  }
+
+  if (name === 'urls') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed : value;
+    } catch {
+      return value;
+    }
+  }
+
+  return value;
+}
+
 export function stripDsmlToolCallMarkup(content: string): string {
   if (content.length > MAX_DSML_TOOL_MARKUP_CHARS) {
     return content;
@@ -223,11 +241,12 @@ function extractDsmlToolCalls(content: string): OpenAIToolCall[] {
       const name = boundedToolString(invoke[1]?.trim(), 128);
       const body = invoke[2] ?? '';
       if (!name) continue;
-      const args: Record<string, string> = {};
+      const args: Record<string, unknown> = {};
       for (const parameter of body.matchAll(DSML_PARAMETER_RE)) {
         const key = boundedToolString(parameter[1]?.trim(), 128);
         if (!key) continue;
-        args[key] = limitOpenAIToolArguments((parameter[2] ?? '').trim());
+        const value = limitOpenAIToolArguments((parameter[2] ?? '').trim());
+        args[key] = parseDsmlParameterValue(key, value);
       }
       calls.push({
         id: `dsml_${calls.length}`,

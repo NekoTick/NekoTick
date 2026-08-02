@@ -228,8 +228,12 @@ export interface ElectronAIProviderHttpApi {
     statusText: string;
     headers: Array<[string, string]>;
   }>;
-  cancelRequest(requestId: string): Promise<void>;
-  onRequestChunk(requestId: string, callback: (chunk: number[]) => void): () => void;
+  cancelRequest(requestId: string): Promise<boolean>;
+  acknowledgeRequestChunk(requestId: string, sequence: number): Promise<boolean>;
+  onRequestChunk(
+    requestId: string,
+    callback: (chunk: Uint8Array, sequence: number) => void,
+  ): () => void;
   onRequestDone(requestId: string, callback: () => void): () => void;
   onRequestError(requestId: string, callback: (payload: { message: string }) => void): () => void;
 }
@@ -296,17 +300,11 @@ export interface ElectronComputerCommandResult {
   fileChangesTruncated?: boolean;
 }
 
-export interface ElectronComputerCommandApproval {
-  id: string;
-  command: string;
-  cwd: string;
-  createdAt: number;
-}
-
 export interface ElectronComputerApi {
   startCommand(requestId: string, request: {
     command: string;
     cwd?: string;
+    workspaceRoot: string;
     purpose?: string;
     timeoutSeconds?: number;
     locale?: string;
@@ -314,11 +312,8 @@ export interface ElectronComputerApi {
   cancelCommand(requestId: string): Promise<boolean>;
   respondToApproval(
     requestId: string,
-    decision: 'run_once' | 'always' | 'cancel',
+    decision: 'run_once' | 'cancel',
   ): Promise<boolean>;
-  listApprovals(): Promise<ElectronComputerCommandApproval[]>;
-  revokeApproval(approvalId: string): Promise<boolean>;
-  clearApprovals(): Promise<boolean>;
   onCommandEvent(
     requestId: string,
     callback: (event: {
@@ -327,10 +322,9 @@ export interface ElectronComputerApi {
       text?: string;
       command?: string;
       cwd?: string;
+      workspaceRoot?: string;
       purpose?: string;
       timeoutSeconds?: number;
-      risk?: 'standard' | 'elevated';
-      canAlwaysAllow?: boolean;
     }) => void,
   ): () => void;
 }
@@ -520,4 +514,8 @@ export function getElectronBridge(): DesktopApi | null {
 
 export function isElectronRuntime(): boolean {
   return getElectronBridge()?.platform === 'electron';
+}
+
+export function isComputerUseRuntimeAvailable(): boolean {
+  return Boolean(getElectronBridge()?.computer);
 }

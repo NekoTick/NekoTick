@@ -249,6 +249,89 @@ describe('crawler error classification', () => {
     expect(request.end).not.toHaveBeenCalled();
   });
 
+  it('rejects invalid native HTTP statuses inside the request promise', async () => {
+    let respond;
+    const request = new EventEmitter();
+    request.setTimeout = vi.fn();
+    request.destroy = vi.fn();
+    request.end = vi.fn();
+    vi.spyOn(http, 'request').mockImplementation((_options, callback) => {
+      respond = callback;
+      return request;
+    });
+    const pending = crawlerInternals.fetchAddress({
+      url: 'http://example.com/',
+      parsed: new URL('http://example.com/'),
+      addresses: [{ address: '93.184.216.34', family: 4 }],
+    }, {
+      address: '93.184.216.34',
+      family: 4,
+    });
+    pending.catch(() => undefined);
+    const response = new EventEmitter();
+    response.statusCode = 700;
+    response.headers = {};
+
+    respond(response);
+    expect(() => response.emit('end')).not.toThrow();
+    await expect(pending).rejects.toMatchObject({ code: 'http_error' });
+  });
+
+  it('accepts native HTTP responses whose status forbids a body', async () => {
+    let respond;
+    const request = new EventEmitter();
+    request.setTimeout = vi.fn();
+    request.destroy = vi.fn();
+    request.end = vi.fn();
+    vi.spyOn(http, 'request').mockImplementation((_options, callback) => {
+      respond = callback;
+      return request;
+    });
+    const pending = crawlerInternals.fetchAddress({
+      url: 'http://example.com/',
+      parsed: new URL('http://example.com/'),
+      addresses: [{ address: '93.184.216.34', family: 4 }],
+    }, {
+      address: '93.184.216.34',
+      family: 4,
+    });
+    const response = new EventEmitter();
+    response.statusCode = 204;
+    response.headers = {};
+
+    respond(response);
+    response.emit('end');
+    await expect(pending).resolves.toMatchObject({ status: 204 });
+  });
+
+  it('rejects interrupted native HTTP response streams', async () => {
+    let respond;
+    const request = new EventEmitter();
+    request.setTimeout = vi.fn();
+    request.destroy = vi.fn();
+    request.end = vi.fn();
+    vi.spyOn(http, 'request').mockImplementation((_options, callback) => {
+      respond = callback;
+      return request;
+    });
+    const pending = crawlerInternals.fetchAddress({
+      url: 'http://example.com/',
+      parsed: new URL('http://example.com/'),
+      addresses: [{ address: '93.184.216.34', family: 4 }],
+    }, {
+      address: '93.184.216.34',
+      family: 4,
+    });
+    pending.catch(() => undefined);
+    const response = new EventEmitter();
+    response.statusCode = 200;
+    response.headers = {};
+
+    respond(response);
+    expect(() => response.emit('error', new Error('socket reset'))).not.toThrow();
+    await expect(pending).rejects.toMatchObject({ code: 'network_error' });
+  });
+
   it('blocks low quality sources before fetching', async () => {
     let fetchCalled = false;
     const crawler = new Crawler({

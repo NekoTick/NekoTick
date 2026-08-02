@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -61,5 +61,18 @@ describe('desktop command file changes', () => {
     } finally {
       await rm(outside, { force: true });
     }
+  });
+
+  it('does not capture hidden files or credential directories', async () => {
+    await mkdir(path.join(tempDir, '.codex'), { recursive: true });
+    await mkdir(path.join(tempDir, 'secrets'), { recursive: true });
+    await writeFile(path.join(tempDir, '.env'), 'TOKEN=fake-test-token\n', 'utf8');
+    await writeFile(path.join(tempDir, '.codex', 'config.toml'), 'api_key = "fake-test-key"\n', 'utf8');
+    await writeFile(path.join(tempDir, 'secrets', 'credentials.json'), '{"token":"fake"}\n', 'utf8');
+    await writeFile(path.join(tempDir, 'visible.txt'), 'safe\n', 'utf8');
+
+    const snapshot = await captureDesktopCommandSnapshot(tempDir);
+
+    expect([...snapshot.files.keys()]).toEqual(['visible.txt']);
   });
 });

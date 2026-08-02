@@ -189,7 +189,10 @@ export function createDesktopAccountJsonClient(options = {}) {
 
   async function fetchJson(url, init = {}) {
     throwIfAborted(init.signal);
-    const response = await raceWithAbort(fetchImpl(url, init), init.signal);
+    const response = await raceWithAbort(fetchImpl(url, {
+      ...init,
+      redirect: 'error',
+    }), init.signal);
     throwIfAborted(init.signal);
     const text = await readResponseText(response, init.signal);
     throwIfAborted(init.signal);
@@ -233,7 +236,10 @@ export function createDesktopAccountJsonClient(options = {}) {
     let data;
     try {
       throwIfAborted(init.signal);
-      response = await raceWithAbort(fetchImpl(url, init), init.signal);
+      response = await raceWithAbort(fetchImpl(url, {
+        ...init,
+        redirect: 'error',
+      }), init.signal);
       throwIfAborted(init.signal);
       data = await readJsonResponse(response, `Request failed: HTTP ${response.status}`, init.signal);
       throwIfAborted(init.signal);

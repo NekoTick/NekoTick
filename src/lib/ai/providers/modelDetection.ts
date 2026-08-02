@@ -1,4 +1,5 @@
 import type { Provider } from '../types'
+import { isErrorNamed } from '../errorClassification'
 import { buildAnthropicBaseUrl, buildOpenAIBaseUrl } from '../utils'
 import { providerFetch } from '../providerHttp'
 import { buildAnthropicHeaders } from './anthropic'
@@ -82,8 +83,7 @@ function normalizeModelList(values: unknown): string[] {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError'
+  return isErrorNamed(error, 'AbortError')
 }
 
 function createAbortError(): DOMException {

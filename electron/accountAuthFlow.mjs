@@ -110,6 +110,7 @@ export function createDesktopAccountService({ apiBaseUrl, fetchImpl = fetch }) {
           const response = await raceWithAbort(fetchImpl(`${apiBaseUrl}/auth/email/request-code`, {
             method: 'POST',
             cache: 'no-store',
+            redirect: 'error',
             signal,
             headers: {
               Accept: 'application/json',
@@ -164,6 +165,7 @@ export function createDesktopAccountService({ apiBaseUrl, fetchImpl = fetch }) {
           await withAccountRequestTimeout((signal) =>
             raceWithAbort(fetchImpl(`${apiBaseUrl}/auth/session/revoke`, {
               method: 'POST',
+              redirect: 'error',
               signal,
               headers: buildDesktopSessionHeaders(credentials.appSessionToken),
             }), signal)

@@ -60,6 +60,7 @@ const { fetchWithStoredSession, readJsonResponse } = desktopAccountService;
 const readOnlyNetworkRetryDelaysMs = [300];
 const readOnlyFastFailureRetryWindowMs = 2000;
 const managedReadOnlyRequestTimeoutMs = 15_000;
+const managedMutationRequestTimeoutMs = 300_000;
 const desktopAccountRequestTimeoutMs = 15_000;
 const {
   createElectronBillingCheckout,
@@ -74,6 +75,7 @@ const {
   readOnlyNetworkRetryDelaysMs,
   readOnlyFastFailureRetryWindowMs,
   managedReadOnlyRequestTimeoutMs,
+  managedMutationRequestTimeoutMs,
   desktopAccountRequestTimeoutMs,
 });
 const {

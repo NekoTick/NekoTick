@@ -278,6 +278,27 @@ describe('consumeOpenAIStreamWithTools', () => {
     expect((thrown as Error).message).toHaveLength(MAX_OPENAI_STREAM_ERROR_FIELD_CHARS);
   });
 
+  it('rejects invalid tool stream chunks', async () => {
+    const reader = {
+      read: vi.fn()
+        .mockResolvedValueOnce({
+          done: false,
+          value: { byteLength: 1 },
+        })
+        .mockResolvedValueOnce({ done: true, value: undefined }),
+      cancel: vi.fn(async () => undefined),
+      releaseLock: vi.fn(),
+    };
+    const response = { body: { getReader: () => reader } } as unknown as Response;
+
+    await expect(consumeOpenAIStreamWithTools(response, () => {})).rejects.toThrow(
+      'Invalid AI stream response chunk',
+    );
+
+    expect(reader.cancel).toHaveBeenCalled();
+    expect(reader.releaseLock).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects oversized tool stream lines before parsing them', async () => {
     const cancel = vi.fn();
     const encoder = new TextEncoder();

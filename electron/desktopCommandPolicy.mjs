@@ -81,7 +81,12 @@ function normalizeTimeoutMs(value) {
   return timeoutMs;
 }
 
-export function normalizeDesktopCommandRequest(value, defaultCwd) {
+function isSameOrChildPath(rootPath, candidatePath) {
+  const relative = path.relative(rootPath, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+export function normalizeDesktopCommandRequest(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Invalid desktop command request.');
   }
@@ -100,18 +105,24 @@ export function normalizeDesktopCommandRequest(value, defaultCwd) {
     'Command purpose',
     MAX_DESKTOP_COMMAND_PURPOSE_CHARS,
   );
-  const normalizedDefaultCwd = requireBoundedSingleLine(
-    defaultCwd,
-    'Default working directory',
+  const workspaceRootInput = requireBoundedSingleLine(
+    value.workspaceRoot,
+    'Workspace root',
     MAX_DESKTOP_COMMAND_CWD_CHARS,
   );
+  const workspaceRoot = path.resolve(workspaceRootInput);
+  const cwd = path.resolve(workspaceRoot, cwdInput || '.');
+  if (!isSameOrChildPath(workspaceRoot, cwd)) {
+    throw new Error('Command working directory must stay inside the active workspace.');
+  }
   const rawLocale = typeof value.locale === 'string' && value.locale.length <= 32
     ? value.locale.toLowerCase()
     : '';
 
   return {
     command,
-    cwd: path.resolve(normalizedDefaultCwd, cwdInput || '.'),
+    cwd,
+    workspaceRoot,
     purpose,
     locale: rawLocale.startsWith('zh')
       ? rawLocale.includes('hant') || rawLocale.includes('tw')
@@ -133,42 +144,56 @@ export function buildDesktopCommandEnvironment(source = process.env) {
   return environment;
 }
 
-const PRIVILEGE_ESCALATION_PATTERN = /(?:\b(?:sudo|doas|pkexec)\b|\bsu\b[^\n]*\s-c(?:\s|$)|\brunas(?:\.exe)?\b|\bstart-process\b[^\n]*\s-verb(?:\s+|:)["']?runas\b|\bwith\s+administrator\s+privileges\b)/i;
-const PACKAGE_MUTATION_PATTERN = /\b(apt|apt-get|dnf|yum|pacman|zypper|brew|winget|choco|scoop|npm|pnpm|yarn)\b[^\n]*(install|remove|uninstall|upgrade|update)\b/i;
-const DESTRUCTIVE_SYSTEM_PATTERN = /(?:\brm\s+(?:--recursive\b|-[^\s-]*r[^\s]*)|\brmdir\s+\/s\b|\bdel\s+\/|\bremove-item\b[^\n]*\s-recurse\b|\bfind\b[^\n]*\s-delete\b|\b(?:format|diskpart|fdisk|mkfs|parted|shutdown|reboot|wipefs)\b)/i;
-const SYSTEM_CONFIGURATION_PATTERN = /\b(systemctl|launchctl|sc\.exe|reg\.exe|bcdedit)\b/i;
-const NETWORK_TO_SHELL_PATTERN = /\b(curl|wget)\b[^\n]*\|\s*(sh|bash|zsh|pwsh|powershell)\b/i;
-const POWERSHELL_NETWORK_EXECUTION_PATTERN = /\b(iwr|irm|invoke-webrequest|invoke-restmethod)\b[^\n]*\|\s*(iex|invoke-expression)\b/i;
-const RAW_DISK_WRITE_PATTERN = /\bdd\b[^\n]*\bof\s*=/i;
-const DESTRUCTIVE_GIT_PATTERN = /\bgit\b[^\n]*(?:\bclean\s+-[^\s]*f[^\s]*|\breset\s+--hard\b|\bpush\b[^\n]*--force(?:-with-lease)?\b)/i;
+const PROTECTED_CODEX_PATH_PATTERN = /(?:^|[\\/\s"'`=:(])\.codex(?=$|[\\/\s"'`;),])/i;
+const PROTECTED_CODEX_ENV_PATTERN = /(?:^|[^A-Za-z0-9_])(?:CODEX_HOME|%CODEX_HOME%)(?:[^A-Za-z0-9_]|$)/i;
+const DETACHED_PROCESS_PATTERN = /(?:\b(?:nohup|setsid|disown|start-process|start-job)\b|\bwmic\b[^\n]*\bprocess\b[^\n]*\bcall\s+create\b|(?:^|[|;&]\s*)start(?:\.exe)?(?:\s|$))/i;
 
-const ELEVATED_COMMAND_PATTERNS = [
-  PRIVILEGE_ESCALATION_PATTERN,
-  PACKAGE_MUTATION_PATTERN,
-  DESTRUCTIVE_SYSTEM_PATTERN,
-  SYSTEM_CONFIGURATION_PATTERN,
-  NETWORK_TO_SHELL_PATTERN,
-  POWERSHELL_NETWORK_EXECUTION_PATTERN,
-  RAW_DISK_WRITE_PATTERN,
-  DESTRUCTIVE_GIT_PATTERN,
-];
-
-const NON_PERSISTABLE_COMMAND_PATTERNS = [
-  PRIVILEGE_ESCALATION_PATTERN,
-  DESTRUCTIVE_SYSTEM_PATTERN,
-  NETWORK_TO_SHELL_PATTERN,
-  POWERSHELL_NETWORK_EXECUTION_PATTERN,
-  RAW_DISK_WRITE_PATTERN,
-  DESTRUCTIVE_GIT_PATTERN,
-];
-
-export function getDesktopCommandRisk(command) {
-  return ELEVATED_COMMAND_PATTERNS.some((pattern) => pattern.test(command)) ? 'elevated' : 'standard';
+function containsBackgroundOperator(command, platform) {
+  let quote = '';
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index];
+    if (quote) {
+      if (char === quote) quote = '';
+      if (char === '\\' && platform !== 'win32') index += 1;
+      continue;
+    }
+    if (char === '"' || (char === "'" && platform !== 'win32')) {
+      quote = char;
+      continue;
+    }
+    if ((char === '\\' && platform !== 'win32') || (char === '^' && platform === 'win32')) {
+      index += 1;
+      continue;
+    }
+    if (
+      char === '&'
+      && command[index - 1] !== '&'
+      && command[index + 1] !== '&'
+      && command[index - 1] !== '>'
+      && command[index + 1] !== '>'
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
-export function canAlwaysAllowDesktopCommand(command) {
-  if (typeof command !== 'string' || !command.trim() || UNSAFE_DISPLAY_CHARS.test(command)) return false;
-  return !NON_PERSISTABLE_COMMAND_PATTERNS.some((pattern) => pattern.test(command));
+export function referencesProtectedCodexConfig(command) {
+  if (typeof command !== 'string') return false;
+  if (PROTECTED_CODEX_PATH_PATTERN.test(command) || PROTECTED_CODEX_ENV_PATTERN.test(command)) {
+    return true;
+  }
+  const compact = command.replace(/[\s"'`^+]/g, '');
+  return /(?:^|[\\/])\.codex(?:[\\/]|$)/i.test(compact);
+}
+
+export function assertDesktopCommandAllowed(command, platform = process.platform) {
+  if (referencesProtectedCodexConfig(command)) {
+    throw new Error('Commands cannot access the protected Codex configuration directory.');
+  }
+  if (DETACHED_PROCESS_PATTERN.test(command) || containsBackgroundOperator(command, platform)) {
+    throw new Error('Detached or background commands are not supported.');
+  }
 }
 
 export function getDesktopCommandShell(platform = process.platform, environment = process.env) {

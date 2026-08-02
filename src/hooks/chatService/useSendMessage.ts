@@ -122,7 +122,7 @@ export function useSendMessage({
 
       const targetSessionId = activeSessionId;
       const requestStartedAt = Date.now();
-      const requestController = requestManager.start(targetSessionId);
+      const requestController = requestManager.start(targetSessionId, { computerUse: computerUseEnabled });
       const composerRequest: ActiveComposerRequest = {
         sessionId: targetSessionId,
         controller: requestController,

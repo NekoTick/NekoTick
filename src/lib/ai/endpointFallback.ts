@@ -1,3 +1,4 @@
+import { readErrorField } from './errorClassification';
 import { parseAPIError } from './errors';
 import { AIErrorType, type AIModel, type Provider } from './types';
 
@@ -6,14 +7,12 @@ const MAX_ENDPOINT_ERROR_CODE_STRING_CHARS = 128;
 const MAX_ENDPOINT_ERROR_TEXT_CHARS = 4096;
 const ENDPOINT_FALLBACK_STATUS_CODES = new Set([400, 404, 405, 422]);
 const ENDPOINT_MISMATCH_STATUS_CODE = 403;
-const NON_ENDPOINT_DISCOVERY_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
 const NON_ENDPOINT_FALLBACK_ERROR_CODES = new Set([
   'upstream_rate_limited',
   'points_exhausted',
   'inactive_points',
   'insufficient_points',
 ]);
-const TRANSIENT_PRE_STREAM_STATUS_CODES = new Set([408, 500, 502, 503, 504]);
 
 export type EndpointType = NonNullable<Provider['endpointType']>;
 
@@ -22,8 +21,7 @@ export function extractEndpointStatusCode(error: unknown): number | null {
     return null;
   }
 
-  const value = (error as { statusCode?: unknown; status?: unknown }).statusCode
-    ?? (error as { status?: unknown }).status;
+  const value = readErrorField(error, 'statusCode') ?? readErrorField(error, 'status');
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
@@ -43,8 +41,7 @@ export function extractEndpointErrorCode(error: unknown): string {
     return '';
   }
 
-  const value = (error as { errorCode?: unknown; code?: unknown }).errorCode
-    ?? (error as { code?: unknown }).code;
+  const value = readErrorField(error, 'errorCode') ?? readErrorField(error, 'code');
   return typeof value === 'string' && value.length <= MAX_ENDPOINT_ERROR_CODE_STRING_CHARS
     ? value.trim().toLowerCase()
     : '';
@@ -56,31 +53,25 @@ export function extractEndpointErrorText(error: unknown): string {
   }
 
   const values: string[] = [];
-  if (error instanceof Error) {
-    values.push(error.message);
-  }
   if (typeof error === 'object') {
-    const record = error as {
-      message?: unknown;
-      details?: unknown;
-      error?: unknown;
-    };
-    for (const value of [record.message, record.details]) {
+    for (const key of ['message', 'details'] as const) {
+      const value = readErrorField(error, key);
       if (typeof value === 'string') {
-        values.push(value);
+        values.push(value.slice(0, MAX_ENDPOINT_ERROR_TEXT_CHARS));
       }
     }
-    if (record.error && typeof record.error === 'object') {
-      const nested = record.error as { message?: unknown; detail?: unknown };
-      for (const value of [nested.message, nested.detail]) {
+    const nestedError = readErrorField(error, 'error');
+    if (nestedError && typeof nestedError === 'object') {
+      for (const key of ['message', 'detail'] as const) {
+        const value = readErrorField(nestedError, key);
         if (typeof value === 'string') {
-          values.push(value);
+          values.push(value.slice(0, MAX_ENDPOINT_ERROR_TEXT_CHARS));
         }
       }
     }
   }
   if (typeof error === 'string') {
-    values.push(error);
+    values.push(error.slice(0, MAX_ENDPOINT_ERROR_TEXT_CHARS));
   }
 
   return values
@@ -166,40 +157,4 @@ export function shouldTryAlternateEndpointAfterEndpointError(error: unknown): bo
 
   const parsed = parseAPIError(error);
   return parsed.type === AIErrorType.INVALID_REQUEST || parsed.type === AIErrorType.UNKNOWN;
-}
-
-export function shouldTryAnthropicEndpointDuringDiscovery(error: unknown): boolean {
-  const statusCode = extractEndpointStatusCode(error);
-  if (statusCode != null) {
-    return !NON_ENDPOINT_DISCOVERY_STATUS_CODES.has(statusCode);
-  }
-
-  if (isNonEndpointFallbackError(error)) {
-    return false;
-  }
-
-  const parsed = parseAPIError(error);
-  return parsed.type !== AIErrorType.RATE_LIMIT
-    && parsed.type !== AIErrorType.QUOTA_EXHAUSTED
-    && parsed.type !== AIErrorType.SERVER_ERROR;
-}
-
-export function isTransientEndpointPreStreamError(error: unknown): boolean {
-  const statusCode = extractEndpointStatusCode(error);
-  if (statusCode != null) {
-    return TRANSIENT_PRE_STREAM_STATUS_CODES.has(statusCode);
-  }
-
-  const errorCode = extractEndpointErrorCode(error);
-  if (NON_ENDPOINT_FALLBACK_ERROR_CODES.has(errorCode)) {
-    return false;
-  }
-  if (errorCode === 'upstream_unavailable') {
-    return true;
-  }
-
-  const parsed = parseAPIError(error);
-  return parsed.type === AIErrorType.NETWORK_ERROR
-    || parsed.type === AIErrorType.TIMEOUT
-    || parsed.type === AIErrorType.SERVER_ERROR;
 }

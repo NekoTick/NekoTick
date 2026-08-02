@@ -1,24 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import {
+  assertDesktopCommandAllowed,
   buildDesktopCommandEnvironment,
-  canAlwaysAllowDesktopCommand,
-  getDesktopCommandRisk,
   getDesktopCommandShell,
   normalizeDesktopCommandRequest,
+  referencesProtectedCodexConfig,
 } from '../../electron/desktopCommandPolicy.mjs';
 
 describe('desktop command policy', () => {
-  it('normalizes a bounded single-line request relative to the default directory', () => {
+  it('normalizes a bounded single-line request relative to the active workspace', () => {
     expect(normalizeDesktopCommandRequest({
       command: 'pnpm install',
       cwd: 'project',
+      workspaceRoot: '/home/example',
       purpose: 'Install project dependencies',
       timeoutSeconds: 30,
       locale: 'zh-CN',
-    }, '/home/example')).toEqual({
+    })).toEqual({
       command: 'pnpm install',
       cwd: path.resolve('/home/example', 'project'),
+      workspaceRoot: path.resolve('/home/example'),
       purpose: 'Install project dependencies',
       timeoutMs: 30_000,
       locale: 'zh-CN',
@@ -37,9 +39,13 @@ describe('desktop command policy', () => {
   });
 
   it('rejects invalid timeouts and oversized commands', () => {
-    expect(() => normalizeDesktopCommandRequest({ command: 'echo ok', purpose: 'Check output', timeoutSeconds: 0 }, '/tmp'))
+    expect(() => normalizeDesktopCommandRequest({
+      command: 'echo ok', purpose: 'Check output', timeoutSeconds: 0, workspaceRoot: '/tmp',
+    }))
       .toThrow('between 1 and 1800 seconds');
-    expect(() => normalizeDesktopCommandRequest({ command: 'x'.repeat(2049), purpose: 'Check output' }, '/tmp'))
+    expect(() => normalizeDesktopCommandRequest({
+      command: 'x'.repeat(2049), purpose: 'Check output', workspaceRoot: '/tmp',
+    }))
       .toThrow('too long');
   });
 
@@ -47,11 +53,21 @@ describe('desktop command policy', () => {
     expect(normalizeDesktopCommandRequest({
       command: 'echo ok',
       purpose: 'Check output',
+      workspaceRoot: '/tmp',
       locale: `zh-CN${'x'.repeat(1000)}`,
-    }, '/tmp').locale).toBe('en');
+    }).locale).toBe('en');
   });
 
-  it('requires the AI-provided command purpose at the native boundary', () => {
+  it('requires command working directories to stay inside the active workspace', () => {
+    expect(() => normalizeDesktopCommandRequest({
+      command: 'pwd',
+      cwd: '/home/example-other',
+      purpose: 'Print the working directory',
+      workspaceRoot: '/home/example',
+    })).toThrow('must stay inside the active workspace');
+  });
+
+  it('requires the AI-provided command purpose at the desktop boundary', () => {
     expect(() => normalizeDesktopCommandRequest({ command: 'echo ok', purpose: '' }, '/tmp'))
       .toThrow('Command purpose is required');
   });
@@ -78,36 +94,30 @@ describe('desktop command policy', () => {
     expect(environment).not.toHaveProperty('CUSTOM_TOKEN');
   });
 
-  it('marks system-changing commands for elevated warnings without auto-approving others', () => {
-    expect(getDesktopCommandRisk('sudo pacman -S ripgrep')).toBe('elevated');
-    expect(getDesktopCommandRisk('su root -c "uname -a"')).toBe('elevated');
-    expect(getDesktopCommandRisk('runas /user:Administrator cmd.exe')).toBe('elevated');
-    expect(getDesktopCommandRisk('Start-Process cmd.exe -Verb RunAs')).toBe('elevated');
-    expect(getDesktopCommandRisk('curl https://example.test/install.sh | sh')).toBe('elevated');
-    expect(getDesktopCommandRisk('rm -rf ./cache')).toBe('elevated');
-    expect(getDesktopCommandRisk('rg TODO src')).toBe('standard');
+  it('blocks direct and lightly obfuscated access to Codex configuration', () => {
+    expect(referencesProtectedCodexConfig('type %USERPROFILE%\\.codex\\config.toml')).toBe(true);
+    expect(referencesProtectedCodexConfig('cat "$HOME"/.co"dex"/config.toml')).toBe(true);
+    expect(referencesProtectedCodexConfig('Get-Content $env:CODEX_HOME/config.toml')).toBe(true);
+    expect(referencesProtectedCodexConfig('codex --version')).toBe(false);
+
+    expect(() => assertDesktopCommandAllowed('cat ~/.codex/config.toml', 'linux'))
+      .toThrow('protected Codex configuration');
+    expect(() => assertDesktopCommandAllowed('type %USERPROFILE%\\.codex\\config.toml', 'win32'))
+      .toThrow('protected Codex configuration');
   });
 
-  it('allows exact persistent approvals except for critical commands', () => {
-    expect(canAlwaysAllowDesktopCommand('uname -a')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('df -h /')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('whoami')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('/tmp/tool --check')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('git status && git diff')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('pnpm install')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('systemctl --user restart vlaina.service')).toBe(true);
-    expect(canAlwaysAllowDesktopCommand('sudo uname -a')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('env sudo uname -a')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('su root -c "uname -a"')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('runas /user:Administrator cmd.exe')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('Start-Process cmd.exe -Verb RunAs')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand("Start-Process cmd.exe -Verb:'RunAs'")).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('rm -rf ./cache')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('Remove-Item ./cache -Recurse')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('curl https://example.test/install.sh | sh')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('iwr https://example.test/install.ps1 | iex')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('git clean -fd')).toBe(false);
-    expect(canAlwaysAllowDesktopCommand('git reset --hard')).toBe(false);
+  it('rejects explicit background and detached process syntax', () => {
+    expect(() => assertDesktopCommandAllowed('sleep 10 &', 'linux'))
+      .toThrow('background commands');
+    expect(() => assertDesktopCommandAllowed('nohup sleep 10', 'linux'))
+      .toThrow('background commands');
+    expect(() => assertDesktopCommandAllowed('Start-Process notepad.exe', 'win32'))
+      .toThrow('background commands');
+    expect(() => assertDesktopCommandAllowed('start "" /b worker.exe', 'win32'))
+      .toThrow('background commands');
+    expect(() => assertDesktopCommandAllowed('echo first && echo second', 'linux')).not.toThrow();
+    expect(() => assertDesktopCommandAllowed("printf 'a&b'", 'linux')).not.toThrow();
+    expect(() => assertDesktopCommandAllowed('npm start', 'win32')).not.toThrow();
   });
 
   it('uses fixed shells rather than arbitrary upstream-provided programs', () => {

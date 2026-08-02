@@ -7,6 +7,7 @@ import { useManagedAIStore } from '../useManagedAIStore';
 import { saveUnifiedData } from '@/lib/storage/unifiedStorage';
 import type { AIModel, Provider } from '@/lib/ai/types';
 import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorageSaveTypes';
+import { requestManager } from '@/lib/ai/requestManager';
 
 const { fetchManagedModelsMock, fetchManagedModelsVersionMock } = vi.hoisted(() => ({
   fetchManagedModelsMock: vi.fn(),
@@ -281,6 +282,63 @@ describe('deleteIncompleteCustomProviders', () => {
     expect(ai.selectedModelId).toBe('model-a');
     expect(ai.sessions[0]?.modelId).toBe('model-a');
   });
+
+  it('requires execution mode confirmation after changing models', () => {
+    const provider = buildProvider({ id: 'provider-1' });
+    const modelA = buildModel({ id: 'model-a', apiModelId: 'model-a' });
+    const modelB = buildModel({ id: 'model-b', apiModelId: 'model-b' });
+    seedAI([provider], [modelA, modelB]);
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          computerUseEnabled: true,
+        },
+      },
+    }));
+
+    actions.selectModel('model-b');
+
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false);
+
+    actions.setComputerUseEnabled(true);
+    actions.selectModel('model-b');
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(true);
+  });
+
+  it('keeps execution mode through model metadata changes but revokes it for route changes', () => {
+    const provider = buildProvider({ id: 'provider-1' });
+    const model = buildModel({ id: 'model-a', apiModelId: 'model-a' });
+    seedAI([provider], [model]);
+    actions.setComputerUseEnabled(true);
+
+    actions.updateModel('model-a', { pinned: true, priceTier: '$$' });
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(true);
+
+    actions.updateModel('model-a', { endpointType: 'anthropic' });
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false);
+  });
+
+  it('does not revoke the active request when recording the already-used default endpoint', () => {
+    const provider = buildProvider({
+      id: 'provider-1',
+      endpointType: 'anthropic',
+    });
+    const model = buildModel({ id: 'model-a', apiModelId: 'model-a' });
+    seedAI([provider], [model]);
+    actions.setComputerUseEnabled(true);
+    const controller = requestManager.start('session-1', { computerUse: true });
+
+    actions.updateProvider('provider-1', {
+      endpointType: 'openai',
+      endpointTypeCheckedAt: 12,
+    });
+
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(true);
+    expect(controller.signal.aborted).toBe(false);
+    requestManager.abort('session-1');
+  });
 });
 
 describe('reorderCustomProviders', () => {
@@ -443,6 +501,14 @@ describe('updateProvider', () => {
       endpointTypeCheckedAt: 12,
     });
   });
+
+  it('requires execution mode confirmation after the selected provider connection changes', () => {
+    actions.setComputerUseEnabled(true);
+
+    actions.updateProvider('provider-1', { apiHost: 'https://new.example.com' });
+
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false);
+  });
 });
 
 describe('refreshManagedProviderInBackground', () => {
@@ -555,6 +621,7 @@ describe('refreshManagedProviderInBackground', () => {
         apiHost: 'https://api.vlaina.com/v1',
       }),
     ], []);
+    actions.setComputerUseEnabled(true);
     fetchManagedModelsMock.mockResolvedValue(buildCatalog([
       buildModel({
         id: 'vlaina-managed::first-model',
@@ -575,6 +642,25 @@ describe('refreshManagedProviderInBackground', () => {
     await vi.runAllTimersAsync();
 
     expect(useUnifiedStore.getState().data.ai?.selectedModelId).toBe('vlaina-managed::default-model');
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false);
+  });
+
+  it('revokes execution mode when a managed selected model changes its execution context', async () => {
+    actions.setComputerUseEnabled(true);
+    fetchManagedModelsMock.mockResolvedValue(buildCatalog([
+      buildModel({
+        id: 'vlaina-managed::old-model',
+        apiModelId: 'old-model',
+        name: 'Updated Old Model',
+        providerId: 'vlaina-managed',
+      }),
+    ]));
+
+    actions.refreshManagedProviderInBackground();
+    await vi.runAllTimersAsync();
+
+    expect(useUnifiedStore.getState().data.ai?.selectedModelId).toBe('vlaina-managed::old-model');
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false);
   });
 
   it('prefers the current session model over the managed default after refresh', async () => {

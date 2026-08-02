@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import electron from 'electron';
@@ -12,7 +13,22 @@ import {
 const MAX_DESKTOP_IPC_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_AI_PROVIDER_RESPONSE_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_AI_PROVIDER_RESPONSE_IPC_CHUNK_BYTES = 256 * 1024;
+const AI_PROVIDER_CHUNK_ACK_TIMEOUT_MS = 30_000;
+const MAX_ACTIVE_AI_PROVIDER_REQUESTS = 16;
 const MAX_CLIPBOARD_IMAGE_DATA_URL_BYTES = 10 * 1024 * 1024;
+
+function createRendererSender() {
+  let destroyed = false;
+  const sender = Object.assign(new EventEmitter(), {
+    destroy() {
+      destroyed = true;
+      sender.emit('destroyed');
+    },
+    isDestroyed: () => destroyed,
+    send: vi.fn(),
+  });
+  return sender;
+}
 
 const hoisted = vi.hoisted(() => {
   const windows: any[] = [];
@@ -712,7 +728,30 @@ describe('desktop export ipc', () => {
       method: 'POST',
     })).rejects.toThrow('AI provider request URL is not supported.');
 
+    await expect(startRequest?.({ sender }, 'request-insecure-remote-url', {
+      url: 'http://api.example.com/v1/chat/completions',
+      method: 'POST',
+    })).rejects.toThrow('AI provider request URL must use HTTPS unless it targets the local computer.');
+
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows local HTTP providers but disables redirects', async () => {
+    const { handlers } = registerHarness();
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await expect(handlers.get('desktop:ai-provider:request:start')?.(
+      { sender },
+      'request-local-http',
+      { url: 'http://127.0.0.1:11434/v1/models', method: 'GET' },
+    )).resolves.toMatchObject({ status: 204 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:11434/v1/models',
+      expect.objectContaining({ redirect: 'error' }),
+    );
   });
 
   it('rejects unsafe AI provider request ids before opening stream channels', async () => {
@@ -845,7 +884,7 @@ describe('desktop export ipc', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('splits large AI provider response chunks before forwarding them over IPC', async () => {
+  it('splits large AI provider response chunks into binary IPC payloads with acknowledgements', async () => {
     const { handlers } = registerHarness();
     const responseChunk = new Uint8Array(MAX_AI_PROVIDER_RESPONSE_IPC_CHUNK_BYTES + 3);
     responseChunk.set([1, 2, 3], MAX_AI_PROVIDER_RESPONSE_IPC_CHUNK_BYTES);
@@ -861,7 +900,16 @@ describe('desktop export ipc', () => {
     vi.stubGlobal('fetch', fetchMock);
     const sender = {
       isDestroyed: () => false,
-      send: vi.fn(),
+      send: vi.fn((channel: string, payload: { sequence?: number }) => {
+        if (!channel.endsWith(':chunk')) return;
+        queueMicrotask(() => {
+          void handlers.get('desktop:ai-provider:request:ack')?.(
+            { sender },
+            'request-large-response-chunk',
+            payload.sequence,
+          );
+        });
+      }),
     };
 
     await expect(handlers.get('desktop:ai-provider:request:start')?.(
@@ -882,11 +930,127 @@ describe('desktop export ipc', () => {
     )).toBe(true));
     const forwardedChunks = sender.send.mock.calls
       .filter(([channel]) => channel === 'desktop:ai-provider:request:request-large-response-chunk:chunk')
-      .map(([, payload]) => payload);
+      .map(([, payload]) => payload.bytes);
 
     expect(forwardedChunks).toHaveLength(2);
+    expect(forwardedChunks[0]).toBeInstanceOf(Uint8Array);
     expect(forwardedChunks[0]).toHaveLength(MAX_AI_PROVIDER_RESPONSE_IPC_CHUNK_BYTES);
-    expect(forwardedChunks[1]).toEqual([1, 2, 3]);
+    expect(forwardedChunks[1]).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it('does not read the next provider chunk until the renderer acknowledges the current chunk', async () => {
+    const { handlers } = registerHarness();
+    const reader = {
+      read: vi.fn()
+        .mockResolvedValueOnce({ done: false, value: new Uint8Array([1, 2, 3]) })
+        .mockResolvedValueOnce({ done: true }),
+      cancel: vi.fn(async () => undefined),
+      releaseLock: vi.fn(),
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      body: { getReader: () => reader },
+    })));
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:ai-provider:request:start')?.(
+      { sender },
+      'request-backpressure',
+      { url: 'https://api.example.com/v1/chat/completions', method: 'POST', body: '{}' },
+    );
+    await vi.waitFor(() => expect(sender.send).toHaveBeenCalledWith(
+      'desktop:ai-provider:request:request-backpressure:chunk',
+      expect.objectContaining({ sequence: 0, bytes: new Uint8Array([1, 2, 3]) }),
+    ));
+
+    expect(reader.read).toHaveBeenCalledTimes(1);
+    expect(sender.send).not.toHaveBeenCalledWith(
+      'desktop:ai-provider:request:request-backpressure:done',
+      undefined,
+    );
+
+    await handlers.get('desktop:ai-provider:request:ack')?.(
+      { sender },
+      'request-backpressure',
+      0,
+    );
+
+    await vi.waitFor(() => expect(reader.read).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(sender.send.mock.calls.some(
+      ([channel]) => channel === 'desktop:ai-provider:request:request-backpressure:done',
+    )).toBe(true));
+  });
+
+  it('aborts provider streams whose renderer does not acknowledge a chunk', async () => {
+    vi.useFakeTimers();
+    try {
+      const { handlers } = registerHarness();
+      let signal: AbortSignal | undefined;
+      const reader = {
+        read: vi.fn()
+          .mockResolvedValueOnce({ done: false, value: new Uint8Array([1, 2, 3]) })
+          .mockImplementation(() => new Promise(() => undefined)),
+        cancel: vi.fn(async () => undefined),
+        releaseLock: vi.fn(),
+      };
+      vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+        signal = init.signal as AbortSignal;
+        return {
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          body: { getReader: () => reader },
+        };
+      }));
+      const sender = createRendererSender();
+
+      await handlers.get('desktop:ai-provider:request:start')?.(
+        { sender },
+        'request-ack-timeout',
+        { url: 'https://api.example.com/v1/chat/completions', method: 'POST', body: '{}' },
+      );
+      await vi.waitFor(() => expect(sender.send).toHaveBeenCalledWith(
+        'desktop:ai-provider:request:request-ack-timeout:chunk',
+        expect.objectContaining({ sequence: 0 }),
+      ));
+
+      await vi.advanceTimersByTimeAsync(AI_PROVIDER_CHUNK_ACK_TIMEOUT_MS);
+      await vi.waitFor(() => expect(reader.releaseLock).toHaveBeenCalledTimes(1));
+      expect(signal?.aborted).toBe(true);
+      expect(reader.cancel).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('bounds active provider requests and aborts them with the renderer', async () => {
+    const { handlers } = registerHarness();
+    const signals: AbortSignal[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      signals.push(init.signal as AbortSignal);
+      return new Response(new ReadableStream<Uint8Array>({ start() {} }));
+    }));
+    const sender = createRendererSender();
+    const start = handlers.get('desktop:ai-provider:request:start');
+
+    for (let index = 0; index < MAX_ACTIVE_AI_PROVIDER_REQUESTS; index += 1) {
+      await start?.(
+        { sender },
+        `request-bounded-${index}`,
+        { url: 'https://api.example.com/v1/chat/completions', method: 'POST', body: '{}' },
+      );
+    }
+    await expect(start?.(
+      { sender },
+      'request-bounded-overflow',
+      { url: 'https://api.example.com/v1/chat/completions', method: 'POST', body: '{}' },
+    )).rejects.toThrow('Too many AI provider requests are active.');
+
+    sender.destroy();
+    expect(signals).toHaveLength(MAX_ACTIVE_AI_PROVIDER_REQUESTS);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
 
   it('stops AI provider response streams when the total body exceeds the limit', async () => {
@@ -936,103 +1100,87 @@ describe('desktop export ipc', () => {
     expect(reader.releaseLock).toHaveBeenCalledTimes(1);
   });
 
-  it('retries quickly failed AI provider transport requests once', async () => {
+  it('does not retry failed POST provider requests', async () => {
+    const { handlers } = registerHarness();
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    vi.stubGlobal('fetch', fetchMock);
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await expect(handlers.get('desktop:ai-provider:request:start')?.(
+      { sender },
+      'request-no-post-retry',
+      {
+        url: 'https://api.example.com/v1/images/generations',
+        method: 'POST',
+        body: JSON.stringify({ model: 'gpt-image-1', prompt: 'test' }),
+      },
+    )).rejects.toThrow('AI_PROVIDER_CONNECTION_FAILED');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not replay POST requests after abort-shaped transport failures', async () => {
+    const { handlers } = registerHarness();
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('upstream reset', 'AbortError'));
+    vi.stubGlobal('fetch', fetchMock);
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await expect(handlers.get('desktop:ai-provider:request:start')?.(
+      { sender },
+      'request-abort-shaped-no-retry',
+      {
+        url: 'https://api.example.com/v1/chat/completions',
+        method: 'POST',
+        body: JSON.stringify({ model: 'gpt-4o-mini', messages: [] }),
+      },
+    )).rejects.toThrow('AI_PROVIDER_CONNECTION_FAILED');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not disclose provider URLs or transport details on connection failure', async () => {
+    const { handlers } = registerHarness();
+    const fetchMock = vi.fn().mockRejectedValue(
+      new TypeError('fetch failed with fake-transport-secret'),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    const request = handlers.get('desktop:ai-provider:request:start')?.(
+      { sender },
+      'request-sanitized-failure',
+      {
+        url: 'https://api.example.com/v1/images/generations?token=fake-query-secret',
+        method: 'POST',
+        body: JSON.stringify({ model: 'gpt-image-1', prompt: 'test' }),
+      },
+    ) as Promise<unknown> | undefined;
+
+    await expect(request).rejects.toThrow('AI_PROVIDER_CONNECTION_FAILED');
+    await expect(request).rejects.not.toThrow('fake-query-secret');
+    await expect(request).rejects.not.toThrow('fake-transport-secret');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries quickly failed GET provider requests once', async () => {
     vi.useFakeTimers();
     try {
       const { handlers } = registerHarness();
-      const fetchMock = vi
-        .fn()
+      const fetchMock = vi.fn()
         .mockRejectedValueOnce(new TypeError('fetch failed'))
-        .mockResolvedValueOnce(new Response('{}', { status: 200, statusText: 'OK' }));
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
       vi.stubGlobal('fetch', fetchMock);
-      const sender = {
-        isDestroyed: () => false,
-        send: vi.fn(),
-      };
+      const sender = { isDestroyed: () => false, send: vi.fn() };
 
       const request = handlers.get('desktop:ai-provider:request:start')?.(
         { sender },
-        'request-retry',
-        {
-          url: 'https://api.example.com/v1/images/generations',
-          method: 'POST',
-          body: JSON.stringify({ model: 'gpt-image-1', prompt: 'test' }),
-        },
+        'request-get-retry',
+        { url: 'https://api.example.com/v1/models', method: 'GET' },
       ) as Promise<unknown> | undefined;
 
       await vi.advanceTimersByTimeAsync(300);
 
-      await expect(request).resolves.toMatchObject({
-        status: 200,
-        statusText: 'OK',
-      });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('retries abort-shaped AI provider transport failures when the request was not cancelled', async () => {
-    vi.useFakeTimers();
-    try {
-      const { handlers } = registerHarness();
-      const fetchMock = vi
-        .fn()
-        .mockRejectedValueOnce(new DOMException('upstream reset', 'AbortError'))
-        .mockResolvedValueOnce(new Response('{}', { status: 200, statusText: 'OK' }));
-      vi.stubGlobal('fetch', fetchMock);
-      const sender = {
-        isDestroyed: () => false,
-        send: vi.fn(),
-      };
-
-      const request = handlers.get('desktop:ai-provider:request:start')?.(
-        { sender },
-        'request-abort-shaped-retry',
-        {
-          url: 'https://api.example.com/v1/chat/completions',
-          method: 'POST',
-          body: JSON.stringify({ model: 'gpt-4o-mini', messages: [] }),
-        },
-      ) as Promise<unknown> | undefined;
-
-      await vi.advanceTimersByTimeAsync(300);
-
-      await expect(request).resolves.toMatchObject({
-        status: 200,
-        statusText: 'OK',
-      });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('surfaces a clear custom provider retry hint after transport retries fail', async () => {
-    vi.useFakeTimers();
-    try {
-      const { handlers } = registerHarness();
-      const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
-      vi.stubGlobal('fetch', fetchMock);
-      const sender = {
-        isDestroyed: () => false,
-        send: vi.fn(),
-      };
-
-      const request = handlers.get('desktop:ai-provider:request:start')?.(
-        { sender },
-        'request-retry-fail',
-        {
-          url: 'https://api.example.com/v1/images/generations',
-          method: 'POST',
-          body: JSON.stringify({ model: 'gpt-image-1', prompt: 'test' }),
-        },
-      ) as Promise<unknown> | undefined;
-      request?.catch(() => undefined);
-
-      await vi.advanceTimersByTimeAsync(300);
-
-      await expect(request).rejects.toThrow('连接到自定义渠道失败，可能是上游或网络瞬时不可达，可重试。');
+      await expect(request).resolves.toMatchObject({ status: 204 });
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
@@ -1066,7 +1214,7 @@ describe('desktop export ipc', () => {
 
       await vi.advanceTimersByTimeAsync(2100);
 
-      await expect(request).rejects.toThrow('连接到自定义渠道失败，可能是上游或网络瞬时不可达，可重试。');
+      await expect(request).rejects.toThrow('AI_PROVIDER_CONNECTION_FAILED');
       expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
@@ -1093,38 +1241,29 @@ describe('desktop export ipc', () => {
     request?.catch(() => undefined);
 
     await Promise.resolve();
-    await handlers.get('desktop:ai-provider:request:cancel')?.({}, 'request-ignores-abort');
+    const stranger = { isDestroyed: () => false, send: vi.fn() };
+    await expect(handlers.get('desktop:ai-provider:request:cancel')?.(
+      { sender: stranger },
+      'request-ignores-abort',
+    )).resolves.toBe(false);
+    expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(false);
+    await expect(handlers.get('desktop:ai-provider:request:cancel')?.(
+      { sender },
+      'request-ignores-abort',
+    )).resolves.toBe(true);
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(sender.send).not.toHaveBeenCalled();
   });
 
-  it('does not let an old AI provider stream cleanup or abort event affect a newer request with the same id', async () => {
+  it('rejects duplicate active AI provider request ids', async () => {
     const { handlers } = registerHarness();
-    const signals: AbortSignal[] = [];
-    const cancelFirstStream = vi.fn();
-    const firstStream = new ReadableStream<Uint8Array>({
-      start() {
-      },
-      cancel() {
-        cancelFirstStream();
-      },
+    let signal: AbortSignal | undefined;
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      signal = init.signal as AbortSignal;
+      return new Response(new ReadableStream<Uint8Array>({ start() {} }));
     });
-    const secondStream = new ReadableStream<Uint8Array>({
-      start() {
-      },
-    });
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(async (_url: string, init: RequestInit) => {
-        signals.push(init.signal as AbortSignal);
-        return new Response(firstStream);
-      })
-      .mockImplementationOnce(async (_url: string, init: RequestInit) => {
-        signals.push(init.signal as AbortSignal);
-        return new Response(secondStream);
-      });
     vi.stubGlobal('fetch', fetchMock);
     const sender = {
       isDestroyed: () => false,
@@ -1136,24 +1275,16 @@ describe('desktop export ipc', () => {
       'request-1',
       { url: 'https://api.example.com/v1/chat/completions', method: 'POST' },
     );
-    await handlers.get('desktop:ai-provider:request:start')?.(
+    await expect(handlers.get('desktop:ai-provider:request:start')?.(
       { sender },
       'request-1',
       { url: 'https://api.example.com/v1/chat/completions', method: 'POST' },
-    );
-    await Promise.resolve();
-    await Promise.resolve();
+    )).rejects.toThrow('already active');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(signal?.aborted).toBe(false);
 
-    await handlers.get('desktop:ai-provider:request:cancel')?.({}, 'request-1');
-
-    expect(signals).toHaveLength(2);
-    expect(signals[0].aborted).toBe(true);
-    expect(signals[1].aborted).toBe(true);
-    expect(cancelFirstStream).toHaveBeenCalledTimes(1);
-    expect(sender.send).not.toHaveBeenCalledWith(
-      'desktop:ai-provider:request:request-1:error',
-      { message: 'Aborted' },
-    );
+    await handlers.get('desktop:ai-provider:request:cancel')?.({ sender }, 'request-1');
+    expect(signal?.aborted).toBe(true);
   });
 
   it('does not emit stale AI provider reader failures after cancellation', async () => {
@@ -1193,7 +1324,7 @@ describe('desktop export ipc', () => {
       { url: 'https://api.example.com/v1/chat/completions', method: 'POST' },
     );
     await readStarted;
-    await handlers.get('desktop:ai-provider:request:cancel')?.({}, 'request-reader-abort');
+    await handlers.get('desktop:ai-provider:request:cancel')?.({ sender }, 'request-reader-abort');
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(sender.send).not.toHaveBeenCalledWith(
@@ -1204,6 +1335,42 @@ describe('desktop export ipc', () => {
       'desktop:ai-provider:request:request-reader-abort:error',
       { message: 'native reader failed after abort' },
     );
+  });
+
+  it('does not disclose native reader errors to the renderer', async () => {
+    const { handlers } = registerHarness();
+    const hostileReaderError = new Error('placeholder');
+    Object.defineProperty(hostileReaderError, 'message', {
+      get() {
+        throw new Error('fake-reader-message-getter-secret');
+      },
+    });
+    const reader = {
+      read: vi.fn().mockRejectedValue(hostileReaderError),
+      cancel: vi.fn(async () => undefined),
+      releaseLock: vi.fn(),
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      body: { getReader: () => reader },
+    })));
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:ai-provider:request:start')?.(
+      { sender },
+      'request-reader-error',
+      { url: 'https://api.example.com/v1/chat/completions', method: 'POST' },
+    );
+
+    await vi.waitFor(() => expect(sender.send).toHaveBeenCalledWith(
+      'desktop:ai-provider:request:request-reader-error:error',
+      { message: 'AI provider response stream failed.' },
+    ));
+    expect(JSON.stringify(sender.send.mock.calls)).not.toContain('fake-reader-message-getter-secret');
+    expect(reader.cancel).toHaveBeenCalledTimes(1);
+    expect(reader.releaseLock).toHaveBeenCalledTimes(1);
   });
 
   it('releases AI provider stream readers promptly when read and cancel both ignore abort', async () => {
@@ -1233,7 +1400,7 @@ describe('desktop export ipc', () => {
       { url: 'https://api.example.com/v1/chat/completions', method: 'POST' },
     );
     await vi.waitFor(() => expect(fakeReader.read).toHaveBeenCalled());
-    await handlers.get('desktop:ai-provider:request:cancel')?.({}, 'request-reader-hangs');
+    await handlers.get('desktop:ai-provider:request:cancel')?.({ sender }, 'request-reader-hangs');
 
     await vi.waitFor(() => expect(fakeReader.releaseLock).toHaveBeenCalledTimes(1));
     expect(fakeReader.cancel).toHaveBeenCalled();

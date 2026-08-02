@@ -1,6 +1,6 @@
 import type { ApiTranscriptMessage, ChatMessage } from './types';
 import { IMAGE_PLACEHOLDER } from './prompts';
-import { normalizeApiTranscriptMessages } from './apiTranscript';
+import { normalizeApiTranscriptMessagesForProviderReplay } from './apiTranscript';
 import { stripThinkingContent } from './stripThinkingContent';
 import { sanitizeRequestTextImageReferences } from './requestContextImageSanitizer';
 import { normalizeChatRequestContextSnapshot } from './requestContextSnapshot';
@@ -135,7 +135,7 @@ export function sanitizeHistoryMessage(msg: ChatMessage): ChatMessage {
   const contentWithoutUiErrors = msg.role === 'assistant'
     ? rawContent.replace(ERROR_TAG_GLOBAL_REGEX, '').trim()
     : rawContent;
-  const apiTranscript = sanitizeApiTranscriptTextReferences(normalizeApiTranscriptMessages(
+  const apiTranscript = sanitizeApiTranscriptTextReferences(normalizeApiTranscriptMessagesForProviderReplay(
     msg.apiTranscript ?? msg.versions?.[msg.currentVersionIndex]?.apiTranscript
   ));
   const rawRequestContext = msg.role === 'user'

@@ -9,6 +9,7 @@ function createDesktopApi(deps) {
   const {
     callIpcCallback,
     createRendererErrorReport,
+    hostPlatform,
     ipcRenderer,
     normalizeDesktopBinaryWritePayload,
     normalizeDesktopTextWritePayload,
@@ -206,7 +207,7 @@ function createDesktopApi(deps) {
       },
     },
     aiProvider: createAiProviderApi(deps),
-    computer: createComputerApi(deps),
+    computer: hostPlatform === 'linux' ? createComputerApi(deps) : undefined,
     webSearch: createWebSearchApi(deps),
     dragDrop: {
       getPathForFile(file) {

@@ -82,11 +82,14 @@ function createTimedRequestInit(init = {}, timeoutMs = null) {
     return {
       requestInit: init,
       cleanup: () => {},
+      didTimeout: () => false,
     };
   }
 
   const timeoutController = new AbortController();
+  let timedOut = false;
   const timeout = setTimeout(() => {
+    timedOut = true;
     timeoutController.abort();
   }, timeoutMs);
   let cleanupExternalAbort = () => {};
@@ -115,7 +118,15 @@ function createTimedRequestInit(init = {}, timeoutMs = null) {
       clearTimeout(timeout);
       cleanupExternalAbort();
     },
+    didTimeout: () => timedOut,
   };
+}
+
+function normalizeTimedRequestError(error, didTimeout) {
+  if (didTimeout()) {
+    return new Error('Managed API request timed out.');
+  }
+  return error;
 }
 
 function delayReadOnlyNetworkRetry(ms, signal) {
@@ -151,6 +162,7 @@ export function createManagedRequestHelpers({
   readOnlyNetworkRetryDelaysMs = [300],
   readOnlyFastFailureRetryWindowMs = 2000,
   managedReadOnlyRequestTimeoutMs = 15_000,
+  managedMutationRequestTimeoutMs = 300_000,
   desktopAccountRequestTimeoutMs = 15_000,
 }) {
   async function retryReadOnlyNetworkFailure(operation, init = {}) {
@@ -176,16 +188,19 @@ export function createManagedRequestHelpers({
 
   async function requestManagedJson(pathname, init = {}) {
     const method = String(init.method ?? 'GET').toUpperCase();
-    const { requestInit, cleanup } = createTimedRequestInit({
+    const { requestInit, cleanup, didTimeout } = createTimedRequestInit({
       ...init,
       cache: 'no-store',
-    }, method === 'GET' ? managedReadOnlyRequestTimeoutMs : null);
+      redirect: 'error',
+    }, method === 'GET' ? managedReadOnlyRequestTimeoutMs : managedMutationRequestTimeoutMs);
     try {
       const response = await retryReadOnlyNetworkFailure(
         () => fetchWithStoredSession(`${managedApiBaseUrl}${pathname}`, requestInit),
         requestInit,
       );
       return await readJsonResponse(response, `Managed API request failed: HTTP ${response.status}`, requestInit.signal);
+    } catch (error) {
+      throw normalizeTimedRequestError(error, didTimeout);
     } finally {
       cleanup();
     }
@@ -193,9 +208,10 @@ export function createManagedRequestHelpers({
 
   async function requestManagedPublicJson(pathname, init = {}) {
     const method = String(init.method ?? 'GET').toUpperCase();
-    const { requestInit, cleanup } = createTimedRequestInit({
+    const { requestInit, cleanup, didTimeout } = createTimedRequestInit({
       ...init,
       cache: 'no-store',
+      redirect: 'error',
       headers: {
         Accept: 'application/json',
         ...(init.headers ?? {}),
@@ -210,34 +226,44 @@ export function createManagedRequestHelpers({
         requestInit,
       );
       return await readJsonResponse(response, `Managed API request failed: HTTP ${response.status}`, requestInit.signal);
+    } catch (error) {
+      throw normalizeTimedRequestError(error, didTimeout);
     } finally {
       cleanup();
     }
   }
 
-  async function createElectronBillingCheckout(tier) {
-    const { requestInit, cleanup } = createTimedRequestInit({
+  async function createElectronBillingCheckout(tier, signal) {
+    const { requestInit, cleanup, didTimeout } = createTimedRequestInit({
       method: 'POST',
       cache: 'no-store',
+      redirect: 'error',
       body: JSON.stringify({ tier }),
+      signal,
     }, desktopAccountRequestTimeoutMs);
     try {
       const response = await fetchWithStoredSession(`${apiBaseUrl}/billing/checkout`, requestInit);
       return await readJsonResponse(response, `Failed to create checkout session: HTTP ${response.status}`, requestInit.signal);
+    } catch (error) {
+      throw normalizeTimedRequestError(error, didTimeout);
     } finally {
       cleanup();
     }
   }
 
-  async function submitElectronFeedback(message) {
-    const { requestInit, cleanup } = createTimedRequestInit({
+  async function submitElectronFeedback(message, signal) {
+    const { requestInit, cleanup, didTimeout } = createTimedRequestInit({
       method: 'POST',
       cache: 'no-store',
+      redirect: 'error',
       body: JSON.stringify({ message: primitiveToString(message) ?? '' }),
+      signal,
     }, desktopAccountRequestTimeoutMs);
     try {
       const response = await fetchWithStoredSession(`${apiBaseUrl}/feedback`, requestInit);
       return await readJsonResponse(response, `Failed to submit feedback: HTTP ${response.status}`, requestInit.signal);
+    } catch (error) {
+      throw normalizeTimedRequestError(error, didTimeout);
     } finally {
       cleanup();
     }

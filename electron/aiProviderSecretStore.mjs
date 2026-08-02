@@ -3,9 +3,11 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { ensurePrivateDirectory, writePrivateFile } from './privateFilePermissions.mjs';
 import { decodeSecretRecord, encodeSecretRecord } from './secureSecretRecord.mjs';
+import { isSafeStoragePersistenceAvailable } from './linuxSafeStorage.mjs';
 
 const { app, safeStorage } = electron;
 const MAX_PROVIDER_SECRETS_JSON_BYTES = 512 * 1024;
+const PROVIDER_SECRET_DECRYPTION_ERROR_CODE = 'provider_secret_decryption_failed';
 let secretsStoreUpdatePromise = Promise.resolve();
 
 function isSafeProviderId(value) {
@@ -29,6 +31,10 @@ export async function readSecretsStore() {
   const secretsDir = path.join(app.getPath('userData'), '.vlaina', 'app', 'secrets');
   const secretsPath = path.join(secretsDir, 'ai-providers.json');
 
+  if (!isSafeStoragePersistenceAvailable(safeStorage)) {
+    throw new Error('System secure storage is unavailable');
+  }
+
   await ensurePrivateDirectory(secretsDir);
 
   try {
@@ -41,20 +47,36 @@ export async function readSecretsStore() {
       return { secretsDir, secretsPath, data: {} };
     }
     const parsed = JSON.parse(content);
-    const { record, needsMigration } = decodeSecretRecord(parsed, safeStorage);
+    const { record, needsMigration, decryptionFailed } = decodeSecretRecord(parsed, safeStorage);
+    if (decryptionFailed) {
+      const error = new Error('Provider secrets could not be decrypted.');
+      error.code = PROVIDER_SECRET_DECRYPTION_ERROR_CODE;
+      throw error;
+    }
     const data = sanitizeSecretsData(record);
     if (needsMigration || Object.keys(data).length !== Object.keys(record).length) {
-      await writePrivateFile(secretsPath, JSON.stringify(encodeSecretRecord(data, safeStorage), null, 2));
+      await writePrivateFile(secretsPath, JSON.stringify(
+        encodeSecretRecord(data, safeStorage, { requireEncryption: true }),
+        null,
+        2,
+      ));
     }
     return { secretsDir, secretsPath, data };
-  } catch {
+  } catch (error) {
+    if (error?.code === PROVIDER_SECRET_DECRYPTION_ERROR_CODE) {
+      throw error;
+    }
     return { secretsDir, secretsPath, data: {} };
   }
 }
 
 export async function writeSecretsStore(data) {
   const { secretsPath } = await readSecretsStore();
-  await writePrivateFile(secretsPath, JSON.stringify(encodeSecretRecord(sanitizeSecretsData(data), safeStorage), null, 2));
+  await writePrivateFile(secretsPath, JSON.stringify(
+    encodeSecretRecord(sanitizeSecretsData(data), safeStorage, { requireEncryption: true }),
+    null,
+    2,
+  ));
 }
 
 export async function updateSecretsStore(mutator) {

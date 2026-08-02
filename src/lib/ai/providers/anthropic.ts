@@ -1,5 +1,5 @@
-import { createAIError, parseAPIError, parseHTTPError } from '../errors'
-import { AIErrorType, type AIModel, type ChatMessage, type ChatMessageContent, type ChatSendOptions, type Provider } from '../types'
+import { parseAPIError, parseHTTPError } from '../errors'
+import { type AIModel, type ChatMessage, type ChatMessageContent, type ChatSendOptions, type Provider } from '../types'
 import { buildAnthropicBaseUrl } from '../utils'
 import { providerFetch } from '../providerHttp'
 import { readBoundedProviderResponseText } from './boundedResponseText'
@@ -9,7 +9,6 @@ import { consumeAnthropicStream, consumeAnthropicStreamResult, isAbortError } fr
 import { runAnthropicAgentToolLoop } from '@/lib/ai/computerUse/anthropicAgentToolLoop'
 
 export const ANTHROPIC_VERSION = '2023-06-01'
-const MAX_PROVIDER_ERROR_SUMMARY_CHARS = 8192
 
 export function buildAnthropicHeaders(apiKey: string, includeContentType = false): Record<string, string> {
   return {
@@ -18,28 +17,6 @@ export function buildAnthropicHeaders(apiKey: string, includeContentType = false
     'anthropic-dangerous-direct-browser-access': 'true',
     ...(includeContentType ? { 'Content-Type': 'application/json' } : {}),
   }
-}
-
-function summarizeError(error: unknown): string {
-  let message = ''
-  if (error instanceof Error) {
-    message = error.message
-  } else if (error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string') {
-    message = (error as { message: string }).message
-  } else {
-    switch (typeof error) {
-      case 'string':
-      case 'number':
-      case 'boolean':
-      case 'bigint':
-      case 'symbol':
-        message = String(error)
-        break
-      default:
-        message = ''
-    }
-  }
-  return (message || 'Unknown error').slice(0, MAX_PROVIDER_ERROR_SUMMARY_CHARS)
 }
 
 async function readResponseTextOrFallback(response: Response, signal?: AbortSignal): Promise<string> {
@@ -94,12 +71,7 @@ async function requestAnthropic<T>({
       if (timedOut) throw new Error('The AI request timed out.')
       throw error
     }
-    const parsedError = parseAPIError(error)
-    const detail = `Anthropic chat request to ${url} failed: ${summarizeError(error)}`
-    if (parsedError.type === AIErrorType.NETWORK_ERROR) {
-      throw createAIError(parsedError.type, parsedError.message, detail, parsedError.statusCode)
-    }
-    throw parsedError
+    throw parseAPIError(error)
   } finally {
     clearTimeout(timeoutId)
     signal?.removeEventListener('abort', forwardAbort)

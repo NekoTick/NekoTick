@@ -110,28 +110,31 @@ export function createMessageActions() {
       if (!hasSession(ai, targetSessionId)) return
 
       const sessionMessages = ai.messages[targetSessionId] || []
-      let didAddVersion = false
-      const newMessages = sessionMessages.map((message) => {
-        if (message.id !== id) return message
-        if (message.role !== 'assistant') return message
+      const messageIndex = sessionMessages.findIndex((message) => message.id === id)
+      const message = sessionMessages[messageIndex]
+      if (!message || message.role !== 'assistant') return
 
-        const versions = getSafeMessageVersions(message)
-        versions.push(createMessageVersion('', Date.now(), 'regeneration'))
-        const limited = limitMessageVersions(versions, versions.length - 1)
-        didAddVersion = true
-
-        return {
-          ...message,
-          content: '',
-          apiTranscript: undefined,
-          webSearchStatuses: undefined,
-          imageSources: extractStoredImageSources(''),
-          versions: limited.versions,
-          currentVersionIndex: limited.currentVersionIndex
-        }
-      })
-
-      if (!didAddVersion) return
+      const futureMessages = pruneVersionBranchMessages(sessionMessages.slice(messageIndex + 1))
+      const versions = getSafeMessageVersions(message)
+      const currentVersionIndex = getSafeCurrentVersionIndex(message, versions)
+      const previousVersion = {
+        ...versions[currentVersionIndex]!,
+        subsequentMessages: futureMessages,
+      }
+      versions[currentVersionIndex] = previousVersion
+      versions.push(createMessageVersion('', Date.now(), 'regeneration'))
+      const limited = limitMessageVersions(versions, versions.length - 1)
+      const rollbackVersionIndex = limited.versions.indexOf(previousVersion)
+      const newMessages = sessionMessages.slice(0, messageIndex + 1)
+      newMessages[messageIndex] = {
+        ...message,
+        content: '',
+        apiTranscript: undefined,
+        webSearchStatuses: undefined,
+        imageSources: extractStoredImageSources(''),
+        versions: limited.versions,
+        currentVersionIndex: limited.currentVersionIndex
+      }
 
       state.updateAIData({
         messages: {
@@ -143,6 +146,7 @@ export function createMessageActions() {
       if (shouldPersistSession(ai, targetSessionId)) {
         saveSessionJsonInBackground(targetSessionId, newMessages)
       }
+      return rollbackVersionIndex
     },
 
     editMessageAndBranch: (sessionId: string, messageId: string, newContent: string) => {
@@ -166,8 +170,10 @@ export function createMessageActions() {
         ...versions[currentVersionIndex],
         subsequentMessages: futureMessages
       }
+      const previousVersion = versions[currentVersionIndex]!
       versions.push(createMessageVersion(newContent, Date.now(), 'edit'))
       const limited = limitMessageVersions(versions, versions.length - 1)
+      const rollbackVersionIndex = limited.versions.indexOf(previousVersion)
 
       const newMessages = messages.slice(0, index + 1)
       newMessages[index] = {
@@ -187,6 +193,7 @@ export function createMessageActions() {
       if (shouldPersistSession(ai, targetSessionId)) {
         saveSessionJsonInBackground(targetSessionId, newMessages)
       }
+      return rollbackVersionIndex
     },
 
     retractPendingUserRequest: retractPendingUserRequestAction,

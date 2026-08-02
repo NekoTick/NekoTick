@@ -140,6 +140,42 @@ describe('message actions API transcript handling', () => {
     expect(message.versions[1].apiTranscript).toBeUndefined();
   });
 
+  it('branches following messages when regenerating an earlier assistant response', () => {
+    const firstUser = createUserMessage('user-1', 'first prompt');
+    const firstAssistant = createAssistantMessage();
+    const followingUser = createUserMessage('user-2', 'follow-up prompt');
+    const followingAssistant = {
+      ...createAssistantMessage(),
+      id: 'assistant-2',
+      content: 'follow-up answer',
+      versions: [{
+        content: 'follow-up answer',
+        createdAt: 2,
+        kind: 'original' as const,
+        subsequentMessages: [],
+      }],
+    };
+    seedMessages([firstUser, firstAssistant, followingUser, followingAssistant]);
+    const actions = createMessageActions();
+
+    const rollbackVersionIndex = actions.addVersion('assistant-1', 'session-1');
+
+    let messages = useUnifiedStore.getState().data.ai!.messages['session-1'];
+    expect(rollbackVersionIndex).toBe(0);
+    expect(messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1']);
+    expect(messages[1].versions[0].subsequentMessages.map((message) => message.id))
+      .toEqual(['user-2', 'assistant-2']);
+
+    actions.switchMessageVersion('session-1', 'assistant-1', 0);
+    messages = useUnifiedStore.getState().data.ai!.messages['session-1'];
+    expect(messages.map((message) => message.id))
+      .toEqual(['user-1', 'assistant-1', 'user-2', 'assistant-2']);
+
+    actions.switchMessageVersion('session-1', 'assistant-1', 1);
+    messages = useUnifiedStore.getState().data.ai!.messages['session-1'];
+    expect(messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1']);
+  });
+
   it('does not add regeneration versions to user messages', () => {
     seedMessages([createUserMessage('user-1', 'prompt')]);
 
@@ -310,15 +346,37 @@ describe('message actions API transcript handling', () => {
   it('limits retained message versions while preserving the active version', () => {
     seedMessages([createAssistantMessage()]);
     const actions = createMessageActions();
+    let rollbackVersionIndex: number | undefined;
 
     for (let index = 0; index < 25; index += 1) {
-      actions.addVersion('assistant-1', 'session-1');
+      rollbackVersionIndex = actions.addVersion('assistant-1', 'session-1');
     }
 
     const message = useUnifiedStore.getState().data.ai!.messages['session-1'][0];
     expect(message.versions).toHaveLength(20);
     expect(message.currentVersionIndex).toBe(19);
     expect(message.content).toBe('');
+    expect(rollbackVersionIndex).toBe(18);
+  });
+
+  it('returns the retained rollback version when editing at the version limit', () => {
+    const userMessage = createUserMessage('user-1', 'prompt 19');
+    userMessage.versions = Array.from({ length: 20 }, (_, index) => ({
+      content: `prompt ${index}`,
+      createdAt: index + 1,
+      kind: index === 0 ? 'original' as const : 'edit' as const,
+      subsequentMessages: [],
+    }));
+    userMessage.currentVersionIndex = 19;
+    seedMessages([userMessage]);
+
+    const rollbackVersionIndex = createMessageActions()
+      .editMessageAndBranch('session-1', 'user-1', 'edited prompt');
+
+    const message = useUnifiedStore.getState().data.ai!.messages['session-1'][0];
+    expect(message.versions).toHaveLength(20);
+    expect(message.currentVersionIndex).toBe(19);
+    expect(rollbackVersionIndex).toBe(18);
   });
 
   it('limits branched subsequent messages and strips deeper nested branches', () => {
@@ -724,7 +782,7 @@ describe('message actions API transcript handling', () => {
     expect(useUnifiedStore.getState().data.ai!.messages['session-1']).toEqual([]);
   });
 
-  it('retracts a pending composer request while the assistant only has retry status content', () => {
+  it('does not retract after an assistant reply resembling the former retry status', () => {
     useUIStore.setState({ languagePreference: 'zh-CN' });
     seedMessages([
       createUserMessage('prompt-1', 'pending prompt'),
@@ -748,8 +806,8 @@ describe('message actions API transcript handling', () => {
       'assistant-1',
     );
 
-    expect(recalled).toBe('pending prompt');
-    expect(useUnifiedStore.getState().data.ai!.messages['session-1']).toEqual([]);
+    expect(recalled).toBeNull();
+    expect(useUnifiedStore.getState().data.ai!.messages['session-1']).toHaveLength(2);
   });
 
   it('does not retract a composer request after visible assistant content arrives', () => {

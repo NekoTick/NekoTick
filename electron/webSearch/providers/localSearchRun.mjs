@@ -60,7 +60,7 @@ export async function runLocalSearch(provider, query, options = {}) {
   if (results.length > 0) return results.slice(0, limit);
 
   if (getSingleBrandLikeTerm(query)) {
-    const directOfficialResults = await fetchDirectOfficialSite(provider.fetchImpl, normalizedQuery, {
+    const directOfficialResults = await fetchDirectOfficialSite(normalizedQuery, {
       signal: options.signal,
       timeoutMs: provider.timeoutMs,
     });

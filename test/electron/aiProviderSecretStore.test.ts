@@ -4,6 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  decryptionFails: false,
+  encryptionAvailable: true,
   userDataPath: '',
 }));
 
@@ -19,12 +21,18 @@ vi.mock('electron', () => ({
     },
     safeStorage: {
       isEncryptionAvailable() {
-        return false;
+        return mocks.encryptionAvailable;
+      },
+      getSelectedStorageBackend() {
+        return 'gnome_libsecret';
       },
       encryptString(value: string) {
         return Buffer.from(value, 'utf8');
       },
       decryptString(buffer: Buffer) {
+        if (mocks.decryptionFails) {
+          throw new Error('keychain locked');
+        }
         return buffer.toString('utf8');
       },
     },
@@ -35,6 +43,8 @@ describe('aiProviderSecretStore', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.doUnmock('node:fs/promises');
+    mocks.decryptionFails = false;
+    mocks.encryptionAvailable = true;
     mocks.userDataPath = await mkdtemp(path.join(os.tmpdir(), 'vlaina-ai-secrets-'));
   });
 
@@ -79,6 +89,48 @@ describe('aiProviderSecretStore', () => {
     const secretsPath = path.join(secretsDir, 'ai-providers.json');
     expect((await stat(secretsDir)).mode & 0o777).toBe(0o700);
     expect((await stat(secretsPath)).mode & 0o777).toBe(0o600);
+    expect(await readFile(secretsPath, 'utf8')).not.toContain('sk-a');
+  });
+
+  it('does not write provider secrets when system encryption is unavailable', async () => {
+    mocks.encryptionAvailable = false;
+    const { updateSecretsStore } = await import('../../electron/aiProviderSecretStore.mjs');
+
+    await expect(updateSecretsStore(async (data) => {
+      data['provider-a'] = 'fake-test-key';
+    })).rejects.toThrow('System secure storage is unavailable');
+
+    const secretsPath = path.join(
+      mocks.userDataPath,
+      '.vlaina',
+      'app',
+      'secrets',
+      'ai-providers.json',
+    );
+    await expect(stat(secretsPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('preserves the encrypted store when existing secrets cannot be decrypted', async () => {
+    const { readSecretsStore, updateSecretsStore } = await import('../../electron/aiProviderSecretStore.mjs');
+    await updateSecretsStore(async (data) => {
+      data['provider-a'] = 'fake-test-key';
+    });
+    const secretsPath = path.join(
+      mocks.userDataPath,
+      '.vlaina',
+      'app',
+      'secrets',
+      'ai-providers.json',
+    );
+    const originalContent = await readFile(secretsPath, 'utf8');
+    mocks.decryptionFails = true;
+
+    await expect(readSecretsStore()).rejects.toThrow('Provider secrets could not be decrypted.');
+    await expect(updateSecretsStore(async (data) => {
+      data['provider-b'] = 'another-fake-key';
+    })).rejects.toThrow('Provider secrets could not be decrypted.');
+
+    expect(await readFile(secretsPath, 'utf8')).toBe(originalContent);
   });
 
   it('drops unsafe legacy provider ids from the secret file', async () => {

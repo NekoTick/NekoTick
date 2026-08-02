@@ -120,10 +120,11 @@ function getMessageSignature(message: ChatMessage): string {
 
   const content = message.content;
   const length = content.length;
+  const currentVersionCreatedAt = message.versions?.[message.currentVersionIndex]?.createdAt ?? '';
   const sample = length <= 96
     ? content
     : `${content.slice(0, 32)}\u0002${content.slice(Math.max(0, Math.floor(length / 2) - 16), Math.floor(length / 2) + 16)}\u0002${content.slice(-32)}`;
-  const signature = `${message.id}\u0000${message.currentVersionIndex}\u0000${message.role}\u0000${length}\u0000${countLineBreaks(content)}\u0000${hashString(sample)}`;
+  const signature = `${message.id}\u0000${message.currentVersionIndex}\u0000${currentVersionCreatedAt}\u0000${message.role}\u0000${length}\u0000${countLineBreaks(content)}\u0000${hashString(sample)}`;
   messageSignatureCache.set(message, signature);
   return signature;
 }

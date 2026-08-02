@@ -27,11 +27,15 @@ export function requireSafeIpcRequestId(value, label) {
 }
 
 export function getManagedErrorMessage(error) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (error && typeof error === 'object' && typeof error.message === 'string') {
-    return error.message;
+  try {
+    if (error && typeof error === 'object') {
+      const message = error.message;
+      if (typeof message === 'string') {
+        return message;
+      }
+    }
+  } catch {
+    return 'Unknown error';
   }
   return primitiveToString(error) || 'Unknown error';
 }
