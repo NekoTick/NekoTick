@@ -688,7 +688,7 @@
   --vlaina-editor-outline-rail-marker-width: var(--vlaina-size-16px);
   --vlaina-editor-outline-rail-marker-height: var(--vlaina-size-2px);
   --vlaina-editor-outline-rail-marker: var(--vlaina-color-border);
-  --vlaina-editor-outline-rail-marker-active: var(--vlaina-color-text-primary);
+  --vlaina-editor-outline-rail-marker-active: var(--vlaina-color-accent);
   --vlaina-settings-select-arrow-size: var(--vlaina-size-7px) var(--vlaina-size-12px);
   --vlaina-settings-select-arrow-position: right var(--vlaina-size-5px) center;
   --vlaina-width-slash-video-prompt: min(var(--vlaina-size-360px), calc(100vw - var(--vlaina-size-24px)));

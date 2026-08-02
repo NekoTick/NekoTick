@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   getSidebarIdleRowSurfaceClass,
   getSidebarLabelClass,
@@ -14,9 +14,12 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
   const { t } = useI18n();
   const { headings, activeId, jumpToHeading } = useNotesOutline(enabled);
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
+  const outlineViewportRef = useRef<HTMLDivElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [hasFocus, setHasFocus] = useState(false);
-  const isExpanded = isHovered || hasFocus;
+  const [isPositioned, setIsPositioned] = useState(false);
+  const shouldExpand = isHovered || hasFocus;
+  const isExpanded = shouldExpand && isPositioned;
 
   useEffect(() => {
     if (!enabled || headings.length === 0) {
@@ -25,7 +28,32 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
     }
   }, [enabled, headings.length]);
 
+  useLayoutEffect(() => {
+    if (!shouldExpand) {
+      setIsPositioned(false);
+      return;
+    }
+    if (isPositioned) {
+      return;
+    }
+
+    const activeRow = activeRowRef.current;
+    const viewport = outlineViewportRef.current;
+    if (activeRow && viewport) {
+      const activeRect = activeRow.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
+      const activeCenter = activeRect.top + activeRect.height / 2;
+      const viewportCenter = viewportRect.top + viewport.clientHeight / 2;
+      viewport.scrollTop += activeCenter - viewportCenter;
+    }
+    setIsPositioned(true);
+  }, [activeId, isPositioned, shouldExpand]);
+
   useEffect(() => {
+    if (!isExpanded) {
+      return;
+    }
+
     const frame = window.requestAnimationFrame(() => {
       activeRowRef.current?.scrollIntoView?.({ block: 'nearest' });
     });
@@ -42,6 +70,7 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
       className="editor-outline-rail"
       data-editor-outline-rail="true"
       data-expanded={isExpanded ? 'true' : 'false'}
+      data-layout-expanded={shouldExpand ? 'true' : 'false'}
       data-no-editor-drag-box="true"
       onFocusCapture={() => setHasFocus(true)}
       onBlurCapture={(event) => {
@@ -56,6 +85,7 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
         data-editor-outline-panel="true"
       >
         <OverlayScrollArea
+          ref={outlineViewportRef}
           className="editor-outline-scroll-area"
           viewportClassName="editor-outline-list"
           scrollbarVariant="compact"

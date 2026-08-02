@@ -53,7 +53,13 @@ test.describe('notes editor outline rail', () => {
         const panelRect = panelElement.getBoundingClientRect();
         const railRect = railElement.getBoundingClientRect();
         const toolbarRect = toolbarElement.getBoundingClientRect();
+        const accentProbe = document.createElement('span');
+        accentProbe.style.color = 'var(--vlaina-color-accent)';
+        document.body.appendChild(accentProbe);
+        const accentColor = getComputedStyle(accentProbe).color;
+        accentProbe.remove();
         return {
+          accentColor,
           markerColors: rows.map((row) => getComputedStyle(row, '::before').backgroundColor),
           markerOpacities: rows.map((row) => getComputedStyle(row, '::before').opacity),
           markerWidths: rows.map((row) => Math.round(
@@ -143,6 +149,10 @@ test.describe('notes editor outline rail', () => {
       expect(new Set(geometry!.rowHeights)).toEqual(new Set([14]));
       expect(new Set(geometry!.rowTextOpacities)).toEqual(new Set(['0']));
       expect(geometry!.markerColors[0]).not.toBe(geometry!.markerColors[1]);
+      await expect.poll(async () => {
+        const currentGeometry = await getGeometry();
+        return currentGeometry?.markerColors[0] === currentGeometry?.accentColor;
+      }).toBe(true);
 
       const clippedPointX = geometry!.panelRight - 40;
       const outlinePointY = geometry!.panelTop + 10;
@@ -176,15 +186,27 @@ test.describe('notes editor outline rail', () => {
         );
       });
       const outlineViewport = rail.locator('.editor-outline-list');
+      const getActiveOutlineCenterOffset = () => outlineViewport.evaluate((element) => {
+        const activeRow = element.querySelector<HTMLElement>('.editor-outline-row-active');
+        if (!activeRow) return Number.POSITIVE_INFINITY;
+        const viewportRect = element.getBoundingClientRect();
+        const activeRect = activeRow.getBoundingClientRect();
+        return Math.abs(
+          activeRect.top + activeRect.height / 2
+          - (viewportRect.top + element.clientHeight / 2),
+        );
+      });
       await expect.poll(async () => outlineViewport.evaluate((element) => (
         element.scrollHeight > element.clientHeight
       ))).toBe(true);
       await expect(rail.locator('[data-overlay-scrollbar-rail="true"]')).toHaveCSS('opacity', '1');
-      await page.evaluate(() => {
-        document.documentElement.style.removeProperty(
-          '--vlaina-editor-outline-rail-max-height',
-        );
-      });
+
+      await outline.getByRole('button', { name: 'Deep Dive' }).click();
+
+      await expect.poll(async () => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate((element) => element.scrollTop))
+        .toBeGreaterThan(0);
+      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Deep Dive');
+      await expect(outline.locator('.editor-outline-row-active')).toHaveAttribute('data-level', '3');
 
       await page.mouse.move(0, 0);
       await expect(rail).toHaveAttribute('data-expanded', 'false');
@@ -198,14 +220,20 @@ test.describe('notes editor outline rail', () => {
       await hoverOutlineMarkers();
       await expect(rail).toHaveAttribute('data-expanded', 'true');
       await expect(panel).toHaveCSS('width', '240px');
+      const openingScrollTop = await outlineViewport.evaluate((element) => element.scrollTop);
+      expect(await getActiveOutlineCenterOffset()).toBeLessThanOrEqual(2);
       await expect(rail.locator('.editor-outline-row-text').first()).toHaveCSS('opacity', '1');
+      expect(await getActiveOutlineCenterOffset()).toBeLessThanOrEqual(2);
+      expect(Math.abs(
+        await outlineViewport.evaluate((element) => element.scrollTop)
+        - openingScrollTop,
+      )).toBeLessThanOrEqual(1);
 
-      await outline.getByRole('button', { name: 'Deep Dive' }).click();
-
-      await expect.poll(async () => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate((element) => element.scrollTop))
-        .toBeGreaterThan(0);
-      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Deep Dive');
-      await expect(outline.locator('.editor-outline-row-active')).toHaveAttribute('data-level', '3');
+      await page.evaluate(() => {
+        document.documentElement.style.removeProperty(
+          '--vlaina-editor-outline-rail-max-height',
+        );
+      });
 
       await scrollRoot.evaluate((element) => {
         element.scrollTo({ top: element.scrollHeight, behavior: 'auto' });
