@@ -115,17 +115,17 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
             onPointerLeave={dock.onPointerLeave}
             onPointerMove={dock.onPointerMove}
             className={cn(
-              'flex h-[var(--vlaina-size-56px)] max-w-full min-w-0 items-center gap-1 overflow-visible rounded-[var(--vlaina-radius-16px)] px-1.5',
+              'flex h-[var(--vlaina-size-72px)] max-w-full min-w-0 items-center gap-1 overflow-visible rounded-[var(--vlaina-radius-16px)] px-2',
               whiteboardFloatingPanelClassName,
             )}
           >
             <WhiteboardToolbarGroup>
               <WhiteboardToolbarButton dock large active={visualTool === 'hand'} icon="whiteboard.hand" label={t('whiteboard.tool.hand')} onClick={() => chooseStandaloneTool('hand')} />
-              <WhiteboardToolbarButton dock large active={eraserActive} icon={eraserConfig.icon} label={t(eraserConfig.labelKey)} onClick={() => togglePanel('eraser', eraserActive, lastEraserTool)} />
+              <WhiteboardToolbarButton dock large active={eraserActive} icon={eraserConfig.icon} imageSrc={eraserConfig.imageSrc} label={t(eraserConfig.labelKey)} onClick={() => togglePanel('eraser', eraserActive, lastEraserTool)} />
             </WhiteboardToolbarGroup>
             <WhiteboardToolbarGroup>
-              <span className="mx-0.5 h-5 w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />
-              <WhiteboardToolbarButton dock large active={drawingActive} icon={drawingConfig.icon} indicatorColor={props.brushColors[drawingConfig.id as WhiteboardDrawingTool]} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
+              <span className="mx-0.5 h-[var(--vlaina-size-32px)] w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />
+              <WhiteboardToolbarButton dock large active={drawingActive} icon={drawingConfig.icon} imageSrc={drawingConfig.imageSrc} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
               <WhiteboardToolbarButton dock large icon="whiteboard.image" label={t('whiteboard.addImage')} onClick={handleImageSelect} />
             </WhiteboardToolbarGroup>
           </div>

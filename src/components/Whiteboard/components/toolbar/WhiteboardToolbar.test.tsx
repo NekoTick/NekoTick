@@ -105,6 +105,38 @@ describe('WhiteboardToolbar', () => {
     expect(screen.queryByRole('button', { name: 'whiteboard.tool.fountain' })).not.toBeInTheDocument();
   });
 
+  it('shows the Apple-style instrument images for every brush option', () => {
+    const { container } = renderToolbar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const expectedImages = [
+      ['whiteboard.tool.pen', 'pen.png'],
+      ['whiteboard.tool.pencil', 'pencil.png'],
+      ['whiteboard.tool.marker', 'marker.png'],
+      ['whiteboard.tool.coloredPencil', 'colored-pencil.png'],
+      ['whiteboard.tool.watercolor', 'watercolor.png'],
+      ['whiteboard.tool.crayon', 'crayon.png'],
+    ] as const;
+
+    expectedImages.forEach(([label, filename]) => {
+      expect(within(panel).getByRole('button', { name: label }).querySelector('img'))
+        .toHaveAttribute('src', expect.stringContaining(filename));
+    });
+  });
+
+  it('uses the lasso and eraser images in the selection panel', () => {
+    const { container } = renderToolbar();
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.select' }).querySelector('img'))
+      .toHaveAttribute('src', expect.stringContaining('select.png'));
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.eraser' }).querySelector('img'))
+      .toHaveAttribute('src', expect.stringContaining('eraser.png'));
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.strokeEraser' }).querySelector('img'))
+      .toHaveAttribute('src', expect.stringContaining('eraser.png'));
+  });
+
   it('opens the active lasso details when the whiteboard first appears', () => {
     const { container } = renderToolbar();
 
@@ -114,13 +146,17 @@ describe('WhiteboardToolbar', () => {
     )).toBe(true);
   });
 
-  it('highlights the active tool with background only', () => {
+  it('lifts the active tool without adding a colored background', () => {
     const { container } = renderToolbar();
     const mainToolbar = container.querySelector('[data-whiteboard-main-toolbar="true"]');
     const activeTool = mainToolbar?.querySelector('[aria-label="whiteboard.tool.select"]');
 
-    expect(activeTool).toHaveClass('border-transparent', 'bg-[var(--vlaina-accent-light)]');
+    expect(activeTool).toHaveClass('-translate-y-[var(--vlaina-size-20px)]', 'scale-[var(--vlaina-scale-105)]', 'border-transparent', 'bg-transparent');
+    expect(activeTool).toHaveClass('shadow-none', 'hover:shadow-none');
+    expect(activeTool?.querySelector('img')).toHaveClass('filter-none');
+    expect(activeTool).not.toHaveClass('bg-[var(--vlaina-accent-light)]');
     expect(activeTool).not.toHaveClass('border-[var(--vlaina-color-accent-border-muted)]', 'shadow-[var(--vlaina-shadow-selection-soft)]');
+    expect(screen.getByRole('button', { name: 'whiteboard.addImage' })).toHaveClass('hover:bg-transparent');
   });
 
   it('magnifies bottom toolbar items by pointer distance like a Dock', () => {
@@ -572,7 +608,7 @@ describe('WhiteboardToolbar', () => {
     expect(panel?.parentElement).toHaveClass('w-max', 'max-w-full');
     expect(panel?.parentElement?.parentElement).toHaveClass('bottom-full', 'left-1/2', '-translate-x-1/2', 'w-max');
     expect(panel?.parentElement?.parentElement).not.toHaveClass('inset-x-2');
-    expect(mainToolbar).toHaveClass('h-[var(--vlaina-size-56px)]', 'gap-1', 'px-1.5');
+    expect(mainToolbar).toHaveClass('h-[var(--vlaina-size-72px)]', 'gap-1', 'px-2');
   });
 
   it('keeps the image action in the drawing tools group without a ruler action', () => {
@@ -596,7 +632,10 @@ describe('WhiteboardToolbar', () => {
   it('highlights the hand tool while space temporarily enables panning', () => {
     renderToolbar({ spacePressed: true, tool: 'select' });
 
-    expect(screen.getByRole('button', { name: 'whiteboard.tool.hand' })).toHaveAttribute('aria-pressed', 'true');
+    const handTool = screen.getByRole('button', { name: 'whiteboard.tool.hand' });
+    expect(handTool).toHaveAttribute('aria-pressed', 'true');
+    expect(handTool).toHaveClass('-translate-y-[var(--vlaina-size-4px)]', 'bg-transparent');
+    expect(handTool).not.toHaveClass('bg-[var(--vlaina-accent-light)]');
     expect(screen.getAllByRole('button', { name: 'whiteboard.tool.select' }).every(
       (button) => button.getAttribute('aria-pressed') !== 'true',
     )).toBe(true);
