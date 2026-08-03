@@ -55,8 +55,7 @@ export function SidebarCapsulePanel({
     <div
       data-sidebar-capsule-panel="true"
       className={cn(
-        'mx-2 mb-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--vlaina-ui-radius-panel)] p-1',
-        raisedPillSurfaceClass,
+        'm-2 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--vlaina-ui-radius-panel)] border border-transparent bg-[var(--vlaina-color-sidebar-card-surface)] p-1 shadow-[var(--vlaina-shadow-raised-soft)]',
         className,
       )}
       {...props}

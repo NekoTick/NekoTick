@@ -767,6 +767,8 @@
   --vlaina-typora-fixed-light-find-bg: rgba(255, 221, 87, 0.82);
   --vlaina-typora-fixed-light-find-active-bg: rgba(255, 176, 32, 0.96);
   --vlaina-color-surface-shell-sidebar: var(--vlaina-color-surface-main);
+  --vlaina-color-surface-sidebar-backdrop: #f7f7f7;
+  --vlaina-color-sidebar-card-surface: #fefefe;
   --vlaina-color-surface-sidebar: var(--vlaina-color-surface-main);
   --vlaina-color-surface-menu: var(--vlaina-color-surface-main);
   --vlaina-color-surface-secondary: #fbfbfc;
@@ -1330,6 +1332,8 @@ html[data-whiteboard-color-picking='true'] * {
   color-scheme: dark;
   --vlaina-color-surface-main: #050505;
   --vlaina-color-surface-shell-sidebar: var(--vlaina-color-surface-main);
+  --vlaina-color-surface-sidebar-backdrop: #0d0d0e;
+  --vlaina-color-sidebar-card-surface: #151517;
   --vlaina-color-surface-sidebar: var(--vlaina-color-surface-main);
   --vlaina-color-surface-menu: #171719;
   --vlaina-color-surface-secondary: #0d0d0e;

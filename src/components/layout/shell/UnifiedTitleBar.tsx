@@ -136,7 +136,8 @@ export const UnifiedTitleBar = forwardRef<HTMLDivElement, UnifiedTitleBarProps>(
         </div>
       ) : (
         <div
-          className="h-full flex-shrink-0 z-[var(--vlaina-z-20)] group flex flex-col justify-center app-drag-region"
+          data-shell-titlebar-sidebar-backdrop="true"
+          className="h-full flex-shrink-0 z-[var(--vlaina-z-20)] group flex flex-col justify-center bg-[var(--vlaina-color-surface-sidebar-backdrop)] app-drag-region"
           style={{ width: themeDomStyleTokens.shellSidebarWidth }}
         >
           {leftSlot}

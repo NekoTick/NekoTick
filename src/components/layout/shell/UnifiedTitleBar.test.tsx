@@ -64,6 +64,20 @@ describe('UnifiedTitleBar', () => {
     expect(toggleButton.parentElement).toHaveClass('pl-2');
   });
 
+  it('extends the sidebar backdrop behind the expanded workspace name', () => {
+    const { container } = render(
+      <UnifiedTitleBar
+        sidebarCollapsed={false}
+        leftSlot={<div>vlaina</div>}
+        onToggleSidebar={() => {}}
+      />
+    );
+
+    expect(container.querySelector('[data-shell-titlebar-sidebar-backdrop="true"]')).toHaveClass(
+      'bg-[var(--vlaina-color-surface-sidebar-backdrop)]',
+    );
+  });
+
   it('reports hover on the collapsed sidebar toggle area', () => {
     const handleHoverChange = vi.fn();
 

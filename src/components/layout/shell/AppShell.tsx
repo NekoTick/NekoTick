@@ -186,7 +186,6 @@ export function AppShell({
             onDragStateChange={handleSidebarDragStateChange}
             onLayoutAnimationComplete={handleSidebarLayoutAnimationComplete}
             widthScopeRef={sidebarWidthScopeRef}
-            backgroundColor={backgroundColor}
           >
             {sidebarContent}
           </UnifiedSidebarContainer>

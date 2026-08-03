@@ -17,7 +17,6 @@ interface UnifiedSidebarContainerProps {
   onDragStateChange?: (isDragging: boolean) => void;
   onLayoutAnimationComplete?: () => void;
   widthScopeRef?: Ref<HTMLDivElement>;
-  backgroundColor?: string;
 }
 
 export function UnifiedSidebarContainer({
@@ -31,7 +30,6 @@ export function UnifiedSidebarContainer({
   onDragStateChange,
   onLayoutAnimationComplete,
   widthScopeRef,
-  backgroundColor = 'transparent',
 }: UnifiedSidebarContainerProps) {
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarPointerInsideRef = useRef(false);
@@ -117,12 +115,11 @@ export function UnifiedSidebarContainer({
           data-open={collapsed ? (peeking ? 'true' : 'false') : undefined}
           aria-hidden={collapsed ? !peeking : undefined}
           className={cn(
-            'absolute inset-y-0 left-0 flex min-h-0 flex-col overflow-hidden select-none app-scrollbar transform-gpu will-change-transform',
+            'absolute inset-y-0 left-0 flex min-h-0 flex-col overflow-hidden bg-[var(--vlaina-color-surface-sidebar-backdrop)] select-none app-scrollbar transform-gpu will-change-transform',
             collapsed ? 'z-[var(--vlaina-z-40)]' : 'z-[var(--vlaina-z-20)]',
             collapsed && !peeking ? 'pointer-events-none' : 'pointer-events-auto',
           )}
           style={{
-            backgroundColor,
             width: 'var(--vlaina-shell-sidebar-width)',
           }}
           variants={SIDEBAR_SLIDE_VARIANTS}
