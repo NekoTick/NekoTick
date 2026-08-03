@@ -60,6 +60,38 @@ describe('whiteboard stroke eraser', () => {
     expect(result.find((stroke) => stroke.id === distant.id)).toBe(distant);
   });
 
+  it('preserves untouched source points and material metadata around an erased gap', () => {
+    const points = Array.from({ length: 11 }, (_, index) => ({
+      azimuth: index / 10,
+      pressure: 0.35 + index / 20,
+      tilt: index / 20,
+      velocity: index / 10,
+      x: index * 10,
+      y: 0,
+    }));
+    const source = {
+      color: '#663399',
+      id: 'textured-stroke',
+      points,
+      renderPathOffset: 12,
+      renderPointOffset: 7,
+      renderSeed: 'texture-root',
+      renderTextureScale: 1.4,
+      size: 1,
+      tool: 'crayon' as const,
+    };
+
+    const result = eraseWhiteboardStrokes([source], [{ point: { x: 50, y: 0 }, size: 1 }]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0].points[0]).toBe(points[0]);
+    expect(result[1].points.at(-1)).toBe(points.at(-1));
+    expect(result[0]).toMatchObject({ renderSeed: 'texture-root', renderTextureScale: 1.4 });
+    expect(result[1]).toMatchObject({ renderSeed: 'texture-root', renderTaperStart: false, renderTextureScale: 1.4 });
+    expect(result[0].renderPathOffset).toBe(12);
+    expect(result[1].renderPathOffset).toBeGreaterThan(12);
+  });
+
   it('does not traverse distant stroke points outside the indexed candidates', () => {
     const distant = {
       color: '#111111',

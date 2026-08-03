@@ -11,13 +11,14 @@ import { WhiteboardDockSlot, whiteboardFloatingPanelClassName } from './Whiteboa
 interface WhiteboardColorPickerProps {
   color: string;
   onChange: (color: string) => void;
+  onOpen?: () => void;
 }
 
 type EyeDropperWindow = Window & {
   EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> };
 };
 
-export function WhiteboardColorPicker({ color, onChange }: WhiteboardColorPickerProps) {
+export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardColorPickerProps) {
   const { t } = useI18n();
   const initialRgb = hexToRgb(color) ?? { r: 39, g: 39, b: 42 };
   const [open, setOpen] = useState(false);
@@ -36,7 +37,10 @@ export function WhiteboardColorPicker({ color, onChange }: WhiteboardColorPicker
     setHexInput(rgbToHex(nextRgb));
   };
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) resetDraft();
+    if (nextOpen) {
+      onOpen?.();
+      resetDraft();
+    }
     setOpen(nextOpen);
   };
   const updateFromRgb = (nextRgb: { r: number; g: number; b: number }) => {

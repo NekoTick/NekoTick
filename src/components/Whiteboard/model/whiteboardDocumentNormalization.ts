@@ -99,7 +99,25 @@ function readWhiteboardStroke(value: unknown, runtimePoints: boolean): Whiteboar
   const color = readString(value.color, WHITEBOARD_COLOR_MAX_CHARS);
   const size = readPositiveNumber(value.size);
   const points = readStrokePoints(value.points, runtimePoints);
-  return id && tool && color && size !== null && points.length > 0 ? { color, id, points, size, tool } : null;
+  const renderPathOffset = readNonNegativeNumber(value.renderPathOffset);
+  const renderPointOffset = readNonNegativeInteger(value.renderPointOffset);
+  const renderSeed = readString(value.renderSeed, WHITEBOARD_ID_MAX_CHARS);
+  const renderTaperEnd = value.renderTaperEnd === false;
+  const renderTaperStart = value.renderTaperStart === false;
+  const renderTextureScale = readPositiveNumber(value.renderTextureScale);
+  return id && tool && color && size !== null && points.length > 0 ? {
+    color,
+    id,
+    points,
+    size,
+    tool,
+    ...(renderPathOffset !== null ? { renderPathOffset } : {}),
+    ...(renderPointOffset !== null ? { renderPointOffset } : {}),
+    ...(renderSeed ? { renderSeed } : {}),
+    ...(renderTaperEnd ? { renderTaperEnd: false } : {}),
+    ...(renderTaperStart ? { renderTaperStart: false } : {}),
+    ...(renderTextureScale !== null ? { renderTextureScale } : {}),
+  } : null;
 }
 
 function readStrokePoints(value: unknown, runtimePoints: boolean): WhiteboardStrokePoint[] {
@@ -111,7 +129,19 @@ function readStrokePoints(value: unknown, runtimePoints: boolean): WhiteboardStr
     const y = readFiniteNumber(Array.isArray(item) ? item[1] : item.y);
     const pressure = readFiniteNumber(Array.isArray(item) ? item[2] : item.pressure);
     if (x === null || y === null || pressure === null) continue;
-    const point = { pressure: Math.min(1, Math.max(0, pressure)), x, y };
+    const tilt = readUnitNumber(Array.isArray(item) ? item[4] : item.tilt);
+    const azimuth = readAngle(Array.isArray(item) ? item[5] : item.azimuth);
+    const rotation = readAngle(Array.isArray(item) ? item[6] : item.rotation);
+    const velocity = readNonNegativeNumber(Array.isArray(item) ? item[7] : item.velocity);
+    const point: WhiteboardStrokePoint = {
+      ...(azimuth !== null ? { azimuth } : {}),
+      pressure: Math.min(1, Math.max(0, pressure)),
+      ...(rotation !== null ? { rotation } : {}),
+      ...(tilt !== null && tilt > 0 ? { tilt } : {}),
+      ...(velocity !== null ? { velocity } : {}),
+      x,
+      y,
+    };
     const breakBefore = Array.isArray(item) ? item[3] === true : item.breakBefore === true;
     points.push(breakBefore ? { ...point, breakBefore: true } : point);
   }
@@ -157,6 +187,27 @@ function readFiniteNumber(value: unknown): number | null {
 function readPositiveNumber(value: unknown): number | null {
   const number = readFiniteNumber(value);
   return number !== null && number > 0 ? number : null;
+}
+
+function readNonNegativeNumber(value: unknown): number | null {
+  const number = readFiniteNumber(value);
+  return number !== null && number >= 0 ? number : null;
+}
+
+function readNonNegativeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function readAngle(value: unknown): number | null {
+  const angle = readFiniteNumber(value);
+  if (angle === null) return null;
+  const fullTurn = Math.PI * 2;
+  return (angle % fullTurn + fullTurn) % fullTurn;
+}
+
+function readUnitNumber(value: unknown): number | null {
+  const number = readFiniteNumber(value);
+  return number === null ? null : Math.min(1, Math.max(0, number));
 }
 
 function isRecord(value: unknown): value is JsonRecord {

@@ -75,7 +75,13 @@ function getStrokeSetTranslation(
     const before = source[index];
     const after = next[index];
     if (before.id !== after.id || before.color !== after.color || before.size !== after.size
-      || before.tool !== after.tool || before.points.length !== after.points.length) return null;
+      || before.tool !== after.tool || before.renderPathOffset !== after.renderPathOffset
+      || before.renderPointOffset !== after.renderPointOffset
+      || before.renderSeed !== after.renderSeed
+      || (before.renderTaperEnd !== false) !== (after.renderTaperEnd !== false)
+      || (before.renderTaperStart !== false) !== (after.renderTaperStart !== false)
+      || (before.renderTextureScale ?? 1) !== (after.renderTextureScale ?? 1)
+      || before.points.length !== after.points.length) return null;
     const beforePoint = before.points[0];
     const afterPoint = after.points[0];
     if (!beforePoint || !afterPoint) continue;
@@ -98,7 +104,12 @@ function hasSamePointData(
   first: WhiteboardStroke['points'][number],
   second: WhiteboardStroke['points'][number],
 ): boolean {
-  return first.pressure === second.pressure && first.breakBefore === second.breakBefore;
+  return first.azimuth === second.azimuth
+    && first.breakBefore === second.breakBefore
+    && first.pressure === second.pressure
+    && first.rotation === second.rotation
+    && first.tilt === second.tilt
+    && first.velocity === second.velocity;
 }
 
 function hasSameTranslation(

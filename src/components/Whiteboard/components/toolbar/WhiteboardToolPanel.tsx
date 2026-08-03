@@ -4,31 +4,20 @@ import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   WHITEBOARD_DRAWING_TOOLS,
   WHITEBOARD_ERASER_TOOLS,
-  isDrawingTool,
-  type WhiteboardBrushColors,
-  type WhiteboardBrushSizes,
-  type WhiteboardBrushTool,
-  type WhiteboardDrawingTool,
   type WhiteboardTool,
 } from '../../model/whiteboardModel';
 import {
   WhiteboardToolbarButton,
-  WhiteboardDockSlot,
   WhiteboardToolbarGroup,
-  whiteboardFloatingPanelClassName,
+  whiteboardToolPanelSurfaceClassName,
 } from './WhiteboardToolbarPrimitives';
-import { WhiteboardColorPicker } from './WhiteboardColorPicker';
 import { useWhiteboardDockMagnification } from './useWhiteboardDockMagnification';
 
 export type WhiteboardToolPanelName = 'brush' | 'eraser';
 
 interface WhiteboardToolPanelProps {
-  brushColors: WhiteboardBrushColors;
-  brushSizes: WhiteboardBrushSizes;
   panel: WhiteboardToolPanelName;
   tool: WhiteboardTool;
-  onBrushColorChange: (tool: WhiteboardDrawingTool, color: string) => void;
-  onBrushSizeSelect: (tool: WhiteboardBrushTool, size: number) => void;
   onToolChange: (tool: WhiteboardTool) => void;
 }
 
@@ -40,8 +29,6 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
     pointerResponseMs: themeWhiteboardTokens.toolPanelDockPointerResponseMs,
     radiusPx: themeWhiteboardTokens.toolPanelDockMagnificationRadiusPx,
   });
-  const drawingTool = isDrawingTool(props.tool) ? props.tool : 'pen';
-  const sizeTool = props.tool === 'stroke-eraser' ? props.tool : drawingTool;
   const tools = props.panel === 'brush' ? WHITEBOARD_DRAWING_TOOLS : WHITEBOARD_ERASER_TOOLS;
 
   return (
@@ -53,8 +40,8 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
       onPointerLeave={dock.onPointerLeave}
       onPointerMove={dock.onPointerMove}
       className={cn(
-        'flex h-[var(--vlaina-size-120px)] max-w-full items-center gap-3 overflow-x-auto rounded-[var(--vlaina-radius-16px)] px-2 py-1.5 sm:overflow-visible',
-        whiteboardFloatingPanelClassName,
+        'flex h-[var(--vlaina-size-120px)] max-w-full items-center overflow-x-auto px-2 py-1.5 sm:overflow-visible',
+        whiteboardToolPanelSurfaceClassName,
       )}
     >
       <WhiteboardToolbarGroup className="gap-2">
@@ -70,96 +57,6 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
           />
         ))}
       </WhiteboardToolbarGroup>
-
-      {props.panel === 'brush' ? (
-        <>
-          <PanelDivider />
-          <ColorChoices colors={props.brushColors} tool={drawingTool} onChange={props.onBrushColorChange} />
-          <PanelDivider />
-          <SizeChoices sizes={props.brushSizes} tool={sizeTool} onChange={props.onBrushSizeSelect} />
-        </>
-      ) : null}
-
-      {props.panel === 'eraser' && props.tool === 'stroke-eraser' ? (
-        <>
-          <PanelDivider />
-          <SizeChoices sizes={props.brushSizes} tool="stroke-eraser" onChange={props.onBrushSizeSelect} />
-        </>
-      ) : null}
     </div>
   );
-}
-
-function ColorChoices({ colors, tool, onChange }: {
-  colors: WhiteboardBrushColors;
-  tool: WhiteboardDrawingTool;
-  onChange: (tool: WhiteboardDrawingTool, color: string) => void;
-}) {
-  const selectedColor = colors[tool].toLowerCase();
-  return (
-    <WhiteboardToolbarGroup>
-      {themeWhiteboardTokens.brushColorSwatches.map((color) => (
-        <WhiteboardDockSlot key={color} size="small">
-          <button
-            type="button"
-            aria-label={color}
-            aria-pressed={selectedColor === color.toLowerCase()}
-            data-whiteboard-dock-visual="true"
-            onClick={() => onChange(tool, color)}
-            className="relative size-[var(--vlaina-size-32px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)] shadow-none hover:shadow-none"
-            style={{ backgroundColor: color }}
-          >
-            {selectedColor === color.toLowerCase() ? (
-              <span
-                aria-hidden="true"
-                data-whiteboard-color-selection-ring="true"
-                className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
-              />
-            ) : null}
-          </button>
-        </WhiteboardDockSlot>
-      ))}
-      <WhiteboardColorPicker color={colors[tool]} onChange={(color) => onChange(tool, color)} />
-    </WhiteboardToolbarGroup>
-  );
-}
-
-function SizeChoices({ sizes, tool, onChange }: {
-  sizes: WhiteboardBrushSizes;
-  tool: WhiteboardBrushTool;
-  onChange: (tool: WhiteboardBrushTool, size: number) => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <WhiteboardToolbarGroup>
-      {themeWhiteboardTokens.brushSizePresets.map((size) => (
-        <WhiteboardDockSlot key={size} size="compact">
-          <button
-            type="button"
-            aria-label={`${t('whiteboard.brushSize')} ${Math.round(size * 100)}%`}
-            aria-pressed={sizes[tool] === size}
-            data-whiteboard-dock-visual="true"
-            onClick={() => onChange(tool, size)}
-            className={cn(
-              'flex size-[var(--vlaina-size-36px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] shadow-none transition-colors hover:shadow-none',
-              sizes[tool] === size
-                ? 'bg-[var(--vlaina-accent-light)]'
-                : 'hover:bg-transparent',
-            )}
-          >
-            <span
-              data-whiteboard-size-preview={size}
-              aria-hidden="true"
-              className="rounded-[var(--vlaina-radius-circle)] bg-[var(--vlaina-color-text-primary)]"
-              style={{ height: size * themeWhiteboardTokens.brushSizePreviewBasePx, width: size * themeWhiteboardTokens.brushSizePreviewBasePx }}
-            />
-          </button>
-        </WhiteboardDockSlot>
-      ))}
-    </WhiteboardToolbarGroup>
-  );
-}
-
-function PanelDivider() {
-  return <span className="h-[var(--vlaina-size-40px)] w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />;
 }

@@ -7,6 +7,7 @@ import {
 } from './whiteboardModel';
 import { markWhiteboardSparseUpdate } from './whiteboardCollection';
 import type { WhiteboardItemOrder } from './whiteboardSpatialIndex';
+import { scaleWhiteboardStrokePointOrientation } from './whiteboardStrokeDynamics';
 import {
   cacheTranslatedStrokeBounds,
   getElementBounds,
@@ -133,24 +134,35 @@ export function resizeSelectionStroke(
   startBounds: WhiteboardSelectionRect,
   nextBounds: WhiteboardSelectionRect,
 ): WhiteboardStroke {
-  return { ...stroke, points: stroke.points.map((point) => scalePoint(point, startBounds, nextBounds)) };
+  const scaleX = nextBounds.width / Math.max(1, startBounds.width);
+  const scaleY = nextBounds.height / Math.max(1, startBounds.height);
+  const widthScale = Math.sqrt(scaleX * scaleY);
+  const textureScale = (stroke.renderTextureScale ?? 1) * Math.pow(
+    widthScale,
+    1 - themeWhiteboardTokens.textureDashScaleExponent,
+  );
+  return {
+    ...stroke,
+    points: stroke.points.map((point) => scalePoint(
+      scaleWhiteboardStrokePointOrientation(stroke.tool, point, scaleX, scaleY),
+      startBounds,
+      nextBounds,
+    )),
+    ...(stroke.renderPathOffset !== undefined
+      ? { renderPathOffset: stroke.renderPathOffset * widthScale }
+      : {}),
+    renderTextureScale: textureScale === 1 ? undefined : textureScale,
+    size: stroke.size * widthScale,
+  };
 }
 
 export function translateStroke(stroke: WhiteboardStroke, dx: number, dy: number): WhiteboardStroke {
   const points = new Array<WhiteboardStroke['points'][number]>(stroke.points.length);
   for (let index = 0; index < stroke.points.length; index += 1) {
     const point = stroke.points[index];
-    points[index] = point.breakBefore
-      ? { breakBefore: true, pressure: point.pressure, x: point.x + dx, y: point.y + dy }
-      : { pressure: point.pressure, x: point.x + dx, y: point.y + dy };
+    points[index] = { ...point, x: point.x + dx, y: point.y + dy };
   }
-  const translated: WhiteboardStroke = {
-    color: stroke.color,
-    id: stroke.id,
-    points,
-    size: stroke.size,
-    tool: stroke.tool,
-  };
+  const translated: WhiteboardStroke = { ...stroke, points };
   cacheTranslatedStrokeBounds(stroke, translated, dx, dy);
   return translated;
 }

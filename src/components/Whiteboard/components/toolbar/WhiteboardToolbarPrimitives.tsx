@@ -1,7 +1,18 @@
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/ui/icons';
+import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { cn } from '@/lib/utils';
 import { themeIconTokens } from '@/styles/themeTokens';
+
+export const whiteboardMainToolbarSurfaceClassName = cn(
+  raisedPillSurfaceClass,
+  'pointer-events-auto rounded-[var(--vlaina-radius-26px)] transition-shadow duration-[var(--vlaina-duration-300)] ease-out hover:!shadow-[var(--vlaina-shadow-raised-soft)]',
+);
+
+export const whiteboardToolPanelSurfaceClassName = [
+  'pointer-events-auto rounded-[var(--vlaina-ui-radius-group)]',
+  'bg-[var(--vlaina-color-whiteboard-tool-panel)] shadow-[var(--vlaina-shadow-whiteboard-tool-panel)]',
+].join(' ');
 
 export const whiteboardFloatingPanelClassName = [
   'pointer-events-auto border border-[var(--vlaina-color-whiteboard-toolbar-border)]',

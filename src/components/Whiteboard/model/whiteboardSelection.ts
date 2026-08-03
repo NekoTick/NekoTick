@@ -1,11 +1,12 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
-  getStrokeWidth,
   type WhiteboardElement,
   type WhiteboardPoint,
   type WhiteboardStroke,
 } from './whiteboardModel';
 import { getStrokePointSegments } from './whiteboardStrokeGeometry';
+import { getStrokePointMaxWidth } from './whiteboardStrokeDynamics';
+import { distanceBetweenSegments } from './whiteboardSegmentGeometry';
 import { getElementBounds, getStrokeBounds, type WhiteboardSelectionRect } from './whiteboardSelectionTransform';
 
 export {
@@ -93,8 +94,12 @@ function isPointNearStroke(stroke: WhiteboardStroke, point: WhiteboardPoint, tol
   }
   return getStrokePointSegments(stroke.points).some((segment) => segment.some((current, index) => {
     const previous = segment[index - 1];
-    const width = getStrokeWidth(stroke.tool, current.pressure, stroke.size);
-    return previous && distanceToSegment(point, previous, current) <= width / 2 + tolerance;
+    if (!previous) return false;
+    const width = Math.max(
+      getStrokePointMaxWidth(stroke.tool, previous, stroke.size),
+      getStrokePointMaxWidth(stroke.tool, current, stroke.size),
+    );
+    return distanceToSegment(point, previous, current) <= width / 2 + tolerance;
   }));
 }
 
@@ -132,13 +137,19 @@ function strokeIntersectsLasso(
   if (stroke.points.some((point) => pointInPolygon(point, path))) return true;
   return getStrokePointSegments(stroke.points).some((segment) => segment.some((current, index) => {
     const previous = segment[index - 1];
-    return previous ? lassoSegments.some(([start, end]) => segmentsIntersect(previous, current, start, end)) : false;
+    const width = Math.max(
+      getStrokePointMaxWidth(stroke.tool, current, stroke.size),
+      previous ? getStrokePointMaxWidth(stroke.tool, previous, stroke.size) : 0,
+    );
+    return lassoSegments.some(([start, end]) => previous
+      ? distanceBetweenSegments(previous, current, start, end) <= width / 2
+      : distanceToSegment(current, start, end) <= width / 2);
   }));
 }
 
 function getStrokeMaxWidth(stroke: WhiteboardStroke): number {
   return stroke.points.reduce(
-    (maxWidth, point) => Math.max(maxWidth, getStrokeWidth(stroke.tool, point.pressure, stroke.size)),
+    (maxWidth, point) => Math.max(maxWidth, getStrokePointMaxWidth(stroke.tool, point, stroke.size)),
     0,
   );
 }

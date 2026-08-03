@@ -74,7 +74,22 @@ function* iterateSerializedWhiteboardSnapshot(snapshot: WhiteboardSnapshot): Gen
 }
 
 function encodeStroke(stroke: WhiteboardStroke): StoredStroke {
-  return { ...stroke, points: stroke.points.map((point) => point.breakBefore ? [point.x, point.y, point.pressure, true] : [point.x, point.y, point.pressure]) };
+  return { ...stroke, points: stroke.points.map(encodeStrokePoint) };
+}
+
+function encodeStrokePoint(point: WhiteboardStroke['points'][number]): StoredStroke['points'][number] {
+  const stored: Array<number | true | null> = [
+    point.x,
+    point.y,
+    point.pressure,
+    point.breakBefore ? true : null,
+    point.tilt ?? null,
+    point.azimuth ?? null,
+    point.rotation ?? null,
+    point.velocity ?? null,
+  ];
+  while (stored.at(-1) === null) stored.pop();
+  return stored as StoredStroke['points'][number];
 }
 
 function encodeElement(element: WhiteboardElement): WhiteboardElement {

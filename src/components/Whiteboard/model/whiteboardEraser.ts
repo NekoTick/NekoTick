@@ -1,4 +1,5 @@
 import { doesEraserSweepTouchStroke } from './whiteboardStrokeGeometry';
+import { distanceBetweenSegments } from './whiteboardSegmentGeometry';
 import {
   getEraserRadius,
   type WhiteboardElement,
@@ -71,12 +72,18 @@ function getEraserSweeps(samples: WhiteboardEraserSample[]): WhiteboardEraserSwe
 }
 
 function eraserSweepTouchesElement(element: WhiteboardElement, sweep: WhiteboardEraserSweep): boolean {
-  return segmentIntersectsRect(sweep.start.point, sweep.end.point, {
-    maxX: element.x + element.width + sweep.radius,
-    maxY: element.y + element.height + sweep.radius,
-    minX: element.x - sweep.radius,
-    minY: element.y - sweep.radius,
-  });
+  const topLeft = { x: element.x, y: element.y };
+  const topRight = { x: element.x + element.width, y: element.y };
+  const bottomRight = { x: element.x + element.width, y: element.y + element.height };
+  const bottomLeft = { x: element.x, y: element.y + element.height };
+  if (segmentIntersectsRect(sweep.start.point, sweep.end.point, {
+    maxX: bottomRight.x,
+    maxY: bottomRight.y,
+    minX: topLeft.x,
+    minY: topLeft.y,
+  })) return true;
+  return [[topLeft, topRight], [topRight, bottomRight], [bottomRight, bottomLeft], [bottomLeft, topLeft]]
+    .some(([start, end]) => distanceBetweenSegments(sweep.start.point, sweep.end.point, start, end) <= sweep.radius);
 }
 
 function segmentIntersectsRect(

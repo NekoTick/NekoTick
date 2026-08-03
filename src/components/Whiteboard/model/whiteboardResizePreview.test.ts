@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createWhiteboardEraserSpatialIndex } from './whiteboardEraser';
 import type { WhiteboardResizePreview } from './whiteboardInteractions';
 import { getWhiteboardResizePreviewItems } from './whiteboardResizePreview';
-import { resizeSelectionStrokes } from './whiteboardSelection';
+import { resizeSelectionStroke, resizeSelectionStrokes } from './whiteboardSelection';
 
 const stroke = {
   color: '#111111',
@@ -34,5 +34,22 @@ describe('whiteboard resize preview', () => {
     );
 
     expect(rendered.strokes).toEqual(committed);
+  });
+
+  it('transforms the combined chisel nib angle during non-uniform resize', () => {
+    const marker = {
+      ...stroke,
+      points: [{ azimuth: 0, pressure: 0.5, rotation: Math.PI / 4, x: 0, y: 0 }],
+      tool: 'marker' as const,
+    };
+
+    const resized = resizeSelectionStroke(
+      marker,
+      { height: 100, width: 100, x: 0, y: 0 },
+      { height: 100, width: 200, x: 0, y: 0 },
+    );
+
+    expect(resized.points[0].azimuth).toBeCloseTo(Math.atan2(1, 2));
+    expect(resized.points[0].rotation).toBeUndefined();
   });
 });
