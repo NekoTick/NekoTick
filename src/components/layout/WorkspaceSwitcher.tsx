@@ -8,6 +8,7 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { ACCOUNT_LOGIN_REQUESTED_EVENT } from '@/lib/account/sessionEvent';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Icon } from '@/components/ui/icons';
 import { LoginPrompt } from './LoginPrompt';
 import { AccountLoginDialog } from './AccountLoginDialog';
 import { UserIdentityCard } from './UserIdentityCard';
@@ -110,7 +111,7 @@ const WorkspaceSwitcherBase = ({ onOpenSettings, className }: WorkspaceSwitcherP
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-center justify-start overflow-visible rounded-[var(--vlaina-radius-10px)] bg-transparent text-[var(--vlaina-text-primary)] outline-none select-none"
+            className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-center justify-start overflow-visible rounded-[var(--vlaina-radius-10px)] bg-transparent text-[var(--vlaina-color-brand-wordmark)] outline-none transition-colors hover:text-[var(--vlaina-color-brand-wordmark-hover)] select-none"
           >
             <span className="relative flex size-[var(--vlaina-size-26px)] shrink-0 overflow-hidden rounded-[var(--vlaina-radius-8px)]">
               <AccountAvatarImage
@@ -120,6 +121,14 @@ const WorkspaceSwitcherBase = ({ onOpenSettings, className }: WorkspaceSwitcherP
                 className="h-full w-full object-cover shadow-[var(--vlaina-shadow-sm)]"
               />
             </span>
+            <span className="ml-2 min-w-0 truncate text-[length:var(--vlaina-font-15)] font-semibold leading-none">
+              vlaina
+            </span>
+            <Icon
+              name="nav.chevronDown"
+              size="sm"
+              className="ml-1 shrink-0 opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover:opacity-[var(--vlaina-opacity-100)] motion-reduce:transition-none"
+            />
             <img
               src={displayAvatar || fallbackAvatarUrl}
               alt=""

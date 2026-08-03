@@ -25,6 +25,10 @@ function WorkspaceSwitcherFallback() {
             <span className="relative flex size-[var(--vlaina-size-26px)] shrink-0 overflow-hidden rounded-[var(--vlaina-radius-8px)]">
                 <img src={`${import.meta.env.BASE_URL}logo.png?v=20260327`} alt="vlaina" className="h-full w-full object-cover shadow-[var(--vlaina-shadow-sm)]" />
             </span>
+            <span className="ml-2 min-w-0 truncate text-[length:var(--vlaina-font-15)] font-semibold leading-none text-[var(--vlaina-color-brand-wordmark)]">
+                vlaina
+            </span>
+            <Icon name="nav.chevronDown" size="sm" className="ml-1 shrink-0 text-[var(--vlaina-color-brand-wordmark)] opacity-[var(--vlaina-opacity-0)]" />
         </div>
     );
 }

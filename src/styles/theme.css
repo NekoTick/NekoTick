@@ -808,6 +808,8 @@
   --vlaina-color-sidebar-focus-ring: rgb(30 150 235 / 0.25);
   --vlaina-color-hover-overlay-soft: color-mix(in srgb, var(--vlaina-hover) 30%, transparent);
   --vlaina-color-secondary-panel-bg: color-mix(in srgb, var(--vlaina-bg-secondary) 30%, transparent);
+  --vlaina-color-brand-wordmark: #54aeff;
+  --vlaina-color-brand-wordmark-hover: #f77daa;
   --vlaina-color-brand-pink: #f08aa6;
   --vlaina-color-brand-pink-soft: rgb(240 138 166 / 0.12);
   --vlaina-brand-discord: #5865f2;
