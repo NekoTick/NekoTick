@@ -996,6 +996,8 @@
   --vlaina-shadow-whiteboard-toolbar: 0 16px 36px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.04), inset 0 1px 0 rgb(255 255 255 / 0.85), inset 0 -1px 0 rgb(0 0 0 / 0.02);
   --vlaina-whiteboard-toolbar-backdrop-blur: var(--vlaina-size-24px);
   --vlaina-whiteboard-toolbar-backdrop-saturation: 180%;
+  --vlaina-color-whiteboard-tool-panel: rgb(255 255 255 / 0.98);
+  --vlaina-shadow-whiteboard-tool-panel: 0 10px 26px rgb(0 0 0 / 0.12);
   --vlaina-color-picker-white: #ffffff;
   --vlaina-color-picker-black: #000000;
   --vlaina-color-picker-rainbow: linear-gradient(135deg, #ef4444, #f59e0b, #10b981, #1e96eb, #8b5cf6, #ec4899);
@@ -1491,6 +1493,7 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-color-whiteboard-toolbar-bg: rgb(30 30 32 / 0.6);
   --vlaina-color-whiteboard-toolbar-border: rgb(255 255 255 / 0.08);
   --vlaina-shadow-whiteboard-toolbar: 0 16px 48px rgb(0 0 0 / 0.35), 0 4px 14px rgb(0 0 0 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.12), inset 0 -1px 0 rgb(0 0 0 / 0.2);
+  --vlaina-shadow-whiteboard-tool-panel: 0 10px 26px rgb(0 0 0 / 0.32);
   --vlaina-color-editor-inline-code-bg: var(--vlaina-code-inline-background);
   --vlaina-color-editor-html-source-text: #a7a7a7;
   --vlaina-color-editor-frontmatter-placeholder: color-mix(in srgb, var(--vlaina-color-text-soft), transparent 18%);

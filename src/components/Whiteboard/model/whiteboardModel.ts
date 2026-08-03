@@ -35,8 +35,12 @@ export interface WhiteboardPoint {
 }
 
 export interface WhiteboardStrokePoint extends WhiteboardPoint {
+  azimuth?: number;
   breakBefore?: boolean;
   pressure: number;
+  rotation?: number;
+  tilt?: number;
+  velocity?: number;
 }
 
 export interface WhiteboardViewport {
@@ -60,9 +64,15 @@ export interface WhiteboardElement {
 export interface WhiteboardStroke {
   color: string;
   id: string;
-  tool: WhiteboardDrawingTool;
-  size: number;
   points: WhiteboardStrokePoint[];
+  renderPathOffset?: number;
+  renderPointOffset?: number;
+  renderSeed?: string;
+  renderTaperEnd?: boolean;
+  renderTaperStart?: boolean;
+  renderTextureScale?: number;
+  size: number;
+  tool: WhiteboardDrawingTool;
 }
 
 interface WhiteboardToolConfig {
@@ -96,8 +106,8 @@ export const WHITEBOARD_DRAWING_TOOLS: WhiteboardToolConfig[] = [
 
 export const WHITEBOARD_ERASER_TOOLS: WhiteboardToolConfig[] = [
   { id: 'select', labelKey: 'whiteboard.tool.select', icon: 'whiteboard.select', imageSrc: selectImage },
-  { id: 'eraser', labelKey: 'whiteboard.tool.eraser', icon: 'whiteboard.areaEraser', imageSrc: eraserImage },
   { id: 'stroke-eraser', labelKey: 'whiteboard.tool.strokeEraser', icon: 'whiteboard.eraser', imageSrc: eraserImage },
+  { id: 'eraser', labelKey: 'whiteboard.tool.eraser', icon: 'whiteboard.areaEraser', imageSrc: eraserImage },
 ];
 
 export const WHITEBOARD_BRUSHES: Record<WhiteboardDrawingTool, WhiteboardBrush> = {
@@ -254,14 +264,37 @@ export function resizeBrushSize(size: number, deltaY: number): number {
   );
 }
 
-export function createStrokePoint(point: WhiteboardPoint, pressure: number): WhiteboardStrokePoint {
+export function createStrokePoint(point: WhiteboardPoint, pressure: number, dynamics: Pick<WhiteboardStrokePoint, 'azimuth' | 'rotation' | 'tilt' | 'velocity'> = {}): WhiteboardStrokePoint {
+  const azimuth = normalizeAngle(dynamics.azimuth);
+  const rotation = normalizeAngle(dynamics.rotation);
+  const tilt = normalizeUnitValue(dynamics.tilt);
+  const velocity = normalizeVelocity(dynamics.velocity);
   return {
     ...point,
+    ...(azimuth !== null ? { azimuth } : {}),
     pressure: normalizePressure(pressure),
+    ...(rotation !== null ? { rotation } : {}),
+    ...(tilt !== null && tilt > 0 ? { tilt } : {}),
+    ...(velocity !== null ? { velocity } : {}),
   };
 }
 
 function normalizePressure(pressure: number): number {
-  if (!Number.isFinite(pressure) || pressure <= 0) return themeWhiteboardTokens.defaultPointerPressure;
+  if (!Number.isFinite(pressure)) return themeWhiteboardTokens.defaultPointerPressure;
   return Math.min(1, Math.max(themeWhiteboardTokens.minPointerPressure, pressure));
+}
+
+function normalizeAngle(angle: number | undefined): number | null {
+  if (angle === undefined || !Number.isFinite(angle)) return null;
+  const fullTurn = Math.PI * 2;
+  return (angle % fullTurn + fullTurn) % fullTurn;
+}
+
+function normalizeUnitValue(value: number | undefined): number | null {
+  if (value === undefined || !Number.isFinite(value)) return null;
+  return Math.min(1, Math.max(0, value));
+}
+
+function normalizeVelocity(velocity: number | undefined): number | null {
+  return velocity === undefined || !Number.isFinite(velocity) ? null : Math.max(0, velocity);
 }

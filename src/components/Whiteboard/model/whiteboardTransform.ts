@@ -23,5 +23,6 @@ export function cloneStrokes(
     ...stroke,
     id: `${idPrefix}-stroke-${index + 1}`,
     points: stroke.points.map((point) => ({ ...point, x: point.x + offset, y: point.y + offset })),
+    renderSeed: stroke.renderSeed ?? stroke.id,
   }));
 }

@@ -1,5 +1,5 @@
 import { memo, type ReactElement } from 'react';
-import { WHITEBOARD_BRUSHES, type WhiteboardStroke } from '../../model/whiteboardModel';
+import { getStrokeWidth, WHITEBOARD_BRUSHES, type WhiteboardStroke } from '../../model/whiteboardModel';
 import {
   getPressureStrokePath,
   getStrokeDabGeometry,
@@ -10,7 +10,7 @@ import { getWhiteboardStrokeRenderChunks } from '../../model/whiteboardStrokeRen
 import {
   getWhiteboardStrokeDashStyle,
   getWhiteboardStrokeNoise,
-  getWhiteboardStrokeSeed,
+  getWhiteboardStrokeRenderSeed,
   groupWhiteboardStrokeGrainPaths,
 } from '../../model/whiteboardStrokeTexture';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
@@ -49,13 +49,14 @@ const WhiteboardStrokeRenderNode = memo(function WhiteboardStrokeRenderNode({ st
     return <WhiteboardStrokeDab color={color} opacity={brush.opacity} point={point} stroke={stroke} width={renderWidth} />;
   }
   if (stroke.tool === 'watercolor') {
-    const { centerPath, heavyPressurePath, mediumPressurePath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
+    const { heavyPressurePath, mediumPressurePath, pressurePath, renderWidth, watercolorOuterPath, watercolorWashPath } = getStrokeRenderGeometry(stroke);
     return (
       <g data-whiteboard-brush="watercolor" shapeRendering="geometricPrecision">
-        <path d={centerPath} fill={themeWhiteboardTokens.strokeNoFill} opacity={brush.opacity * themeWhiteboardTokens.watercolorWashOpacityScale} stroke={color} strokeLinecap={themeWhiteboardTokens.strokeLineCap} strokeLinejoin={themeWhiteboardTokens.strokeLineJoin} strokeWidth={renderWidth * themeWhiteboardTokens.watercolorWashWidthScale} />
-        <path d={centerPath} fill={themeWhiteboardTokens.strokeNoFill} opacity={brush.opacity} stroke={color} strokeLinecap={themeWhiteboardTokens.strokeLineCap} strokeLinejoin={themeWhiteboardTokens.strokeLineJoin} strokeWidth={renderWidth * themeWhiteboardTokens.watercolorOuterWidthScale} />
+        <PressureStrokePath color={color} d={watercolorWashPath} opacity={brush.opacity * themeWhiteboardTokens.watercolorWashOpacityScale} />
+        <PressureStrokePath color={color} d={watercolorOuterPath} opacity={brush.opacity} />
         <PressureStrokePath color={color} d={pressurePath} opacity={brush.opacity * themeWhiteboardTokens.watercolorInnerOpacityScale} />
         <PressureDetailPaths color={color} heavyPath={heavyPressurePath} mediumPath={mediumPressurePath} opacity={brush.opacity * themeWhiteboardTokens.watercolorPressureCoreOpacityScale} width={renderWidth * themeWhiteboardTokens.watercolorPressureCoreWidthScale} />
+        <WhiteboardStrokeEndpointDabs color={color} opacity={brush.opacity} stroke={stroke} />
       </g>
     );
   }
@@ -79,11 +80,12 @@ const WhiteboardStrokeRenderNode = memo(function WhiteboardStrokeRenderNode({ st
         <PressureStrokePath color={color} d={pressurePath} opacity={brush.opacity} />
         <path d={centerPath} fill={themeWhiteboardTokens.strokeNoFill} opacity={brush.opacity * themeWhiteboardTokens.markerCoreOpacityScale} stroke={color} strokeLinecap={themeWhiteboardTokens.markerLineCap} strokeLinejoin={themeWhiteboardTokens.strokeLineJoin} strokeWidth={renderWidth * themeWhiteboardTokens.markerCoreWidthScale} />
         <PressureDetailPaths color={color} heavyPath={heavyPressurePath} mediumPath={mediumPressurePath} opacity={brush.opacity * themeWhiteboardTokens.markerPressureCoreOpacityScale} width={renderWidth * themeWhiteboardTokens.markerPressureCoreWidthScale} />
+        <WhiteboardStrokeEndpointDabs color={color} opacity={brush.opacity} stroke={stroke} />
       </g>
     );
   }
   if (stroke.tool === 'colored-pencil') {
-    const { grainPaths, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
+    const { grainPaths, heavyPressurePath, mediumPressurePath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
     return (
       <g data-whiteboard-brush="colored-pencil" shapeRendering="geometricPrecision">
         <PressureStrokePath color={color} d={pressurePath} opacity={brush.opacity * themeWhiteboardTokens.coloredPencilBodyOpacityScale} />
@@ -98,11 +100,12 @@ const WhiteboardStrokeRenderNode = memo(function WhiteboardStrokeRenderNode({ st
           stroke={stroke}
           width={Math.max(themeWhiteboardTokens.strokeEdgeFeatherWidthPx, renderWidth * themeWhiteboardTokens.coloredPencilGrainWidthScale)}
         />
+        <PressureDetailPaths color={color} heavyPath={heavyPressurePath} mediumPath={mediumPressurePath} opacity={brush.opacity * themeWhiteboardTokens.coloredPencilGrainOpacityScale} width={renderWidth * themeWhiteboardTokens.coloredPencilGrainWidthScale} />
       </g>
     );
   }
   if (stroke.tool === 'crayon') {
-    const { grainPaths, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
+    const { grainPaths, heavyPressurePath, mediumPressurePath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
     return (
       <g data-whiteboard-brush="crayon" shapeRendering="geometricPrecision">
         <PressureStrokePath color={color} d={pressurePath} opacity={brush.opacity * themeWhiteboardTokens.crayonBodyOpacityScale} />
@@ -117,15 +120,18 @@ const WhiteboardStrokeRenderNode = memo(function WhiteboardStrokeRenderNode({ st
           stroke={stroke}
           width={Math.max(themeWhiteboardTokens.strokeEdgeFeatherWidthPx, renderWidth * themeWhiteboardTokens.crayonGrainWidthScale)}
         />
+        <PressureDetailPaths color={color} heavyPath={heavyPressurePath} mediumPath={mediumPressurePath} opacity={brush.opacity * themeWhiteboardTokens.crayonGrainOpacityScale} width={renderWidth * themeWhiteboardTokens.crayonGrainWidthScale} />
+        <WhiteboardStrokeEndpointDabs color={color} opacity={brush.opacity} stroke={stroke} />
       </g>
     );
   }
   if (stroke.tool === 'fountain') {
-    const { centerPath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
+    const { centerPath, heavyPressurePath, mediumPressurePath, pressurePath, renderWidth } = getStrokeRenderGeometry(stroke);
     return (
       <g data-whiteboard-brush="fountain" shapeRendering="geometricPrecision">
         <PressureStrokePath color={color} d={pressurePath} opacity={brush.opacity} />
         <path d={centerPath} fill={themeWhiteboardTokens.strokeNoFill} opacity={themeWhiteboardTokens.fountainCoreOpacityScale} stroke={color} strokeLinecap={themeWhiteboardTokens.strokeLineCap} strokeWidth={renderWidth * themeWhiteboardTokens.fountainCoreWidthScale} />
+        <PressureDetailPaths color={color} heavyPath={heavyPressurePath} mediumPath={mediumPressurePath} opacity={themeWhiteboardTokens.fountainCoreOpacityScale} width={renderWidth * themeWhiteboardTokens.fountainCoreWidthScale} />
       </g>
     );
   }
@@ -149,20 +155,20 @@ function WhiteboardStrokeDab({
   stroke: WhiteboardStroke;
   width: number;
 }) {
-  const geometry = getStrokeDabGeometry(stroke.tool, width);
+  const geometry = getStrokeDabGeometry(stroke.tool, width, point);
   const transform = geometry.angle ? `rotate(${geometry.angle} ${point.x} ${point.y})` : undefined;
   if (geometry.shape === 'rect') {
     return <rect data-whiteboard-brush-dab="marker" x={point.x - geometry.width / 2} y={point.y - geometry.height / 2} width={geometry.width} height={geometry.height} rx={themeWhiteboardTokens.strokeEdgeFeatherWidthPx} fill={color} opacity={opacity} transform={transform} />;
   }
-  if (geometry.shape === 'ellipse') {
+  if (stroke.tool === 'fountain') {
     return <ellipse data-whiteboard-brush-dab="fountain" cx={point.x} cy={point.y} rx={geometry.width / 2} ry={geometry.height / 2} fill={color} opacity={opacity} transform={transform} />;
   }
   if (stroke.tool === 'watercolor') {
     return (
       <g data-whiteboard-brush-dab="watercolor">
-        <circle cx={point.x} cy={point.y} r={width * themeWhiteboardTokens.watercolorWashWidthScale / 2} fill={color} opacity={opacity * themeWhiteboardTokens.watercolorWashOpacityScale} />
-        <circle cx={point.x} cy={point.y} r={width * themeWhiteboardTokens.watercolorOuterWidthScale / 2} fill={color} opacity={opacity} />
-        <circle cx={point.x} cy={point.y} r={width / 2} fill={color} opacity={opacity * themeWhiteboardTokens.watercolorInnerOpacityScale} />
+        <ellipse cx={point.x} cy={point.y} rx={geometry.width * themeWhiteboardTokens.watercolorWashWidthScale / 2} ry={geometry.height * themeWhiteboardTokens.watercolorWashWidthScale / 2} fill={color} opacity={opacity * themeWhiteboardTokens.watercolorWashOpacityScale} transform={transform} />
+        <ellipse cx={point.x} cy={point.y} rx={geometry.width * themeWhiteboardTokens.watercolorOuterWidthScale / 2} ry={geometry.height * themeWhiteboardTokens.watercolorOuterWidthScale / 2} fill={color} opacity={opacity} transform={transform} />
+        <ellipse cx={point.x} cy={point.y} rx={geometry.width / 2} ry={geometry.height / 2} fill={color} opacity={opacity * themeWhiteboardTokens.watercolorInnerOpacityScale} transform={transform} />
       </g>
     );
   }
@@ -175,12 +181,30 @@ function WhiteboardStrokeDab({
     const texture = getWhiteboardStrokeDashStyle(stroke, material.dashArray, 0, 30);
     return (
       <g data-whiteboard-brush-dab={stroke.tool}>
-        <circle cx={point.x} cy={point.y} r={width / 2} fill={color} opacity={material.bodyOpacity} />
-        <circle cx={point.x} cy={point.y} r={Math.max(0, width / 2 - themeWhiteboardTokens.strokeEdgeFeatherWidthPx)} fill={themeWhiteboardTokens.strokeNoFill} opacity={material.textureOpacity} stroke={color} strokeDasharray={texture.dashArray} strokeDashoffset={texture.dashOffset} strokeWidth={themeWhiteboardTokens.strokeEdgeFeatherWidthPx} />
+        <ellipse cx={point.x} cy={point.y} rx={geometry.width / 2} ry={geometry.height / 2} fill={color} opacity={material.bodyOpacity} transform={transform} />
+        <ellipse cx={point.x} cy={point.y} rx={Math.max(0, geometry.width / 2 - themeWhiteboardTokens.strokeEdgeFeatherWidthPx)} ry={Math.max(0, geometry.height / 2 - themeWhiteboardTokens.strokeEdgeFeatherWidthPx)} fill={themeWhiteboardTokens.strokeNoFill} opacity={material.textureOpacity} stroke={color} strokeDasharray={texture.dashArray} strokeDashoffset={texture.dashOffset} strokeWidth={themeWhiteboardTokens.strokeEdgeFeatherWidthPx} transform={transform} />
       </g>
     );
   }
-  return <circle data-whiteboard-brush-dab="pen" cx={point.x} cy={point.y} fill={color} opacity={opacity} r={width / 2} />;
+  if (geometry.shape === 'ellipse') {
+    return <ellipse data-whiteboard-brush-dab="pen" cx={point.x} cy={point.y} rx={geometry.width / 2} ry={geometry.height / 2} fill={color} opacity={opacity} transform={transform} />;
+  }
+  return <circle data-whiteboard-brush-dab="pen" cx={point.x} cy={point.y} fill={color} opacity={opacity} r={geometry.width / 2} />;
+}
+
+function WhiteboardStrokeEndpointDabs({ color, opacity, stroke }: {
+  color: string;
+  opacity: number;
+  stroke: WhiteboardStroke;
+}) {
+  const start = stroke.renderTaperStart !== false ? stroke.points[0] : null;
+  const end = stroke.renderTaperEnd !== false ? stroke.points.at(-1) : null;
+  return (
+    <>
+      {start ? <WhiteboardStrokeDab color={color} opacity={opacity} point={start} stroke={stroke} width={getStrokeWidth(stroke.tool, start.pressure, stroke.size)} /> : null}
+      {end && end !== start ? <WhiteboardStrokeDab color={color} opacity={opacity} point={end} stroke={stroke} width={getStrokeWidth(stroke.tool, end.pressure, stroke.size)} /> : null}
+    </>
+  );
 }
 
 function MaterialGrainPaths({
@@ -204,7 +228,7 @@ function MaterialGrainPaths({
   stroke: WhiteboardStroke;
   width: number;
 }) {
-  const strokeSeed = getWhiteboardStrokeSeed(stroke.id);
+  const strokeSeed = getWhiteboardStrokeRenderSeed(stroke);
   const widthVariation = stroke.tool === 'colored-pencil'
     ? themeWhiteboardTokens.coloredPencilGrainWidthVariationScale
     : themeWhiteboardTokens.crayonGrainWidthVariationScale;
@@ -253,7 +277,6 @@ function PressureStrokePath({ color, d, opacity }: { color: string; d: string; o
       stroke={color}
       strokeLinejoin={themeWhiteboardTokens.strokeLineJoin}
       strokeWidth={themeWhiteboardTokens.strokeEdgeFeatherWidthPx}
-      vectorEffect="non-scaling-stroke"
     />
   );
 }

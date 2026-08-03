@@ -9,7 +9,8 @@ import type { WhiteboardStroke } from '../model/whiteboardModel';
 import type { WhiteboardMutableIdSet } from '../model/whiteboardStrokeSegments';
 import { markWhiteboardSpliceUpdate, type WhiteboardSpliceEdit } from '../model/whiteboardCollection';
 import {
-  eraseWhiteboardStrokes,
+  eraseWhiteboardStroke,
+  type WhiteboardStrokeEraserState,
   type WhiteboardStrokeEraserPreview,
 } from '../model/whiteboardStrokeEraser';
 
@@ -34,6 +35,7 @@ export function useWhiteboardStrokeEraserGesture({
   const indexReadyRef = useRef(false);
   const lastSampleRef = useRef<WhiteboardEraserSample | null>(null);
   const pendingSamplesRef = useRef<WhiteboardEraserSample[]>([]);
+  const eraseStatesRef = useRef(new Map<string, WhiteboardStrokeEraserState>());
   const replacementsRef = useRef(new Map<string, WhiteboardStroke[]>());
   const sourceStrokesRef = useRef<WhiteboardStroke[]>([]);
   const spatialIndexRef = useRef(spatialIndex);
@@ -45,21 +47,24 @@ export function useWhiteboardStrokeEraserGesture({
     if (pending.length === 0) return;
     const samples = lastSampleRef.current ? [lastSampleRef.current, ...pending] : pending;
     lastSampleRef.current = pending.at(-1) ?? lastSampleRef.current;
+    let nextEraseStates: Map<string, WhiteboardStrokeEraserState> | null = null;
     let nextReplacements: Map<string, WhiteboardStroke[]> | null = null;
     for (const source of getWhiteboardStrokeEraserCandidates(spatialIndexRef.current, samples)) {
-      const current = replacementsRef.current.get(source.id) ?? [source];
-      const next = eraseWhiteboardStrokes(
+      const current = eraseStatesRef.current.get(source.id) ?? null;
+      const next = eraseWhiteboardStroke(
+        source,
         current,
         samples,
-        undefined,
-        undefined,
         usedStrokeIdsRef.current,
       );
-      if (next === current) continue;
+      if (!next || next === current) continue;
+      nextEraseStates ??= new Map(eraseStatesRef.current);
+      nextEraseStates.set(source.id, next);
       nextReplacements ??= new Map(replacementsRef.current);
-      nextReplacements.set(source.id, next);
+      nextReplacements.set(source.id, next.fragments);
     }
-    if (!nextReplacements) return;
+    if (!nextEraseStates || !nextReplacements) return;
+    eraseStatesRef.current = nextEraseStates;
     replacementsRef.current = nextReplacements;
     changedRef.current = true;
     setPreview({ replacements: nextReplacements });
@@ -86,6 +91,7 @@ export function useWhiteboardStrokeEraserGesture({
     indexReadyRef.current = false;
     lastSampleRef.current = null;
     pendingSamplesRef.current = [];
+    eraseStatesRef.current = new Map();
     replacementsRef.current = new Map();
     sourceStrokesRef.current = [];
     usedStrokeIdsRef.current = createUsedStrokeIds();

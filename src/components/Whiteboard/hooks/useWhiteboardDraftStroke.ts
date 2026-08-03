@@ -22,8 +22,9 @@ export function useWhiteboardDraftStroke() {
     const current = draftStrokeRef.current;
     if (!current || current.tool !== tool) return;
     const previousPointCount = current.points.length;
+    const previousLastPoint = current.points.at(-1);
     appendStrokePointsInPlace(current.points, points, minDistance);
-    if (current.points.length === previousPointCount) return;
+    if (current.points.length === previousPointCount && current.points.at(-1) === previousLastPoint) return;
     if (frameRef.current !== null) return;
     frameRef.current = window.requestAnimationFrame(publishDraftStroke);
   }, [publishDraftStroke]);

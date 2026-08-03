@@ -114,6 +114,22 @@ describe('whiteboard lasso selection', () => {
     expect(findStrokeAtPoint(strokes, { x: 40, y: 10 }, 1)?.id).toBe('hit');
   });
 
+  it('selects the visible edge of a wide chisel stroke', () => {
+    const stroke: WhiteboardStroke = {
+      color: '#ffaa00',
+      id: 'wide-marker',
+      points: [{ pressure: 1, x: 20, y: 60 }, { pressure: 1, x: 100, y: 60 }],
+      size: 4,
+      tool: 'marker',
+    };
+    const edgeLasso = [
+      { x: 40, y: 96 }, { x: 80, y: 96 }, { x: 80, y: 108 }, { x: 40, y: 108 },
+    ];
+
+    expect(findStrokeAtPoint([stroke], { x: 60, y: 96 }, 1)?.id).toBe(stroke.id);
+    expect(getStrokesInLasso([stroke], edgeLasso)).toEqual([stroke.id]);
+  });
+
   it('reuses translated stroke bounds without rescanning points', () => {
     const stroke: WhiteboardStroke = {
       color: '#111111',
