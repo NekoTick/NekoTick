@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/icons';
-import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import { APP_VIEW_MODE_SWITCH_MIN_WIDTH } from '@/lib/layout/sidebarWidth';
 import { cn } from '@/lib/utils';
@@ -139,10 +138,7 @@ export function AppViewModeSwitch() {
       role="tablist"
       aria-orientation="horizontal"
       aria-label={t('shortcut.action.toggleAppViewMode')}
-      className={cn(
-        'relative mb-1.5 flex h-14 w-full shrink-0 items-center rounded-[var(--vlaina-ui-radius-group)] p-1.5',
-        raisedPillSurfaceClass,
-      )}
+      className="relative mb-1.5 flex h-14 w-full shrink-0 items-center p-1.5"
       style={{ minWidth: APP_VIEW_MODE_SWITCH_MIN_WIDTH }}
     >
       {options.map((option, optionIndex) => {
@@ -181,9 +177,9 @@ export function AppViewModeSwitch() {
             onFocus={() => setHighlightedAppViewMode(option.key)}
             onBlur={() => setHighlightedAppViewMode(null)}
             className={cn(
-              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width,background-color,box-shadow] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
               selected
-                ? 'min-w-max shrink-0 bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]'
+                ? 'min-w-max shrink-0'
                 : 'min-w-[var(--vlaina-size-32px)] shrink',
             )}
             style={{
@@ -191,6 +187,13 @@ export function AppViewModeSwitch() {
               color: highlighted ? 'var(--vlaina-sidebar-row-selected-text)' : 'var(--vlaina-sidebar-notes-text)',
             }}
           >
+            <span
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute inset-x-0 inset-y-[var(--vlaina-size-4px)] rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-opacity duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+                selected ? 'opacity-[var(--vlaina-opacity-100)]' : 'opacity-[var(--vlaina-opacity-0)]',
+              )}
+            />
             <span className="relative flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center leading-none">
               {option.icon}
             </span>

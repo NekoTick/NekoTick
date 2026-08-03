@@ -52,6 +52,10 @@ describe('AppViewModeSwitch', () => {
     expect(screen.getAllByRole('tab')).toEqual([notesTab, graphTab, boardTab, chatTab]);
     expect(tabList).toHaveAttribute('aria-orientation', 'horizontal');
     expect(tabList).toHaveClass('h-14');
+    expect(tabList).not.toHaveClass(
+      '!bg-[var(--vlaina-color-pill-surface)]',
+      '!shadow-[var(--vlaina-shadow-raised-soft)]',
+    );
     expect(screen.getByTestId('icon-graph.network')).toBeInTheDocument();
 
     expect(chatTab).toHaveAttribute('aria-selected', 'true');
@@ -74,13 +78,15 @@ describe('AppViewModeSwitch', () => {
     }
     expect(chatTab.style.width).toContain('calc(');
     expect(notesTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
-    expect(chatTab).toHaveClass(
+    expect(chatTab.firstElementChild).toHaveClass(
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
+      'inset-y-[var(--vlaina-size-4px)]',
+      'opacity-[var(--vlaina-opacity-100)]',
     );
-    expect(notesTab).not.toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
+    expect(notesTab.firstElementChild).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
     expect(chatTab).toHaveClass(
-      'transition-[width,background-color,box-shadow]',
+      'transition-[width]',
       'ease-[var(--vlaina-ease-in-out)]',
     );
     expect(screen.getByText('Chat')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
@@ -99,8 +105,11 @@ describe('AppViewModeSwitch', () => {
     expect(notesTab).toHaveClass(
       'min-w-max',
       'shrink-0',
+    );
+    expect(notesTab.firstElementChild).toHaveClass(
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
+      'opacity-[var(--vlaina-opacity-100)]',
     );
     expect(screen.getByText('Notes')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
     expect(screen.getByText('Notes')).toHaveClass('motion-reduce:transition-none');
@@ -108,7 +117,7 @@ describe('AppViewModeSwitch', () => {
     expect(chatTab).toHaveAttribute('tabindex', '-1');
     expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
     expect(chatTab).toHaveClass('min-w-[var(--vlaina-size-32px)]', 'shrink');
-    expect(chatTab).not.toHaveClass('bg-[var(--vlaina-sidebar-row-selected-bg)]');
+    expect(chatTab.firstElementChild).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
   });
 
   it('preserves the previous widths for one frame before squeezing to an external view change', () => {
