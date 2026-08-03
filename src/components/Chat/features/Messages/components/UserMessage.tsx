@@ -230,7 +230,7 @@ function UserMessageInner({
           </div>
 
           {!isAwaitingResponse && (
-            <div className="flex items-center gap-2 opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover:opacity-[var(--vlaina-opacity-100)] group-focus-within:opacity-[var(--vlaina-opacity-100)] mr-1 mt-1">
+            <div data-chat-message-actions="true" className="flex items-center gap-2 opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover:opacity-[var(--vlaina-opacity-100)] group-focus-within:opacity-[var(--vlaina-opacity-100)] mr-1 mt-1">
               {hasMultipleVersions && onSwitchVersion && (
                 <MessageVersionNavigator
                   current={currentSwitchableIndex + 1}

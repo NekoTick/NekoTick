@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
 import { APP_VIEW_MODE_SWITCH_MIN_WIDTH } from '@/lib/layout/sidebarWidth';
@@ -11,6 +11,11 @@ import {
   subscribeAppViewModeFocusIntent,
   type SwitchableAppViewMode,
 } from './appViewModeFocusIntent';
+
+const GlobalSearchDialog = lazy(async () => {
+  const mod = await import('./GlobalSearchDialog');
+  return { default: mod.GlobalSearchDialog };
+});
 
 function isVisibleViewModeButton(
   button: HTMLButtonElement | null | undefined,
@@ -28,6 +33,7 @@ export function AppViewModeSwitch() {
   const setAppViewMode = useUIStore((state) => state.setAppViewMode);
   const [visualAppViewMode, setVisualAppViewMode] = useState(appViewMode);
   const [highlightedAppViewMode, setHighlightedAppViewMode] = useState<SwitchableAppViewMode | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const switchRootRef = useRef<HTMLDivElement | null>(null);
   const visualAppViewModeRef = useRef(appViewMode);
   const viewModeButtonRefs = useRef<Partial<Record<SwitchableAppViewMode, HTMLButtonElement | null>>>({});
@@ -125,91 +131,100 @@ export function AppViewModeSwitch() {
     },
   ];
   if (!options.some((option) => option.key === appViewMode)) return null;
-  const collapsedButtonsWidth = Array.from(
-    { length: options.length - 1 },
-    () => 'var(--vlaina-size-44px)',
-  ).join(' - ');
-  const expandedButtonWidth = `calc(100% - var(--vlaina-space-075rem) - ${collapsedButtonsWidth})`;
 
   return (
     <div
       ref={switchRootRef}
       data-app-view-mode-switch="true"
-      role="tablist"
-      aria-orientation="horizontal"
-      aria-label={t('shortcut.action.toggleAppViewMode')}
-      className="relative mb-1.5 flex h-14 w-full shrink-0 items-center p-1.5"
+      className="relative mb-1.5 flex h-12 w-full shrink-0 items-center px-1.5"
       style={{ minWidth: APP_VIEW_MODE_SWITCH_MIN_WIDTH }}
     >
-      {options.map((option, optionIndex) => {
-        const selected = visualAppViewMode === option.key;
-        const highlighted = selected || highlightedAppViewMode === option.key;
-        return (
-          <button
-            key={option.key}
-            ref={(element) => {
-              viewModeButtonRefs.current[option.key] = element;
-            }}
-            type="button"
-            role="tab"
-            aria-label={option.label}
-            aria-selected={selected}
-            tabIndex={selected ? 0 : -1}
-            onClick={() => handleSelectViewMode(option.key)}
-            onKeyDown={(event) => {
-              if (event.altKey || event.ctrlKey || event.metaKey) return;
-              const direction = event.key === 'ArrowRight'
-                ? 'next'
-                : event.key === 'ArrowLeft'
-                  ? 'previous'
-                  : event.key === 'Home'
-                    ? 'first'
-                    : event.key === 'End'
-                      ? 'last'
-                      : null;
-              if (!direction) return;
-              event.preventDefault();
-              event.stopPropagation();
-              handleNavigateViewMode(optionIndex, direction, options);
-            }}
-            onPointerEnter={() => setHighlightedAppViewMode(option.key)}
-            onPointerLeave={() => setHighlightedAppViewMode(null)}
-            onFocus={() => setHighlightedAppViewMode(option.key)}
-            onBlur={() => setHighlightedAppViewMode(null)}
-            className={cn(
-              'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-44px)] cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-15)] font-medium leading-none transition-[width] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
-              selected
-                ? 'min-w-max shrink-0'
-                : 'min-w-[var(--vlaina-size-32px)] shrink',
-            )}
-            style={{
-              width: selected ? expandedButtonWidth : 'var(--vlaina-size-44px)',
-              color: highlighted ? 'var(--vlaina-sidebar-row-selected-text)' : 'var(--vlaina-sidebar-notes-text)',
-            }}
-          >
-            <span
-              aria-hidden="true"
+      <div
+        role="tablist"
+        aria-orientation="horizontal"
+        aria-label={t('shortcut.action.toggleAppViewMode')}
+        className="flex min-w-0 items-center gap-0.5"
+      >
+        {options.map((option, optionIndex) => {
+          const selected = visualAppViewMode === option.key;
+          const highlighted = selected || highlightedAppViewMode === option.key;
+          return (
+            <button
+              key={option.key}
+              ref={(element) => {
+                viewModeButtonRefs.current[option.key] = element;
+              }}
+              type="button"
+              role="tab"
+              aria-label={option.label}
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => handleSelectViewMode(option.key)}
+              onKeyDown={(event) => {
+                if (event.altKey || event.ctrlKey || event.metaKey) return;
+                const direction = event.key === 'ArrowRight'
+                  ? 'next'
+                  : event.key === 'ArrowLeft'
+                    ? 'previous'
+                    : event.key === 'Home'
+                      ? 'first'
+                      : event.key === 'End'
+                        ? 'last'
+                        : null;
+                if (!direction) return;
+                event.preventDefault();
+                event.stopPropagation();
+                handleNavigateViewMode(optionIndex, direction, options);
+              }}
+              onPointerEnter={() => setHighlightedAppViewMode(option.key)}
+              onPointerLeave={() => setHighlightedAppViewMode(null)}
+              onFocus={() => setHighlightedAppViewMode(option.key)}
+              onBlur={() => setHighlightedAppViewMode(null)}
               className={cn(
-                'pointer-events-none absolute inset-x-0 inset-y-[var(--vlaina-size-4px)] rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-opacity duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
-                selected ? 'opacity-[var(--vlaina-opacity-100)]' : 'opacity-[var(--vlaina-opacity-0)]',
+                'relative z-[var(--vlaina-z-10)] flex h-[var(--vlaina-size-36px)] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full text-[length:var(--vlaina-font-sm)] font-medium leading-none transition-[padding,width] duration-[var(--vlaina-duration-200)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+                selected ? 'w-auto px-2' : 'w-[var(--vlaina-size-32px)] px-0',
               )}
-            />
-            <span className="relative flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center leading-none">
-              {option.icon}
-            </span>
-            <span
-              className={cn(
-                'relative inline-flex min-w-0 items-center overflow-hidden whitespace-nowrap pl-2 leading-none transition-[max-width,opacity] duration-[var(--vlaina-duration-300)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
-                selected
-                  ? 'max-w-[var(--vlaina-size-128px)] opacity-[var(--vlaina-opacity-100)]'
-                  : 'max-w-0 opacity-[var(--vlaina-opacity-0)]',
-              )}
+              style={{
+                color: highlighted ? 'var(--vlaina-sidebar-row-selected-text)' : 'var(--vlaina-sidebar-notes-text)',
+              }}
             >
-              {option.label}
-            </span>
-          </button>
-        );
-      })}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute inset-[var(--vlaina-size-2px)] rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-opacity duration-[var(--vlaina-duration-200)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+                  selected ? 'opacity-[var(--vlaina-opacity-100)]' : 'opacity-[var(--vlaina-opacity-0)]',
+                )}
+              />
+              <span className="relative flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center leading-none">
+                {option.icon}
+              </span>
+              <span
+                className={cn(
+                  'relative inline-flex min-w-0 items-center overflow-hidden whitespace-nowrap leading-none transition-[max-width,margin,opacity] duration-[var(--vlaina-duration-200)] ease-[var(--vlaina-ease-in-out)] motion-reduce:transition-none',
+                  selected
+                    ? 'ml-1.5 max-w-[var(--vlaina-size-128px)] opacity-[var(--vlaina-opacity-100)]'
+                    : 'ml-0 max-w-0 opacity-[var(--vlaina-opacity-0)]',
+                )}
+              >
+                {option.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        aria-label={t('sidebar.search')}
+        onClick={() => setSearchOpen(true)}
+        className="ml-auto flex size-[var(--vlaina-size-32px)] shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--vlaina-sidebar-notes-text)] transition-[background-color,box-shadow,color] duration-[var(--vlaina-duration-150)] hover:bg-[var(--vlaina-sidebar-row-selected-bg)] hover:text-[var(--vlaina-sidebar-row-selected-text)] hover:shadow-[var(--vlaina-shadow-selection-soft)] motion-reduce:transition-none"
+      >
+        <Icon name="common.search" size={themeIconTokens.sizeCompact} />
+      </button>
+      {searchOpen ? (
+        <Suspense fallback={null}>
+          <GlobalSearchDialog open onOpenChange={setSearchOpen} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

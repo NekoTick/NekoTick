@@ -63,13 +63,11 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
     inputRef,
     scrollRootRef,
     hideSearch,
-    handleScroll,
     shouldShowSearchResults,
   } = useSidebarSearchDrawerState({
     enabled: active,
     isOpen: isSearchOpen,
     query: searchQuery,
-    onOpen: openSearch,
     onClose: closeSearch,
     scopeRef: sidebarRootRef,
   });
@@ -215,7 +213,6 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
           <SidebarScrollArea
             ref={scrollRootRef}
             className="min-h-0 flex-1 pt-0"
-            onScroll={handleScroll}
           >
             {shouldShowSearchResults ? (
               searchResults.length === 0 ? (

@@ -158,7 +158,7 @@ describe('GraphSidebar', () => {
     expect(document.querySelector('[data-graph-mode-indicator="true"]')).toHaveClass('translate-x-full');
     expect(screen.queryByRole('option', { name: 'Plan, Plan.md' })).not.toBeInTheDocument();
 
-    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
+    act(() => dispatchSidebarOpenSearchEvent('graph'));
 
     const searchInput = screen.getByRole('combobox', { name: 'graph.searchPlaceholder' });
     const modeSelector = screen.getByRole('group', { name: 'app.viewGraph' });
@@ -199,7 +199,7 @@ describe('GraphSidebar', () => {
     graphStore.searchQuery = 'missing';
     render(<GraphSidebar />);
 
-    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
+    act(() => dispatchSidebarOpenSearchEvent('graph'));
 
     expect(screen.getByText('graph.searchNoResults')).toBeInTheDocument();
   });
@@ -220,6 +220,8 @@ describe('GraphSidebar', () => {
 
   it('keeps search collapsed without a separate action button', () => {
     render(<GraphSidebar />);
+
+    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -100 });
 
     expect(document.querySelector('[data-sidebar-search-drawer="true"]'))
       .toHaveAttribute('inert');
@@ -245,7 +247,7 @@ describe('GraphSidebar', () => {
     graphStore.selectedPath = null;
     render(<GraphSidebar />);
 
-    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
+    act(() => dispatchSidebarOpenSearchEvent('graph'));
     fireEvent.click(screen.getByRole('option', { name: 'Note 240, Note 240.md' }));
 
     expect(graphStore.setSelectedPath).toHaveBeenCalledWith('Note 240.md');
@@ -263,7 +265,7 @@ describe('GraphSidebar', () => {
     notesStore.noteContentsCacheRevision += 1;
     render(<GraphSidebar />);
 
-    fireEvent.wheel(screen.getByTestId('graph-scroll-root'), { deltaY: -60 });
+    act(() => dispatchSidebarOpenSearchEvent('graph'));
 
     expect(screen.getByRole('option', { name: 'Plan, Plan.md' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Plan, archive/Plan.md' })).toBeInTheDocument();
