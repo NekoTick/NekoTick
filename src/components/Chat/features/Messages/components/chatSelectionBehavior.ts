@@ -89,6 +89,14 @@ export function setChatSelectionLock(active: boolean) {
   document.body.removeAttribute("data-chat-selection-lock");
 }
 
+export function clearChatTextSelection(): void {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+  window.getSelection()?.removeAllRanges();
+  document.dispatchEvent(new Event("selectionchange"));
+}
+
 function isSelectionInsideChatMessages(selection: Selection, range: Range): boolean {
   const anchorElement = toElement(selection.anchorNode);
   const focusElement = toElement(selection.focusNode);

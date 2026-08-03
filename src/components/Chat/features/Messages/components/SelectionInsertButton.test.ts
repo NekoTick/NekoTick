@@ -13,6 +13,7 @@ import {
   MAX_CHAT_SELECTION_TEXT_CHARS,
   resolveOutsideMoveDecision,
 } from "./chatSelectionBehavior";
+import { useChatViewMessageActions } from "@/components/Chat/hooks/useChatViewMessageActions";
 
 afterEach(() => {
   document.body.removeAttribute("data-chat-selection-lock");
@@ -280,6 +281,71 @@ describe("SelectionInsertButton selection lock", () => {
     expect(document.querySelector('[data-no-focus-input="true"]')).not.toBeNull();
 
     selection.removeAllRanges();
+    container.remove();
+    unmount();
+  });
+
+  it("clears the insert button before regenerating the selected response", async () => {
+    const regenerate = vi.fn();
+    function RegenerateHarness() {
+      const { handleRegenerate } = useChatViewMessageActions({
+        currentSessionId: "session-1",
+        editMessage: vi.fn(),
+        imageGallery: [],
+        regenerate,
+        switchMessageVersion: vi.fn(),
+      });
+      return React.createElement("button", {
+        "data-testid": "regenerate",
+        onClick: () => handleRegenerate("assistant-1"),
+      });
+    }
+
+    const { getByTestId, unmount } = render(React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(SelectionInsertButton),
+      React.createElement(RegenerateHarness),
+    ));
+    const container = document.createElement("div");
+    container.innerHTML = `
+      <div data-chat-scrollable="true">
+        <div data-message-item="true" data-role="assistant">
+          <div data-chat-selection-surface="true" data-chat-selection-start="true">Selected answer</div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(container);
+
+    const assistantBody = container.querySelector('[data-chat-selection-start="true"]')!;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(assistantBody);
+    Object.defineProperty(range, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 100,
+        right: 160,
+        top: 100,
+        bottom: 120,
+        width: 60,
+        height: 20,
+      }),
+    });
+    selection.removeAllRanges();
+    selection.addRange(range);
+    fireEvent(document, new Event("selectionchange"));
+    await flushAnimationFrame();
+
+    expect(document.querySelector('[data-chat-selection-insert-button="true"]')).not.toBeNull();
+
+    fireEvent.click(getByTestId("regenerate"));
+    await flushAnimationFrame();
+
+    expect(regenerate).toHaveBeenCalledWith("assistant-1");
+    expect(selection.rangeCount).toBe(0);
+    expect(document.querySelector('[data-chat-selection-insert-button="true"]')).toBeNull();
+
     container.remove();
     unmount();
   });

@@ -87,6 +87,9 @@ async function readLastUserMessageGeometry(page: Page) {
 
     const rootRect = scrollRoot.getBoundingClientRect();
     const userRect = lastUser.getBoundingClientRect();
+    const bubble = lastUser.querySelector<HTMLElement>('[data-vlaina-markdown-font-size-surface="true"]');
+    const text = bubble?.firstElementChild instanceof HTMLElement ? bubble.firstElementChild : null;
+    const lineHeight = text ? Number.parseFloat(getComputedStyle(text).lineHeight) : 0;
     return {
       rootBottom: rootRect.bottom,
       rootClientHeight: scrollRoot.clientHeight,
@@ -96,6 +99,9 @@ async function readLastUserMessageGeometry(page: Page) {
       userBottom: userRect.bottom,
       userBottomOffset: userRect.bottom - rootRect.top,
       userHeight: userRect.height,
+      userLineCount: text && lineHeight > 0
+        ? Math.round(text.getBoundingClientRect().height / lineHeight)
+        : null,
       userText: lastUser.textContent ?? '',
       userTop: userRect.top,
       userTopOffset: userRect.top - rootRect.top,
@@ -160,6 +166,7 @@ async function expectShortPromptPositionBeforeAssistant(
   const geometry = await readLastUserMessageGeometry(page);
   expect(geometry).not.toBeNull();
   expect(geometry!.userText).toContain('hi');
+  expect(geometry!.userLineCount, JSON.stringify(geometry, null, 2)).toBe(1);
   expect(geometry!.userTop).toBeGreaterThanOrEqual(geometry!.rootTop - 1);
   expect(geometry!.userBottom).toBeLessThanOrEqual(geometry!.rootBottom + 1);
   if (placement === 'near-top') {

@@ -79,6 +79,13 @@ describe('UserMessage', () => {
     expect(useNotesStoreMock).not.toHaveBeenCalled();
   });
 
+  it('does not pin compact text bubbles to measured pixel widths', () => {
+    render(<UserMessage message={createMessage('hi')} containerWidth={880} onEdit={vi.fn()} />);
+
+    const bubble = screen.getByText('hi').parentElement;
+    expect(bubble?.style.width).toBe('');
+  });
+
   it('uses the shared compact icon button styling for sent message actions', () => {
     render(<UserMessage message={createMessage()} containerWidth={880} onEdit={vi.fn()} />);
 

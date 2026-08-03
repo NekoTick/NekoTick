@@ -361,8 +361,20 @@ test.describe('chat conversation audit', () => {
       const assistant = page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
         hasText: 'Old answer before regeneration',
       }).first();
+      await assistant.locator('[data-chat-selection-start="true"]').evaluate((element) => {
+        const selection = window.getSelection();
+        if (!selection) return;
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event('selectionchange'));
+      });
+      const selectionInsertButton = page.locator('[data-chat-selection-insert-button="true"]');
+      await expect(selectionInsertButton).toBeVisible();
       await assistant.hover();
       await assistant.locator(`${CHAT_MESSAGE_ACTION_SELECTOR}[data-chat-message-action="regenerate"]`).click();
+      await expect(selectionInsertButton).toHaveCount(0);
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
         hasText: REGENERATED_SENTINEL,
       })).toBeVisible({ timeout: 30_000 });
