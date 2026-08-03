@@ -1,4 +1,4 @@
-import { useCallback, type ChangeEvent, type ClipboardEvent, type KeyboardEvent, type RefObject } from 'react';
+import { useCallback, useRef, type ChangeEvent, type ClipboardEvent, type KeyboardEvent, type RefObject } from 'react';
 import { dispatchSidebarCloseSearchEvent } from '@/components/layout/sidebar/sidebarEvents';
 import { limitChatComposerText } from '@/lib/ui/composerTextLimit';
 import { shouldMarkPastedTextMultiline } from '../chatPasteText';
@@ -52,6 +52,11 @@ export function useChatInputEventHandlers({
   textareaRef,
   triggerFileSelect,
 }: UseChatInputEventHandlersOptions) {
+  const messageRef = useRef(message);
+  messageRef.current = message;
+  const handleCaretChangeRef = useRef(handleCaretChange);
+  handleCaretChangeRef.current = handleCaretChange;
+
   const handleTextareaPaste = useCallback(
     (e: ClipboardEvent<HTMLTextAreaElement>) => {
       if (shouldMarkPastedTextMultiline(e.clipboardData.getData('text/plain'))) {
@@ -77,23 +82,22 @@ export function useChatInputEventHandlers({
 
   const handleTriggerMentionSelect = useCallback(() => {
     const input = textareaRef.current;
-    const selectionStart = input?.selectionStart ?? message.length;
+    const currentMessage = messageRef.current;
+    const selectionStart = input?.selectionStart ?? currentMessage.length;
     const selectionEnd = input?.selectionEnd ?? selectionStart;
-    const before = message.slice(0, selectionStart);
-    const after = message.slice(selectionEnd);
+    const before = currentMessage.slice(0, selectionStart);
+    const after = currentMessage.slice(selectionEnd);
     const prefix = before && !/\s$/.test(before) ? ' ' : '';
     const nextMessage = limitChatComposerText(`${before}${prefix}@${after}`);
     const nextCaret = Math.min(before.length + prefix.length + 1, nextMessage.length);
 
     handleMessageChange(nextMessage);
     clearHistoryNavigationOnInput();
-    handleCaretChange(nextCaret);
+    handleCaretChangeRef.current(nextCaret);
     scheduleComposerFocus(nextCaret);
   }, [
     clearHistoryNavigationOnInput,
-    handleCaretChange,
     handleMessageChange,
-    message,
     scheduleComposerFocus,
     textareaRef,
   ]);

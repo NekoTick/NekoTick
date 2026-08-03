@@ -15,6 +15,7 @@ interface MessageListContentProps {
   onFork?: (id: string) => void;
   onRegenerate: (id: string) => void;
   onSwitchVersion: (msgId: string, idx: number) => void;
+  onUserMessageLayoutChange: (messageId: string) => void;
   renderedMessageCount: number;
   renderedRows: RenderedMessageRow[];
   showLoading: boolean;
@@ -39,6 +40,7 @@ export function MessageListContent({
   onFork,
   onRegenerate,
   onSwitchVersion,
+  onUserMessageLayoutChange,
   renderedMessageCount,
   renderedRows,
   showLoading,
@@ -79,6 +81,7 @@ export function MessageListContent({
                   onFork={onFork}
                   onRegenerate={onRegenerate}
                   onEdit={onEdit}
+                  onUserMessageLayoutChange={onUserMessageLayoutChange}
                   onSwitchVersion={onSwitchVersion}
                 />
               </div>

@@ -10,6 +10,10 @@ interface MentionLabelTrieNode {
   titles?: string[];
 }
 
+export interface MentionTitleMatcher {
+  findInValue: (value: string) => Set<string>;
+}
+
 function findMentionLabelIndex(value: string, label: string, fromIndex = 0): number {
   let index = value.indexOf(label, fromIndex);
   while (index >= 0) {
@@ -66,36 +70,43 @@ function createMentionLabelTrie(titles: Iterable<string>): MentionLabelTrieNode 
   return root;
 }
 
-export function findMentionTitlesInValue(value: string, titles: Iterable<string>): Set<string> {
-  const matches = new Set<string>();
-  if (!value.includes('@')) {
-    return matches;
-  }
-
+export function createMentionTitleMatcher(titles: Iterable<string>): MentionTitleMatcher {
   const root = createMentionLabelTrie(titles);
-  if (root.children.size === 0) {
-    return matches;
-  }
-
-  for (let index = 0; index < value.length; index += 1) {
-    if (value[index] !== '@' || !hasMentionStartBoundary(value, index)) {
-      continue;
-    }
-
-    let node: MentionLabelTrieNode | undefined = root;
-    for (let cursor = index; cursor < value.length; cursor += 1) {
-      node = node.children.get(value[cursor]);
-      if (!node) {
-        break;
+  return {
+    findInValue(value) {
+      const matches = new Set<string>();
+      if (root.children.size === 0) {
+        return matches;
       }
 
-      if (node.titles && hasMentionEndBoundary(value, cursor + 1)) {
-        for (const title of node.titles) {
-          matches.add(title);
+      for (let index = 0; index < value.length; index += 1) {
+        if (value[index] !== '@' || !hasMentionStartBoundary(value, index)) {
+          continue;
+        }
+
+        let node: MentionLabelTrieNode | undefined = root;
+        for (let cursor = index; cursor < value.length; cursor += 1) {
+          node = node.children.get(value[cursor]);
+          if (!node) {
+            break;
+          }
+
+          if (node.titles && hasMentionEndBoundary(value, cursor + 1)) {
+            for (const title of node.titles) {
+              matches.add(title);
+            }
+          }
         }
       }
-    }
-  }
 
-  return matches;
+      return matches;
+    },
+  };
+}
+
+export function findMentionTitlesInValue(value: string, titles: Iterable<string>): Set<string> {
+  if (!value.includes('@')) {
+    return new Set();
+  }
+  return createMentionTitleMatcher(titles).findInValue(value);
 }

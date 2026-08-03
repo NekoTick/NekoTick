@@ -23,6 +23,7 @@ interface MessageItemProps {
   onFork?: (id: string) => void;
   onRegenerate: (id: string) => void;
   onEdit?: (id: string, newContent: string) => void;
+  onUserMessageLayoutChange?: (messageId: string) => void;
   onSwitchVersion: (id: string, targetIndex: number) => void;
 }
 
@@ -38,6 +39,7 @@ function MessageItemInner({
   onFork,
   onRegenerate,
   onEdit,
+  onUserMessageLayoutChange,
   onSwitchVersion
 }: MessageItemProps) {
   const isUser = msg.role === 'user';
@@ -63,6 +65,7 @@ function MessageItemInner({
                   containerWidth={userBubbleContainerWidth || 0}
                   isAwaitingResponse={isLoading}
                   onEdit={onEdit}
+                  onLayoutChange={onUserMessageLayoutChange}
                   onSwitchVersion={onSwitchVersion}
               />
           ) : (
@@ -100,7 +103,8 @@ function areMessageItemPropsEqual(prevProps: MessageItemProps, nextProps: Messag
   if (prevProps.msg.role === 'user' && nextProps.msg.role === 'user') {
     return (
       prevProps.userBubbleContainerWidth === nextProps.userBubbleContainerWidth &&
-      prevProps.isLoading === nextProps.isLoading
+      prevProps.isLoading === nextProps.isLoading &&
+      prevProps.onUserMessageLayoutChange === nextProps.onUserMessageLayoutChange
     );
   }
 

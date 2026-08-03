@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn, iconButtonStyles } from '@/lib/utils';
@@ -27,7 +27,7 @@ interface ChatInputActionsProps {
   disabled?: boolean;
 }
 
-export function ChatInputActions({
+export const ChatInputActions = memo(function ChatInputActions({
   onTriggerFileSelect,
   onTriggerMentionSelect,
   hasMentionCandidates,
@@ -266,4 +266,4 @@ export function ChatInputActions({
       </div>
     </div>
   );
-}
+});

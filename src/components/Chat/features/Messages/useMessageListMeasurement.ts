@@ -197,6 +197,26 @@ export function useMessageListMeasurement({
     });
   }, [flushMeasuredHeights]);
 
+  const remeasureVisibleRow = useCallback((messageId: string) => {
+    const node = observedRowsRef.current.get(messageId);
+    if (!node || !activeRef.current) {
+      return;
+    }
+
+    const nextHeight = node.getBoundingClientRect().height;
+    if (!Number.isFinite(nextHeight) || nextHeight <= 0) {
+      return;
+    }
+
+    const normalizedHeight = Math.max(1, Math.ceil(nextHeight));
+    pendingMeasuredHeightsRef.current.set(messageId, normalizedHeight);
+    if (measuredHeightsRafRef.current !== null) {
+      cancelAnimationFrame(measuredHeightsRafRef.current);
+      measuredHeightsRafRef.current = null;
+    }
+    flushMeasuredHeights();
+  }, [activeRef, flushMeasuredHeights]);
+
   const shouldMeasureVisibleRowSynchronously = useCallback((messageId: string) => {
     if (messageId === lastStreamingMessageIdRef.current) {
       return true;
@@ -314,5 +334,6 @@ export function useMessageListMeasurement({
   return {
     getVisibleRowRef,
     measuredHeights,
+    remeasureVisibleRow,
   };
 }

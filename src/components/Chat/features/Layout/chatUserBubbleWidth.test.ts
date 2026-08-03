@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS } from '@/lib/ui/composerTextLimit';
 import { resolveUserMessageBubbleWidth } from './chatUserBubbleWidth';
 
 describe('chatUserBubbleWidth', () => {
@@ -30,5 +31,15 @@ describe('chatUserBubbleWidth', () => {
     const second = resolveUserMessageBubbleWidth(text, 727);
 
     expect(first).toBe(second);
+  });
+
+  it('uses the maximum bubble width without measuring oversized user messages', () => {
+    const containerWidth = 900;
+    const contentWidth = Math.max(240, Math.min(850, containerWidth - 32));
+
+    expect(resolveUserMessageBubbleWidth(
+      'x'.repeat(MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS + 1),
+      containerWidth,
+    )).toBe(Math.floor(contentWidth * 0.9));
   });
 });

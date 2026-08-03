@@ -13,7 +13,10 @@ import type { ChatMessage } from '@/lib/ai/types';
 import { NoteMentionPicker } from '@/components/Chat/features/Input/components/NoteMentionPicker';
 import { usePredictedTextareaHeight } from '@/hooks/usePredictedTextareaHeight';
 import { focusVisibleTextareaAt } from '@/lib/ui/composerFocusRegistry';
-import { limitChatComposerText } from '@/lib/ui/composerTextLimit';
+import {
+  limitChatComposerText,
+  MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS,
+} from '@/lib/ui/composerTextLimit';
 import {
   composeUserMessageContent,
   type ParsedUserMessageContent,
@@ -91,6 +94,7 @@ export function UserMessageEditor({
     value: editValue,
     minHeight: themeChatComposerTokens.textareaMinHeightPx,
     maxHeight: themeChatComposerTokens.textareaMaxHeightPx,
+    maxPredictedLayoutChars: MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS,
   });
 
   const handleSave = useCallback(() => {

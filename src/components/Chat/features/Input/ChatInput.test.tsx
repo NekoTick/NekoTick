@@ -321,6 +321,62 @@ describe('ChatInput', () => {
     expect(textarea.value).toBe('still editable');
   });
 
+  it('keeps long ordinary drafts in the native textarea without a duplicate preview layer', () => {
+    renderChatInput();
+    const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
+    const longDraft = 'ordinary chat text '.repeat(8_000);
+
+    fireEvent.change(textarea, { target: { value: longDraft } });
+
+    expect(textarea.value).toBe(longDraft);
+    expect(textarea.parentElement?.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('does not measure or reset the textarea selection on ordinary changes', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    renderChatInput();
+    const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
+    const getClientRects = vi.spyOn(textarea, 'getClientRects');
+    const setSelectionRange = vi.spyOn(textarea, 'setSelectionRange');
+
+    fireEvent.change(textarea, { target: { value: 'ordinary typing' } });
+
+    expect(getClientRects).not.toHaveBeenCalled();
+    expect(setSelectionRange).not.toHaveBeenCalled();
+  });
+
+  it('inserts a mention trigger into the latest draft after repeated text updates', () => {
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    useNotesStore.setState({
+      rootFolder: {
+        children: [{ isFolder: false, path: 'Today.md' }],
+      } as any,
+      notesPath: '/notesRoot',
+      getDisplayName: getTestDisplayName,
+    });
+    try {
+      renderChatInput();
+      const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
+
+      fireEvent.change(textarea, { target: { value: 'first draft' } });
+      fireEvent.change(textarea, { target: { value: 'latest draft' } });
+      fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+      fireEvent.click(document.querySelector('[data-chat-input-action="mention"]')!);
+
+      expect(textarea.value).toBe('latest draft @');
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(Element.prototype, 'scrollIntoView', originalScrollIntoView);
+      } else {
+        Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+      }
+    }
+  });
+
   it('renders the managed quota notice as part of an expanded composer frame', () => {
     const { container } = renderChatInput({
       isManagedQuotaExhausted: true,

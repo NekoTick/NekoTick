@@ -31,40 +31,79 @@ export interface TextWrapStats {
   maxLineWidth: number;
 }
 
-const preparedCache = new Map<string, PreparedText>();
-const preparedSegmentsCache = new Map<string, PreparedTextWithSegments>();
 const PREPARED_CACHE_LIMIT = 500;
+export const PREPARED_TEXT_CACHE_CHAR_BUDGET = 64 * 1024;
 const DEFAULT_FONT_FAMILY = APP_SANS_FONT_FAMILY;
 const DEFAULT_FONT_SIZE = 15;
 const DEFAULT_LINE_HEIGHT_RATIO = 1.6;
 
-function setPreparedCacheEntry(cacheKey: string, prepared: PreparedText): void {
-  if (preparedCache.has(cacheKey)) {
-    preparedCache.delete(cacheKey);
-  } else if (preparedCache.size >= PREPARED_CACHE_LIMIT) {
-    const oldestKey = preparedCache.keys().next().value;
-    if (oldestKey !== undefined) {
-      preparedCache.delete(oldestKey);
+class PreparedTextCache<T> {
+  private entries = new Map<string, { prepared: T; textLength: number }>();
+  private textChars = 0;
+
+  get(cacheKey: string): T | undefined {
+    const entry = this.entries.get(cacheKey);
+    if (!entry) {
+      return undefined;
     }
+
+    this.entries.delete(cacheKey);
+    this.entries.set(cacheKey, entry);
+    return entry.prepared;
   }
 
-  preparedCache.set(cacheKey, prepared);
+  set(cacheKey: string, prepared: T, textLength: number): void {
+    if (textLength > PREPARED_TEXT_CACHE_CHAR_BUDGET) {
+      return;
+    }
+
+    const existing = this.entries.get(cacheKey);
+    if (existing) {
+      this.textChars -= existing.textLength;
+      this.entries.delete(cacheKey);
+    }
+    while (
+      this.entries.size >= PREPARED_CACHE_LIMIT
+      || this.textChars + textLength > PREPARED_TEXT_CACHE_CHAR_BUDGET
+    ) {
+      const oldestKey = this.entries.keys().next().value;
+      if (oldestKey === undefined) {
+        break;
+      }
+      const oldest = this.entries.get(oldestKey);
+      if (oldest) {
+        this.textChars -= oldest.textLength;
+      }
+      this.entries.delete(oldestKey);
+    }
+
+    this.entries.set(cacheKey, { prepared, textLength });
+    this.textChars += textLength;
+  }
+
+  clear(): void {
+    this.entries.clear();
+    this.textChars = 0;
+  }
+
+  getStats(): { entries: number; textChars: number } {
+    return { entries: this.entries.size, textChars: this.textChars };
+  }
 }
 
-function setPreparedSegmentsCacheEntry(
-  cacheKey: string,
-  prepared: PreparedTextWithSegments,
-): void {
-  if (preparedSegmentsCache.has(cacheKey)) {
-    preparedSegmentsCache.delete(cacheKey);
-  } else if (preparedSegmentsCache.size >= PREPARED_CACHE_LIMIT) {
-    const oldestKey = preparedSegmentsCache.keys().next().value;
-    if (oldestKey !== undefined) {
-      preparedSegmentsCache.delete(oldestKey);
-    }
-  }
+const preparedCache = new PreparedTextCache<PreparedText>();
+const preparedSegmentsCache = new PreparedTextCache<PreparedTextWithSegments>();
 
-  preparedSegmentsCache.set(cacheKey, prepared);
+export function clearPreparedTextCachesForTests(): void {
+  preparedCache.clear();
+  preparedSegmentsCache.clear();
+}
+
+export function getPreparedTextCacheStatsForTests() {
+  return {
+    prepared: preparedCache.getStats(),
+    preparedSegments: preparedSegmentsCache.getStats(),
+  };
 }
 
 function getPreparedText(
@@ -72,6 +111,9 @@ function getPreparedText(
   font: string,
   options: PrepareOptions | undefined,
 ): PreparedText {
+  if (text.length > PREPARED_TEXT_CACHE_CHAR_BUDGET) {
+    return prepare(text, font, options);
+  }
   const whiteSpace = options?.whiteSpace ?? 'normal';
   const wordBreak = options?.wordBreak ?? 'normal';
   const letterSpacing = options?.letterSpacing ?? 0;
@@ -82,7 +124,7 @@ function getPreparedText(
   }
 
   const prepared = prepare(text, font, options);
-  setPreparedCacheEntry(cacheKey, prepared);
+  preparedCache.set(cacheKey, prepared, text.length);
   return prepared;
 }
 
@@ -91,6 +133,9 @@ function getPreparedTextWithSegments(
   font: string,
   options: PrepareOptions | undefined,
 ): PreparedTextWithSegments {
+  if (text.length > PREPARED_TEXT_CACHE_CHAR_BUDGET) {
+    return prepareWithSegments(text, font, options);
+  }
   const whiteSpace = options?.whiteSpace ?? 'normal';
   const wordBreak = options?.wordBreak ?? 'normal';
   const letterSpacing = options?.letterSpacing ?? 0;
@@ -101,7 +146,7 @@ function getPreparedTextWithSegments(
   }
 
   const prepared = prepareWithSegments(text, font, options);
-  setPreparedSegmentsCacheEntry(cacheKey, prepared);
+  preparedSegmentsCache.set(cacheKey, prepared, text.length);
   return prepared;
 }
 

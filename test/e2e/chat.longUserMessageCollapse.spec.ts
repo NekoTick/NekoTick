@@ -123,7 +123,7 @@ test.describe('chat long user message collapse', () => {
           messages: [
             {
               role: 'user',
-              content: createLongUserMessage(9),
+              content: createLongUserMessage(200),
             },
             {
               role: 'assistant',
@@ -148,7 +148,8 @@ test.describe('chat long user message collapse', () => {
         toggleVisible: true,
       });
 
-      await page.locator('[data-chat-long-user-message-toggle="true"]').click();
+      const toggle = page.locator('[data-chat-long-user-message-toggle="true"]');
+      await toggle.click();
       await expect.poll(() => readLongUserMessageState(page), { timeout: 10_000 }).toMatchObject({
         ariaExpanded: 'true',
         hasLine9: true,
@@ -156,7 +157,48 @@ test.describe('chat long user message collapse', () => {
         toggleVisible: true,
       });
 
-      await page.locator('[data-chat-long-user-message-toggle="true"]').click();
+      await toggle.scrollIntoViewIfNeeded();
+      await toggle.hover();
+      await expect.poll(async () => toggle.evaluate((element) => {
+        const actions = element.closest<HTMLElement>('[data-message-item="true"]')
+          ?.querySelector<HTMLElement>('[data-chat-message-actions="true"]') ?? null;
+        return actions ? Number.parseFloat(getComputedStyle(actions).opacity) : 0;
+      })).toBe(1);
+      const collapseContinuity = await toggle.evaluate(async (element) => {
+        element.dataset.e2eCollapseIdentity = 'toggle';
+        const row = element.closest<HTMLElement>('[data-message-item="true"]');
+        if (row) row.dataset.e2eCollapseIdentity = 'row';
+
+        element.click();
+        const actionOpacities: number[] = [];
+        await new Promise<void>((resolve) => {
+          const sampleFrame = () => {
+            const actions = document.querySelector<HTMLElement>('[data-chat-message-actions="true"]');
+            actionOpacities.push(actions ? Number.parseFloat(getComputedStyle(actions).opacity) : 0);
+            if (actionOpacities.length >= 12) {
+              resolve();
+              return;
+            }
+            requestAnimationFrame(sampleFrame);
+          };
+          requestAnimationFrame(sampleFrame);
+        });
+
+        const currentToggle = document.querySelector<HTMLElement>(
+          '[data-chat-long-user-message-toggle="true"]',
+        );
+        return {
+          minimumActionOpacity: Math.min(...actionOpacities),
+          rowIdentity: currentToggle?.closest<HTMLElement>('[data-message-item="true"]')
+            ?.dataset.e2eCollapseIdentity ?? null,
+          toggleIdentity: currentToggle?.dataset.e2eCollapseIdentity ?? null,
+        };
+      });
+      expect(collapseContinuity).toEqual({
+        minimumActionOpacity: 1,
+        rowIdentity: 'row',
+        toggleIdentity: 'toggle',
+      });
       await expect.poll(() => readLongUserMessageState(page), { timeout: 10_000 }).toMatchObject({
         ariaExpanded: 'false',
         hasLine9: false,

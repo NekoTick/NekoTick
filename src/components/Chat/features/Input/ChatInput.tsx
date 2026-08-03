@@ -114,7 +114,7 @@ export const ChatInput = memo(function ChatInput({
       return accepted;
     },
     attachments,
-    getNoteMentions: () => noteMentions,
+    getNoteMentions: () => getSynchronizedNoteMentions(),
     onAfterSend: () => {
       clearAttachments();
       clearNoteMentions();
@@ -144,6 +144,7 @@ export const ChatInput = memo(function ChatInput({
     noteMentions,
     hasMentionCandidates,
     clearNoteMentions,
+    getSynchronizedNoteMentions,
     currentPageCandidates,
     folderCandidates,
     linkedPageCandidates,
@@ -282,6 +283,21 @@ export const ChatInput = memo(function ChatInput({
     restoreNoteMentions,
     scheduleComposerFocus,
   });
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+  const handleSendAction = useCallback(() => {
+    handleSendRef.current();
+  }, []);
+  const handleToggleWebSearch = useCallback(() => {
+    aiActions.setWebSearchEnabled(!webSearchEnabled);
+  }, [webSearchEnabled]);
+  const handleRequestEnableComputerUse = useCallback(() => {
+    setShowComputerUseEnableDialog(true);
+  }, []);
+  const handleDisableComputerUse = useCallback(() => {
+    aiActions.setComputerUseEnabled(false);
+    if (isLoading) onStop();
+  }, [isLoading, onStop]);
 
   return (
     <>
@@ -326,16 +342,13 @@ export const ChatInput = memo(function ChatInput({
       onRemoveAttachment={handleRemoveAttachment}
       onRemoveNoteMention={removeNoteMention}
       onRequestComposerFocus={scheduleComposerFocus}
-      onSend={() => handleSend()}
+      onSend={handleSendAction}
       onTextareaScroll={(e) => setTextareaScrollTop(e.currentTarget.scrollTop)}
-      onToggleWebSearch={() => aiActions.setWebSearchEnabled(!webSearchEnabled)}
+      onToggleWebSearch={handleToggleWebSearch}
       computerUseAvailable={computerUseAvailable}
       computerUseEnabled={computerUseAvailable && computerUseEnabled}
-      onRequestEnableComputerUse={() => setShowComputerUseEnableDialog(true)}
-      onDisableComputerUse={() => {
-        aiActions.setComputerUseEnabled(false);
-        if (isLoading) onStop();
-      }}
+      onRequestEnableComputerUse={handleRequestEnableComputerUse}
+      onDisableComputerUse={handleDisableComputerUse}
       showMentionPicker={showMentionPicker}
       showComputerCommandApproval={active}
       sessionId={sessionId}
