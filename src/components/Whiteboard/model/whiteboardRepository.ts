@@ -70,14 +70,25 @@ export async function writeWhiteboardIndex(notesRootPath: string, index: Whitebo
 export async function readWhiteboardBoard(
   notesRootPath: string,
   board: WhiteboardIndexEntry,
+  options?: {
+    maxBytes?: number | null;
+    shouldContinue?: () => boolean;
+  },
 ): Promise<WhiteboardSnapshot | null> {
   const boardPath = await getWhiteboardBoardPath(notesRootPath, board);
   const snapshot = await readRecoverableText(
     boardPath,
-    null,
+    options?.maxBytes ?? null,
     deserializeWhiteboardSnapshotAsync,
   );
-  return snapshot ? hydrateWhiteboardAssets(notesRootPath, board, snapshot) : null;
+  if (!snapshot || options?.shouldContinue?.() === false) return null;
+  const hydrated = await hydrateWhiteboardAssets(
+    notesRootPath,
+    board,
+    snapshot,
+    options?.shouldContinue,
+  );
+  return options?.shouldContinue?.() === false ? null : hydrated;
 }
 
 export async function writeWhiteboardBoard(
@@ -191,8 +202,14 @@ async function hydrateWhiteboardAssets(
   notesRootPath: string,
   board: WhiteboardIndexEntry,
   snapshot: WhiteboardSnapshot,
+  shouldContinue?: () => boolean,
 ): Promise<WhiteboardSnapshot> {
-  const elements = await refreshWhiteboardAssetUrls(notesRootPath, board, snapshot.elements);
+  const elements = await refreshWhiteboardAssetUrls(
+    notesRootPath,
+    board,
+    snapshot.elements,
+    shouldContinue,
+  );
   return { ...snapshot, elements };
 }
 
@@ -200,11 +217,13 @@ export async function refreshWhiteboardAssetUrls(
   notesRootPath: string,
   board: WhiteboardIndexEntry,
   elements: WhiteboardElement[],
+  shouldContinue?: () => boolean,
 ): Promise<WhiteboardElement[]> {
   const refreshedElements = [...elements];
   let nextIndex = 0;
   const hydrateNext = async () => {
     while (nextIndex < refreshedElements.length) {
+      if (shouldContinue?.() === false) return;
       const index = nextIndex;
       nextIndex += 1;
       const element = refreshedElements[index];
@@ -217,6 +236,7 @@ export async function refreshWhiteboardAssetUrls(
       if (!fileName) continue;
       try {
         const fullPath = await joinPath(await getWhiteboardAssetsPath(notesRootPath, board), fileName);
+        if (shouldContinue?.() === false) return;
         refreshedElements[index] = { ...element, imageSrc: await loadImageAsBlob(fullPath) };
       } catch {
         const { imageSrc: _staleImageSrc, ...elementWithoutStaleSrc } = element;

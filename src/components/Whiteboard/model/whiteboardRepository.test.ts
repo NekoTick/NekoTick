@@ -231,6 +231,29 @@ describe('whiteboardRepository', () => {
     expect(refreshed[0]).not.toHaveProperty('imageSrc');
   });
 
+  it('skips whiteboard asset hydration after a preview is cancelled', async () => {
+    const { entry } = await createWhiteboardEntry('/notesRoot', 'Sketch');
+    await writeWhiteboardBoard('/notesRoot', entry, normalizeWhiteboardSnapshot({
+      elements: [{
+        height: 80,
+        id: 'image-1',
+        imageAssetPath: 'assets/preview.png',
+        text: 'preview.png',
+        type: 'image',
+        width: 120,
+        x: 1,
+        y: 2,
+      }],
+    }));
+
+    const snapshot = await readWhiteboardBoard('/notesRoot', entry, {
+      shouldContinue: () => false,
+    });
+
+    expect(snapshot).toBeNull();
+    expect(mocks.loadImageAsBlob).not.toHaveBeenCalled();
+  });
+
   it('recovers a board from its backup when the primary file is malformed', async () => {
     const { entry } = await createWhiteboardEntry('/notesRoot', 'Sketch');
     const boardPath = `${SYSTEM_ROOT}/boards/sketch/board.vlwb.json`;

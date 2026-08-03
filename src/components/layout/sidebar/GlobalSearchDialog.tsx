@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { SidebarLiveNoteFileIcon } from '@/components/Notes/features/Sidebar/SidebarNoteFileIcon';
 import { useSidebarContentSearchResults } from '@/components/Notes/features/Sidebar/useSidebarContentSearchResults';
 import { useWhiteboardStore } from '@/components/Whiteboard/stores/useWhiteboardStore';
@@ -7,7 +7,10 @@ import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
 import { WHITEBOARD_SYSTEM_STORAGE_SCOPE } from '@/lib/storage/whiteboardStoragePaths';
 import { cn } from '@/lib/utils';
+import { normalizeNotePathKey } from '@/lib/notes/displayName';
+import { isAbsolutePath, normalizeAbsolutePath } from '@/lib/storage/adapter';
 import { openStoredNotePath } from '@/stores/notes/openNotePath';
+import { useAIUIStore } from '@/stores/ai/chatState';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { useNotesRootStore } from '@/stores/useNotesRootStore';
 import { useNotesStore } from '@/stores/useNotesStore';
@@ -58,6 +61,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   const selectBoard = useWhiteboardStore((state) => state.selectBoard);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const resultListRef = useRef<HTMLDivElement>(null);
   const openRequestRef = useRef(0);
   const whiteboardOpenQueueRef = useRef<Promise<void>>(Promise.resolve());
   const deferredQuery = useDeferredValue(query);
@@ -121,6 +125,11 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
     setSelectedIndex((current) => Math.min(current, Math.max(visibleResults.length - 1, 0)));
   }, [visibleResults.length]);
   useEffect(() => {
+    resultListRef.current
+      ?.querySelector<HTMLElement>(`[data-global-search-index="${selectedIndex}"]`)
+      ?.scrollIntoView?.({ block: 'nearest' });
+  }, [selectedIndex, visibleResults]);
+  useEffect(() => {
     if (!selectedResult) return;
     if (selectedResult.kind === 'notes') {
       if (!selectedNotePath || selectedResult.note.isExternal || currentNote?.path === selectedNotePath) return;
@@ -157,16 +166,20 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
       await openWhiteboard;
     }
     if (requestId !== openRequestRef.current) return;
+    if (!didOpenResult(result)) return;
     setAppViewMode(result.kind);
     handleOpenChange(false);
   };
-  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    const nativeEvent = event.nativeEvent as KeyboardEvent & { isComposing?: boolean; keyCode?: number };
+    if (nativeEvent.isComposing || nativeEvent.keyCode === 229) return;
     if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && visibleResults.length > 0) {
       event.preventDefault();
       const offset = event.key === 'ArrowDown' ? 1 : -1;
       setSelectedIndex((current) => (current + offset + visibleResults.length) % visibleResults.length);
     } else if (event.key === 'Enter') {
       event.preventDefault();
+      if (query !== deferredQuery) return;
       void openResult(selectedResult).catch(() => undefined);
     }
   };
@@ -178,11 +191,11 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
         <DialogDescription className="sr-only">{t('shortcut.action.sidebarSearch')}</DialogDescription>
         <div className="flex h-[var(--vlaina-size-48px)] shrink-0 items-center border-b border-[var(--vlaina-color-border-shell)] px-4">
           <Icon name="common.search" size={themeIconTokens.sizeCompact} className="shrink-0 text-[var(--vlaina-sidebar-notes-text-soft)]" />
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleInputKeyDown} placeholder={t('sidebar.search')} aria-label={t('sidebar.search')} className="h-full min-w-0 flex-1 bg-transparent px-3 text-[length:var(--vlaina-font-sm)] text-[var(--vlaina-text-primary)] outline-none placeholder:text-[var(--vlaina-text-tertiary)]" />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleInputKeyDown} placeholder={t('sidebar.search')} aria-label={t('sidebar.search')} aria-controls="global-search-results" aria-activedescendant={selectedResult ? `global-search-result-${selectedIndex}` : undefined} className="h-full min-w-0 flex-1 bg-transparent px-3 text-[length:var(--vlaina-font-sm)] text-[var(--vlaina-text-primary)] outline-none placeholder:text-[var(--vlaina-text-tertiary)]" />
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-[var(--vlaina-width-global-search-results)_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col border-r border-[var(--vlaina-color-border-shell)]">
-            <div role="listbox" className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            <div ref={resultListRef} id="global-search-results" role="listbox" className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
               {isContentScanPending ? <div className="px-2 py-2 text-[length:var(--vlaina-font-12)] text-[var(--vlaina-sidebar-notes-text-soft)]">{t('notes.searchingNoteContents')}</div> : null}
               {groups.map((group) => (
                 <section key={group.kind}>
@@ -190,7 +203,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
                   {group.results.map((result) => {
                     const index = resultIndexById.get(result.id) ?? 0;
                     return (
-                      <button key={result.id} type="button" role="option" aria-selected={index === selectedIndex} onPointerEnter={() => setSelectedIndex(index)} onFocus={() => setSelectedIndex(index)} onClick={() => void openResult(result).catch(() => undefined)} className={cn('mb-0.5 flex w-full cursor-pointer items-start gap-2 rounded-[var(--vlaina-notes-ui-radius-compact)] px-2 py-2 text-left', index === selectedIndex && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]')}>
+                      <button key={result.id} id={`global-search-result-${index}`} data-global-search-index={index} type="button" role="option" aria-selected={index === selectedIndex} onPointerEnter={() => setSelectedIndex(index)} onFocus={() => setSelectedIndex(index)} onClick={() => void openResult(result).catch(() => undefined)} className={cn('mb-0.5 flex w-full cursor-pointer items-start gap-2 rounded-[var(--vlaina-notes-ui-radius-compact)] px-2 py-2 text-left', index === selectedIndex && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]')}>
                         <span className="mt-0.5 flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center">{getResultIcon(result, currentNotesRoot?.path ?? notesPath)}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[length:var(--vlaina-font-13)] font-medium text-[var(--vlaina-sidebar-notes-text)]">{result.title}</span>
@@ -227,4 +240,18 @@ function getResultIcon(result: GlobalSearchResult, notesRootPath: string) {
     return <SidebarLiveNoteFileIcon notePath={result.note.path} notesRootPath={result.note.isExternal ? undefined : notesRootPath} />;
   }
   return <Icon name={result.kind === 'chat' ? 'common.shootingStar' : 'editor.diagram'} size={themeIconTokens.sizeCompact} />;
+}
+
+function didOpenResult(result: GlobalSearchResult): boolean {
+  if (result.kind === 'notes') {
+    const requestedPath = result.note.openPath ?? result.note.path;
+    const expectedPath = normalizeNotePathKey(
+      isAbsolutePath(requestedPath) ? normalizeAbsolutePath(requestedPath) : requestedPath,
+    );
+    return normalizeNotePathKey(useNotesStore.getState().currentNote?.path) === expectedPath;
+  }
+  if (result.kind === 'chat') {
+    return useAIUIStore.getState().currentSessionId === result.session.id;
+  }
+  return useWhiteboardStore.getState().activeBoardId === result.board.id;
 }

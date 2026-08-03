@@ -9,6 +9,8 @@ import { fitViewportToContent } from '@/components/Whiteboard/model/whiteboardVi
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 
 const noop = () => {};
+const WHITEBOARD_PREVIEW_LOAD_DELAY_MS = 100;
+const WHITEBOARD_PREVIEW_MAX_BYTES = 64 * 1024 * 1024;
 
 export function GlobalWhiteboardSearchPreview({
   activeBoardId,
@@ -33,7 +35,10 @@ export function GlobalWhiteboardSearchPreview({
     const load = async () => {
       const snapshot = board.id === activeBoardId && activeSnapshot
         ? activeSnapshot
-        : await readWhiteboardBoard(notesRootPath, board);
+        : await readWhiteboardBoard(notesRootPath, board, {
+          maxBytes: WHITEBOARD_PREVIEW_MAX_BYTES,
+          shouldContinue: () => current,
+        });
       if (!snapshot || !current) return;
       const spatialIndex = await createWhiteboardEraserSpatialIndexAsync(
         snapshot.elements,
@@ -47,9 +52,13 @@ export function GlobalWhiteboardSearchPreview({
       });
     };
     setPreview(null);
-    void load().catch(() => undefined);
+    const loadTimer = board.id === activeBoardId && activeSnapshot
+      ? null
+      : window.setTimeout(() => void load().catch(() => undefined), WHITEBOARD_PREVIEW_LOAD_DELAY_MS);
+    if (loadTimer === null) void load().catch(() => undefined);
     return () => {
       current = false;
+      if (loadTimer !== null) window.clearTimeout(loadTimer);
     };
   }, [activeBoardId, activeSnapshot, board, notesRootPath]);
 
