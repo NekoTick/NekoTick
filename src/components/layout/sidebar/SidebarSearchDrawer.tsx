@@ -12,7 +12,6 @@ interface UseSidebarSearchDrawerStateOptions {
   enabled?: boolean;
   isOpen: boolean;
   query: string;
-  onOpen: () => void;
   onClose: () => void;
   scopeRef: RefObject<HTMLElement | null>;
 }
@@ -43,7 +42,6 @@ export function useSidebarSearchDrawerState({
   enabled = true,
   isOpen,
   query,
-  onOpen,
   onClose,
   scopeRef,
 }: UseSidebarSearchDrawerStateOptions) {
@@ -51,12 +49,10 @@ export function useSidebarSearchDrawerState({
     inputRef,
     scrollRootRef,
     hideSearch,
-    handleScroll,
   } = useSidebarSearchControls({
     enabled,
     isOpen,
     query,
-    onOpen,
     onClose,
     interactionScopeRef: scopeRef,
   });
@@ -73,7 +69,6 @@ export function useSidebarSearchDrawerState({
     inputRef,
     scrollRootRef,
     hideSearch,
-    handleScroll,
     shouldShowSearchResults,
   };
 }

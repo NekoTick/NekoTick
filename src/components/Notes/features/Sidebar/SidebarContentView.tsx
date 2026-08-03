@@ -1,4 +1,4 @@
-import { lazy, Suspense, type RefObject, type UIEvent } from 'react';
+import { lazy, Suspense, type RefObject } from 'react';
 import { SidebarSearchDrawer } from '@/components/layout/sidebar/SidebarSearchDrawer';
 import {
   SidebarCapsulePanel,
@@ -40,7 +40,6 @@ interface SidebarContentViewProps {
   handleOpenRecentNotesRoot: (path: string) => void;
   handleOpenSearchResult: (result: NotesSidebarSearchResult) => void;
   handleOpenTagPath: (target: NotesSidebarTagPath) => void;
-  handleScroll: (event: UIEvent<HTMLDivElement>) => void;
   hasFileTreeEntries: boolean;
   hideSearch: () => void;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -84,7 +83,6 @@ export function SidebarContentView({
   handleOpenRecentNotesRoot,
   handleOpenSearchResult,
   handleOpenTagPath,
-  handleScroll,
   hasFileTreeEntries,
   hideSearch,
   inputRef,
@@ -146,7 +144,6 @@ export function SidebarContentView({
           className={cn('pt-0', isPeeking && 'app-scrollbar-rounded')}
           scrollbarInsetRight={SIDEBAR_CAPSULE_SCROLLBAR_INSET_RIGHT}
           data-notes-sidebar-scroll-root="true"
-          onScroll={handleScroll}
         >
           {shouldShowSearchResults ? (
             <Suspense fallback={null}>

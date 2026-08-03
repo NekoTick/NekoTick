@@ -29,7 +29,6 @@ export function useChatSidebarSearch({
     isSearchOpen,
     searchQuery,
     setSearchQuery,
-    openSearch,
     closeSearch,
     toggleSearch,
   } = useSidebarSearchState('chat');
@@ -67,7 +66,6 @@ export function useChatSidebarSearch({
     enabled,
     isOpen: isSearchOpen,
     query: searchQuery,
-    onOpen: openSearch,
     onClose: closeSearch,
     scopeRef,
   });
@@ -149,7 +147,6 @@ export function useChatSidebarSearch({
     searchQuery,
     deferredSearchQuery,
     setSearchQuery,
-    openSearch,
     closeSearch,
     toggleSearch,
     ...drawer,

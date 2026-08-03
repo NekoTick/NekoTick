@@ -3,11 +3,9 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
-  type UIEvent,
   type RefObject,
 } from 'react';
 
-const OVERSCROLL_OPEN_THRESHOLD = 56;
 const ESCAPE_BLOCKING_LAYER_SELECTOR = [
   '[role="dialog"]',
   '[data-sidebar-context-menu-layer="true"]',
@@ -18,7 +16,6 @@ interface UseSidebarSearchControlsOptions {
   enabled?: boolean;
   isOpen: boolean;
   query: string;
-  onOpen: () => void;
   onClose: () => void;
   interactionScopeRef?: RefObject<HTMLElement | null>;
 }
@@ -46,13 +43,11 @@ export function useSidebarSearchControls({
   enabled = true,
   isOpen,
   query,
-  onOpen,
   onClose,
   interactionScopeRef,
 }: UseSidebarSearchControlsOptions) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
-  const overscrollDistanceRef = useRef(0);
   const shouldResetScrollTopOnCloseRef = useRef(false);
   const returnFocusElementRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
@@ -125,16 +120,9 @@ export function useSidebarSearchControls({
   }, [blurFocusedInput, captureReturnFocus, enabled, isOpen, restoreReturnFocus]);
 
   const hideSearch = useCallback(() => {
-    overscrollDistanceRef.current = 0;
     blurFocusedInput();
     onClose();
   }, [blurFocusedInput, onClose]);
-
-  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
-    if (event.currentTarget.scrollTop > 0) {
-      overscrollDistanceRef.current = 0;
-    }
-  }, []);
 
   useLayoutEffect(() => {
     if (!enabled || !isOpen) {
@@ -195,7 +183,7 @@ export function useSidebarSearchControls({
   }, [enabled, hideSearch, interactionScopeRef, isOpen]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !isOpen) {
       return;
     }
 
@@ -206,36 +194,16 @@ export function useSidebarSearchControls({
     }
 
     const handleWheel = (event: WheelEvent) => {
-      if (isOpen) {
-        if (!query.trim() && event.deltaY > 0) {
-          event.preventDefault();
-          shouldResetScrollTopOnCloseRef.current = true;
-          hideSearch();
-          return;
-        }
-
-        if (scrollRoot.scrollTop === 0 && event.deltaY < 0) {
-          event.preventDefault();
-        }
+      if (!query.trim() && event.deltaY > 0) {
+        event.preventDefault();
+        shouldResetScrollTopOnCloseRef.current = true;
+        hideSearch();
         return;
       }
 
-      if (scrollRoot.scrollTop > 0) {
-        overscrollDistanceRef.current = 0;
-        return;
+      if (scrollRoot.scrollTop === 0 && event.deltaY < 0) {
+        event.preventDefault();
       }
-      if (event.deltaY >= 0) {
-        overscrollDistanceRef.current = 0;
-        return;
-      }
-
-      overscrollDistanceRef.current += Math.abs(event.deltaY);
-      if (overscrollDistanceRef.current < OVERSCROLL_OPEN_THRESHOLD) {
-        return;
-      }
-
-      event.preventDefault();
-      onOpen();
     };
 
     interactionScope.addEventListener('wheel', handleWheel, {
@@ -246,12 +214,11 @@ export function useSidebarSearchControls({
     return () => {
       interactionScope.removeEventListener('wheel', handleWheel, true);
     };
-  }, [enabled, hideSearch, interactionScopeRef, isOpen, onOpen, query]);
+  }, [enabled, hideSearch, interactionScopeRef, isOpen, query]);
 
   return {
     inputRef,
     scrollRootRef,
     hideSearch,
-    handleScroll,
   };
 }

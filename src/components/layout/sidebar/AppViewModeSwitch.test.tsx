@@ -21,6 +21,7 @@ vi.mock('@/lib/i18n', () => ({
       'app.viewChat': 'Chat',
       'app.viewWhiteboard': 'Board',
       'app.viewGraph': 'Graph',
+      'sidebar.search': 'Search',
       'shortcut.action.toggleAppViewMode': 'Switch app view',
     }[key] ?? key),
   }),
@@ -28,6 +29,10 @@ vi.mock('@/lib/i18n', () => ({
 
 vi.mock('@/stores/uiSlice', () => ({
   useUIStore: (selector: (state: typeof hoisted.uiState) => unknown) => selector(hoisted.uiState),
+}));
+
+vi.mock('./GlobalSearchDialog', () => ({
+  GlobalSearchDialog: ({ open }: { open: boolean }) => open ? <div role="dialog" aria-label="Search" /> : null,
 }));
 
 describe('AppViewModeSwitch', () => {
@@ -41,7 +46,7 @@ describe('AppViewModeSwitch', () => {
     clearAppViewModeFocusIntent();
   });
 
-  it('optimistically expands only the selected view while switching', () => {
+  it('packs view tabs together and shows the selected label', () => {
     render(<AppViewModeSwitch />);
     const notesTab = screen.getByRole('tab', { name: 'Notes' });
     const boardTab = screen.getByRole('tab', { name: 'Board' });
@@ -51,7 +56,8 @@ describe('AppViewModeSwitch', () => {
 
     expect(screen.getAllByRole('tab')).toEqual([notesTab, graphTab, boardTab, chatTab]);
     expect(tabList).toHaveAttribute('aria-orientation', 'horizontal');
-    expect(tabList).toHaveClass('h-14');
+    expect(tabList).toHaveClass('gap-0.5');
+    expect(tabList.closest('[data-app-view-mode-switch="true"]')).toHaveClass('h-12');
     expect(tabList).not.toHaveClass(
       '!bg-[var(--vlaina-color-pill-surface)]',
       '!shadow-[var(--vlaina-shadow-raised-soft)]',
@@ -66,27 +72,25 @@ describe('AppViewModeSwitch', () => {
     expect(boardTab).toHaveAttribute('tabindex', '-1');
     for (const tab of [notesTab, graphTab, boardTab, chatTab]) {
       expect(tab).toHaveClass(
-        'h-[var(--vlaina-size-44px)]',
+        'h-[var(--vlaina-size-36px)]',
       );
     }
-    expect(chatTab).toHaveClass('min-w-max', 'shrink-0');
+    expect(chatTab).toHaveClass('w-auto', 'px-2', 'shrink-0');
     for (const tab of [notesTab, graphTab, boardTab]) {
       expect(tab).toHaveClass(
-        'min-w-[var(--vlaina-size-32px)]',
-        'shrink',
+        'w-[var(--vlaina-size-32px)]',
+        'px-0',
       );
     }
-    expect(chatTab.style.width).toContain('calc(');
-    expect(notesTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
     expect(chatTab.firstElementChild).toHaveClass(
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
-      'inset-y-[var(--vlaina-size-4px)]',
+      'inset-[var(--vlaina-size-2px)]',
       'opacity-[var(--vlaina-opacity-100)]',
     );
     expect(notesTab.firstElementChild).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
     expect(chatTab).toHaveClass(
-      'transition-[width]',
+      'transition-[padding,width]',
       'ease-[var(--vlaina-ease-in-out)]',
     );
     expect(screen.getByText('Chat')).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
@@ -98,12 +102,12 @@ describe('AppViewModeSwitch', () => {
     expect(hoisted.uiState.setAppViewMode).toHaveBeenCalledWith('notes');
     expect(notesTab).toHaveAttribute('aria-selected', 'true');
     expect(notesTab).toHaveAttribute('tabindex', '0');
-    expect(notesTab.className).toContain('text-[length:var(--vlaina-font-15)]');
+    expect(notesTab.className).toContain('text-[length:var(--vlaina-font-sm)]');
     expect(notesTab.className).not.toContain('transition-colors');
     expect(notesTab).toHaveStyle({ color: 'var(--vlaina-sidebar-row-selected-text)' });
-    expect(notesTab.style.width).toContain('calc(');
     expect(notesTab).toHaveClass(
-      'min-w-max',
+      'w-auto',
+      'px-2',
       'shrink-0',
     );
     expect(notesTab.firstElementChild).toHaveClass(
@@ -115,12 +119,16 @@ describe('AppViewModeSwitch', () => {
     expect(screen.getByText('Notes')).toHaveClass('motion-reduce:transition-none');
     expect(chatTab).toHaveAttribute('aria-selected', 'false');
     expect(chatTab).toHaveAttribute('tabindex', '-1');
-    expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
-    expect(chatTab).toHaveClass('min-w-[var(--vlaina-size-32px)]', 'shrink');
+    expect(chatTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'px-0');
     expect(chatTab.firstElementChild).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
+    expect(screen.getByRole('button', { name: 'Search' })).toHaveClass(
+      'ml-auto',
+      'hover:bg-[var(--vlaina-sidebar-row-selected-bg)]',
+      'hover:shadow-[var(--vlaina-shadow-selection-soft)]',
+    );
   });
 
-  it('preserves the previous widths for one frame before squeezing to an external view change', () => {
+  it('preserves the previous compact selection for one frame during an external view change', () => {
     let revealFrame: FrameRequestCallback | null = null;
     const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame')
       .mockImplementation((callback) => {
@@ -138,18 +146,26 @@ describe('AppViewModeSwitch', () => {
       view.rerender(<AppViewModeSwitch />);
 
       expect(chatTab).toHaveAttribute('aria-selected', 'true');
-      expect(chatTab.style.width).toContain('calc(');
-      expect(notesTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
+      expect(chatTab).toHaveClass('w-auto', 'px-2');
+      expect(notesTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'px-0');
 
       act(() => revealFrame?.(0));
 
       expect(notesTab).toHaveAttribute('aria-selected', 'true');
-      expect(notesTab.style.width).toContain('calc(');
-      expect(chatTab).toHaveStyle({ width: 'var(--vlaina-size-44px)' });
+      expect(notesTab).toHaveClass('w-auto', 'px-2');
+      expect(chatTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'px-0');
     } finally {
       requestAnimationFrame.mockRestore();
       cancelAnimationFrame.mockRestore();
     }
+  });
+
+  it('opens global search from the trailing search button', async () => {
+    render(<AppViewModeSwitch />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Search' })).toBeInTheDocument();
   });
 
   it('activates and focuses view tabs with roving navigation keys', () => {

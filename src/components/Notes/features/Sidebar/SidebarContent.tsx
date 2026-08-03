@@ -108,13 +108,11 @@ export function SidebarContent({
     inputRef,
     scrollRootRef,
     hideSearch,
-    handleScroll,
     shouldShowSearchResults,
   } = useSidebarSearchDrawerState({
     enabled: active,
     isOpen: effectiveSearchOpen,
     query: effectiveSearchQuery,
-    onOpen: search.openSearch,
     onClose: search.closeSearch,
     scopeRef: sidebarRootRef,
   });
@@ -222,7 +220,6 @@ export function SidebarContent({
       handleOpenRecentNotesRoot={handleOpenRecentNotesRoot}
       handleOpenSearchResult={handleOpenSearchResult}
       handleOpenTagPath={handleOpenTagPath}
-      handleScroll={handleScroll}
       hasFileTreeEntries={hasFileTreeEntries}
       hideSearch={hideSearch}
       inputRef={inputRef}
