@@ -659,6 +659,10 @@ export const themeSidebarTokens = {
   recentNotesRootPathHintEstimatedHeightPx: 34,
 } as const;
 
+export const themeAppViewModeSwitchTokens = {
+  commitDelayMs: 320,
+} as const;
+
 export const themeCodeBlockEditorTokens = {
   fontSize: 'var(--vlaina-font-0875rem)',
   lineHeight: 'var(--vlaina-leading-175)',
