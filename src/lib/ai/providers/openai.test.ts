@@ -108,6 +108,39 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     );
   });
 
+  it('accepts a recognized empty OpenAI-compatible model list without fallback', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await new OpenAICompatibleClient().getModelsWithEndpointDetection(buildProvider());
+
+    expect(result).toEqual({ models: [], endpointType: 'openai' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back when an HTTP 200 model list has an invalid schema', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        success: false,
+        message: 'fake upstream failure',
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [{ id: 'claude-sonnet-4-5' }],
+      }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await new OpenAICompatibleClient().getModelsWithEndpointDetection(buildProvider());
+
+    expect(result).toEqual({
+      models: ['claude-sonnet-4-5'],
+      endpointType: 'anthropic',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('uses a recorded Anthropic endpoint type first', async () => {
     const fetchMock = vi
       .fn()

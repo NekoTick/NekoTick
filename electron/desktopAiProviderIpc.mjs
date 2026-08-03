@@ -95,7 +95,7 @@ async function sendAiProviderResponseChunk(active, sendRequestEvent, value) {
   return true;
 }
 
-export function registerDesktopAiProviderIpc({ handleIpc }) {
+export function registerDesktopAiProviderIpc({ fetchImpl, handleIpc }) {
   handleIpc('desktop:ai-provider:request:start', async (event, requestId, rawRequest) => {
     const id = requireSafeIpcRequestId(requestId, 'AI provider request id');
     const sender = event.sender;
@@ -131,7 +131,7 @@ export function registerDesktopAiProviderIpc({ handleIpc }) {
 
     let response;
     try {
-      response = await fetchAiProviderRequestWithRetry(request, controller.signal);
+      response = await fetchAiProviderRequestWithRetry(request, controller.signal, fetchImpl);
     } catch (error) {
       deleteActiveAiProviderRequest(id, active);
       if (controller.signal.aborted) {

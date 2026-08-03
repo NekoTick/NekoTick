@@ -4,6 +4,7 @@ import { isSupportedMarkdownPath } from '@/lib/notes/markdownFile';
 import { hasInternalNotePathSegment } from '@/stores/notes/utils/fs/internalNotePaths';
 import { hasMentionEndBoundary, hasMentionStartBoundary } from './noteMentionBoundaries';
 export {
+  createMentionTitleMatcher,
   findMentionTitlesInValue,
   valueContainsMentionLabel,
 } from './noteMentionTitleMatcher';
@@ -133,7 +134,7 @@ export function buildMentionPreviewParts(
   value: string,
   mentions: NoteMentionReference[]
 ): MentionPreviewPart[] {
-  if (!value) {
+  if (!value || mentions.length === 0) {
     return [];
   }
 
@@ -152,10 +153,6 @@ export function buildMentionPreviewParts(
     } else {
       labelsByInitial.set(initial, [label]);
     }
-  }
-
-  if (labels.length === 0) {
-    return [{ key: 'text-0', type: 'text', text: value, start: 0, end: value.length }];
   }
 
   const parts: MentionPreviewPart[] = [];

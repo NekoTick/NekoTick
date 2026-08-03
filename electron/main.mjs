@@ -211,6 +211,7 @@ if (!gotSingleInstanceLock) {
 registerDesktopIpc({
   app,
   dialog: electron.dialog,
+  fetchImpl: fetchWithElectronSession,
   handleIpc,
   handleSyncIpc,
   normalizeExternalUrl,

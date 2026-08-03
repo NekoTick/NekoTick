@@ -827,6 +827,8 @@
   "settings.ai.fetchModelsMissingCredentials": "인증 정보 없음",
   "settings.ai.fetchModelsEmpty": "모델 없음",
   "settings.ai.fetchModelsFailed": "가져오기 실패",
+  "settings.ai.fetchModelsResponseTooLarge": "모델 목록 응답이 너무 큽니다",
+  "settings.ai.fetchModelsInvalidResponse": "모델 목록 응답이 올바르지 않습니다",
   "settings.ai.stopBenchmark": "벤치마크 중지",
   "settings.ai.benchmarkAll": "모두 벤치마크",
   "settings.ai.selectedModels": "선택됨",

@@ -827,6 +827,8 @@
   "settings.ai.fetchModelsMissingCredentials": "ขาดข้อมูลรับรอง",
   "settings.ai.fetchModelsEmpty": "ไม่พบโมเดล",
   "settings.ai.fetchModelsFailed": "ดึงข้อมูลไม่สำเร็จ",
+  "settings.ai.fetchModelsResponseTooLarge": "การตอบกลับรายการโมเดลมีขนาดใหญ่เกินไป",
+  "settings.ai.fetchModelsInvalidResponse": "การตอบกลับรายการโมเดลไม่ถูกต้อง",
   "settings.ai.stopBenchmark": "หยุด benchmark",
   "settings.ai.benchmarkAll": "Benchmark ทั้งหมด",
   "settings.ai.selectedModels": "เลือกแล้ว",

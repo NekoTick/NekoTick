@@ -827,6 +827,8 @@
   "settings.ai.fetchModelsMissingCredentials": "Thiếu thông tin",
   "settings.ai.fetchModelsEmpty": "Không có mô hình",
   "settings.ai.fetchModelsFailed": "Lấy thất bại",
+  "settings.ai.fetchModelsResponseTooLarge": "Phản hồi danh sách mô hình quá lớn",
+  "settings.ai.fetchModelsInvalidResponse": "Phản hồi danh sách mô hình không hợp lệ",
   "settings.ai.stopBenchmark": "Dừng benchmark",
   "settings.ai.benchmarkAll": "Benchmark tất cả",
   "settings.ai.selectedModels": "Đã chọn",

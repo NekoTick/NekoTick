@@ -827,6 +827,8 @@
   "settings.ai.fetchModelsMissingCredentials": "Zugangsdaten fehlen",
   "settings.ai.fetchModelsEmpty": "Keine Modelle",
   "settings.ai.fetchModelsFailed": "Abruf fehlgeschlagen",
+  "settings.ai.fetchModelsResponseTooLarge": "Modelllisten-Antwort ist zu groß",
+  "settings.ai.fetchModelsInvalidResponse": "Ungültige Modelllisten-Antwort",
   "settings.ai.stopBenchmark": "Benchmark stoppen",
   "settings.ai.benchmarkAll": "Alle benchmarken",
   "settings.ai.selectedModels": "Ausgewaehlt",

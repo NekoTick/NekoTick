@@ -827,6 +827,8 @@
   "settings.ai.fetchModelsMissingCredentials": "認証情報がありません",
   "settings.ai.fetchModelsEmpty": "モデルなし",
   "settings.ai.fetchModelsFailed": "取得失敗",
+  "settings.ai.fetchModelsResponseTooLarge": "モデル一覧の応答が大きすぎます",
+  "settings.ai.fetchModelsInvalidResponse": "モデル一覧の応答が無効です",
   "settings.ai.stopBenchmark": "ベンチマークを停止",
   "settings.ai.benchmarkAll": "すべてベンチマーク",
   "settings.ai.selectedModels": "選択済み",

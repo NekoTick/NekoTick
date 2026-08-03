@@ -827,6 +827,8 @@
   "settings.ai.fetchModelsMissingCredentials": "Нет учетных данных",
   "settings.ai.fetchModelsEmpty": "Модели не найдены",
   "settings.ai.fetchModelsFailed": "Ошибка получения",
+  "settings.ai.fetchModelsResponseTooLarge": "Ответ со списком моделей слишком большой",
+  "settings.ai.fetchModelsInvalidResponse": "Недопустимый ответ со списком моделей",
   "settings.ai.stopBenchmark": "Остановить бенчмарк",
   "settings.ai.benchmarkAll": "Бенчмарк всех",
   "settings.ai.selectedModels": "Выбрано",

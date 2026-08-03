@@ -1,9 +1,23 @@
 import {
   useCallback,
+  useRef,
   type RefObject,
 } from 'react';
 import { useNoteMentionState } from '@/components/Chat/features/Input/hooks/useNoteMentionState';
-import { findMentionTitlesInValue } from '@/components/Chat/features/Input/noteMentionHelpers';
+import { createMentionTitleMatcher } from '@/components/Chat/features/Input/noteMentionHelpers';
+
+type EditorMentionCandidate = {
+  path: string;
+  title: string;
+  kind: 'note' | 'folder';
+  isCurrent: boolean;
+};
+
+interface EditorMentionSyncCache {
+  allNoteCandidates: EditorMentionCandidate[];
+  candidatesByTitle: Map<string, EditorMentionCandidate[]>;
+  matcher: ReturnType<typeof createMentionTitleMatcher>;
+}
 
 interface UseUserMessageEditorMentionsOptions {
   value: string;
@@ -16,27 +30,36 @@ export function useUserMessageEditorMentions({
   onValueChange,
   textareaRef,
 }: UseUserMessageEditorMentionsOptions) {
+  const syncCacheRef = useRef<EditorMentionSyncCache | null>(null);
   const syncMentions = useCallback(({ allNoteCandidates, value }: {
-    allNoteCandidates: Array<{ path: string; title: string; kind: 'note' | 'folder'; isCurrent: boolean }>;
+    allNoteCandidates: EditorMentionCandidate[];
     value: string;
   }) => {
-    const matchedTitles = findMentionTitlesInValue(value, (function* () {
+    let cache = syncCacheRef.current;
+    if (!cache || cache.allNoteCandidates !== allNoteCandidates) {
+      if (!value.includes('@')) {
+        syncCacheRef.current = null;
+        return [];
+      }
+      const candidatesByTitle = new Map<string, EditorMentionCandidate[]>();
       for (const candidate of allNoteCandidates) {
-        yield candidate.title;
+        const candidates = candidatesByTitle.get(candidate.title) ?? [];
+        candidates.push(candidate);
+        candidatesByTitle.set(candidate.title, candidates);
       }
-    })());
-    const candidatesByTitle = new Map<string, typeof allNoteCandidates>();
-    for (const candidate of allNoteCandidates) {
-      if (!matchedTitles.has(candidate.title)) {
-        continue;
-      }
-      const candidates = candidatesByTitle.get(candidate.title) ?? [];
-      candidates.push(candidate);
-      candidatesByTitle.set(candidate.title, candidates);
+
+      cache = {
+        allNoteCandidates,
+        candidatesByTitle,
+        matcher: createMentionTitleMatcher(allNoteCandidates.map((candidate) => candidate.title)),
+      };
+      syncCacheRef.current = cache;
     }
 
+    const matchedTitles = cache.matcher.findInValue(value);
     const syncedMentions: Array<{ path: string; title: string; kind: 'note' | 'folder' }> = [];
-    for (const candidates of candidatesByTitle.values()) {
+    for (const [title, candidates] of cache.candidatesByTitle) {
+      if (!matchedTitles.has(title)) continue;
       if (candidates.length !== 1) continue;
 
       const candidate = candidates[0];

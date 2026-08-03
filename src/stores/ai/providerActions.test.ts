@@ -8,6 +8,7 @@ import { saveUnifiedData } from '@/lib/storage/unifiedStorage';
 import type { AIModel, Provider } from '@/lib/ai/types';
 import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorageSaveTypes';
 import { requestManager } from '@/lib/ai/requestManager';
+import { backgroundBenchmarkRunner } from '@/lib/ai/healthCheck';
 
 const { fetchManagedModelsMock, fetchManagedModelsVersionMock } = vi.hoisted(() => ({
   fetchManagedModelsMock: vi.fn(),
@@ -500,6 +501,51 @@ describe('updateProvider', () => {
       endpointType: 'anthropic',
       endpointTypeCheckedAt: 12,
     });
+  });
+
+  it('clears connection-specific catalogs and benchmarks without deleting manual models', () => {
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          benchmarkResults: {
+            ...state.data.ai?.benchmarkResults,
+            'provider-2': {
+              items: {},
+              overall: 'success',
+              updatedAt: 2,
+            },
+          },
+          fetchedModels: {
+            ...state.data.ai?.fetchedModels,
+            'provider-2': ['other-model'],
+          },
+        },
+      },
+    }));
+    const stopBenchmark = vi.spyOn(backgroundBenchmarkRunner, 'stop');
+
+    try {
+      actions.updateProvider('provider-1', { apiHost: 'https://new.example.com' });
+
+      const ai = useUnifiedStore.getState().data.ai!;
+      expect(ai.models.map((model) => model.id)).toEqual([
+        'provider-1::claude-sonnet-4-5',
+        'provider-2::claude-sonnet-4-5',
+      ]);
+      expect(ai.benchmarkResults).toEqual({
+        'provider-2': {
+          items: {},
+          overall: 'success',
+          updatedAt: 2,
+        },
+      });
+      expect(ai.fetchedModels).toEqual({ 'provider-2': ['other-model'] });
+      expect(stopBenchmark).toHaveBeenCalledWith('provider-1');
+    } finally {
+      stopBenchmark.mockRestore();
+    }
   });
 
   it('requires execution mode confirmation after the selected provider connection changes', () => {

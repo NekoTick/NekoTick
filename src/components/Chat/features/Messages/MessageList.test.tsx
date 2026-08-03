@@ -68,6 +68,7 @@ describe("MessageList", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("renders an empty hidden scroll container when there are no messages", () => {
@@ -155,6 +156,39 @@ describe("MessageList", () => {
       onEdit,
       onSwitchVersion,
     });
+  });
+
+  it("remeasures a toggled user row before scheduling another animation frame", () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+    render(
+      <MessageList
+        messages={[createMessage("u1", "user")]}
+        getImageGallery={() => []}
+        isSessionActive={false}
+        showLoading={false}
+        spacerHeight={0}
+        containerRef={createRef<HTMLDivElement>()}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+    const row = document.querySelector('[data-message-index="0"]') as HTMLDivElement;
+    const getBoundingClientRect = vi.spyOn(row, "getBoundingClientRect").mockReturnValue({
+      height: 144,
+    } as DOMRect);
+    const onUserMessageLayoutChange = messageItemSpy.mock.lastCall?.[0]
+      .onUserMessageLayoutChange as (messageId: string) => void;
+    requestAnimationFrameSpy.mockClear();
+
+    act(() => {
+      onUserMessageLayoutChange("u1");
+    });
+
+    expect(getBoundingClientRect).toHaveBeenCalledOnce();
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 
   it("filters older managed auth prompts before building visible rows", () => {

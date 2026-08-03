@@ -8,6 +8,7 @@ import {
   MARKDOWN_BODY_LINE_HEIGHT,
 } from '@/components/common/markdown/markdownMetrics';
 import { APP_SANS_FONT_FAMILY } from '@/lib/typography/fontFamilies';
+import { MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS } from '@/lib/ui/composerTextLimit';
 import { getChatContentWidth, normalizeChatContainerWidth } from './chatWidthBuckets';
 
 const USER_BUBBLE_MAX_RATIO = 0.9;
@@ -44,6 +45,13 @@ export function resolveUserMessageBubbleWidth(
       : `normal 400 ${fontSize}px ${APP_SANS_FONT_FAMILY}`;
   const bodyLineHeight =
     fontSize === MARKDOWN_BODY_FONT_SIZE ? MARKDOWN_BODY_LINE_HEIGHT : fontSize + 8;
+  const maxBubbleWidth = Math.max(
+    1,
+    Math.floor(getChatContentWidth(normalizedWidth) * USER_BUBBLE_MAX_RATIO),
+  );
+  if (text.length > MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS) {
+    return maxBubbleWidth;
+  }
   const cacheKey = `${normalizedWidth}\u0000${bodyFont}\u0000${text}`;
   const cachedWidth = widthCache.get(cacheKey);
   if (cachedWidth !== undefined) {
@@ -52,7 +60,6 @@ export function resolveUserMessageBubbleWidth(
     return cachedWidth;
   }
 
-  const maxBubbleWidth = Math.max(1, Math.floor(getChatContentWidth(normalizedWidth) * USER_BUBBLE_MAX_RATIO));
   const maxTextWidth = Math.max(1, maxBubbleWidth - USER_BUBBLE_PADDING_X);
   const measurementOptions = {
     font: bodyFont,

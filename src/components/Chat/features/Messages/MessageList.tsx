@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { cn } from '@/lib/utils';
 import {
@@ -36,6 +36,7 @@ export const MessageList = memo(function MessageList({
   onSwitchVersion
 }: MessageListProps) {
   const fontSize = useUIStore((state) => state.fontSize);
+  const [pinnedLayoutMessageId, setPinnedLayoutMessageId] = useState<string | null>(null);
   const renderedState = useMemo(
     () => buildRenderedMessageState(messages),
     [messages],
@@ -69,7 +70,7 @@ export const MessageList = memo(function MessageList({
     isSessionActive && renderedMessages[renderedMessages.length - 1]?.role === 'assistant'
       ? renderedMessages[renderedMessages.length - 1]!.id
       : null;
-  const { getVisibleRowRef, measuredHeights } = useMessageListMeasurement({
+  const { getVisibleRowRef, measuredHeights, remeasureVisibleRow } = useMessageListMeasurement({
     active,
     activeMeasuredMessageId,
     activeRef,
@@ -194,9 +195,45 @@ export const MessageList = memo(function MessageList({
   ]);
 
   const visibleFrames = useMemo(
-    () => positionedFrameLayout.items.slice(visibleRange.start, visibleRange.end),
-    [positionedFrameLayout.items, visibleRange.end, visibleRange.start]
+    () => {
+      const frames = positionedFrameLayout.items.slice(visibleRange.start, visibleRange.end);
+      if (!pinnedLayoutMessageId || frames.some((frame) => frame.id === pinnedLayoutMessageId)) {
+        return frames;
+      }
+
+      const pinnedFrame = positionedFrameLayout.items.find(
+        (frame) => frame.id === pinnedLayoutMessageId,
+      );
+      if (!pinnedFrame) {
+        return frames;
+      }
+
+      return [...frames, pinnedFrame].sort((left, right) => left.index - right.index);
+    },
+    [pinnedLayoutMessageId, positionedFrameLayout.items, visibleRange.end, visibleRange.start]
   );
+
+  useLayoutEffect(() => {
+    if (!pinnedLayoutMessageId) {
+      return;
+    }
+
+    const pinnedIndex = positionedFrameLayout.items.findIndex(
+      (frame) => frame.id === pinnedLayoutMessageId,
+    );
+    if (pinnedIndex < 0) {
+      setPinnedLayoutMessageId(null);
+      return;
+    }
+    if (pinnedIndex >= visibleRange.start && pinnedIndex < visibleRange.end) {
+      setPinnedLayoutMessageId(null);
+    }
+  }, [pinnedLayoutMessageId, positionedFrameLayout.items, visibleRange.end, visibleRange.start]);
+
+  const handleUserMessageLayoutChange = useCallback((messageId: string) => {
+    setPinnedLayoutMessageId(messageId);
+    remeasureVisibleRow(messageId);
+  }, [remeasureVisibleRow]);
 
   const content = (
     <MessageListContent
@@ -211,6 +248,7 @@ export const MessageList = memo(function MessageList({
       onFork={onFork}
       onRegenerate={onRegenerate}
       onSwitchVersion={onSwitchVersion}
+      onUserMessageLayoutChange={handleUserMessageLayoutChange}
       renderedMessageCount={renderedMessages.length}
       renderedRows={renderedRows}
       showLoading={showLoading}

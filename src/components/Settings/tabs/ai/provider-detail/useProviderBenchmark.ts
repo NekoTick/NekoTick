@@ -311,8 +311,9 @@ export function useProviderBenchmark({
   useEffect(() => {
     if (!provider || isHealthChecking || Object.keys(healthStatus).length === 0) return;
 
-    const items = toPersistedItems(healthStatus);
     const persistedRecord = benchmarkResults[provider.id];
+    if (!persistedRecord && !backgroundBenchmarkRunner.getSnapshot(provider.id)) return;
+    const items = toPersistedItems(healthStatus);
     if (isSameBenchmarkRecord(persistedRecord, items, healthCheckOverall)) return;
 
     setProviderBenchmarkResults(provider.id, {
