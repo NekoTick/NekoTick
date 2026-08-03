@@ -68,7 +68,14 @@ describe('SidebarUserHeader', () => {
 
     await screen.findByTestId('workspace-switcher');
 
-    expect(container.querySelector('.sidebar-user-header')).toHaveClass('pl-3');
+    expect(container.querySelector('.sidebar-user-header')).toHaveClass(
+      'app-drag-region',
+      'px-3',
+    );
+    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).toHaveClass(
+      'app-drag-region',
+      'cursor-grab',
+    );
   });
 
   it('reserves macOS traffic-light space during macOS platform preview', async () => {
@@ -78,7 +85,13 @@ describe('SidebarUserHeader', () => {
 
     await screen.findByTestId('workspace-switcher');
 
-    expect(container.querySelector('.sidebar-user-header')).toHaveClass('pl-[var(--vlaina-space-76px)]');
+    expect(container.querySelector('.sidebar-user-header')).toHaveClass(
+      'app-no-drag',
+      'pl-[var(--vlaina-space-76px)]',
+      'pr-2',
+    );
+    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).toHaveClass('app-no-drag');
+    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).not.toHaveClass('cursor-grab');
   });
 
   it('clears hover and focused header controls when the mouse leaves the window', async () => {

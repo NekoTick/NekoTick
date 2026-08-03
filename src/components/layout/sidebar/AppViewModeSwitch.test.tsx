@@ -44,9 +44,11 @@ describe('AppViewModeSwitch', () => {
   afterEach(() => {
     cleanup();
     clearAppViewModeFocusIntent();
+    vi.useRealTimers();
   });
 
   it('packs view tabs together and shows the selected label', () => {
+    vi.useFakeTimers();
     render(<AppViewModeSwitch />);
     const notesTab = screen.getByRole('tab', { name: 'Notes' });
     const boardTab = screen.getByRole('tab', { name: 'Board' });
@@ -75,20 +77,22 @@ describe('AppViewModeSwitch', () => {
         'h-[var(--vlaina-size-36px)]',
       );
     }
-    expect(chatTab).toHaveClass('w-auto', 'px-2', 'shrink-0');
+    expect(chatTab).toHaveClass('w-auto', 'pr-2', 'shrink-0');
     for (const tab of [notesTab, graphTab, boardTab]) {
       expect(tab).toHaveClass(
         'w-[var(--vlaina-size-32px)]',
-        'px-0',
+        'pr-0',
       );
     }
-    expect(chatTab.firstElementChild).toHaveClass(
+    expect(chatTab.querySelector('[data-app-view-mode-surface="true"]')).toHaveClass(
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
       'inset-[var(--vlaina-size-2px)]',
       'opacity-[var(--vlaina-opacity-100)]',
     );
-    expect(notesTab.firstElementChild).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
+    expect(notesTab.querySelector('[data-app-view-mode-surface="true"]')).toHaveClass(
+      'opacity-[var(--vlaina-opacity-0)]',
+    );
     expect(chatTab).toHaveClass(
       'transition-[padding,width]',
       'ease-[var(--vlaina-ease-in-out)]',
@@ -99,6 +103,8 @@ describe('AppViewModeSwitch', () => {
 
     fireEvent.click(notesTab);
 
+    expect(hoisted.uiState.setAppViewMode).not.toHaveBeenCalled();
+    act(() => vi.runOnlyPendingTimers());
     expect(hoisted.uiState.setAppViewMode).toHaveBeenCalledWith('notes');
     expect(notesTab).toHaveAttribute('aria-selected', 'true');
     expect(notesTab).toHaveAttribute('tabindex', '0');
@@ -107,10 +113,10 @@ describe('AppViewModeSwitch', () => {
     expect(notesTab).toHaveStyle({ color: 'var(--vlaina-sidebar-row-selected-text)' });
     expect(notesTab).toHaveClass(
       'w-auto',
-      'px-2',
+      'pr-2',
       'shrink-0',
     );
-    expect(notesTab.firstElementChild).toHaveClass(
+    expect(notesTab.querySelector('[data-app-view-mode-surface="true"]')).toHaveClass(
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
       'opacity-[var(--vlaina-opacity-100)]',
@@ -119,8 +125,10 @@ describe('AppViewModeSwitch', () => {
     expect(screen.getByText('Notes')).toHaveClass('motion-reduce:transition-none');
     expect(chatTab).toHaveAttribute('aria-selected', 'false');
     expect(chatTab).toHaveAttribute('tabindex', '-1');
-    expect(chatTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'px-0');
-    expect(chatTab.firstElementChild).toHaveClass('opacity-[var(--vlaina-opacity-0)]');
+    expect(chatTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'pr-0');
+    expect(chatTab.querySelector('[data-app-view-mode-surface="true"]')).toHaveClass(
+      'opacity-[var(--vlaina-opacity-0)]',
+    );
     expect(screen.getByRole('button', { name: 'Search' })).toHaveClass(
       'ml-auto',
       'hover:bg-[var(--vlaina-sidebar-row-selected-bg)]',
@@ -146,14 +154,14 @@ describe('AppViewModeSwitch', () => {
       view.rerender(<AppViewModeSwitch />);
 
       expect(chatTab).toHaveAttribute('aria-selected', 'true');
-      expect(chatTab).toHaveClass('w-auto', 'px-2');
-      expect(notesTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'px-0');
+      expect(chatTab).toHaveClass('w-auto', 'pr-2');
+      expect(notesTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'pr-0');
 
       act(() => revealFrame?.(0));
 
       expect(notesTab).toHaveAttribute('aria-selected', 'true');
-      expect(notesTab).toHaveClass('w-auto', 'px-2');
-      expect(chatTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'px-0');
+      expect(notesTab).toHaveClass('w-auto', 'pr-2');
+      expect(chatTab).toHaveClass('w-[var(--vlaina-size-32px)]', 'pr-0');
     } finally {
       requestAnimationFrame.mockRestore();
       cancelAnimationFrame.mockRestore();
@@ -169,6 +177,7 @@ describe('AppViewModeSwitch', () => {
   });
 
   it('activates and focuses view tabs with roving navigation keys', () => {
+    vi.useFakeTimers();
     render(<AppViewModeSwitch />);
     const notesTab = screen.getByRole('tab', { name: 'Notes' });
     const graphTab = screen.getByRole('tab', { name: 'Graph' });
@@ -179,23 +188,28 @@ describe('AppViewModeSwitch', () => {
     fireEvent.keyDown(chatTab, { key: 'ArrowRight' });
     expect(notesTab).toHaveFocus();
     expect(notesTab).toHaveAttribute('tabindex', '0');
+    act(() => vi.runOnlyPendingTimers());
     expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('notes');
 
     fireEvent.keyDown(notesTab, { key: 'ArrowRight' });
     expect(graphTab).toHaveFocus();
     expect(graphTab).toHaveAttribute('tabindex', '0');
+    act(() => vi.runOnlyPendingTimers());
     expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('graph');
 
     fireEvent.keyDown(graphTab, { key: 'End' });
     expect(chatTab).toHaveFocus();
+    act(() => vi.runOnlyPendingTimers());
     expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('chat');
 
     fireEvent.keyDown(chatTab, { key: 'Home' });
     expect(notesTab).toHaveFocus();
+    act(() => vi.runOnlyPendingTimers());
     expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('notes');
 
     fireEvent.keyDown(notesTab, { key: 'ArrowLeft' });
     expect(chatTab).toHaveFocus();
+    act(() => vi.runOnlyPendingTimers());
     expect(hoisted.uiState.setAppViewMode).toHaveBeenLastCalledWith('chat');
     expect(boardTab).toHaveAttribute('tabindex', '-1');
   });

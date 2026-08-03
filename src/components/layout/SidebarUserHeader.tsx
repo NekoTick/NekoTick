@@ -105,8 +105,10 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
         <div
             ref={headerRef}
             className={cn(
-                'app-drag-region sidebar-user-header group/sidebar-user-header relative flex h-10 w-full items-center pr-3',
-                shouldReserveMacTrafficLightSpace ? 'pl-[var(--vlaina-space-76px)]' : 'pl-3'
+                'sidebar-user-header group/sidebar-user-header relative flex h-10 w-full items-center',
+                shouldReserveMacTrafficLightSpace
+                    ? 'app-no-drag pl-[var(--vlaina-space-76px)] pr-2'
+                    : 'app-drag-region px-3'
             )}
             data-hovered={!interactionSuppressed && isHovered ? 'true' : undefined}
             data-interaction-suppressed={interactionSuppressed ? 'true' : undefined}
@@ -123,7 +125,13 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
                     />
                 </Suspense>
                 <div
-                    className="app-drag-region h-full min-w-12 flex-1 cursor-grab active:cursor-grabbing"
+                    data-sidebar-header-spacer="true"
+                    className={cn(
+                        'h-full min-w-12 flex-1',
+                        shouldReserveMacTrafficLightSpace
+                            ? 'app-no-drag'
+                            : 'app-drag-region cursor-grab active:cursor-grabbing'
+                    )}
                     aria-hidden="true"
                 />
                 <Tooltip>
