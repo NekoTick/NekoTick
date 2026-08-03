@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { actions as aiActions } from '@/stores/useAIStore';
 import { copyMessageContentToClipboard } from '@/components/Chat/common/messageClipboard';
+import { clearChatTextSelection } from '@/components/Chat/features/Messages/components/chatSelectionBehavior';
 
 type ChatImageGalleryItem = {
   id: string;
@@ -53,6 +54,7 @@ export function useChatViewMessageActions(args: {
   const copyToClipboard = useCallback((text: string) => copyMessageContentToClipboard(text), []);
   const getImageGallery = useCallback(() => imageGalleryRef.current, []);
   const handleRegenerate = useCallback((messageId: string) => {
+    clearChatTextSelection();
     onBeforeRegenerateRef.current?.(messageId);
     regenerateRef.current(messageId);
   }, []);

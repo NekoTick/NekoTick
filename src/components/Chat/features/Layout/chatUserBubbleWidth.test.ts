@@ -8,10 +8,12 @@ describe('chatUserBubbleWidth', () => {
     expect(resolveUserMessageBubbleWidth('hello', 0)).toBeNull();
   });
 
-  it('keeps short single-line messages compact', () => {
-    const width = resolveUserMessageBubbleWidth('ok', 900);
-    expect(width).not.toBeNull();
-    expect(width!).toBeLessThan(120);
+  it('lets the browser size short single-line messages from rendered text', () => {
+    expect(resolveUserMessageBubbleWidth('hi', 900)).toBeNull();
+  });
+
+  it('lets the browser size compact messages with explicit line breaks', () => {
+    expect(resolveUserMessageBubbleWidth('hi\nok', 900)).toBeNull();
   });
 
   it('shrinks long wrapped messages below the maximum bubble width', () => {

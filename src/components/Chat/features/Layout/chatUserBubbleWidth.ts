@@ -67,11 +67,10 @@ export function resolveUserMessageBubbleWidth(
     prepareOptions: { whiteSpace: 'pre-wrap' as const },
   };
   const initialMetrics = measureTextWrapStats(text, maxTextWidth, measurementOptions);
+  const hardLineCount = text.split(/\r\n|\r|\n/).length;
 
-  if (initialMetrics.lineCount <= 1) {
-    const width = Math.min(maxBubbleWidth, Math.ceil(initialMetrics.maxLineWidth) + USER_BUBBLE_PADDING_X);
-    setWidthCacheEntry(cacheKey, width);
-    return width;
+  if (initialMetrics.lineCount <= hardLineCount) {
+    return null;
   }
 
   let low = 1;
