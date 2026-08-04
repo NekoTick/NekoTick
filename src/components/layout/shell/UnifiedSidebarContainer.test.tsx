@@ -27,6 +27,7 @@ describe('UnifiedSidebarContainer', () => {
     const panel = screen.getByText('Sidebar content');
     const sidebar = panel.closest('aside');
     expect(sidebar).toHaveClass('bg-[var(--vlaina-color-surface-sidebar-backdrop)]');
+    expect(sidebar).toHaveAttribute('data-shell-sidebar-docked', 'true');
     expect(panel).toHaveClass('m-2');
     expect(panel).toHaveClass('rounded-[var(--vlaina-ui-radius-panel)]');
     expect(panel).toHaveClass('bg-[var(--vlaina-color-sidebar-card-surface)]');

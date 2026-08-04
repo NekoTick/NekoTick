@@ -76,6 +76,13 @@ summary,
   opacity: var(--vlaina-opacity-100);
 }
 
+[data-shell-sidebar-docked="true"] [data-sidebar-capsule-panel="true"] {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: var(--vlaina-shadow-none);
+}
+
 html, body, #root {
   height: 100%;
   overflow: hidden;
