@@ -80,6 +80,12 @@ export function useNotesFloatingChat(args: {
   }, [setLayoutPanelTransitioning]);
 
   const handleFloatingChatAnimationComplete = useCallback((definition: unknown) => {
+    if (definition === 'visible') {
+      if (chatFloatingOpenRef.current) {
+        requestNativeCaretOverlayRefresh();
+      }
+      return;
+    }
     if (definition !== 'hidden' || chatFloatingOpenRef.current) return;
     setIsFloatingChatPresent(false);
     requestNativeCaretOverlayRefresh();

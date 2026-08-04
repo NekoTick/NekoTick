@@ -147,6 +147,8 @@ export function useNativeCaretOverlay(): void {
     doc.addEventListener('compositionstart', handleCompositionStart);
     doc.addEventListener('compositionend', handleCompositionEnd);
     doc.addEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleExplicitRefresh);
+    doc.addEventListener('animationend', handleUpdate, true);
+    doc.addEventListener('transitionend', handleUpdate, true);
     doc.addEventListener('scroll', handleUpdate, true);
     window.addEventListener('resize', handleUpdate);
 
@@ -165,6 +167,8 @@ export function useNativeCaretOverlay(): void {
       doc.removeEventListener('compositionstart', handleCompositionStart);
       doc.removeEventListener('compositionend', handleCompositionEnd);
       doc.removeEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleExplicitRefresh);
+      doc.removeEventListener('animationend', handleUpdate, true);
+      doc.removeEventListener('transitionend', handleUpdate, true);
       doc.removeEventListener('scroll', handleUpdate, true);
       window.removeEventListener('resize', handleUpdate);
     };

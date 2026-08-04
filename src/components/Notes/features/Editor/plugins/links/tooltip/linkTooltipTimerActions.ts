@@ -23,5 +23,17 @@ export function startLinkTooltipHideTimer(timers: LinkTooltipTimers, hide: () =>
 }
 
 export function scheduleLinkTooltipEditorFocus(timers: LinkTooltipTimers, view: EditorView) {
-    timers.scheduleFocus(() => view.focus(), 10);
+    const doc = view.dom.ownerDocument;
+    const focusOwner = doc.activeElement;
+    timers.scheduleFocus(() => {
+        const activeElement = doc.activeElement;
+        if (
+            activeElement !== focusOwner &&
+            activeElement !== doc.body &&
+            !view.dom.contains(activeElement)
+        ) {
+            return;
+        }
+        view.focus();
+    }, 10);
 }

@@ -25,6 +25,7 @@ import {
     preventImageClipboardTextPaste,
     preventImageDataTransferTextDrop,
 } from '@/lib/clipboardImagePayload';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 interface LinkEditorProps {
     editUrl: string;
@@ -191,6 +192,7 @@ export const LinkEditor = ({
                 y: themeMotionTokens.linkEditorVisibleY,
                 scale: themeMotionTokens.linkEditorVisibleScale,
             }}
+            onAnimationComplete={requestNativeCaretOverlayRefresh}
             style={{
                 width: `${editorWidth}px`,
             }}
