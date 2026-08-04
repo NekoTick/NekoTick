@@ -418,7 +418,6 @@
   --vlaina-space-525rem: 5.25rem;
   --vlaina-space-y-6px: 6px;
   --vlaina-shadow-hr-selected: 0 0 0 2px var(--vlaina-accent-light);
-  --vlaina-width-minus-titlebar-actions: calc(100% - var(--vlaina-space-525rem));
   --vlaina-width-window-controls: var(--vlaina-size-144px);
   --vlaina-window-resize-compensation-x: 0px;
   --vlaina-app-view-mode-option-count: 2;

@@ -59,8 +59,14 @@ summary,
 .sidebar-user-header:not([data-interaction-suppressed="true"]):hover .sidebar-user-header-pill,
 .sidebar-user-header:not([data-interaction-suppressed="true"]):focus-within .sidebar-user-header-pill,
 .sidebar-user-header[data-hovered="true"] .sidebar-user-header-pill {
-  background-color: var(--vlaina-color-pill-surface);
+  background-color: var(--vlaina-color-sidebar-card-surface);
   box-shadow: var(--vlaina-shadow-raised-soft);
+}
+
+.sidebar-user-header-pill,
+.sidebar-user-header-pill * {
+  -webkit-app-region: no-drag !important;
+  cursor: pointer !important;
 }
 
 .sidebar-user-header:not([data-interaction-suppressed="true"]):hover .sidebar-user-header-collapse,
