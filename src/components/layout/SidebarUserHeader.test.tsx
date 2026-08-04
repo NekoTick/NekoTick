@@ -63,19 +63,47 @@ describe('SidebarUserHeader', () => {
     cleanup();
   });
 
-  it('uses the compact titlebar padding on the system platform preview', async () => {
+  it('keeps the compact capsule interaction region on the system platform preview', async () => {
     const { container } = render(<SidebarUserHeader toggleSidebar={() => {}} />);
 
     await screen.findByTestId('workspace-switcher');
 
     expect(container.querySelector('.sidebar-user-header')).toHaveClass(
-      'app-drag-region',
+      'app-no-drag',
+      'cursor-pointer',
       'px-3',
     );
-    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).toHaveClass(
-      'app-drag-region',
-      'cursor-grab',
+    expect(container.querySelector('.sidebar-user-header-pill')).toHaveClass(
+      'app-no-drag',
+      'cursor-pointer',
     );
+    expect(screen.getByTestId('workspace-switcher')).toHaveClass('flex-1');
+    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).toBeNull();
+  });
+
+  it('keeps the workspace capsule visible by default on Windows', async () => {
+    const platformSpy = vi.spyOn(window.navigator, 'platform', 'get').mockReturnValue('Win32');
+    try {
+      const { container } = render(<SidebarUserHeader toggleSidebar={() => {}} />);
+
+      await screen.findByTestId('workspace-switcher');
+
+      expect(container.querySelector('.sidebar-user-header-pill')).toHaveClass(
+        'app-no-drag',
+        'cursor-pointer',
+        'bg-[var(--vlaina-color-sidebar-card-surface)]',
+        'shadow-[var(--vlaina-shadow-raised-soft)]',
+      );
+      expect(container.querySelector('.sidebar-user-header')).toHaveClass(
+        'app-no-drag',
+        'cursor-pointer',
+      );
+      expect(container.querySelector('.sidebar-user-header')).not.toHaveClass('app-drag-region');
+      expect(screen.getByTestId('workspace-switcher')).toHaveClass('flex-1');
+      expect(container.querySelector('[data-sidebar-header-spacer="true"]')).toBeNull();
+    } finally {
+      platformSpy.mockRestore();
+    }
   });
 
   it('reserves macOS traffic-light space during macOS platform preview', async () => {
@@ -90,8 +118,10 @@ describe('SidebarUserHeader', () => {
       'pl-[var(--vlaina-space-76px)]',
       'pr-2',
     );
-    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).toHaveClass('app-no-drag');
-    expect(container.querySelector('[data-sidebar-header-spacer="true"]')).not.toHaveClass('cursor-grab');
+    expect(screen.getByTestId('workspace-switcher')).toHaveClass('flex-1');
+    expect(container.querySelector('.sidebar-user-header-pill')).not.toHaveClass(
+      'shadow-[var(--vlaina-shadow-raised-soft)]',
+    );
   });
 
   it('clears hover and focused header controls when the mouse leaves the window', async () => {

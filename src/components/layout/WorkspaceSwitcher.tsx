@@ -121,7 +121,7 @@ const WorkspaceSwitcherBase = ({ onOpenSettings, className }: WorkspaceSwitcherP
                 className="h-full w-full object-cover shadow-[var(--vlaina-shadow-sm)]"
               />
             </span>
-            <span className="ml-2 min-w-0 truncate text-[length:var(--vlaina-font-15)] font-semibold leading-none">
+            <span className="ml-2 shrink-0 whitespace-nowrap text-[length:var(--vlaina-font-15)] font-semibold leading-none">
               vlaina
             </span>
             <Icon

@@ -56,9 +56,11 @@ describe('WorkspaceSwitcher', () => {
   it('shows the branded app name and menu chevron beside the logo', () => {
     const { container } = render(<WorkspaceSwitcher />);
     const trigger = container.querySelector('button');
+    const appName = screen.getByText('vlaina');
 
     expect(trigger).not.toBeNull();
-    expect(screen.getByText('vlaina')).toBeInTheDocument();
+    expect(appName).toHaveClass('shrink-0', 'whitespace-nowrap');
+    expect(appName).not.toHaveClass('truncate');
     expect(screen.getByTestId('icon-nav.chevronDown')).toHaveClass(
       'opacity-[var(--vlaina-opacity-0)]',
       'group-hover:opacity-[var(--vlaina-opacity-100)]',
