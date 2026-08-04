@@ -865,6 +865,9 @@ export const themeEmojiPickerTokens = {
 
 export const themeChatLayoutTokens = {
   embeddedSidebarWidth: 'min(clamp(16rem, 80%, 21rem), 86vw)',
+  messageNavigationThresholdPx: 30,
+  messageOutlineLabelChars: 15,
+  messageScrollOffsetPx: 20,
   userMessageContentGapPx: 8,
   userMessageMaxWidthRatio: 0.9,
   userMessageMultipleImageTileSizePx: 152,

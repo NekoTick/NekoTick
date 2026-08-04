@@ -9,11 +9,13 @@ import {
 } from '@/components/Chat/features/Layout/chatMessageFrames';
 import { normalizeChatContainerWidth } from '@/components/Chat/features/Layout/chatWidthBuckets';
 import { themeRenderingTokens } from '@/styles/themeTokens';
+import { ChatMessageOutlineRail } from './ChatMessageOutlineRail';
 import { MessageListContent } from './MessageListContent';
 import type { MessageListProps } from './MessageListTypes';
 import { buildRenderedMessageState } from './messageListState';
 import { TAIL_ANCHOR_THRESHOLD, useMessageListViewport } from './useMessageListViewport';
 import { useMessageListMeasurement } from './useMessageListMeasurement';
+import { useChatMessageNavigation } from './useChatMessageNavigation';
 import { useUIStore } from '@/stores/uiSlice';
 
 export const MessageList = memo(function MessageList({
@@ -25,6 +27,7 @@ export const MessageList = memo(function MessageList({
   showLoading,
   isLayoutCentered,
   useOverlayScrollbar = false,
+  showMessageOutline = false,
   spacerHeight,
   currentTurnTopSpacerHeight = 0,
   containerRef,
@@ -110,54 +113,16 @@ export const MessageList = memo(function MessageList({
     };
   }, [currentTurnTopSpacerHeight, frameLayout]);
 
-  const navigateMessages = useCallback((direction: 'prev' | 'next') => {
-    const container = containerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const currentScroll = container.scrollTop;
-    let hasUserMessage = false;
-    let targetTop: number | null = null;
-    for (const frame of positionedFrameLayout.items) {
-      if (renderedRows[frame.index]?.message.role !== 'user') {
-        continue;
-      }
-      hasUserMessage = true;
-      if (direction === 'prev') {
-        if (frame.top < currentScroll - 30) {
-          targetTop = frame.top;
-        }
-      } else if (frame.top > currentScroll + 30) {
-        targetTop = frame.top;
-        break;
-      }
-    }
-
-    if (!hasUserMessage) {
-      return;
-    }
-    if (targetTop !== null) {
-      container.scrollTo({ top: Math.max(0, targetTop - 20), behavior: 'smooth' });
-    } else {
-      container.scrollTo({
-        top: direction === 'prev' ? 0 : container.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
-  }, [containerRef, positionedFrameLayout.items, renderedRows]);
-
-  useLayoutEffect(() => {
-    if (!navigationRef) {
-      return;
-    }
-    navigationRef.current = navigateMessages;
-    return () => {
-      if (navigationRef.current === navigateMessages) {
-        navigationRef.current = null;
-      }
-    };
-  }, [navigateMessages, navigationRef]);
+  const {
+    activeMessageId: activeOutlineMessageId,
+    scrollToMessage,
+  } = useChatMessageNavigation({
+    containerRef,
+    frames: positionedFrameLayout.items,
+    navigationRef,
+    renderedRows,
+    scrollTop,
+  });
 
   const trailingLayout = useMemo(
     () => buildTrailingChatLayout(positionedFrameLayout, showLoading, spacerHeight),
@@ -257,28 +222,40 @@ export const MessageList = memo(function MessageList({
       visibleFrames={visibleFrames}
     />
   );
+  const outline = showMessageOutline ? (
+    <ChatMessageOutlineRail
+      activeMessageId={activeOutlineMessageId}
+      enabled={active}
+      messages={renderedMessages}
+      onSelect={scrollToMessage}
+    />
+  ) : null;
 
   if (useOverlayScrollbar) {
     return (
-      <OverlayScrollArea
-        ref={containerRef}
-        data-chat-scrollable="true"
-        aria-busy={isSessionActive || showLoading || undefined}
-        style={{ overflowAnchor: themeRenderingTokens.overflowAnchorNone }}
-        className={cn(
-          'transition-opacity duration-[var(--vlaina-duration-150)]',
-          isEmpty ? 'pointer-events-none opacity-[var(--vlaina-opacity-0)]' : 'opacity-[var(--vlaina-opacity-100)]',
-          isLayoutCentered && 'hidden',
-        )}
-        viewportClassName="h-full"
-        scrollbarVariant="compact"
-      >
-        {content}
-      </OverlayScrollArea>
+      <>
+        <OverlayScrollArea
+          ref={containerRef}
+          data-chat-scrollable="true"
+          aria-busy={isSessionActive || showLoading || undefined}
+          style={{ overflowAnchor: themeRenderingTokens.overflowAnchorNone }}
+          className={cn(
+            'transition-opacity duration-[var(--vlaina-duration-150)]',
+            isEmpty ? 'pointer-events-none opacity-[var(--vlaina-opacity-0)]' : 'opacity-[var(--vlaina-opacity-100)]',
+            isLayoutCentered && 'hidden',
+          )}
+          viewportClassName="h-full"
+          scrollbarVariant="compact"
+        >
+          {content}
+        </OverlayScrollArea>
+        {outline}
+      </>
     );
   }
 
   return (
+    <>
       <div
         data-chat-scrollable="true"
         aria-busy={isSessionActive || showLoading || undefined}
@@ -292,5 +269,7 @@ export const MessageList = memo(function MessageList({
       >
         {content}
       </div>
+      {outline}
+    </>
   );
 });

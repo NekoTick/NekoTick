@@ -669,6 +669,16 @@
   --vlaina-toolbar-ai-dropdown-panel-max-height: min(calc(100vh - var(--vlaina-size-160px)), var(--vlaina-size-360px));
   --vlaina-notes-root-cloud-icon-base-scale: 1;
   --vlaina-chat-embedded-sidebar-radius: var(--vlaina-radius-48px);
+  --vlaina-chat-outline-rail-top: var(--vlaina-size-80px);
+  --vlaina-chat-outline-rail-compact-width: var(--vlaina-size-24px);
+  --vlaina-chat-outline-rail-panel-width: var(--vlaina-size-240px);
+  --vlaina-chat-outline-rail-max-height: min(var(--vlaina-size-420px), calc(100% - var(--vlaina-size-200px)));
+  --vlaina-chat-outline-rail-compact-row-height: var(--vlaina-size-14px);
+  --vlaina-chat-outline-rail-row-height: var(--vlaina-size-28px);
+  --vlaina-chat-outline-rail-marker-width: var(--vlaina-size-16px);
+  --vlaina-chat-outline-rail-marker-height: var(--vlaina-size-2px);
+  --vlaina-chat-outline-rail-marker: var(--vlaina-color-border);
+  --vlaina-chat-outline-rail-marker-active: var(--vlaina-color-accent);
   --vlaina-notes-empty-overlay-top: 38.2%;
   --vlaina-ui-radius-compact: var(--vlaina-radius-8px);
   --vlaina-ui-radius-group: var(--vlaina-radius-12px);

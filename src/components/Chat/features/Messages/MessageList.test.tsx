@@ -446,6 +446,7 @@ describe("MessageList", () => {
           spacerHeight={0}
           containerRef={containerRef}
           navigationRef={navigationRef}
+          showMessageOutline
           onCopy={() => {}}
           onRegenerate={() => {}}
           onSwitchVersion={() => {}}
@@ -463,6 +464,9 @@ describe("MessageList", () => {
       navigationRef.current?.('next');
       expect(scrollTo.mock.calls[1]?.[0].behavior).toBe('smooth');
       expect(scrollTo.mock.calls[1]?.[0].top).toBeGreaterThan(3500);
+
+      fireEvent.click(screen.getByRole('button', { name: 'user-u1' }));
+      expect(scrollTo).toHaveBeenNthCalledWith(3, { top: 12, behavior: 'auto' });
     } finally {
       if (widthDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientWidth', widthDescriptor);
       else Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');

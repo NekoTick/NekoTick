@@ -273,6 +273,7 @@ export function ChatView({
           showLoading={showLoading}
           isLayoutCentered={isEmpty}
           useOverlayScrollbar
+          showMessageOutline={!isEmbedded}
           currentTurnTopSpacerHeight={currentTurnTopSpacerHeight}
           spacerHeight={spacerHeight}
           containerRef={containerRef}
