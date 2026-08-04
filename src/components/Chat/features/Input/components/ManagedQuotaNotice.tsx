@@ -4,7 +4,7 @@ import { openExternalHref } from '@/lib/navigation/externalLinks';
 import { cn } from '@/lib/utils';
 
 export const managedQuotaNoticeFrameClass =
-  'overflow-hidden rounded-[var(--vlaina-ui-radius-group)] bg-[var(--vlaina-color-accent-soft)] shadow-[0_10px_26px_color-mix(in_srgb,var(--vlaina-accent)_12%,transparent)]';
+  'overflow-hidden rounded-[var(--vlaina-radius-26px)] bg-[var(--vlaina-color-accent-soft)] shadow-[0_10px_26px_color-mix(in_srgb,var(--vlaina-accent)_12%,transparent)]';
 export const managedQuotaNoticeSurfaceClass =
   'flex min-h-[var(--vlaina-size-32px)] flex-wrap items-center justify-center gap-x-1.5 gap-y-1 px-6 pb-2.5 pt-1.5 text-center text-[var(--vlaina-font-12)] font-semibold leading-4 text-[var(--vlaina-text-primary)]';
 

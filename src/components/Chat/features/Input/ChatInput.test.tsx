@@ -387,6 +387,7 @@ describe('ChatInput', () => {
     expect(banner).not.toBeNull();
     expect(frame).toHaveClass('bg-[var(--vlaina-color-accent-soft)]');
     expect(frame).toHaveClass('overflow-hidden');
+    expect(frame).toHaveClass('rounded-[var(--vlaina-radius-26px)]');
     expect(banner).toHaveClass('min-h-[var(--vlaina-size-32px)]');
     expect(banner).not.toHaveClass('absolute');
   });
