@@ -76,6 +76,10 @@ describe('UnifiedTitleBar', () => {
     expect(container.querySelector('[data-shell-titlebar-sidebar-backdrop="true"]')).toHaveClass(
       'bg-[var(--vlaina-color-surface-sidebar-backdrop)]',
     );
+    expect(container.querySelector('[data-shell-titlebar-sidebar-card="true"]')).toHaveClass(
+      'rounded-t-[var(--vlaina-ui-radius-panel)]',
+      'bg-[var(--vlaina-color-sidebar-card-surface)]',
+    );
   });
 
   it('reports hover on the collapsed sidebar toggle area', () => {

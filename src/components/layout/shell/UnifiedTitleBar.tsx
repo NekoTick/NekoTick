@@ -137,10 +137,17 @@ export const UnifiedTitleBar = forwardRef<HTMLDivElement, UnifiedTitleBarProps>(
       ) : (
         <div
           data-shell-titlebar-sidebar-backdrop="true"
-          className="h-full flex-shrink-0 z-[var(--vlaina-z-20)] group flex flex-col justify-center bg-[var(--vlaina-color-surface-sidebar-backdrop)] app-drag-region"
+          className="app-drag-region group relative z-[var(--vlaina-z-20)] flex h-full flex-shrink-0 flex-col justify-center bg-[var(--vlaina-color-surface-sidebar-backdrop)]"
           style={{ width: themeDomStyleTokens.shellSidebarWidth }}
         >
-          {leftSlot}
+          <div
+            data-shell-titlebar-sidebar-card="true"
+            className="pointer-events-none absolute inset-x-2 inset-y-0 rounded-t-[var(--vlaina-ui-radius-panel)] bg-[var(--vlaina-color-sidebar-card-surface)]"
+            aria-hidden="true"
+          />
+          <div className="relative h-full w-full">
+            {leftSlot}
+          </div>
         </div>
       )}
 

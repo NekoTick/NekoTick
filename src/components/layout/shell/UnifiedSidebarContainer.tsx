@@ -112,6 +112,7 @@ export function UnifiedSidebarContainer({
         <motion.aside
           ref={sidebarRef}
           data-shell-sidebar-peek={collapsed ? 'true' : undefined}
+          data-shell-sidebar-docked={!collapsed ? 'true' : undefined}
           data-open={collapsed ? (peeking ? 'true' : 'false') : undefined}
           aria-hidden={collapsed ? !peeking : undefined}
           className={cn(
