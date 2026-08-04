@@ -1,8 +1,6 @@
 import { type DragEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import { themeMotionTokens } from '@/styles/themeTokens';
 import { ChannelObject, CreateChannelObject } from './AIChannelObjects';
 import type { ProviderCardDraft } from './AIChannelTypes';
@@ -126,48 +124,7 @@ export function AIChannelsSection({
               <CreateChannelObject onClick={onAddCustomProvider} />
             </div>
           </motion.div>
-        ) : (
-          <motion.div
-            key="channels-empty"
-            initial={{
-              opacity: themeMotionTokens.opacityHidden,
-              y: themeMotionTokens.aiChannelEmptyInitialY,
-            }}
-            animate={{
-              opacity: themeMotionTokens.opacityVisible,
-              y: themeMotionTokens.toastVisibleY,
-            }}
-            exit={{
-              opacity: themeMotionTokens.opacityHidden,
-              y: themeMotionTokens.aiChannelEmptyExitY,
-            }}
-            transition={{
-              duration: themeMotionTokens.aiChannelEmptyDuration,
-              ease: themeMotionTokens.standardEase,
-            }}
-            className="mb-8 px-1"
-          >
-            <motion.button
-              type="button"
-              onClick={onAddCustomProvider}
-              aria-label={t('settings.ai.newChannel')}
-              data-settings-ai-action="new-channel"
-              transition={{
-                duration: themeMotionTokens.aiChannelEmptyDuration,
-                ease: themeMotionTokens.standardEase,
-              }}
-              className={cn(
-                "w-full rounded-[var(--vlaina-ui-radius-group)] border border-transparent px-6 py-8 text-left transition-all duration-[var(--vlaina-duration-200)] shadow-[var(--vlaina-shadow-sm)] hover:shadow-[var(--vlaina-shadow-md)] active:scale-[var(--vlaina-scale-98)]",
-                raisedPillSurfaceClass
-              )}
-            >
-              <div className="mx-auto flex w-fit flex-col items-center gap-3">
-                <div className="h-[var(--vlaina-size-10px)] w-[var(--vlaina-size-128px)] rounded-full bg-[var(--vlaina-bg-tertiary)]" />
-                <div className="h-[var(--vlaina-size-10px)] w-[var(--vlaina-size-88px)] rounded-full bg-[var(--vlaina-bg-secondary)]" />
-              </div>
-            </motion.button>
-          </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </>
   );

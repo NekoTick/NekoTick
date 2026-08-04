@@ -301,7 +301,6 @@ test.describe('settings modal interaction coverage', () => {
       }).toBe('zh-CN');
 
       await openSettingsTab(page, 'ai');
-      await page.locator('[data-settings-ai-action="new-channel"]').first().click();
       await expect(page.locator('[data-settings-provider-field="name"]')).toBeVisible({ timeout: 10_000 });
       await page.locator('[data-settings-provider-field="name"]').fill('E2E Settings Channel');
       await page.locator('[data-settings-provider-field="api-host"]').fill('https://e2e-settings.invalid/v1');
@@ -415,7 +414,6 @@ test.describe('settings modal interaction coverage', () => {
         );
       }, { timeout: 10_000 }).toBe(false);
 
-      await page.locator('[data-settings-ai-action="new-channel"]').first().click();
       await page.locator('[data-settings-provider-field="api-host"]').fill('http://127.0.0.1:11434/v1');
       const keylessChannelCard = page.locator('[data-settings-ai-channel-card][data-active="true"]');
       await keylessChannelCard.hover();
@@ -432,7 +430,6 @@ test.describe('settings modal interaction coverage', () => {
       await keylessChannelCard.locator('[data-settings-ai-action="delete-channel"]').click();
       await page.locator('[data-dialog-action="confirm"]').click();
 
-      await page.locator('[data-settings-ai-action="new-channel"]').first().click();
       await page.locator('[data-settings-provider-field="api-key"]').fill('sk-draft-only-key');
       const draftKeyChannelCard = page.locator('[data-settings-ai-channel-card][data-active="true"]');
       await draftKeyChannelCard.hover();
@@ -440,7 +437,6 @@ test.describe('settings modal interaction coverage', () => {
       await expect(page.locator('[data-dialog-action="confirm"]')).toBeVisible({ timeout: 10_000 });
       await page.locator('[data-dialog-action="confirm"]').click();
 
-      await page.locator('[data-settings-ai-action="new-channel"]').first().click();
       await expect.poll(async () => {
         const data = await getUnifiedData(page);
         return data.ai.providers.filter((provider: { id: string }) => provider.id !== 'vlaina-managed').length;
@@ -510,7 +506,6 @@ test.describe('settings modal interaction coverage', () => {
       }
 
       await openSettingsTab(page, 'ai');
-      await page.locator('[data-settings-ai-action="new-channel"]').first().click();
       await expect(page.locator('[data-settings-provider-field="name"]')).toBeVisible({ timeout: 10_000 });
       await expectSettingsTabFitsSmallViewport(page, 'ai');
     } finally {
