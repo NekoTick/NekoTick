@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   isTagTokenBoundaryAtTextblock,
+  shouldShowTextBlockCaretOverlay,
   TEXTBLOCK_CARET_OVERLAY_REFRESH_EVENT,
   TextBlockCaretOverlayView,
 } from './textBlockCaretOverlayPlugin';
+import { setBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 
 function createParent(text: string) {
   return {
@@ -66,6 +68,25 @@ afterEach(() => {
 });
 
 describe('textBlockCaretOverlayPlugin', () => {
+  it('hides the caret overlay while block selection is pending', () => {
+    const editorDom = document.createElement('div');
+    const view = {
+      dom: editorDom,
+      composing: false,
+      hasFocus: () => true,
+      state: {
+        selection: createTextblockSelection(),
+      },
+    };
+
+    setBlockSelectionInteractionPending(editorDom, true);
+
+    expect(shouldShowTextBlockCaretOverlay(view as any)).toBe(false);
+
+    setBlockSelectionInteractionPending(editorDom, false);
+    expect(shouldShowTextBlockCaretOverlay(view as any)).toBe(true);
+  });
+
   it('detects a tag token boundary without reading aggregate text', () => {
     const parent = createParent('hello #tag');
 

@@ -10,12 +10,15 @@ import {
   getCachedEditorBlockTargets,
   getFreshCachedEditorBlockTargets,
   getCurrentEditorBlockPositionSnapshot,
+  getInteractionCachedEditorBlockTargets,
+  getInteractionCachedEditorBlockTargetsNearY,
   isEditorHiddenByToolbarPreview,
   MAX_BLOCK_POSITION_SNAPSHOT_BLOCKS,
   refreshCurrentEditorBlockPositionSnapshot,
   resolveToolbarPreviewRoot,
   setCurrentEditorBlockPositionSnapshot,
 } from './editorBlockPositionCache';
+import { setBlockSelectionInteractionPending } from '../plugins/cursor/blockSelectionInteractionState';
 
 function rect(top: number, bottom: number, width = 320): DOMRect {
   return {
@@ -513,7 +516,7 @@ describe('editorBlockPositionCache', () => {
     }
   });
 
-  it('adjusts cached target viewport rects lazily on scroll without remeasuring or cloning every block', async () => {
+  it('publishes cached scroll positions during block selection without remeasuring or cloning blocks', async () => {
     const scrollRoot = document.createElement('div');
     scrollRoot.setAttribute('data-note-scroll-root', 'true');
     scrollRoot.scrollTop = 20;
@@ -557,6 +560,7 @@ describe('editorBlockPositionCache', () => {
     heading.getBoundingClientRect = () => {
       throw new Error('scroll updates should not remeasure block DOM');
     };
+    setBlockSelectionInteractionPending(dom, true);
     scrollRoot.scrollTop = 70;
     scrollRoot.dispatchEvent(new Event('scroll'));
     await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -572,6 +576,7 @@ describe('editorBlockPositionCache', () => {
     expect(getCachedEditorBlockTargets(view as any)?.[0]?.rect.top).toBe(50);
     expect(getCachedEditorBlockTargets(view as any)?.[0]?.rect.bottom).toBe(82);
 
+    setBlockSelectionInteractionPending(dom, false);
     controller.destroy();
     scrollRoot.remove();
   });
@@ -681,6 +686,82 @@ describe('editorBlockPositionCache', () => {
     } finally {
       clearCurrentEditorBlockPositionSnapshot();
       dom.remove();
+    }
+  });
+
+  it('trusts an interaction snapshot without forcing live geometry validation', () => {
+    const scrollRoot = document.createElement('div');
+    scrollRoot.setAttribute('data-note-scroll-root', 'true');
+    scrollRoot.scrollTop = 40;
+    const dom = document.createElement('div');
+    const block = document.createElement('p');
+    const secondBlock = document.createElement('p');
+    dom.append(block, secondBlock);
+    scrollRoot.append(dom);
+    document.body.append(scrollRoot);
+    const doc = { content: { size: 8 } };
+    const view = { dom, state: { doc } };
+    const liveBlockRect = vi.fn(() => rect(300, 324));
+    const liveScrollRootRect = vi.fn(() => rect(20, 620, 640));
+    block.getBoundingClientRect = liveBlockRect;
+    scrollRoot.getBoundingClientRect = liveScrollRootRect;
+
+    setCurrentEditorBlockPositionSnapshot(withBlockIndex({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      editorRect: rect(10, 500, 640),
+      scrollRoot,
+      scrollRootRect: rect(20, 620, 640),
+      scrollLeft: 0,
+      scrollTop: 40,
+      blocks: [
+        {
+          from: 0,
+          to: 4,
+          element: block,
+          rect: rect(80, 104),
+          documentTop: 100,
+          documentBottom: 124,
+          tagName: 'P',
+          headingLevel: null,
+          headingId: null,
+          headingText: null,
+        },
+        {
+          from: 4,
+          to: 8,
+          element: secondBlock,
+          rect: rect(120, 144),
+          documentTop: 140,
+          documentBottom: 164,
+          tagName: 'P',
+          headingLevel: null,
+          headingId: null,
+          headingText: null,
+        },
+      ],
+      headings: [],
+    }));
+
+    try {
+      const targets = getInteractionCachedEditorBlockTargetsNearY(
+        view as any,
+        92,
+        (candidate, y) => y >= candidate.top && y <= candidate.bottom,
+      );
+
+      expect(targets?.[0]?.range).toEqual({ from: 0, to: 4 });
+      expect(getInteractionCachedEditorBlockTargets(
+        view as any,
+        [{ from: 4, to: 8 }],
+      )?.map((target) => target.range)).toEqual([{ from: 4, to: 8 }]);
+      expect(liveBlockRect).not.toHaveBeenCalled();
+      expect(liveScrollRootRect).not.toHaveBeenCalled();
+    } finally {
+      clearCurrentEditorBlockPositionSnapshot();
+      scrollRoot.remove();
     }
   });
 

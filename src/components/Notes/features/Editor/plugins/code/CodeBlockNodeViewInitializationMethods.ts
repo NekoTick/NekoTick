@@ -27,6 +27,10 @@ import {
   createCodeBlockEditorTheme,
   normalizeCodeBlockEditorText
 } from './codemirror';
+import {
+  BLOCK_SELECTION_INTERACTION_CHANGE_EVENT,
+  isBlockSelectionInteractionPending,
+} from '../cursor/blockSelectionInteractionState';
 
 class CodeBlockNodeViewInitializationMethods {
   shouldLazyInitializeCodeMirror(this: any) {
@@ -55,6 +59,13 @@ class CodeBlockNodeViewInitializationMethods {
     this.dom.addEventListener('mousedown', this.activateCodeMirrorFromInteraction);
     this.dom.addEventListener('focusin', this.activateCodeMirrorFromInteraction);
 
+    if (this.options.passiveLazyCodeMirror === false) {
+      return;
+    }
+    this.view.dom.addEventListener(
+      BLOCK_SELECTION_INTERACTION_CHANGE_EVENT,
+      this.handleBlockSelectionInteractionChange,
+    );
     this.intersectionObserver = new IntersectionObserver((entries) => {
       this.lazyCodeBlockIntersecting = entries.some((entry) => entry.isIntersecting);
       if (this.lazyCodeBlockIntersecting) {
@@ -79,7 +90,12 @@ class CodeBlockNodeViewInitializationMethods {
   }
 
   scheduleLazyCodeMirrorInitialization(this: any) {
-    if (this.cm || this.pendingLazyInitializationTimer !== null || this.pendingLazyInitializationFrame !== null) {
+    if (
+      this.cm
+      || isBlockSelectionInteractionPending(this.view.dom)
+      || this.pendingLazyInitializationTimer !== null
+      || this.pendingLazyInitializationFrame !== null
+    ) {
       return;
     }
     const ownerWindow = this.getOwnerWindow();
@@ -95,7 +111,11 @@ class CodeBlockNodeViewInitializationMethods {
       this.pendingLazyInitializationFrame = ownerWindow.requestAnimationFrame(() => {
         this.pendingLazyInitializationFrame = ownerWindow.requestAnimationFrame(() => {
           this.pendingLazyInitializationFrame = null;
-          if (this.destroyed || !this.lazyCodeBlockIntersecting) return;
+          if (
+            this.destroyed
+            || !this.lazyCodeBlockIntersecting
+            || isBlockSelectionInteractionPending(this.view.dom)
+          ) return;
           const currentScrollLeft = scrollRoot?.scrollLeft ?? ownerWindow.scrollX;
           const currentScrollTop = scrollRoot?.scrollTop ?? ownerWindow.scrollY;
           if (currentScrollLeft !== scrollLeft || currentScrollTop !== scrollTop) {
@@ -126,8 +146,16 @@ class CodeBlockNodeViewInitializationMethods {
       return;
     }
 
+    if (!this.headerRendered) {
+      this.render();
+    }
+
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = null;
+    this.view.dom.removeEventListener(
+      BLOCK_SELECTION_INTERACTION_CHANGE_EVENT,
+      this.handleBlockSelectionInteractionChange,
+    );
     this.dom.removeEventListener('mousedown', this.activateCodeMirrorFromInteraction);
     this.dom.removeEventListener('focusin', this.activateCodeMirrorFromInteraction);
     this.placeholderDOM?.remove();
@@ -249,6 +277,8 @@ class CodeBlockNodeViewInitializationMethods {
 
   render(this: any) {
     this.headerStateKey = this.getHeaderStateKey(this.node);
+    this.headerPlaceholderDOM = null;
+    this.headerRendered = true;
     this.root.render(
       React.createElement(CodeBlockView, {
         node: this.node,

@@ -199,17 +199,9 @@ export function createCurrentEditorBlockPositionControllerWithState({
     if (destroyed || frameId !== 0) {
       return;
     }
-    if (isBlockSelectionPending()) {
-      scheduleRefreshAfterPendingBlockSelection();
-      return;
-    }
 
     frameId = requestAnimationFrame(() => {
       frameId = 0;
-      if (isBlockSelectionPending()) {
-        scheduleRefreshAfterPendingBlockSelection();
-        return;
-      }
       const snapshot = getCurrentSnapshot();
       if (
         snapshot
@@ -223,6 +215,11 @@ export function createCurrentEditorBlockPositionControllerWithState({
           scrollRoot?.scrollTop ?? 0,
           nextVersion(),
         ));
+        return;
+      }
+
+      if (isBlockSelectionPending()) {
+        scheduleRefreshAfterPendingBlockSelection();
         return;
       }
 

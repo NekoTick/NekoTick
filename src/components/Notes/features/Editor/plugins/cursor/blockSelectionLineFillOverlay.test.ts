@@ -313,7 +313,67 @@ describe('blockSelectionLineFillOverlay', () => {
     overlay.destroy();
   });
 
-  it('updates line fills while a block selection drag is pending', () => {
+  it('batches line fill DOM writes after geometry reads', () => {
+    const host = document.createElement('div');
+    const editorDom = document.createElement('div');
+    const pluginState = { selectedBlocks: [] as Array<{ from: number; to: number }> };
+    const view = {
+      dom: editorDom,
+      state: {
+        doc: {
+          content: { size: 2 },
+          childCount: 0,
+          child: vi.fn(),
+          resolve: vi.fn(() => ({ nodeBefore: null })),
+        },
+        [blankAreaDragBoxPluginKey.key]: pluginState,
+      },
+    } as unknown as EditorView;
+
+    document.body.appendChild(host);
+    host.appendChild(editorDom);
+    mockRect(host, { left: 100, top: 20, right: 600, bottom: 420, width: 500, height: 400 });
+    mockRect(editorDom, { left: 100, top: 20, right: 600, bottom: 420, width: 500, height: 400 });
+
+    const overlay = createBlockSelectionLineFillOverlay(view);
+    const layer = host.querySelector<HTMLElement>('.editor-block-selection-line-fill-layer');
+    expect(layer).not.toBeNull();
+    if (!layer) return;
+
+    for (const top of [80, 180]) {
+      const paragraph = document.createElement('p');
+      const image = document.createElement('div');
+      paragraph.className = 'editor-paragraph-has-image-block';
+      image.className = 'image-block-container editor-block-selected';
+      paragraph.appendChild(image);
+      editorDom.appendChild(paragraph);
+      mockRect(paragraph, { left: 100, top, right: 600, bottom: top + 80, width: 500, height: 80 });
+      mockRect(image, { left: 100, top: top + 16, right: 100, bottom: top + 56, width: 0, height: 40 });
+    }
+
+    const appendSpy = vi.spyOn(layer, 'appendChild');
+    const originalGetComputedStyle = window.getComputedStyle.bind(window);
+    const appendCountsAtStyleRead: number[] = [];
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element, pseudoElement) => {
+      appendCountsAtStyleRead.push(appendSpy.mock.calls.length);
+      return originalGetComputedStyle(element, pseudoElement);
+    });
+
+    pluginState.selectedBlocks = [{ from: 0, to: 1 }, { from: 1, to: 2 }];
+    overlay.update(view);
+
+    expect(layer.querySelectorAll('.editor-block-selection-line-fill')).toHaveLength(2);
+    expect(appendCountsAtStyleRead.length).toBeGreaterThan(1);
+    expect(appendCountsAtStyleRead.every((count) => count === 0)).toBe(true);
+    overlay.destroy();
+  });
+
+  it('updates line fills on the next frame while a block selection drag is pending', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
     const host = document.createElement('div');
     const editorDom = document.createElement('div');
     const paragraph = document.createElement('p');
@@ -349,6 +409,62 @@ describe('blockSelectionLineFillOverlay', () => {
     pluginState.selectedBlocks = [{ from: 0, to: 1 }];
     overlay.update(view);
 
+    expect(host.querySelector('.editor-block-selection-line-fill')).toBeNull();
+    animationFrames.shift()?.(0);
+    expect(host.querySelector('.editor-block-selection-line-fill')).not.toBeNull();
+    overlay.destroy();
+  });
+
+  it('keeps existing line fills when ordinary selected blocks change during a drag', () => {
+    const host = document.createElement('div');
+    const editorDom = document.createElement('div');
+    const paragraph = document.createElement('p');
+    const image = document.createElement('div');
+    const pluginState = { selectedBlocks: [{ from: 0, to: 1 }] };
+    const view = {
+      dom: editorDom,
+      state: {
+        doc: {
+          content: { size: 2 },
+          childCount: 0,
+          child: vi.fn(),
+          resolve: vi.fn(() => ({ nodeBefore: null })),
+        },
+        [blankAreaDragBoxPluginKey.key]: pluginState,
+      },
+    } as unknown as EditorView;
+
+    document.body.appendChild(host);
+    host.appendChild(editorDom);
+    paragraph.className = 'editor-paragraph-has-image-block';
+    image.className = 'image-block-container editor-block-selected';
+    paragraph.appendChild(image);
+    editorDom.appendChild(paragraph);
+
+    const hostRect = {
+      x: 100,
+      y: 20,
+      left: 100,
+      top: 20,
+      right: 600,
+      bottom: 420,
+      width: 500,
+      height: 400,
+      toJSON: () => ({}),
+    } as DOMRect;
+    const hostRectSpy = vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(hostRect);
+    mockRect(editorDom, { left: 100, top: 20, right: 600, bottom: 420, width: 500, height: 400 });
+    mockRect(paragraph, { left: 100, top: 80, right: 600, bottom: 180, width: 500, height: 100 });
+    mockRect(image, { left: 100, top: 96, right: 100, bottom: 156, width: 0, height: 60 });
+
+    const overlay = createBlockSelectionLineFillOverlay(view);
+    expect(hostRectSpy).toHaveBeenCalledTimes(1);
+
+    editorDom.classList.add('editor-block-selection-pending');
+    pluginState.selectedBlocks = [{ from: 0, to: 1 }, { from: 1, to: 2 }];
+    overlay.update(view);
+
+    expect(hostRectSpy).toHaveBeenCalledTimes(1);
     expect(host.querySelector('.editor-block-selection-line-fill')).not.toBeNull();
     overlay.destroy();
   });

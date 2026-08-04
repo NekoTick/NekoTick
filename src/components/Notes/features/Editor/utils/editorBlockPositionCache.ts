@@ -88,6 +88,13 @@ export function getCachedEditorBlockTargets(
   return getCachedEditorBlockTargetsFromSnapshot(currentSnapshot, view, ranges);
 }
 
+export function getInteractionCachedEditorBlockTargets(
+  view: EditorView,
+  ranges?: readonly { from: number; to: number }[],
+): SelectableBlockTarget[] | null {
+  return getCachedEditorBlockTargetsFromSnapshot(currentSnapshot, view, ranges, false);
+}
+
 export function getFreshCachedEditorBlockTargets(
   view: EditorView,
   scrollRoot: HTMLElement | null,
@@ -110,6 +117,14 @@ export function getCachedEditorBlockTargetNearY(
   return getCachedEditorBlockTargetNearYFromSnapshot(currentSnapshot, view, clientY, predicate);
 }
 
+export function getInteractionCachedEditorBlockTargetNearY(
+  view: EditorView,
+  clientY: number,
+  predicate?: (block: EditorBlockPositionEntry) => boolean,
+): SelectableBlockTarget | null {
+  return getCachedEditorBlockTargetNearYFromSnapshot(currentSnapshot, view, clientY, predicate, false);
+}
+
 export function getCachedEditorBlockTargetsNearY(
   view: EditorView,
   clientY: number,
@@ -123,6 +138,42 @@ export function getCachedEditorBlockTargetsNearY(
     isNearRect,
     predicate,
   );
+}
+
+export function getInteractionCachedEditorBlockTargetsNearY(
+  view: EditorView,
+  clientY: number,
+  isNearRect: (rect: Pick<DOMRect, 'top' | 'bottom' | 'height'>, clientY: number) => boolean,
+  predicate?: (block: EditorBlockPositionEntry) => boolean,
+): SelectableBlockTarget[] | null {
+  return getCachedEditorBlockTargetsNearYFromSnapshot(
+    currentSnapshot,
+    view,
+    clientY,
+    isNearRect,
+    predicate,
+    false,
+  );
+}
+
+export function getInteractionCachedEditorGeometry(
+  view: EditorView,
+): Pick<EditorBlockPositionSnapshot, 'editorRect' | 'scrollRootRect'> | null {
+  const snapshot = currentSnapshot;
+  if (
+    !snapshot
+    || snapshot.view !== view
+    || snapshot.doc !== view.state.doc
+    || snapshot.editorRoot !== view.dom
+    || snapshot.scrollRoot !== view.dom.closest('[data-note-scroll-root="true"]')
+    || !snapshot.editorRoot.isConnected
+  ) {
+    return null;
+  }
+  return {
+    editorRect: snapshot.editorRect,
+    scrollRootRect: snapshot.scrollRootRect,
+  };
 }
 
 export function createCurrentEditorBlockPositionController(

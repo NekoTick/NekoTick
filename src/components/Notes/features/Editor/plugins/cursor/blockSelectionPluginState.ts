@@ -15,12 +15,13 @@ const BLOCK_SELECTION_LARGE_CLASS = 'editor-block-selection-large';
 export interface BlankAreaDragBoxState {
   selectedBlocks: BlockRange[];
   decorations: DecorationSet;
+  decorationsDeferred: boolean;
   editableMarkdownBlankLineDecorations: DecorationSet;
   interactionDecorations: DecorationSet;
 }
 
 export type BlockSelectionAction =
-  | { type: 'set-blocks'; blocks: BlockRange[] }
+  | { type: 'set-blocks'; blocks: BlockRange[]; deferDecorations?: boolean }
   | { type: 'clear-blocks' };
 
 export const blankAreaDragBoxPluginKey = new PluginKey<BlankAreaDragBoxState>('blankAreaDragBox');
@@ -28,6 +29,7 @@ export const blankAreaDragBoxPluginKey = new PluginKey<BlankAreaDragBoxState>('b
 export const EMPTY_BLOCK_SELECTION_PLUGIN_STATE: BlankAreaDragBoxState = {
   selectedBlocks: [],
   decorations: DecorationSet.empty,
+  decorationsDeferred: false,
   editableMarkdownBlankLineDecorations: DecorationSet.empty,
   interactionDecorations: DecorationSet.empty,
 };
@@ -63,11 +65,19 @@ export function setBlockSelectionVisualState(
   active: boolean,
   large = isLargeBlockSelectionDocument(view.state.doc),
 ): void {
-  view.dom.classList.toggle(BLOCK_SELECTION_ACTIVE_CLASS, active && !large);
-  view.dom.classList.toggle(BLOCK_SELECTION_LARGE_CLASS, large);
-  view.dom.style.caretColor = active && large
+  const showActiveClass = active && !large;
+  if (view.dom.classList.contains(BLOCK_SELECTION_ACTIVE_CLASS) !== showActiveClass) {
+    view.dom.classList.toggle(BLOCK_SELECTION_ACTIVE_CLASS, showActiveClass);
+  }
+  if (view.dom.classList.contains(BLOCK_SELECTION_LARGE_CLASS) !== large) {
+    view.dom.classList.toggle(BLOCK_SELECTION_LARGE_CLASS, large);
+  }
+  const caretColor = active && large
     ? themeStyleResetTokens.colorTransparent
     : '';
+  if (view.dom.style.caretColor !== caretColor) {
+    view.dom.style.caretColor = caretColor;
+  }
 }
 
 export function setBlockSelectionEnabled(view: EditorView, enabled: boolean): void {
@@ -75,10 +85,10 @@ export function setBlockSelectionEnabled(view: EditorView, enabled: boolean): vo
 }
 
 export function syncBlockSelectionVisualState(view: EditorView): void {
-  const { selectedBlocks } = getBlockSelectionPluginState(view.state);
+  const { decorationsDeferred, selectedBlocks } = getBlockSelectionPluginState(view.state);
   setBlockSelectionVisualState(
     view,
-    selectedBlocks.length > 0,
+    selectedBlocks.length > 0 && !decorationsDeferred,
     isLargeBlockSelectionDocument(view.state.doc)
       || isLargeBlockSelection(selectedBlocks, view.state.doc),
   );

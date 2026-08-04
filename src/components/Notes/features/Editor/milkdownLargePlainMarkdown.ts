@@ -4,11 +4,14 @@ import type { ProseMirrorJSONNode } from './MilkdownEditorInnerTypes';
 const LARGE_PLAIN_MARKDOWN_FAST_PARSE_MIN_LENGTH = 1_000_000;
 const LAZY_BLOCK_VISIBILITY_MIN_LENGTH = 60_000;
 const LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES = 500;
+const LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_MIN_LINES = 40;
+const LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_LINE_RATIO = 5;
 const MARKDOWN_BLANK_LINE_COMMENT = '<!--vlaina-markdown-blank-line-->';
 const FAST_PARSE_DISALLOWED_TEXT_PATTERN = /[`*_~[\]()<>\\|&]/;
 const FAST_PARSE_GFM_AUTOLINK_TEXT_PATTERN = /(?:https?:\/\/|www\.|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/i;
 const FAST_PARSE_HEADING_PATTERN = /^(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/;
 const FAST_PARSE_STRUCTURAL_LINE_PATTERN = /^(?: {0,3})(?:[-+*]\s+|\d+[.)]\s+|:\s+|(?:[-*_][ \t]*){3,}$|=+[ \t]*$)/;
+const LAZY_BLOCK_VISIBILITY_HEAVY_LINE_PATTERN = /^(?:`{3,}|~{3,}|\$\$\s*$|<(?:!--|\/?[A-Za-z]))/;
 
 function needsFullMarkdownInlineParsing(text: string): boolean {
   return FAST_PARSE_DISALLOWED_TEXT_PATTERN.test(text) || FAST_PARSE_GFM_AUTOLINK_TEXT_PATTERN.test(text);
@@ -24,14 +27,19 @@ function hasLargeScrollableMarkdownShape(markdown: string): boolean {
   }
 
   let nonEmptyLines = 0;
+  let heavyBlockLines = 0;
   let lineStart = 0;
   while (lineStart < markdown.length) {
     const nextBreak = markdown.indexOf('\n', lineStart);
     const lineEnd = nextBreak === -1 ? markdown.length : nextBreak;
-    if (markdown.slice(lineStart, lineEnd).trim().length > 0) {
+    const trimmedLine = markdown.slice(lineStart, lineEnd).trim();
+    if (trimmedLine.length > 0) {
       nonEmptyLines += 1;
-      if (nonEmptyLines >= LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES) {
-        return true;
+      if (
+        LAZY_BLOCK_VISIBILITY_HEAVY_LINE_PATTERN.test(trimmedLine)
+        || (trimmedLine.startsWith('|') && trimmedLine.endsWith('|'))
+      ) {
+        heavyBlockLines += 1;
       }
     }
 
@@ -41,7 +49,15 @@ function hasLargeScrollableMarkdownShape(markdown: string): boolean {
     lineStart = nextBreak + 1;
   }
 
-  return false;
+  if (nonEmptyLines < LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES) {
+    return false;
+  }
+
+  const hasDenseHeavyBlocks = (
+    heavyBlockLines >= LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_MIN_LINES
+    && heavyBlockLines * LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_LINE_RATIO >= nonEmptyLines
+  );
+  return !hasDenseHeavyBlocks;
 }
 
 export function createLargePlainMarkdownDocJSON(markdown: string): ProseMirrorJSONNode | null {

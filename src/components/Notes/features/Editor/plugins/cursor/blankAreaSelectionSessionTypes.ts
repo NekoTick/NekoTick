@@ -18,6 +18,7 @@ export interface StartBlankAreaSelectionSessionOptions {
   dragThreshold: number;
   cursor: string;
   dragBoxColor: string;
+  useSelectionPreview?: boolean;
   scrollRootSelector: string;
   initialSelectedBlocks: readonly BlockRange[];
   onSelectionChange: (blocks: BlockRange[]) => void;

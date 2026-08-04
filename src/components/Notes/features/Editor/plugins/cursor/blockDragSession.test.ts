@@ -130,12 +130,15 @@ describe('startBlockDragSession', () => {
 
     expect(onActivate).toHaveBeenCalledTimes(1);
     expect(onDragMove).toHaveBeenCalledTimes(1);
-    expect(onDragMove).toHaveBeenCalledWith({
-      left: 24,
-      top: 30,
-      right: 40,
-      bottom: 54,
-    });
+    expect(onDragMove).toHaveBeenCalledWith(
+      {
+        left: 24,
+        top: 30,
+        right: 40,
+        bottom: 54,
+      },
+      { clientX: 24, clientY: 54 },
+    );
     expect(view.dom.classList.contains('editor-block-selection-pending')).toBe(true);
     expect(document.querySelector('.editor-block-selection-interaction-shield')).not.toBeNull();
     expect(document.body.classList.contains('editor-block-dragging-cursor')).toBe(false);
@@ -152,6 +155,92 @@ describe('startBlockDragSession', () => {
     expect(document.querySelector('.editor-block-selection-interaction-shield')).toBeNull();
     expect(document.body.classList.contains('editor-block-dragging-cursor')).toBe(false);
     expect(document.body.style.userSelect).toBe('');
+  });
+
+  it('coalesces follow-up moves per frame and flushes the latest move on mouse up', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(vi.fn());
+    const { view } = setupViewDom();
+    const onDragMove = vi.fn();
+    const onPointerMove = vi.fn();
+
+    startBlockDragSession({
+      view,
+      event: new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 10,
+        clientY: 20,
+      }),
+      startZone: 'outside-editor',
+      dragThreshold: 1,
+      cursor: 'crosshair',
+      onActivate: vi.fn(),
+      onPointerMove,
+      onDragMove,
+      onPlainClick: vi.fn(),
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      buttons: 1,
+      clientX: 20,
+      clientY: 30,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      buttons: 1,
+      clientX: 30,
+      clientY: 40,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      buttons: 1,
+      clientX: 40,
+      clientY: 50,
+    }));
+
+    expect(onDragMove).toHaveBeenCalledTimes(1);
+    animationFrames.shift()?.(16);
+    expect(onDragMove).toHaveBeenCalledTimes(2);
+    expect(onPointerMove).toHaveBeenLastCalledWith({ clientX: 40, clientY: 50 });
+    expect(onDragMove).toHaveBeenLastCalledWith(
+      {
+        left: 10,
+        top: 20,
+        right: 40,
+        bottom: 50,
+      },
+      { clientX: 40, clientY: 50 },
+    );
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      buttons: 1,
+      clientX: 50,
+      clientY: 60,
+    }));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    expect(onDragMove).toHaveBeenCalledTimes(3);
+    expect(onDragMove).toHaveBeenLastCalledWith(
+      {
+        left: 10,
+        top: 20,
+        right: 50,
+        bottom: 60,
+      },
+      { clientX: 50, clientY: 60 },
+    );
+    expect(cancelAnimationFrame).toHaveBeenCalled();
   });
 
   it('avoids mutating the ProseMirror class list for large document drags', () => {
@@ -185,6 +274,7 @@ describe('startBlockDragSession', () => {
     expect(view.dom.classList.contains('editor-block-selection-pending')).toBe(false);
     expect(document.querySelector('.editor-block-selection-interaction-shield')).not.toBeNull();
     expect(isBlockSelectionInteractionPending(view.dom)).toBe(true);
+    expect(view.dom.style.cursor).toBe('');
 
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     expect(document.querySelector('.editor-block-selection-interaction-shield')).toBeNull();

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getSidebarIdleRowSurfaceClass,
@@ -71,36 +71,39 @@ describe('EditorOutlineRail', () => {
     rows.forEach((row) => expect(row).not.toHaveAttribute('tabindex', '-1'));
   });
 
-  it('expands on hover and keyboard focus, then collapses after leaving', () => {
+  it('expands on hover and keyboard focus, then collapses after leaving', async () => {
     const { container } = render(<EditorOutlineRail enabled />);
     const rail = container.querySelector<HTMLElement>('[data-editor-outline-rail="true"]')!;
     const panel = container.querySelector<HTMLElement>('[data-editor-outline-panel="true"]');
+    const scrollArea = container.querySelector<HTMLElement>('.editor-outline-scroll-area')!;
     const overview = screen.getByRole('button', { name: 'Overview' });
 
     expect(rail).toHaveAttribute('data-expanded', 'false');
 
-    fireEvent.mouseEnter(rail);
-    expect(rail).toHaveAttribute('data-expanded', 'true');
+    fireEvent.mouseEnter(scrollArea);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'true'));
     expect(panel?.className).toContain(raisedPillSurfaceClass);
     expect(screen.getByRole('button', { name: 'Introduction' }).className)
       .toContain(getSidebarIdleRowSurfaceClass('notes'));
     expect(overview.className).toContain(getSidebarSelectedRowSurfaceClass('notes'));
 
-    fireEvent.mouseLeave(rail);
-    expect(rail).toHaveAttribute('data-expanded', 'false');
+    fireEvent.mouseLeave(scrollArea);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'false'));
     expect(panel?.className).not.toContain(raisedPillSurfaceClass);
 
     fireEvent.focus(overview);
-    expect(rail).toHaveAttribute('data-expanded', 'true');
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'true'));
 
     fireEvent.blur(overview, { relatedTarget: document.body });
-    expect(rail).toHaveAttribute('data-expanded', 'false');
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'false'));
   });
 
-  it('returns collapsed after the toolbar temporarily hides it', () => {
-    const { rerender } = render(<EditorOutlineRail enabled />);
+  it('returns collapsed after the toolbar temporarily hides it', async () => {
+    const { container, rerender } = render(<EditorOutlineRail enabled />);
     const rail = document.querySelector<HTMLElement>('[data-editor-outline-rail="true"]')!;
-    fireEvent.mouseEnter(rail);
+    const scrollArea = container.querySelector<HTMLElement>('.editor-outline-scroll-area')!;
+    fireEvent.mouseEnter(scrollArea);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'true'));
 
     rerender(<EditorOutlineRail enabled={false} />);
     expect(screen.queryByRole('navigation', { name: 'notes.documentOutline' })).not.toBeInTheDocument();

@@ -15,9 +15,15 @@ interface StartBlockDragSessionOptions {
   cursor: string;
   cursorRoot?: HTMLElement | null;
   onActivate: () => void;
-  onDragMove: (selectionRect: RectBounds) => void;
+  onPointerMove?: (pointer: BlockDragPointer) => void;
+  onDragMove: (selectionRect: RectBounds, pointer: BlockDragPointer) => void;
   onPlainClick: (startZone: BlockDragStartZone) => void;
   onTeardown?: () => void;
+}
+
+export interface BlockDragPointer {
+  clientX: number;
+  clientY: number;
 }
 
 export interface BlockDragSessionHandle {
@@ -44,6 +50,9 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
   let stopped = false;
   let visualStateApplied = false;
   let interactionShield: HTMLDivElement | null = null;
+  let dragMoveRafId = 0;
+  let pendingDragMove: { rect: RectBounds; pointer: BlockDragPointer } | null = null;
+  let hasDispatchedDragMove = false;
   const shouldApplyPendingDomClass = !view.dom.classList.contains(BLOCK_SELECTION_LARGE_CLASS);
 
   const editorRoot = view.dom.closest('.milkdown-editor') as HTMLElement | null;
@@ -81,23 +90,57 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
       ownerDocument.body.appendChild(interactionShield);
       visualStateApplied = true;
     }
-    cursorRoot.style.cursor = nextCursor;
-    view.dom.style.cursor = nextCursor;
-    if (editorRoot && editorRoot !== cursorRoot) editorRoot.style.cursor = nextCursor;
+    if (shouldApplyPendingDomClass) {
+      cursorRoot.style.cursor = nextCursor;
+      view.dom.style.cursor = nextCursor;
+      if (editorRoot && editorRoot !== cursorRoot) editorRoot.style.cursor = nextCursor;
+    }
+  };
+
+  const flushPendingDragMove = () => {
+    if (dragMoveRafId !== 0) {
+      ownerWindow.cancelAnimationFrame(dragMoveRafId);
+      dragMoveRafId = 0;
+    }
+    const nextMove = pendingDragMove;
+    pendingDragMove = null;
+    if (!nextMove || stopped) return;
+    onDragMove(nextMove.rect, nextMove.pointer);
+  };
+
+  const scheduleDragMove = (selectionRect: RectBounds, pointer: BlockDragPointer) => {
+    pendingDragMove = { rect: selectionRect, pointer };
+    if (dragMoveRafId !== 0) return;
+    dragMoveRafId = ownerWindow.requestAnimationFrame(() => {
+      dragMoveRafId = 0;
+      const nextMove = pendingDragMove;
+      pendingDragMove = null;
+      if (!nextMove || stopped) return;
+      onDragMove(nextMove.rect, nextMove.pointer);
+    });
   };
 
   const teardown = () => {
     if (stopped) return;
     stopped = true;
-    cursorRoot.style.cursor = previousCursorRootCursor;
+    if (dragMoveRafId !== 0) {
+      ownerWindow.cancelAnimationFrame(dragMoveRafId);
+      dragMoveRafId = 0;
+    }
+    pendingDragMove = null;
+    if (shouldApplyPendingDomClass) {
+      cursorRoot.style.cursor = previousCursorRootCursor;
+    }
     if (visualStateApplied && shouldApplyPendingDomClass) {
       view.dom.classList.remove(BLOCK_SELECTION_PENDING_CLASS);
     }
     interactionShield?.remove();
     interactionShield = null;
     setBlockSelectionInteractionPending(view.dom, false);
-    view.dom.style.cursor = previousViewCursor;
-    if (editorRoot && editorRoot !== cursorRoot) editorRoot.style.cursor = previousEditorRootCursor;
+    if (shouldApplyPendingDomClass) {
+      view.dom.style.cursor = previousViewCursor;
+      if (editorRoot && editorRoot !== cursorRoot) editorRoot.style.cursor = previousEditorRootCursor;
+    }
     ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
     ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
     ownerWindow.removeEventListener('blur', handleWindowBlur);
@@ -123,8 +166,18 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
     }
 
     moveEvent.preventDefault();
+    const pointer = {
+      clientX: moveEvent.clientX,
+      clientY: moveEvent.clientY,
+    };
+    options.onPointerMove?.(pointer);
     const selectionRect = createDragSelectionRect(startX, startY, moveEvent.clientX, moveEvent.clientY);
-    onDragMove(selectionRect);
+    if (!hasDispatchedDragMove) {
+      hasDispatchedDragMove = true;
+      onDragMove(selectionRect, pointer);
+      return;
+    }
+    scheduleDragMove(selectionRect, pointer);
   };
 
   const handleMouseUp = (upEvent: MouseEvent) => {
@@ -133,6 +186,7 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
       suppressFollowUpClick();
     } else {
       upEvent.preventDefault();
+      flushPendingDragMove();
       suppressFollowUpClick();
     }
     teardown();

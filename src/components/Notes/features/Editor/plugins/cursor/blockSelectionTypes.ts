@@ -28,6 +28,11 @@ export interface BlockRectYIndex {
 
 export const LARGE_BLOCK_SELECTION_RENDERING_THRESHOLD = 64;
 export const LARGE_BLOCK_SELECTION_DOCUMENT_CHILD_THRESHOLD = 256;
+export const BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD = 32;
+
+export function shouldRenderBlockSelectionWithPreview(selectedBlockCount: number): boolean {
+  return selectedBlockCount >= BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD;
+}
 
 export function isLargeBlockSelectionDocument(doc: { childCount: number }): boolean {
   return doc.childCount >= LARGE_BLOCK_SELECTION_DOCUMENT_CHILD_THRESHOLD;

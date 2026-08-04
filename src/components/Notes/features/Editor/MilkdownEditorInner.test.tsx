@@ -1284,4 +1284,42 @@ describe('shouldUseLazyBlockVisibility', () => {
     expect(markdown.length).toBeGreaterThan(100_000);
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
   });
+
+  it('keeps dense heavy block markdown on stable block layout', () => {
+    const markdown = [
+      '# Dense Heavy Manual',
+      '',
+      ...Array.from({ length: 100 }, (_, index) => [
+        `## Section ${index}`,
+        '```txt',
+        `heavy fenced block ${index}`,
+        '```',
+        `| Feature ${index} | Value |`,
+        '| --- | --- |',
+        `| Row ${index} | ${index} |`,
+        `<video src="./assets/${index}.mp4"></video>`,
+        `<iframe src="https://example.invalid/${index}"></iframe>`,
+        `Section prose ${index} ${'ordinary text '.repeat(35)}`,
+        '',
+      ].join('\n')),
+    ].join('\n');
+
+    expect(markdown.length).toBeGreaterThan(60_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
+  });
+
+  it('keeps sparse heavy blocks lazy in an otherwise ordinary long note', () => {
+    const markdown = [
+      '# Sparse Heavy Manual',
+      '',
+      ...Array.from({ length: 600 }, (_, index) => (
+        index % 100 === 0
+          ? `| Feature ${index} | Value |\n| --- | --- |\n| Row ${index} | ${index} |`
+          : `Section ${index} with **mixed** syntax and enough prose to create a rendered block. ${'more prose '.repeat(8)}`
+      )),
+    ].join('\n\n');
+
+    expect(markdown.length).toBeGreaterThan(60_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
+  });
 });

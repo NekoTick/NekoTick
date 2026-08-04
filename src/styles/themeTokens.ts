@@ -807,6 +807,12 @@ export const themeCaretOverlayTokens = {
   opacityHidden: 0,
 } as const;
 
+export const themeBlockSelectionPreviewTokens = {
+  horizontalBleedPx: 72,
+  spacingYPx: 1,
+  radiusPx: 8,
+} as const;
+
 export const themeStyleResetTokens = {
   animationNone: 'none',
   backgroundTransparent: 'transparent',
@@ -814,6 +820,7 @@ export const themeStyleResetTokens = {
   borderNoneImportant: 'none !important',
   borderRadiusNone: '0',
   boxShadowNone: 'none',
+  clipPathNone: 'none',
   colorTransparent: 'transparent',
   colorTransparentImportant: 'transparent !important',
   currentColor: 'currentColor',
