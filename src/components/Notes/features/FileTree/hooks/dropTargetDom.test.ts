@@ -44,6 +44,14 @@ function createDropTargetTree() {
   childFolder.dataset.fileTreePath = 'docs/sub';
   folder.append(childFolder);
 
+  const virtualizedFolderFile = document.createElement('div');
+  virtualizedFolderFile.dataset.fileTreeKind = 'file';
+  virtualizedFolderFile.dataset.fileTreePath = 'docs/virtualized.md';
+  virtualizedFolderFile.dataset.fileTreeParentFolderPath = 'docs';
+  const virtualizedFolderFileLabel = document.createElement('span');
+  virtualizedFolderFile.append(virtualizedFolderFileLabel);
+  root.append(virtualizedFolderFile);
+
   document.body.append(root);
 
   return {
@@ -54,6 +62,7 @@ function createDropTargetTree() {
     folderSpacer,
     folderFile,
     childFolder,
+    virtualizedFolderFileLabel,
   };
 }
 
@@ -98,11 +107,20 @@ describe('dropTargetDom', () => {
     expect(resolveExternalFolderDropTargetPath(1, 1)).toBe('docs/sub');
   });
 
-  it('rejects invalid internal move targets after resolving root and folder hits', () => {
+  it('resolves flattened virtualized file rows to their recorded parent folder', () => {
+    const { virtualizedFolderFileLabel } = createDropTargetTree();
+
+    setElementsFromPoint([virtualizedFolderFileLabel]);
+    expect(resolveExternalFolderDropTargetPath(1, 1)).toBe('docs');
+    expect(resolveInternalMoveDropTargetPath(1, 1, 'archive/source.md')).toBe('docs');
+    expect(resolveInternalMoveDropTargetPath(1, 1, 'docs/source.md')).toBe('docs');
+  });
+
+  it('keeps current parents as feedback targets while rejecting other invalid moves', () => {
     const { root, folder, childFolder } = createDropTargetTree();
 
     setElementsFromPoint([folder]);
-    expect(resolveInternalMoveDropTargetPath(1, 1, 'docs/a.md')).toBeNull();
+    expect(resolveInternalMoveDropTargetPath(1, 1, 'docs/a.md')).toBe('docs');
 
     setElementsFromPoint([childFolder]);
     expect(resolveInternalMoveDropTargetPath(1, 1, 'docs')).toBeNull();

@@ -8,6 +8,7 @@ const hoisted = vi.hoisted(() => ({
   renameCurrentNotesRoot: vi.fn(() => Promise.resolve(true)),
   setFileTreeSortMode: vi.fn(),
   toggleFolder: vi.fn(),
+  internalDropTargetPath: null as string | null,
 }));
 
 vi.mock('@/components/ui/icons', () => ({
@@ -31,7 +32,9 @@ vi.mock('@/stores/useNotesRootStore', () => ({
 }));
 
 vi.mock('../FileTree/hooks/fileTreePointerDragState', () => ({
-  useFileTreePointerDragState: () => false,
+  useIsFileTreePointerFolderDropTarget: (path: string, enabled: boolean) => (
+    enabled && hoisted.internalDropTargetPath === path
+  ),
 }));
 
 vi.mock('../FileTree/hooks/externalFileTreeDropState', () => ({
@@ -64,6 +67,7 @@ describe('RootFolderRow', () => {
     vi.clearAllMocks();
     hoisted.notesPath = '';
     hoisted.currentNotesRoot = { path: '/notesRoot', name: 'NotesRoot' };
+    hoisted.internalDropTargetPath = null;
   });
 
   it('does not show a root loading shell when no notes target is open', () => {
@@ -92,5 +96,36 @@ describe('RootFolderRow', () => {
     );
 
     expect(container.querySelector('[data-notes-sidebar-root-loading-shell="true"]')).not.toBeNull();
+  });
+
+  it('uses background-only feedback for an expanded root drag target', () => {
+    hoisted.internalDropTargetPath = '';
+    const { container } = render(
+      <RootFolderRow
+        rootFolder={{
+          id: 'root',
+          name: 'NotesRoot',
+          path: '',
+          isFolder: true,
+          expanded: true,
+          children: [{
+            id: 'inside',
+            name: 'inside.md',
+            path: 'inside.md',
+            isFolder: false,
+          }],
+        }}
+        isLoading={false}
+        onCreateNote={vi.fn(() => Promise.resolve())}
+        onCreateFolder={vi.fn(() => Promise.resolve(null))}
+      />,
+    );
+
+    const root = container.querySelector('[data-file-tree-primary="true"]');
+    const classNames = root?.className.split(/\s+/) ?? [];
+
+    expect(root).toHaveClass('bg-[var(--vlaina-sidebar-notes-row-drag)]');
+    expect(classNames.some((className) => className.startsWith('ring-'))).toBe(false);
+    expect(classNames.some((className) => className.startsWith('shadow-'))).toBe(false);
   });
 });

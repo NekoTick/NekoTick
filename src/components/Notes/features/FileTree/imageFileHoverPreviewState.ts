@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { isFileTreePointerDragActive } from './hooks/fileTreePointerDragStore';
 
 export interface ImageFileHoverPreviewTarget {
   imagePath: string;
@@ -13,6 +14,9 @@ function emitChange() {
 }
 
 export function showImageFileHoverPreview(nextTarget: ImageFileHoverPreviewTarget) {
+  if (isFileTreePointerDragActive()) {
+    return;
+  }
   target = nextTarget;
   emitChange();
 }

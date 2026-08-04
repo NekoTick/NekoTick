@@ -17,4 +17,22 @@ describe('NotesSidebarRow', () => {
     expect(fade).toHaveClass('group-hover/sidebar-row:from-transparent');
     expect(fade?.className).not.toContain('from-[var(--vlaina-sidebar-notes-fade)]');
   });
+
+  it('uses background-only feedback for drag targets', () => {
+    render(
+      <NotesSidebarRow
+        main={<span>target</span>}
+        isDragOver
+      />,
+    );
+
+    const row = screen.getByText('target').parentElement?.parentElement;
+    const classNames = row?.className.split(/\s+/) ?? [];
+
+    expect(row).toHaveClass('bg-[var(--vlaina-sidebar-notes-row-drag)]');
+    expect(classNames.some((className) => className.startsWith('ring-'))).toBe(false);
+    expect(classNames.filter((className) => className.startsWith('shadow-'))).toEqual([
+      'shadow-[var(--vlaina-shadow-none)]',
+    ]);
+  });
 });

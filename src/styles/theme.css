@@ -1078,7 +1078,6 @@
   --vlaina-shadow-selection-soft: 0 2px 8px rgba(30, 150, 235, 0.06);
   --vlaina-shadow-sidebar-row-hover: 0 8px 18px -14px rgb(15 23 42 / 0.28);
   --vlaina-shadow-accent-action: 0 0 0 3px rgba(65, 168, 234, 0.12), 0 10px 24px rgba(65, 168, 234, 0.28);
-  --vlaina-shadow-drag-row: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 10px 24px -18px rgba(30, 150, 235, 0.65);
   --vlaina-shadow-about-logo: 0 20px 40px rgba(122, 162, 247, 0.16), 0 8px 24px rgba(247, 125, 170, 0.12);
   --vlaina-code-block-background: #f5f5f5;
   --vlaina-code-inline-background-light: #f0f1f2;
@@ -1537,7 +1536,6 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-shadow-selection-soft: 0 2px 8px rgba(30, 150, 235, 0.12);
   --vlaina-shadow-sidebar-row-hover: 0 10px 22px -16px color-mix(in srgb, var(--vlaina-sidebar-row-hover) 82%, white 18%), 0 14px 28px -22px rgb(0 0 0 / 0.85);
   --vlaina-shadow-accent-action: 0 0 0 3px rgba(65, 168, 234, 0.16), 0 10px 24px rgba(65, 168, 234, 0.24);
-  --vlaina-shadow-drag-row: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 10px 24px -18px rgba(30, 150, 235, 0.75);
   --vlaina-shadow-about-logo: 0 20px 40px rgba(65, 168, 234, 0.24), 0 8px 20px rgba(240, 138, 166, 0.16);
   --vlaina-sidebar-row-selected-bg: rgb(65 168 234 / 0.16);
   --vlaina-sidebar-row-selected-text: #7cc7f5;

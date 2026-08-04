@@ -1,4 +1,4 @@
-export type FileTreePointerDragSourceKind = 'note' | 'folder';
+export type FileTreePointerDragSourceKind = 'note' | 'folder' | 'image';
 export type FileTreePointerDropTargetKind = 'folder' | 'starred' | null;
 
 export const FILE_TREE_CHAT_DROP_TARGET_SELECTOR = '[data-file-tree-chat-drop-target="true"]';
@@ -6,7 +6,7 @@ export const FILE_TREE_CHAT_DROP_EVENT = 'file-tree-chat-drop';
 
 export interface FileTreeChatDropDetail {
   path: string;
-  kind: FileTreePointerDragSourceKind;
+  kind: 'note' | 'folder';
 }
 
 export interface FileTreePointerDragSnapshot {

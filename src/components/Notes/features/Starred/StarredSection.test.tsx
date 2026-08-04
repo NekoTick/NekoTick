@@ -33,8 +33,8 @@ const mocked = vi.hoisted(() => ({
 
 vi.mock('../FileTree/hooks/fileTreePointerDragState', () => ({
   requestFileTreePointerDragDropTargetUpdate: mocked.requestFileTreePointerDragDropTargetUpdate,
-  useFileTreePointerDragState: (selector: (snapshot: typeof mocked.dragSnapshot) => unknown) =>
-    selector(mocked.dragSnapshot),
+  useIsFileTreePointerDragActive: () => mocked.dragSnapshot.activeSourcePath !== null,
+  useIsFileTreePointerStarredDropTarget: () => mocked.dragSnapshot.dropTargetKind === 'starred',
 }));
 
 vi.mock('../FileTree/hooks/externalFileTreeDropState', () => ({

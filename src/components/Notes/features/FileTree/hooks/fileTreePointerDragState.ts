@@ -1,5 +1,6 @@
 import { SIDEBAR_SCROLL_ROOT_SELECTOR } from '../../Sidebar/context-menu/shared';
 import { useNotesStore } from '@/stores/useNotesStore';
+import { isInvalidMoveTarget } from '@/stores/notes/utils/fs/moveValidation';
 import { dispatchNotesTabSplitDrag } from '../../Split/notesSplitDragEvents';
 import {
   themeDomStyleTokens,
@@ -22,6 +23,10 @@ import {
   getFileTreePointerDragSnapshot,
   setFileTreePointerDragSnapshot,
   useFileTreePointerDragState,
+  useIsFileTreePointerDragActive,
+  useIsFileTreePointerDragSource,
+  useIsFileTreePointerFolderDropTarget,
+  useIsFileTreePointerStarredDropTarget,
 } from './fileTreePointerDragStore';
 import { ensureStarredPath } from './fileTreePointerDragStarred';
 import {
@@ -30,11 +35,16 @@ import {
 } from './fileTreePointerDragAutoScroll';
 import { suppressNextFileTreePointerClick } from './fileTreePointerDragClickSuppression';
 import { resolveFileTreePointerDragDropTarget } from './fileTreePointerDragDropTarget';
+import { hideImageFileHoverPreview } from '../imageFileHoverPreviewState';
 
 export {
   FILE_TREE_CHAT_DROP_EVENT,
   FILE_TREE_CHAT_DROP_TARGET_SELECTOR,
   useFileTreePointerDragState,
+  useIsFileTreePointerDragActive,
+  useIsFileTreePointerDragSource,
+  useIsFileTreePointerFolderDropTarget,
+  useIsFileTreePointerStarredDropTarget,
   type FileTreeChatDropDetail,
   type FileTreePointerDragSourceKind,
 };
@@ -53,8 +63,11 @@ function updateDropTarget() {
   }
 
   const dropTarget = resolveFileTreePointerDragDropTarget(activeSession);
+  const starredDropChanged = activeSession.pendingStarredDrop !== dropTarget.pendingStarredDrop;
   activeSession.pendingStarredDrop = dropTarget.pendingStarredDrop;
-  setPreviewStarred(activeSession, dropTarget.pendingStarredDrop);
+  if (starredDropChanged) {
+    setPreviewStarred(activeSession, dropTarget.pendingStarredDrop);
+  }
   setFileTreePointerDragSnapshot({
     activeSourcePath: activeSession.sourcePath,
     dropTargetPath: dropTarget.dropTargetPath,
@@ -110,7 +123,6 @@ function handlePointerMove(event: PointerEvent) {
     activeSession.previewElement = previewElement;
     activeSession.previewOffsetX = Math.min(Math.max(activeSession.startX - rect.left, 16), rect.width - 16);
     activeSession.previewOffsetY = Math.min(Math.max(activeSession.startY - rect.top, 12), rect.height - 12);
-    updatePreviewPosition(activeSession);
     dispatchActiveNoteSplitDrag('start');
     dispatchActiveNoteSplitDrag('move');
     updateDropTarget();
@@ -165,7 +177,7 @@ function teardownPointerDrag() {
   document.removeEventListener('pointerup', handlePointerUp, true);
   document.removeEventListener('pointercancel', handlePointerCancel, true);
   document.removeEventListener('keydown', handleKeyDown, true);
-  window.removeEventListener('blur', handlePointerCancel, true);
+  window.removeEventListener('blur', handlePointerCancel);
 
   if (activeSession?.scrollRoot) {
     activeSession.scrollRoot.removeEventListener('scroll', handleScrollRootScroll, true);
@@ -210,8 +222,14 @@ function finishPointerDrag(shouldCommit: boolean) {
   );
   const dropTargetPath = snapshot.dropTargetPath;
   const dropTargetKind = snapshot.dropTargetKind;
-  const shouldMove = !shouldStar && shouldCommit && activeSession.activated && dropTargetKind === 'folder' && dropTargetPath != null;
-  const shouldDropToChat = shouldCommit
+  const shouldMove = !shouldStar
+    && shouldCommit
+    && activeSession.activated
+    && dropTargetKind === 'folder'
+    && dropTargetPath != null
+    && !isInvalidMoveTarget(sourcePath, dropTargetPath);
+  const shouldDropToChat = sourceKind !== 'image'
+    && shouldCommit
     && activeSession.activated
     && document
       .elementsFromPoint(activeSession.lastClientX, activeSession.lastClientY)
@@ -244,7 +262,7 @@ function finishPointerDrag(shouldCommit: boolean) {
     suppressNextFileTreePointerClick(activeSession);
   }
 
-  if (!shouldSplit && !shouldDropToChat && shouldStar) {
+  if (!shouldSplit && !shouldDropToChat && shouldStar && sourceKind !== 'image') {
     ensureStarredPath(sourceKind === 'folder' ? 'folder' : 'note', sourcePath);
   }
 
@@ -261,6 +279,9 @@ export function startFileTreePointerDrag(
 ) {
   if (activeSession) {
     finishPointerDrag(false);
+  }
+  if (sourceKind === 'image') {
+    hideImageFileHoverPreview(sourcePath);
   }
 
   activeSession = {
@@ -287,7 +308,7 @@ export function startFileTreePointerDrag(
   document.addEventListener('pointerup', handlePointerUp, true);
   document.addEventListener('pointercancel', handlePointerCancel, true);
   document.addEventListener('keydown', handleKeyDown, true);
-  window.addEventListener('blur', handlePointerCancel, true);
+  window.addEventListener('blur', handlePointerCancel);
 }
 
 export function requestFileTreePointerDragDropTargetUpdate() {

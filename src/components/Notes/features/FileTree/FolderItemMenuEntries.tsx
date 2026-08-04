@@ -33,21 +33,21 @@ export function createFolderMenuEntries({
 }: CreateFolderMenuEntriesArgs): NotesSidebarMenuEntry[] {
   return [
     {
-      key: 'rename',
-      icon: <Icon name="common.compose" size="md" />,
-      label: t('sidebar.rename'),
-      onClick: () => {
-        setIsRenaming(true);
-        setShowMenu(false);
-      },
-    },
-    {
       key: 'new-note',
       icon: <Icon name="file.add" size="md" />,
       label: t('sidebar.newNote'),
       onClick: async () => {
         setShowMenu(false);
         await createNote(nodePath, { asDraft: true });
+      },
+    },
+    {
+      key: 'rename',
+      icon: <Icon name="common.compose" size="md" />,
+      label: t('sidebar.rename'),
+      onClick: () => {
+        setIsRenaming(true);
+        setShowMenu(false);
       },
     },
     {

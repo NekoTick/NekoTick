@@ -120,7 +120,7 @@ export function RootFolderRow({
         'py-1',
         isRootBusy && 'pointer-events-none',
         isExpandedRootDragOver &&
-        'rounded-[var(--vlaina-notes-ui-radius-compact)] bg-[var(--vlaina-sidebar-notes-row-drag)] ring-1 ring-[var(--vlaina-accent)] shadow-[var(--vlaina-shadow-drag-row)]',
+        'rounded-[var(--vlaina-notes-ui-radius-compact)] bg-[var(--vlaina-sidebar-notes-row-drag)]',
       )}
       aria-busy={isRootBusy || undefined}
       data-file-tree-root-drop-target="true"

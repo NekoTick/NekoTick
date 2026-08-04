@@ -9,7 +9,7 @@ import {
   setHoveredSidebarRenamePath,
 } from '../common/sidebarHoverRename';
 import { useExternalFileTreeDropState } from '../FileTree/hooks/externalFileTreeDropState';
-import { useFileTreePointerDragState } from '../FileTree/hooks/fileTreePointerDragState';
+import { useIsFileTreePointerFolderDropTarget } from '../FileTree/hooks/fileTreePointerDragState';
 import { shouldVirtualizeFileTree } from '../FileTree/VirtualizedFileTree';
 import { countVisibleFileTreeRows } from '../FileTree/virtualFileTree';
 import { useRootBlankContextMenu } from './useRootBlankContextMenu';
@@ -49,9 +49,7 @@ export function useRootFolderRowController({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const isRenamingRef = useRef(false);
   const clickTimerRef = useRef<number | null>(null);
-  const isInternalRootDragOver = useFileTreePointerDragState(
-    (state) => active && state.dropTargetKind === 'folder' && state.dropTargetPath === '',
-  );
+  const isInternalRootDragOver = useIsFileTreePointerFolderDropTarget('', active);
   const isExternalRootDragOver = useExternalFileTreeDropState(
     (state) => active && state.dropTargetKind === 'folder' && state.dropTargetPath === '',
   );

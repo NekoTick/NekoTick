@@ -14,6 +14,14 @@ function getLocalAssetPath(assetPath: string): string {
   return assetPath.split(/[?#]/, 1)[0] ?? '';
 }
 
+function decodeLocalAssetPath(assetPath: string): string | null {
+  try {
+    return decodeURIComponent(assetPath);
+  } catch {
+    return null;
+  }
+}
+
 function isSafeRelativeAssetPath(assetPath: string): boolean {
   if (!assetPath || assetPath.length > MAX_LOCAL_ASSET_PATH_CHARS) {
     return false;
@@ -89,8 +97,12 @@ export async function resolveNotesRootAssetPathCandidates(
     return [];
   }
 
-  const localAssetPath = getLocalAssetPath(assetPath);
-  if (!isSafeRelativeAssetPath(localAssetPath)) {
+  const encodedLocalAssetPath = getLocalAssetPath(assetPath);
+  if (!isSafeRelativeAssetPath(encodedLocalAssetPath)) {
+    return [];
+  }
+  const localAssetPath = decodeLocalAssetPath(encodedLocalAssetPath);
+  if (!localAssetPath || !isSafeRelativeAssetPath(localAssetPath)) {
     return [];
   }
 

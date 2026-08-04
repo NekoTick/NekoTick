@@ -67,7 +67,7 @@ export function TreeItemShell({
       className={cn(
         'relative',
         isTreeDragOver &&
-          'rounded-[var(--vlaina-notes-ui-radius-compact)] bg-[var(--vlaina-sidebar-notes-row-drag)] ring-1 ring-[var(--vlaina-accent)] shadow-[var(--vlaina-shadow-drag-row)]',
+          'rounded-[var(--vlaina-notes-ui-radius-compact)] bg-[var(--vlaina-sidebar-notes-row-drag)]',
       )}
       data-file-tree-path={itemPath}
       data-file-tree-kind={itemKind}
