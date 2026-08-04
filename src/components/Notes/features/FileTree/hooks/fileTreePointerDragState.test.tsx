@@ -9,6 +9,10 @@ import {
 } from './fileTreePointerDragState';
 import { useTreeItemDragSource } from './useTreeItemDragSource';
 import { NOTES_TAB_SPLIT_DRAG_EVENT } from '../../Split/notesSplitDragEvents';
+import {
+  showImageFileHoverPreview,
+  useImageFileHoverPreviewTarget,
+} from '../imageFileHoverPreviewState';
 
 function setRect(
   element: Element,
@@ -114,7 +118,7 @@ function dispatchDocumentPointerEvent(
 
 interface DragHarnessProps {
   path?: string;
-  kind?: 'note' | 'folder';
+  kind?: 'note' | 'folder' | 'image';
   disabled?: boolean;
   folderTargetPath?: string;
   showRootTarget?: boolean;
@@ -176,6 +180,11 @@ function DragHarness({
       <div data-testid="drop-target-kind">{dropTargetKind ?? ''}</div>
     </div>
   );
+}
+
+function ImageHoverPreviewProbe() {
+  const target = useImageFileHoverPreviewTarget();
+  return <div data-testid="image-hover-preview-target">{target?.imagePath ?? ''}</div>;
 }
 
 function setupHarness(options: DragHarnessProps = {}) {
@@ -360,6 +369,93 @@ describe('fileTreePointerDragState', () => {
     });
   });
 
+  it('moves an image into a folder target', async () => {
+    const { source, folderTarget } = setupHarness({
+      path: 'cover.png',
+      kind: 'image',
+      folderTargetPath: 'Archive',
+    });
+
+    const elementsFromPointMock = vi.fn(() => [folderTarget as Element]);
+    document.elementsFromPoint = elementsFromPointMock;
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 1,
+    });
+    dispatchDocumentPointerEvent('pointerup', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 0,
+    });
+
+    await waitFor(() => {
+      expect(moveItemMock).toHaveBeenCalledWith('cover.png', 'Archive');
+    });
+    expect(elementsFromPointMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the image hover preview when an image pointer drag starts', () => {
+    showImageFileHoverPreview({
+      imagePath: 'cover.png',
+      notesPath: '/notesRoot',
+    });
+    const { source } = setupHarness({
+      path: 'cover.png',
+      kind: 'image',
+    });
+    render(<ImageHoverPreviewProbe />);
+
+    expect(screen.getByTestId('image-hover-preview-target')).toHaveTextContent('cover.png');
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+
+    expect(screen.getByTestId('image-hover-preview-target')).toBeEmptyDOMElement();
+  });
+
+  it('does not start image hover previews while a pointer drag is active', () => {
+    const { source, folderTarget } = setupHarness({
+      path: 'cover.png',
+      kind: 'image',
+      folderTargetPath: 'Archive',
+    });
+    render(<ImageHoverPreviewProbe />);
+    document.elementsFromPoint = vi.fn(() => [folderTarget as Element]);
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 1,
+    });
+
+    act(() => {
+      showImageFileHoverPreview({
+        imagePath: 'other.png',
+        notesPath: '/notesRoot',
+      });
+    });
+
+    expect(screen.getByTestId('image-hover-preview-target')).toBeEmptyDOMElement();
+  });
+
   it('drops a dragged file tree item onto the chat target without moving it', async () => {
     const { source } = setupHarness({
       path: 'docs/Source.md',
@@ -396,6 +492,44 @@ describe('fileTreePointerDragState', () => {
         path: 'docs/Source.md',
         kind: 'note',
       });
+      expect(moveItemMock).not.toHaveBeenCalled();
+    });
+
+    window.removeEventListener(FILE_TREE_CHAT_DROP_EVENT, chatDropListener);
+  });
+
+  it('does not turn an image drag into a chat note drop', async () => {
+    const { source, activeSource } = setupHarness({
+      path: 'cover.png',
+      kind: 'image',
+    });
+    const chatTarget = document.createElement('div');
+    chatTarget.dataset.fileTreeChatDropTarget = 'true';
+    document.body.append(chatTarget);
+    const chatDropListener = vi.fn();
+    window.addEventListener(FILE_TREE_CHAT_DROP_EVENT, chatDropListener);
+    document.elementsFromPoint = vi.fn(() => [chatTarget]);
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 1,
+    });
+    dispatchDocumentPointerEvent('pointerup', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 0,
+    });
+
+    await waitFor(() => {
+      expect(activeSource.textContent).toBe('');
+      expect(chatDropListener).not.toHaveBeenCalled();
       expect(moveItemMock).not.toHaveBeenCalled();
     });
 
@@ -859,7 +993,72 @@ describe('fileTreePointerDragState', () => {
     });
   });
 
-  it('ignores invalid move targets in the current parent folder', async () => {
+  it('keeps dragging when the previously focused editor element blurs', async () => {
+    const { source, folderTarget } = setupHarness({
+      path: 'Source.md',
+      folderTargetPath: 'Archive',
+    });
+    const editor = document.createElement('div');
+    editor.tabIndex = 0;
+    document.body.appendChild(editor);
+    editor.focus();
+    document.elementsFromPoint = vi.fn(() => [folderTarget as Element]);
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+    act(() => editor.blur());
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 1,
+    });
+    dispatchDocumentPointerEvent('pointerup', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 0,
+    });
+
+    await waitFor(() => {
+      expect(moveItemMock).toHaveBeenCalledWith('Source.md', 'Archive');
+    });
+  });
+
+  it('cancels an active drag when the application window blurs', async () => {
+    const { source, folderTarget, activeSource } = setupHarness({
+      path: 'Source.md',
+      folderTargetPath: 'Archive',
+    });
+    document.elementsFromPoint = vi.fn(() => [folderTarget as Element]);
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 1,
+    });
+    act(() => window.dispatchEvent(new FocusEvent('blur')));
+    dispatchDocumentPointerEvent('pointerup', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 0,
+    });
+
+    await waitFor(() => {
+      expect(activeSource.textContent).toBe('');
+      expect(moveItemMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('shows current parent feedback without moving the item', async () => {
     const { source, folderTarget, dropTarget } = setupHarness({
       path: 'Archive/Source.md',
       folderTargetPath: 'Archive',
@@ -878,6 +1077,9 @@ describe('fileTreePointerDragState', () => {
       clientY: 52,
       buttons: 1,
     });
+
+    expect(dropTarget.textContent).toBe('Archive');
+
     dispatchDocumentPointerEvent('pointerup', {
       clientX: 40,
       clientY: 52,

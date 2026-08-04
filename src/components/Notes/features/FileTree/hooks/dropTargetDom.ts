@@ -1,4 +1,7 @@
-import { isInvalidMoveTarget } from '@/stores/notes/utils/fs/moveValidation';
+import {
+  isCurrentParentMoveTarget,
+  isInvalidMoveTarget,
+} from '@/stores/notes/utils/fs/moveValidation';
 
 function resolveFolderDropTargetPathFromElements(elements: Element[]) {
   for (const element of elements) {
@@ -6,6 +9,12 @@ function resolveFolderDropTargetPathFromElements(elements: Element[]) {
     const targetPath = folderElement?.dataset.fileTreePath;
     if (targetPath) {
       return targetPath;
+    }
+
+    const treeItemElement = element.closest<HTMLElement>('[data-file-tree-path]');
+    const parentFolderPath = treeItemElement?.dataset.fileTreeParentFolderPath;
+    if (parentFolderPath !== undefined) {
+      return parentFolderPath;
     }
 
     const rootDropTarget = element.closest<HTMLElement>('[data-file-tree-root-drop-target="true"]');
@@ -32,8 +41,22 @@ export function resolveInternalMoveDropTargetPath(
   clientY: number,
   sourcePath: string,
 ) {
-  const targetPath = resolveFolderDropTargetPathFromElements(document.elementsFromPoint(clientX, clientY));
-  if (targetPath == null || isInvalidMoveTarget(sourcePath, targetPath)) {
+  return resolveInternalMoveDropTargetPathFromElements(
+    document.elementsFromPoint(clientX, clientY),
+    sourcePath,
+  );
+}
+
+export function resolveInternalMoveDropTargetPathFromElements(
+  elements: Element[],
+  sourcePath: string,
+) {
+  const targetPath = resolveFolderDropTargetPathFromElements(elements);
+  if (
+    targetPath == null
+    || (isInvalidMoveTarget(sourcePath, targetPath)
+      && !isCurrentParentMoveTarget(sourcePath, targetPath))
+  ) {
     return null;
   }
   return targetPath;

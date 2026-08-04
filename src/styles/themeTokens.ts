@@ -155,7 +155,6 @@ export const themeTyporaFixedLightAppEffectDeclarations = [
   '--vlaina-shadow-panel-soft: 0 10px 30px rgba(0, 0, 0, 0.04);',
   '--vlaina-shadow-selection-soft: 0 2px 8px rgba(30, 150, 235, 0.06);',
   '--vlaina-shadow-accent-action: 0 0 0 3px rgba(65, 168, 234, 0.12), 0 10px 24px rgba(65, 168, 234, 0.28);',
-  '--vlaina-shadow-drag-row: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 10px 24px -18px rgba(30, 150, 235, 0.65);',
 ] as const;
 
 export const themeEventColorTokens = {

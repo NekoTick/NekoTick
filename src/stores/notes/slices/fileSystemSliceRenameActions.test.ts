@@ -8,7 +8,12 @@ const hoisted = vi.hoisted(() => ({
     rename: vi.fn(async () => undefined),
   },
   saveStarredRegistry: vi.fn(),
-  collectImageReferenceContentUpdates: vi.fn(async () => [] as Array<{ path: string; content: string }>),
+  collectImageReferenceContentUpdates: vi.fn(async () => [] as Array<{
+    path: string;
+    documentPath?: string;
+    baselineContent: string;
+    content: string;
+  }>),
   saveNoteDocument: vi.fn(),
 }));
 
@@ -133,6 +138,7 @@ describe('fileSystemSlice rename actions', () => {
     ]]);
     hoisted.collectImageReferenceContentUpdates.mockResolvedValue([{
       path: 'docs/alpha.md',
+      baselineContent: '![cover](../assets/cover.png)',
       content: '![cover](../assets/renamed.png)',
     }]);
 
@@ -182,6 +188,7 @@ describe('fileSystemSlice rename actions', () => {
     };
     hoisted.collectImageReferenceContentUpdates.mockResolvedValue([{
       path: 'docs/alpha.md',
+      baselineContent: '![cover](../assets/cover.png)',
       content: '![cover](../assets/renamed.png)',
     }]);
     hoisted.saveNoteDocument.mockRejectedValueOnce(new Error('write failed'));
@@ -198,11 +205,97 @@ describe('fileSystemSlice rename actions', () => {
       '/notesRoot/assets/renamed.png',
       '/notesRoot/assets/cover.png',
     );
+    expect(hoisted.saveNoteDocument.mock.calls[0]?.[0].cache.get('docs/alpha.md')).toMatchObject({
+      content: '![cover](../assets/cover.png)',
+      modifiedAt: null,
+    });
     expect(harness.getState().rootFolder.children[0]).toMatchObject({
       path: 'assets/cover.png',
       name: 'cover.png',
     });
     expect(harness.getState().error).toBe('write failed');
+  });
+
+  it('moves an image and saves rewritten note references', async () => {
+    const harness = createSliceHarness();
+    harness.getState().notesPath = '/notesRoot';
+    harness.getState().rootFolder = {
+      id: '',
+      name: 'Notes',
+      path: '',
+      isFolder: true,
+      expanded: true,
+      children: [
+        {
+          id: 'assets/cover.png',
+          name: 'cover.png',
+          path: 'assets/cover.png',
+          isFolder: false,
+          kind: 'image',
+        },
+        {
+          id: 'archive',
+          name: 'archive',
+          path: 'archive',
+          isFolder: true,
+          expanded: true,
+          children: [],
+        },
+      ],
+    };
+    const absoluteNotePath = '/notesRoot/docs/alpha.md';
+    harness.getState().currentNote = {
+      path: absoluteNotePath,
+      content: '![cover](../assets/cover.png)',
+    };
+    harness.getState().currentNoteRevision = 3;
+    harness.getState().isDirty = true;
+    harness.getState().openTabs = [{ path: absoluteNotePath, name: 'alpha', isDirty: true }];
+    harness.getState().noteContentsCache = new Map([[
+      absoluteNotePath,
+      { content: '![cover](../assets/cover.png)', modifiedAt: 1 },
+    ]]);
+    hoisted.collectImageReferenceContentUpdates.mockResolvedValue([{
+      path: 'docs/alpha.md',
+      documentPath: absoluteNotePath,
+      baselineContent: '![cover](../assets/cover.png)',
+      content: '![cover](../archive/cover.png)',
+    }]);
+
+    await harness.getState().moveItem('assets/cover.png', 'archive');
+
+    const state = harness.getState();
+    expect(hoisted.storageAdapter.rename).toHaveBeenCalledWith(
+      '/notesRoot/assets/cover.png',
+      '/notesRoot/archive/cover.png',
+    );
+    expect(hoisted.collectImageReferenceContentUpdates).toHaveBeenCalledWith(expect.objectContaining({
+      oldImagePath: 'assets/cover.png',
+      newImagePath: 'archive/cover.png',
+    }));
+    expect(hoisted.saveNoteDocument).toHaveBeenCalledTimes(1);
+    expect(hoisted.saveNoteDocument).toHaveBeenCalledWith(expect.objectContaining({
+      currentNote: {
+        path: absoluteNotePath,
+        content: '![cover](../archive/cover.png)',
+      },
+    }));
+    expect(state.currentNote).toEqual({
+      path: absoluteNotePath,
+      content: '![cover](../archive/cover.png)',
+    });
+    expect(state.currentNoteRevision).toBe(4);
+    expect(state.isDirty).toBe(false);
+    expect(state.openTabs[0]).toMatchObject({ path: absoluteNotePath, isDirty: false });
+    expect(state.noteContentsCache.get('docs/alpha.md')).toMatchObject({
+      content: '![cover](../archive/cover.png)',
+      modifiedAt: 2,
+    });
+    expect(state.rootFolder.children.find((node: any) => node.path === 'archive').children[0]).toMatchObject({
+      path: 'archive/cover.png',
+      name: 'cover.png',
+      kind: 'image',
+    });
   });
 
   it('renames an absolute starred note and keeps the open editor state in sync', async () => {

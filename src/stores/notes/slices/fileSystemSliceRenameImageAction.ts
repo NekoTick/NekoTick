@@ -5,24 +5,38 @@ import { updateFileNodePath } from '../fileTreeUtils';
 import { saveNoteDocument } from '../document/noteDocumentPersistence';
 import { markExpectedExternalChange } from '../document/externalChangeRegistry';
 import { emitNotesExternalPathRename } from '../document/externalPathBroadcast';
+import { setCachedNoteContent } from '../document/noteContentCache';
 import { setNoteTabDirtyState } from '../document/noteTabState';
 import { createEmptyMetadataFile, setNoteEntry } from '../storage';
 import { persistWorkspaceSnapshot } from '../workspacePersistence';
 import { buildSortedRootFolder } from '../utils/fs/rootFolderState';
 import { collectImageReferenceContentUpdates } from '../utils/fs/imageReferenceRewrite';
-import { resolveUniqueRenamedAssetPath } from '../utils/fs/pathOperations';
+import { getParentPath, resolveUniqueMovedPath, resolveUniqueRenamedAssetPath } from '../utils/fs/pathOperations';
 import { resolveNotesRootRelativeFullPath } from '../utils/fs/notesRootPathContainment';
 import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
-import { isActiveNotesPath } from './fileSystemSliceRenameShared';
+import { isActiveNotesPath, moveRootFolderChildren } from './fileSystemSliceRenameShared';
 import type { FileSystemSliceGet, FileSystemSliceSet } from './fileSystemSliceContracts';
 
-export async function renameImageAction(
+interface ImageRelocationTarget {
+  relativePath: string;
+  fullPath: string;
+  fileName: string;
+}
+
+type RootFolderChildren = NonNullable<ReturnType<FileSystemSliceGet>['rootFolder']>['children'];
+
+async function relocateImageAction(
   set: FileSystemSliceSet,
   get: FileSystemSliceGet,
   path: string,
-  newName: string,
+  resolveTarget: (notesPath: string, sourcePath: string) => Promise<ImageRelocationTarget>,
+  updateTree: (
+    children: RootFolderChildren,
+    sourcePath: string,
+    target: ImageRelocationTarget,
+  ) => RootFolderChildren,
+  failureMessage: string,
 ): Promise<string | null> {
-  flushCurrentPendingEditorMarkdown();
   const initialState = get();
   const notesPath = initialState.notesPath;
   let sourceFullPath = '';
@@ -34,12 +48,12 @@ export async function renameImageAction(
 
   try {
     if (!isImageFilename(path)) {
-      throw new Error('Only image files can be renamed with this action.');
+      throw new Error('Only image files can be relocated with this action.');
     }
     const source = await resolveNotesRootRelativeFullPath(notesPath, path);
-    const target = await resolveUniqueRenamedAssetPath(notesPath, source.relativePath, newName);
+    const target = await resolveTarget(notesPath, source.relativePath);
     if (!isImageFilename(target.relativePath)) {
-      throw new Error('The renamed file must keep a supported image extension.');
+      throw new Error('The image must keep a supported image extension.');
     }
     if (target.relativePath === source.relativePath) return null;
 
@@ -71,16 +85,38 @@ export async function renameImageAction(
     let currentNoteChanged = false;
 
     for (const update of referenceUpdates) {
+      const documentPath = update.documentPath ?? update.path;
+      if (!nextCache.has(documentPath)) {
+        nextCache = setCachedNoteContent(
+          nextCache,
+          documentPath,
+          update.baselineContent,
+          null,
+          { baselineContent: update.baselineContent },
+        );
+      }
       const result = await saveNoteDocument({
         notesPath,
-        currentNote: { path: update.path, content: update.content },
+        currentNote: { path: documentPath, content: update.content },
         cache: nextCache,
       });
       savedReferences += 1;
       nextCache = result.nextCache;
+      if (documentPath !== update.path) {
+        nextCache = setCachedNoteContent(
+          nextCache,
+          update.path,
+          result.content,
+          result.modifiedAt,
+          { updateBaseline: true, size: result.size },
+        );
+      }
       nextMetadata = setNoteEntry(nextMetadata, update.path, result.metadata);
-      nextOpenTabs = setNoteTabDirtyState(nextOpenTabs, update.path, false);
-      if (nextCurrentNote?.path === update.path) {
+      if (documentPath !== update.path) {
+        nextMetadata = setNoteEntry(nextMetadata, documentPath, result.metadata);
+      }
+      nextOpenTabs = setNoteTabDirtyState(nextOpenTabs, documentPath, false);
+      if (nextCurrentNote?.path === documentPath) {
         nextCurrentNote = { ...nextCurrentNote, content: result.content };
         currentNoteChanged = true;
       }
@@ -92,12 +128,7 @@ export async function renameImageAction(
     const nextRootFolder = rootFolder
       ? buildSortedRootFolder(
           rootFolder,
-          updateFileNodePath(
-            rootFolder.children,
-            source.relativePath,
-            target.relativePath,
-            target.fileName,
-          ),
+          updateTree(rootFolder.children, source.relativePath, target),
           latestState.fileTreeSortMode,
           nextMetadata,
         )
@@ -137,8 +168,56 @@ export async function renameImageAction(
       }).catch(() => undefined);
     }
     if (!notesPath || isActiveNotesPath(get, notesPath)) {
-      set({ error: error instanceof Error ? error.message : 'Failed to rename image' });
+      set({ error: error instanceof Error ? error.message : failureMessage });
     }
     return null;
   }
+}
+
+export async function renameImageAction(
+  set: FileSystemSliceSet,
+  get: FileSystemSliceGet,
+  path: string,
+  newName: string,
+): Promise<string | null> {
+  flushCurrentPendingEditorMarkdown();
+  return relocateImageAction(
+    set,
+    get,
+    path,
+    (notesPath, sourcePath) => resolveUniqueRenamedAssetPath(notesPath, sourcePath, newName),
+    (children, sourcePath, target) => updateFileNodePath(
+      children,
+      sourcePath,
+      target.relativePath,
+      target.fileName,
+    ),
+    'Failed to rename image',
+  );
+}
+
+export async function moveImageAction(
+  set: FileSystemSliceSet,
+  get: FileSystemSliceGet,
+  path: string,
+  targetFolderPath: string,
+): Promise<string | null> {
+  return relocateImageAction(
+    set,
+    get,
+    path,
+    (notesPath, sourcePath) => resolveUniqueMovedPath(
+      notesPath,
+      sourcePath,
+      targetFolderPath || undefined,
+      false,
+    ),
+    (children, sourcePath, target) => moveRootFolderChildren(
+      children,
+      sourcePath,
+      target.relativePath,
+      getParentPath(target.relativePath),
+    ),
+    'Failed to move image',
+  );
 }

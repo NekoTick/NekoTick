@@ -1,3 +1,4 @@
+import { isImageFilename } from '@/lib/assets/core/naming';
 import { getStorageAdapter } from '@/lib/storage/adapter';
 import {
   updateFolderNode,
@@ -18,6 +19,7 @@ import { remapNoteNavigationHistoryForExternalRename } from '../document/noteNav
 import { persistWorkspaceSnapshot } from '../workspacePersistence';
 import { applyPathRenameState } from './fileSystemSliceHelpers';
 import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
+import { moveImageAction } from './fileSystemSliceRenameImageAction';
 import {
   isActiveNotesPath,
   moveRootFolderChildren,
@@ -171,6 +173,11 @@ export async function moveItemAction(
 
   try {
     if (isInvalidMoveTarget(sourcePath, targetFolderPath)) {
+      return;
+    }
+
+    if (isImageFilename(sourcePath)) {
+      await moveImageAction(set, get, sourcePath, targetFolderPath);
       return;
     }
 

@@ -3,7 +3,8 @@ import { Icon } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
 import {
   requestFileTreePointerDragDropTargetUpdate,
-  useFileTreePointerDragState,
+  useIsFileTreePointerDragActive,
+  useIsFileTreePointerStarredDropTarget,
 } from '../FileTree/hooks/fileTreePointerDragState';
 import { useExternalFileTreeDropState } from '../FileTree/hooks/externalFileTreeDropState';
 import { NotesSidebarSection } from '../Sidebar/NotesSidebarPrimitives';
@@ -29,12 +30,12 @@ export function StarredSection({
   const { t } = useI18n();
   useExternalStarredRenameSync();
   const { starredLoaded, hasEntries, entries: entryViewModels } = useStarredSectionEntries();
-  const activeDragSourcePath = useFileTreePointerDragState((state) => state.activeSourcePath);
-  const isInternalDragOver = useFileTreePointerDragState((state) => state.dropTargetKind === 'starred');
+  const isInternalDragActive = useIsFileTreePointerDragActive();
+  const isInternalDragOver = useIsFileTreePointerStarredDropTarget();
   const isExternalDragActive = useExternalFileTreeDropState((state) => state.active);
   const isExternalDragOver = useExternalFileTreeDropState((state) => state.dropTargetKind === 'starred');
   const [expanded, setExpanded] = useState(false);
-  const hasActiveDrag = activeDragSourcePath != null || isExternalDragActive;
+  const hasActiveDrag = isInternalDragActive || isExternalDragActive;
   const isDragOver = isInternalDragOver || isExternalDragOver;
   const isExpanded = expanded || (!hasEntries && hasActiveDrag);
 
@@ -45,10 +46,10 @@ export function StarredSection({
   }, [hasEntries, starredLoaded]);
 
   useLayoutEffect(() => {
-    if (!hasEntries && activeDragSourcePath != null) {
+    if (!hasEntries && isInternalDragActive) {
       requestFileTreePointerDragDropTargetUpdate();
     }
-  }, [activeDragSourcePath, hasEntries, isExpanded]);
+  }, [hasEntries, isExpanded, isInternalDragActive]);
 
   if (!starredLoaded && !hasEntries && !hasActiveDrag) {
     return null;

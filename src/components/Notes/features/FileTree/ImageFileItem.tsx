@@ -28,6 +28,7 @@ import {
   hideImageFileHoverPreview,
   showImageFileHoverPreview,
 } from './imageFileHoverPreviewState';
+import { useTreeItemDragSource } from './hooks/useTreeItemDragSource';
 
 const TreeItemMenu = lazy(async () => {
   const mod = await import('./components/TreeItemMenu');
@@ -85,6 +86,7 @@ export const ImageFileItem = memo(function ImageFileItem({
     path: node.path,
     name: imageNameStem,
   });
+  const dragHandlers = useTreeItemDragSource(node.path, isRenaming, 'image');
   const { handleCopyPath, handleOpenLocation } = useTreeItemPathActions({
     notesPath,
     itemPath: node.path,
@@ -271,6 +273,7 @@ export const ImageFileItem = memo(function ImageFileItem({
         }}
         onDoubleClick={handleRenameFromDoubleClick}
         onContextMenu={handleContextMenu}
+        dragHandlers={dragHandlers}
         showActionsByDefault={showMenu}
         showMenuButton={showMenuButton}
         menuButtonLabel={t('sidebar.openFileMenu')}
