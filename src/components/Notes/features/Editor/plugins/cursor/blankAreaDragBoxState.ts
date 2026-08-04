@@ -20,6 +20,7 @@ import {
   transactionInsertedTextMatches,
   transactionTouchesDecorations,
 } from '../shared/transactionStepText';
+import { shouldRenderBlockSelectionWithPreview } from './blockSelectionTypes';
 
 const editorInteractionDecorationsCache = new WeakMap<
   EditorState['doc'],
@@ -66,6 +67,7 @@ export function createBlankAreaDragBoxState(
   selectedBlocks: BlockRange[],
   blockSelectionDecorations: DecorationSet,
   editableMarkdownBlankLineDecorations: DecorationSet,
+  decorationsDeferred = false,
 ): BlankAreaDragBoxState {
   if (
     selectedBlocks.length === 0 &&
@@ -78,6 +80,7 @@ export function createBlankAreaDragBoxState(
   return {
     selectedBlocks,
     decorations: blockSelectionDecorations,
+    decorationsDeferred,
     editableMarkdownBlankLineDecorations,
     interactionDecorations: combineEditorInteractionDecorations(
       doc,
@@ -122,12 +125,15 @@ export function applyBlankAreaDragBoxStateTransaction(
   }
   if (action?.type === 'set-blocks') {
     const selectedBlocks = normalizeBlockRanges(action.blocks);
-    const decorations = createBlockSelectionDecorations(tr.doc, selectedBlocks);
+    const decorations = action.deferDecorations || shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+      ? DecorationSet.empty
+      : createBlockSelectionDecorations(tr.doc, selectedBlocks);
     return createBlankAreaDragBoxState(
       tr.doc,
       selectedBlocks,
       decorations,
       editableMarkdownBlankLineDecorations,
+      Boolean(action.deferDecorations && selectedBlocks.length > 0),
     );
   }
 
@@ -165,12 +171,15 @@ export function applyBlankAreaDragBoxStateTransaction(
       editableMarkdownBlankLineDecorations,
     );
   }
-  const decorations = createBlockSelectionDecorations(tr.doc, selectedBlocks);
+  const decorations = pluginState.decorationsDeferred || shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+    ? DecorationSet.empty
+    : createBlockSelectionDecorations(tr.doc, selectedBlocks);
   return createBlankAreaDragBoxState(
     tr.doc,
     selectedBlocks,
     decorations,
     editableMarkdownBlankLineDecorations,
+    pluginState.decorationsDeferred,
   );
 }
 

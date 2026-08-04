@@ -442,6 +442,113 @@ describe('createBlockRectResolver', () => {
     }
   });
 
+  it('measures only cached blocks near a plain-click point', () => {
+    const dom = document.createElement('div');
+    const paragraphs = [0, 1, 2].map((index) => {
+      const paragraph = document.createElement('p');
+      paragraph.textContent = `paragraph-${index}`;
+      dom.appendChild(paragraph);
+      withRect(paragraph, { left: 60, top: 40 + index * 90, width: 120, height: 24 });
+      return paragraph;
+    });
+    document.body.appendChild(dom);
+    withRect(dom, { left: 20, top: 10, width: 600, height: 300 });
+
+    const nodes = [0, 1, 2].map(() => createNode('paragraph', 5));
+    const doc = createDoc(nodes);
+    const ranges = [
+      { from: 0, to: 5 },
+      { from: 5, to: 10 },
+      { from: 10, to: 15 },
+    ];
+    const blocks = ranges.map((range, index) => {
+      const rect = paragraphs[index].getBoundingClientRect();
+      return {
+        ...range,
+        element: paragraphs[index],
+        rect,
+        documentLeft: rect.left,
+        documentRight: rect.right,
+        documentTop: rect.top,
+        documentBottom: rect.bottom,
+        tagName: 'P',
+        headingLevel: null,
+        headingId: null,
+        headingText: null,
+      };
+    });
+    const view = {
+      dom,
+      state: { doc },
+      nodeDOM: (pos: number) => paragraphs[ranges.findIndex((range) => range.from === pos)] ?? null,
+      domAtPos: () => ({ node: paragraphs[1].firstChild as Node }),
+    };
+
+    setCurrentEditorBlockPositionSnapshot({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      scrollRoot: null,
+      scrollLeft: 0,
+      scrollTop: 0,
+      blocks,
+      blockIndex: new Map(blocks.map((block) => [`${block.from}:${block.to}`, block])),
+      headings: [],
+    });
+
+    const measuredNodes: Node[] = [];
+    const originalCreateRange = document.createRange;
+    document.createRange = () => {
+      let selectedNode: Node | null = null;
+      return {
+        selectNodeContents(node: Node) {
+          selectedNode = node;
+          measuredNodes.push(node);
+        },
+        getClientRects: () => {
+          const paragraph = selectedNode?.parentElement;
+          return paragraph ? [paragraph.getBoundingClientRect()] : [];
+        },
+        detach: () => undefined,
+      } as unknown as Range;
+    };
+
+    try {
+      const resolver = createBlockRectResolver({
+        view: view as any,
+        scrollRootSelector: '[data-note-scroll-root="true"]',
+      });
+
+      expect(resolver.getPlainClickBlockRects(540, 142)).toEqual([
+        {
+          from: 5,
+          to: 10,
+          left: 20,
+          top: 130,
+          right: 620,
+          bottom: 154,
+          contentLeft: 60,
+          contentRight: 180,
+          contentLineRects: [
+            {
+              left: 60,
+              top: 130,
+              right: 180,
+              bottom: 154,
+            },
+          ],
+          allowInsideTrailingClick: true,
+        },
+      ]);
+      expect(measuredNodes).toEqual([paragraphs[1].firstChild]);
+    } finally {
+      document.createRange = originalCreateRange;
+      clearCurrentEditorBlockPositionSnapshot();
+      dom.remove();
+    }
+  });
+
   it('can bypass cached target rects for live drag-selection hit testing', () => {
     const dom = document.createElement('div');
     const paragraph = document.createElement('p');

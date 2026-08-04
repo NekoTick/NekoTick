@@ -3,6 +3,7 @@ import {
   EDITOR_SELECTOR,
   NOTE_SCROLL_ROOT_SELECTOR,
   cleanupIsolatedElectron,
+  getBlankAreaDragTarget,
   getOpenBridgePages,
   launchIsolatedElectron,
   openMarkdownFixture,
@@ -251,6 +252,75 @@ test.describe('notes editor outline rail', () => {
       expect(narrowGeometry).not.toBeNull();
       expect(narrowGeometry!.panelRight).toBeLessThanOrEqual(narrowGeometry!.viewportWidth);
       expect(narrowGeometry!.panelWidth).toBe(240);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('tracks edge auto-scroll while a large block selection is still active', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-editor-outline-block-selection');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      const sections = Array.from({ length: 8 }, (_, sectionIndex) => [
+        `## Selection section ${sectionIndex + 1}`,
+        '',
+        ...Array.from(
+          { length: 36 },
+          (_, paragraphIndex) => [
+            `Selection section ${sectionIndex + 1} paragraph ${paragraphIndex + 1}. ${'Context '.repeat(12)}`,
+            '',
+          ],
+        ).flat(),
+      ]).flat();
+      await openMarkdownFixture(page, {
+        filename: 'editor-outline-block-selection.md',
+        content: sections.join('\n'),
+      });
+
+      const rail = page.locator(OUTLINE_RAIL_SELECTOR);
+      const activeRow = rail.locator('.editor-outline-row-active');
+      await expect(rail).toBeVisible();
+
+      const dragTarget = await getBlankAreaDragTarget(
+        page,
+        'Selection section 1 paragraph 1',
+      );
+      expect(dragTarget, 'blank-area drag target').not.toBeNull();
+      if (!dragTarget) return;
+      await expect(activeRow).toHaveText('Selection section 1');
+
+      const edgeTarget = await page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate((scrollRoot) => {
+        const editor = scrollRoot.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        if (!editor) return null;
+        const editorRect = editor.getBoundingClientRect();
+        const scrollRootRect = scrollRoot.getBoundingClientRect();
+        return {
+          x: Math.max(editorRect.left + 24, Math.min(editorRect.right - 24, editorRect.left + 320)),
+          y: scrollRootRect.bottom - 4,
+        };
+      });
+      expect(edgeTarget, 'edge auto-scroll target').not.toBeNull();
+      if (!edgeTarget) return;
+
+      await page.mouse.move(dragTarget.startX, dragTarget.startY);
+      await page.mouse.down();
+      await page.mouse.move(dragTarget.endX, dragTarget.endY, { steps: 8 });
+      await page.mouse.move(edgeTarget.x, edgeTarget.y, { steps: 12 });
+
+      await expect(page.locator('[data-editor-block-selection-preview="true"]')).toBeAttached();
+      await expect(page.locator('.editor-block-selection-interaction-shield')).toBeAttached();
+      await expect.poll(async () => activeRow.textContent()).not.toBe('Selection section 1');
+      const activeHeadingDuringDrag = await activeRow.textContent();
+      expect(activeHeadingDuringDrag).toMatch(/^Selection section [2-8]$/);
+      await expect(page.locator('.editor-block-selection-interaction-shield')).toBeAttached();
+
+      await page.mouse.up();
+      await expect(activeRow).toHaveText(activeHeadingDuringDrag ?? '');
+      await expect(page.locator('.editor-block-selection-interaction-shield')).toHaveCount(0);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

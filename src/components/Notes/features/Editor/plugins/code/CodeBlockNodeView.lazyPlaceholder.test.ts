@@ -7,6 +7,7 @@ import {
   MAX_LAZY_CODE_BLOCK_LINE_NUMBER_PLACEHOLDER_LINES,
 } from './CodeBlockNodeView';
 import { LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS } from './CodeBlockNodeViewConstants';
+import { setBlockSelectionInteractionPending } from '../cursor/blockSelectionInteractionState';
 
 const renderMock = vi.fn();
 const unmountMock = vi.fn();
@@ -34,6 +35,7 @@ function createMockNode(textContent: string): ProseNode {
 
 function createMockView(): EditorView {
   return {
+    dom: document.createElement('div'),
     root: document,
     editable: true,
     state: {
@@ -189,6 +191,57 @@ describe('CodeBlockNodeView lazy placeholders', () => {
     flushNextAnimationFrame();
     flushNextAnimationFrame();
     expect(nodeView.cm).not.toBeNull();
+
+    nodeView.destroy();
+  });
+
+  it('defers passive initialization while block selection is pending', () => {
+    vi.useFakeTimers();
+    const flushNextAnimationFrame = mockAnimationFrames();
+    const view = createMockView();
+    const nodeView = new CodeBlockNodeView(
+      createMockNode('const value = 1;'),
+      view,
+      () => 1,
+      { lazyCodeMirror: true },
+    );
+    const instance = intersectionObserverInstances.at(-1)!;
+
+    setBlockSelectionInteractionPending(view.dom, true);
+    instance.callback([{ isIntersecting: true } as IntersectionObserverEntry], instance.observer);
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    flushNextAnimationFrame();
+    flushNextAnimationFrame();
+    expect(nodeView.cm).toBeNull();
+
+    setBlockSelectionInteractionPending(view.dom, false);
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    flushNextAnimationFrame();
+    flushNextAnimationFrame();
+    expect(nodeView.cm).not.toBeNull();
+
+    nodeView.destroy();
+  });
+
+  it('keeps dense-note lazy placeholders passive until user interaction', () => {
+    vi.useFakeTimers();
+    const nodeView = new CodeBlockNodeView(
+      createMockNode('const value = 1;'),
+      createMockView(),
+      () => 1,
+      { lazyCodeMirror: true, passiveLazyCodeMirror: false },
+    );
+
+    expect(intersectionObserverInstances).toHaveLength(0);
+    expect(renderMock).not.toHaveBeenCalled();
+    expect(nodeView.headerDOM).toHaveClass('code-block-chrome-header');
+    expect(nodeView.headerDOM).toHaveTextContent('txt');
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    expect(nodeView.cm).toBeNull();
+
+    nodeView.dom.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    expect(nodeView.cm).not.toBeNull();
+    expect(renderMock).toHaveBeenCalledTimes(1);
 
     nodeView.destroy();
   });

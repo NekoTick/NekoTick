@@ -5,6 +5,10 @@ import {
   BodyLineNumberGutter,
 } from './BodyLineNumberGutter';
 import {
+  setBlockSelectionInteractionPending,
+  setBlockSelectionPreviewElements,
+} from '../plugins/cursor/blockSelectionInteractionState';
+import {
   collectBodyLineNumberTargets,
   MAX_BODY_LINE_NUMBER_PRECISE_TEXT_ANCHOR_TARGETS,
   MAX_BODY_LINE_NUMBER_TARGETS,
@@ -1094,7 +1098,7 @@ describe('BodyLineNumberGutter', () => {
     let childItemSpy: ReturnType<typeof vi.spyOn> | null = null;
 
     try {
-      const { container } = render(createElement(BodyLineNumberGutter, {
+      const { container, rerender } = render(createElement(BodyLineNumberGutter, {
         markdown: 'First\n\nSecond',
         revision: 1,
         shellRef,
@@ -1106,6 +1110,40 @@ describe('BodyLineNumberGutter', () => {
       childItemSpy = vi.spyOn(editorRoot.children, 'item');
 
       const lineNumbers = () => Array.from(container.querySelectorAll<HTMLElement>('.body-line-number'));
+      expect(lineNumbers().map((lineNumber) =>
+        lineNumber.classList.contains('body-line-number-selected')
+      )).toEqual([false, false]);
+
+      act(() => {
+        setBlockSelectionPreviewElements(editorRoot, [firstParagraph]);
+      });
+      expect(lineNumbers().map((lineNumber) =>
+        lineNumber.classList.contains('body-line-number-selected')
+      )).toEqual([true, false]);
+      rerender(createElement(BodyLineNumberGutter, {
+        markdown: 'First\n\nSecond',
+        revision: 1,
+        shellRef,
+      }));
+      expect(lineNumbers().map((lineNumber) =>
+        lineNumber.classList.contains('body-line-number-selected')
+      )).toEqual([true, false]);
+      act(() => {
+        setBlockSelectionInteractionPending(editorRoot, true);
+        mutationCallback([{
+          attributeName: 'class',
+          target: secondParagraph,
+          type: 'attributes',
+        } as unknown as MutationRecord], {} as MutationObserver);
+        vi.advanceTimersByTime(0);
+      });
+      expect(lineNumbers().map((lineNumber) =>
+        lineNumber.classList.contains('body-line-number-selected')
+      )).toEqual([true, false]);
+      act(() => {
+        setBlockSelectionPreviewElements(editorRoot, null);
+        setBlockSelectionInteractionPending(editorRoot, false);
+      });
       expect(lineNumbers().map((lineNumber) =>
         lineNumber.classList.contains('body-line-number-selected')
       )).toEqual([false, false]);
@@ -1170,6 +1208,8 @@ describe('BodyLineNumberGutter', () => {
       childItemSpy?.mockRestore();
       createTreeWalkerSpy?.mockRestore();
       act(() => {
+        setBlockSelectionPreviewElements(editorRoot, null);
+        setBlockSelectionInteractionPending(editorRoot, false);
         window.dispatchEvent(new Event('pointerup'));
       });
       cleanup();

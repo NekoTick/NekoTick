@@ -31,7 +31,9 @@ export interface EditorBlockPositionSnapshot {
   view: EditorView;
   doc: EditorView['state']['doc'];
   editorRoot: HTMLElement;
+  editorRect?: DOMRect;
   scrollRoot: HTMLElement | null;
+  scrollRootRect?: DOMRect | null;
   scrollLeft: number;
   scrollTop: number;
   geometryValidationScrollLeft?: number;

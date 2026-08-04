@@ -1,5 +1,6 @@
 import { canApplyBlockMove, getDraggableBlockRanges, resolveDropTarget, type HandleBlockTarget } from './blockControlsInteractions';
 import { BLOCK_SELECTION_PENDING_CLASS, canInsertCrossNoteDraggedMarkdown, getElementsFromPoint, HANDLE_VERTICAL_GAP_PX, isOverNotesBlockDropTarget } from './blockControlsViewSessionHelpers';
+import { isBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 import { getBlockSelectionPluginState } from './blockSelectionPluginState';
 import { getBlockRangesKey, normalizeBlockRanges, type BlockRange } from './blockSelectionUtils';
 
@@ -42,7 +43,8 @@ class BlockControlsViewSessionPointer {
   }
 
   isBlockSelectionPending(this: any): boolean {
-    return this.view.dom.classList.contains(BLOCK_SELECTION_PENDING_CLASS);
+    return this.view.dom.classList.contains(BLOCK_SELECTION_PENDING_CLASS)
+      || isBlockSelectionInteractionPending(this.view.dom);
   }
 
   isPointerNearTarget(this: any, target: HandleBlockTarget): boolean {

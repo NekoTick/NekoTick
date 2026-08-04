@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createCollapsedCodeBlockSelectionGuardTransaction,
   findCodeBlockContext,
+  shouldDeferPassiveCodeMirrorInitialization,
 } from './codeBlockProsePlugins';
 
 describe('codeBlockProsePlugins', () => {
@@ -27,6 +28,18 @@ describe('codeBlockProsePlugins', () => {
       node: codeBlockNode,
       pos: 10,
     });
+  });
+
+  it('defers passive CodeMirror initialization only for code-dense documents', () => {
+    const createDoc = (codeBlockCount: number) => ({
+      descendants: (callback: (node: { type: { name: string } }) => boolean) => {
+        Array.from({ length: codeBlockCount }, () => ({ type: { name: 'code_block' } }))
+          .forEach(callback);
+      },
+    });
+
+    expect(shouldDeferPassiveCodeMirrorInitialization(createDoc(39) as never)).toBe(false);
+    expect(shouldDeferPassiveCodeMirrorInitialization(createDoc(40) as never)).toBe(true);
   });
 
   it('creates a redirect transaction when selection lands inside a collapsed code block', () => {

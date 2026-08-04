@@ -159,7 +159,9 @@ function createPreviewSnapshot(
     view,
     doc: view.state.doc,
     editorRoot: view.dom,
+    editorRect: previewRoot.getBoundingClientRect(),
     scrollRoot,
+    scrollRootRect,
     scrollLeft,
     scrollTop,
     geometryValidationScrollLeft: scrollLeft,
@@ -192,6 +194,7 @@ export function createSnapshot(
   const scrollLeft = scrollRoot?.scrollLeft ?? 0;
   const scrollTop = scrollRoot?.scrollTop ?? 0;
   const scrollRootRect = scrollRoot?.getBoundingClientRect() ?? null;
+  const editorRect = editorRoot.getBoundingClientRect();
   const scrollRootLeft = scrollRootRect?.left ?? null;
   const scrollRootTop = scrollRootRect?.top ?? null;
   const targets = collectSelectableBlockTargets(view);
@@ -247,7 +250,9 @@ export function createSnapshot(
     view,
     doc: view.state.doc,
     editorRoot,
+    editorRect,
     scrollRoot,
+    scrollRootRect,
     scrollLeft,
     scrollTop,
     geometryValidationScrollLeft: scrollLeft,

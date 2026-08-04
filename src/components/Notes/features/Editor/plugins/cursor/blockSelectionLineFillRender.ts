@@ -14,7 +14,7 @@ import {
 
 export function appendLineFillElement(
   doc: Document,
-  layer: HTMLElement,
+  layer: DocumentFragment | HTMLElement,
   hostRect: DOMRect,
   fillStart: number,
   fillRight: number,
@@ -41,17 +41,21 @@ function resolveImageFillAnchor(view: EditorView, image: HTMLElement): HTMLEleme
   return paragraph instanceof HTMLElement && view.dom.contains(paragraph) ? paragraph : image;
 }
 
+export function collectSelectedImageBlockElements(view: EditorView): HTMLElement[] {
+  return Array.from(view.dom.querySelectorAll<HTMLElement>(SELECTED_IMAGE_BLOCK_SELECTOR));
+}
+
 export function appendSelectedImageBlockLineFills(
   view: EditorView,
+  images: readonly HTMLElement[],
   doc: Document,
-  layer: HTMLElement,
+  layer: DocumentFragment | HTMLElement,
   hostRect: DOMRect,
   viewportRect: RectBounds | null,
   availableElements: number,
 ): number {
   if (availableElements <= 0) return 0;
 
-  const images = Array.from(view.dom.querySelectorAll<HTMLElement>(SELECTED_IMAGE_BLOCK_SELECTOR));
   let createdFills = 0;
 
   for (const image of images) {

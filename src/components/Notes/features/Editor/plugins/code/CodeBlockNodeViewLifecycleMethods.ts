@@ -8,6 +8,7 @@ import {
   mapDocumentOffsetToCodeBlockEditorOffset,
   normalizeCodeBlockEditorText
 } from './codemirror';
+import { BLOCK_SELECTION_INTERACTION_CHANGE_EVENT } from '../cursor/blockSelectionInteractionState';
 
 class CodeBlockNodeViewLifecycleMethods {
   update(this: any, node: Node) {
@@ -25,7 +26,9 @@ class CodeBlockNodeViewLifecycleMethods {
       }
     }
     this.syncCollapsedState();
-    if (this.getHeaderStateKey(node) !== this.headerStateKey) {
+    if (!this.headerRendered) {
+      this.syncPassiveHeaderPlaceholder();
+    } else if (this.getHeaderStateKey(node) !== this.headerStateKey) {
       this.render();
     }
     void this.syncLanguage();
@@ -152,6 +155,10 @@ class CodeBlockNodeViewLifecycleMethods {
     this.cancelPendingLazyCodeMirrorInitialization();
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = null;
+    this.view.dom.removeEventListener(
+      BLOCK_SELECTION_INTERACTION_CHANGE_EVENT,
+      this.handleBlockSelectionInteractionChange,
+    );
     this.clearCodeMirrorSelectionArrowKey();
     const window = this.getOwnerWindow();
     if (window && this.pendingMeasureFrame !== null) {

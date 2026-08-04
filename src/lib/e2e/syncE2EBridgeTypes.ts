@@ -224,6 +224,7 @@ export interface E2EBridge {
       requestedCount: number;
       selectedStateCount: number;
       selectedDomCount: number;
+      committedPreviewCount: number;
       lineFillCount: number;
       dispatchMs: number;
       firstFrameMs: number;

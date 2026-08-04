@@ -79,7 +79,6 @@ export class BlockControlsViewSession {
     this.dragAutoScroll = createVerticalEdgeAutoScroll({
       scrollRoot: this.scrollRoot,
       getPointerY: () => this.draggedRanges ? this.lastDragClientY : null,
-      onScroll: this.refreshDragDropAfterScroll,
     });
 
     const { controls, handleButton, dropIndicator } = createBlockControlsDom(this.doc);

@@ -19,23 +19,57 @@ import type {
   EditorBlockPositionSnapshot,
 } from './editorBlockPositionTypes';
 
+function resolveSnapshotLookup(
+  snapshot: EditorBlockPositionSnapshot | null,
+  view: EditorView,
+  validateGeometry: boolean,
+) {
+  const snapshotView = snapshot ? isSnapshotForView(snapshot, view) : null;
+  if (!snapshot || !snapshotView) return null;
+  if (validateGeometry && !isSnapshotGeometryFresh(snapshot, snapshotView)) return null;
+  if (!validateGeometry && !snapshot.editorRoot.isConnected) return null;
+
+  let trustedScrollRootRect = snapshot.scrollRootRect ?? null;
+  if (!validateGeometry && snapshot.scrollRoot && !trustedScrollRootRect) {
+    const firstBlock = snapshot.blocks[0];
+    if (!firstBlock) return null;
+    const left = firstBlock.documentLeft === undefined
+      ? firstBlock.rect.left
+      : firstBlock.rect.left - firstBlock.documentLeft + snapshot.scrollLeft;
+    const top = firstBlock.rect.top - firstBlock.documentTop + snapshot.scrollTop;
+    trustedScrollRootRect = {
+      left,
+      top,
+      right: left,
+      bottom: top,
+    } as DOMRect;
+  }
+
+  return {
+    snapshot,
+    snapshotView,
+    scrollRootRect: validateGeometry
+      ? getSnapshotScrollRootRect(snapshot)
+      : trustedScrollRootRect,
+  };
+}
+
 export function getCachedEditorBlockTargetsFromSnapshot(
   snapshot: EditorBlockPositionSnapshot | null,
   view: EditorView,
   ranges?: readonly { from: number; to: number }[],
+  validateGeometry = true,
 ): SelectableBlockTarget[] | null {
-  const snapshotView = snapshot ? isSnapshotForView(snapshot, view) : null;
-  if (!snapshot || !snapshotView || !isSnapshotGeometryFresh(snapshot, snapshotView)) {
-    return null;
-  }
+  const lookup = resolveSnapshotLookup(snapshot, view, validateGeometry);
+  if (!lookup) return null;
+  const { snapshot: resolvedSnapshot, snapshotView, scrollRootRect } = lookup;
 
   const filteredBlocks = ranges
     ? ranges
-        .map((range) => snapshot.blockIndex.get(getBlockRangeKey(range.from, range.to)))
+        .map((range) => resolvedSnapshot.blockIndex.get(getBlockRangeKey(range.from, range.to)))
         .filter((block): block is EditorBlockPositionEntry => Boolean(block))
-    : snapshot.blocks;
+    : resolvedSnapshot.blocks;
 
-  const scrollRootRect = getSnapshotScrollRootRect(snapshot);
   return filteredBlocks.map((block) => mapSnapshotBlockToTarget(
     block,
     scrollRootRect,
@@ -48,19 +82,18 @@ export function getFreshCachedEditorBlockTargetsFromSnapshot(
   snapshot: EditorBlockPositionSnapshot | null,
   view: EditorView,
   scrollRoot: HTMLElement | null,
+  validateGeometry = true,
 ): SelectableBlockTarget[] | null {
-  const snapshotView = snapshot ? isSnapshotForView(snapshot, view) : null;
+  const lookup = resolveSnapshotLookup(snapshot, view, validateGeometry);
   if (
-    !snapshot
-    || !snapshotView
-    || snapshot.scrollRoot !== scrollRoot
-    || !isSnapshotGeometryFresh(snapshot, snapshotView)
+    !lookup
+    || lookup.snapshot.scrollRoot !== scrollRoot
   ) {
     return null;
   }
+  const { snapshot: resolvedSnapshot, snapshotView, scrollRootRect } = lookup;
 
-  const scrollRootRect = getSnapshotScrollRootRect(snapshot);
-  return snapshot.blocks.map((block) => mapSnapshotBlockToTarget(
+  return resolvedSnapshot.blocks.map((block) => mapSnapshotBlockToTarget(
     block,
     scrollRootRect,
     snapshotView.scrollLeft,
@@ -72,18 +105,18 @@ export function getCachedEditorBlockTargetByPosFromSnapshot(
   snapshot: EditorBlockPositionSnapshot | null,
   view: EditorView,
   blockPos: number,
+  validateGeometry = true,
 ): SelectableBlockTarget | null {
-  const snapshotView = snapshot ? isSnapshotForView(snapshot, view) : null;
-  if (!snapshot || !snapshotView || !isSnapshotGeometryFresh(snapshot, snapshotView)) {
-    return null;
-  }
+  const lookup = resolveSnapshotLookup(snapshot, view, validateGeometry);
+  if (!lookup) return null;
+  const { snapshot: resolvedSnapshot, snapshotView, scrollRootRect } = lookup;
 
   const range = resolveSelectableBlockRange(view.state.doc, blockPos);
   if (!range) {
     return null;
   }
 
-  const block = snapshot.blockIndex.get(getBlockRangeKey(range.from, range.to));
+  const block = resolvedSnapshot.blockIndex.get(getBlockRangeKey(range.from, range.to));
   if (!block) {
     return null;
   }
@@ -93,7 +126,7 @@ export function getCachedEditorBlockTargetByPosFromSnapshot(
     element: block.element,
     rect: resolveViewportRectFromDocumentPosition(
       block,
-      getSnapshotScrollRootRect(snapshot),
+      scrollRootRect,
       snapshotView.scrollLeft,
       snapshotView.scrollTop,
     ),
@@ -105,32 +138,31 @@ export function getCachedEditorBlockTargetNearYFromSnapshot(
   view: EditorView,
   clientY: number,
   predicate?: (block: EditorBlockPositionEntry) => boolean,
+  validateGeometry = true,
 ): SelectableBlockTarget | null {
-  const snapshotView = snapshot ? isSnapshotForView(snapshot, view) : null;
+  const lookup = resolveSnapshotLookup(snapshot, view, validateGeometry);
   if (
-    !snapshot
-    || !snapshotView
-    || snapshot.blocks.length === 0
-    || !isSnapshotGeometryFresh(snapshot, snapshotView)
+    !lookup
+    || lookup.snapshot.blocks.length === 0
   ) {
     return null;
   }
+  const { snapshot: resolvedSnapshot, snapshotView, scrollRootRect } = lookup;
 
-  const scrollRootRect = getSnapshotScrollRootRect(snapshot);
   const documentY = scrollRootRect
     ? clientY - scrollRootRect.top + snapshotView.scrollTop
     : clientY;
-  const firstAfterIndex = findFirstBlockStartingAfter(snapshot.blocks, documentY);
+  const firstAfterIndex = findFirstBlockStartingAfter(resolvedSnapshot.blocks, documentY);
   let directStartIndex = Math.max(0, firstAfterIndex - 1);
   while (
     directStartIndex > 0
-    && snapshot.blocks[directStartIndex - 1]?.documentBottom >= documentY
+    && resolvedSnapshot.blocks[directStartIndex - 1]?.documentBottom >= documentY
   ) {
     directStartIndex -= 1;
   }
 
-  for (let index = directStartIndex; index < snapshot.blocks.length; index += 1) {
-    const block = snapshot.blocks[index];
+  for (let index = directStartIndex; index < resolvedSnapshot.blocks.length; index += 1) {
+    const block = resolvedSnapshot.blocks[index];
     if (block.documentTop > documentY) break;
     if (block.documentBottom < documentY) continue;
     if (predicate && !predicate(block)) continue;
@@ -144,15 +176,15 @@ export function getCachedEditorBlockTargetNearYFromSnapshot(
 
   let previous: EditorBlockPositionEntry | null = null;
   for (let index = firstAfterIndex - 1; index >= 0; index -= 1) {
-    const block = snapshot.blocks[index];
+    const block = resolvedSnapshot.blocks[index];
     if (predicate && !predicate(block)) continue;
     previous = block;
     break;
   }
 
   let next: EditorBlockPositionEntry | null = null;
-  for (let index = firstAfterIndex; index < snapshot.blocks.length; index += 1) {
-    const block = snapshot.blocks[index];
+  for (let index = firstAfterIndex; index < resolvedSnapshot.blocks.length; index += 1) {
+    const block = resolvedSnapshot.blocks[index];
     if (predicate && !predicate(block)) continue;
     next = block;
     break;
@@ -179,25 +211,24 @@ export function getCachedEditorBlockTargetsNearYFromSnapshot(
   clientY: number,
   isNearRect: (rect: Pick<DOMRect, 'top' | 'bottom' | 'height'>, clientY: number) => boolean,
   predicate?: (block: EditorBlockPositionEntry) => boolean,
+  validateGeometry = true,
 ): SelectableBlockTarget[] | null {
-  const snapshotView = snapshot ? isSnapshotForView(snapshot, view) : null;
+  const lookup = resolveSnapshotLookup(snapshot, view, validateGeometry);
   if (
-    !snapshot
-    || !snapshotView
-    || snapshot.blocks.length === 0
-    || !isSnapshotGeometryFresh(snapshot, snapshotView)
+    !lookup
+    || lookup.snapshot.blocks.length === 0
   ) {
     return null;
   }
+  const { snapshot: resolvedSnapshot, snapshotView, scrollRootRect } = lookup;
 
-  const scrollRootRect = getSnapshotScrollRootRect(snapshot);
   const documentY = scrollRootRect
     ? clientY - scrollRootRect.top + snapshotView.scrollTop
     : clientY;
-  const firstAfterIndex = findFirstBlockStartingAfter(snapshot.blocks, documentY);
+  const firstAfterIndex = findFirstBlockStartingAfter(resolvedSnapshot.blocks, documentY);
   let startIndex = Math.max(0, firstAfterIndex - 1);
   while (startIndex > 0) {
-    const previousBlock = snapshot.blocks[startIndex - 1];
+    const previousBlock = resolvedSnapshot.blocks[startIndex - 1];
     const rect = resolveViewportRectFromDocumentPosition(
       previousBlock,
       scrollRootRect,
@@ -209,8 +240,8 @@ export function getCachedEditorBlockTargetsNearYFromSnapshot(
   }
 
   const targets: SelectableBlockTarget[] = [];
-  for (let index = startIndex; index < snapshot.blocks.length; index += 1) {
-    const block = snapshot.blocks[index];
+  for (let index = startIndex; index < resolvedSnapshot.blocks.length; index += 1) {
+    const block = resolvedSnapshot.blocks[index];
     const rect = resolveViewportRectFromDocumentPosition(
       block,
       scrollRootRect,
