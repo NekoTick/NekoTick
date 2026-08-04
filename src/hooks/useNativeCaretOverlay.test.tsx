@@ -134,6 +134,44 @@ describe('useNativeCaretOverlay', () => {
     hook.unmount();
   });
 
+  it.each(['animationend', 'transitionend'])(
+    'refreshes the caret after a surrounding %s event',
+    (eventName) => {
+      const shell = document.createElement('div');
+      const textarea = document.createElement('textarea');
+      textarea.value = '';
+      textarea.selectionStart = 0;
+      textarea.selectionEnd = 0;
+      const getRect = vi.spyOn(textarea, 'getBoundingClientRect')
+        .mockReturnValue(rect(120, 180, 240, 48));
+      shell.appendChild(textarea);
+      document.body.appendChild(shell);
+      elementFromPoint.mockReturnValue(textarea);
+
+      const hook = renderHook(() => useNativeCaretOverlay());
+
+      act(() => {
+        textarea.focus();
+        document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+      });
+      const initialLeft = Number.parseFloat(
+        document.querySelector<HTMLElement>('.native-caret-overlay')?.style.left ?? '',
+      );
+
+      getRect.mockReturnValue(rect(220, 180, 240, 48));
+      act(() => {
+        shell.dispatchEvent(new Event(eventName, { bubbles: true }));
+      });
+
+      const nextLeft = Number.parseFloat(
+        document.querySelector<HTMLElement>('.native-caret-overlay')?.style.left ?? '',
+      );
+      expect(nextLeft - initialLeft).toBe(100);
+
+      hook.unmount();
+    },
+  );
+
   it('does not refresh the caret overlay during IME composition keydown', () => {
     const root = document.createElement('div');
     root.dataset.chatInput = 'true';
