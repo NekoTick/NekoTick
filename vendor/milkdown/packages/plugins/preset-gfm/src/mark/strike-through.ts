@@ -23,6 +23,8 @@ withMeta(strikethroughAttr, {
 export const strikethroughSchema = $markSchema('strike_through', (ctx) => ({
   parseDOM: [
     { tag: 'del' },
+    { tag: 's' },
+    { tag: 'strike' },
     {
       style: 'text-decoration',
       getAttrs: (value) => (value === 'line-through') as false,

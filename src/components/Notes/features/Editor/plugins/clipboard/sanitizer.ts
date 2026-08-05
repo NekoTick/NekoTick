@@ -20,6 +20,12 @@ import {
 } from '@/lib/notes/markdown/githubHtmlPolicy';
 import { isLocalNetworkHttpUrl } from '@/lib/notes/markdown/urlSecurity';
 import { stripGithubDroppedRawHtmlContent } from '@/lib/notes/markdown/githubRawHtml';
+import {
+  applyClipboardStylePolicy,
+  isClipboardPresentationAttribute,
+  isHiddenClipboardElement,
+  normalizeClipboardTableAlignment,
+} from './clipboardPresentationPolicy';
 
 const MAX_SANITIZE_DEPTH = 200;
 const MAX_SANITIZE_NODES = 20_000;
@@ -28,6 +34,7 @@ const PRE_INITIAL_NEWLINE_SENTINEL = '\uE000VLAINA_PRE_INITIAL_NEWLINE\uE000';
 
 interface SanitizeContext {
   visitedNodes: number;
+  stripPresentationStyles: boolean;
 }
 
 function canVisitNode(context: SanitizeContext) {
@@ -78,6 +85,10 @@ function sanitizeElement(element: Element, context: SanitizeContext, depth: numb
     return null;
   }
 
+  if (context.stripPresentationStyles && isHiddenClipboardElement(element)) {
+    return null;
+  }
+
   const tagName = element.tagName.toLowerCase();
   const attributeNames = element.getAttributeNames();
 
@@ -114,6 +125,13 @@ function sanitizeElement(element: Element, context: SanitizeContext, depth: numb
     }
 
     if (
+      context.stripPresentationStyles
+      && isClipboardPresentationAttribute(tagName, normalizedAttribute)
+    ) {
+      continue;
+    }
+
+    if (
       GITHUB_LOADABLE_OR_URL_ATTRIBUTES.has(normalizedAttribute)
       && !isGithubTagSpecificUrlAttribute(tagName, normalizedAttribute)
     ) {
@@ -124,6 +142,9 @@ function sanitizeElement(element: Element, context: SanitizeContext, depth: numb
       const sanitizedStyle = sanitizeGithubStyle(value);
       if (sanitizedStyle) {
         sanitized.setAttribute('style', sanitizedStyle);
+        if (context.stripPresentationStyles) {
+          applyClipboardStylePolicy(tagName, sanitized);
+        }
       }
       continue;
     }
@@ -179,6 +200,10 @@ function sanitizeElement(element: Element, context: SanitizeContext, depth: numb
     sanitized.setAttribute(normalizedAttribute, value);
   }
 
+  if (context.stripPresentationStyles) {
+    normalizeClipboardTableAlignment(tagName, sanitized);
+  }
+
   if (tagName === 'iframe') {
     if (!sanitized.hasAttribute('src')) {
       return null;
@@ -209,7 +234,7 @@ function sanitizeNode(node: Node, context: SanitizeContext, depth: number): Node
   return null;
 }
 
-export function sanitizeHtml(html: string): string {
+function sanitizeHtmlContent(html: string, stripPresentationStyles: boolean): string {
   if (!html) return html;
   if (html.length > MAX_SANITIZE_HTML_CHARS) return '';
 
@@ -218,11 +243,19 @@ export function sanitizeHtml(html: string): string {
     template.innerHTML = protectPreInitialNewlines(stripGithubDroppedRawHtmlContent(html));
 
     const output = document.createElement('template');
-    sanitizeChildren(template.content, output.content, { visitedNodes: 0 }, 1);
+    sanitizeChildren(template.content, output.content, { visitedNodes: 0, stripPresentationStyles }, 1);
     return restorePreInitialNewlines(output.innerHTML);
   } catch {
     return '';
   }
+}
+
+export function sanitizeHtml(html: string): string {
+  return sanitizeHtmlContent(html, false);
+}
+
+export function sanitizeClipboardHtml(html: string): string {
+  return sanitizeHtmlContent(html, true);
 }
 
 function protectPreInitialNewlines(html: string): string {
