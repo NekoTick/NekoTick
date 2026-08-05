@@ -102,6 +102,15 @@ export function resolveMarkdownBlankLineTargetAtCoords(
   const adjacentBlankLine = resolveAdjacentMarkdownBlankLineTargetAtCoords(view, target, clientX, clientY);
   if (adjacentBlankLine) return adjacentBlankLine;
 
+  const targetElement = target instanceof HTMLElement
+    ? target
+    : target instanceof Node
+      ? target.parentElement
+      : null;
+  if (targetElement && targetElement !== view.dom && view.dom.contains(targetElement)) {
+    return null;
+  }
+
   let closestBlankLine: HTMLElement | null = null;
   let closestDistance = Number.POSITIVE_INFINITY;
   const blankLines = view.dom.querySelectorAll(MARKDOWN_BLANK_LINE_SELECTOR);

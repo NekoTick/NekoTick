@@ -11,7 +11,7 @@ import {
   isIgnoredBlankAreaDragBoxTarget,
   isPointInsideIgnoredBlankAreaDragBoxElement,
   isSameEditorBlankAreaInteractionTarget,
-  resolveTargetTextLinePointerHit,
+  resolvePointerEventTargetTextLineHit,
 } from './blankAreaDragTargets';
 import {
   DRAG_THRESHOLD,
@@ -90,14 +90,14 @@ export function resolveInsideBlockTrailingPlainClick(view: EditorView, event: Mo
   if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return null;
   if (findBackslashHardBreakBlankClickTarget(view, event) !== null) return null;
   const startedInsideEditor = event.target instanceof Node && view.dom.contains(event.target);
-  const textblockLineEndAction = resolveTextblockLineEndPlainClick(view, event);
-  if (textblockLineEndAction) return textblockLineEndAction;
   if (event.target instanceof HTMLElement) {
-    const textLineHit = resolveTargetTextLinePointerHit(view, event.target, event.clientX, event.clientY);
+    const textLineHit = resolvePointerEventTargetTextLineHit(view, event);
     if (textLineHit?.type === 'content') {
       return null;
     }
   }
+  const textblockLineEndAction = resolveTextblockLineEndPlainClick(view, event);
+  if (textblockLineEndAction) return textblockLineEndAction;
 
   const resolver = createBlockRectResolver({
     view,

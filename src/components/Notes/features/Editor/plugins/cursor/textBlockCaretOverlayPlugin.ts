@@ -1,6 +1,7 @@
 import { $prose } from '@milkdown/kit/utils';
 import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import {
   createCaretOverlayRect,
   createCaretOverlayStyle,
@@ -11,6 +12,7 @@ import {
 import { isTagTokenBoundary } from './textBlockCaretTagBoundary';
 import { resolveTextBlockCaretLineHeight } from './textBlockCaretGeometry';
 import { isBlockSelectionInteractionPending } from './blockSelectionInteractionState';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
 
 export { isTagTokenBoundaryAtTextblock } from './textBlockCaretTagBoundary';
 
@@ -38,6 +40,7 @@ function ensureTextBlockCaretStyle(doc: Document): void {
 
 export function shouldShowTextBlockCaretOverlay(view: EditorView): boolean {
   if (isBlockSelectionInteractionPending(view.dom)) return false;
+  if (view.dom.getAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE) === 'true') return false;
   if (!view.hasFocus()) return false;
   if (view.composing) return false;
   if (view.dom.classList.contains(FORCED_LINE_END_CARET_CLASS)) return false;
@@ -96,29 +99,37 @@ function resolvePreviousCharacterRight(view: EditorView): number | null {
 export class TextBlockCaretOverlayView {
   private caret: HTMLElement | null = null;
   private frameId: number | null = null;
+  private isScrolling = false;
   private keyboardCaretNavigationActive = false;
   private pendingVerticalNavigationHead: number | null = null;
   private readonly resizeObserver: ResizeObserver | null = null;
+  private readonly scrollRoot: Element | null;
 
   constructor(private view: EditorView) {
     ensureTextBlockCaretStyle(view.dom.ownerDocument);
+    this.scrollRoot = view.dom.closest('[data-note-scroll-root="true"]');
     this.resizeObserver = typeof ResizeObserver === 'undefined'
       ? null
       : new ResizeObserver(this.scheduleUpdate);
     view.dom.addEventListener('focus', this.scheduleUpdate);
     view.dom.addEventListener('blur', this.hide);
+    view.dom.addEventListener('mousedown', this.handlePointerDown);
     view.dom.addEventListener('keydown', this.handleKeyDown, KEY_EVENT_LISTENER_OPTIONS);
     view.dom.addEventListener('keyup', this.handleKeyUp, KEY_EVENT_LISTENER_OPTIONS);
     view.dom.addEventListener('compositionstart', this.hide);
     view.dom.addEventListener('compositionend', this.scheduleUpdate);
     view.dom.addEventListener(TEXTBLOCK_CARET_OVERLAY_REFRESH_EVENT, this.refreshNow);
     view.dom.ownerDocument.addEventListener('selectionchange', this.scheduleUpdate);
+    view.dom.ownerDocument.addEventListener('mouseup', this.handlePointerUp);
     view.dom.ownerDocument.defaultView?.addEventListener('resize', this.scheduleUpdate);
-    view.dom.closest('[data-note-scroll-root="true"]')?.addEventListener('scroll', this.scheduleUpdate, { passive: true });
+    this.scrollRoot?.addEventListener('scroll', this.handleScroll, { passive: true });
+    view.dom.ownerDocument.defaultView?.addEventListener(
+      OVERLAY_SCROLL_IDLE_EVENT,
+      this.handleScrollIdle,
+    );
     this.resizeObserver?.observe(view.dom);
-    const scrollRoot = view.dom.closest('[data-note-scroll-root="true"]');
-    if (scrollRoot) {
-      this.resizeObserver?.observe(scrollRoot);
+    if (this.scrollRoot) {
+      this.resizeObserver?.observe(this.scrollRoot);
     }
     this.scheduleUpdate();
   }
@@ -132,20 +143,30 @@ export class TextBlockCaretOverlayView {
     this.cancelFrame();
     this.view.dom.removeEventListener('focus', this.scheduleUpdate);
     this.view.dom.removeEventListener('blur', this.hide);
+    this.view.dom.removeEventListener('mousedown', this.handlePointerDown);
     this.view.dom.removeEventListener('keydown', this.handleKeyDown, KEY_EVENT_LISTENER_OPTIONS);
     this.view.dom.removeEventListener('keyup', this.handleKeyUp, KEY_EVENT_LISTENER_OPTIONS);
     this.view.dom.removeEventListener('compositionstart', this.hide);
     this.view.dom.removeEventListener('compositionend', this.scheduleUpdate);
     this.view.dom.removeEventListener(TEXTBLOCK_CARET_OVERLAY_REFRESH_EVENT, this.refreshNow);
     this.view.dom.ownerDocument.removeEventListener('selectionchange', this.scheduleUpdate);
+    this.view.dom.ownerDocument.removeEventListener('mouseup', this.handlePointerUp);
     this.view.dom.ownerDocument.defaultView?.removeEventListener('resize', this.scheduleUpdate);
-    this.view.dom.closest('[data-note-scroll-root="true"]')?.removeEventListener('scroll', this.scheduleUpdate);
+    this.scrollRoot?.removeEventListener('scroll', this.handleScroll);
+    this.view.dom.ownerDocument.defaultView?.removeEventListener(
+      OVERLAY_SCROLL_IDLE_EVENT,
+      this.handleScrollIdle,
+    );
     this.resizeObserver?.disconnect();
     this.hide();
   }
 
   private scheduleUpdate = (): void => {
-    if (this.frameId !== null) return;
+    if (
+      this.isScrolling ||
+      this.frameId !== null ||
+      this.view.dom.getAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE) === 'true'
+    ) return;
 
     const ownerWindow = this.view.dom.ownerDocument.defaultView;
     if (!ownerWindow) return;
@@ -163,15 +184,44 @@ export class TextBlockCaretOverlayView {
   }
 
   private refreshNow = (): void => {
+    this.isScrolling = false;
     this.cancelFrame();
     this.render();
   };
 
+  private handleScroll = (): void => {
+    if (this.isScrolling) return;
+    this.isScrolling = true;
+    this.cancelFrame();
+    this.removeCaretOverlay();
+  };
+
+  private handleScrollIdle = (): void => {
+    if (!this.isScrolling) return;
+    this.isScrolling = false;
+    this.scheduleUpdate();
+  };
+
+  private handlePointerDown = (event: MouseEvent): void => {
+    if (event.button !== 0) return;
+    if (this.view.dom.getAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE) !== 'true') return;
+    this.cancelFrame();
+    this.removeCaretOverlay();
+  };
+
+  private handlePointerUp = (): void => {
+    this.scheduleUpdate();
+  };
+
   private removeCaretOverlay(): void {
-    releaseCaretBlink(this.caret);
-    this.caret?.remove();
-    this.caret = null;
-    this.view.dom.classList.remove(TEXTBLOCK_CARET_CLASS);
+    if (this.caret) {
+      releaseCaretBlink(this.caret);
+      this.caret.remove();
+      this.caret = null;
+    }
+    if (this.view.dom.classList.contains(TEXTBLOCK_CARET_CLASS)) {
+      this.view.dom.classList.remove(TEXTBLOCK_CARET_CLASS);
+    }
   }
 
   private hide = (): void => {
@@ -215,7 +265,9 @@ export class TextBlockCaretOverlayView {
     }
 
     holdCaretBlink(this.caret, null);
-    this.view.dom.classList.add(TEXTBLOCK_CARET_CLASS);
+    if (!this.view.dom.classList.contains(TEXTBLOCK_CARET_CLASS)) {
+      this.view.dom.classList.add(TEXTBLOCK_CARET_CLASS);
+    }
     return true;
   }
 
@@ -274,11 +326,16 @@ export class TextBlockCaretOverlayView {
         left: previousCharacterRight,
       };
     }
-    this.caret.style.left = `${overlayRect.left}px`;
-    this.caret.style.top = `${overlayRect.top}px`;
-    this.caret.style.height = `${overlayRect.height}px`;
+    const left = `${overlayRect.left}px`;
+    const top = `${overlayRect.top}px`;
+    const height = `${overlayRect.height}px`;
+    if (this.caret.style.left !== left) this.caret.style.left = left;
+    if (this.caret.style.top !== top) this.caret.style.top = top;
+    if (this.caret.style.height !== height) this.caret.style.height = height;
     holdCaretBlink(this.caret, this.keyboardCaretNavigationActive ? null : undefined);
-    this.view.dom.classList.add(TEXTBLOCK_CARET_CLASS);
+    if (!this.view.dom.classList.contains(TEXTBLOCK_CARET_CLASS)) {
+      this.view.dom.classList.add(TEXTBLOCK_CARET_CLASS);
+    }
   }
 }
 

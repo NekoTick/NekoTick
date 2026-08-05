@@ -1,9 +1,17 @@
 import { type EditorBlockPositionSnapshot } from '../../utils/editorBlockPositionCache';
 
 export function installBlockControlsViewSessionViewportHandlers(session: any): void {
+  const isScrolling = () => (
+    session.scrollRoot?.dataset.overlayScrollbarInteracting === 'true'
+  );
+
   session.handleScrollOrResize = (): void => {
     if (session.draggedRanges) {
       session.refreshDragDropAfterScroll();
+      return;
+    }
+    if (isScrolling()) {
+      session.hideControls();
       return;
     }
     if (session.isBlockSelectionPending()) {
@@ -19,6 +27,10 @@ export function installBlockControlsViewSessionViewportHandlers(session: any): v
 
   session.handleBlockPositionSnapshot = (snapshot: EditorBlockPositionSnapshot | null): void => {
     if (snapshot && snapshot.view !== session.view) return;
+    if (!session.draggedRanges && isScrolling()) {
+      session.hideControls();
+      return;
+    }
     if (session.isBlockSelectionPending()) {
       session.hideControls();
       return;
@@ -32,6 +44,16 @@ export function installBlockControlsViewSessionViewportHandlers(session: any): v
       }
       return;
     }
+    session.scheduleHandleRefresh();
+  };
+
+  session.handleScrollIdle = (): void => {
+    if (isScrolling() || session.draggedRanges || session.pointerY === null) return;
+    if (session.isBlockSelectionPending()) {
+      session.hideControls();
+      return;
+    }
+    session.invalidateTargetCache();
     session.scheduleHandleRefresh();
   };
 

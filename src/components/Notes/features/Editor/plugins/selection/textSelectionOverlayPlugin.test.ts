@@ -28,6 +28,7 @@ import {
   collapsePointerNativeSelectionAt,
   schedulePointerClickCollapseReassertion,
 } from './textSelectionOverlayPointerClick';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from './textSelectionOverlayState';
 
 const OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
@@ -248,8 +249,10 @@ describe('textSelectionOverlayPlugin', () => {
 
       expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
       expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(true);
+      expect(view.dom).toHaveAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
 
       document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      expect(view.dom).not.toHaveAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
 
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -361,6 +364,92 @@ describe('textSelectionOverlayPlugin', () => {
         configurable: true,
         value: originalElementFromPoint,
       });
+    }
+  });
+
+  it('does not measure native range geometry while pointer selection stays native', async () => {
+    const view = await createEditor('hello world');
+    const originalGetSelection = window.getSelection;
+    const originalElementFromPoint = document.elementFromPoint;
+    const getClientRects = vi.fn(() => []);
+
+    Object.defineProperty(window, 'getSelection', {
+      configurable: true,
+      value: () => ({
+        isCollapsed: false,
+        rangeCount: 1,
+        getRangeAt: () => ({ getClientRects }),
+      }),
+    });
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => view.dom,
+    });
+
+    try {
+      view.dom.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(true);
+      expect(getClientRects).not.toHaveBeenCalled();
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      Object.defineProperty(window, 'getSelection', {
+        configurable: true,
+        value: originalGetSelection,
+      });
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    }
+  });
+
+  it('does not measure native range geometry while pointer selection rebuilds an overlay', async () => {
+    const view = await createEditor('hello world');
+    const originalGetSelection = window.getSelection;
+    const originalElementFromPoint = document.elementFromPoint;
+    const restoreCaretRangeFromPoint = mockCaretRangeFromPoint(view, 2);
+    const textElement = view.dom.querySelector('p') ?? view.dom;
+    const getClientRects = vi.fn(() => []);
+
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => textElement,
+    });
+
+    try {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+      textElement.dispatchEvent(new MouseEvent('mousedown', {
+        button: 0,
+        bubbles: true,
+        clientX: 12,
+        clientY: 12,
+      }));
+      expect(view.dom).toHaveAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
+
+      Object.defineProperty(window, 'getSelection', {
+        configurable: true,
+        value: () => ({
+          isCollapsed: false,
+          rangeCount: 1,
+          getRangeAt: () => ({ getClientRects }),
+        }),
+      });
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 8)));
+
+      expect(getClientRects).not.toHaveBeenCalled();
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      Object.defineProperty(window, 'getSelection', {
+        configurable: true,
+        value: originalGetSelection,
+      });
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+      restoreCaretRangeFromPoint();
     }
   });
 

@@ -37,6 +37,7 @@ export function scheduleClearNativeSelection({ session, view }: TextSelectionOve
 
   session.clearNativeSelectionFrame = requestAnimationFrame(() => {
     session.clearNativeSelectionFrame = null;
+    if (session.isPointerSelectionActive) return;
     const nativeSelection = getNativeSelectionMetrics();
     const shouldClearNativeRangeForOverlay =
       !session.isPointerSelectionActive &&
@@ -73,9 +74,10 @@ export function syncTextSelectionOverlayActiveClass(context: TextSelectionOverla
   ].join(':');
   if (classSignature !== session.lastClassSignature) {
     session.lastClassSignature = classSignature;
+    if (!active || usePointerNativeSelection) return;
+    if (session.isPointerSelectionActive) return;
     const nativeSelection = getNativeSelectionMetrics();
     if (
-      active &&
       nativeSelection &&
       !nativeSelection.isCollapsed &&
       nativeSelection.rectCount > 0

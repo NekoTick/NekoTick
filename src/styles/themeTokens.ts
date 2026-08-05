@@ -920,6 +920,7 @@ export const themeUiFeedbackTokens = {
   editorPendingMarkdownTestCommitThrottleMs: 0,
   editorCompositionSettleMs: 220,
   editorInitNoiseWindowMs: 500,
+  overlayScrollInteractionSettleMs: 600,
   notesSidebarSearchDebounceMs: 120,
   markdownFontSizePreviewStepPx: 32,
   imageToolbarCopyFeedbackDurationMs: 2000,
@@ -1094,6 +1095,7 @@ export const themeLazyLoadTokens = {
   assetThumbnailRootMargin: '80px',
   assetThumbnailThreshold: 0.01,
   codeBlockRootMargin: '900px 0px',
+  imageBackgroundLoadStartDelayMs: 300,
   imageBlockRootMargin: '900px 0px',
-  mermaidRootMargin: '900px 0px',
+  mermaidPreloadMargin: '900px 0px 2400px',
 } as const;

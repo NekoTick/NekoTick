@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import {
   isTagTokenBoundaryAtTextblock,
   shouldShowTextBlockCaretOverlay,
@@ -6,6 +7,7 @@ import {
   TextBlockCaretOverlayView,
 } from './textBlockCaretOverlayPlugin';
 import { setBlockSelectionInteractionPending } from './blockSelectionInteractionState';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
 
 function createParent(text: string) {
   return {
@@ -154,6 +156,97 @@ describe('textBlockCaretOverlayPlugin', () => {
 
     overlay.destroy();
     expect(TestResizeObserver.instances[0]!.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('suspends caret geometry work until scrolling becomes idle', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(vi.fn());
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.noteScrollRoot = 'true';
+    const editorDom = document.createElement('div');
+    scrollRoot.appendChild(editorDom);
+    document.body.appendChild(scrollRoot);
+
+    let top = 12;
+    const view = {
+      dom: editorDom,
+      composing: false,
+      hasFocus: () => true,
+      coordsAtPos: vi.fn(() => ({ left: 24, top, bottom: top + 20 })),
+      domAtPos: vi.fn(),
+      state: { selection: createTextblockSelection() },
+    };
+
+    const overlay = new TextBlockCaretOverlayView(view as any);
+    animationFrames.shift()?.(0);
+    expect(view.coordsAtPos).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.editor-textblock-caret-overlay')).not.toBeNull();
+
+    top = 48;
+    scrollRoot.dispatchEvent(new Event('scroll'));
+    scrollRoot.dispatchEvent(new Event('scroll'));
+    document.dispatchEvent(new Event('selectionchange'));
+
+    expect(document.querySelector('.editor-textblock-caret-overlay')).toBeNull();
+    expect(animationFrames).toHaveLength(0);
+    expect(view.coordsAtPos).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+    animationFrames.shift()?.(0);
+
+    expect(view.coordsAtPos).toHaveBeenCalledTimes(2);
+    expect(document.querySelector<HTMLElement>('.editor-textblock-caret-overlay')?.style.top).toBe('48px');
+
+    overlay.destroy();
+  });
+
+  it('suspends caret geometry work while pointer text selection is active', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(vi.fn());
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+
+    const editorDom = document.createElement('div');
+    document.body.appendChild(editorDom);
+    const view = {
+      dom: editorDom,
+      composing: false,
+      hasFocus: () => true,
+      coordsAtPos: vi.fn(() => ({ left: 24, top: 12, bottom: 32 })),
+      domAtPos: vi.fn(),
+      state: { selection: createTextblockSelection() },
+    };
+
+    const overlay = new TextBlockCaretOverlayView(view as any);
+    animationFrames.shift()?.(0);
+    expect(view.coordsAtPos).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.editor-textblock-caret-overlay')).not.toBeNull();
+
+    editorDom.setAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
+    editorDom.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    overlay.update(view as any);
+
+    expect(animationFrames).toHaveLength(0);
+    expect(view.coordsAtPos).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.editor-textblock-caret-overlay')).toBeNull();
+
+    editorDom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    animationFrames.shift()?.(0);
+
+    expect(view.coordsAtPos).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('.editor-textblock-caret-overlay')).not.toBeNull();
+
+    overlay.destroy();
   });
 
   it('refreshes the caret overlay immediately when requested after a scroll write', () => {

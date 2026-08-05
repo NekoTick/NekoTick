@@ -41,8 +41,12 @@ export function createLargeBlockSelectionPreviewOverlay(view: EditorView) {
   const clear = () => {
     lastDoc = currentView.state.doc;
     lastSelectionKey = '';
-    layer.dataset.selectionCount = '0';
-    currentView.dom.classList.remove(LARGE_SELECTION_PREVIEW_ACTIVE_CLASS);
+    if (layer.dataset.selectionCount !== '0') {
+      layer.dataset.selectionCount = '0';
+    }
+    if (currentView.dom.classList.contains(LARGE_SELECTION_PREVIEW_ACTIVE_CLASS)) {
+      currentView.dom.classList.remove(LARGE_SELECTION_PREVIEW_ACTIVE_CLASS);
+    }
     if (path.hasAttribute('d')) path.removeAttribute('d');
   };
 
@@ -91,8 +95,14 @@ export function createLargeBlockSelectionPreviewOverlay(view: EditorView) {
 
     lastDoc = updatedView.state.doc;
     lastSelectionKey = selectionKey;
-    layer.dataset.selectionCount = String(renderedCount);
-    updatedView.dom.classList.toggle(LARGE_SELECTION_PREVIEW_ACTIVE_CLASS, renderedCount > 0);
+    const selectionCount = String(renderedCount);
+    if (layer.dataset.selectionCount !== selectionCount) {
+      layer.dataset.selectionCount = selectionCount;
+    }
+    const previewActive = renderedCount > 0;
+    if (updatedView.dom.classList.contains(LARGE_SELECTION_PREVIEW_ACTIVE_CLASS) !== previewActive) {
+      updatedView.dom.classList.toggle(LARGE_SELECTION_PREVIEW_ACTIVE_CLASS, previewActive);
+    }
     if (path.getAttribute('d') !== pathData) {
       path.setAttribute('d', pathData);
     }

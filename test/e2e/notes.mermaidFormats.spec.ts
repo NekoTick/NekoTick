@@ -33,8 +33,11 @@ test.describe('notes Mermaid format matrix', () => {
       const results = [];
       for (const [index, fixture] of MERMAID_FORMAT_FIXTURES.entries()) {
         const block = blocks.nth(index);
-        await block.scrollIntoViewIfNeeded();
+        await block.evaluate((element) => {
+          element.scrollIntoView({ block: 'center', inline: 'nearest' });
+        });
         await expect(block).toBeVisible({ timeout: 30_000 });
+        await expect(block).toBeInViewport({ ratio: 0.9, timeout: 30_000 });
 
         const readMetrics = () => block.evaluate((element) => {
           const svg = element.querySelector<SVGSVGElement>('svg');

@@ -60,7 +60,7 @@ describe('useNearViewport', () => {
         });
     });
 
-    it('allows offscreen image nodes to prefetch in the background after the initial delay', () => {
+    it('preloads offscreen image nodes in the background after the initial delay', () => {
         const ref = createElementRef();
         const { result } = renderHook(() => useNearViewport(ref));
 
@@ -81,7 +81,7 @@ describe('useNearViewport', () => {
             vi.advanceTimersByTime(1);
         });
         expect(result.current).toEqual({
-            isNearViewport: false,
+            isNearViewport: true,
             shouldLoadImage: true,
         });
     });
@@ -98,7 +98,7 @@ describe('useNearViewport', () => {
         });
 
         expect(hooks.slice(0, nearViewportTesting.BACKGROUND_LOAD_BATCH_SIZE).every((hook) => (
-            hook.result.current.shouldLoadImage && !hook.result.current.isNearViewport
+            hook.result.current.shouldLoadImage && hook.result.current.isNearViewport
         ))).toBe(true);
         expect(hooks[hookCount - 1].result.current).toEqual({
             isNearViewport: false,
@@ -110,7 +110,7 @@ describe('useNearViewport', () => {
         });
 
         expect(hooks[hookCount - 1].result.current).toEqual({
-            isNearViewport: false,
+            isNearViewport: true,
             shouldLoadImage: true,
         });
     });

@@ -58,7 +58,9 @@ class BlockControlsViewSessionPointer {
   }
 
   hideControls(this: any): void {
-    this.controls.classList.remove('visible');
+    if (this.controls.classList.contains('visible')) {
+      this.controls.classList.remove('visible');
+    }
   }
 
   clearPointer(this: any): void {

@@ -72,7 +72,14 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
                 return;
             }
 
-            const rect = headerRef.current?.getBoundingClientRect();
+            const header = headerRef.current;
+            if (!header) return;
+            if (event.target instanceof Node) {
+                setIsHovered(header.contains(event.target));
+                return;
+            }
+
+            const rect = header.getBoundingClientRect();
             if (!rect) return;
 
             setIsHovered(

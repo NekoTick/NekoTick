@@ -30,6 +30,11 @@ import {
 } from './blankAreaExternalTargets';
 import { resolveTaskCheckboxTarget } from '../task-list/taskCheckboxHitArea';
 
+const pointerEventTextLineHits = new WeakMap<MouseEvent, {
+  editor: HTMLElement;
+  hit: TextLinePointerHit | null;
+}>();
+
 export {
   MAX_BLANK_AREA_TEXT_HIT_CHARS,
   MAX_BLANK_AREA_TEXT_HIT_NODES,
@@ -59,6 +64,16 @@ export function isIgnoredBlankAreaDragBoxTarget(target: EventTarget | null): boo
 export function isPointInsideIgnoredBlankAreaDragBoxElement(view: EditorView, event: MouseEvent): boolean {
   if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
   if (!isSameEditorBlankAreaInteractionTarget(view, event.target)) return false;
+
+  const targetElement = getElementFromEventTarget(event.target);
+  if (
+    targetElement &&
+    targetElement !== view.dom &&
+    view.dom.contains(targetElement) &&
+    targetElement.closest(TEXT_BLOCK_SURFACE_SELECTOR)
+  ) {
+    return false;
+  }
 
   const editorScrollRoot = getScrollRoot(view.dom);
   if (!editorScrollRoot) return false;
@@ -114,6 +129,23 @@ export function resolveTargetTextLinePointerHit(
   }
 
   return resolveTextLinePointerHit(view.dom, clientX, clientY);
+}
+
+export function resolvePointerEventTargetTextLineHit(
+  view: EditorView,
+  event: MouseEvent,
+): TextLinePointerHit | null {
+  const cached = pointerEventTextLineHits.get(event);
+  if (cached?.editor === view.dom) {
+    return cached.hit;
+  }
+
+  const target = getElementFromEventTarget(event.target);
+  const hit = target instanceof HTMLElement
+    ? resolveTargetTextLinePointerHit(view, target, event.clientX, event.clientY)
+    : null;
+  pointerEventTextLineHits.set(event, { editor: view.dom, hit });
+  return hit;
 }
 
 function resolveSameEditorExternalTextLinePointerHit(
@@ -228,7 +260,7 @@ export function resolveBlankAreaDragStartZone(view: EditorView, event: MouseEven
 
     const targetTextBlock = target.closest(TEXT_BLOCK_SURFACE_SELECTOR);
     if (targetTextBlock instanceof HTMLElement && view.dom.contains(targetTextBlock)) {
-      const textLineHit = resolveTextLinePointerHit(targetTextBlock, event.clientX, event.clientY);
+      const textLineHit = resolvePointerEventTargetTextLineHit(view, event);
       if (isNativeTextSelectionHit(textLineHit)) {
         return null;
       }

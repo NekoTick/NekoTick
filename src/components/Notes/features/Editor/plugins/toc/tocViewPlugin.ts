@@ -74,6 +74,9 @@ export const tocViewPlugin = $prose(() => {
         }
 
         const { doc } = view.state;
+        if (!force && lastDoc === doc) {
+          return;
+        }
         const tocElements = collectTocBlocks(view.dom);
         if (tocElements.length === 0) {
           lastDoc = doc;

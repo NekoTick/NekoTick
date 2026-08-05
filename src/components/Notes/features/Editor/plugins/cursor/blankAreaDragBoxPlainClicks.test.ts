@@ -6,6 +6,7 @@ import { TextSelection } from '@milkdown/kit/prose/state';
 import { resolveTextblockLineEndPlainClick } from './listParagraphEndPlainClick';
 import {
   clearTextSelectionForDragSession,
+  resolveInsideBlockTrailingPlainClick,
   startInsideBlockTrailingPlainClickSession,
 } from './blankAreaDragBoxPlainClicks';
 
@@ -55,6 +56,38 @@ function createHarness(nextContent: 'paragraph' | 'list' | 'none' = 'paragraph')
 }
 
 describe('resolveTextblockLineEndPlainClick', () => {
+  it('does not map document coordinates when the pointer hits text content', () => {
+    const { editor, event, view } = createHarness();
+    view.state.doc.descendants = vi.fn();
+    const rangeRects = vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue({
+      0: {
+        bottom: 60,
+        height: 20,
+        left: 500,
+        right: 540,
+        top: 40,
+        width: 40,
+      },
+      item: (index: number) => index === 0 ? ({
+        bottom: 60,
+        height: 20,
+        left: 500,
+        right: 540,
+        top: 40,
+        width: 40,
+      } as DOMRect) : null,
+      length: 1,
+    } as DOMRectList);
+
+    try {
+      expect(resolveInsideBlockTrailingPlainClick(view, event)).toBeNull();
+      expect(view.posAtCoords).not.toHaveBeenCalled();
+    } finally {
+      rangeRects.mockRestore();
+      editor.remove();
+    }
+  });
+
   it('targets the current paragraph end before a following pasted list paragraph', () => {
     const { editor, event, view } = createHarness();
 

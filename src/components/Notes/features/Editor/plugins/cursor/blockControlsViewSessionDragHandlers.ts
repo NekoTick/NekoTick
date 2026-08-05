@@ -1,10 +1,20 @@
 import { normalizeWheelDelta } from '@/lib/scroll/wheelScroll';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
 import { applyBlockMove, canApplyBlockMove } from './blockControlsInteractions';
 import { getCurrentNotePath, getElementsFromPoint, isOverNotesBlockDropTarget, MIN_DROP_DISTANCE_PX, serializeCurrentMarkdownForNotePath, serializeDraggedRangesForComposer, serializeDraggedRangesForMarkdown, serializeSourceMarkdownAfterDelete, setPendingCrossNoteBlockDrag, setPendingCrossNoteBlockDragPreview, updatePendingCrossNoteBlockDragPointer } from './blockControlsViewSessionHelpers';
 import { createBlockDragPreview, createBlockDragSourceMarker } from './blockDragPreview';
 import { setBlockDraggingVisualState } from './blockDragVisualState';
 
 export function installBlockControlsViewSessionDragHandlers(session: any): void {
+  const suspendForPointerTextSelection = (): boolean => {
+    if (session.view.dom.getAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE) !== 'true') {
+      return false;
+    }
+    session.clearPointer();
+    session.hideControls();
+    return true;
+  };
+
   session.refreshDragDropAfterScroll = (): void => {
     session.invalidateTargetCache();
     session.scheduleHandleRefresh();
@@ -91,6 +101,7 @@ export function installBlockControlsViewSessionDragHandlers(session: any): void 
       return;
     }
 
+    if (suspendForPointerTextSelection()) return;
     if (session.isBlockSelectionPending()) {
       session.clearPointer();
       session.hideControls();
@@ -104,6 +115,7 @@ export function installBlockControlsViewSessionDragHandlers(session: any): void 
   session.handleDocumentPointerMove = (event: PointerEvent): void => {
     if (event.pointerType && event.pointerType !== 'mouse') return;
     if (session.draggedRanges) return;
+    if (suspendForPointerTextSelection()) return;
     if (session.isBlockSelectionPending()) {
       session.clearPointer();
       session.hideControls();

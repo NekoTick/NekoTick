@@ -33,6 +33,7 @@ describe('mermaidEditorLivePreview', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.body.replaceChildren();
   });
 
   it('normalizes code before the first Mermaid element render', () => {
@@ -78,11 +79,15 @@ describe('mermaidEditorLivePreview', () => {
 
   it('lazy renders initial Mermaid elements in browsers until they approach the viewport', async () => {
     let observerCallback: IntersectionObserverCallback = () => undefined;
+    let observerRootMargin = '';
+    let observerScrollMargin = '';
     const observe = vi.fn();
     const disconnect = vi.fn();
     class TestIntersectionObserver {
-      constructor(callback: IntersectionObserverCallback) {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
         observerCallback = callback;
+        observerRootMargin = options?.rootMargin ?? '0px';
+        observerScrollMargin = options?.scrollMargin ?? '0px';
       }
 
       observe = observe;
@@ -102,6 +107,8 @@ describe('mermaidEditorLivePreview', () => {
     expect(renderMermaid).not.toHaveBeenCalled();
     expect(element.dataset.mermaidLazy).toBe('true');
     expect(element.querySelector('.mermaid-placeholder')).not.toBeNull();
+    expect(observerRootMargin).toBe('0px');
+    expect(observerScrollMargin).toBe('900px 0px 2400px');
 
     observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
 
@@ -115,16 +122,48 @@ describe('mermaidEditorLivePreview', () => {
     });
   });
 
-  it('shows a generic error when the initial Mermaid render rejects', async () => {
+  it('waits for active note scrolling before starting a visible lazy render', async () => {
+    let observerCallback: IntersectionObserverCallback = () => undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.noteScrollRoot = 'true';
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(scrollRoot);
+    vi.mocked(renderMermaid).mockClear();
+
+    createMermaidElement('sequenceDiagram\nAlice->Bob: wait for scroll');
+    observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+
+    expect(renderMermaid).not.toHaveBeenCalled();
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('retries when the initial Mermaid render rejects', async () => {
     vi.mocked(renderMermaid).mockRejectedValueOnce(new Error('secret source'));
 
     const element = createMermaidElement('sequenceDiagram\nAlice->Bob: secret source');
 
     await waitFor(() => {
-      expect(element.querySelector('.mermaid-error')?.textContent).toContain(
-        'Mermaid Error: Unable to render diagram.'
-      );
+      expect(element.querySelector('svg[data-rendered="initial"]')).not.toBeNull();
     });
+    expect(renderMermaid).toHaveBeenCalledTimes(2);
     expect(element.outerHTML).not.toContain('secret source');
   });
 
@@ -139,7 +178,7 @@ describe('mermaidEditorLivePreview', () => {
     useUIStore.setState({ languagePreference: 'zh-CN' });
     const secondMarkup = await resolveMermaidMarkup(code);
 
-    expect(renderMermaid).toHaveBeenCalledTimes(2);
+    expect(renderMermaid).toHaveBeenCalledTimes(4);
     expect(secondMarkup).toContain('Mermaid 错误：无法渲染图表');
   });
 

@@ -93,11 +93,19 @@ describe('math hover styles', () => {
     );
 
     expect(mathCss).toContain(".milkdown .mermaid-block:hover,");
-    const mermaidRule = extendedCss.match(/\.milkdown \.mermaid-block \{(?<body>[\s\S]*?)\n\}/)?.groups?.body ?? '';
+    const mermaidRule = extendedCss.match(/^\.milkdown \.mermaid-block \{(?<body>[\s\S]*?)\n\}/m)?.groups?.body ?? '';
+    const lazyMermaidRule = extendedCss.match(
+      /\.milkdown-editor\[data-note-lazy-block-visibility='true'\] \.milkdown \.mermaid-block \{(?<body>[\s\S]*?)\n\}/,
+    )?.groups?.body ?? '';
+    const placeholderRule = extendedCss.match(
+      /\.milkdown \.mermaid-placeholder \{(?<body>[\s\S]*?)\n\}/,
+    )?.groups?.body ?? '';
 
-    expect(mermaidRule).toContain('content-visibility: auto;');
-    expect(mermaidRule).toContain('contain-intrinsic-size: var(--vlaina-height-mermaid-intrinsic);');
+    expect(mermaidRule).not.toContain('content-visibility: auto;');
+    expect(lazyMermaidRule).toContain('content-visibility: auto;');
+    expect(lazyMermaidRule).toContain('contain-intrinsic-size: var(--vlaina-height-mermaid-intrinsic);');
     expect(themeCss).toContain('--vlaina-height-mermaid-intrinsic: auto var(--vlaina-size-180px);');
+    expect(placeholderRule).toContain('min-height: var(--vlaina-size-180px);');
     expect(mermaidRule).toContain('background: transparent;');
     expect(mermaidRule).toContain('border: var(--vlaina-border-width-0);');
     expect(mermaidRule).toContain('border-radius: var(--vlaina-radius-0);');
@@ -164,6 +172,7 @@ describe('math hover styles', () => {
     const css = readMathStyles();
     const themeCss = readThemeStyle();
 
+    expect(css).toContain(".milkdown-editor[data-note-lazy-block-visibility='true']");
     expect(css).toContain(".milkdown [data-type='math-block'].math-block-wrapper {");
     expect(css).toContain('content-visibility: auto;');
     expect(css).toContain('contain-intrinsic-size: var(--vlaina-height-math-block-intrinsic);');

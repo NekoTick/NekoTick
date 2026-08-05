@@ -1,5 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react';
 import { Icon } from '@/components/ui/icons';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { getCropViewStyles } from '../utils/cropGeometry';
@@ -75,17 +76,59 @@ export const ImageContent = ({
     const { t } = useI18n();
     const [mediaError, setMediaError] = useState(false);
     const [isImageLoaded, setIsImageLoaded] = useState(() => hasLoadedImageSrc(resolvedSrc));
+    const pendingRemoteLoadCleanupRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
+        pendingRemoteLoadCleanupRef.current?.();
+        pendingRemoteLoadCleanupRef.current = null;
         setMediaError(false);
         setIsImageLoaded(hasLoadedImageSrc(resolvedSrc));
         onMediaErrorChange?.(false);
+        return () => {
+            pendingRemoteLoadCleanupRef.current?.();
+            pendingRemoteLoadCleanupRef.current = null;
+        };
     }, [onMediaErrorChange, resolvedSrc]);
 
     const handleMediaError = useCallback(() => {
+        pendingRemoteLoadCleanupRef.current?.();
+        pendingRemoteLoadCleanupRef.current = null;
         setMediaError(true);
         onMediaErrorChange?.(true);
     }, [onMediaErrorChange]);
+
+    const handleRemoteMediaLoaded = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+        const image = event.currentTarget;
+        const media = {
+            width: image.width,
+            height: image.height,
+            naturalWidth: image.naturalWidth,
+            naturalHeight: image.naturalHeight,
+        };
+        const commit = () => {
+            pendingRemoteLoadCleanupRef.current = null;
+            rememberLoadedImageSrc(resolvedSrc);
+            setIsImageLoaded(true);
+            onMediaLoaded(media);
+        };
+        const scrollRoot = image.closest<HTMLElement>('[data-note-scroll-root="true"]');
+        const ownerWindow = image.ownerDocument.defaultView;
+        if (scrollRoot?.dataset.overlayScrollbarInteracting !== 'true' || !ownerWindow) {
+            commit();
+            return;
+        }
+
+        const handleScrollIdle = () => {
+            if (scrollRoot.dataset.overlayScrollbarInteracting === 'true') return;
+            ownerWindow.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
+            commit();
+        };
+        pendingRemoteLoadCleanupRef.current?.();
+        pendingRemoteLoadCleanupRef.current = () => {
+            ownerWindow.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
+        };
+        ownerWindow.addEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
+    }, [onMediaLoaded, resolvedSrc]);
 
     const shouldRenderPlainRemoteImage = isRemoteImageSource && !isActive && !cropParams;
     const shouldRenderCropPreview = !isActive && !!cropParams;
@@ -152,20 +195,12 @@ export const ImageContent = ({
                     src={resolvedSrc}
                     draggable={false}
                     className={cn(
-                        'block h-auto max-w-full select-none object-contain transition-opacity duration-[var(--vlaina-duration-150)]',
-                        isImageLoaded ? 'opacity-[var(--vlaina-opacity-100)]' : 'opacity-[var(--vlaina-opacity-0)]'
+                        'max-w-full select-none object-contain transition-opacity duration-[var(--vlaina-duration-150)]',
+                        isImageLoaded
+                            ? 'block h-auto opacity-[var(--vlaina-opacity-100)]'
+                            : 'absolute inset-0 h-full w-full opacity-[var(--vlaina-opacity-0)]'
                     )}
-                    onLoad={(event) => {
-                        const image = event.currentTarget;
-                        rememberLoadedImageSrc(resolvedSrc);
-                        setIsImageLoaded(true);
-                        onMediaLoaded({
-                            width: image.width,
-                            height: image.height,
-                            naturalWidth: image.naturalWidth,
-                            naturalHeight: image.naturalHeight,
-                        });
-                    }}
+                    onLoad={handleRemoteMediaLoaded}
                     onError={handleMediaError}
                 />
             </div>

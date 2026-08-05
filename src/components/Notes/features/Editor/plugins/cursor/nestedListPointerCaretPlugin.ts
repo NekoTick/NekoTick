@@ -59,6 +59,9 @@ export function resolveNestedListPointerScanRoot(
   if (!targetElement) return null;
 
   const targetLine = targetElement.closest('.cm-line');
+  if (targetLine?.tagName === 'P' && !targetElement.closest('li')) {
+    return null;
+  }
   if (targetLine?.tagName === 'P' && !targetElement.closest(NESTED_LIST_SELECTOR)) {
     try {
       const coordsPos = view.posAtCoords({ left: clientX, top: clientY })?.pos;
@@ -70,7 +73,8 @@ export function resolveNestedListPointerScanRoot(
   }
 
   const listItem = targetElement.closest('li');
-  return listItem instanceof HTMLElement && view.dom.contains(listItem) ? listItem : view.dom;
+  if (listItem instanceof HTMLElement && view.dom.contains(listItem)) return listItem;
+  return targetElement === view.dom ? view.dom : null;
 }
 
 function dispatchNestedListTextSelection(view: EditorView, anchor: number, head = anchor): boolean {

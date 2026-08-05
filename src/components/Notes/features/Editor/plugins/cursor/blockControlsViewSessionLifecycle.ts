@@ -1,4 +1,5 @@
 import { clearPendingCrossNoteBlockDrag, getCurrentNotePath, insertCrossNoteDraggedMarkdown, pendingCrossNoteBlockDrag, saveCrossNoteBlockDropAfterTargetSave } from './blockControlsViewSessionHelpers';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { remapDraggedMarkdownImageAssets } from './blockDragImageAssets';
 import { setBlockDraggingVisualState } from './blockDragVisualState';
 
@@ -80,6 +81,7 @@ class BlockControlsViewSessionLifecycle {
     this.detachDragWheelListener();
     this.doc.removeEventListener('keydown', this.handleDocumentKeyDown, true);
     this.scrollRoot?.removeEventListener('scroll', this.handleScrollOrResize);
+    window.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, this.handleScrollIdle);
     window.removeEventListener('blur', this.handleWindowBlur);
     window.removeEventListener('resize', this.handleScrollOrResize);
     this.unsubscribeBlockPositionSnapshot();

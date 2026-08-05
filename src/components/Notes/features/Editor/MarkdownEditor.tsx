@@ -190,6 +190,7 @@ export function MarkdownEditor({
         )}
         viewportClassName="flex flex-col items-center relative"
         draggingBodyClassName="app-overlay-scrollbar-dragging"
+        preserveWheelIntentKey={currentNotePath}
         scrollbarVariant="compact"
         data-note-scroll-root="true"
         data-note-cover-viewport="true"

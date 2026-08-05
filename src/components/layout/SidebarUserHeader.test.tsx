@@ -173,6 +173,26 @@ describe('SidebarUserHeader', () => {
     }
   });
 
+  it('does not measure the header for mouse movement over other DOM content', async () => {
+    const { container } = render(<SidebarUserHeader toggleSidebar={() => {}} />);
+    const header = container.querySelector('.sidebar-user-header') as HTMLElement;
+    const outside = document.createElement('div');
+    const getBoundingClientRect = vi.spyOn(header, 'getBoundingClientRect');
+    document.body.append(outside);
+    await screen.findByTestId('workspace-switcher');
+
+    try {
+      act(() => {
+        outside.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+      });
+
+      expect(getBoundingClientRect).not.toHaveBeenCalled();
+      expect(header).not.toHaveAttribute('data-hovered');
+    } finally {
+      outside.remove();
+    }
+  });
+
   it('clears focused hidden controls before collapsing the sidebar', async () => {
     const toggleSidebar = vi.fn();
     render(<SidebarUserHeader toggleSidebar={toggleSidebar} />);

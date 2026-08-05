@@ -223,6 +223,38 @@ describe('CodeBlockNodeView lazy placeholders', () => {
     nodeView.destroy();
   });
 
+  it('defers passive initialization while the Notes viewport is scrolling', () => {
+    vi.useFakeTimers();
+    const flushNextAnimationFrame = mockAnimationFrames();
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.noteScrollRoot = 'true';
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    const view = createMockView();
+    scrollRoot.append(view.dom);
+    const nodeView = new CodeBlockNodeView(
+      createMockNode('const value = 1;'),
+      view,
+      () => 1,
+      { lazyCodeMirror: true },
+    );
+    view.dom.append(nodeView.dom);
+    const instance = intersectionObserverInstances.at(-1)!;
+
+    instance.callback([{ isIntersecting: true } as IntersectionObserverEntry], instance.observer);
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    flushNextAnimationFrame();
+    flushNextAnimationFrame();
+    expect(nodeView.cm).toBeNull();
+
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    vi.advanceTimersByTime(LAZY_CODE_BLOCK_INITIALIZATION_DELAY_MS);
+    flushNextAnimationFrame();
+    flushNextAnimationFrame();
+    expect(nodeView.cm).not.toBeNull();
+
+    nodeView.destroy();
+  });
+
   it('keeps dense-note lazy placeholders passive until user interaction', () => {
     vi.useFakeTimers();
     const nodeView = new CodeBlockNodeView(
