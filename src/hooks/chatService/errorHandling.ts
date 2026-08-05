@@ -1,5 +1,5 @@
 import { ACCOUNT_AUTH_INVALIDATED_EVENT, ACCOUNT_LOGIN_REQUESTED_EVENT } from '@/lib/account/sessionEvent';
-import { buildErrorTag } from '@/lib/ai/errorTag';
+import { buildCustomProviderErrorTag, buildErrorTag } from '@/lib/ai/errorTag';
 import {
   MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS,
   normalizeUserFacingMessage,
@@ -75,7 +75,9 @@ export function buildChatErrorPayload(error: unknown, managed = true) {
 
   return {
     message: normalized.message,
-    xml: buildErrorTag(normalized.type, normalized.code, normalized.message),
+    xml: managed
+      ? buildErrorTag(normalized.type, normalized.code, normalized.message)
+      : buildCustomProviderErrorTag(normalized.type, normalized.code, normalized.message),
   };
 }
 

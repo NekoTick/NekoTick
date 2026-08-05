@@ -1,7 +1,6 @@
 import { translate } from '@/lib/i18n';
 import { AIErrorType } from './types';
 import { normalizeUserFacingMessage } from './errorClassification';
-import { AI_PROVIDER_CONNECTION_FAILURE_CODE } from './providerHttpErrors';
 
 export interface UserFacingAIError {
   type: AIErrorType
@@ -37,11 +36,6 @@ const MANAGED_INVALID_REQUEST_CODES = new Set([
   'INVALID_REQUEST',
 ])
 
-export function isDesktopCustomProviderConnectionFailureMessage(message: string): boolean {
-  const normalizedMessage = normalizeUserFacingMessage(message).toLowerCase()
-  return normalizedMessage.includes(AI_PROVIDER_CONNECTION_FAILURE_CODE.toLowerCase())
-}
-
 export function getUserFacingMessage(type: AIErrorType): string {
   switch (type) {
     case AIErrorType.NETWORK_ERROR:
@@ -53,13 +47,13 @@ export function getUserFacingMessage(type: AIErrorType): string {
     case AIErrorType.QUOTA_EXHAUSTED:
       return translate('chat.error.pointsExhausted')
     case AIErrorType.RATE_LIMIT:
-      return translate('chat.error.upstreamRateLimited')
+      return translate('common.somethingWentWrong')
     case AIErrorType.INVALID_REQUEST:
       return translate('chat.error.invalidRequest')
     case AIErrorType.SERVER_ERROR:
     case AIErrorType.UNKNOWN:
     default:
-      return translate('chat.error.upstreamUnavailable')
+      return translate('common.somethingWentWrong')
   }
 }
 
@@ -80,14 +74,6 @@ export function getSpecificUserFacingOverride(
       type: AIErrorType.AUTH_ERROR,
       code: normalizedCode || 'session_device_limit',
       message: translate('account.error.deviceLimit'),
-    }
-  }
-
-  if (isDesktopCustomProviderConnectionFailureMessage(message)) {
-    return {
-      type: AIErrorType.NETWORK_ERROR,
-      code: normalizedCode,
-      message: translate('chat.error.customProviderConnectionFailed'),
     }
   }
 
@@ -124,9 +110,11 @@ export function getSpecificUserFacingOverride(
   }
 
   if (
-    MANAGED_UPSTREAM_RATE_LIMITED_CODES.has(message) ||
-    MANAGED_UPSTREAM_RATE_LIMITED_CODES.has(normalizedCode) ||
-    normalized === 'upstream_rate_limited'
+    managed && (
+      MANAGED_UPSTREAM_RATE_LIMITED_CODES.has(message) ||
+      MANAGED_UPSTREAM_RATE_LIMITED_CODES.has(normalizedCode) ||
+      normalized === 'upstream_rate_limited'
+    )
   ) {
     return {
       type: AIErrorType.RATE_LIMIT,
@@ -136,9 +124,11 @@ export function getSpecificUserFacingOverride(
   }
 
   if (
-    MANAGED_UPSTREAM_UNAVAILABLE_CODES.has(message) ||
-    MANAGED_UPSTREAM_UNAVAILABLE_CODES.has(normalizedCode) ||
-    normalized === 'upstream_unavailable'
+    managed && (
+      MANAGED_UPSTREAM_UNAVAILABLE_CODES.has(message) ||
+      MANAGED_UPSTREAM_UNAVAILABLE_CODES.has(normalizedCode) ||
+      normalized === 'upstream_unavailable'
+    )
   ) {
     return {
       type: AIErrorType.SERVER_ERROR,
@@ -170,7 +160,7 @@ export function getSpecificUserFacingOverride(
     return {
       type: AIErrorType.SERVER_ERROR,
       code: '403',
-      message: translate('chat.error.upstreamUnavailable'),
+      message: translate('common.somethingWentWrong'),
     }
   }
 

@@ -1,5 +1,4 @@
 import { AIError, AIErrorType } from './types';
-import { translate } from '@/lib/i18n';
 import {
   getSpecificUserFacingOverride,
   getUserFacingMessage,
@@ -11,7 +10,6 @@ import {
   extractErrorMessage,
   inferErrorTypeByMessage,
   inferErrorTypeByStatus,
-  isLikelyHtmlErrorDocument,
   isRecord,
   normalizeUserFacingMessage,
   primitiveToString,
@@ -75,8 +73,7 @@ export function parseAPIError(error: any): AIError {
 
 function extractHTTPErrorMessage(body: any): string | undefined {
   if (typeof body === 'string' && body.trim()) {
-    const trimmed = body.trim()
-    return isLikelyHtmlErrorDocument(trimmed) ? undefined : trimmed
+    return body
   }
 
   if (!isRecord(body)) {
@@ -85,16 +82,16 @@ function extractHTTPErrorMessage(body: any): string | undefined {
 
   const nestedError = readErrorField(body, 'error')
   if (typeof nestedError === 'string' && nestedError.trim()) {
-    return nestedError.trim()
+    return nestedError
   }
   if (isRecord(nestedError)) {
     const message = readErrorField(nestedError, 'message')
     const error = readErrorField(nestedError, 'error')
     const nestedMessage =
       typeof message === 'string' && message.trim()
-        ? message.trim()
+        ? message
         : typeof error === 'string' && error.trim()
-          ? error.trim()
+          ? error
           : ''
     if (nestedMessage) {
       return nestedMessage
@@ -104,8 +101,7 @@ function extractHTTPErrorMessage(body: any): string | undefined {
   for (const key of ['message', 'msg', 'detail', 'error_description'] as const) {
     const value = readErrorField(body, key)
     if (typeof value === 'string' && value.trim()) {
-      const trimmed = value.trim()
-      return isLikelyHtmlErrorDocument(trimmed) ? undefined : trimmed
+      return value
     }
   }
 
@@ -119,7 +115,7 @@ export function parseHTTPError(status: number, body?: any): AIError {
     case 401:
       return createAIError(
         AIErrorType.AUTH_ERROR,
-        apiMessage || translate('chat.error.authFailed'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -127,7 +123,7 @@ export function parseHTTPError(status: number, body?: any): AIError {
       const inferredType = apiMessage ? inferErrorTypeByMessage(apiMessage) : AIErrorType.UNKNOWN
       return createAIError(
         inferredType === AIErrorType.AUTH_ERROR ? AIErrorType.AUTH_ERROR : AIErrorType.SERVER_ERROR,
-        apiMessage || translate('chat.error.upstreamUnavailable'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -135,14 +131,14 @@ export function parseHTTPError(status: number, body?: any): AIError {
     case 429:
       return createAIError(
         AIErrorType.RATE_LIMIT,
-        apiMessage || translate('chat.error.upstreamRateLimited'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
     case 400:
       return createAIError(
         AIErrorType.INVALID_REQUEST,
-        apiMessage || translate('chat.error.invalidRequest'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -152,14 +148,14 @@ export function parseHTTPError(status: number, body?: any): AIError {
     case 504:
       return createAIError(
         AIErrorType.SERVER_ERROR,
-        apiMessage || translate('chat.error.upstreamUnavailable'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
     default:
       return createAIError(
         AIErrorType.UNKNOWN,
-        apiMessage || translate('chat.error.upstreamUnavailable'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -172,15 +168,17 @@ export function getUserFacingAIError(
 ): UserFacingAIError {
   const managed = options.managed === true
   const parsed = parseAPIError(error)
+  const rawDetails = readErrorField(error, 'details')
+  const rawMessage = readErrorField(error, 'message')
+  const customProviderMessage = typeof rawDetails === 'string' && rawDetails
+    ? rawDetails
+    : typeof rawMessage === 'string' && rawMessage
+      ? rawMessage
+      : primitiveToString(error)
   const message = normalizeUserFacingMessage(extractErrorMessage(error))
   const details = normalizeUserFacingMessage(extractErrorDetails(error))
   const displayMessage = details || message
   const code = extractErrorCode(error)
-  const specificOverride = getSpecificUserFacingOverride(displayMessage, code, managed)
-  if (specificOverride) {
-    return specificOverride
-  }
-
   const statusType = inferErrorTypeByStatus(code)
   const messageType = inferErrorTypeByMessage(displayMessage)
 
@@ -191,19 +189,23 @@ export function getUserFacingAIError(
     type = messageType
   }
 
-  let normalizedType = type === AIErrorType.UNKNOWN ? AIErrorType.SERVER_ERROR : type
-  const customProviderAuthFailure = !managed && normalizedType === AIErrorType.AUTH_ERROR
-  if (customProviderAuthFailure) {
-    normalizedType = AIErrorType.SERVER_ERROR
-  } else if (!managed && normalizedType === AIErrorType.QUOTA_EXHAUSTED) {
-    normalizedType = AIErrorType.RATE_LIMIT
+  const normalizedType = type === AIErrorType.UNKNOWN ? AIErrorType.SERVER_ERROR : type
+  const specificOverride = getSpecificUserFacingOverride(displayMessage, code, managed)
+  if (!managed) {
+    return {
+      type: specificOverride?.type ?? normalizedType,
+      code,
+      message: customProviderMessage || parsed.message || 'AI request failed.',
+    }
+  }
+
+  if (specificOverride) {
+    return specificOverride
   }
 
   return {
     type: normalizedType,
     code,
-    message: customProviderAuthFailure
-      ? translate('chat.error.authFailed')
-      : getUserFacingMessage(normalizedType),
+    message: getUserFacingMessage(normalizedType),
   }
 }
