@@ -513,6 +513,27 @@ describe('markdownBlankLineInteraction', () => {
     }
   });
 
+  it('does not scan distant blank lines for an internal text target', () => {
+    const root = document.createElement('div');
+    const paragraph = document.createElement('p');
+    const paragraphText = document.createElement('span');
+    paragraph.append(paragraphText);
+    const separator = document.createElement('div');
+    const blankLine = document.createElement('div');
+    blankLine.setAttribute('data-type', 'html-block');
+    blankLine.setAttribute('data-value', MARKDOWN_BLANK_LINE_VALUE);
+    root.append(paragraph, separator, blankLine);
+    const blankLineRect = vi.spyOn(blankLine, 'getBoundingClientRect');
+
+    expect(resolveMarkdownBlankLineTargetAtCoords(
+      { dom: root } as any,
+      120,
+      32,
+      paragraphText,
+    )).toBeNull();
+    expect(blankLineRect).not.toHaveBeenCalled();
+  });
+
   it('stops fallback document scanning after resolving the matching blank line DOM node', () => {
     const blankLine = document.createElement('div');
     const otherBlankLine = document.createElement('div');

@@ -1,5 +1,8 @@
-import { isTextSelectionOverlayEligible } from './textSelectionOverlayState';
-import { getNativeSelectionMetrics } from './textSelectionOverlayState';
+import {
+  getNativeSelectionMetrics,
+  isTextSelectionOverlayEligible,
+  POINTER_SELECTION_ACTIVE_ATTRIBUTE,
+} from './textSelectionOverlayState';
 import { getCaretTargetFromPoint, syncNativeSelectionToCaretTarget } from './textSelectionOverlayCaret';
 import {
   cancelPointerClickCollapseReassertion,
@@ -21,6 +24,7 @@ export function handleTextSelectionOverlayMouseDown(
     event.target instanceof Element &&
     event.target.closest('.wiki-link-expanded, [data-wiki-link-source="true"]')
   ) return;
+  view.dom.setAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
   session.preserveNativeSelectionForKeyboard = false;
   session.isPointerSelectionActive = true;
   session.pointerMovedSinceDown = false;
@@ -85,6 +89,7 @@ export function handleTextSelectionOverlayMouseUp(
   event: MouseEvent
 ): void {
   const { session, view } = context;
+  view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
   if (!session.isPointerSelectionActive) return;
   session.isPointerSelectionActive = false;
   session.lastPointerSelectionY = null;
@@ -147,7 +152,8 @@ export function handleTextSelectionOverlayClick(
 }
 
 export function handleTextSelectionOverlayWindowBlur(context: TextSelectionOverlayViewContext): void {
-  const { session } = context;
+  const { session, view } = context;
+  view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
   session.isPointerSelectionActive = false;
   session.lastPointerSelectionY = null;
   session.pointerSelectionAutoScroll.stop();

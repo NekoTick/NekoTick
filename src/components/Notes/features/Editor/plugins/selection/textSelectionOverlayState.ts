@@ -7,6 +7,7 @@ import { DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT } from '../shared/boundedProseNodeSca
 export const TEXT_SELECTION_OVERLAY_CLASS = 'editor-text-selection-overlay';
 export const TEXT_SELECTION_OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 export const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
+export const POINTER_SELECTION_ACTIVE_ATTRIBUTE = 'data-editor-pointer-selecting';
 export const KEYBOARD_SELECTION_PENDING_CLASS = 'editor-keyboard-selection-pending';
 export const KEY_EVENT_LISTENER_OPTIONS = { capture: true };
 export const POINTER_NATIVE_SELECTION_META = 'editorTextSelectionPointerNative';

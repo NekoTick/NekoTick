@@ -59,6 +59,9 @@ export function resolveNestedListPointerScanRoot(
   if (!targetElement) return null;
 
   const targetLine = targetElement.closest('.cm-line');
+  if (targetLine?.tagName === 'P' && !targetElement.closest('li')) {
+    return null;
+  }
   if (targetLine?.tagName === 'P' && !targetElement.closest(NESTED_LIST_SELECTOR)) {
     try {
       const coordsPos = view.posAtCoords({ left: clientX, top: clientY })?.pos;

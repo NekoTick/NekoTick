@@ -12,6 +12,7 @@ import {
   isPointInTrailingTextSelectionGutter,
   isPointInsideIgnoredBlankAreaDragBoxElement,
   resolveBlankAreaDragStartZone,
+  resolvePointerEventTargetTextLineHit,
   resolveTextLinePointerHit,
 } from './blankAreaDragTargets';
 
@@ -99,6 +100,26 @@ describe('blankAreaDragTargets', () => {
     expect(isPointInTrailingTextSelectionGutter(lineRect, 250, 90)).toBe(false);
   });
 
+  it('reuses text-line geometry for the same pointer event', () => {
+    const { view, cleanup } = createView();
+    const paragraph = document.createElement('p');
+    paragraph.textContent = 'Alpha';
+    view.dom.append(paragraph);
+    const getClientRects = vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue(
+      rectList(rect(40, 60)),
+    );
+    const event = createMouseDown(paragraph, { clientX: 120, clientY: 50 });
+
+    try {
+      expect(resolvePointerEventTargetTextLineHit(view, event)).toEqual({ type: 'content' });
+      expect(resolvePointerEventTargetTextLineHit(view, event)).toEqual({ type: 'content' });
+      expect(getClientRects).toHaveBeenCalledTimes(1);
+    } finally {
+      cleanup();
+      vi.restoreAllMocks();
+    }
+  });
+
   it('ignores cover targets for document-level blank-area drag handling', () => {
     const coverRegion = document.createElement('div');
     coverRegion.setAttribute('data-note-cover-region', 'true');
@@ -180,6 +201,29 @@ describe('blankAreaDragTargets', () => {
         view,
         createMouseDown(view.dom, { clientX: 120, clientY: 128 }),
       )).toBe(false);
+    } finally {
+      cleanup();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('does not scan overlapping chrome for direct text block targets', () => {
+    const { view, scrollRoot, cleanup } = createView();
+    const paragraph = document.createElement('p');
+    const text = document.createElement('span');
+    paragraph.append(text);
+    view.dom.append(paragraph);
+    const headerChrome = document.createElement('div');
+    headerChrome.setAttribute('data-no-editor-drag-box', 'true');
+    const chromeRects = vi.spyOn(headerChrome, 'getClientRects');
+    scrollRoot.insertBefore(headerChrome, scrollRoot.firstChild);
+
+    try {
+      expect(isPointInsideIgnoredBlankAreaDragBoxElement(
+        view,
+        createMouseDown(text, { clientX: 120, clientY: 24 }),
+      )).toBe(false);
+      expect(chromeRects).not.toHaveBeenCalled();
     } finally {
       cleanup();
       vi.restoreAllMocks();

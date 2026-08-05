@@ -76,4 +76,21 @@ describe('taskCheckboxHitArea', () => {
 
     expect(resolveTaskCheckboxTarget(root, parentTask, 114, 50)).toBe(nestedTask);
   });
+
+  it('does not scan task items when the pointer target is outside a list', () => {
+    document.body.innerHTML = `
+      <div id="root">
+        <p id="paragraph">ordinary text</p>
+        <ul><li data-item-type="task"><p>task</p></li></ul>
+      </div>
+    `;
+
+    const root = document.getElementById('root') as HTMLElement;
+    const paragraph = document.getElementById('paragraph') as HTMLElement;
+    const taskText = root.querySelector('li[data-item-type="task"] > p') as HTMLElement;
+    const taskRect = vi.spyOn(taskText, 'getBoundingClientRect');
+
+    expect(resolveTaskCheckboxTarget(root, paragraph, 120, 20)).toBeNull();
+    expect(taskRect).not.toHaveBeenCalled();
+  });
 });

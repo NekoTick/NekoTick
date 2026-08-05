@@ -45,6 +45,11 @@ export interface ScrollMetrics {
   thumbOffset: number;
 }
 
+export interface ScrollbarDragState {
+  pointerStartY: number;
+  scrollTopStart: number;
+}
+
 export function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
@@ -80,5 +85,26 @@ export function getScrollMetrics(element: HTMLDivElement): ScrollMetrics {
     scrollTop,
     thumbHeight,
     thumbOffset,
+  };
+}
+
+export function getDraggedScrollMetrics(
+  metrics: ScrollMetrics,
+  dragState: ScrollbarDragState,
+  clientY: number,
+): ScrollMetrics | null {
+  const maxThumbOffset = Math.max(metrics.viewportHeight - metrics.thumbHeight, 0);
+  const maxScrollTop = Math.max(metrics.scrollHeight - metrics.viewportHeight, 0);
+  if (!metrics.canScroll || maxThumbOffset === 0 || maxScrollTop === 0) {
+    return null;
+  }
+
+  const deltaY = clientY - dragState.pointerStartY;
+  const scrollDelta = (deltaY / maxThumbOffset) * maxScrollTop;
+  const scrollTop = clamp(dragState.scrollTopStart + scrollDelta, 0, maxScrollTop);
+  return {
+    ...metrics,
+    scrollTop,
+    thumbOffset: (scrollTop / maxScrollTop) * maxThumbOffset,
   };
 }

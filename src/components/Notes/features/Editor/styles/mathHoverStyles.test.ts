@@ -94,10 +94,14 @@ describe('math hover styles', () => {
 
     expect(mathCss).toContain(".milkdown .mermaid-block:hover,");
     const mermaidRule = extendedCss.match(/\.milkdown \.mermaid-block \{(?<body>[\s\S]*?)\n\}/)?.groups?.body ?? '';
+    const placeholderRule = extendedCss.match(
+      /\.milkdown \.mermaid-placeholder \{(?<body>[\s\S]*?)\n\}/,
+    )?.groups?.body ?? '';
 
     expect(mermaidRule).toContain('content-visibility: auto;');
     expect(mermaidRule).toContain('contain-intrinsic-size: var(--vlaina-height-mermaid-intrinsic);');
     expect(themeCss).toContain('--vlaina-height-mermaid-intrinsic: auto var(--vlaina-size-180px);');
+    expect(placeholderRule).toContain('min-height: var(--vlaina-size-180px);');
     expect(mermaidRule).toContain('background: transparent;');
     expect(mermaidRule).toContain('border: var(--vlaina-border-width-0);');
     expect(mermaidRule).toContain('border-radius: var(--vlaina-radius-0);');

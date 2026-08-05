@@ -2,6 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { resolveNestedListPointerScanRoot } from './nestedListPointerCaretPlugin';
 
 describe('resolveNestedListPointerScanRoot', () => {
+  it('does not map pointer coordinates for a top-level paragraph', () => {
+    const editor = document.createElement('div');
+    editor.innerHTML = '<p class="cm-line">Ordinary paragraph</p><ul><li><p class="cm-line">List paragraph</p></li></ul>';
+    const paragraph = editor.querySelector('p');
+    let positionLookupCount = 0;
+    const view = {
+      dom: editor,
+      posAtCoords: () => {
+        positionLookupCount += 1;
+        return { pos: 10 };
+      },
+    } as any;
+
+    expect(resolveNestedListPointerScanRoot(view, paragraph, 100, 20)).toBeNull();
+    expect(positionLookupCount).toBe(0);
+  });
+
   it('does not claim an outer list paragraph that has nested list descendants', () => {
     const editor = document.createElement('div');
     editor.innerHTML = '<ul><li class="HyperMD-list-line cm-line"><p class="cm-line">Outer paragraph</p><ul><li><p class="cm-line">Nested paragraph</p></li></ul></li></ul>';

@@ -342,6 +342,10 @@
   height: auto;
 }
 
+.milkdown .mermaid-placeholder {
+  min-height: var(--vlaina-size-180px);
+}
+
 .milkdown .mermaid-placeholder,
 .milkdown .mermaid-empty {
   color: var(--vlaina-markdown-color-text-subtle);

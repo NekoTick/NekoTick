@@ -78,7 +78,10 @@ export function resolveTaskCheckboxTarget(
     return directTaskLi;
   }
 
-  const scanRoot = target.closest('li') ?? root;
+  const scanRoot = target.closest('li');
+  if (!scanRoot || !root.contains(scanRoot)) {
+    return null;
+  }
   const candidates = Array.from(scanRoot.querySelectorAll<HTMLElement>('li[data-item-type="task"]'))
     .filter((taskItem) => (
       isPointVerticallyInsideTaskPrimaryLine(taskItem, clientY) &&

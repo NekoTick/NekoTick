@@ -73,9 +73,9 @@ export function syncTextSelectionOverlayActiveClass(context: TextSelectionOverla
   ].join(':');
   if (classSignature !== session.lastClassSignature) {
     session.lastClassSignature = classSignature;
+    if (!active || usePointerNativeSelection) return;
     const nativeSelection = getNativeSelectionMetrics();
     if (
-      active &&
       nativeSelection &&
       !nativeSelection.isCollapsed &&
       nativeSelection.rectCount > 0

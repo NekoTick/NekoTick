@@ -1258,6 +1258,20 @@ describe('shouldUseLazyBlockVisibility', () => {
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
   });
 
+  it('enables lazy block visibility for medium notes with many independent blocks', () => {
+    const markdown = [
+      '# Medium High Block Count',
+      '',
+      ...Array.from({ length: 520 }, (_, index) => (
+        `## Section ${index} with **mixed syntax**`
+      )),
+    ].join('\n\n');
+
+    expect(markdown.length).toBeGreaterThan(12_000);
+    expect(markdown.length).toBeLessThan(60_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
+  });
+
   it('enables lazy block visibility for dense medium-size markdown', () => {
     const markdown = [
       '# Dense Manual',

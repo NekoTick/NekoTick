@@ -4,6 +4,7 @@ import {
   KEYBOARD_SELECTION_PENDING_CLASS,
   KEY_EVENT_LISTENER_OPTIONS,
   POINTER_NATIVE_SELECTION_CLASS,
+  POINTER_SELECTION_ACTIVE_ATTRIBUTE,
   TEXT_SELECTION_OVERLAY_ACTIVE_CLASS,
 } from './textSelectionOverlayState';
 import { handleTextSelectionOverlayKeyDown } from './textSelectionOverlayKeyboard';
@@ -94,6 +95,7 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
       view.dom.classList.remove(TEXT_SELECTION_OVERLAY_ACTIVE_CLASS);
       view.dom.classList.remove(POINTER_NATIVE_SELECTION_CLASS);
       view.dom.classList.remove(KEYBOARD_SELECTION_PENDING_CLASS);
+      view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
     },
   };
 }
