@@ -122,6 +122,14 @@ describe('sanitizeHtml', () => {
     expect(result).not.toContain('position');
   });
 
+  it('keeps authored presentation styles outside the clipboard-specific pipeline', () => {
+    expect(sanitizeHtml(
+      '<span style="display:none; opacity:0; color:red">authored</span>',
+    )).toBe(
+      '<span style="display: none; opacity: 0; color: red">authored</span>',
+    );
+  });
+
   it('keeps video and audio media tags with safe sources', () => {
     const result = sanitizeHtml(
       '<video src="xxx.mp4" controls poster="poster.png"></video><audio src="xxx.mp3" controls></audio>',

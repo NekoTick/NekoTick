@@ -139,6 +139,25 @@ describe('image clipboard paste isolation', () => {
         }
     });
 
+    it('does not reveal hidden image-only HTML or insert its companion text', async () => {
+        const editor = await createEditor(clipboardPlugin);
+        const view = editor.ctx.get(editorViewCtx);
+
+        try {
+            const result = simulatePaste(view, createClipboardData({
+                text: `[Hidden image](${URL})`,
+                html: '<img src="https://images.example.test/hidden.png" style="display:none">',
+            }));
+
+            expect(result.handled).toBe(true);
+            expect(result.event.preventDefault).toHaveBeenCalledTimes(1);
+            expect(view.state.doc.textContent).toBe('');
+            expect(view.state.doc.firstChild?.childCount).toBe(0);
+        } finally {
+            await editor.destroy();
+        }
+    });
+
     it('leaves image-only HTML to the native parser in the Markdown link handler', async () => {
         const editor = await createEditor(markdownLinkPlugin);
         const view = editor.ctx.get(editorViewCtx);

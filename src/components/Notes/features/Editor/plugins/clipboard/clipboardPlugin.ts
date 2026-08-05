@@ -10,7 +10,7 @@ import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { hasHeadingDropPayload } from '../cursor/externalTextDropCursorPlugin';
 import { insertImageNodesAtSelection } from '../image-upload/imageNodeInsertion';
 import { collapseSelectionAndHideFloatingToolbar } from './copyCleanup';
-import { sanitizeHtml } from './sanitizer';
+import { sanitizeClipboardHtml } from './sanitizer';
 import { serializeSelectionToClipboardText } from './selectionSerialization';
 import {
     collapseCapturedSelectionAndHideFloatingToolbar,
@@ -40,7 +40,7 @@ import {
 
 function parseImageOnlyClipboardNodes(view: EditorView, html: string): ProseNode[] {
     const container = view.dom.ownerDocument.createElement('div');
-    container.innerHTML = normalizeImageOnlyClipboardHtml(sanitizeHtml(html));
+    container.innerHTML = normalizeImageOnlyClipboardHtml(sanitizeClipboardHtml(html));
     const parsed = ProseDOMParser.fromSchema(view.state.schema).parse(container);
     const imageType = view.state.schema.nodes.image;
     if (!imageType) return [];
@@ -236,7 +236,8 @@ export const clipboardPlugin = $prose((ctx) => {
                     const html = event.clipboardData?.getData('text/html') ?? '';
                     const imageNodes = parseImageOnlyClipboardNodes(view, html);
                     if (!insertImageNodesAtSelection(view, imageNodes)) {
-                        return false;
+                        event.preventDefault();
+                        return true;
                     }
                     event.preventDefault();
                     return true;
@@ -265,7 +266,7 @@ export const clipboardPlugin = $prose((ctx) => {
                 if (html.length > MAX_HTML_PASTE_CHARS) {
                     return '';
                 }
-                return normalizeImageOnlyClipboardHtml(sanitizeHtml(html));
+                return normalizeImageOnlyClipboardHtml(sanitizeClipboardHtml(html));
             }
         }
     });
