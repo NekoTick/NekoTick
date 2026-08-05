@@ -142,4 +142,33 @@ describe('EditorOutlineRail', () => {
       'location',
     );
   });
+
+  it('only rerenders outline rows whose active state changes', () => {
+    let textReads = 0;
+    mocks.headings = Array.from({ length: 30 }, (_, index) => {
+      const heading = {
+        id: `heading-${index}`,
+        level: (index % 4) + 1,
+        text: '',
+        from: index,
+        to: index + 1,
+      };
+      Object.defineProperty(heading, 'text', {
+        enumerable: true,
+        get: () => {
+          textReads += 1;
+          return `Heading ${index}`;
+        },
+      });
+      return heading;
+    });
+    mocks.activeId = 'heading-22';
+    const { rerender } = render(<EditorOutlineRail enabled />);
+    textReads = 0;
+
+    mocks.activeId = 'heading-23';
+    rerender(<EditorOutlineRail enabled />);
+
+    expect(textReads).toBe(2);
+  });
 });

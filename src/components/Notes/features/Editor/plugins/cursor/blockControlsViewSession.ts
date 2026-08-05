@@ -1,4 +1,5 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { subscribeCurrentEditorBlockPositionSnapshot } from '../../utils/editorBlockPositionCache';
 import { createBlockControlsDom } from './blockControlsDom';
 import type { DropTarget, HandleBlockTarget } from './blockControlsInteractions';
@@ -65,6 +66,7 @@ export class BlockControlsViewSession {
   declare handleDocumentMouseUp: (event: MouseEvent) => void;
   declare handleDocumentKeyDown: (event: KeyboardEvent) => void;
   declare handleScrollOrResize: () => void;
+  declare handleScrollIdle: () => void;
   declare handleWindowBlur: () => void;
   declare handleBlockPositionSnapshot: () => void;
   declare adoptPendingCrossNoteBlockDrag: () => void;
@@ -92,6 +94,7 @@ export class BlockControlsViewSession {
     this.doc.addEventListener('mouseup', this.handleDocumentMouseUp, true);
     this.doc.addEventListener('keydown', this.handleDocumentKeyDown, true);
     this.scrollRoot?.addEventListener('scroll', this.handleScrollOrResize, { passive: true });
+    window.addEventListener(OVERLAY_SCROLL_IDLE_EVENT, this.handleScrollIdle);
     window.addEventListener('blur', this.handleWindowBlur);
     window.addEventListener('resize', this.handleScrollOrResize);
     this.unsubscribeBlockPositionSnapshot = subscribeCurrentEditorBlockPositionSnapshot(

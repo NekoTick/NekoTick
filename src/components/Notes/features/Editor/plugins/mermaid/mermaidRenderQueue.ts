@@ -10,7 +10,7 @@ type MermaidRenderQueueEntry = {
   run: () => Promise<void>;
 };
 
-export const MAX_CONCURRENT_MERMAID_RENDERS = 2;
+export const MAX_CONCURRENT_MERMAID_RENDERS = 1;
 const mermaidRenderQueue: MermaidRenderQueueEntry[] = [];
 let activeMermaidRenderCount = 0;
 let mermaidRenderDrainTimer: ReturnType<typeof setTimeout> | null = null;

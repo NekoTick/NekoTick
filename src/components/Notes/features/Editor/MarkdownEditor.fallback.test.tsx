@@ -133,11 +133,13 @@ vi.mock('@/components/ui/overlay-scroll-area', async () => {
         children,
         viewportClassName: _viewportClassName,
         draggingBodyClassName: _draggingBodyClassName,
+        preserveWheelIntentKey: _preserveWheelIntentKey,
         scrollbarVariant: _scrollbarVariant,
         ...props
       }: React.HTMLAttributes<HTMLDivElement> & {
         viewportClassName?: string;
         draggingBodyClassName?: string;
+        preserveWheelIntentKey?: string;
         scrollbarVariant?: string;
       }, ref) => (
         <div ref={ref} {...props}>

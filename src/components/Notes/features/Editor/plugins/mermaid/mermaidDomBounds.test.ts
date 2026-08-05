@@ -174,36 +174,42 @@ describe('mermaid DOM render bounds', () => {
 
   it('promotes an already queued interactive render ahead of background work', async () => {
     const startedCodes: string[] = [];
-    const renderResolves: Array<(markup: string) => void> = [];
+    const renderResolves = new Map<string, (markup: string) => void>();
     vi.mocked(renderMermaid).mockImplementation(
       (code) => new Promise((resolve) => {
         startedCodes.push(code);
-        renderResolves.push(resolve);
+        renderResolves.set(code, resolve);
       })
     );
-    const first = resolveMermaidMarkup('sequenceDiagram\nAlice->>Bob: first');
-    const second = resolveMermaidMarkup('sequenceDiagram\nAlice->>Bob: second');
-    const background = resolveMermaidMarkup('sequenceDiagram\nAlice->>Bob: background');
+    const firstCode = 'sequenceDiagram\nAlice->>Bob: first';
+    const secondCode = 'sequenceDiagram\nAlice->>Bob: second';
+    const backgroundCode = 'sequenceDiagram\nAlice->>Bob: background';
     const targetCode = 'sequenceDiagram\nAlice->>Bob: visible';
+    const first = resolveMermaidMarkup(firstCode);
+    const second = resolveMermaidMarkup(secondCode);
+    const background = resolveMermaidMarkup(backgroundCode);
     const target = resolveMermaidMarkup(targetCode);
+    const finishRender = async (code: string) => {
+      await vi.waitFor(() => {
+        expect(renderResolves.has(code)).toBe(true);
+      }, { interval: 1, timeout: 2_000 });
+      renderResolves.get(code)?.(`<svg data-rendered="${code}"></svg>`);
+    };
 
     await vi.waitFor(() => {
       expect(startedCodes).toHaveLength(MAX_CONCURRENT_MERMAID_RENDERS);
     }, { interval: 1, timeout: 2_000 });
     const promotedTarget = resolveMermaidMarkup(targetCode, undefined, 'interactive');
-    renderResolves[0]?.('<svg data-rendered="first"></svg>');
+    await finishRender(firstCode);
 
     await vi.waitFor(() => {
       expect(startedCodes).toHaveLength(MAX_CONCURRENT_MERMAID_RENDERS + 1);
     }, { interval: 1, timeout: 2_000 });
-    expect(startedCodes[2]).toBe(targetCode);
+    expect(startedCodes[MAX_CONCURRENT_MERMAID_RENDERS]).toBe(targetCode);
 
-    renderResolves[1]?.('<svg data-rendered="second"></svg>');
-    renderResolves[2]?.('<svg data-rendered="visible"></svg>');
-    await vi.waitFor(() => {
-      expect(startedCodes).toHaveLength(4);
-    }, { interval: 1, timeout: 2_000 });
-    renderResolves[3]?.('<svg data-rendered="background"></svg>');
+    await finishRender(targetCode);
+    await finishRender(secondCode);
+    await finishRender(backgroundCode);
     await Promise.all([first, second, background, target, promotedTarget]);
   });
 

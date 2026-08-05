@@ -116,6 +116,10 @@ class CodeBlockNodeViewInitializationMethods {
             || !this.lazyCodeBlockIntersecting
             || isBlockSelectionInteractionPending(this.view.dom)
           ) return;
+          if (scrollRoot?.dataset.overlayScrollbarInteracting === 'true') {
+            this.scheduleLazyCodeMirrorInitialization();
+            return;
+          }
           const currentScrollLeft = scrollRoot?.scrollLeft ?? ownerWindow.scrollX;
           const currentScrollTop = scrollRoot?.scrollTop ?? ownerWindow.scrollY;
           if (currentScrollLeft !== scrollLeft || currentScrollTop !== scrollTop) {

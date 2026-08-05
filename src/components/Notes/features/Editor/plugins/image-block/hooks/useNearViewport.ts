@@ -1,7 +1,7 @@
 import { RefObject, useEffect, useState } from 'react';
 import { themeLazyLoadTokens } from '@/styles/themeTokens';
 
-const BACKGROUND_LOAD_START_DELAY_MS = 900;
+const BACKGROUND_LOAD_START_DELAY_MS = themeLazyLoadTokens.imageBackgroundLoadStartDelayMs;
 const BACKGROUND_LOAD_INTERVAL_MS = 180;
 const BACKGROUND_LOAD_BATCH_SIZE = 2;
 
@@ -124,7 +124,7 @@ export function useNearViewport(targetRef: RefObject<Element | null>): NearViewp
         });
 
         observer.observe(target);
-        cancelBackgroundLoad = enqueueBackgroundLoad(resolveImageLoad);
+        cancelBackgroundLoad = enqueueBackgroundLoad(resolveNearViewport);
 
         return () => {
             hasResolvedViewport = true;

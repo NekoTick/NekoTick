@@ -19,6 +19,15 @@ describe('resolveNestedListPointerScanRoot', () => {
     expect(positionLookupCount).toBe(0);
   });
 
+  it('does not scan nested list text for an ordinary top-level heading', () => {
+    const editor = document.createElement('div');
+    editor.innerHTML = '<h1><span>Heading</span></h1><ul><li><ul><li>Nested item</li></ul></li></ul>';
+    const headingText = editor.querySelector('h1 > span');
+    const view = { dom: editor } as any;
+
+    expect(resolveNestedListPointerScanRoot(view, headingText, 100, 20)).toBeNull();
+  });
+
   it('does not claim an outer list paragraph that has nested list descendants', () => {
     const editor = document.createElement('div');
     editor.innerHTML = '<ul><li class="HyperMD-list-line cm-line"><p class="cm-line">Outer paragraph</p><ul><li><p class="cm-line">Nested paragraph</p></li></ul></li></ul>';

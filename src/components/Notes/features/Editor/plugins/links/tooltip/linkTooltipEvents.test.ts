@@ -4,6 +4,7 @@ import { floatingToolbarKey } from '../../floating-toolbar/floatingToolbarKey';
 import { TOOLBAR_ACTIONS } from '../../floating-toolbar/types';
 import { openEditorLinkHref } from '../utils/openEditorLinkHref';
 import { WIKI_LINK_POINTER_SELECTION_META } from '../wiki-link/wikiLinkInteraction';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../../selection/textSelectionOverlayState';
 
 const stateMocks = vi.hoisted(() => ({
     selectionNear: vi.fn(),
@@ -589,6 +590,62 @@ describe('installLinkTooltipEvents', () => {
         expect(handlers.showLinkWithDelay).toHaveBeenCalledWith(link, false);
         expect(handlers.view.state.selectedBlocks).toEqual([{ from: 1, to: 5 }]);
         expect(handlers.hide).not.toHaveBeenCalled();
+
+        cleanup();
+    });
+
+    it('does not resolve link hover targets while the Notes viewport is scrolling', () => {
+        const { editorDom, handlers } = createHandlers();
+        editorDom.dataset.noteScrollRoot = 'true';
+        editorDom.dataset.overlayScrollbarInteracting = 'true';
+        const link = document.createElement('a');
+        link.href = 'https://example.com/docs';
+        link.textContent = 'docs';
+        editorDom.appendChild(link);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        link.dispatchEvent(new MouseEvent('mouseover', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 12,
+            clientY: 12,
+        }));
+
+        expect(handlers.clearShowTimer).toHaveBeenCalled();
+        expect(handlers.showLinkWithDelay).not.toHaveBeenCalled();
+
+        cleanup();
+    });
+
+    it('does not scan link layouts while pointer text selection is active', () => {
+        const { editorDom, handlers } = createHandlers();
+        const paragraph = document.createElement('p');
+        const link = document.createElement('a');
+        const getClientRects = vi.fn(() => []);
+        link.href = 'https://example.com/docs';
+        link.textContent = 'docs';
+        Object.defineProperty(link, 'getClientRects', {
+            configurable: true,
+            value: getClientRects,
+        });
+        paragraph.appendChild(link);
+        editorDom.appendChild(paragraph);
+        editorDom.setAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
+        handlers.hasActiveLink.mockReturnValue(true);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        paragraph.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            buttons: 1,
+            clientX: 120,
+            clientY: 12,
+        }));
+
+        expect(getClientRects).not.toHaveBeenCalled();
+        expect(handlers.clearShowTimer).toHaveBeenCalled();
+        expect(handlers.hide).toHaveBeenCalledWith(true);
+        expect(handlers.showLinkWithDelay).not.toHaveBeenCalled();
 
         cleanup();
     });

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SYSTEM_LANGUAGE_PREFERENCE } from '@/lib/i18n';
 import { useUIStore } from '@/stores/uiSlice';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { ImageContent, __testing__ as imageContentTesting } from './ImageContent';
 
 vi.mock('./ImageCropper', () => ({
@@ -75,6 +76,28 @@ describe('ImageContent', () => {
     expect(image).not.toBeNull();
     expect(screen.queryByTestId('remote-image-placeholder')).toBeNull();
     expect(image).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
+  });
+
+  it('keeps a newly loaded remote image out of layout until scrolling settles', () => {
+    const { container, props } = renderImageContent();
+    container.dataset.noteScrollRoot = 'true';
+    container.dataset.overlayScrollbarInteracting = 'true';
+    const image = container.querySelector('img');
+
+    fireEvent.load(image!);
+
+    expect(screen.getByTestId('remote-image-placeholder')).toBeInTheDocument();
+    expect(image).toHaveClass('absolute', 'h-full');
+    expect(props.onMediaLoaded).not.toHaveBeenCalled();
+
+    delete container.dataset.overlayScrollbarInteracting;
+    act(() => {
+      window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+    });
+
+    expect(screen.queryByTestId('remote-image-placeholder')).toBeNull();
+    expect(image).toHaveClass('block', 'h-auto');
+    expect(props.onMediaLoaded).toHaveBeenCalledTimes(1);
   });
 
   it('shows the localized not found state when a plain remote image fails to load', () => {

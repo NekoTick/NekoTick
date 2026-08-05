@@ -121,6 +121,7 @@ describe("editor block drag interaction styles", () => {
     const css = readStyleFile('extended.css');
     const blockSelectionCss = readBlockSelectionStyle();
 
+    expect(css).toContain(".milkdown-editor[data-note-lazy-block-visibility='true'] .milkdown .video-block {");
     expect(css).toContain('contain-intrinsic-size: var(--vlaina-height-video-intrinsic);');
     expect(css).toContain('.milkdown .video-block::after {');
     expect(blockSelectionCss).toContain('.milkdown .ProseMirror .video-block.ProseMirror-selectednode::after,');

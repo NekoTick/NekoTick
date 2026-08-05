@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import {
+  clamp,
   getDraggedScrollMetrics,
   type ScrollbarDragState,
   type ScrollMetrics,
@@ -17,6 +18,29 @@ import {
 import { dispatchOverlayScrollIdle } from './overlayScrollAreaEvents';
 
 type MetricsUpdateOptions = { forceRenderPosition?: boolean };
+
+export function useDeferredWheelIntent(key: string | undefined) {
+  const pendingRef = useRef({ key, deltaY: 0 });
+  if (pendingRef.current.key !== key) {
+    pendingRef.current = { key, deltaY: 0 };
+  }
+
+  const queueWheelIntent = useCallback((deltaY: number) => {
+    if (!key) return;
+    pendingRef.current.deltaY += deltaY;
+  }, [key]);
+
+  const consumeWheelIntent = useCallback((scrollTop: number, maxScrollTop: number) => {
+    const pending = pendingRef.current;
+    if (!key || pending.deltaY === 0 || maxScrollTop <= 0) return null;
+
+    const nextScrollTop = clamp(scrollTop + pending.deltaY, 0, maxScrollTop);
+    pending.deltaY = 0;
+    return nextScrollTop;
+  }, [key]);
+
+  return { consumeWheelIntent, queueWheelIntent };
+}
 
 export function useOverlayScrollInteraction(
   viewportRef: RefObject<HTMLDivElement | null>,

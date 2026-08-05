@@ -1,4 +1,5 @@
 import { MAX_COMPOSER_PROGRAMMATIC_INSERT_CHARS } from '@/lib/ui/composerFocusRegistry';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { useNotesStore } from '@/stores/useNotesStore';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +19,7 @@ import {
 import { BlockControlsViewSession, __testing__ } from './blockControlsViewSession';
 import { getBlockDragComposerPayload } from './blockDragVisualState';
 import { setBlockSelectionInteractionPending } from './blockSelectionInteractionState';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
 import { serializeSelectedBlocksToText } from './blockSelectionSerializer';
 
 const originalElementsFromPoint = document.elementsFromPoint;
@@ -316,6 +318,41 @@ describe('BlockControlsViewSession', () => {
     }
   });
 
+  it('suspends block handle work while native pointer text selection is active', async () => {
+    const view = createView();
+    const session = new BlockControlsViewSession(view);
+
+    try {
+      document.dispatchEvent(new MouseEvent('mousemove', { clientY: 50, bubbles: true }));
+      await nextFrame();
+      expect(session.controls.classList.contains('visible')).toBe(true);
+      vi.mocked(getHandleBlockTargets).mockClear();
+
+      view.dom.setAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
+      document.dispatchEvent(new MouseEvent('mousemove', { clientY: 54, bubbles: true }));
+      const pointerMove = new Event('pointermove', { bubbles: true });
+      Object.defineProperties(pointerMove, {
+        clientX: { value: 0 },
+        clientY: { value: 54 },
+        pointerType: { value: 'mouse' },
+      });
+      document.dispatchEvent(pointerMove);
+      await nextFrame();
+
+      expect(session.controls.classList.contains('visible')).toBe(false);
+      expect(getHandleBlockTargets).not.toHaveBeenCalled();
+
+      view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientY: 54, bubbles: true }));
+      await nextFrame();
+
+      expect(session.controls.classList.contains('visible')).toBe(true);
+    } finally {
+      view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+      session.destroy();
+    }
+  });
+
   it('hides the handle when the pointer leaves the current note scroll root', async () => {
     const view = createView({ scrollRoot: true });
     const session = new BlockControlsViewSession(view);
@@ -331,6 +368,55 @@ describe('BlockControlsViewSession', () => {
       await nextFrame();
 
       expect(controls?.classList.contains('visible')).toBe(false);
+    } finally {
+      session.destroy();
+    }
+  });
+
+  it('defers block handle hit testing until note scrolling becomes idle', async () => {
+    const view = createView({ scrollRoot: true });
+    const session = new BlockControlsViewSession(view);
+    const scrollRoot = getScrollRoot();
+
+    try {
+      document.dispatchEvent(new MouseEvent('mousemove', { clientX: 20, clientY: 50, bubbles: true }));
+      await nextFrame();
+
+      const controls = document.querySelector<HTMLElement>('.editor-block-controls');
+      expect(controls?.classList.contains('visible')).toBe(true);
+      vi.mocked(getHandleBlockTargets).mockClear();
+
+      scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+      scrollRoot.dispatchEvent(new Event('scroll'));
+      setCurrentEditorBlockPositionSnapshot(null);
+      await nextFrame();
+
+      expect(controls?.classList.contains('visible')).toBe(false);
+      expect(getHandleBlockTargets).not.toHaveBeenCalled();
+
+      delete scrollRoot.dataset.overlayScrollbarInteracting;
+      window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+      await nextFrame();
+
+      expect(controls?.classList.contains('visible')).toBe(true);
+      expect(getHandleBlockTargets).toHaveBeenCalledTimes(1);
+    } finally {
+      delete scrollRoot.dataset.overlayScrollbarInteracting;
+      session.destroy();
+    }
+  });
+
+  it('does not mutate hidden block controls when repeated scroll updates keep them hidden', async () => {
+    const view = createView({ scrollRoot: true });
+    const session = new BlockControlsViewSession(view);
+    const remove = vi.spyOn(session.controls.classList, 'remove');
+
+    try {
+      getScrollRoot().dispatchEvent(new Event('scroll'));
+      getScrollRoot().dispatchEvent(new Event('scroll'));
+      await Promise.resolve();
+
+      expect(remove).not.toHaveBeenCalled();
     } finally {
       session.destroy();
     }

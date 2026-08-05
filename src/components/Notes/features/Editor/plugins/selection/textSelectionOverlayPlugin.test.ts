@@ -405,6 +405,54 @@ describe('textSelectionOverlayPlugin', () => {
     }
   });
 
+  it('does not measure native range geometry while pointer selection rebuilds an overlay', async () => {
+    const view = await createEditor('hello world');
+    const originalGetSelection = window.getSelection;
+    const originalElementFromPoint = document.elementFromPoint;
+    const restoreCaretRangeFromPoint = mockCaretRangeFromPoint(view, 2);
+    const textElement = view.dom.querySelector('p') ?? view.dom;
+    const getClientRects = vi.fn(() => []);
+
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => textElement,
+    });
+
+    try {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+      textElement.dispatchEvent(new MouseEvent('mousedown', {
+        button: 0,
+        bubbles: true,
+        clientX: 12,
+        clientY: 12,
+      }));
+      expect(view.dom).toHaveAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
+
+      Object.defineProperty(window, 'getSelection', {
+        configurable: true,
+        value: () => ({
+          isCollapsed: false,
+          rangeCount: 1,
+          getRangeAt: () => ({ getClientRects }),
+        }),
+      });
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 2, 8)));
+
+      expect(getClientRects).not.toHaveBeenCalled();
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      Object.defineProperty(window, 'getSelection', {
+        configurable: true,
+        value: originalGetSelection,
+      });
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+      restoreCaretRangeFromPoint();
+    }
+  });
+
   it('can force a pointer-native selection back onto the overlay path for floating controls', async () => {
     const view = await createEditor('hello world');
     const originalElementFromPoint = document.elementFromPoint;

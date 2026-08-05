@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { forwardRef, memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   getSidebarIdleRowSurfaceClass,
   getSidebarLabelClass,
@@ -9,6 +9,46 @@ import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useNotesOutline } from '../Sidebar/Outline/useNotesOutline';
+import type { NotesOutlineHeading } from '../Sidebar/Outline/types';
+
+interface EditorOutlineRowProps {
+  heading: NotesOutlineHeading;
+  isActive: boolean;
+  isExpanded: boolean;
+  jumpToHeading: (headingId: string) => void;
+}
+
+const EditorOutlineRow = memo(forwardRef<HTMLButtonElement, EditorOutlineRowProps>(
+  function EditorOutlineRow({ heading, isActive, isExpanded, jumpToHeading }, ref) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        className={cn(
+          'editor-outline-row group/sidebar-row',
+          isActive && 'editor-outline-row-active',
+          isExpanded && (
+            isActive
+              ? getSidebarSelectedRowSurfaceClass('notes')
+              : getSidebarIdleRowSurfaceClass('notes')
+          ),
+        )}
+        data-level={heading.level}
+        aria-current={isActive ? 'location' : undefined}
+        onClick={() => jumpToHeading(heading.id)}
+      >
+        <span
+          className={cn(
+            'editor-outline-row-text',
+            isExpanded && getSidebarLabelClass('notes', { selected: isActive }),
+          )}
+        >
+          {heading.text}
+        </span>
+      </button>
+    );
+  },
+));
 
 export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
   const { t } = useI18n();
@@ -93,36 +133,19 @@ export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
           onMouseLeave={() => setIsHovered(false)}
         >
           <nav aria-label={t('notes.documentOutline')}>
-            {headings.map((heading) => (
-              <button
-                key={heading.id}
-                ref={heading.id === activeId ? activeRowRef : undefined}
-                type="button"
-                className={cn(
-                  'editor-outline-row group/sidebar-row',
-                  heading.id === activeId && 'editor-outline-row-active',
-                  isExpanded && (
-                    heading.id === activeId
-                      ? getSidebarSelectedRowSurfaceClass('notes')
-                      : getSidebarIdleRowSurfaceClass('notes')
-                  ),
-                )}
-                data-level={heading.level}
-                aria-current={heading.id === activeId ? 'location' : undefined}
-                onClick={() => jumpToHeading(heading.id)}
-              >
-                <span
-                  className={cn(
-                    'editor-outline-row-text',
-                    isExpanded && getSidebarLabelClass('notes', {
-                      selected: heading.id === activeId,
-                    }),
-                  )}
-                >
-                  {heading.text}
-                </span>
-              </button>
-            ))}
+            {headings.map((heading) => {
+              const isActive = heading.id === activeId;
+              return (
+                <EditorOutlineRow
+                  key={heading.id}
+                  ref={isActive ? activeRowRef : null}
+                  heading={heading}
+                  isActive={isActive}
+                  isExpanded={isExpanded}
+                  jumpToHeading={jumpToHeading}
+                />
+              );
+            })}
           </nav>
         </OverlayScrollArea>
       </div>

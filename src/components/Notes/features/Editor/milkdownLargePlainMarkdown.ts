@@ -3,7 +3,6 @@ import type { ProseMirrorJSONNode } from './MilkdownEditorInnerTypes';
 
 const LARGE_PLAIN_MARKDOWN_FAST_PARSE_MIN_LENGTH = 1_000_000;
 const LAZY_BLOCK_VISIBILITY_MIN_LENGTH = 60_000;
-const LAZY_BLOCK_VISIBILITY_MEDIUM_MIN_LENGTH = 12_000;
 const LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES = 500;
 const LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_MIN_LINES = 40;
 const LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_LINE_RATIO = 5;
@@ -23,7 +22,7 @@ export function shouldUseLazyBlockVisibility(markdown: string): boolean {
 }
 
 function hasLargeScrollableMarkdownShape(markdown: string): boolean {
-  if (markdown.length < LAZY_BLOCK_VISIBILITY_MEDIUM_MIN_LENGTH) {
+  if (markdown.length < LAZY_BLOCK_VISIBILITY_MIN_LENGTH) {
     return false;
   }
 
@@ -52,10 +51,6 @@ function hasLargeScrollableMarkdownShape(markdown: string): boolean {
 
   if (nonEmptyLines < LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES) {
     return false;
-  }
-
-  if (markdown.length < LAZY_BLOCK_VISIBILITY_MIN_LENGTH) {
-    return true;
   }
 
   const hasDenseHeavyBlocks = (

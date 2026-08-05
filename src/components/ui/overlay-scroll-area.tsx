@@ -5,6 +5,7 @@ import { OverlayScrollbar } from './OverlayScrollbar';
 import {
   SCROLL_EPSILON_PX,
   clamp,
+  getScrolledMetrics,
   getScrollMetrics,
   scrollbarVariantClasses,
   type ScrollMetrics,
@@ -12,6 +13,7 @@ import {
 } from './overlayScrollAreaUtils';
 import {
   useCancelOverlayScrollbarMetricsFrame,
+  useDeferredWheelIntent,
   useOverlayScrollInteraction,
   useOverlayScrollbarDrag,
 } from './overlayScrollAreaHooks';
@@ -21,6 +23,7 @@ interface OverlayScrollAreaProps extends Omit<HTMLAttributes<HTMLDivElement>, 'c
   className?: string;
   viewportClassName?: string;
   draggingBodyClassName?: string;
+  preserveWheelIntentKey?: string;
   scrollbarInsetRight?: number;
   scrollbarVariant?: ScrollbarVariant;
 }
@@ -30,6 +33,7 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
   className,
   viewportClassName,
   draggingBodyClassName,
+  preserveWheelIntentKey,
   scrollbarInsetRight = 0,
   scrollbarVariant = 'default',
   onScroll,
@@ -54,6 +58,7 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
   const [isHovered, setIsHovered] = useState(false);
   const [isScrollbarHovered, setIsScrollbarHovered] = useState(false);
   const scrollbarClasses = scrollbarVariantClasses[scrollbarVariant];
+  const { consumeWheelIntent, queueWheelIntent } = useDeferredWheelIntent(preserveWheelIntentKey);
 
   const updateThumbStyle = useCallback((nextMetrics: ScrollMetrics) => {
     const thumb = thumbRef.current;
@@ -82,7 +87,15 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
       return;
     }
 
-    const nextMetrics = getScrollMetrics(viewport);
+    let nextMetrics = getScrollMetrics(viewport);
+    const replayedScrollTop = consumeWheelIntent(
+      nextMetrics.scrollTop,
+      nextMetrics.scrollHeight - nextMetrics.viewportHeight,
+    );
+    if (replayedScrollTop !== null) {
+      viewport.scrollTop = replayedScrollTop;
+      nextMetrics = getScrolledMetrics(nextMetrics, viewport.scrollTop);
+    }
     metricsRef.current = nextMetrics;
     updateThumbStyle(nextMetrics);
     setMetrics((previous) => {
@@ -103,7 +116,20 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
       }
       return nextMetrics;
     });
-  }, [updateThumbStyle]);
+  }, [consumeWheelIntent, updateThumbStyle]);
+
+  const updateScrollPosition = useCallback(() => {
+    const viewport = viewportRef.current;
+    const currentMetrics = metricsRef.current;
+    if (!viewport || !currentMetrics.canScroll) {
+      updateMetrics();
+      return;
+    }
+
+    const nextMetrics = getScrolledMetrics(currentMetrics, viewport.scrollTop);
+    metricsRef.current = nextMetrics;
+    updateThumbStyle(nextMetrics);
+  }, [updateMetrics, updateThumbStyle]);
 
   const scheduleMetricsUpdate = useCallback((options: { forceRenderPosition?: boolean } = {}) => {
     pendingMetricsForceRenderRef.current ||= Boolean(options.forceRenderPosition);
@@ -163,19 +189,33 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
   const handleWrapperWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current;
     const target = event.target;
+    const targetIsInsideViewport = target instanceof Node && viewport?.contains(target);
     if (
       !viewport ||
       event.defaultPrevented ||
       event.ctrlKey ||
       event.metaKey ||
-      event.deltaY === 0 ||
-      (target instanceof Node && viewport.contains(target))
+      event.deltaY === 0
     ) {
       return;
     }
 
     const maxScrollTop = Math.max(viewport.scrollHeight - viewport.clientHeight, 0);
     if (maxScrollTop <= 0) {
+      if (targetIsInsideViewport && preserveWheelIntentKey) {
+        queueWheelIntent(normalizeWheelDelta(
+          event.deltaY,
+          event.deltaMode,
+          viewport.clientHeight,
+        ));
+      }
+      return;
+    }
+    if (targetIsInsideViewport) {
+      const replayedScrollTop = consumeWheelIntent(viewport.scrollTop, maxScrollTop);
+      if (replayedScrollTop !== null) {
+        viewport.scrollTop = replayedScrollTop;
+      }
       return;
     }
 
@@ -188,8 +228,8 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
     event.preventDefault();
     viewport.scrollTop = nextScrollTop;
     markScrollInteraction();
-    scheduleMetricsUpdate();
-  }, [markScrollInteraction, scheduleMetricsUpdate]);
+    updateScrollPosition();
+  }, [consumeWheelIntent, markScrollInteraction, preserveWheelIntentKey, queueWheelIntent, updateScrollPosition]);
 
   const isVisible = metrics.canScroll && (isHovered || isDragging);
   const isScrollbarExpanded = isScrollbarHovered || isDragging;
@@ -223,7 +263,7 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
             return;
           }
           if (metricsRef.current.canScroll) {
-            scheduleMetricsUpdate();
+            updateScrollPosition();
           } else {
             updateMetrics();
           }

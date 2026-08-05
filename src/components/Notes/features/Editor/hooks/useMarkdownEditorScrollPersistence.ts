@@ -9,6 +9,7 @@ import {
   persistNoteScrollPosition,
 } from '../utils/noteScrollPositionStorage';
 import { isSidebarSearchNavigationPending } from '../../Sidebar/sidebarSearchNavigation';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 
 export function canPersistNoteScrollPosition(scrollRoot: HTMLElement | null): scrollRoot is HTMLElement {
   return Boolean(
@@ -36,8 +37,7 @@ export function useMarkdownEditorScrollPersistence({
 }) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const scrollPositionsRef = useRef(new Map<string, number>());
-  const scrollPositionSaveFrameRef = useRef<number | null>(null);
-  const pendingScrollPositionSaveRef = useRef<{ path: string; scrollTop: number } | null>(null);
+  const pendingScrollPositionSaveRef = useRef<{ path: string } | null>(null);
   const scrollPositionPersistTimerRef = useRef<number | null>(null);
   const pendingPersistentScrollPositionRef = useRef<{
     notesPath: string | null;
@@ -92,15 +92,15 @@ export function useMarkdownEditorScrollPersistence({
     if (!scrollRoot) return;
 
     const commitPendingScrollPosition = () => {
-      scrollPositionSaveFrameRef.current = null;
       const pending = pendingScrollPositionSaveRef.current;
       pendingScrollPositionSaveRef.current = null;
       if (!pending) {
         return;
       }
-      scrollPositionsRef.current.set(pending.path, pending.scrollTop);
+      const scrollTop = scrollRoot.scrollTop;
+      scrollPositionsRef.current.set(pending.path, scrollTop);
       if (canPersistNoteScrollPosition(scrollRoot)) {
-        schedulePersistedScrollPosition(activeNotesPathRef.current, pending.path, pending.scrollTop);
+        schedulePersistedScrollPosition(activeNotesPathRef.current, pending.path, scrollTop);
       }
     };
 
@@ -111,24 +111,20 @@ export function useMarkdownEditorScrollPersistence({
       const restoreSession = restoreSessionRef.current;
       if (restoreSession?.path === path) return;
 
-      pendingScrollPositionSaveRef.current = {
-        path,
-        scrollTop: scrollRoot.scrollTop,
-      };
-      if (scrollPositionSaveFrameRef.current !== null) {
-        return;
-      }
+      pendingScrollPositionSaveRef.current = { path };
+    };
 
-      scrollPositionSaveFrameRef.current = requestAnimationFrame(commitPendingScrollPosition);
+    const handleScrollIdle = () => {
+      if (scrollRoot.dataset.overlayScrollbarInteracting === 'true') return;
+      commitPendingScrollPosition();
     };
 
     scrollRoot.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
     return () => {
       scrollRoot.removeEventListener('scroll', handleScroll);
-      if (scrollPositionSaveFrameRef.current !== null) {
-        cancelAnimationFrame(scrollPositionSaveFrameRef.current);
-        commitPendingScrollPosition();
-      }
+      window.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
+      commitPendingScrollPosition();
       flushPendingPersistedScrollPosition();
     };
   }, [active, flushPendingPersistedScrollPosition, schedulePersistedScrollPosition]);
@@ -259,7 +255,16 @@ export function useMarkdownEditorScrollPersistence({
       },
     });
 
-    restoreSession.restore('sync');
+    const restoredSynchronously = restoreSession.restore('sync') || restoreSession.restore('sync-confirm');
+    if (restoredSynchronously) {
+      restoreSession.finish();
+      return () => {
+        if (restoreSessionRef.current?.path === currentNotePath) {
+          restoreSessionRef.current = null;
+        }
+      };
+    }
+
     unsubscribeBlockSnapshot = subscribeCurrentEditorBlockPositionSnapshot((snapshot) => {
       if (
         !restoreSession.isActive()

@@ -88,6 +88,19 @@ export function getScrollMetrics(element: HTMLDivElement): ScrollMetrics {
   };
 }
 
+export function getScrolledMetrics(metrics: ScrollMetrics, scrollTop: number): ScrollMetrics {
+  const maxScrollTop = Math.max(metrics.scrollHeight - metrics.viewportHeight, 0);
+  const maxThumbOffset = Math.max(metrics.viewportHeight - metrics.thumbHeight, 0);
+  const nextScrollTop = clamp(scrollTop, 0, maxScrollTop);
+  return {
+    ...metrics,
+    scrollTop: nextScrollTop,
+    thumbOffset: maxScrollTop === 0
+      ? 0
+      : (nextScrollTop / maxScrollTop) * maxThumbOffset,
+  };
+}
+
 export function getDraggedScrollMetrics(
   metrics: ScrollMetrics,
   dragState: ScrollbarDragState,

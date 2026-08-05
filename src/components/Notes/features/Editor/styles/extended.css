@@ -317,9 +317,12 @@
 }
 
 /* Mermaid */
-.milkdown .mermaid-block {
+.milkdown-editor[data-note-lazy-block-visibility='true'] .milkdown .mermaid-block {
   content-visibility: auto;
   contain-intrinsic-size: var(--vlaina-height-mermaid-intrinsic);
+}
+
+.milkdown .mermaid-block {
   display: flex;
   justify-content: center;
   padding: var(--vlaina-space-15rem);
@@ -389,9 +392,12 @@
 }
 
 /* Video */
-.milkdown .video-block {
+.milkdown-editor[data-note-lazy-block-visibility='true'] .milkdown .video-block {
   content-visibility: auto;
   contain-intrinsic-size: var(--vlaina-height-video-intrinsic);
+}
+
+.milkdown .video-block {
   position: relative;
   display: flex;
   justify-content: center;

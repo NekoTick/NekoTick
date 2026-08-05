@@ -1258,7 +1258,7 @@ describe('shouldUseLazyBlockVisibility', () => {
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
   });
 
-  it('enables lazy block visibility for medium notes with many independent blocks', () => {
+  it('keeps medium notes with many independent blocks on stable block layout', () => {
     const markdown = [
       '# Medium High Block Count',
       '',
@@ -1269,7 +1269,7 @@ describe('shouldUseLazyBlockVisibility', () => {
 
     expect(markdown.length).toBeGreaterThan(12_000);
     expect(markdown.length).toBeLessThan(60_000);
-    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
   });
 
   it('enables lazy block visibility for dense medium-size markdown', () => {

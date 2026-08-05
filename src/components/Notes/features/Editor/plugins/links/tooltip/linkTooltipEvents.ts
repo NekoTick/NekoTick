@@ -9,6 +9,7 @@ import {
     startLinkTextSelectionSession,
 } from './linkTextSelectionSession';
 import { resolveBlankAreaDragStartZone } from '../../cursor/blankAreaDragTargets';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../../selection/textSelectionOverlayState';
 import { installExternalLinkDragClickSuppression } from './externalLinkDragClickSuppression';
 
 const LINK_DRAG_CLICK_SUPPRESSION_MS = 500;
@@ -125,6 +126,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
     let suppressNextClick = false;
     let clearSuppressNextClickTimer: number | null = null;
     let hoveredLink: HTMLElement | null = null;
+    const scrollRoot = view.dom.closest<HTMLElement>('[data-note-scroll-root="true"]');
 
     const suppressNextEditorClick = () => {
         suppressNextClick = true;
@@ -146,6 +148,8 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
     };
 
     const handleScroll = () => {
+        hoveredLink = null;
+        clearShowTimer();
         if (dom.hasAttribute('data-editing')) {
             reposition();
             return;
@@ -234,6 +238,17 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
     };
 
     const updateHoveredLinkFromMouseEvent = (event: MouseEvent) => {
+        if (view.dom.getAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE) === 'true') {
+            hoveredLink = null;
+            clearShowTimer();
+            if (hasActiveLink()) hide(true);
+            return;
+        }
+        if (scrollRoot?.dataset.overlayScrollbarInteracting === 'true') {
+            hoveredLink = null;
+            clearShowTimer();
+            return;
+        }
         if (view.dom.classList.contains(BLOCK_SELECTION_PENDING_CLASS)) {
             hoveredLink = null;
             clearShowTimer();

@@ -73,7 +73,8 @@ export function resolveNestedListPointerScanRoot(
   }
 
   const listItem = targetElement.closest('li');
-  return listItem instanceof HTMLElement && view.dom.contains(listItem) ? listItem : view.dom;
+  if (listItem instanceof HTMLElement && view.dom.contains(listItem)) return listItem;
+  return targetElement === view.dom ? view.dom : null;
 }
 
 function dispatchNestedListTextSelection(view: EditorView, anchor: number, head = anchor): boolean {
