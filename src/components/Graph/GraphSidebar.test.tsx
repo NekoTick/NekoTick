@@ -154,14 +154,22 @@ describe('GraphSidebar', () => {
     expect(screen.queryByText('app.viewGraph')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'graph.searchPlaceholder' })).not.toBeInTheDocument();
     expect(screen.getByText('graph.modeLocal')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('group', { name: 'app.viewGraph' })).toHaveClass('mt-1');
     expect(document.querySelector('[data-graph-summary="true"]')).toHaveTextContent('graph.summary:');
-    expect(document.querySelector('[data-graph-mode-indicator="true"]')).toHaveClass('translate-x-full');
+    expect(document.querySelector('[data-graph-mode-indicator="true"]')).toHaveClass(
+      'left-1/2',
+      'transition-[left]',
+    );
     expect(screen.queryByRole('option', { name: 'Plan, Plan.md' })).not.toBeInTheDocument();
 
     act(() => dispatchSidebarOpenSearchEvent('graph'));
 
     const searchInput = screen.getByRole('combobox', { name: 'graph.searchPlaceholder' });
+    expect(document.querySelector('[data-sidebar-search-drawer="true"]')).toHaveClass(
+      'transition-opacity',
+    );
     const modeSelector = screen.getByRole('group', { name: 'app.viewGraph' });
+    expect(modeSelector).toHaveClass('mt-3');
     expect(searchInput.compareDocumentPosition(modeSelector) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const exactResult = screen.getByRole('option', { name: 'Plan, Plan.md' });
     const prefixResult = screen.getByRole('option', { name: 'Planning, docs/Planning.md' });
@@ -193,6 +201,21 @@ describe('GraphSidebar', () => {
 
     act(() => dispatchSidebarOpenSearchEvent('graph'));
     expect(searchInput.closest('.grid')).toHaveClass('grid-rows-[1fr]');
+  });
+
+  it('moves the selected background with the graph mode', () => {
+    graphStore.mode = 'all';
+    const view = render(<GraphSidebar />);
+    const indicator = document.querySelector('[data-graph-mode-indicator="true"]');
+
+    expect(indicator).toHaveClass('left-1');
+    expect(indicator).not.toHaveClass('left-1/2');
+
+    graphStore.mode = 'local';
+    view.rerender(<GraphSidebar />);
+
+    expect(indicator).toHaveClass('left-1/2', 'transition-[left]');
+    expect(indicator).not.toHaveClass('left-1');
   });
 
   it('shows a clear empty state for a query with no matches', () => {

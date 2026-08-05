@@ -171,6 +171,24 @@ describe('layoutGraphLabels', () => {
     expect(placements.size).toBeLessThan(nodes.length);
   });
 
+  it('caps dense preview labels while preserving the focused label', () => {
+    const nodes = Array.from({ length: 20 }, (_, index) => (
+      node(index === 0 ? 'Focused' : `Branch ${index}`, 100 + index * 100, 100, 20 - index)
+    ));
+    const placements = layoutGraphLabels(
+      nodes,
+      { x: 0, y: 0, zoom: 1 },
+      ['Focused.md'],
+      { x: 2400, y: 300 },
+      nodes,
+      [],
+      6,
+    );
+
+    expect(placements.size).toBe(6);
+    expect(placements.has('Focused.md')).toBe(true);
+  });
+
   it('keeps a priority label visible inside a dense ring', () => {
     const focused = node('Focused', 100, 100);
     const ring = Array.from({ length: 16 }, (_, index) => {

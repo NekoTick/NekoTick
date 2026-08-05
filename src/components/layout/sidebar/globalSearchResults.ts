@@ -3,15 +3,26 @@ import {
   getNavigableChatSidebarSessions,
   queryChatSidebarSessions,
 } from '@/components/Chat/features/Sidebar/chatSidebarSearch';
-import type { NotesSidebarSearchResult } from '@/components/Notes/features/Sidebar/notesSidebarSearchResults';
+import { rankGraphNodes } from '@/components/Graph/model/graphFilters';
+import type { NoteGraphNode } from '@/components/Graph/model/noteGraph';
+import type {
+  NotesSidebarSearchEntry,
+  NotesSidebarSearchResult,
+} from '@/components/Notes/features/Sidebar/notesSidebarSearchResults';
 import type { WhiteboardIndexEntry } from '@/components/Whiteboard/model/whiteboardRepository';
 import type { ChatSession } from '@/lib/ai/types';
-import { isAbsolutePath } from '@/lib/storage/adapter';
 import type { AppViewMode } from '@/stores/uiSlice';
 
-export type GlobalSearchKind = 'notes' | 'whiteboard' | 'chat';
+export type GlobalSearchKind = 'notes' | 'graph' | 'whiteboard' | 'chat';
 
 export type GlobalSearchResult =
+  | {
+      id: string;
+      kind: 'graph';
+      node: NoteGraphNode;
+      subtitle: string;
+      title: string;
+    }
   | {
       id: string;
       kind: 'notes';
@@ -41,7 +52,7 @@ export interface GlobalSearchGroup {
 
 const MAX_RESULTS_PER_GROUP = 60;
 const MAX_TEXT_QUERY_CHARS = 256;
-const DEFAULT_KIND_ORDER: GlobalSearchKind[] = ['notes', 'whiteboard', 'chat'];
+const DEFAULT_KIND_ORDER: GlobalSearchKind[] = ['notes', 'graph', 'whiteboard', 'chat'];
 
 function getKindOrder(appViewMode: AppViewMode): GlobalSearchKind[] {
   if (!DEFAULT_KIND_ORDER.includes(appViewMode as GlobalSearchKind)) return DEFAULT_KIND_ORDER;
@@ -55,33 +66,24 @@ function getBoundedQuery(query: string) {
   return query.trim().slice(0, MAX_TEXT_QUERY_CHARS).toLocaleLowerCase();
 }
 
-export function createRecentNoteSearchResults(
-  recentNotes: string[],
-  getDisplayName: (path: string) => string,
+export function createDefaultNoteSearchResults(
+  searchIndex: NotesSidebarSearchEntry[],
 ): NotesSidebarSearchResult[] {
-  return recentNotes.slice(0, 30).map((path, index) => {
-    const isExternal = isAbsolutePath(path);
-    const normalized = path.replace(/\\/g, '/');
-    const separatorIndex = normalized.lastIndexOf('/');
-    return {
-      id: `${path}::recent::${index}`,
-      path,
-      name: getDisplayName(path),
-      preview: separatorIndex < 0 ? '' : normalized.slice(0, separatorIndex + 1),
-      isExternal,
-      contentSearchable: !isExternal,
-      matchIndex: 0,
-      matchKind: 'name',
-      contentSnippet: null,
-      contentMatchOrdinal: null,
-    };
-  });
+  return searchIndex.slice(0, MAX_RESULTS_PER_GROUP).map((entry) => ({
+    ...entry,
+    id: `${entry.path}::default`,
+    matchIndex: 0,
+    matchKind: 'name',
+    contentSnippet: null,
+    contentMatchOrdinal: null,
+  }));
 }
 
 export function buildGlobalSearchGroups({
   appViewMode,
   boards,
   chatTitleFallback,
+  graphNodes,
   noteResults,
   query,
   sessions,
@@ -89,6 +91,7 @@ export function buildGlobalSearchGroups({
   appViewMode: AppViewMode;
   boards: WhiteboardIndexEntry[];
   chatTitleFallback: string;
+  graphNodes: NoteGraphNode[];
   noteResults: NotesSidebarSearchResult[];
   query: string;
   sessions: ChatSession[];
@@ -100,26 +103,40 @@ export function buildGlobalSearchGroups({
   const whiteboards = [...boards]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .filter((board) => !trimmedQuery || board.title.toLocaleLowerCase().includes(trimmedQuery));
+  const matchingGraphNodes = trimmedQuery
+    ? rankGraphNodes(graphNodes, trimmedQuery)
+    : [...graphNodes].sort((left, right) => (
+      right.degree - left.degree
+      || left.label.localeCompare(right.label)
+      || left.id.localeCompare(right.id)
+    ));
   const resultsByKind: Record<GlobalSearchKind, GlobalSearchResult[]> = {
     notes: noteResults.slice(0, MAX_RESULTS_PER_GROUP).map((note) => ({
       id: `notes:${note.id}`,
       kind: 'notes',
       note,
-      subtitle: note.contentSnippet ?? note.preview.replace(/\/$/, ''),
+      subtitle: note.contentSnippet ?? '',
       title: note.name,
+    })),
+    graph: matchingGraphNodes.slice(0, MAX_RESULTS_PER_GROUP).map((node) => ({
+      id: `graph:${node.id}`,
+      kind: 'graph',
+      node,
+      subtitle: '',
+      title: node.label,
     })),
     whiteboard: whiteboards.slice(0, MAX_RESULTS_PER_GROUP).map((board) => ({
       board,
       id: `whiteboard:${board.id}`,
       kind: 'whiteboard',
-      subtitle: new Date(board.updatedAt).toLocaleString(),
+      subtitle: '',
       title: board.title,
     })),
     chat: chatSessions.slice(0, MAX_RESULTS_PER_GROUP).map((session) => ({
       id: `chat:${session.id}`,
       kind: 'chat',
       session,
-      subtitle: new Date(session.updatedAt).toLocaleString(),
+      subtitle: '',
       title: session.title || chatTitleFallback,
     })),
   };

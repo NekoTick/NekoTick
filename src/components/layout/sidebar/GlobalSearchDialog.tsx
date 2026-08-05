@@ -2,6 +2,8 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, ty
 import { SidebarLiveNoteFileIcon } from '@/components/Notes/features/Sidebar/SidebarNoteFileIcon';
 import { useSidebarContentSearchResults } from '@/components/Notes/features/Sidebar/useSidebarContentSearchResults';
 import { useWhiteboardStore } from '@/components/Whiteboard/stores/useWhiteboardStore';
+import { collectNoteGraphSearchNodes } from '@/components/Graph/model/graphNotePaths';
+import { useGraphUIStore } from '@/components/Graph/store/useGraphUIStore';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
@@ -20,7 +22,7 @@ import { themeIconTokens } from '@/styles/themeTokens';
 import { GlobalSearchPreview } from './GlobalSearchPreview';
 import {
   buildGlobalSearchGroups,
-  createRecentNoteSearchResults,
+  createDefaultNoteSearchResults,
   type GlobalSearchKind,
   type GlobalSearchResult,
 } from './globalSearchResults';
@@ -37,9 +39,10 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   const { t } = useI18n();
   const appViewMode = useUIStore((state) => state.appViewMode);
   const setAppViewMode = useUIStore((state) => state.setAppViewMode);
+  const setGraphMode = useGraphUIStore((state) => state.setMode);
+  const setGraphSelectedPath = useGraphUIStore((state) => state.setSelectedPath);
   const rootFolder = useNotesStore((state) => state.rootFolder);
   const currentNote = useNotesStore((state) => state.currentNote);
-  const recentNotes = useNotesStore((state) => state.recentNotes);
   const noteContentsCache = useNotesStore((state) => state.noteContentsCache);
   const noteContentsCacheRevision = useNotesStore((state) => state.noteContentsCacheRevision);
   const starredEntries = useNotesStore((state) => state.starredEntries);
@@ -67,7 +70,11 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   const deferredQuery = useDeferredValue(query);
   const whiteboardRootPath = currentNotesRoot?.path ?? WHITEBOARD_SYSTEM_STORAGE_SCOPE;
 
-  const { isContentScanPending, searchResults: noteSearchResults } = useSidebarContentSearchResults({
+  const {
+    isContentScanPending,
+    searchIndex: noteSearchIndex,
+    searchResults: noteSearchResults,
+  } = useSidebarContentSearchResults({
     rootFolder,
     getDisplayName,
     noteContentsCache,
@@ -81,19 +88,24 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
     currentNotesRootPath: currentNotesRoot?.path ?? notesPath,
     liveNoteContent: currentNote,
   });
-  const recentNoteResults = useMemo(
-    () => createRecentNoteSearchResults(recentNotes, getDisplayName),
-    [getDisplayName, recentNotes],
+  const defaultNoteResults = useMemo(
+    () => createDefaultNoteSearchResults(noteSearchIndex),
+    [noteSearchIndex],
   );
-  const noteResults = deferredQuery.trim() ? noteSearchResults : recentNoteResults;
+  const graphNodes = useMemo(
+    () => collectNoteGraphSearchNodes(rootFolder?.children ?? []),
+    [rootFolder],
+  );
+  const noteResults = deferredQuery.trim() ? noteSearchResults : defaultNoteResults;
   const groups = useMemo(() => buildGlobalSearchGroups({
     appViewMode,
     boards,
     chatTitleFallback: t('chat.newChatTitle'),
+    graphNodes,
     noteResults,
     query: deferredQuery,
     sessions,
-  }), [appViewMode, boards, deferredQuery, noteResults, sessions, t]);
+  }), [appViewMode, boards, deferredQuery, graphNodes, noteResults, sessions, t]);
   const visibleResults = useMemo(() => groups.flatMap((group) => group.results), [groups]);
   const resultIndexById = useMemo(
     () => new Map(visibleResults.map((result, index) => [result.id, index])),
@@ -150,6 +162,12 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
     }
     onOpenChange(nextOpen);
   };
+  const openGraphPath = (path: string) => {
+    setGraphMode('local');
+    setGraphSelectedPath(path);
+    setAppViewMode('graph');
+    handleOpenChange(false);
+  };
   const openResult = async (result: GlobalSearchResult | null) => {
     if (!result) return;
     const requestId = ++openRequestRef.current;
@@ -157,7 +175,10 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
       await openStoredNotePath(result.note.openPath ?? result.note.path, { openNote, openNoteByAbsolutePath });
     } else if (result.kind === 'chat') {
       await aiActions.switchSession(result.session.id);
-    } else {
+    } else if (result.kind === 'graph') {
+      setGraphMode('local');
+      setGraphSelectedPath(result.node.id);
+    } else if (result.kind === 'whiteboard') {
       const openWhiteboard = whiteboardOpenQueueRef.current.then(async () => {
         await loadWhiteboards(whiteboardRootPath);
         await selectBoard(result.board.id);
@@ -203,11 +224,23 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
                   {group.results.map((result) => {
                     const index = resultIndexById.get(result.id) ?? 0;
                     return (
-                      <button key={result.id} id={`global-search-result-${index}`} data-global-search-index={index} type="button" role="option" aria-selected={index === selectedIndex} onPointerEnter={() => setSelectedIndex(index)} onFocus={() => setSelectedIndex(index)} onClick={() => void openResult(result).catch(() => undefined)} className={cn('mb-0.5 flex w-full cursor-pointer items-start gap-2 rounded-[var(--vlaina-notes-ui-radius-compact)] px-2 py-2 text-left', index === selectedIndex && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]')}>
+                      <button key={result.id} id={`global-search-result-${index}`} data-global-search-index={index} type="button" role="option" aria-selected={index === selectedIndex} onPointerMove={() => setSelectedIndex(index)} onFocus={() => setSelectedIndex(index)} onClick={() => void openResult(result).catch(() => undefined)} className={cn('group/global-search-result mb-0.5 flex w-full cursor-pointer items-start gap-2 rounded-[var(--vlaina-notes-ui-radius-compact)] px-2 py-2 text-left', index === selectedIndex && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]')}>
                         <span className="mt-0.5 flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center">{getResultIcon(result, currentNotesRoot?.path ?? notesPath)}</span>
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[length:var(--vlaina-font-13)] font-medium text-[var(--vlaina-sidebar-notes-text)]">{result.title}</span>
-                          <span className="block truncate text-[length:var(--vlaina-font-11)] text-[var(--vlaina-sidebar-notes-text-soft)]">{result.subtitle}</span>
+                          <span className={cn(
+                            'block truncate text-[length:var(--vlaina-font-13)] font-medium group-hover/global-search-result:text-[var(--vlaina-sidebar-row-selected-text)] group-focus-within/global-search-result:text-[var(--vlaina-sidebar-row-selected-text)]',
+                            index === selectedIndex
+                              ? 'text-[var(--vlaina-sidebar-row-selected-text)]'
+                              : 'text-[var(--vlaina-sidebar-notes-text)]',
+                          )}>{result.title}</span>
+                          {result.subtitle ? (
+                            <span className={cn(
+                              'block truncate text-[length:var(--vlaina-font-11)] group-hover/global-search-result:text-[var(--vlaina-sidebar-row-selected-text-soft)] group-focus-within/global-search-result:text-[var(--vlaina-sidebar-row-selected-text-soft)]',
+                              index === selectedIndex
+                                ? 'text-[var(--vlaina-sidebar-row-selected-text-soft)]'
+                                : 'text-[var(--vlaina-sidebar-notes-text-soft)]',
+                            )}>{result.subtitle}</span>
+                          ) : null}
                         </span>
                       </button>
                     );
@@ -220,7 +253,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
           <div className="relative min-h-0 bg-[var(--vlaina-bg-primary)]">
             {selectedResult ? (
               <>
-                <GlobalSearchPreview result={selectedResult} noteContent={selectedNoteContent} chatMessages={selectedChatMessages} notesRootPath={whiteboardRootPath} activeBoardId={activeBoardId} activeSnapshot={activeSnapshot} />
+                <GlobalSearchPreview result={selectedResult} noteContent={selectedNoteContent} chatMessages={selectedChatMessages} notesRootPath={whiteboardRootPath} activeBoardId={activeBoardId} activeSnapshot={activeSnapshot} onOpenGraph={openGraphPath} />
                 <button type="button" onClick={() => void openResult(selectedResult).catch(() => undefined)} className="absolute bottom-4 right-4 z-[var(--vlaina-z-20)] flex h-[var(--vlaina-size-36px)] cursor-pointer items-center gap-1.5 rounded-[var(--vlaina-radius-pill)] bg-[var(--vlaina-color-floating-surface)] px-3 text-[length:var(--vlaina-font-13)] font-medium text-[var(--vlaina-text-primary)] shadow-[var(--vlaina-shadow-raised-soft)] transition-colors duration-[var(--vlaina-duration-150)] hover:text-[var(--vlaina-accent)] motion-reduce:transition-none"><Icon name="nav.arrowUpRight" size="sm" />{t('editor.video.open')}</button>
               </>
             ) : <div className="flex h-full items-center justify-center text-[length:var(--vlaina-font-12)] text-[var(--vlaina-sidebar-notes-text-soft)]">{t('shortcut.noResults')}</div>}
@@ -232,14 +265,28 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
 }
 
 function getGroupLabel(kind: GlobalSearchKind, t: ReturnType<typeof useI18n>['t']) {
-  return t(kind === 'notes' ? 'app.viewNotes' : kind === 'chat' ? 'app.viewChat' : 'app.viewWhiteboard');
+  return t(
+    kind === 'notes'
+      ? 'app.viewNotes'
+      : kind === 'graph'
+        ? 'app.viewGraph'
+        : kind === 'chat' ? 'app.viewChat' : 'app.viewWhiteboard',
+  );
 }
 
 function getResultIcon(result: GlobalSearchResult, notesRootPath: string) {
   if (result.kind === 'notes') {
     return <SidebarLiveNoteFileIcon notePath={result.note.path} notesRootPath={result.note.isExternal ? undefined : notesRootPath} />;
   }
-  return <Icon name={result.kind === 'chat' ? 'common.shootingStar' : 'editor.diagram'} size={themeIconTokens.sizeCompact} />;
+  return (
+    <Icon
+      name={result.kind === 'graph'
+        ? 'graph.network'
+        : result.kind === 'chat' ? 'common.shootingStar' : 'editor.diagram'}
+      size={themeIconTokens.sizeCompact}
+      className="text-[var(--vlaina-accent)]"
+    />
+  );
 }
 
 function didOpenResult(result: GlobalSearchResult): boolean {
@@ -252,6 +299,10 @@ function didOpenResult(result: GlobalSearchResult): boolean {
   }
   if (result.kind === 'chat') {
     return useAIUIStore.getState().currentSessionId === result.session.id;
+  }
+  if (result.kind === 'graph') {
+    const graphState = useGraphUIStore.getState();
+    return graphState.mode === 'local' && graphState.selectedPath === result.node.id;
   }
   return useWhiteboardStore.getState().activeBoardId === result.board.id;
 }
