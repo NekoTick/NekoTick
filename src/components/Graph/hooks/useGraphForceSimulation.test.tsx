@@ -271,6 +271,36 @@ describe('useGraphForceSimulation', () => {
     expect(simulation.alpha).toHaveBeenLastCalledWith(themeGraphTokens.forceDragAlpha);
   });
 
+  it('bounds distant motion while a dragged neighborhood is reheated', () => {
+    const distantNode = { id: 'Gamma.md', label: 'Gamma', degree: 0, x: 500, y: 100 };
+    const hook = renderForceSimulation(true, vi.fn(), {
+      focusNodeId: 'Alpha.md',
+      nodes: [...graph.nodes, distantNode],
+      edges: [...graph.edges],
+    });
+    act(() => forceMocks.handlers.end?.());
+    const distantPosition = {
+      x: forceMocks.nodes[2]?.x,
+      y: forceMocks.nodes[2]?.y,
+    };
+
+    act(() => hook.result.current.updateDragPosition('Alpha.md', { x: 140, y: 120 }));
+
+    expect(forceMocks.nodes[1]?.fx).toBeUndefined();
+    expect(forceMocks.nodes[2]?.fx).toBeUndefined();
+    forceMocks.nodes[2]!.x = Number(distantPosition.x)
+      + themeGraphTokens.forceDistantDragMaxDisplacementPx * 2;
+    act(() => forceMocks.handlers.tick?.());
+    expect(forceMocks.nodes[2]?.x).toBe(
+      Number(distantPosition.x) + themeGraphTokens.forceDistantDragMaxDisplacementPx,
+    );
+
+    act(() => hook.result.current.releaseDragPosition('Alpha.md'));
+
+    expect(forceMocks.nodes[2]?.fx).toBeUndefined();
+    expect(forceMocks.nodes[2]?.fy).toBeUndefined();
+  });
+
   it('does not restart a restored drag position while inactive', () => {
     const hook = renderForceSimulation();
     act(() => forceMocks.handlers.end?.());

@@ -17,6 +17,7 @@ interface UseSidebarSearchDrawerStateOptions {
 }
 
 interface SidebarSearchDrawerProps {
+  animateHeight?: boolean;
   isSearchOpen: boolean;
   shouldShowTopActions: boolean;
   searchQuery: string;
@@ -74,6 +75,7 @@ export function useSidebarSearchDrawerState({
 }
 
 export function SidebarSearchDrawer({
+  animateHeight = true,
   isSearchOpen,
   shouldShowTopActions,
   searchQuery,
@@ -132,7 +134,10 @@ export function SidebarSearchDrawer({
         aria-hidden={!isSearchOpen}
         inert={isSearchOpen ? undefined : true}
         className={cn(
-          'grid transition-[grid-template-rows,opacity] duration-[var(--vlaina-duration-200)] ease-out',
+          'grid duration-[var(--vlaina-duration-200)] ease-out',
+          animateHeight
+            ? 'transition-[grid-template-rows,opacity]'
+            : 'transition-opacity',
           isSearchOpen ? 'grid-rows-[1fr] opacity-[var(--vlaina-opacity-100)]' : 'grid-rows-[0fr] opacity-[var(--vlaina-opacity-0)]',
         )}
       >

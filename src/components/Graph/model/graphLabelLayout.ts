@@ -133,6 +133,7 @@ export function layoutGraphLabels(
   viewportSize?: GraphPoint,
   obstacleNodes: readonly PositionedGraphNode[] = nodes,
   exclusionBounds: readonly GraphScreenBounds[] = [],
+  maximumPlacements = Number.POSITIVE_INFINITY,
 ): ReadonlyMap<string, GraphLabelPlacement> {
   const placements = new Map<string, GraphLabelPlacement>();
   if (nodes.length === 0) return placements;
@@ -227,7 +228,13 @@ export function layoutGraphLabels(
     }
   };
 
-  for (const node of priorityNodes) place(node, true);
-  for (const node of remainingNodes) place(node, false);
+  for (const node of priorityNodes) {
+    if (placements.size >= maximumPlacements) break;
+    place(node, true);
+  }
+  for (const node of remainingNodes) {
+    if (placements.size >= maximumPlacements) break;
+    place(node, false);
+  }
   return placements;
 }

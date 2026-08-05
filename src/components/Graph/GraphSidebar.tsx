@@ -144,6 +144,7 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
         </SidebarActionGroup>
         <div className="flex min-h-0 flex-1 flex-col pt-3">
           <SidebarSearchDrawer
+            animateHeight={false}
             isSearchOpen={active && isSearchOpen}
             shouldShowTopActions={false}
             searchQuery={searchQuery}
@@ -172,7 +173,7 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
             aria-label={t('app.viewGraph')}
             className={cn(
               'relative mx-2 grid h-[var(--vlaina-size-48px)] grid-cols-2 rounded-full p-[var(--vlaina-space-2px)]',
-              isSearchOpen ? 'mt-1' : 'mt-3',
+              isSearchOpen ? 'mt-3' : 'mt-1',
               raisedPillSurfaceClass,
             )}
           >
@@ -180,8 +181,8 @@ export function GraphSidebar({ active = true }: { active?: boolean }) {
               data-graph-mode-indicator="true"
               aria-hidden="true"
               className={cn(
-                'absolute inset-y-1 left-1 w-[var(--vlaina-width-graph-mode-indicator)] rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-transform duration-[var(--vlaina-duration-200)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
-                mode === 'local' ? 'translate-x-full' : 'translate-x-0',
+                'absolute inset-y-1 w-[var(--vlaina-width-graph-mode-indicator)] rounded-full bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)] transition-[left] duration-[var(--vlaina-duration-200)] ease-[var(--vlaina-ease-feedback)] motion-reduce:transition-none',
+                mode === 'local' ? 'left-1/2' : 'left-1',
               )}
             />
             {GRAPH_MODES.map((graphMode) => {

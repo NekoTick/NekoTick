@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { GlobalSearchDialog } from './GlobalSearchDialog';
@@ -13,6 +13,12 @@ const hoisted = vi.hoisted(() => ({
   chatUIState: {
     currentSessionId: null as string | null,
   },
+  graphState: {
+    mode: 'all' as 'all' | 'local',
+    selectedPath: null as string | null,
+    setMode: vi.fn<(mode: 'all' | 'local') => void>(),
+    setSelectedPath: vi.fn<(path: string | null) => void>(),
+  },
   setAppViewMode: vi.fn(),
   aiState: {
     data: {
@@ -23,7 +29,14 @@ const hoisted = vi.hoisted(() => ({
     },
   },
   notesState: {
-    rootFolder: null,
+    rootFolder: {
+      children: [
+        { id: 'alpha.md', name: 'alpha.md', path: 'alpha.md', isFolder: false as const },
+        { id: 'beta.md', name: 'beta.md', path: 'beta.md', isFolder: false as const },
+      ],
+    } as {
+      children: Array<{ id: string; name: string; path: string; isFolder: false }>;
+    } | null,
     currentNote: null as { path: string; content: string } | null,
     recentNotes: ['recent.md'],
     noteContentsCache: new Map([
@@ -67,6 +80,18 @@ const hoisted = vi.hoisted(() => ({
 vi.mock('@/components/Notes/features/Sidebar/useSidebarContentSearchResults', () => ({
   useSidebarContentSearchResults: () => ({
     isContentScanPending: false,
+    searchIndex: [
+      { path: 'alpha.md', name: 'Alpha', preview: '' },
+      { path: 'beta.md', name: 'Beta', preview: '' },
+      {
+        path: '/external/starred.md',
+        openPath: '/external/starred.md',
+        name: 'Starred',
+        preview: 'external/',
+        isExternal: true,
+        contentSearchable: false,
+      },
+    ],
     searchResults: [
       { id: 'alpha', path: 'alpha.md', name: 'Alpha', preview: '', matchIndex: 0, matchKind: 'name', contentSnippet: null, contentMatchOrdinal: null },
       { id: 'beta', path: 'beta.md', name: 'Beta', preview: '', matchIndex: 0, matchKind: 'name', contentSnippet: null, contentMatchOrdinal: null },
@@ -87,7 +112,11 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
-vi.mock('@/components/ui/icons', () => ({ Icon: ({ name }: { name: string }) => <span>{name}</span> }));
+vi.mock('@/components/ui/icons', () => ({
+  Icon: ({ name, className }: { name: string; className?: string }) => (
+    <span className={className}>{name}</span>
+  ),
+}));
 vi.mock('@/lib/i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 vi.mock('@/stores/useNotesStore', () => ({
   useNotesStore: Object.assign(
@@ -107,6 +136,12 @@ vi.mock('@/components/Whiteboard/stores/useWhiteboardStore', () => ({
     { getState: () => hoisted.whiteboardState },
   ),
 }));
+vi.mock('@/components/Graph/store/useGraphUIStore', () => ({
+  useGraphUIStore: Object.assign(
+    (selector: (state: typeof hoisted.graphState) => unknown) => selector(hoisted.graphState),
+    { getState: () => hoisted.graphState },
+  ),
+}));
 vi.mock('@/stores/useAIStore', () => ({ actions: hoisted.aiActions }));
 vi.mock('@/stores/ai/chatState', () => ({
   useAIUIStore: {
@@ -124,6 +159,14 @@ describe('GlobalSearchDialog', () => {
   beforeEach(() => {
     hoisted.appViewMode = 'chat';
     hoisted.chatUIState.currentSessionId = null;
+    hoisted.graphState.mode = 'all';
+    hoisted.graphState.selectedPath = null;
+    hoisted.graphState.setMode.mockReset().mockImplementation((mode) => {
+      hoisted.graphState.mode = mode;
+    });
+    hoisted.graphState.setSelectedPath.mockReset().mockImplementation((path) => {
+      hoisted.graphState.selectedPath = path;
+    });
     hoisted.notesState.currentNote = null;
     hoisted.notesState.recentNotes = ['recent.md'];
     hoisted.notesState.openNote.mockReset().mockImplementation(async (path?: string) => {
@@ -150,12 +193,44 @@ describe('GlobalSearchDialog', () => {
 
     const chatHeading = screen.getByText('app.viewChat');
     const notesHeading = screen.getByText('app.viewNotes');
+    const graphHeading = screen.getAllByText('app.viewGraph')[0];
     const boardHeading = screen.getByText('app.viewWhiteboard');
     expect(chatHeading.compareDocumentPosition(notesHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(notesHeading.compareDocumentPosition(boardHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notesHeading.compareDocumentPosition(graphHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(graphHeading.compareDocumentPosition(boardHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('option', { name: /Alpha chat/i })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /recent/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Alpha$/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /^Beta$/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Starred/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /recent/i })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Alpha board/i })).toBeInTheDocument();
+    expect(screen.getAllByText('graph.network').every((icon) => (
+      icon.classList.contains('text-[var(--vlaina-accent)]')
+    ))).toBe(true);
+    expect(screen.getByText('common.shootingStar')).toHaveClass('text-[var(--vlaina-accent)]');
+    expect(screen.getAllByText('editor.diagram').every((icon) => (
+      icon.classList.contains('text-[var(--vlaina-accent)]')
+    ))).toBe(true);
+  });
+
+  it('opens a file graph result in local mode around that file', async () => {
+    const onOpenChange = vi.fn();
+    render(<GlobalSearchDialog open onOpenChange={onOpenChange} />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'sidebar.search' }), {
+      target: { value: 'beta' },
+    });
+
+    const graphGroup = (await screen.findByText('app.viewGraph')).closest('section');
+    expect(graphGroup).not.toBeNull();
+    const graphResults = within(graphGroup!).getAllByRole('option');
+    expect(graphResults).toHaveLength(1);
+    expect(graphGroup).not.toHaveTextContent('beta.md');
+    fireEvent.click(graphResults[0]);
+
+    expect(hoisted.graphState.setMode).toHaveBeenCalledWith('local');
+    expect(hoisted.graphState.setSelectedPath).toHaveBeenCalledWith('beta.md');
+    expect(hoisted.setAppViewMode).toHaveBeenCalledWith('graph');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('previews on hover and opens a clicked note', async () => {
@@ -163,8 +238,11 @@ describe('GlobalSearchDialog', () => {
     const input = screen.getByRole('textbox', { name: 'sidebar.search' });
     fireEvent.change(input, { target: { value: 'a' } });
     const betaResult = await screen.findByRole('option', { name: /^Beta$/i });
-    fireEvent.pointerEnter(betaResult);
+    fireEvent.pointerMove(betaResult);
     expect(screen.getByTestId('search-preview')).toHaveTextContent('Beta:# Beta');
+    expect(within(betaResult).getByText('Beta')).toHaveClass(
+      'text-[var(--vlaina-sidebar-row-selected-text)]',
+    );
     expect(betaResult).toHaveClass(
       'bg-[var(--vlaina-sidebar-row-selected-bg)]',
       'shadow-[var(--vlaina-shadow-selection-soft)]',
@@ -174,6 +252,18 @@ describe('GlobalSearchDialog', () => {
 
     await waitFor(() => expect(hoisted.notesState.openNote).toHaveBeenCalledWith('beta.md', undefined));
     expect(hoisted.setAppViewMode).toHaveBeenCalledWith('notes');
+  });
+
+  it('does not rebuild the preview when results scroll beneath a stationary pointer', () => {
+    render(<GlobalSearchDialog open onOpenChange={() => {}} />);
+    const betaResult = screen.getByRole('option', { name: /^Beta$/i });
+    expect(screen.getByTestId('search-preview')).toHaveTextContent('Alpha chat:');
+
+    fireEvent.pointerEnter(betaResult);
+    expect(screen.getByTestId('search-preview')).toHaveTextContent('Alpha chat:');
+
+    fireEvent.pointerMove(betaResult);
+    expect(screen.getByTestId('search-preview')).toHaveTextContent('Beta:# Beta');
   });
 
   it('opens chat and whiteboard results with their existing actions', async () => {
@@ -188,12 +278,11 @@ describe('GlobalSearchDialog', () => {
     expect(hoisted.setAppViewMode).toHaveBeenCalledWith('whiteboard');
   });
 
-  it('routes absolute recent notes through the external opener', async () => {
-    hoisted.notesState.recentNotes = ['/external/recent.md'];
+  it('routes absolute starred notes through the external opener', async () => {
     render(<GlobalSearchDialog open onOpenChange={() => {}} />);
-    fireEvent.click(screen.getByRole('option', { name: /recent/i }));
+    fireEvent.click(screen.getByRole('option', { name: /Starred/i }));
 
-    await waitFor(() => expect(hoisted.notesState.openNoteByAbsolutePath).toHaveBeenCalledWith('/external/recent.md', undefined));
+    await waitFor(() => expect(hoisted.notesState.openNoteByAbsolutePath).toHaveBeenCalledWith('/external/starred.md', undefined));
     expect(hoisted.notesState.openNote).not.toHaveBeenCalled();
   });
 

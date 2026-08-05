@@ -16,6 +16,11 @@ import {
 } from '../model/graphForceReleaseDiagnostics';
 import { releaseGraphForceNode } from '../model/graphForceRelease';
 import { applyGraphForceOverrides, pinGraphForceNode } from '../model/applyGraphForceOverrides';
+import {
+  constrainDistantGraphForceNodes,
+  createDistantGraphForceBounds,
+  type BoundedGraphForceNodes,
+} from '../model/graphForceDrag';
 import { createInitialGraphForcePositions } from '../model/graphForceInitialization';
 import type { PositionedNoteGraph } from '../model/graphLayout';
 import { MAX_GRAPH_POSITION_ENTRIES } from '../model/graphPositionPersistence';
@@ -40,6 +45,7 @@ export function useGraphForceSimulation(args: {
   const simulationRef = useRef<ReturnType<typeof createGraphForceSimulation> | null>(null);
   const previousDragIdRef = useRef<string | null>(null);
   const movedDragIdRef = useRef<string | null>(null);
+  const boundedDragNodesRef = useRef<BoundedGraphForceNodes | null>(null);
   const releasedDragIdRef = useRef<string | null>(null);
   const forcesRef = useRef<GraphForceRegistry>(new Map());
   const forcesSuspendedRef = useRef(false);
@@ -84,6 +90,7 @@ export function useGraphForceSimulation(args: {
     initialLayout.cancel();
     dragRef.current = null;
     movedDragIdRef.current = null;
+    boundedDragNodesRef.current = null;
     const graphIds = argsRef.current.graph.nodes.map((node) => node.id);
     const retainedIds = [
       ...new Set([...graphIds, ...Object.keys(retainedPositionsRef.current)]),
@@ -121,6 +128,13 @@ export function useGraphForceSimulation(args: {
     releasedDragIdRef.current = null;
     releaseDiagnosticRef.current = null;
     simulation.on('tick', () => {
+      if (boundedDragNodesRef.current) {
+        constrainDistantGraphForceNodes(
+          boundedDragNodesRef.current,
+          themeGraphTokens.forceDistantDragMaxDisplacementPx,
+          nodesByIdRef.current,
+        );
+      }
       const positions = readPositions();
       positionsRef.current = positions;
       argsRef.current.onPositionsFrame(positions);
@@ -201,6 +215,7 @@ export function useGraphForceSimulation(args: {
     if (moved) {
       suspendGraphForces(simulation);
       forcesSuspendedRef.current = true;
+      boundedDragNodesRef.current = null;
     }
     releaseDiagnosticRef.current = releaseGraphForceNode({
       edges: argsRef.current.graph.edges,
@@ -290,6 +305,13 @@ export function useGraphForceSimulation(args: {
       positions: positionsRef.current,
       retainedPositions: retainedPositionsRef.current,
     })) return;
+    if (movedDragIdRef.current !== id) {
+      boundedDragNodesRef.current = createDistantGraphForceBounds({
+        edges: argsRef.current.graph.edges,
+        id,
+        nodesById: nodesByIdRef.current,
+      });
+    }
     movedDragIdRef.current = id;
     releasedDragIdRef.current = null;
     argsRef.current.onDraggedPositionFrame(id, position);

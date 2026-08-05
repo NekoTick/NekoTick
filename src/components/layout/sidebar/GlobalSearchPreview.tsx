@@ -2,6 +2,10 @@ import { MessageItem } from '@/components/Chat/features/Messages/components/Mess
 import { NotesSplitPreviewPane } from '@/components/Notes/features/Split/NotesSplitPreviewPane';
 import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/whiteboardDocument';
 import type { ChatMessage } from '@/lib/ai/types';
+import {
+  GlobalSearchGraphPreviewButton,
+  GlobalSearchLocalGraphPreview,
+} from './GlobalSearchGraphPreview';
 import type { GlobalSearchResult } from './globalSearchResults';
 import { GlobalWhiteboardSearchPreview } from './GlobalWhiteboardSearchPreview';
 
@@ -9,6 +13,7 @@ const MAX_CHAT_PREVIEW_MESSAGES = 8;
 const MAX_CHAT_PREVIEW_MESSAGE_CHARS = 8_000;
 const MAX_CHAT_PREVIEW_IMAGES = 4;
 const MAX_CHAT_PREVIEW_WEB_SEARCH_STATUSES = 4;
+const MAX_NOTE_PREVIEW_CHARS = 80_000;
 const noop = () => {};
 const declineCopy = () => false;
 
@@ -30,6 +35,7 @@ export function GlobalSearchPreview({
   chatMessages,
   notesRootPath,
   noteContent,
+  onOpenGraph,
   result,
 }: {
   activeBoardId: string | null;
@@ -37,20 +43,35 @@ export function GlobalSearchPreview({
   chatMessages: ChatMessage[];
   notesRootPath: string;
   noteContent: string;
+  onOpenGraph: (path: string) => void;
   result: GlobalSearchResult;
 }) {
+  if (result.kind === 'graph') {
+    return (
+      <GlobalSearchLocalGraphPreview
+        focusPath={result.node.id}
+        onOpenPath={onOpenGraph}
+      />
+    );
+  }
+
   if (result.kind === 'notes') {
     const path = result.note.openPath ?? result.note.path;
     return (
-      <NotesSplitPreviewPane
-        content={noteContent}
-        path={path}
-        title={result.title}
-        interactive={false}
-        showChrome={false}
-        onActivate={() => undefined}
-        onClose={() => undefined}
-      />
+      <div className="relative h-full min-h-0">
+        <NotesSplitPreviewPane
+          content={noteContent.slice(0, MAX_NOTE_PREVIEW_CHARS)}
+          path={path}
+          title={result.title}
+          interactive={false}
+          showChrome={false}
+          onActivate={() => undefined}
+          onClose={() => undefined}
+        />
+        {!result.note.isExternal ? (
+          <GlobalSearchGraphPreviewButton focusPath={path} onOpenGraph={onOpenGraph} />
+        ) : null}
+      </div>
     );
   }
 

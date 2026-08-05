@@ -266,6 +266,7 @@ export function useSidebarContentSearchResults({
 
   return {
     isContentScanPending,
+    searchIndex,
     searchResults,
   };
 }

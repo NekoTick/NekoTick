@@ -29,6 +29,7 @@ export function GraphCanvasScene(props: {
   hoveredPath: string | null;
   labelsReady: boolean;
   labelLayoutRevision: number;
+  maxVisibleLabels?: number;
   topOverlayVisible?: boolean;
   nodes: PositionedGraphNode[];
   onHoverChange: (path: string | null) => void;
@@ -40,6 +41,7 @@ export function GraphCanvasScene(props: {
   onSelect: (path: string | null) => void;
   onStartDrag: (event: PointerEvent<SVGGElement>, path: string, position: GraphNodePosition) => void;
   selectedPath: string | null;
+  showAllLabels?: boolean;
   viewport: GraphViewport;
   viewportSize: GraphPoint;
 }) {
@@ -63,6 +65,7 @@ export function GraphCanvasScene(props: {
         hoveredPath={props.hoveredPath}
         labelsReady={props.labelsReady}
         labelLayoutRevision={props.labelLayoutRevision}
+        maxVisibleLabels={props.maxVisibleLabels}
         topOverlayVisible={props.topOverlayVisible}
         nodes={props.nodes}
         onHoverChange={props.onHoverChange}
@@ -74,6 +77,7 @@ export function GraphCanvasScene(props: {
         onSelect={props.onSelect}
         onStartDrag={props.onStartDrag}
         selectedPath={props.selectedPath}
+        showAllLabels={props.showAllLabels}
         viewport={props.viewport}
         viewportSize={props.viewportSize}
       />
@@ -91,6 +95,7 @@ interface GraphSceneContentProps {
   nodes: PositionedGraphNode[];
   labelsReady: boolean;
   labelLayoutRevision: number;
+  maxVisibleLabels?: number;
   topOverlayVisible?: boolean;
   onHoverChange: (path: string | null) => void;
   onHoverStart?: (event: MouseEvent<SVGGElement>, path: string, position: GraphNodePosition) => void;
@@ -101,6 +106,7 @@ interface GraphSceneContentProps {
   onSelect: (path: string | null) => void;
   onStartDrag: (event: PointerEvent<SVGGElement>, path: string, position: GraphNodePosition) => void;
   selectedPath: string | null;
+  showAllLabels?: boolean;
   viewport: GraphViewport;
   viewportSize: GraphPoint;
 }
@@ -116,8 +122,9 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
       activePath,
       props.selectedPath,
       props.currentPath,
+      ...(props.showAllLabels ? props.nodes.map((node) => node.id) : []),
     ].filter((id): id is string => Boolean(id)))],
-    [activePath, props.currentPath, props.selectedPath],
+    [activePath, props.currentPath, props.nodes, props.selectedPath, props.showAllLabels],
   );
   const labelCandidates = useMemo(() => highlightedPath
     ? props.nodes.filter((node) => (
@@ -138,6 +145,7 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
         props.viewportSize,
         props.nodes,
         getGraphLabelExclusionBounds(props.viewportSize, props.topOverlayVisible ?? false),
+        props.maxVisibleLabels,
       )
       : EMPTY_LABEL_PLACEMENTS,
     [
@@ -145,6 +153,7 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
       labelCandidates,
       props.labelsReady,
       props.labelLayoutRevision,
+      props.maxVisibleLabels,
       props.nodes,
       props.topOverlayVisible,
       props.viewport.x,
@@ -210,6 +219,7 @@ function areGraphSceneContentPropsEqual(
     && previous.hoveredPath === next.hoveredPath
     && previous.labelsReady === next.labelsReady
     && previous.labelLayoutRevision === next.labelLayoutRevision
+    && previous.maxVisibleLabels === next.maxVisibleLabels
     && previous.topOverlayVisible === next.topOverlayVisible
     && previous.nodes === next.nodes
     && previous.onHoverChange === next.onHoverChange
@@ -221,6 +231,7 @@ function areGraphSceneContentPropsEqual(
     && previous.onSelect === next.onSelect
     && previous.onStartDrag === next.onStartDrag
     && previous.selectedPath === next.selectedPath
+    && previous.showAllLabels === next.showAllLabels
     && previous.viewportSize.x === next.viewportSize.x
     && previous.viewportSize.y === next.viewportSize.y;
 }
