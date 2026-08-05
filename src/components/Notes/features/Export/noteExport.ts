@@ -6,6 +6,7 @@ import { getNoteTitleFromPath } from '@/lib/notes/displayName';
 import { writeDesktopBinaryFile } from '@/lib/desktop/fs';
 import { getBase64DecodedByteLength } from '@/lib/markdown/dataImagePolicy';
 import { toBlobPart } from '@/lib/blobPart';
+import { shareNativeFile } from '@/lib/nativeFileShare';
 import { stripManagedFrontmatter } from '@/stores/notes/frontmatter';
 import { createDocxExportBytes } from './noteExportDocx';
 import { renderNoteExportElement, renderNoteExportHtml } from './noteExportHtml';
@@ -143,13 +144,17 @@ async function saveExportBytes(
   assertExportOutputBytes(bytes.byteLength);
 
   const extension = EXPORT_EXTENSIONS[format];
+  const fileName = `${sanitizeFileName(title)}.${extension}`;
+  if (await shareNativeFile({ data: bytes, fileName, mimeType, title })) {
+    return { canceled: false };
+  }
   const filePath = await promptExportPath(format, title);
   if (!filePath) {
     if (getElectronBridge()) {
       return { canceled: true };
     }
 
-    downloadInBrowser(`${sanitizeFileName(title)}.${extension}`, bytes, mimeType);
+    downloadInBrowser(fileName, bytes, mimeType);
     return { canceled: false };
   }
 

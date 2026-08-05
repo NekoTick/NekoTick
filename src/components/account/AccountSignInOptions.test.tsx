@@ -54,6 +54,17 @@ describe('AccountSignInOptions', () => {
     expect(screen.getByRole('button', { name: /continue with email/i })).toBeTruthy();
   });
 
+  it('hides OAuth in the native Capacitor app while keeping email sign-in available', () => {
+    vi.stubGlobal('Capacitor', { isNativePlatform: () => true });
+
+    render(<AccountSignInOptions {...buildProps()} />);
+
+    expect(screen.queryByRole('button', { name: /continue with google/i })).toBeNull();
+    expect(screen.queryByText(/^or$/i)).toBeNull();
+    expect(screen.getByRole('button', { name: /continue with email/i })).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
   it('resets the email code form when OAuth sign-in starts from the verification step', async () => {
     const props = buildProps();
     render(<AccountSignInOptions {...props} />);

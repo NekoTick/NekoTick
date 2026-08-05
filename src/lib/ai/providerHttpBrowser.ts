@@ -1,6 +1,7 @@
 import type { ProviderFetchInit } from './providerHttpTypes';
 import { AI_PROVIDER_CONNECTION_FAILURE_CODE } from './providerHttpErrors';
 import { raceWithAbort, throwIfAborted, createAbortError } from './providerHttpAbort';
+import { aiTransportFetch } from './nativeFetchRuntime';
 
 const PROVIDER_GET_RETRY_DELAYS_MS = [300];
 const PROVIDER_FAST_FAILURE_RETRY_WINDOW_MS = 2000;
@@ -78,7 +79,10 @@ export async function fetchWithGetRetry(url: string, init: ProviderFetchInit): P
     const startedAt = Date.now();
     try {
       throwIfAborted(init.signal);
-      const response = await raceWithAbort(fetch(url, { ...init, redirect: 'error' }), init.signal);
+      const response = await raceWithAbort(
+        aiTransportFetch(url, { ...init, redirect: 'error' }),
+        init.signal,
+      );
       throwIfAborted(init.signal);
       return response;
     } catch (error) {

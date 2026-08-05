@@ -25,6 +25,7 @@ export function useNotesWorkspaceLifecycle(args: {
   currentNotePath: string | undefined;
   currentNotesRoot: { path: string } | null | undefined;
   draftNotes: ReturnType<typeof useNotesStore.getState>['draftNotes'];
+  externalSyncEnabled: boolean;
   isDirty: boolean;
   isLoading: boolean;
   launchNotePath: string | null;
@@ -55,6 +56,7 @@ export function useNotesWorkspaceLifecycle(args: {
     currentNotePath,
     currentNotesRoot,
     draftNotes,
+    externalSyncEnabled,
     isDirty,
     isLoading,
     launchFolderPath,
@@ -124,10 +126,10 @@ export function useNotesWorkspaceLifecycle(args: {
     addToast(normalizeUserFacingErrorMessage(notesError), 'error', themeUiFeedbackTokens.errorToastDurationMs);
   }, [active, addToast, notesError]);
 
-  const activeNotesRootPath = active ? currentNotesRoot?.path ?? null : null;
+  const activeNotesRootPath = active && externalSyncEnabled ? currentNotesRoot?.path ?? null : null;
   useCurrentNotesRootExternalPathSync(activeNotesRootPath);
-  useNotesExternalSync(activeNotesRootPath, active ? notesPath : '');
-  useAbsoluteNoteExternalRenameSync(active ? currentNotePath : undefined);
+  useNotesExternalSync(activeNotesRootPath, active && externalSyncEnabled ? notesPath : '');
+  useAbsoluteNoteExternalRenameSync(active && externalSyncEnabled ? currentNotePath : undefined);
   useCurrentNotesRootInitialization({
     currentNotesRootPath: currentNotesRoot?.path ?? null,
     launchNotePath,

@@ -10,6 +10,28 @@ import { useWhiteboardPointerActions } from './useWhiteboardPointerActions';
 type PointerActionOptions = Parameters<typeof useWhiteboardPointerActions>[0];
 
 describe('useWhiteboardPointerActions drawing performance', () => {
+  it('keeps touch panning as the default brush interaction', () => {
+    const options = createOptions(() => ({ left: 0, top: 0 } as DOMRect));
+    const { result } = renderHook(() => useWhiteboardPointerActions(options));
+
+    act(() => result.current.handleViewportPointerDown(createPointerEvent('touch', 30, 40)));
+
+    expect(options.setDragState).toHaveBeenCalledWith(expect.objectContaining({ kind: 'pan' }));
+    expect(options.setDraftStroke).not.toHaveBeenCalled();
+  });
+
+  it('draws brush strokes with touch when the presentation enables it', () => {
+    const options = createOptions(() => ({ left: 0, top: 0 } as DOMRect));
+    options.drawWithTouch = true;
+    const { result } = renderHook(() => useWhiteboardPointerActions(options));
+
+    act(() => result.current.handleViewportPointerDown(createPointerEvent('touch', 30, 40)));
+
+    expect(options.setDraftStroke).toHaveBeenCalledWith(expect.objectContaining({ tool: 'pen' }));
+    expect(options.setDragState).toHaveBeenCalledWith({ kind: 'draw' });
+    expect(options.scheduleViewport).not.toHaveBeenCalled();
+  });
+
   it('reuses the pointer-down bounds and skips touch tracking for pen drawing', () => {
     const rect = { bottom: 500, height: 500, left: 10, right: 510, toJSON: vi.fn(), top: 20, width: 500, x: 10, y: 20 };
     const getBoundingClientRect = vi.fn(() => rect as DOMRect);

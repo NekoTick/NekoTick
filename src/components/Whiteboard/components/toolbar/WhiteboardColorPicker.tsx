@@ -181,9 +181,14 @@ export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardCol
             aria-label={t('whiteboard.customColor')}
             aria-pressed={open}
             data-whiteboard-dock-visual="true"
-            className="flex size-[var(--vlaina-size-32px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)] hover:shadow-none"
-            style={{ backgroundImage: 'var(--vlaina-color-picker-rainbow)' }}
-          />
+            className="flex size-[var(--vlaina-size-32px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)]"
+          >
+            <span
+              aria-hidden="true"
+              className="size-[var(--vlaina-size-32px)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)] hover:shadow-none"
+              style={{ backgroundImage: 'var(--vlaina-color-picker-rainbow)' }}
+            />
+          </button>
         </PopoverTrigger>
       </WhiteboardDockSlot>
 

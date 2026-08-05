@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { configureNativeFileShare } from '@/lib/nativeFileShare';
 import { exportNote, MAX_NOTE_EXPORT_OUTPUT_BYTES } from './noteExport';
 import { createDocxExportBytes } from './noteExportDocx';
 
@@ -88,6 +89,10 @@ describe('exportNote', () => {
     mocks.toPng.mockResolvedValue('data:image/png;base64,cG5n');
   });
 
+  afterEach(() => {
+    configureNativeFileShare(null);
+  });
+
   it('strips vlaina-managed frontmatter before exporting', async () => {
     await exportNote({
       format: 'html',
@@ -116,6 +121,29 @@ describe('exportNote', () => {
     expect(writtenHtml).not.toContain('vlaina_cover');
     expect(writtenHtml).not.toContain('vlaina_updated');
     expect(writtenHtml).toContain('# Exported');
+  });
+
+  it('shares generated output through the configured native runtime', async () => {
+    const shareFile = vi.fn().mockResolvedValue(undefined);
+    configureNativeFileShare(shareFile);
+
+    await exportNote({
+      format: 'html',
+      markdown: '# Shared',
+      notePath: 'Shared.md',
+      notesPath: '/notesRoot',
+      title: 'Shared',
+    });
+
+    expect(shareFile).toHaveBeenCalledWith(expect.objectContaining({
+      fileName: 'Shared.html',
+      mimeType: 'text/html;charset=utf-8',
+      title: 'Shared',
+    }));
+    const request = shareFile.mock.calls[0]?.[0];
+    expect(new TextDecoder().decode(request.data)).toBe('<html># Shared</html>');
+    expect(mocks.saveDialog).not.toHaveBeenCalled();
+    expect(mocks.writeDesktopBinaryFile).not.toHaveBeenCalled();
   });
 
   it('rejects oversized markdown before rendering export output', async () => {

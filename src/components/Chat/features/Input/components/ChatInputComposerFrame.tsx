@@ -15,10 +15,7 @@ import {
   type Attachment,
 } from '@/lib/storage/attachmentStorage';
 import { useI18n } from '@/lib/i18n/useI18n';
-import {
-  chatComposerFrameClass,
-  chatComposerSurfaceClass,
-} from '../composerStyles';
+import { chatComposerFrameClass, chatComposerSurfaceClass } from '../composerStyles';
 import { ChatAttachmentPreviewList } from './ChatAttachmentPreviewList';
 import { ChatComposerField } from './ChatComposerField';
 import { ChatInputActions } from './ChatInputActions';
@@ -175,6 +172,7 @@ export function ChatInputComposerFrame({
       <input
         type="file"
         spellCheck={false}
+        tabIndex={-1}
         multiple
         accept={SUPPORTED_ATTACHMENT_INPUT_ACCEPT}
         className="sr-only"
@@ -252,18 +250,15 @@ export function ChatInputComposerFrame({
             <ChatComposerField
               textareaRef={textareaRef}
               message={message}
+              ariaLabel={t('chat.composerPlaceholder')}
               onChange={onComposerChange}
               onCompositionStart={onCompositionStart}
               onCompositionEnd={onCompositionEnd}
               onKeyDown={handleTextareaKeyDown}
-              onSelect={(e) => onCaretChange(
-                e.currentTarget.selectionStart ?? 0,
-                e.currentTarget.selectionEnd ?? e.currentTarget.selectionStart ?? 0,
-              )}
-              onClick={(e) => onCaretChange(
-                e.currentTarget.selectionStart ?? 0,
-                e.currentTarget.selectionEnd ?? e.currentTarget.selectionStart ?? 0,
-              )}
+              onSelect={(e) => onCaretChange(e.currentTarget.selectionStart ?? 0,
+                e.currentTarget.selectionEnd ?? e.currentTarget.selectionStart ?? 0)}
+              onClick={(e) => onCaretChange(e.currentTarget.selectionStart ?? 0,
+                e.currentTarget.selectionEnd ?? e.currentTarget.selectionStart ?? 0)}
               onBlur={onCaretBlur}
               onPaste={handleTextareaPaste}
               onScroll={onTextareaScroll}

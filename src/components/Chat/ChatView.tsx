@@ -43,6 +43,7 @@ import type { ChatMessageNavigationHandler } from './features/Messages/MessageLi
 
 export function ChatView({
   mode = 'full',
+  presentation = 'desktop',
   active = true,
   onCloseEmbeddedPanel,
   onPromoteEmbeddedPanel,
@@ -54,6 +55,7 @@ export function ChatView({
   const [focusInputTrigger, setFocusInputTrigger] = useState(0); 
   const messageNavigationRef = useRef<ChatMessageNavigationHandler | null>(null);
   const isEmbedded = mode === 'embedded';
+  const isMobilePresentation = presentation === 'mobile';
   const {
     currentSessionId,
     isMessagesLoaded,
@@ -118,7 +120,7 @@ export function ChatView({
       estimateLoadingHeight: estimateChatLoadingHeight,
   });
   useHeldPageScroll(containerRef, {
-    enabled: active,
+    enabled: active && !isMobilePresentation,
     ignoreEditableTargets: true,
   });
 
@@ -163,7 +165,7 @@ export function ChatView({
     onToggleShortcuts: handleToggleShortcuts,
     onStopGeneration: stop,
     isGenerating: isSessionActive,
-  }, active && !isEmbedded);
+  }, active && !isEmbedded && !isMobilePresentation);
 
   const {
     copyToClipboard,
@@ -229,6 +231,8 @@ export function ChatView({
   return (
     <div
       data-chat-view-mode={mode}
+      data-chat-presentation={presentation}
+      data-chat-empty={isEmpty ? 'true' : 'false'}
       data-notes-block-drop-target={isEmbedded ? 'true' : undefined}
       data-file-tree-chat-drop-target={isEmbedded ? 'true' : undefined}
       className="h-full w-full flex flex-col relative overflow-hidden"
@@ -255,6 +259,7 @@ export function ChatView({
 
       {!isEmbedded && showInChatArea && (
         <div
+          data-chat-temporary-toggle="true"
           className={cn(
             "absolute right-4 z-[var(--vlaina-z-30)] translate-x-[var(--vlaina-window-resize-compensation-x)] pointer-events-auto",
             "top-3"
@@ -272,7 +277,7 @@ export function ChatView({
           isSessionActive={isSessionActive}
           showLoading={showLoading}
           isLayoutCentered={isEmpty}
-          useOverlayScrollbar
+          useOverlayScrollbar={!isMobilePresentation}
           showMessageOutline={!isEmbedded}
           currentTurnTopSpacerHeight={currentTurnTopSpacerHeight}
           spacerHeight={spacerHeight}
@@ -292,7 +297,7 @@ export function ChatView({
               isEmpty ? "flex-1 justify-center items-center" : "flex-none pb-6"
           )}
       >
-          {isEmpty ? <WelcomeScreen /> : null}
+          {isEmpty ? <WelcomeScreen presentation={presentation} /> : null}
 
           <div 
             className="w-full max-w-[var(--vlaina-size-850px)] mx-auto px-4 pointer-events-auto"
@@ -324,13 +329,13 @@ export function ChatView({
           </div>
       </div>
       
-      {!isEmbedded && active && (
+      {!isEmbedded && !isMobilePresentation && active && (
         <ChatShortcutsDialog
           isOpen={isShortcutsOpen}
           onOpenChange={setIsShortcutsOpen}
         />
       )}
-      {!isEmbedded && active && <SelectionInsertButton />}
+      {!isEmbedded && !isMobilePresentation && active && <SelectionInsertButton />}
     </div>
   );
 }

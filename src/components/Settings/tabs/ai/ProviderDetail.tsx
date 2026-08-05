@@ -11,6 +11,8 @@ import { useProviderConnectionDraft } from './provider-detail/useProviderConnect
 import { useProviderModelActions } from './provider-detail/useProviderModelActions';
 import { useProviderModelFilters } from './provider-detail/useProviderModelFilters';
 import type { OauthAccountProvider } from '@/lib/account/provider';
+import { useI18n } from '@/lib/i18n';
+import { isBlockedNativeProviderUrl } from './provider-detail/nativeProviderUrlPolicy';
 
 const EMPTY_FETCHED_MODELS: string[] = [];
 
@@ -29,6 +31,7 @@ export function ProviderDetail({
   onDraftChange,
   onDraftClear,
 }: ProviderDetailProps) {
+  const { t } = useI18n();
   const {
     updateProvider,
     models,
@@ -71,7 +74,10 @@ export function ProviderDetail({
   const isManagedProvider = initialProvider?.id === MANAGED_PROVIDER_ID;
   const enabled = initialProvider?.enabled ?? true;
   const { apiHost, apiKey, name } = connectionDraft;
-  const canUseConnectionActions = Boolean(initialProvider && apiHost.trim() && apiKey.trim());
+  const apiHostBlocked = isBlockedNativeProviderUrl(apiHost);
+  const canUseConnectionActions = Boolean(
+    initialProvider && apiHost.trim() && apiKey.trim() && !apiHostBlocked
+  );
   const persistedProviderFetchedModels = useMemo(
     () => (providerId ? persistedFetchedModels[providerId] ?? EMPTY_FETCHED_MODELS : EMPTY_FETCHED_MODELS),
     [providerId, persistedFetchedModels]
@@ -154,6 +160,7 @@ export function ProviderDetail({
         providerId={initialProvider.id}
         name={name}
         apiHost={apiHost}
+        apiHostError={apiHostBlocked ? t('settings.ai.mobileHttpsRequired') : undefined}
         apiKey={apiKey}
         showApiKey={connectionDraft.showApiKey}
         apiKeyCopied={connectionDraft.apiKeyCopied}

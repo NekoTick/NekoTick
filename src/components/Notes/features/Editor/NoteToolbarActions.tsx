@@ -135,7 +135,7 @@ export function NoteToolbarActions({
   }
 
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div data-note-toolbar-actions="true" className={cn('flex items-center gap-1', className)}>
       {showStarButton ? (
         <NoteToolbarTooltip label={starButtonLabel}>
           <button
@@ -189,6 +189,7 @@ export function NoteToolbarActions({
                 );
             }}
             aria-label={t('notes.rightChat')}
+            data-note-chat-button="true"
             className={cn(
               toolbarButtonClassName,
               'hover:text-[var(--vlaina-accent)]',

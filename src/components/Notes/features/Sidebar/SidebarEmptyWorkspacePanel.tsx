@@ -84,12 +84,14 @@ export function SidebarEmptyWorkspacePanel({
 
   return (
     <div data-testid="empty-workspace-panel" className="pointer-events-auto flex w-full flex-col gap-3 px-1 py-3">
-      <NotesSidebarPillEmptyHint
-        actions={[
-          { label: openFileLabel, onAction: onOpenFile },
-          { label: openFolderLabel, onAction: onOpenFolder },
-        ]}
-      />
+      <div data-notes-workspace-actions="true">
+        <NotesSidebarPillEmptyHint
+          actions={[
+            { label: openFileLabel, onAction: onOpenFile },
+            { label: openFolderLabel, onAction: onOpenFolder },
+          ]}
+        />
+      </div>
       {recentNotesRoots.length > 0 ? (
         <div className="flex min-w-0 flex-col">
           {recentNotesRoots.map((notesRoot) => (

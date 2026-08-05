@@ -1,5 +1,7 @@
 packages:
   - '.'
+  - 'mobile'
+  - 'mobile/plugins/*'
   - 'vendor/milkdown/packages/*'
   - 'vendor/milkdown/packages/plugins/*'
   - 'vendor/milkdown/packages/integrations/react'
@@ -26,6 +28,8 @@ overrides:
 onlyBuiltDependencies:
   - electron
   - esbuild
+  - sharp
+  - sharp
 peerDependencyRules:
   allowedVersions:
     react: '^19.0.0'

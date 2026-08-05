@@ -35,6 +35,7 @@ export function ImagesTab() {
                             type="button"
                             onClick={resetImageStorageLocation}
                             aria-label={t('common.reset')}
+                            data-settings-action="reset-image-storage"
                             className={dialogActionIconButtonClassName}
                         >
                             <Icon name="common.refresh" size="md" />

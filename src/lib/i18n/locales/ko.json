@@ -1,4 +1,5 @@
 {
+  "mobile.share": "공유",
   "account.cancelAuthentication": "인증 취소",
   "account.continueSignIn": "로그인 계속",
   "account.continueToApp": "vlaina로 계속",
@@ -485,6 +486,7 @@
   "settings.ai.addModels": "모델 추가",
   "settings.ai.apiKey": "API 키",
   "settings.ai.baseUrl": "기본 URL: {url}",
+  "settings.ai.mobileHttpsRequired": "모바일에서는 제공업체 기본 URL에 HTTPS가 필요합니다.",
   "settings.ai.budgetInAccountCard": "예산 진행 상황은 아바타 아래 계정 카드에 표시됩니다.",
   "settings.ai.channelName": "채널 이름",
   "settings.ai.clearComputerPermissions": "모두 제거",

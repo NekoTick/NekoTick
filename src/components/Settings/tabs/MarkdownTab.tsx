@@ -36,7 +36,10 @@ export function MarkdownTab() {
 
   return (
     <div className="max-w-3xl pb-10" data-settings-tab-panel="markdown">
-      <div className={cn('mb-8 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-[var(--vlaina-ui-radius-group)] px-6 py-3 text-[var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)] max-[640px]:px-4', raisedPillSurfaceClass)}>
+      <div
+        className={cn('mb-8 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-[var(--vlaina-ui-radius-group)] px-6 py-3 text-[var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)] max-[640px]:px-4', raisedPillSurfaceClass)}
+        data-settings-desktop-only="markdown-shortcut"
+      >
         <span className="min-w-0 flex-1">{t('settings.markdown.shortcutHint')}</span>
         <ShortcutKeys
           keys={['Ctrl', 'Shift', '/']}

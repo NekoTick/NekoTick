@@ -97,6 +97,10 @@ vi.mock('next-themes', () => ({
   }),
 }));
 
+vi.mock('@/AppContent', () => ({
+  AppContent: () => <div />,
+}));
+
 vi.mock('@/lib/markdown/theme-compatibility/importedThemeStorage', () => ({
   readImportedMarkdownThemeMetadata: (...args: unknown[]) =>
     mocks.readImportedMarkdownThemeMetadata(...args),
@@ -1048,6 +1052,7 @@ describe('App close flow', () => {
     });
 
     expect(screen.queryByText('Unsaved Drafts')).toBeNull();
+    expect(await screen.findByText('Save did not finish')).toBeInTheDocument();
   });
 
   it('discards current draft and still flushes dirty regular background tabs before closing', async () => {

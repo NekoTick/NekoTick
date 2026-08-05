@@ -102,6 +102,17 @@ describe('WhiteboardSidebar', () => {
     expect(menu.getByText('sidebar.rename')).toBeInTheDocument();
     expect(menu.getByText('common.delete')).toBeInTheDocument();
   });
+
+  it('opens board actions from the visible menu button', () => {
+    render(<WhiteboardSidebar />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'sidebar.more' }));
+
+    const layer = document.querySelector<HTMLElement>('[data-sidebar-context-menu-layer="true"]');
+    expect(layer).not.toBeNull();
+    expect(within(layer!).getByText('sidebar.rename')).toBeInTheDocument();
+    expect(within(layer!).getByText('common.delete')).toBeInTheDocument();
+  });
 });
 
 function openBoardContextMenu() {

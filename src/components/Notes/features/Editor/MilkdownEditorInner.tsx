@@ -281,6 +281,8 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
 
   useEffect(() => {
     if (!active) {
+      flushCurrentPendingEditorMarkdown();
+      void flushSave();
       cleanupActivatedEditor();
       return;
     }
@@ -313,6 +315,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     currentNoteContent,
     currentNoteDiskRevision,
     currentNotePath,
+    flushSave,
     get,
     reportEditorReady,
   ]);

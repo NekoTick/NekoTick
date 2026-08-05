@@ -1,4 +1,5 @@
 {
+  "mobile.share": "Paylaş",
   "account.cancelAuthentication": "Kimlik Doğrulamayı İptal Et",
   "account.continueSignIn": "Girişe Devam Et",
   "account.continueToApp": "vlaina'ya Devam Et",
@@ -485,6 +486,7 @@
   "settings.ai.addModels": "Modeller ekle",
   "settings.ai.apiKey": "API Anahtarı",
   "settings.ai.baseUrl": "Temel URL: {url}",
+  "settings.ai.mobileHttpsRequired": "Mobil sağlayıcılar HTTPS taban URL'si gerektirir.",
   "settings.ai.budgetInAccountCard": "Bütçe ilerlemesi, avatarınızın altındaki hesap kartında gösterilir.",
   "settings.ai.channelName": "Kanal Adı",
   "settings.ai.clearComputerPermissions": "Tümünü kaldır",

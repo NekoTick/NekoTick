@@ -15,6 +15,7 @@ import {
 import { MENU_PANEL_CLASS_NAME } from '@/components/layout/sidebar/context-menu/shared';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
+import { hasNativeFileShare } from '@/lib/nativeFileShare';
 import type { AppLanguage } from '@/lib/i18n/languages';
 import type { NoteExportFormat } from '../Export/noteExportTypes';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
@@ -83,6 +84,7 @@ export function NoteToolbarMoreMenu({
   sourceModeShortcutKeys,
 }: NoteToolbarMoreMenuProps) {
   const { language, t } = useI18n();
+  const nativeFileShareAvailable = hasNativeFileShare();
   const [preloadedBacklinkCount, setPreloadedBacklinkCount] = useState<PreloadedBacklinkCount | null>(null);
   const preloadBacklinkCount = useCallback(() => {
     if (!currentNotePath) return;
@@ -209,13 +211,15 @@ export function NoteToolbarMoreMenu({
               <Icon size="md" name="file.text" className="mr-2" />
               Word (.docx)
             </NoteMenuButton>
-            <NoteMenuButton
-              className={exportMenuItemClassName}
-              onSelect={() => onExportSelect('pdf')}
-            >
-              <Icon size="md" name="file.text" className="mr-2" />
-              PDF
-            </NoteMenuButton>
+            {!nativeFileShareAvailable ? (
+              <NoteMenuButton
+                className={exportMenuItemClassName}
+                onSelect={() => onExportSelect('pdf')}
+              >
+                <Icon size="md" name="file.text" className="mr-2" />
+                PDF
+              </NoteMenuButton>
+            ) : null}
             <NoteMenuButton
               className={exportMenuItemClassName}
               onSelect={() => onExportSelect('png')}

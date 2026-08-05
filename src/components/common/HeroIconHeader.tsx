@@ -115,6 +115,7 @@ export function HeroIconHeader({
   return (
     <div
       ref={headerRef}
+      data-hero-icon-header="true"
       data-no-editor-drag-box="true"
       className={cn(
         "relative transition-[margin-top] duration-[var(--vlaina-duration-200)] ease-out w-full",
@@ -194,12 +195,14 @@ export function HeroIconHeader({
               />
           ) : (
               <div className={cn(
+                  "hero-icon-empty",
                   "flex items-center gap-2 transition-all duration-[var(--vlaina-duration-150)]",
                   compact ? "h-8" : "h-14",
                   isHoveringHeader ? "opacity-[var(--vlaina-opacity-100)]" : (compact ? "opacity-[var(--vlaina-opacity-50)]" : "opacity-[var(--vlaina-opacity-0)]")
               )}>
                   <button
                       ref={iconButtonRef}
+                      data-hero-icon-add="true"
                       data-note-header-icon-button="true"
                       onClick={handleAddRandomIcon}
                       className={cn("flex items-center gap-1.5 py-1 rounded-md text-sm text-[var(--vlaina-soft-placeholder)] hover:text-[var(--vlaina-sidebar-row-selected-text)] transition-colors")}

@@ -157,7 +157,7 @@ export function NotePathBreadcrumb({ notePath }: NotePathBreadcrumbProps) {
   );
 
   return (
-    <div className="h-4 flex items-center mb-1">
+    <div data-note-path-breadcrumb="true" className="h-4 flex items-center mb-1">
       {!isUnsavedDraft ? (
         <div className="flex flex-wrap items-center gap-x-1 gap-y-0 text-[var(--vlaina-font-xs)] leading-none opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover/note-title:opacity-[var(--vlaina-opacity-100)] group-focus-within/note-title:opacity-[var(--vlaina-opacity-100)]">
           <>

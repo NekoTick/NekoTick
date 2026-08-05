@@ -803,6 +803,48 @@ describe('workspace document actions', () => {
     ]);
   });
 
+  it('flushes draft input made while title materialization is in flight', async () => {
+    const store = createNotesStore({
+      currentNote: { path: 'draft:blank', content: '' },
+      isDirty: false,
+      openTabs: [{ path: 'draft:blank', name: '', isDirty: false }],
+      draftNotes: {
+        'draft:blank': { parentPath: null, name: 'Draft title' },
+      },
+      noteContentsCache: new Map([['draft:blank', { content: '', modifiedAt: null }]]),
+    });
+    let flushCount = 0;
+    mocks.flushCurrentPendingEditorMarkdown.mockImplementation(() => {
+      flushCount += 1;
+      if (flushCount !== 2) return false;
+      store.getState().updateContent('Body typed during title save');
+      return true;
+    });
+    mocks.saveNoteDocument.mockResolvedValueOnce({
+      content: '',
+      metadata: { updatedAt: 2 },
+      modifiedAt: 2,
+      size: 0,
+      nextCache: new Map([['Draft title.md', { content: '', modifiedAt: 2 }]]),
+    });
+
+    await store.getState().saveNote({ explicit: false });
+
+    expect(mocks.flushCurrentPendingEditorMarkdown).toHaveBeenCalledTimes(2);
+    expect(store.getState().currentNote).toEqual({
+      path: 'Draft title.md',
+      content: 'Body typed during title save',
+    });
+    expect(store.getState().isDirty).toBe(true);
+    expect(store.getState().openTabs).toEqual([
+      { path: 'Draft title.md', name: 'Draft title', isDirty: true },
+    ]);
+    expect(store.getState().noteContentsCache.get('Draft title.md')).toEqual({
+      content: 'Body typed during title save',
+      modifiedAt: 2,
+    });
+  });
+
   it('materializes a draft tab when the user switches away before the draft save finishes', async () => {
     type SaveResult = {
       content: string;

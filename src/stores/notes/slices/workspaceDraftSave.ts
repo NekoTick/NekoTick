@@ -14,6 +14,7 @@ import {
 import { removeCachedNoteContent, setCachedNoteContent } from '../document/noteContentCache';
 import { remapNoteNavigationHistoryForExternalRename } from '../document/noteNavigationHistory';
 import { saveNoteDocument } from '../document/noteDocumentPersistence';
+import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
 import { persistWorkspaceSnapshot } from '../workspacePersistence';
 import { buildSortedRootFolder } from '../utils/fs/rootFolderState';
 import { resolveUniquePath } from '../utils/fs/pathOperations';
@@ -102,6 +103,7 @@ export async function saveDraftNote({
     cache: noteContentsCache,
   });
 
+  flushCurrentPendingEditorMarkdown();
   const latestState = get();
   if (latestState.notesPath !== notesPath) return true;
   const latestCurrentNote = latestState.currentNote;

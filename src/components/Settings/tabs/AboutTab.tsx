@@ -199,7 +199,7 @@ export function AboutTab({ community }: { community: CommunitySettings }) {
     <div className="space-y-8" data-settings-tab-panel="about">
       <AboutHero version={currentVersion || APP_VERSION} />
 
-      <div>
+      <div data-settings-desktop-only="updates">
         <SettingsSectionHeader>{t('settings.about.updates')}</SettingsSectionHeader>
         <SettingsItem
           title={t('settings.about.updates')}

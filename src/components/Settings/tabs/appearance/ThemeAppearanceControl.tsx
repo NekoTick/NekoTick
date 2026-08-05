@@ -49,7 +49,10 @@ function ColorModeToggle({ colorMode, onChange }: ColorModeToggleProps) {
   const colorModeIndex = Math.max(0, COLOR_MODE_OPTIONS.findIndex((option) => option.value === colorMode));
 
   return (
-    <div className="relative flex h-8 w-[var(--vlaina-size-126px)] shrink-0 items-center">
+    <div
+      className="relative flex h-8 w-[var(--vlaina-size-126px)] shrink-0 items-center"
+      data-settings-color-mode-control="true"
+    >
       <span
         aria-hidden="true"
         className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-[var(--vlaina-accent-light)] shadow-[var(--vlaina-shadow-selection-soft)] transition-transform duration-[var(--vlaina-duration-200)] ease-out"

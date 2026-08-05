@@ -17,7 +17,7 @@ import {
 } from './unifiedStorageSaveTypes';
 import { readBoundedTextFile, mapWithConcurrencyLimit } from './unifiedStorageCommon';
 import { parseAISessionsFile } from './unifiedStorageSessionFiles';
-import { parseAIProviderFile } from './unifiedStorageProviderFiles';
+import { parseAIProviderFile, serializeBoundedAIProviderFile } from './unifiedStorageProviderFiles';
 import { sanitizeUnifiedData } from './unifiedStorageMainNormalize';
 import { hydrateProvidersWithSecrets } from './unifiedStorageProviderSecrets';
 
@@ -37,6 +37,7 @@ export async function loadUnifiedData(): Promise<UnifiedData> {
     const sessionFilesDir = await joinPath(chatDir, 'sessions');
     const sessionsPath = await joinPath(sessionFilesDir, 'index.json');
     const providersDir = await joinPath(chatDir, 'providers');
+    const loadedProviderDataById = new Map<string, NonNullable<ReturnType<typeof parseAIProviderFile>>>();
 
     let combinedData = createDefaultUnifiedData();
 
@@ -153,6 +154,7 @@ export async function loadUnifiedData(): Promise<UnifiedData> {
         loadedProviders.forEach((p, index) => {
             const providerId = providerIds[index];
             if (p) {
+                loadedProviderDataById.set(providerId, p);
                 combinedData.ai!.providers.push(p.provider);
                 if (Array.isArray(p.models)) {
                     combinedData.ai!.models.push(...p.models);
@@ -168,7 +170,20 @@ export async function loadUnifiedData(): Promise<UnifiedData> {
     }
 
     combinedData.ai.providers = normalizeLoadedAIProviders(combinedData.ai.providers);
-    combinedData.ai.providers = await hydrateProvidersWithSecrets(combinedData.ai.providers);
+    combinedData.ai.providers = await hydrateProvidersWithSecrets(
+      combinedData.ai.providers,
+      async (providerId) => {
+        const providerData = loadedProviderDataById.get(providerId);
+        if (!providerData) {
+          return;
+        }
+        const providerPath = await joinPath(providersDir, `${providerId}.json`);
+        await storage.writeFile(providerPath, serializeBoundedAIProviderFile(providerId, {
+          ...providerData,
+          provider: { ...providerData.provider, apiKey: '' },
+        }));
+      },
+    );
 
     const normalizedAI = normalizeLoadedAIModels(
       combinedData.ai.providers,

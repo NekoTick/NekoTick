@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createWhiteboardExportBlob } from './whiteboardExport';
+import { configureNativeFileShare } from '@/lib/nativeFileShare';
+import { createWhiteboardExportBlob, exportWhiteboard } from './whiteboardExport';
 
 describe('whiteboard export appearance', () => {
   const originalImage = globalThis.Image;
@@ -8,6 +9,7 @@ describe('whiteboard export appearance', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     globalThis.Image = originalImage;
+    configureNativeFileShare(null);
   });
 
   it('exports images on the selected paper background', async () => {
@@ -92,6 +94,25 @@ describe('whiteboard export appearance', () => {
     } finally {
       root.remove();
     }
+  });
+
+  it('shares whiteboard exports through the configured native runtime', async () => {
+    const shareFile = vi.fn().mockResolvedValue(undefined);
+    configureNativeFileShare(shareFile);
+
+    await expect(exportWhiteboard({
+      elements: [],
+      paper: 'blank',
+      root: null,
+      strokes: [],
+    }, 'svg')).resolves.toBe(true);
+
+    expect(shareFile).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.any(Blob),
+      fileName: expect.stringMatching(/^whiteboard-\d{4}-\d{2}-\d{2}\.svg$/),
+      mimeType: 'image/svg+xml;charset=utf-8',
+      title: 'Whiteboard',
+    }));
   });
 
   it('times out stalled raster image loading and releases the Blob URL', async () => {

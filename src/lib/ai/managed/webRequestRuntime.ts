@@ -1,3 +1,4 @@
+import { aiTransportFetch } from '../nativeFetchRuntime';
 import { isErrorNamed } from '../errorClassification';
 
 export const MANAGED_JSON_TIMEOUT_MS = 30_000;
@@ -219,7 +220,7 @@ export async function fetchManagedJsonWithRetry(
   for (let attempt = 0; ; attempt += 1) {
     const startedAt = Date.now();
     try {
-      return await raceManagedRequest(fetch(url, init), timeoutController, externalSignal);
+      return await raceManagedRequest(aiTransportFetch(url, init), timeoutController, externalSignal);
     } catch (error) {
       const retryDelayMs = shouldRetry ? MANAGED_GET_RETRY_DELAYS_MS[attempt] : undefined;
       const failedQuickly = Date.now() - startedAt <= MANAGED_FAST_FAILURE_RETRY_WINDOW_MS;
