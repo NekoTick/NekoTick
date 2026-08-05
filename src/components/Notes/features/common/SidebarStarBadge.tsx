@@ -31,7 +31,7 @@ export function SidebarStarBadge({
         onClick?.();
       }}
       className={cn(
-        'absolute right-0 top-1/2 z-[var(--vlaina-z-30)] flex h-4 w-4 -translate-y-1/2 cursor-pointer items-center justify-center text-[var(--vlaina-color-favorite-fg)] opacity-[var(--vlaina-opacity-100)] hover:opacity-[var(--vlaina-opacity-100)] focus-visible:opacity-[var(--vlaina-opacity-100)]',
+        'absolute inset-y-0 right-0 z-[var(--vlaina-z-30)] my-auto flex h-4 w-4 cursor-pointer items-center justify-center text-[var(--vlaina-color-favorite-fg)] opacity-[var(--vlaina-opacity-100)] hover:opacity-[var(--vlaina-opacity-100)] focus-visible:opacity-[var(--vlaina-opacity-100)]',
         className,
       )}
     >
