@@ -10,6 +10,8 @@ import {
 } from './openAIToolParsing';
 import { filterUniqueOpenAIToolCalls } from './openAIToolCallIds';
 import type { OpenAIStreamToolResult, OpenAIToolCall } from './openAIToolTypes';
+import { addAiStreamResponseChunkBytes } from '@/lib/ai/streamingResponseBudget';
+import { isErrorNamed } from '@/lib/ai/errorClassification';
 
 interface ConsumeOpenAIStreamWithToolsOptions {
   mapErrorPayload?: (message: string, code?: string) => Error | string;
@@ -95,6 +97,7 @@ export async function consumeOpenAIStreamWithTools(
   let assistantContent = '';
   let reasoningContent = '';
   let buffer = '';
+  let responseBytesRead = 0;
 
   const consumeLine = (line: string) => {
     const payload = parseOpenAIPayloadText(line);
@@ -129,6 +132,7 @@ export async function consumeOpenAIStreamWithTools(
       const { done, value } = await raceWithAbort(reader.read(), signal);
       throwIfAborted(signal);
       if (done) break;
+      responseBytesRead = addAiStreamResponseChunkBytes(responseBytesRead, value);
       buffer = appendOpenAIStreamBuffer(buffer, decoder.decode(value, { stream: true }));
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
@@ -165,9 +169,7 @@ export async function consumeOpenAIStreamWithTools(
     return result;
   } catch (error) {
     void reader.cancel(createAbortError()).catch(() => undefined);
-    if (signal?.aborted && !(
-      error instanceof Error && error.name === 'AbortError'
-    )) {
+    if (signal?.aborted && !isErrorNamed(error, 'AbortError')) {
       throw createAbortError();
     }
     throw error;

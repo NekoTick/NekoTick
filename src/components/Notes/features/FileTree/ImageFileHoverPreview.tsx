@@ -68,7 +68,7 @@ export function ImageFileHoverPreview() {
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-[var(--vlaina-z-40)] flex items-center justify-center bg-[var(--vlaina-bg-primary)] p-[var(--vlaina-size-32px)]"
+      className="pointer-events-none absolute inset-0 z-[var(--vlaina-z-30)] flex items-center justify-center bg-[var(--vlaina-bg-primary)] p-[var(--vlaina-size-32px)]"
       data-image-file-hover-preview="true"
     >
       <img

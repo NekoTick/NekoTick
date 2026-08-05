@@ -10,6 +10,7 @@ import { persistWorkspaceSnapshot } from '../workspacePersistence';
 import { buildSortedRootFolder } from '../utils/fs/rootFolderState';
 import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
 import type { NotesGet, NotesSet } from './workspaceSliceTypes';
+import { clearNoteRecovery } from '../noteRecovery';
 
 type NotesState = ReturnType<NotesGet>;
 
@@ -149,6 +150,7 @@ export async function closeWorkspaceTab(
         currentNote: { path, content: cachedContent },
         cache: noteContentsCache,
       });
+      void clearNoteRecovery(notesPath, path, cachedContent);
       const latestState = get();
       if (latestState.notesPath !== notesPath) {
         return;

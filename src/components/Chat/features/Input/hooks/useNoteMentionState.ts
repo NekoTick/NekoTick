@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
@@ -11,14 +10,12 @@ import {
 } from '@/lib/ai/noteMentions';
 import { focusVisibleTextareaAt } from '@/lib/ui/composerFocusRegistry';
 import {
-  buildMentionPreviewParts,
   insertMentionAtTrigger,
   type NoteMentionCandidate,
 } from '../noteMentionHelpers';
 import {
   getMentionBoundaryEnd,
   handleNoteMentionKeyDown,
-  isMentionPreviewRange,
 } from './noteMentionKeyboard';
 import {
   normalizeMentionReferencesForState,
@@ -26,6 +23,7 @@ import {
 } from './noteMentionStateNormalize';
 import type { UseNoteMentionStateOptions } from './noteMentionStateTypes';
 import { useNoteMentionCandidates } from './useNoteMentionCandidates';
+import { useNoteMentionSynchronization } from './useNoteMentionSynchronization';
 
 export function useNoteMentionState({
   value,
@@ -34,7 +32,6 @@ export function useNoteMentionState({
   syncMentions,
   removeLastMentionOnBoundary = false,
 }: UseNoteMentionStateOptions) {
-  const [mentions, setMentions] = useState<NoteMentionReference[]>([]);
   const [caretIndex, setCaretIndex] = useState(0);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
   const [textareaScrollTop, setTextareaScrollTop] = useState(0);
@@ -48,47 +45,23 @@ export function useNoteMentionState({
     mentionTrigger,
     showMentionPicker,
   } = useNoteMentionCandidates(value, caretIndex);
-  const mentionPreviewParts = useMemo(
-    () => buildMentionPreviewParts(value, mentions),
-    [mentions, value],
-  );
-  const mentionRanges = useMemo(
-    () => mentionPreviewParts.filter(isMentionPreviewRange),
-    [mentionPreviewParts],
-  );
+  const {
+    mentions,
+    setMentions,
+    mentionPreviewParts,
+    mentionRanges,
+    clearMentions,
+    restoreMentions,
+    getSynchronizedMentions,
+  } = useNoteMentionSynchronization({
+    allNoteCandidates,
+    syncMentions,
+    value,
+  });
 
   useEffect(() => {
     setActiveMentionIndex(0);
   }, [mentionTrigger?.query, mentionTrigger?.start]);
-
-  useEffect(() => {
-    setMentions((prev) => {
-      const next = normalizeMentionReferencesForState(syncMentions({
-        allNoteCandidates,
-        mentions: prev,
-        value,
-      }), false);
-      if (
-        next.length === prev.length &&
-        next.every((mention, index) =>
-          mention.path === prev[index]?.path &&
-          mention.title === prev[index]?.title &&
-          mention.kind === prev[index]?.kind
-        )
-      ) {
-        return prev;
-      }
-      return next;
-    });
-  }, [allNoteCandidates, syncMentions, value]);
-
-  const clearMentions = useCallback(() => {
-    setMentions([]);
-  }, []);
-
-  const restoreMentions = useCallback((nextMentions: NoteMentionReference[]) => {
-    setMentions(normalizeMentionReferencesForState(nextMentions, true));
-  }, []);
 
   const setTextareaCaretIndex = useCallback((nextCaretIndex: number) => {
     setCaretIndex(nextCaretIndex);
@@ -115,9 +88,9 @@ export function useNoteMentionState({
   const handleValueChange = useCallback((nextValue: string, nextCaretIndex?: number) => {
     onValueChange(nextValue);
     if (typeof nextCaretIndex === 'number') {
-      setTextareaCaretIndex(nextCaretIndex);
+      setCaretIndex(nextCaretIndex);
     }
-  }, [onValueChange, setTextareaCaretIndex]);
+  }, [onValueChange]);
 
   const handleCaretChange = useCallback((nextCaretIndex: number, nextSelectionEnd = nextCaretIndex) => {
     if (nextCaretIndex !== nextSelectionEnd) {
@@ -125,7 +98,13 @@ export function useNoteMentionState({
       return;
     }
 
-    setTextareaCaretIndex(getAtomicMentionCaretIndex(nextCaretIndex));
+    const atomicCaretIndex = getAtomicMentionCaretIndex(nextCaretIndex);
+    if (atomicCaretIndex === nextCaretIndex) {
+      setCaretIndex(nextCaretIndex);
+      return;
+    }
+
+    setTextareaCaretIndex(atomicCaretIndex);
   }, [getAtomicMentionCaretIndex, setTextareaCaretIndex]);
 
   const handleCaretBlur = useCallback(() => {
@@ -283,6 +262,7 @@ export function useNoteMentionState({
     hasMentionCandidates: allNoteCandidates.length > 0,
     clearMentions,
     restoreMentions,
+    getSynchronizedMentions,
     currentPageCandidates,
     folderCandidates,
     linkedPageCandidates,

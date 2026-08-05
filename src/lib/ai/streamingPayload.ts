@@ -11,7 +11,7 @@ export interface StreamDeltaPayload {
 const MAX_OPENAI_STREAM_TEXT_NODES = 2000
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function extractStreamText(value: unknown): string {
@@ -101,7 +101,8 @@ export function parsePayloadText(text: string): Record<string, unknown> | null {
   }
 
   try {
-    return JSON.parse(payloadText) as Record<string, unknown>
+    const payload: unknown = JSON.parse(payloadText)
+    return isRecord(payload) ? payload : null
   } catch {
     return null
   }

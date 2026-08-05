@@ -16,6 +16,7 @@ import {
   handleBlockSelectionKeyDown,
 } from './blockSelectionInputHandlers';
 import { createBlockSelectionLineFillOverlay } from './blockSelectionLineFillOverlay';
+import { createLargeBlockSelectionPreviewOverlay } from './blockSelectionLargePreviewOverlay';
 import { handleListGapPlaceholderPointerDown } from './listGapPlaceholder';
 import { handleMarkdownBlankLinePointerDown } from './markdownBlankLineInteraction';
 import { clearForcedCaretForOwner } from './forcedLineEdgeCaret';
@@ -56,6 +57,7 @@ export function createBlankAreaDragBoxPluginView(
 ) {
   const doc = view.dom.ownerDocument;
   const lineFillOverlay = createBlockSelectionLineFillOverlay(view);
+  const largeSelectionPreviewOverlay = createLargeBlockSelectionPreviewOverlay(view);
   setBlockSelectionEnabled(view, true);
   syncBlockSelectionVisualState(view);
   const handleDocumentKeyDown = (event: KeyboardEvent) => {
@@ -171,6 +173,7 @@ export function createBlankAreaDragBoxPluginView(
     update(updatedView: EditorView) {
       syncBlockSelectionVisualState(updatedView);
       lineFillOverlay.update(updatedView);
+      largeSelectionPreviewOverlay.update(updatedView);
     },
     destroy() {
       doc.removeEventListener('keydown', handleDocumentKeyDown, true);
@@ -180,6 +183,7 @@ export function createBlankAreaDragBoxPluginView(
       doc.removeEventListener('mousedown', handleDocumentMouseDown, true);
       clearForcedCaretForOwner(view.dom);
       lineFillOverlay.destroy();
+      largeSelectionPreviewOverlay.destroy();
       options.clearSession();
       options.clearInsideBlockTrailingPlainClickSession();
       options.clearUnclaimedBlankPlainClickSession();

@@ -35,10 +35,16 @@ export function useNotesFloatingChat(args: {
   const setChatFloatingSize = useUIStore((s) => s.setNotesChatFloatingSize);
   const resetChatFloatingSize = useUIStore((s) => s.resetNotesChatFloatingSize);
   const setLayoutPanelDragging = useUIStore((s) => s.setLayoutPanelDragging);
+  const setLayoutPanelTransitioning = useUIStore((s) => s.setLayoutPanelTransitioning);
   const [isEmbeddedChatViewReady, setIsEmbeddedChatViewReady] = useState(isEmbeddedChatViewModuleReady());
   const [floatingChatLiveSize, setFloatingChatLiveSize] = useState<NotesChatFloatingSize>(chatFloatingSize);
+  const [isDockedChatPanelPresent, setIsDockedChatPanelPresent] = useState(active && !chatPanelCollapsed);
+  const [isFloatingChatPresent, setIsFloatingChatPresent] = useState(chatFloatingOpen);
   const floatingChatPanelRef = useRef<HTMLDivElement>(null);
   const chatPanelCaretRefreshFrameRef = useRef<number | null>(null);
+  const dockedChatPanelVisibleRef = useRef(false);
+  const chatFloatingOpenRef = useRef(chatFloatingOpen);
+  chatFloatingOpenRef.current = chatFloatingOpen;
 
   const closeFloatingChat = useCallback(() => {
     setChatFloatingOpen(false);
@@ -62,6 +68,28 @@ export function useNotesFloatingChat(args: {
   const handleChatPanelDragStateChange = useCallback((dragging: boolean) => {
     setLayoutPanelDragging(dragging);
   }, [setLayoutPanelDragging]);
+
+  const handleDockedChatPanelAnimationComplete = useCallback((definition: unknown) => {
+    const expectedTarget = dockedChatPanelVisibleRef.current ? 'visible' : 'hidden';
+    if (definition !== expectedTarget) return;
+    if (definition === 'hidden') {
+      setIsDockedChatPanelPresent(false);
+    }
+    setLayoutPanelTransitioning('docked-chat', false);
+    requestNativeCaretOverlayRefresh();
+  }, [setLayoutPanelTransitioning]);
+
+  const handleFloatingChatAnimationComplete = useCallback((definition: unknown) => {
+    if (definition === 'visible') {
+      if (chatFloatingOpenRef.current) {
+        requestNativeCaretOverlayRefresh();
+      }
+      return;
+    }
+    if (definition !== 'hidden' || chatFloatingOpenRef.current) return;
+    setIsFloatingChatPresent(false);
+    requestNativeCaretOverlayRefresh();
+  }, []);
 
   const getDockedChatPanelMaxWidth = useCallback((): number => {
     const container = notesViewRef.current;
@@ -165,6 +193,22 @@ export function useNotesFloatingChat(args: {
   }, [applyFloatingChatLiveSize, chatFloatingSize, isFloatingChatResizing]);
 
   useLayoutEffect(() => {
+    const dockedChatPanelVisible = active && !chatPanelCollapsed;
+    if (dockedChatPanelVisibleRef.current === dockedChatPanelVisible) return;
+    dockedChatPanelVisibleRef.current = dockedChatPanelVisible;
+    if (dockedChatPanelVisible) {
+      setIsDockedChatPanelPresent(true);
+    }
+    setLayoutPanelTransitioning('docked-chat', true);
+  }, [active, chatPanelCollapsed, setLayoutPanelTransitioning]);
+
+  useLayoutEffect(() => {
+    if (chatFloatingOpen) {
+      setIsFloatingChatPresent(true);
+    }
+  }, [chatFloatingOpen]);
+
+  useLayoutEffect(() => {
     if (!active || !chatPanelCollapsed || !chatFloatingOpen) {
       return;
     }
@@ -172,11 +216,12 @@ export function useNotesFloatingChat(args: {
   }, [active, chatFloatingOpen, floatingChatLiveSize.height, floatingChatLiveSize.width, chatPanelCollapsed]);
 
   useEffect(() => () => {
+    setLayoutPanelTransitioning('docked-chat', false);
     if (chatPanelCaretRefreshFrameRef.current !== null) {
       window.cancelAnimationFrame(chatPanelCaretRefreshFrameRef.current);
       chatPanelCaretRefreshFrameRef.current = null;
     }
-  }, []);
+  }, [setLayoutPanelTransitioning]);
 
   return {
     beginFloatingChatResize,
@@ -189,8 +234,12 @@ export function useNotesFloatingChat(args: {
     focusNotesChatComposer,
     getDockedChatPanelMaxWidth,
     handleChatPanelDragStateChange,
+    handleDockedChatPanelAnimationComplete,
+    handleFloatingChatAnimationComplete,
     isEmbeddedChatViewReady,
+    isDockedChatPanelPresent,
     isFloatingChatResizing,
+    isFloatingChatPresent,
     openFloatingChat,
     promoteFloatingChatToSidePanel,
     resetChatFloatingSize,

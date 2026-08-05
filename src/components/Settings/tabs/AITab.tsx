@@ -1,14 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAIStore } from '@/stores/useAIStore';
 import { ProviderDetail } from './ai/ProviderDetail';
 import { AIBehaviorSettings } from './ai/AIBehaviorSettings';
-import { ComputerCommandApprovalSettings } from './ai/ComputerCommandApprovalSettings';
 import { MANAGED_PROVIDER_ID } from '@/lib/ai/managedService';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useI18n } from '@/lib/i18n';
 import { useAIChannelOrder } from './ai/AIChannelOrder';
 import { AIChannelsSection } from './ai/AIChannelsSection';
 import type { PendingDeleteProvider, ProviderCardDraft } from './ai/AIChannelTypes';
+import { SETTINGS_BEFORE_CLOSE_EVENT } from '../settingsEvents';
 
 export function AITab() {
   const { t } = useI18n();
@@ -28,6 +28,8 @@ export function AITab() {
   const [providerDrafts, setProviderDrafts] = useState<Record<string, ProviderCardDraft>>({});
   const [pendingDelete, setPendingDelete] = useState<PendingDeleteProvider | null>(null);
   const [pendingBaseUrlFocusProviderId, setPendingBaseUrlFocusProviderId] = useState<string | null>(null);
+  const isAutoCreatingProviderRef = useRef(false);
+  const isSettingsClosingRef = useRef(false);
   const {
     dragOverProviderId,
     draggingProviderId,
@@ -40,11 +42,37 @@ export function AITab() {
     orderedCustomProviders,
   } = useAIChannelOrder(customProviders, reorderCustomProviders);
 
+  const handleAddCustomProvider = useCallback(() => {
+    const customIndex = customProviders.length + 1;
+    const nextId = addProvider({
+      name: `Channel ${customIndex}`,
+      type: 'newapi',
+      apiHost: '',
+      apiKey: '',
+      enabled: true,
+    });
+    setSelectedProviderId(nextId);
+    setPendingBaseUrlFocusProviderId(nextId);
+  }, [addProvider, customProviders.length]);
+
+  useEffect(() => {
+    const handleSettingsBeforeClose = () => {
+      isSettingsClosingRef.current = true;
+    };
+    window.addEventListener(SETTINGS_BEFORE_CLOSE_EVENT, handleSettingsBeforeClose);
+    return () => window.removeEventListener(SETTINGS_BEFORE_CLOSE_EVENT, handleSettingsBeforeClose);
+  }, []);
+
   useEffect(() => {
     if (customProviders.length === 0) {
-      setSelectedProviderId(null);
+      if (!isSettingsClosingRef.current && !isAutoCreatingProviderRef.current) {
+        isAutoCreatingProviderRef.current = true;
+        handleAddCustomProvider();
+      }
       return;
     }
+
+    isAutoCreatingProviderRef.current = false;
 
     const preferredId = customProviders[0].id;
 
@@ -56,7 +84,7 @@ export function AITab() {
         setSelectedProviderId(preferredId);
       }
     }
-  }, [customProviders, selectedProviderId]);
+  }, [customProviders, handleAddCustomProvider, selectedProviderId]);
 
   useEffect(() => {
     const providerIds = new Set(customProviders.map((provider) => provider.id));
@@ -86,19 +114,6 @@ export function AITab() {
     }
 
     handleSelectProvider(id);
-  };
-
-  const handleAddCustomProvider = () => {
-    const customIndex = customProviders.length + 1;
-    const nextId = addProvider({
-      name: `Channel ${customIndex}`,
-      type: 'newapi',
-      apiHost: '',
-      apiKey: '',
-      enabled: true,
-    });
-    setSelectedProviderId(nextId);
-    setPendingBaseUrlFocusProviderId(nextId);
   };
 
   const handleToggleProviderEnabled = (id: string, enabled: boolean) => {
@@ -197,7 +212,6 @@ export function AITab() {
         data-settings-scroll-root="ai"
       >
         <AIBehaviorSettings />
-        <ComputerCommandApprovalSettings />
 
         <section className="mx-auto max-w-5xl">
           <AIChannelsSection

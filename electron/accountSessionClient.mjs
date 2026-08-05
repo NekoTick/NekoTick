@@ -8,6 +8,12 @@ import {
   buildDesktopSessionHeaders,
   desktopLegacySessionHeader,
 } from './accountSessionAuth.mjs';
+import { buildDesktopDeviceHeaders } from './accountDeviceIdentity.mjs';
+import {
+  createDesktopDeviceLimitError,
+  readDesktopSessionInvalidationReason,
+  readDesktopSessionResponseInvalidationReason,
+} from './accountSessionInvalidation.mjs';
 import { normalizeDesktopAccountProvider } from './accountCredentialStore.mjs';
 import { createDesktopAccountJsonClient } from './accountJsonClient.mjs';
 import {
@@ -32,8 +38,10 @@ export function createDesktopAccountSessionClient({
   clearStoredAccountCredentialsIfCurrent,
   rotateStoredSessionToken,
   writeStoredAccountCredentialsIfCurrent,
+  getDesktopDeviceId = async () => null,
 }) {
   const { fetchDesktopJson, fetchJson, readJsonResponse } = createDesktopAccountJsonClient({ fetchImpl });
+  let pendingSessionInvalidationReason = null;
 
   function shouldGraceDesktopSession(credentials) {
     return isDesktopSessionWithinGracePeriod(
@@ -45,18 +53,33 @@ export function createDesktopAccountSessionClient({
 
   async function performStoredSessionRequest(credentials, url, init = {}) {
     throwIfAborted(init.signal);
+    const deviceId = await getDesktopDeviceId();
+    throwIfAborted(init.signal);
     const response = await raceWithAbort(fetchImpl(url, {
       ...init,
-      headers: {
+      redirect: 'error',
+      headers: buildDesktopDeviceHeaders(deviceId, {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...(init.headers ?? {}),
         ...buildDesktopSessionHeaders(credentials.appSessionToken),
-      },
+      }),
     }), init.signal);
     throwIfAborted(init.signal);
 
     return response;
+  }
+
+  async function rejectDeviceLimitedStoredSession(response, credentials) {
+    const invalidationReason = await readDesktopSessionResponseInvalidationReason(response);
+    if (invalidationReason !== 'device_limit') return;
+
+    const cleared = await clearStoredAccountCredentialsIfCurrent(credentials.appSessionToken);
+    if (!cleared) {
+      throw new Error('vlaina session changed during request');
+    }
+    pendingSessionInvalidationReason = invalidationReason;
+    throw createDesktopDeviceLimitError();
   }
 
   async function fetchWithStoredSession(url, init = {}) {
@@ -68,9 +91,12 @@ export function createDesktopAccountSessionClient({
     }
 
     let response = await performStoredSessionRequest(credentials, url, init);
+    await rejectDeviceLimitedStoredSession(response, credentials);
+    const method = String(init.method ?? 'GET').toUpperCase();
+    const retryUnauthorized = method === 'GET' || method === 'HEAD';
 
     for (let attempt = 0; attempt < desktopSessionRetryDelaysMs.length; attempt += 1) {
-      if (response.status !== 401) {
+      if (!retryUnauthorized || response.status !== 401) {
         break;
       }
       if (!shouldGraceDesktopSession(credentials)) {
@@ -83,6 +109,7 @@ export function createDesktopAccountSessionClient({
       credentials = (await readStoredAccountCredentials()) ?? credentials;
       throwIfAborted(init.signal);
       response = await performStoredSessionRequest(credentials, url, init);
+      await rejectDeviceLimitedStoredSession(response, credentials);
     }
 
     if (response.status === 401) {
@@ -108,6 +135,7 @@ export function createDesktopAccountSessionClient({
 
     const response = await raceWithAbort(fetchImpl(url, {
       ...init,
+      redirect: 'error',
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -123,12 +151,14 @@ export function createDesktopAccountSessionClient({
     const sessionUrl = options.includeBudget
       ? `${apiBaseUrl}/auth/session?include_budget=1`
       : `${apiBaseUrl}/auth/session`;
+    const deviceId = await getDesktopDeviceId();
     return await fetchJson(sessionUrl, {
       method: 'GET',
       cache: 'no-store',
-      headers: buildDesktopSessionHeaders(appSessionToken, {
-        Accept: 'application/json',
-      }),
+      headers: buildDesktopDeviceHeaders(
+        deviceId,
+        buildDesktopSessionHeaders(appSessionToken, { Accept: 'application/json' }),
+      ),
     }, eventPrefix);
   }
 
@@ -144,6 +174,9 @@ export function createDesktopAccountSessionClient({
         return lastResult;
       }
       if (!retryUnauthorized) {
+        return lastResult;
+      }
+      if (readDesktopSessionInvalidationReason(lastResult.payload) === 'device_limit') {
         return lastResult;
       }
 
@@ -163,8 +196,12 @@ export function createDesktopAccountSessionClient({
   async function getDesktopAccountSessionStatus() {
     const credentials = await readStoredAccountCredentials();
     if (!credentials) {
-      return buildDisconnectedDesktopStatus({ sessionInvalidated: true });
+      return buildDisconnectedDesktopStatus({
+        sessionInvalidated: true,
+        sessionInvalidationReason: pendingSessionInvalidationReason,
+      });
     }
+    pendingSessionInvalidationReason = null;
 
     try {
       const { response, payload, text } = await probeDesktopSessionWithRetry(
@@ -180,13 +217,26 @@ export function createDesktopAccountSessionClient({
       }
 
       if (response.status === 401 || response.status === 403) {
-        if (shouldGraceDesktopSession(credentials)) {
+        const sessionInvalidationReason = readDesktopSessionInvalidationReason(payload);
+        if (shouldGraceDesktopSession(credentials) && sessionInvalidationReason !== 'device_limit') {
           return buildCachedDesktopStatus(credentials);
         }
 
-        const resolved = resolveDesktopSessionProbe(credentials, { kind: 'unauthorized' });
+        const resolved = resolveDesktopSessionProbe(credentials, {
+          kind: 'unauthorized',
+          sessionInvalidationReason,
+        });
         if (resolved.clearStoredCredentials) {
-          await clearStoredAccountCredentialsIfCurrent(credentials.appSessionToken);
+          const cleared = await clearStoredAccountCredentialsIfCurrent(credentials.appSessionToken);
+          if (!cleared) {
+            const latestCredentials = await readStoredAccountCredentials();
+            return latestCredentials
+              ? buildCachedDesktopStatus(latestCredentials)
+              : buildDisconnectedDesktopStatus({ sessionInvalidated: true });
+          }
+          if (sessionInvalidationReason === 'device_limit') {
+            pendingSessionInvalidationReason = sessionInvalidationReason;
+          }
         }
         return resolved.status;
       }

@@ -20,6 +20,10 @@ export function useCoverContainerObserver({
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    if (suspended) {
+      setIsContainerResizing?.(false);
+      return;
+    }
 
     let resizeIdleTimer: number | null = null;
     let resizeFrame: number | null = null;
@@ -100,7 +104,6 @@ export function useCoverContainerObserver({
     };
 
     const observer = new ResizeObserver((entries) => {
-      if (suspended) return;
       if (isManualResizingRef.current) return;
 
       const entry = entries[entries.length - 1];

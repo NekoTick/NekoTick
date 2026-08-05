@@ -22,7 +22,6 @@ function SidebarSearchControlsHarness({
   enabled = true,
   isOpen,
   query,
-  onOpen,
   onClose,
   scrollTop = 0,
 }: {
@@ -38,7 +37,6 @@ function SidebarSearchControlsHarness({
     enabled,
     isOpen,
     query,
-    onOpen,
     onClose,
     interactionScopeRef,
   });
@@ -473,7 +471,7 @@ describe('useSidebarSearchControls', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('prevents the open wheel from propagating once the overscroll threshold is reached', () => {
+  it('does not open search when scrolling beyond the top of a closed sidebar', () => {
     const onOpen = vi.fn();
     const onClose = vi.fn();
 
@@ -497,8 +495,8 @@ describe('useSidebarSearchControls', () => {
       interactionScope.dispatchEvent(wheelEvent);
     });
 
-    expect(wheelEvent.defaultPrevented).toBe(true);
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(wheelEvent.defaultPrevented).toBe(false);
+    expect(onOpen).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 });

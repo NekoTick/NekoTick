@@ -11,13 +11,14 @@ import { WhiteboardDockSlot, whiteboardFloatingPanelClassName } from './Whiteboa
 interface WhiteboardColorPickerProps {
   color: string;
   onChange: (color: string) => void;
+  onOpen?: () => void;
 }
 
 type EyeDropperWindow = Window & {
   EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> };
 };
 
-export function WhiteboardColorPicker({ color, onChange }: WhiteboardColorPickerProps) {
+export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardColorPickerProps) {
   const { t } = useI18n();
   const initialRgb = hexToRgb(color) ?? { r: 39, g: 39, b: 42 };
   const [open, setOpen] = useState(false);
@@ -36,7 +37,10 @@ export function WhiteboardColorPicker({ color, onChange }: WhiteboardColorPicker
     setHexInput(rgbToHex(nextRgb));
   };
   const handleOpenChange = (nextOpen: boolean) => {
-    if (nextOpen) resetDraft();
+    if (nextOpen) {
+      onOpen?.();
+      resetDraft();
+    }
     setOpen(nextOpen);
   };
   const updateFromRgb = (nextRgb: { r: number; g: number; b: number }) => {
@@ -177,11 +181,11 @@ export function WhiteboardColorPicker({ color, onChange }: WhiteboardColorPicker
             aria-label={t('whiteboard.customColor')}
             aria-pressed={open}
             data-whiteboard-dock-visual="true"
-            className="flex size-[var(--vlaina-size-24px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)]"
+            className="flex size-[var(--vlaina-size-32px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)]"
           >
             <span
               aria-hidden="true"
-              className="size-[var(--vlaina-size-24px)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)]"
+              className="size-[var(--vlaina-size-32px)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)] hover:shadow-none"
               style={{ backgroundImage: 'var(--vlaina-color-picker-rainbow)' }}
             />
           </button>

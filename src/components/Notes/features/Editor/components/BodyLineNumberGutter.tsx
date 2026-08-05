@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   resolveBodyLineNumberLabelLayout,
   syncBodyLineNumberLabelSelection,
@@ -11,6 +11,11 @@ import {
 } from '../utils/bodyLineNumberWindow';
 import { observeBodyLineNumberGutterLayout } from '../utils/bodyLineNumberGutterObservers';
 import { createBodyLineNumberRefreshScheduler } from '../utils/bodyLineNumberRefreshScheduler';
+import {
+  BLOCK_SELECTION_PREVIEW_CHANGE_EVENT,
+  getBlockSelectionPreviewElements,
+  isBlockSelectionInteractionPending,
+} from '../plugins/cursor/blockSelectionInteractionState';
 
 const BLOCK_SELECTION_PENDING_CLASS = 'editor-block-selection-pending';
 const BLOCK_DRAG_ACTIVE_CLASS = 'editor-block-drag-active';
@@ -27,6 +32,22 @@ interface BodyLineNumberGutterProps {
   markdown: string;
   revision: number;
   shellRef: RefObject<HTMLDivElement | null>;
+}
+
+function syncRenderedLabelSelectionClasses(
+  gutter: HTMLDivElement | null,
+  layout: BodyLineNumberLabelLayout,
+) {
+  if (!gutter) return;
+  for (const child of gutter.children) {
+    if (!(child instanceof HTMLElement)) continue;
+    const index = Number.parseInt(child.dataset.bodyLineNumberIndex ?? '', 10);
+    if (!Number.isFinite(index)) continue;
+    child.classList.toggle(
+      'body-line-number-selected',
+      layout.labels[index]?.selected === true,
+    );
+  }
 }
 
 export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineNumberGutterProps) {
@@ -92,28 +113,24 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
 
     function shouldDeferRefreshForBlockInteraction() {
       return editorRoot?.classList.contains(BLOCK_SELECTION_PENDING_CLASS) === true
+        || (editorRoot ? isBlockSelectionInteractionPending(editorRoot) : false)
         || resolvedShell.ownerDocument.body.classList.contains(BLOCK_DRAG_ACTIVE_CLASS)
         || pointerInteractionActive;
     }
 
-    function syncDeferredBlockSelectionState(changedElements?: readonly Element[]) {
+    function syncDeferredBlockSelectionState(
+      changedElements?: readonly Element[],
+      previewSelectedElements?: readonly HTMLElement[],
+    ) {
       const currentLayout = layoutRef.current;
-      const nextLayout = syncBodyLineNumberLabelSelection(editorRoot, currentLayout, { changedElements });
+      const nextLayout = syncBodyLineNumberLabelSelection(editorRoot, currentLayout, {
+        changedElements,
+        previewSelectedElements,
+      });
       if (nextLayout === currentLayout) return;
 
       layoutRef.current = nextLayout;
-      const gutter = gutterRef.current;
-      if (!gutter) return;
-      for (const child of gutter.children) {
-        if (!(child instanceof HTMLElement)) continue;
-        const index = Number.parseInt(child.dataset.bodyLineNumberIndex ?? '', 10);
-        if (!Number.isFinite(index)) continue;
-        if (currentLayout.labels[index]?.selected === nextLayout.labels[index]?.selected) continue;
-        child.classList.toggle(
-          'body-line-number-selected',
-          nextLayout.labels[index]?.selected === true,
-        );
-      }
+      syncRenderedLabelSelectionClasses(gutterRef.current, nextLayout);
     }
 
     function queueDeferredSelectionSyncElements(changedElements?: readonly Element[]) {
@@ -198,6 +215,15 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
       }
     }
 
+    function handleBlockSelectionPreviewChange() {
+      if (!editorRoot) return;
+      const previewSelectedElements = getBlockSelectionPreviewElements(editorRoot);
+      syncDeferredBlockSelectionState(
+        undefined,
+        previewSelectedElements ?? undefined,
+      );
+    }
+
     function scheduleLayoutRefreshFrame() {
       if (frameId !== null) {
         cancelAnimationFrame(frameId);
@@ -206,7 +232,13 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
       frameId = requestAnimationFrame(() => {
         frameId = null;
         if (shouldDeferRefreshForBlockInteraction()) {
-          syncDeferredBlockSelectionState(consumeDeferredSelectionSyncElements());
+          const previewSelectedElements = editorRoot
+            ? getBlockSelectionPreviewElements(editorRoot)
+            : null;
+          syncDeferredBlockSelectionState(
+            consumeDeferredSelectionSyncElements(),
+            previewSelectedElements ?? undefined,
+          );
           scheduleRefreshAfterDeferredBlockInteraction();
           return;
         }
@@ -245,6 +277,7 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
     window.addEventListener('mousedown', handlePointerInteractionStart, true);
     window.addEventListener('mouseup', handlePointerInteractionEnd, true);
     window.addEventListener('blur', handlePointerInteractionEnd);
+    editorRoot?.addEventListener(BLOCK_SELECTION_PREVIEW_CHANGE_EVENT, handleBlockSelectionPreviewChange);
 
     return () => {
       if (refreshRef.current === refresh) {
@@ -268,12 +301,17 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
       window.removeEventListener('mousedown', handlePointerInteractionStart, true);
       window.removeEventListener('mouseup', handlePointerInteractionEnd, true);
       window.removeEventListener('blur', handlePointerInteractionEnd);
+      editorRoot?.removeEventListener(BLOCK_SELECTION_PREVIEW_CHANGE_EVENT, handleBlockSelectionPreviewChange);
     };
   }, [revision, shellRef]);
 
   useEffect(() => {
     refreshRef.current?.();
   }, [markdown]);
+
+  useLayoutEffect(() => {
+    syncRenderedLabelSelectionClasses(gutterRef.current, layoutRef.current);
+  });
 
   return (
     <div ref={gutterRef} className="body-line-number-gutter" aria-hidden="true">

@@ -5,7 +5,10 @@ import {
   registerComposerFocusAdapter,
   canInsertTextIntoComposerValue,
 } from '@/lib/ui/composerFocusRegistry';
-import { limitChatComposerText } from '@/lib/ui/composerTextLimit';
+import {
+  limitChatComposerText,
+  MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS,
+} from '@/lib/ui/composerTextLimit';
 import type { Attachment } from '@/lib/storage/attachmentStorage';
 import type { NoteMentionReference } from '@/lib/ai/noteMentions';
 import { usePredictedTextareaHeight } from '@/hooks/usePredictedTextareaHeight';
@@ -63,6 +66,7 @@ export function useChatComposer({
     value: message,
     minHeight: themeChatComposerTokens.textareaMinHeightPx,
     maxHeight: themeChatComposerTokens.textareaMaxHeightPx,
+    maxPredictedLayoutChars: MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS,
   });
   const textareaHeightRef = useRef(textareaHeight);
 
@@ -166,7 +170,7 @@ export function useChatComposer({
     const limitedValue = limitChatComposerText(nextValue);
     messageRef.current = limitedValue;
     setMessage(limitedValue);
-    if (!limitedValue.includes('\n')) {
+    if (limitedValue.length === 0) {
       hasExplicitMultilineRef.current = false;
     }
   }, []);

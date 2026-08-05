@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ChatSidebar } from '@/components/Chat/features/Sidebar/ChatSidebar';
 import { useChatModalFocus } from '@/components/Chat/hooks/useChatModalFocus';
 import { useI18n } from '@/lib/i18n';
+import { SIDEBAR_SLIDE_TRANSITION, SIDEBAR_SLIDE_VARIANTS } from '@/lib/animations';
 import { themeChatLayoutTokens, themeMotionTokens } from '@/styles/themeTokens';
 
 export function ChatEmbeddedSidebarOverlay(props: {
@@ -49,15 +50,11 @@ export function ChatEmbeddedSidebarOverlay(props: {
         tabIndex={-1}
         className="relative h-full transform-gpu overflow-hidden rounded-r-[var(--vlaina-chat-embedded-sidebar-radius)] shadow-[var(--vlaina-shadow-none)] outline-none will-change-transform"
         style={{ width: themeChatLayoutTokens.embeddedSidebarWidth }}
-        initial={{ x: themeMotionTokens.chatEmbeddedSidebarHiddenX }}
-        animate={{ x: themeMotionTokens.chatEmbeddedSidebarVisibleX }}
-        exit={{ x: themeMotionTokens.chatEmbeddedSidebarHiddenX }}
-        transition={{
-          type: 'spring',
-          stiffness: themeMotionTokens.chatEmbeddedSidebarSpringStiffness,
-          damping: themeMotionTokens.chatEmbeddedSidebarSpringDamping,
-          mass: themeMotionTokens.chatEmbeddedSidebarSpringMass,
-        }}
+        variants={SIDEBAR_SLIDE_VARIANTS}
+        initial="hidden"
+        animate="visible"
+        exit="hidden"
+        transition={SIDEBAR_SLIDE_TRANSITION}
       >
         <ChatSidebar embedded onRequestClose={onClose} />
       </motion.div>

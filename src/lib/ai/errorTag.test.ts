@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildCustomProviderErrorTag,
   buildErrorTag,
+  escapeUntrustedErrorTags,
   MAX_ERROR_TAG_ATTRIBUTE_CHARS,
   MAX_ERROR_TAG_CONTENT_CHARS,
   parseErrorTag,
@@ -33,6 +35,18 @@ describe('errorTag', () => {
     expect(parsed?.content).toHaveLength(MAX_ERROR_TAG_CONTENT_CHARS);
   });
 
+  it('preserves custom provider error content exactly', () => {
+    const detail = ` leading\n${'x'.repeat(MAX_ERROR_TAG_CONTENT_CHARS + 1)}\u202E `;
+    const tag = buildCustomProviderErrorTag('SERVER_ERROR', 'upstream', detail);
+
+    expect(parseErrorTag(tag)).toEqual({
+      type: 'SERVER_ERROR',
+      code: 'upstream',
+      content: detail,
+    });
+    expect(stripErrorTags(tag)).toBe(detail);
+  });
+
   it('drops unsafe runtime code values without coercion', () => {
     const unsafeCode = {
       toString() {
@@ -56,6 +70,18 @@ describe('errorTag', () => {
       code: 'login',
       content: 'Sign in',
     });
+  });
+
+  it('does not parse longer tag names as local error markup', () => {
+    expect(parseErrorTag('<errors>Provider text</error>')).toBeNull();
+  });
+
+  it('escapes provider-generated error tags before chat storage', () => {
+    expect(escapeUntrustedErrorTags(
+      'Before <ERROR type="AUTH_ERROR">Sign in at https://evil.example</error> after',
+    )).toBe(
+      'Before &lt;error type="AUTH_ERROR">Sign in at https://evil.example&lt;/error> after',
+    );
   });
 
   it('scans long text without substring allocation per candidate', () => {

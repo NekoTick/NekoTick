@@ -9,6 +9,7 @@ import { themeTextAreaTokens } from '@/styles/themeTokens';
 
 interface UsePredictedTextareaHeightOptions {
   maxHeight: number;
+  maxPredictedLayoutChars?: number;
   minHeight: number;
   value: string;
 }
@@ -29,9 +30,9 @@ function applyFallbackHeight(
 
 export function usePredictedTextareaHeight(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
-  { maxHeight, minHeight, value }: UsePredictedTextareaHeightOptions,
+  { maxHeight, maxPredictedLayoutChars, minHeight, value }: UsePredictedTextareaHeightOptions,
 ): TextareaHeightController {
-  const latestOptionsRef = useRef({ maxHeight, minHeight, value });
+  const latestOptionsRef = useRef({ maxHeight, maxPredictedLayoutChars, minHeight, value });
   const applyHeightRef = useRef<(value?: string) => void>(() => {});
   const observerRef = useRef<ResizeObserver | null>(null);
   const observedTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -43,6 +44,7 @@ export function usePredictedTextareaHeight(
     clampedToMax: boolean;
     height: string;
     maxHeight: number;
+    maxPredictedLayoutChars?: number;
     minHeight: number;
     value: string;
     width: number;
@@ -90,7 +92,7 @@ export function usePredictedTextareaHeight(
   };
 
   useLayoutEffect(() => {
-    latestOptionsRef.current = { maxHeight, minHeight, value };
+    latestOptionsRef.current = { maxHeight, maxPredictedLayoutChars, minHeight, value };
 
     const applyHeight = (overrideValue?: string) => {
       const current = textareaRef.current;
@@ -100,6 +102,7 @@ export function usePredictedTextareaHeight(
 
       const {
         maxHeight: nextMaxHeight,
+        maxPredictedLayoutChars: nextMaxPredictedLayoutChars,
         minHeight: nextMinHeight,
         value: measuredValue,
       } = latestOptionsRef.current;
@@ -117,9 +120,30 @@ export function usePredictedTextareaHeight(
       try {
         const lastApplied = lastAppliedRef.current;
         if (
+          nextMaxPredictedLayoutChars !== undefined
+          && nextValue.length > nextMaxPredictedLayoutChars
+        ) {
+          const nextStyleHeight = `${nextMaxHeight}px`;
+          if (current.style.height !== nextStyleHeight) {
+            current.style.height = nextStyleHeight;
+          }
+          lastAppliedRef.current = {
+            clampedToMax: true,
+            height: nextStyleHeight,
+            maxHeight: nextMaxHeight,
+            maxPredictedLayoutChars: nextMaxPredictedLayoutChars,
+            minHeight: nextMinHeight,
+            value: nextValue,
+            width,
+          };
+          return;
+        }
+
+        if (
           lastApplied?.clampedToMax &&
           lastApplied.width === width &&
           lastApplied.maxHeight === nextMaxHeight &&
+          lastApplied.maxPredictedLayoutChars === nextMaxPredictedLayoutChars &&
           lastApplied.minHeight === nextMinHeight &&
           nextValue.length > lastApplied.value.length &&
           nextValue.startsWith(lastApplied.value)
@@ -155,6 +179,7 @@ export function usePredictedTextareaHeight(
           clampedToMax: nextHeight + metrics.paddingBlock >= nextMaxHeight,
           height: nextStyleHeight,
           maxHeight: nextMaxHeight,
+          maxPredictedLayoutChars: nextMaxPredictedLayoutChars,
           minHeight: nextMinHeight,
           value: nextValue,
           width,
@@ -166,6 +191,7 @@ export function usePredictedTextareaHeight(
           clampedToMax: Number.isFinite(fallbackHeight) && fallbackHeight >= nextMaxHeight,
           height: current.style.height,
           maxHeight: nextMaxHeight,
+          maxPredictedLayoutChars: nextMaxPredictedLayoutChars,
           minHeight: nextMinHeight,
           value: nextValue,
           width,
@@ -190,7 +216,7 @@ export function usePredictedTextareaHeight(
     resizeObserver.observe(textarea);
     observerRef.current = resizeObserver;
     observedTextareaRef.current = textarea;
-  }, [maxHeight, minHeight, textareaRef, value]);
+  }, [maxHeight, maxPredictedLayoutChars, minHeight, textareaRef, value]);
 
   useEffect(() => {
     return () => {

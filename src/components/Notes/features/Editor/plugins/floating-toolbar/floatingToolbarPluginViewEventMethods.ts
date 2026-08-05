@@ -157,9 +157,9 @@ export function installFloatingToolbarPluginViewEventMethods(ctx: FloatingToolba
   };
 
   ctx.bindGlobalListeners = (resizeObserver: ResizeObserver | null) => {
-    document.addEventListener('mousedown', ctx.handleMouseDown);
+    window.addEventListener('mousedown', ctx.handleMouseDown, true);
     document.addEventListener('mouseup', ctx.handleMouseUp, true);
-    document.addEventListener('mousedown', ctx.handleClickOutside);
+    window.addEventListener('mousedown', ctx.handleClickOutside, true);
     document.addEventListener('keydown', ctx.handleEscape);
     document.addEventListener('keydown', ctx.handleDocumentHistoryShortcut);
     document.addEventListener('keydown', ctx.handleDocumentFormatShortcut);
@@ -183,9 +183,9 @@ export function installFloatingToolbarPluginViewEventMethods(ctx: FloatingToolba
   };
 
   ctx.unbindGlobalListeners = (resizeObserver: ResizeObserver | null) => {
-    document.removeEventListener('mousedown', ctx.handleMouseDown);
+    window.removeEventListener('mousedown', ctx.handleMouseDown, true);
     document.removeEventListener('mouseup', ctx.handleMouseUp, true);
-    document.removeEventListener('mousedown', ctx.handleClickOutside);
+    window.removeEventListener('mousedown', ctx.handleClickOutside, true);
     document.removeEventListener('keydown', ctx.handleEscape);
     document.removeEventListener('keydown', ctx.handleDocumentHistoryShortcut);
     document.removeEventListener('keydown', ctx.handleDocumentFormatShortcut);

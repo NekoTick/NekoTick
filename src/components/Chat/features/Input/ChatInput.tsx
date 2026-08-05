@@ -19,7 +19,8 @@ import { useChatInputFocus } from './hooks/useChatInputFocus';
 import { useChatInputRecall } from './hooks/useChatInputRecall';
 import { useNoteMentions } from './hooks/useNoteMentions';
 import { getWebSearchAvailability } from './webSearchAvailability';
-import { isElectronRuntime } from '@/lib/electron/bridge';
+import { isComputerUseRuntimeAvailable } from '@/lib/electron/bridge';
+import { isStandaloneImageGenerationModel } from '@/lib/ai/modelCapabilities';
 import { ComputerUseEnableDialog } from '@/components/Chat/features/ComputerUse/ComputerUseEnableDialog';
 
 export const ChatInput = memo(function ChatInput({
@@ -44,7 +45,13 @@ export const ChatInput = memo(function ChatInput({
   const webSearchEnabled = useUnifiedStore((state) => state.data.ai?.webSearchEnabled === true);
   const webSearchAvailable = useUnifiedStore((state) => getWebSearchAvailability(state.data.ai));
   const computerUseEnabled = useUnifiedStore((state) => state.data.ai?.computerUseEnabled === true);
-  const computerUseAvailable = isElectronRuntime();
+  const computerUseModelAvailable = useUnifiedStore((state) => {
+    const ai = state.data.ai;
+    const model = ai?.models.find((item) => item.id === ai.selectedModelId);
+    return model ? !isStandaloneImageGenerationModel(model) : undefined;
+  });
+  const computerUseRuntimeAvailable = isComputerUseRuntimeAvailable();
+  const computerUseAvailable = computerUseRuntimeAvailable && computerUseModelAvailable !== false;
   useEffect(() => {
     if (!active) {
       setShowComputerUseEnableDialog(false);
@@ -55,6 +62,14 @@ export const ChatInput = memo(function ChatInput({
       aiActions.setWebSearchEnabled(false);
     }
   }, [webSearchAvailable, webSearchEnabled]);
+  useEffect(() => {
+    if (
+      computerUseEnabled
+      && (!computerUseRuntimeAvailable || computerUseModelAvailable === false)
+    ) {
+      aiActions.setComputerUseEnabled(false);
+    }
+  }, [computerUseEnabled, computerUseModelAvailable, computerUseRuntimeAvailable]);
   const isQuotaSendBlocked = hasSelectedModel && isManagedQuotaExhausted;
   const {
     attachments,
@@ -99,7 +114,7 @@ export const ChatInput = memo(function ChatInput({
       return accepted;
     },
     attachments,
-    getNoteMentions: () => noteMentions,
+    getNoteMentions: () => getSynchronizedNoteMentions(),
     onAfterSend: () => {
       clearAttachments();
       clearNoteMentions();
@@ -129,6 +144,7 @@ export const ChatInput = memo(function ChatInput({
     noteMentions,
     hasMentionCandidates,
     clearNoteMentions,
+    getSynchronizedNoteMentions,
     currentPageCandidates,
     folderCandidates,
     linkedPageCandidates,
@@ -267,6 +283,21 @@ export const ChatInput = memo(function ChatInput({
     restoreNoteMentions,
     scheduleComposerFocus,
   });
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+  const handleSendAction = useCallback(() => {
+    handleSendRef.current();
+  }, []);
+  const handleToggleWebSearch = useCallback(() => {
+    aiActions.setWebSearchEnabled(!webSearchEnabled);
+  }, [webSearchEnabled]);
+  const handleRequestEnableComputerUse = useCallback(() => {
+    setShowComputerUseEnableDialog(true);
+  }, []);
+  const handleDisableComputerUse = useCallback(() => {
+    aiActions.setComputerUseEnabled(false);
+    if (isLoading) onStop();
+  }, [isLoading, onStop]);
 
   return (
     <>
@@ -311,13 +342,13 @@ export const ChatInput = memo(function ChatInput({
       onRemoveAttachment={handleRemoveAttachment}
       onRemoveNoteMention={removeNoteMention}
       onRequestComposerFocus={scheduleComposerFocus}
-      onSend={() => handleSend()}
+      onSend={handleSendAction}
       onTextareaScroll={(e) => setTextareaScrollTop(e.currentTarget.scrollTop)}
-      onToggleWebSearch={() => aiActions.setWebSearchEnabled(!webSearchEnabled)}
+      onToggleWebSearch={handleToggleWebSearch}
       computerUseAvailable={computerUseAvailable}
       computerUseEnabled={computerUseAvailable && computerUseEnabled}
-      onRequestEnableComputerUse={() => setShowComputerUseEnableDialog(true)}
-      onDisableComputerUse={() => aiActions.setComputerUseEnabled(false)}
+      onRequestEnableComputerUse={handleRequestEnableComputerUse}
+      onDisableComputerUse={handleDisableComputerUse}
       showMentionPicker={showMentionPicker}
       showComputerCommandApproval={active}
       sessionId={sessionId}

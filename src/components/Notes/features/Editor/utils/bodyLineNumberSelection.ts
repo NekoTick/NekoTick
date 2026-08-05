@@ -49,6 +49,24 @@ function isInsideSelectedBlockFromCurrentDom(target: HTMLElement): boolean {
 
 interface SyncBodyLineNumberLabelSelectionOptions {
   changedElements?: readonly Element[];
+  previewSelectedElements?: readonly HTMLElement[];
+}
+
+function isInsidePreviewSelectedBlock(
+  target: HTMLElement,
+  selectedElements: ReadonlySet<HTMLElement>,
+  selectedAncestors: WeakSet<HTMLElement>,
+  editorRoot: HTMLElement,
+): boolean {
+  if (selectedAncestors.has(target)) return true;
+  for (
+    let current: HTMLElement | null = target;
+    current && current !== editorRoot;
+    current = current.parentElement
+  ) {
+    if (selectedElements.has(current)) return true;
+  }
+  return false;
 }
 
 function collectIncrementalSelectionSyncIndexes(
@@ -121,7 +139,26 @@ export function syncBodyLineNumberLabelSelection(
     return layout;
   }
 
-  const incrementalSyncIndexes = collectIncrementalSelectionSyncIndexes(
+  const previewSelectedElements = options.previewSelectedElements;
+  const previewSelectedSet = previewSelectedElements
+    ? new Set(previewSelectedElements)
+    : null;
+  const previewSelectedAncestors = previewSelectedElements
+    ? new WeakSet<HTMLElement>()
+    : null;
+  if (previewSelectedAncestors) {
+    for (const element of previewSelectedElements ?? []) {
+      for (
+        let ancestor = element.parentElement;
+        ancestor && ancestor !== editorRoot;
+        ancestor = ancestor.parentElement
+      ) {
+        previewSelectedAncestors.add(ancestor);
+      }
+    }
+  }
+
+  const incrementalSyncIndexes = previewSelectedElements ? null : collectIncrementalSelectionSyncIndexes(
     editorRoot,
     layout,
     layout.targets,
@@ -131,7 +168,9 @@ export function syncBodyLineNumberLabelSelection(
     return layout;
   }
 
-  const selectedDescendantTargets = incrementalSyncIndexes === null && shouldCollectSelectedBlockDescendantTargets(editorRoot)
+  const selectedDescendantTargets = !previewSelectedElements
+    && incrementalSyncIndexes === null
+    && shouldCollectSelectedBlockDescendantTargets(editorRoot)
     ? collectSelectedBlockDescendantTargets(editorRoot)
     : null;
   let changed = false;
@@ -147,7 +186,14 @@ export function syncBodyLineNumberLabelSelection(
     const selected = target instanceof HTMLElement
       && editorRoot.contains(target)
       && (
-        incrementalSyncIndexes
+        previewSelectedSet && previewSelectedAncestors
+          ? isInsidePreviewSelectedBlock(
+              target,
+              previewSelectedSet,
+              previewSelectedAncestors,
+              editorRoot,
+            )
+          : incrementalSyncIndexes
           ? isInsideSelectedBlockFromCurrentDom(target)
           : isInsideSelectedBlock(target, selectedDescendantTargets)
       );

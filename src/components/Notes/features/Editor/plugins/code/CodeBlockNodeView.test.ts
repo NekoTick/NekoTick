@@ -53,6 +53,7 @@ function createMockView(): EditorView {
   };
 
   return {
+    dom: document.createElement('div'),
     root: document,
     editable: true,
     state: {

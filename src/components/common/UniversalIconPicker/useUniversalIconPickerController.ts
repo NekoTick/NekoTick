@@ -28,6 +28,7 @@ export function useUniversalIconPickerController({
   onRemove,
   onClose,
   customIcons,
+  customIconsLoading,
   onSkinToneChange,
   onPreviewSkinTone,
   embedded,
@@ -40,6 +41,7 @@ export function useUniversalIconPickerController({
   onRemove?: () => void;
   onClose: () => void;
   customIcons: CustomIcon[];
+  customIconsLoading: boolean;
   onSkinToneChange?: (tone: number) => void;
   onPreviewSkinTone?: (tone: number | null) => void;
   embedded: boolean;
@@ -51,7 +53,13 @@ export function useUniversalIconPickerController({
   const onCloseRef = useRef(onClose);
   const onPreviewRef = useRef(onPreview);
   const uploadTabEnabled = !emojiOnly && showUploadTab;
-  const [activeTab, setActiveTab] = useState<TabType>(() => uploadTabEnabled ? loadActiveTab() : 'emoji');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const restoredTab = uploadTabEnabled ? loadActiveTab() : 'emoji';
+    return restoredTab === 'upload' && !customIconsLoading && customIcons.length === 0
+      ? 'emoji'
+      : restoredTab;
+  });
+  const restoringPersistedUploadRef = useRef(activeTab === 'upload');
   const effectiveActiveTab = uploadTabEnabled ? activeTab : 'emoji';
   const [recentIcons, setRecentIcons] = useState<string[]>(loadRecentIcons);
   const [skinTone, setSkinTone] = useState(loadSkinTone);
@@ -72,10 +80,8 @@ export function useUniversalIconPickerController({
 
   const handleTabChange = useCallback((tab: TabType) => {
     if (tab === 'upload' && !uploadTabEnabled) return;
+    restoringPersistedUploadRef.current = false;
     setActiveTab(tab);
-    if (uploadTabEnabled) {
-      saveActiveTab(tab);
-    }
   }, [uploadTabEnabled]);
 
   const recentIconsRef = useRef(recentIcons);
@@ -105,10 +111,13 @@ export function useUniversalIconPickerController({
     const handleStorage = (event: StorageEvent) => {
       if (event.key === ACTIVE_TAB_KEY) {
         if (!uploadTabEnabled) {
+          restoringPersistedUploadRef.current = false;
           setActiveTab('emoji');
           return;
         }
-        setActiveTab(loadActiveTab());
+        const restoredTab = loadActiveTab();
+        restoringPersistedUploadRef.current = restoredTab === 'upload';
+        setActiveTab(restoredTab);
         return;
       }
 
@@ -129,7 +138,22 @@ export function useUniversalIconPickerController({
   }, [onSkinToneChange, uploadTabEnabled]);
 
   useEffect(() => {
+    if (!uploadTabEnabled || (activeTab === 'upload' && customIconsLoading)) {
+      return;
+    }
+
+    const emptyUploadTab = activeTab === 'upload' && customIcons.length === 0;
+    if (restoringPersistedUploadRef.current) {
+      restoringPersistedUploadRef.current = false;
+      if (emptyUploadTab) setActiveTab('emoji');
+    }
+
+    saveActiveTab(emptyUploadTab ? 'emoji' : activeTab);
+  }, [activeTab, customIcons.length, customIconsLoading, uploadTabEnabled]);
+
+  useEffect(() => {
     if (!uploadTabEnabled && activeTab !== 'emoji') {
+      restoringPersistedUploadRef.current = false;
       setActiveTab('emoji');
     }
   }, [activeTab, uploadTabEnabled]);
@@ -138,6 +162,7 @@ export function useUniversalIconPickerController({
     lastRandomIconRef.current = null;
     const updated = addToRecentIcons(assetUrl, recentIconsRef.current);
     setRecentIcons(updated);
+    saveActiveTab('upload');
     logIconPickerDebug('select-upload', { assetUrl });
     onSelect(assetUrl);
     onCloseRef.current();

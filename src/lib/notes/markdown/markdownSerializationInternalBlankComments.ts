@@ -2,6 +2,7 @@ import { getMarkdownBlockContent } from '@/lib/markdown/markdownHtmlBlockClassif
 import {
   areDifferentListStyleLines,
   findPreviousListItemAtSameDepth,
+  requiresStableParseBoundary,
 } from './markdownBlankLineBoundaries';
 import { isMarkdownImageOnlyLine } from './markdownImageLine';
 import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
@@ -58,17 +59,20 @@ export function normalizeRenderedHtmlBoundaryHelperCommentSegment(
   let changed = false;
   const output: string[] = [];
   let activeHtmlComment = false;
+  let previousWasRenderedHtmlBoundaryHelper = false;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? '';
     if (activeHtmlComment || isMultiLineHtmlCommentOpenLine(line)) {
       output.push(line);
       activeHtmlComment = shouldKeepHtmlCommentProtectionActive(activeHtmlComment, line);
+      previousWasRenderedHtmlBoundaryHelper = false;
       continue;
     }
 
     if (!RENDERED_HTML_BOUNDARY_BLANK_LINE_COMMENT_PATTERN.test(line)) {
       output.push(line);
+      if (line.trim() !== '') previousWasRenderedHtmlBoundaryHelper = false;
       continue;
     }
 
@@ -77,16 +81,22 @@ export function normalizeRenderedHtmlBoundaryHelperCommentSegment(
       ?? findNearestPreviousNonBlankInputLine(allLines, startIndex + index - 1);
     if (isRenderedHtmlBlockBoundaryLine(previousBoundaryLine)) {
       changed = true;
-      const hadLocalBlankBeforeHelper = output.length > 0 && output[output.length - 1]?.trim() === '';
-      const hadInputBlankBeforeHelper = (allLines[startIndex + index - 1] ?? '').trim() === '';
-      while (output.length > 0 && output[output.length - 1]?.trim() === '') {
-        output.pop();
-      }
-      if (hadLocalBlankBeforeHelper || !hadInputBlankBeforeHelper) {
+      if (previousWasRenderedHtmlBoundaryHelper) {
         output.push('');
+      } else {
+        const hadLocalBlankBeforeHelper = output.length > 0 && output[output.length - 1]?.trim() === '';
+        const hadInputBlankBeforeHelper = (allLines[startIndex + index - 1] ?? '').trim() === '';
+        while (output.length > 0 && output[output.length - 1]?.trim() === '') {
+          output.pop();
+        }
+        if (hadLocalBlankBeforeHelper || !hadInputBlankBeforeHelper) {
+          output.push('');
+        }
       }
+      previousWasRenderedHtmlBoundaryHelper = true;
     } else {
       output.push(line);
+      previousWasRenderedHtmlBoundaryHelper = false;
       continue;
     }
 
@@ -180,13 +190,38 @@ export function normalizeInternalMarkdownBlankLineCommentSegment(
       continue;
     }
 
-    if (!previousWasInternalBlankLine && !hasStructuralBlankAfterImage(output)) {
+    if (!previousWasInternalBlankLine) {
       const previousBoundaryLine = findNearestPreviousNonBlankOutputLine(output)
         ?? findNearestPreviousNonBlankInputLine(allLines, startIndex + index - 1);
       const closingTagName = previousBoundaryLine === null
         ? null
         : HTML_CLOSING_RENDERED_BLOCK_PATTERN.exec(previousBoundaryLine)?.[1]?.toLowerCase();
-      if (!closingTagName || !BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES.has(closingTagName)) {
+      const keepExistingStructuralBlank = hasStructuralBlankAfterImage(output)
+        || Boolean(
+          closingTagName
+          && BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES.has(closingTagName)
+        );
+      const globalIndex = startIndex + index;
+      const previousBoundaryIndex = findNearestNonInternalBlankLineIndex(
+        allLines,
+        globalIndex,
+        -1,
+      );
+      const nextBoundaryIndex = findNearestNonInternalBlankLineIndex(
+        allLines,
+        globalIndex,
+        1,
+      );
+      const requiresStructuralBlank = previousBoundaryIndex !== null
+        && nextBoundaryIndex !== null
+        && requiresStableParseBoundary(allLines, previousBoundaryIndex, nextBoundaryIndex);
+
+      if (requiresStructuralBlank) {
+        while (output.length > 0 && output[output.length - 1]?.trim() === '') {
+          output.pop();
+        }
+        output.push('');
+      } else if (!keepExistingStructuralBlank) {
         while (output.length > 0 && output[output.length - 1]?.trim() === '') {
           output.pop();
         }
@@ -232,10 +267,19 @@ function findNearestNonInternalBlankLine(
   startIndex: number,
   direction: -1 | 1,
 ): string | null {
+  const index = findNearestNonInternalBlankLineIndex(lines, startIndex, direction);
+  return index === null ? null : lines[index] ?? '';
+}
+
+function findNearestNonInternalBlankLineIndex(
+  lines: readonly string[],
+  startIndex: number,
+  direction: -1 | 1,
+): number | null {
   for (let index = startIndex + direction; index >= 0 && index < lines.length; index += direction) {
     const line = lines[index] ?? '';
     if (line.trim() === '' || INTERNAL_MARKDOWN_BLANK_LINE_COMMENT_PATTERN.test(line)) continue;
-    return line;
+    return index;
   }
   return null;
 }

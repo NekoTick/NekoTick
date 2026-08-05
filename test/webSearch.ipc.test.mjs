@@ -3,6 +3,21 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import { createWebSearchServices, registerWebSearchIpc } from '../electron/webSearch/ipc.mjs';
 
+const MAX_ACTIVE_WEB_SEARCH_REQUESTS = 16;
+
+function createRendererSender(id) {
+  let destroyed = false;
+  const sender = Object.assign(new EventEmitter(), {
+    destroy() {
+      destroyed = true;
+      sender.emit('destroyed');
+    },
+    id,
+    isDestroyed: () => destroyed,
+  });
+  return sender;
+}
+
 function collectHandlers() {
   const handlers = new Map();
   const services = {
@@ -80,7 +95,7 @@ describe('web search IPC', () => {
       category: 'general',
       timeRange: 'week',
       limit: 5,
-      signal: undefined,
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -98,7 +113,7 @@ describe('web search IPC', () => {
       category: 'news',
       timeRange: undefined,
       limit: 5,
-      signal: undefined,
+      signal: expect.any(AbortSignal),
     });
 
     await searchHandler(null, 'catime', {
@@ -109,7 +124,7 @@ describe('web search IPC', () => {
       category: undefined,
       timeRange: undefined,
       limit: undefined,
-      signal: undefined,
+      signal: expect.any(AbortSignal),
     });
 
     await expect(searchHandler(null, 'x'.repeat(1001), { limit: 5 })).rejects.toMatchObject({
@@ -139,8 +154,13 @@ describe('web search IPC', () => {
       }),
     };
 
-    await searchHandler(null, 'catime', { limit }, requestId);
-    await expect(cancelHandler(null, requestId)).resolves.toBe(false);
+    await expect(searchHandler(null, 'catime', { limit }, requestId)).rejects.toMatchObject({
+      code: 'invalid_request_id',
+    });
+    await expect(cancelHandler(null, requestId)).rejects.toMatchObject({
+      code: 'invalid_request_id',
+    });
+    await searchHandler(null, 'catime', { limit });
 
     expect(requestId.toString).not.toHaveBeenCalled();
     expect(limit.valueOf).not.toHaveBeenCalled();
@@ -149,8 +169,68 @@ describe('web search IPC', () => {
       category: undefined,
       timeRange: undefined,
       limit: undefined,
-      signal: undefined,
+      signal: expect.any(AbortSignal),
     });
+  });
+
+  it('rejects duplicate active request ids', async () => {
+    const handlers = new Map();
+    let signal;
+    const services = {
+      searchService: {
+        webSearch: vi.fn((_query, options) => {
+          signal = options.signal;
+          return new Promise(() => undefined);
+        }),
+      },
+      crawler: { readUrl: vi.fn() },
+    };
+    registerWebSearchIpc({
+      handleIpc: (channel, handler) => handlers.set(channel, handler),
+      services,
+    });
+    const event = { sender: createRendererSender(1) };
+    const first = handlers.get('desktop:web-search:search')(event, 'one', {}, 'duplicate-id');
+    first.catch(() => undefined);
+
+    await expect(handlers.get('desktop:web-search:search')(event, 'two', {}, 'duplicate-id'))
+      .rejects.toMatchObject({ code: 'duplicate_request_id' });
+    expect(services.searchService.webSearch).toHaveBeenCalledTimes(1);
+    expect(signal.aborted).toBe(false);
+
+    await expect(handlers.get('desktop:web-search:cancel')(event, 'duplicate-id')).resolves.toBe(true);
+    await expect(first).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('bounds requests without ids and aborts them when the renderer is destroyed', async () => {
+    const handlers = new Map();
+    const signals = [];
+    const services = {
+      searchService: {
+        webSearch: vi.fn((_query, options) => {
+          signals.push(options.signal);
+          return new Promise(() => undefined);
+        }),
+      },
+      crawler: { readUrl: vi.fn() },
+    };
+    registerWebSearchIpc({
+      handleIpc: (channel, handler) => handlers.set(channel, handler),
+      services,
+    });
+    const sender = createRendererSender(2);
+    const start = handlers.get('desktop:web-search:search');
+    const requests = Array.from({ length: MAX_ACTIVE_WEB_SEARCH_REQUESTS }, (_, index) => (
+      start({ sender }, `query-${index}`, {})
+    ));
+    for (const request of requests) request.catch(() => undefined);
+
+    await expect(start({ sender }, 'overflow', {})).rejects.toMatchObject({ code: 'too_many_requests' });
+    sender.destroy();
+    await Promise.allSettled(requests);
+
+    expect(signals).toHaveLength(MAX_ACTIVE_WEB_SEARCH_REQUESTS);
+    expect(signals.every((entry) => entry.aborted)).toBe(true);
   });
 
   it('bounds read IPC inputs before invoking the crawler', async () => {

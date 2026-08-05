@@ -22,8 +22,12 @@ import {
   clearCodeBlockEditorClipboardCapture,
   trackCodeBlockEditorClipboardKeydown,
 } from './codemirror/codeBlockEditorClipboard';
+import {
+  isBlockSelectionInteractionPending,
+} from '../cursor/blockSelectionInteractionState';
 type CodeBlockNodeViewOptions = {
   lazyCodeMirror?: boolean;
+  passiveLazyCodeMirror?: boolean;
 };
 
 type CodeMirrorSelectionArrowKey = 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight';
@@ -38,6 +42,8 @@ export class CodeBlockNodeView implements NodeView {
   getPos: () => number | undefined;
   root: Root;
   headerDOM: HTMLElement;
+  headerPlaceholderDOM: HTMLElement | null = null;
+  headerRendered = false;
   declare update: (node: Node) => boolean;
   declare selectNode: () => void;
   declare deselectNode: () => void;
@@ -47,7 +53,10 @@ export class CodeBlockNodeView implements NodeView {
   declare destroy: () => void;
   declare shouldLazyInitializeCodeMirror: () => boolean;
   declare installLazyPlaceholder: () => void;
+  declare cancelPendingLazyCodeMirrorInitialization: () => void;
+  declare scheduleLazyCodeMirrorInitialization: () => void;
   declare initializeCodeMirror: () => void;
+  declare getHeaderStateKey: (node: Node) => string;
   declare syncThemeCompatibilityAttrs: () => void;
   declare render: () => void;
   declare clearPendingForwardUpdate: () => void;
@@ -175,7 +184,11 @@ export class CodeBlockNodeView implements NodeView {
     this.dom.appendChild(this.editorDOM);
 
     this.root = createRoot(this.headerDOM);
-    this.render();
+    if (this.options.passiveLazyCodeMirror === false) {
+      this.installPassiveHeaderPlaceholder();
+    } else {
+      this.render();
+    }
     if (this.shouldLazyInitializeCodeMirror()) {
       this.installLazyPlaceholder();
       return;
@@ -186,6 +199,37 @@ export class CodeBlockNodeView implements NodeView {
 
   readonly activateCodeMirrorFromInteraction = () => {
     this.initializeCodeMirror();
+  };
+
+  installPassiveHeaderPlaceholder() {
+    this.headerDOM.className = 'code-block-chrome-header';
+    this.headerDOM.setAttribute('data-chat-selection-excluded', 'true');
+    const language = document.createElement('span');
+    language.className = 'code-block-chrome-language code-block-chrome-language-label';
+    language.textContent = typeof this.node.attrs.language === 'string'
+      ? this.node.attrs.language
+      : '';
+    this.headerDOM.appendChild(language);
+    this.headerPlaceholderDOM = language;
+    this.headerStateKey = this.getHeaderStateKey(this.node);
+  }
+
+  syncPassiveHeaderPlaceholder() {
+    if (!this.headerPlaceholderDOM) return;
+    this.headerPlaceholderDOM.textContent = typeof this.node.attrs.language === 'string'
+      ? this.node.attrs.language
+      : '';
+    this.headerStateKey = this.getHeaderStateKey(this.node);
+  }
+
+  readonly handleBlockSelectionInteractionChange = () => {
+    if (isBlockSelectionInteractionPending(this.view.dom)) {
+      this.cancelPendingLazyCodeMirrorInitialization();
+      return;
+    }
+    if (this.lazyCodeBlockIntersecting) {
+      this.scheduleLazyCodeMirrorInitialization();
+    }
   };
 
   readonly trackCodeMirrorSelectionKeydown = (event: KeyboardEvent) => {

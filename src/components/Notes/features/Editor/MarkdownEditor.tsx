@@ -26,7 +26,8 @@ import {
 } from '../Sidebar/sidebarSearchNavigation';
 import { getNoteMetadataEntry } from '@/stores/notes/noteMetadataState';
 import { themeEditorLayoutTokens, themeRenderingTokens } from '@/styles/themeTokens';
-import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
+import { focusEditorFromNoteUpperBlankArea } from './utils/focusEditorFromNoteUpperBlankArea';
+import { focusNoteInitialPosition } from './utils/focusNoteInitialPosition';
 import 'katex/dist/katex.min.css';
 import './styles/index.css';
 
@@ -101,12 +102,11 @@ export function MarkdownEditor({
   );
   const isSidebarSearchJumpPending =
     Boolean(currentNotePath && pendingSidebarSearchNavigationPath === currentNotePath);
-  const shouldPreserveStartupEditorPosition =
-    Boolean(
-      currentNotePath &&
-      workspaceRestoredNote?.path === currentNotePath &&
-      workspaceRestoredNote.revision === currentNoteRevision
-    );
+  const shouldStartWorkspaceRestoredNoteAtTop = Boolean(
+    currentNotePath &&
+    workspaceRestoredNote?.path === currentNotePath &&
+    workspaceRestoredNote.revision === currentNoteRevision
+  );
 
   const hasRenderableNote = Boolean(currentNotePath);
   const hasActiveNote = active && hasRenderableNote;
@@ -116,6 +116,7 @@ export function MarkdownEditor({
     hasActiveNote,
     notesPath,
     openTabPathsKey,
+    startAtTop: shouldStartWorkspaceRestoredNoteAtTop,
   });
   const editorFind = useNoteEditorFind(currentNotePath);
   useHeldPageScroll(scrollRootRef, {
@@ -150,22 +151,9 @@ export function MarkdownEditor({
     isEditorViewReady,
   });
 
-  const handleEditorClick = (e: React.MouseEvent) => {
-    if (!hasActiveNote) {
-      return;
-    }
-
-    if (e.target === e.currentTarget) {
-      if (focusCurrentEmptyUntitledDraftTitle(e.currentTarget)) {
-        return;
-      }
-
-      const editor = document.querySelector(
-        isSourceMode
-          ? '[data-note-source-editor="true"]'
-          : '.milkdown .ProseMirror'
-      ) as HTMLElement;
-      editor?.focus();
+  const handleEditorClick = (event: React.MouseEvent) => {
+    if (hasActiveNote && event.target === event.currentTarget) {
+      focusNoteInitialPosition(event.currentTarget);
     }
   };
 
@@ -224,6 +212,7 @@ export function MarkdownEditor({
 
         <div
           className="w-full flex flex-col items-center relative"
+          onClick={hasActiveNote ? focusEditorFromNoteUpperBlankArea : undefined}
           style={{
             marginLeft: contentOffset,
             transition: themeEditorLayoutTokens.contentOffsetTransition,
@@ -272,7 +261,6 @@ export function MarkdownEditor({
                     <MilkdownEditorRuntime
                       active={active}
                       showBodyLineNumbers={showBodyLineNumbers}
-                      preserveStartupEditorPosition={shouldPreserveStartupEditorPosition}
                       onEditorViewReady={handleEditorViewReady}
                     />
                   </ErrorBoundary>
@@ -291,7 +279,6 @@ export function MarkdownEditor({
                 <MilkdownEditorRuntime
                   active={false}
                   showBodyLineNumbers={false}
-                  preserveStartupEditorPosition={false}
                 />
               </Suspense>
             </div>

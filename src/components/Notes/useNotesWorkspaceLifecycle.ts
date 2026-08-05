@@ -12,6 +12,8 @@ import { useNotesOpenMarkdownTarget } from './hooks/useNotesOpenMarkdownTarget';
 import { clearRemoteImageMemoryCache } from './features/Editor/plugins/image-block/utils/remoteImageMemoryCache';
 import { scheduleSidebarScroll } from './notesViewHelpers';
 import { useNotesBlankWorkspaceDropLifecycle } from './useNotesBlankWorkspaceDropLifecycle';
+import { restoreDraftNoteRecoveries } from '@/stores/notes/noteRecovery';
+import { getElectronBridge } from '@/lib/electron/bridge';
 
 export function useNotesWorkspaceLifecycle(args: {
   active: boolean;
@@ -81,6 +83,7 @@ export function useNotesWorkspaceLifecycle(args: {
   const lastPresentedNotesErrorRef = useRef<string | null>(null);
   const notesRootInitializingRef = useRef(false);
   const consumedPendingStarredNavigationKeyRef = useRef<string | null>(null);
+  const restoredDraftRecoveryRootRef = useRef<string | null>(null);
 
   const focusSidebarPath = useCallback((path: string) => {
     revealFolder(path);
@@ -140,6 +143,33 @@ export function useNotesWorkspaceLifecycle(args: {
     cancelNoteContentScan,
     onInitializingChange: handleNotesRootInitializingChange,
   });
+
+  useEffect(() => {
+    if (!active || !notesRootStoreHasInitialized || isLoading || isNotesRootInitializing) return;
+    const recoveryRoot = currentNotesRoot?.path ?? '';
+    if (notesPath !== recoveryRoot || restoredDraftRecoveryRootRef.current === recoveryRoot) return;
+
+    restoredDraftRecoveryRootRef.current = recoveryRoot;
+    void restoreDraftNoteRecoveries(recoveryRoot, useNotesStore).catch((error) => {
+      if (restoredDraftRecoveryRootRef.current === recoveryRoot) {
+        restoredDraftRecoveryRootRef.current = null;
+      }
+      useNotesStore.setState({ error: 'Failed to restore unsaved draft notes.' });
+      void getElectronBridge()?.app?.reportRendererError?.({
+        source: 'note-recovery',
+        type: 'persistence',
+        name: error instanceof Error ? error.name : 'Error',
+        message: 'Unsaved draft recovery could not be read.',
+      }).catch(() => undefined);
+    });
+  }, [
+    active,
+    currentNotesRoot,
+    isLoading,
+    isNotesRootInitializing,
+    notesPath,
+    notesRootStoreHasInitialized,
+  ]);
 
   useEffect(() => {
     if (hasHandledLaunchNoteRef.current) return;

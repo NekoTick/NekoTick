@@ -16,7 +16,16 @@ export interface WhiteboardSnapshot {
   paper?: WhiteboardPaperStyle;
 }
 
-export type StoredStrokePoint = [number, number, number] | [number, number, number, true];
+export type StoredStrokePoint = [
+  number,
+  number,
+  number,
+  (true | null)?,
+  (number | null)?,
+  (number | null)?,
+  (number | null)?,
+  number?,
+];
 export interface StoredStroke extends Omit<WhiteboardStroke, 'points'> { points: StoredStrokePoint[] }
 export interface StoredContent extends Omit<WhiteboardSnapshot, 'strokes'> { strokes: StoredStroke[] }
 

@@ -8,7 +8,8 @@ vi.mock('framer-motion', async () => {
   const React = await import('react');
 
   const MotionDiv = React.forwardRef(function MotionDiv(props: any, ref: React.ForwardedRef<HTMLDivElement>) {
-    const { children, ...rest } = props;
+    const { children, onAnimationComplete, ...rest } = props;
+    void onAnimationComplete;
     return React.createElement('div', { ...rest, ref }, children);
   });
 
@@ -94,6 +95,29 @@ describe('NoteEditorFindBar', () => {
     fireEvent.mouseDown(screen.getByTestId('outside'));
 
     expect(controller.close).toHaveBeenCalledWith(false);
+  });
+
+  it('closes before editor blank-area handling stops the event at document capture', () => {
+    const controller = createController();
+    const stopAtDocumentCapture = (event: MouseEvent) => event.stopImmediatePropagation();
+    document.addEventListener('mousedown', stopAtDocumentCapture, true);
+
+    try {
+      render(
+        <div>
+          <NoteEditorFindBar controller={controller} />
+          <button type="button" data-testid="editor-bottom-blank">
+            Blank
+          </button>
+        </div>,
+      );
+
+      fireEvent.mouseDown(screen.getByTestId('editor-bottom-blank'));
+
+      expect(controller.close).toHaveBeenCalledWith(false);
+    } finally {
+      document.removeEventListener('mousedown', stopAtDocumentCapture, true);
+    }
   });
 
   it('stays open when clicking inside the find bar', () => {

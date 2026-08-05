@@ -30,6 +30,7 @@ export interface MessageListProps {
   showLoading: boolean;
   isLayoutCentered?: boolean;
   useOverlayScrollbar?: boolean;
+  showMessageOutline?: boolean;
   spacerHeight: number;
   currentTurnTopSpacerHeight?: number;
   containerRef: React.RefObject<HTMLDivElement | null>;

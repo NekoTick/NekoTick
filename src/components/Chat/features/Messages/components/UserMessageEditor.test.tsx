@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '@/lib/ai/types';
 import { UserMessageEditor } from './UserMessageEditor';
 
@@ -22,6 +22,30 @@ const message: ChatMessage = {
 };
 
 describe('UserMessageEditor', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not measure or reset the textarea selection on ordinary changes', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    render(
+      <UserMessageEditor
+        message={message}
+        parsedContent={{ text: 'original', imageSources: [] }}
+        onClose={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+    const getClientRects = vi.spyOn(textarea, 'getClientRects');
+    const setSelectionRange = vi.spyOn(textarea, 'setSelectionRange');
+
+    fireEvent.change(textarea, { target: { value: 'ordinary typing' } });
+
+    expect(getClientRects).not.toHaveBeenCalled();
+    expect(setSelectionRange).not.toHaveBeenCalled();
+  });
+
   it('does not save a composing edit from the save button', () => {
     const onEdit = vi.fn();
     render(

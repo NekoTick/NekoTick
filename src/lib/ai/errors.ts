@@ -1,5 +1,4 @@
 import { AIError, AIErrorType } from './types';
-import { translate } from '@/lib/i18n';
 import {
   getSpecificUserFacingOverride,
   getUserFacingMessage,
@@ -11,11 +10,10 @@ import {
   extractErrorMessage,
   inferErrorTypeByMessage,
   inferErrorTypeByStatus,
-  isLikelyHtmlErrorDocument,
   isRecord,
   normalizeUserFacingMessage,
   primitiveToString,
-  shouldPreserveOriginalMessage,
+  readErrorField,
 } from './errorClassification';
 
 export {
@@ -33,22 +31,27 @@ export function createAIError(
 }
 
 export function parseAPIError(error: any): AIError {
-  if (isRecord(error) && typeof error.type === 'string' && typeof error.message === 'string') {
-    if (Object.values(AIErrorType).includes(error.type as AIErrorType)) {
+  const errorType = readErrorField(error, 'type');
+  const errorMessage = readErrorField(error, 'message');
+  if (typeof errorType === 'string' && typeof errorMessage === 'string') {
+    if (Object.values(AIErrorType).includes(errorType as AIErrorType)) {
+      const details = readErrorField(error, 'details');
+      const statusCode = readErrorField(error, 'statusCode');
       return createAIError(
-        error.type as AIErrorType,
-        error.message,
-        typeof error.details === 'string' ? error.details : undefined,
-        typeof error.statusCode === 'number' ? error.statusCode : undefined
+        errorType as AIErrorType,
+        errorMessage,
+        typeof details === 'string' ? details : undefined,
+        typeof statusCode === 'number' ? statusCode : undefined
       )
     }
   }
 
-  if (error instanceof Error || (isRecord(error) && typeof error.message === 'string')) {
-    const message = typeof error.message === 'string' ? error.message : ''
+  if (typeof errorMessage === 'string') {
+    const message = errorMessage
     const lowerMsg = message.toLowerCase();
-    const errorName = isRecord(error) && typeof error.name === 'string'
-      ? error.name
+    const name = readErrorField(error, 'name');
+    const errorName = typeof name === 'string'
+      ? name
       : '';
 
     let type = inferErrorTypeByMessage(message);
@@ -70,24 +73,25 @@ export function parseAPIError(error: any): AIError {
 
 function extractHTTPErrorMessage(body: any): string | undefined {
   if (typeof body === 'string' && body.trim()) {
-    const trimmed = body.trim()
-    return isLikelyHtmlErrorDocument(trimmed) ? undefined : trimmed
+    return body
   }
 
   if (!isRecord(body)) {
     return undefined
   }
 
-  const nestedError = body.error
+  const nestedError = readErrorField(body, 'error')
   if (typeof nestedError === 'string' && nestedError.trim()) {
-    return nestedError.trim()
+    return nestedError
   }
   if (isRecord(nestedError)) {
+    const message = readErrorField(nestedError, 'message')
+    const error = readErrorField(nestedError, 'error')
     const nestedMessage =
-      typeof nestedError.message === 'string' && nestedError.message.trim()
-        ? nestedError.message.trim()
-        : typeof nestedError.error === 'string' && nestedError.error.trim()
-          ? nestedError.error.trim()
+      typeof message === 'string' && message.trim()
+        ? message
+        : typeof error === 'string' && error.trim()
+          ? error
           : ''
     if (nestedMessage) {
       return nestedMessage
@@ -95,10 +99,9 @@ function extractHTTPErrorMessage(body: any): string | undefined {
   }
 
   for (const key of ['message', 'msg', 'detail', 'error_description'] as const) {
-    const value = body[key]
+    const value = readErrorField(body, key)
     if (typeof value === 'string' && value.trim()) {
-      const trimmed = value.trim()
-      return isLikelyHtmlErrorDocument(trimmed) ? undefined : trimmed
+      return value
     }
   }
 
@@ -112,7 +115,7 @@ export function parseHTTPError(status: number, body?: any): AIError {
     case 401:
       return createAIError(
         AIErrorType.AUTH_ERROR,
-        apiMessage || translate('chat.error.authFailed'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -120,7 +123,7 @@ export function parseHTTPError(status: number, body?: any): AIError {
       const inferredType = apiMessage ? inferErrorTypeByMessage(apiMessage) : AIErrorType.UNKNOWN
       return createAIError(
         inferredType === AIErrorType.AUTH_ERROR ? AIErrorType.AUTH_ERROR : AIErrorType.SERVER_ERROR,
-        apiMessage || translate('chat.error.upstreamUnavailable'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -128,14 +131,14 @@ export function parseHTTPError(status: number, body?: any): AIError {
     case 429:
       return createAIError(
         AIErrorType.RATE_LIMIT,
-        apiMessage || translate('chat.error.upstreamRateLimited'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
     case 400:
       return createAIError(
         AIErrorType.INVALID_REQUEST,
-        apiMessage || translate('chat.error.invalidRequest'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
@@ -145,31 +148,37 @@ export function parseHTTPError(status: number, body?: any): AIError {
     case 504:
       return createAIError(
         AIErrorType.SERVER_ERROR,
-        apiMessage || translate('chat.error.upstreamUnavailable'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
     default:
       return createAIError(
         AIErrorType.UNKNOWN,
-        apiMessage || translate('chat.error.upstreamUnavailable'),
+        apiMessage || `HTTP ${status}`,
         undefined,
         status
       )
   }
 }
 
-export function getUserFacingAIError(error: unknown): UserFacingAIError {
+export function getUserFacingAIError(
+  error: unknown,
+  options: { managed?: boolean } = {},
+): UserFacingAIError {
+  const managed = options.managed === true
   const parsed = parseAPIError(error)
+  const rawDetails = readErrorField(error, 'details')
+  const rawMessage = readErrorField(error, 'message')
+  const customProviderMessage = typeof rawDetails === 'string' && rawDetails
+    ? rawDetails
+    : typeof rawMessage === 'string' && rawMessage
+      ? rawMessage
+      : primitiveToString(error)
   const message = normalizeUserFacingMessage(extractErrorMessage(error))
   const details = normalizeUserFacingMessage(extractErrorDetails(error))
   const displayMessage = details || message
-  const code = extractErrorCode(error) || (parsed.statusCode ? String(parsed.statusCode) : '')
-  const specificOverride = getSpecificUserFacingOverride(displayMessage, code)
-  if (specificOverride) {
-    return specificOverride
-  }
-
+  const code = extractErrorCode(error)
   const statusType = inferErrorTypeByStatus(code)
   const messageType = inferErrorTypeByMessage(displayMessage)
 
@@ -181,12 +190,22 @@ export function getUserFacingAIError(error: unknown): UserFacingAIError {
   }
 
   const normalizedType = type === AIErrorType.UNKNOWN ? AIErrorType.SERVER_ERROR : type
+  const specificOverride = getSpecificUserFacingOverride(displayMessage, code, managed)
+  if (!managed) {
+    return {
+      type: specificOverride?.type ?? normalizedType,
+      code,
+      message: customProviderMessage || parsed.message || 'AI request failed.',
+    }
+  }
+
+  if (specificOverride) {
+    return specificOverride
+  }
 
   return {
     type: normalizedType,
     code,
-    message: shouldPreserveOriginalMessage(normalizedType, displayMessage)
-      ? displayMessage
-      : getUserFacingMessage(normalizedType),
+    message: getUserFacingMessage(normalizedType),
   }
 }

@@ -2,7 +2,7 @@ import type { ApiTranscriptMessage, ChatCompletionRequest, ChatSendOptions } fro
 import { parseHTTPError } from '../errors'
 import { providerFetch } from '../providerHttp'
 import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody'
-import { buildWebSearchStatusMarkup, sanitizeWebSearchSourceUrl } from '@/lib/ai/webSearch/statusMarkup'
+import { sanitizeWebSearchSourceUrl } from '@/lib/ai/webSearch/statusMarkup'
 import {
   emitApiTranscript,
   emitChunk,
@@ -13,6 +13,7 @@ import {
   throwIfAborted,
 } from './openaiRuntime'
 import { buildChatCompletionOptions, extractTextPrompt } from './openaiRouting'
+import { runWithOpenAIRequestTimeout } from './openaiRequestTimeout'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -123,6 +124,7 @@ export async function sendXaiNativeWebSearchMessage({
   onChunk,
   signal,
   options,
+  timeoutMs,
 }: {
   baseUrl: string
   headers: Record<string, string>
@@ -130,6 +132,7 @@ export async function sendXaiNativeWebSearchMessage({
   onChunk: (chunk: string) => void
   signal?: AbortSignal
   options?: ChatSendOptions
+  timeoutMs: number
 }): Promise<string> {
   throwIfAborted(signal)
   emitWebSearchStatus(
@@ -137,53 +140,38 @@ export async function sendXaiNativeWebSearchMessage({
     signal,
     { phase: 'searching', query: extractTextPrompt(body.messages[body.messages.length - 1]?.content ?? '') }
   )
-  emitChunk(onChunk, signal, buildWebSearchStatusMarkup({ phase: 'searching' }))
+  const payload = await runWithOpenAIRequestTimeout(signal, timeoutMs, async (requestSignal) => {
+    const response = await providerFetch(`${baseUrl}/responses`, {
+      method: 'POST',
+      headers,
+      body: stringifyProviderJsonRequestBody({
+        model: body.model,
+        input: buildXaiResponsesInput(body.messages),
+        tools: [{ type: 'web_search' }],
+        ...buildChatCompletionOptions(options),
+      }),
+      signal: requestSignal,
+    })
 
-  const response = await providerFetch(`${baseUrl}/responses`, {
-    method: 'POST',
-    headers,
-    body: stringifyProviderJsonRequestBody({
-      model: body.model,
-      input: buildXaiResponsesInput(body.messages),
-      tools: [{ type: 'web_search' }],
-      ...buildChatCompletionOptions(options),
-    }),
-    signal,
-  })
-
-  if (!response.ok) {
-    const errorText = await readResponseTextOrFallback(response, signal)
-    let errorBody
-    try {
-      errorBody = JSON.parse(errorText)
-    } catch {
-      errorBody = { message: errorText }
+    if (!response.ok) {
+      const errorText = await readResponseTextOrFallback(response, requestSignal)
+      let errorBody
+      try {
+        errorBody = JSON.parse(errorText)
+      } catch {
+        errorBody = { message: errorText }
+      }
+      throw parseHTTPError(response.status, errorBody)
     }
-    throw parseHTTPError(response.status, errorBody)
-  }
 
-  const payload = await readResponseJson<Record<string, unknown>>(response, signal)
+    return await readResponseJson<Record<string, unknown>>(response, requestSignal)
+  })
   throwIfAborted(signal)
   const content = rejectHtmlErrorContent(extractXaiResponsesText(payload))
   if (!content.trim()) {
     throw new Error('The model completed web search but returned no visible answer.')
   }
   const citationUrls = extractXaiCitationUrls(payload)
-  const statuses = citationUrls.length > 0
-    ? [
-        buildWebSearchStatusMarkup({
-          phase: 'results',
-          results: citationUrls.slice(0, 5).map((url) => ({ title: hostLabel(url), url, snippet: '', publishedAt: null })),
-          metrics: { resultCount: citationUrls.length },
-        }),
-        buildWebSearchStatusMarkup({
-          phase: 'complete',
-          urls: citationUrls,
-          metrics: { successCount: citationUrls.length },
-        }),
-      ].join('')
-    : ''
-  const finalContent = `${statuses}${statuses && content.trim() ? '\n\n' : ''}${content}`
   if (citationUrls.length > 0) {
     emitWebSearchStatus(options?.onWebSearchStatus, signal, {
       phase: 'results',
@@ -196,7 +184,7 @@ export async function sendXaiNativeWebSearchMessage({
       metrics: { successCount: citationUrls.length },
     })
   }
-  emitChunk(onChunk, signal, finalContent)
+  emitChunk(onChunk, signal, content)
   emitApiTranscript(options?.onApiTranscript, signal, [{ role: 'assistant', content }])
-  return finalContent
+  return content
 }

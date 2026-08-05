@@ -9,6 +9,7 @@ function createDesktopApi(deps) {
   const {
     callIpcCallback,
     createRendererErrorReport,
+    hostPlatform,
     ipcRenderer,
     normalizeDesktopBinaryWritePayload,
     normalizeDesktopTextWritePayload,
@@ -156,6 +157,21 @@ function createDesktopApi(deps) {
       reportRendererError(details) {
         return ipcRenderer.invoke('desktop:app:report-renderer-error', createRendererErrorReport(details));
       },
+      stageNoteRecovery(snapshot) {
+        ipcRenderer.send('desktop:app:stage-note-recovery', snapshot);
+      },
+      readNoteRecovery(request) {
+        return ipcRenderer.invoke('desktop:app:read-note-recovery', request);
+      },
+      listDraftNoteRecoveries(notesPath) {
+        return ipcRenderer.invoke('desktop:app:list-draft-note-recoveries', notesPath);
+      },
+      clearNoteRecovery(request) {
+        return ipcRenderer.invoke('desktop:app:clear-note-recovery', request);
+      },
+      flushNoteRecovery() {
+        return ipcRenderer.invoke('desktop:app:flush-note-recovery');
+      },
     },
     git: {
       status(rootPath) {
@@ -206,7 +222,7 @@ function createDesktopApi(deps) {
       },
     },
     aiProvider: createAiProviderApi(deps),
-    computer: createComputerApi(deps),
+    computer: hostPlatform === 'linux' ? createComputerApi(deps) : undefined,
     webSearch: createWebSearchApi(deps),
     dragDrop: {
       getPathForFile(file) {

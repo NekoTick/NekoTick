@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { LocalImage } from '@/components/Chat/common/LocalImage';
 import type { Attachment } from '@/lib/storage/attachmentStorage';
@@ -16,7 +16,10 @@ interface ChatAttachmentPreviewListProps {
   onRemove: (id: string) => void;
 }
 
-export function ChatAttachmentPreviewList({ attachments, onRemove }: ChatAttachmentPreviewListProps) {
+export const ChatAttachmentPreviewList = memo(function ChatAttachmentPreviewList({
+  attachments,
+  onRemove,
+}: ChatAttachmentPreviewListProps) {
   const { t } = useI18n();
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const imageGallery = useMemo(
@@ -104,4 +107,4 @@ export function ChatAttachmentPreviewList({ attachments, onRemove }: ChatAttachm
       )}
     </>
   );
-}
+});

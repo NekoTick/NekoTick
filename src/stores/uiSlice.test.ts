@@ -22,6 +22,8 @@ describe('uiSlice', () => {
       appViewMode: 'notes',
       sidebarCollapsed: false,
       sidebarWidth: 280,
+      layoutPanelTransitioning: false,
+      layoutPanelTransitionSources: [],
       devPlatformPreview: 'system',
       sidebarHeaderHovered: false,
       sidebarSearchOpen: false,
@@ -91,6 +93,26 @@ describe('uiSlice', () => {
       selectionInitialized: false,
       temporaryReturnSessionId: null,
       authPromptSessionId: null,
+    });
+  });
+
+  it('keeps layout transitions active until every source completes', () => {
+    const { setLayoutPanelTransitioning } = useUIStore.getState();
+
+    setLayoutPanelTransitioning('shell-sidebar', true);
+    setLayoutPanelTransitioning('docked-chat', true);
+    setLayoutPanelTransitioning('shell-sidebar', false);
+
+    expect(useUIStore.getState()).toMatchObject({
+      layoutPanelTransitioning: true,
+      layoutPanelTransitionSources: ['docked-chat'],
+    });
+
+    setLayoutPanelTransitioning('docked-chat', false);
+
+    expect(useUIStore.getState()).toMatchObject({
+      layoutPanelTransitioning: false,
+      layoutPanelTransitionSources: [],
     });
   });
 

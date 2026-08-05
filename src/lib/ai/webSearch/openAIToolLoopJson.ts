@@ -98,7 +98,6 @@ export async function runOpenAIWebSearchJsonToolLoop({
       }, 'warn');
       return finishNoResultSearchLocally({
         body,
-        statusHistory,
         onChunk,
         onApiTranscript,
         signal,

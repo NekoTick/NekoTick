@@ -1,5 +1,9 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getSidebarIdleRowSurfaceClass,
+  getSidebarSelectedRowSurfaceClass,
+} from '@/components/layout/sidebar/sidebarLabelStyles';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { EditorOutlineRail } from './EditorOutlineRail';
 
@@ -40,22 +44,17 @@ describe('EditorOutlineRail', () => {
     cleanup();
   });
 
-  it('renders a toolbar-anchored hierarchy and jumps to a selected heading', () => {
+  it('renders a right-edge hierarchy and jumps to a selected heading', () => {
     const { container } = render(<EditorOutlineRail enabled />);
     const rail = container.querySelector<HTMLElement>('[data-editor-outline-rail="true"]');
     const panel = container.querySelector<HTMLElement>('[data-editor-outline-panel="true"]');
-
-    expect(rail).not.toBeNull();
-    expect(rail).toHaveAttribute('data-editor-outline-toolbar-anchor', 'true');
-    expect(panel).not.toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'notes.documentOutline' }));
     const outline = screen.getByRole('navigation', { name: 'notes.documentOutline' });
     const overview = screen.getByRole('button', { name: 'Overview' });
 
+    expect(rail).not.toBeNull();
     expect(panel).toBeVisible();
-    expect(panel?.className).toContain(raisedPillSurfaceClass);
     expect(outline).toBeVisible();
-    expect(panel).toHaveTextContent('notes.documentOutline');
+    expect(rail).toHaveAttribute('data-expanded', 'false');
     expect(overview).toHaveAttribute('data-level', '2');
     expect(overview).toHaveAttribute('aria-current', 'location');
 
@@ -72,43 +71,46 @@ describe('EditorOutlineRail', () => {
     rows.forEach((row) => expect(row).not.toHaveAttribute('tabindex', '-1'));
   });
 
-  it('starts collapsed and toggles from the same toolbar control', () => {
+  it('expands on hover and keyboard focus, then collapses after leaving', async () => {
     const { container } = render(<EditorOutlineRail enabled />);
-    const toggle = screen.getByRole('button', { name: 'notes.documentOutline' });
-    const rail = container.querySelector<HTMLElement>('[data-editor-outline-rail="true"]');
+    const rail = container.querySelector<HTMLElement>('[data-editor-outline-rail="true"]')!;
     const panel = container.querySelector<HTMLElement>('[data-editor-outline-panel="true"]');
-    const outline = container.querySelector<HTMLElement>('.editor-outline-list');
+    const scrollArea = container.querySelector<HTMLElement>('.editor-outline-scroll-area')!;
+    const overview = screen.getByRole('button', { name: 'Overview' });
 
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(rail).toHaveAttribute('data-collapsed', 'true');
-    expect(panel).not.toBeVisible();
+    expect(rail).toHaveAttribute('data-expanded', 'false');
 
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(toggle).toHaveClass('bg-transparent');
-    expect(toggle).toHaveClass('shadow-none');
-    expect(toggle).toHaveClass('hover:bg-[var(--vlaina-color-pill-surface-hover)]');
-    expect(toggle).toHaveClass('hover:shadow-[var(--vlaina-shadow-menu-hover)]');
-    expect(toggle).toHaveClass('text-[var(--vlaina-sidebar-row-selected-text)]');
-    expect(rail).toHaveAttribute('data-collapsed', 'false');
-    expect(panel).toBeVisible();
-    expect(outline).toHaveAttribute('aria-hidden', 'false');
+    fireEvent.mouseEnter(scrollArea);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'true'));
+    expect(panel?.className).toContain(raisedPillSurfaceClass);
+    expect(screen.getByRole('button', { name: 'Introduction' }).className)
+      .toContain(getSidebarIdleRowSurfaceClass('notes'));
+    expect(overview.className).toContain(getSidebarSelectedRowSurfaceClass('notes'));
 
-    fireEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(outline).toHaveAttribute('aria-hidden', 'true');
+    fireEvent.mouseLeave(scrollArea);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'false'));
+    expect(panel?.className).not.toContain(raisedPillSurfaceClass);
+
+    fireEvent.focus(overview);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'true'));
+
+    fireEvent.blur(overview, { relatedTarget: document.body });
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'false'));
   });
 
-  it('preserves its expanded state while the toolbar temporarily hides it', () => {
-    const { rerender } = render(<EditorOutlineRail enabled />);
-    fireEvent.click(screen.getByRole('button', { name: 'notes.documentOutline' }));
+  it('returns collapsed after the toolbar temporarily hides it', async () => {
+    const { container, rerender } = render(<EditorOutlineRail enabled />);
+    const rail = document.querySelector<HTMLElement>('[data-editor-outline-rail="true"]')!;
+    const scrollArea = container.querySelector<HTMLElement>('.editor-outline-scroll-area')!;
+    fireEvent.mouseEnter(scrollArea);
+    await waitFor(() => expect(rail).toHaveAttribute('data-expanded', 'true'));
 
     rerender(<EditorOutlineRail enabled={false} />);
-    expect(screen.queryByRole('button', { name: 'notes.documentOutline' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'notes.documentOutline' })).not.toBeInTheDocument();
 
     rerender(<EditorOutlineRail enabled />);
-    expect(screen.getByRole('button', { name: 'notes.documentOutline' }))
-      .toHaveAttribute('aria-expanded', 'true');
+    expect(document.querySelector('[data-editor-outline-rail="true"]'))
+      .toHaveAttribute('data-expanded', 'false');
   });
 
   it('does not render without an editable outline', () => {
@@ -133,7 +135,6 @@ describe('EditorOutlineRail', () => {
     mocks.activeId = 'heading-22';
 
     render(<EditorOutlineRail enabled />);
-    fireEvent.click(screen.getByRole('button', { name: 'notes.documentOutline' }));
 
     expect(document.querySelectorAll('.editor-outline-row')).toHaveLength(30);
     expect(screen.getByRole('button', { name: 'Heading 22' })).toHaveAttribute(

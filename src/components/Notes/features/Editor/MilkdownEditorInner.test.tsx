@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
+import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import * as ProseModel from '@milkdown/kit/prose/model';
 import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
 import {
@@ -768,7 +769,7 @@ describe('MilkdownEditorInner shell focus', () => {
     return { proseMirror, shell };
   }
 
-  it('focuses the editor at the nearest ProseMirror edge for shell blank-area clicks', () => {
+  it('focuses the editor from the original shell blank-area click point', () => {
     const { shell } = renderEditorShellWithProseMirror();
 
     const wasNotPrevented = fireEvent.mouseDown(shell, {
@@ -779,7 +780,7 @@ describe('MilkdownEditorInner shell focus', () => {
 
     expect(wasNotPrevented).toBe(false);
     expect(mocks.focusCurrentEditorAtViewportPoint).toHaveBeenCalledWith({
-      clientX: 101,
+      clientX: 80,
       clientY: 120,
     });
   });
@@ -999,6 +1000,34 @@ describe('createDocumentFirstLineEndTextSelection', () => {
     expect(selection.from).toBe(2 + text.length);
     expect(selection.empty).toBe(true);
   });
+
+  it('places a gap cursor after a document that contains only an atomic block', () => {
+    const schema = new ProseSchema({
+      nodes: {
+        doc: { content: 'block+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          toDOM: () => ['p', 0],
+          parseDOM: [{ tag: 'p' }],
+        },
+        text: { group: 'inline' },
+        atom_block: {
+          group: 'block',
+          atom: true,
+          toDOM: () => ['div'],
+          parseDOM: [{ tag: 'div' }],
+        },
+      },
+    });
+    const doc = schema.node('doc', null, [schema.nodes.atom_block.create()]);
+
+    const selection = createDocumentFirstLineEndTextSelection(doc);
+
+    expect(selection).toBeInstanceOf(GapCursor);
+    expect(selection.from).toBe(doc.content.size);
+    expect(selection.empty).toBe(true);
+  });
 });
 
 describe('normalizeInitialEditorSelection', () => {
@@ -1052,6 +1081,7 @@ describe('normalizeInitialEditorSelection', () => {
     expect(transaction.setMeta).toHaveBeenCalledWith(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION);
     expect(view.dispatch).toHaveBeenCalledWith(transaction);
   });
+
 });
 
 describe('createLargePlainMarkdownDocJSON', () => {
@@ -1282,6 +1312,44 @@ describe('shouldUseLazyBlockVisibility', () => {
     ].join('\n\n');
 
     expect(markdown.length).toBeGreaterThan(100_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
+  });
+
+  it('keeps dense heavy block markdown on stable block layout', () => {
+    const markdown = [
+      '# Dense Heavy Manual',
+      '',
+      ...Array.from({ length: 100 }, (_, index) => [
+        `## Section ${index}`,
+        '```txt',
+        `heavy fenced block ${index}`,
+        '```',
+        `| Feature ${index} | Value |`,
+        '| --- | --- |',
+        `| Row ${index} | ${index} |`,
+        `<video src="./assets/${index}.mp4"></video>`,
+        `<iframe src="https://example.invalid/${index}"></iframe>`,
+        `Section prose ${index} ${'ordinary text '.repeat(35)}`,
+        '',
+      ].join('\n')),
+    ].join('\n');
+
+    expect(markdown.length).toBeGreaterThan(60_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
+  });
+
+  it('keeps sparse heavy blocks lazy in an otherwise ordinary long note', () => {
+    const markdown = [
+      '# Sparse Heavy Manual',
+      '',
+      ...Array.from({ length: 600 }, (_, index) => (
+        index % 100 === 0
+          ? `| Feature ${index} | Value |\n| --- | --- |\n| Row ${index} | ${index} |`
+          : `Section ${index} with **mixed** syntax and enough prose to create a rendered block. ${'more prose '.repeat(8)}`
+      )),
+    ].join('\n\n');
+
+    expect(markdown.length).toBeGreaterThan(60_000);
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
   });
 });

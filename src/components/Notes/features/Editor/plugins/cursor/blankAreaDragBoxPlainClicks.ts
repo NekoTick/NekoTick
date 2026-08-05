@@ -161,9 +161,7 @@ function deferUntilPointerClickSettles(view: EditorView, callback: () => void): 
     callback();
     return;
   }
-  win.requestAnimationFrame(() => {
-    win.requestAnimationFrame(callback);
-  });
+  win.setTimeout(callback, 0);
 }
 
 export function startInsideBlockTrailingPlainClickSession(
@@ -172,16 +170,13 @@ export function startInsideBlockTrailingPlainClickSession(
   action: BlankAreaPlainClickAction,
   dragThreshold = DRAG_THRESHOLD,
 ): () => void {
-  const targetBlock = view.state.doc.nodeAt(action.blockFrom);
-  if (targetBlock?.isTextblock && targetBlock.content.size === 0) {
-    event.preventDefault();
-    dispatchBlankAreaPlainClick(view, action, event.clientX, event.clientY);
-    return () => undefined;
-  }
+  event.preventDefault();
+  dispatchBlankAreaPlainClick(view, action, event.clientX, event.clientY);
 
   const startX = event.clientX;
   const startY = event.clientY;
-  const startSelection = snapshotSelection(view.state);
+  const pointerDownDoc = view.state.doc;
+  const pointerDownSelection = snapshotSelection(view.state);
   let didDrag = false;
   let isStopped = false;
   const stop = () => {
@@ -204,11 +199,16 @@ export function startInsideBlockTrailingPlainClickSession(
   const handleMouseUp = () => {
     stop();
     if (didDrag) return;
-    const mouseUpSelection = snapshotSelection(view.state);
-    const selectionMatchesStart = isSameSelectionSnapshot(startSelection, mouseUpSelection);
-    if (!selectionMatchesStart) return;
+    if (!isSameSelectionSnapshot(pointerDownSelection, snapshotSelection(view.state))) return;
     deferUntilPointerClickSettles(view, () => {
-      dispatchBlankAreaPlainClick(view, action, event.clientX, event.clientY);
+      if (view.isDestroyed) return;
+      if (
+        view.state.doc === pointerDownDoc &&
+        isSameSelectionSnapshot(pointerDownSelection, snapshotSelection(view.state))
+      ) {
+        return;
+      }
+      dispatchBlankAreaPlainClick(view, action, event.clientX, event.clientY, false);
     });
   };
 

@@ -6,6 +6,18 @@ import { CodeBlockNodeView } from './CodeBlockNodeView';
 import { moveSelectionAfterNode } from './codeBlockSelectionUtils';
 
 const EAGER_INITIAL_CODE_BLOCK_COUNT = 3;
+const DENSE_CODE_BLOCK_PASSIVE_INITIALIZATION_THRESHOLD = 40;
+
+export function shouldDeferPassiveCodeMirrorInitialization(doc: Node): boolean {
+  let codeBlockCount = 0;
+  doc.descendants((node) => {
+    if (node.type.name === 'code_block') {
+      codeBlockCount += 1;
+    }
+    return codeBlockCount < DENSE_CODE_BLOCK_PASSIVE_INITIALIZATION_THRESHOLD;
+  });
+  return codeBlockCount >= DENSE_CODE_BLOCK_PASSIVE_INITIALIZATION_THRESHOLD;
+}
 
 export function findCodeBlockContext(state: EditorView['state']) {
   const { $from } = state.selection;
@@ -40,6 +52,7 @@ export function createCollapsedCodeBlockSelectionGuardTransaction(
 export const codeBlockNodeViewPlugin = $prose(() => {
   let currentDoc: Node | null = null;
   let eagerCodeBlocksRemaining = EAGER_INITIAL_CODE_BLOCK_COUNT;
+  let deferPassiveCodeMirrorInitialization = false;
 
   return new Plugin({
     props: {
@@ -47,7 +60,10 @@ export const codeBlockNodeViewPlugin = $prose(() => {
         code_block: (node: Node, view: EditorView, getPos: () => number | undefined) => {
           if (currentDoc !== view.state.doc) {
             currentDoc = view.state.doc;
-            eagerCodeBlocksRemaining = EAGER_INITIAL_CODE_BLOCK_COUNT;
+            deferPassiveCodeMirrorInitialization = shouldDeferPassiveCodeMirrorInitialization(currentDoc);
+            eagerCodeBlocksRemaining = deferPassiveCodeMirrorInitialization
+              ? 0
+              : EAGER_INITIAL_CODE_BLOCK_COUNT;
           }
 
           const shouldInitializeEagerly = eagerCodeBlocksRemaining > 0;
@@ -57,6 +73,7 @@ export const codeBlockNodeViewPlugin = $prose(() => {
 
           const nodeView = new CodeBlockNodeView(node, view, getPos, {
             lazyCodeMirror: !shouldInitializeEagerly,
+            passiveLazyCodeMirror: !deferPassiveCodeMirrorInitialization,
           });
           return nodeView;
         },

@@ -10,6 +10,8 @@ import {
   parsePayloadText,
   type StreamDeltaPayload,
 } from './streamingPayload'
+import { addAiStreamResponseChunkBytes } from './streamingResponseBudget'
+import { isErrorNamed } from './errorClassification'
 
 export type { StreamDeltaPayload } from './streamingPayload'
 export {
@@ -205,6 +207,7 @@ export async function consumeOpenAIStream(
   const decoder = new TextDecoder()
   const accumulator = createStreamAccumulator(onChunk)
   let buffer = ''
+  let responseBytesRead = 0
   const cancelReader = () => {
     void reader.cancel(createAbortError()).catch(() => undefined)
   }
@@ -246,6 +249,7 @@ export async function consumeOpenAIStream(
         break
       }
 
+      responseBytesRead = addAiStreamResponseChunkBytes(responseBytesRead, value)
       buffer = appendOpenAIStreamBuffer(buffer, decoder.decode(value, { stream: true }))
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
@@ -281,9 +285,7 @@ export async function consumeOpenAIStream(
     return finalContent
   } catch (error) {
     void reader.cancel(createAbortError()).catch(() => undefined)
-    if (options?.signal?.aborted && !(
-      error instanceof Error && error.name === 'AbortError'
-    )) {
+    if (options?.signal?.aborted && !isErrorNamed(error, 'AbortError')) {
       throw createAbortError()
     }
     throw error

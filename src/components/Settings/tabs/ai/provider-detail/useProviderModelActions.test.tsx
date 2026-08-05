@@ -199,4 +199,25 @@ describe('useProviderModelActions', () => {
       expect.any(AbortSignal),
     );
   });
+
+  it.each([
+    ['401 authentication', new Error('Failed to fetch OpenAI-compatible models: 401'), 'chat.error.authFailed'],
+    ['403 authentication', new Error('Failed to fetch Anthropic models: 403'), 'chat.error.authFailed'],
+    ['timeout', new Error('Model listing request timed out.'), 'chat.error.timeout'],
+    ['connection', new Error('AI_PROVIDER_CONNECTION_FAILED'), 'chat.error.customProviderConnectionFailed'],
+    ['upstream server', new Error('Failed to fetch OpenAI-compatible models: 503'), 'chat.error.customProviderConnectionFailed'],
+    ['rate limit', new Error('Failed to fetch OpenAI-compatible models: 429'), 'chat.error.upstreamRateLimited'],
+    ['oversized response', new Error('AI provider response body is too large.'), 'settings.ai.fetchModelsResponseTooLarge'],
+    ['invalid response', new SyntaxError('Unexpected token in JSON'), 'settings.ai.fetchModelsInvalidResponse'],
+    ['unknown failure', new Error('Unclassified model listing failure'), 'settings.ai.fetchModelsFailed'],
+  ])('maps %s failures to a safe message key', async (_label, error, expectedKey) => {
+    vi.mocked(openaiClient.getModelsWithEndpointDetection).mockRejectedValueOnce(error);
+    const { hook } = renderModelActions();
+
+    await act(async () => {
+      await hook.result.current.handleFetchModels();
+    });
+
+    expect(hook.result.current.fetchError).toBe(expectedKey);
+  });
 });

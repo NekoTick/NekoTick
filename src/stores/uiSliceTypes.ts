@@ -38,6 +38,7 @@ export interface PendingNotesChatComposerInsert {
 }
 
 export type NotesChatComposerInsertTarget = 'side-panel' | 'floating';
+export type LayoutPanelTransitionSource = 'shell-sidebar' | 'docked-chat';
 
 export interface UIStore {
   appViewMode: AppViewMode;
@@ -51,6 +52,12 @@ export interface UIStore {
   setSidebarWidth: (width: number) => void;
   layoutPanelDragging: boolean;
   setLayoutPanelDragging: (dragging: boolean) => void;
+  layoutPanelTransitioning: boolean;
+  layoutPanelTransitionSources: LayoutPanelTransitionSource[];
+  setLayoutPanelTransitioning: (
+    source: LayoutPanelTransitionSource,
+    transitioning: boolean,
+  ) => void;
   devPlatformPreview: DesktopPlatformPreview;
   setDevPlatformPreview: (platformPreview: DesktopPlatformPreview) => void;
   toggleDevPlatformPreview: () => void;

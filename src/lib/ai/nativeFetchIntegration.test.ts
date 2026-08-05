@@ -50,7 +50,7 @@ describe('native AI fetch integration', () => {
     await expect(providerFetch('https://provider.example.test/v1/chat/completions', {
       method: 'POST',
       body: '{}',
-    })).rejects.toBe(networkError);
+    })).rejects.toThrow('AI_PROVIDER_CONNECTION_FAILED');
     await expect(requestManagedWebJson('/chat/completions', {
       method: 'POST',
       body: '{}',

@@ -22,6 +22,7 @@ export function attachWindowLifecycle({
   isTrustedRendererUrl,
   openExternalIfAllowed,
   reportError,
+  beforeRendererReload,
   getWindowLabel,
   shouldFocusOnReveal,
   onPersistedWindowState,
@@ -37,6 +38,7 @@ export function attachWindowLifecycle({
   let startupRevealFallbackTimer = null;
   let startupRevealHardDeadlineTimer = null;
   let windowStateWriteTimer = null;
+  let rendererReloadPending = false;
 
   const clearDevRendererReloadTimer = () => {
     if (devRendererReloadTimer === null) return;
@@ -167,12 +169,22 @@ export function attachWindowLifecycle({
     });
     console.error(`[vlaina] Renderer process gone (${reason}, exitCode ${exitCode})`);
 
-    if (!isUsableWindow(window)) return;
-    if (isDevelopment()) {
-      scheduleDevRendererReload(`renderer process gone: ${reason}`);
-      return;
-    }
-    window.reload();
+    if (!isUsableWindow(window) || rendererReloadPending) return;
+    rendererReloadPending = true;
+    void Promise.resolve()
+      .then(() => beforeRendererReload())
+      .catch((error) => {
+        reportError(error, { label: getWindowLabel(window), reason: 'recovery-flush-before-reload' });
+      })
+      .finally(() => {
+        rendererReloadPending = false;
+        if (!isUsableWindow(window)) return;
+        if (isDevelopment()) {
+          scheduleDevRendererReload(`renderer process gone: ${reason}`);
+          return;
+        }
+        window.reload();
+      });
   });
 
   window.on('unresponsive', () => {

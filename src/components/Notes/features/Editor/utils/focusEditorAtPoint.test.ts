@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  applyBlankAreaPlainClickSelection: vi.fn(),
   createBlockRectResolver: vi.fn(),
   getCurrentEditorView: vi.fn(),
-  resolveInsideBlockTrailingPlainClickAction: vi.fn(),
+  resolveBlankAreaPlainClickAction: vi.fn(),
   resolveTextblockLineEndAtPoint: vi.fn(),
   textSelectionCreate: vi.fn(),
 }));
@@ -14,8 +15,8 @@ vi.mock('@milkdown/kit/prose/state', () => ({
 }));
 
 vi.mock('../plugins/cursor/blankAreaPlainClick', () => ({
-  applyBlankAreaPlainClickSelection: vi.fn(),
-  resolveInsideBlockTrailingPlainClickAction: mocks.resolveInsideBlockTrailingPlainClickAction,
+  applyBlankAreaPlainClickSelection: mocks.applyBlankAreaPlainClickSelection,
+  resolveBlankAreaPlainClickAction: mocks.resolveBlankAreaPlainClickAction,
 }));
 
 vi.mock('../plugins/cursor/blockRectResolver', () => ({
@@ -73,7 +74,7 @@ describe('focusCurrentEditorAtViewportPoint', () => {
     vi.clearAllMocks();
     vi.spyOn(window, 'focus').mockImplementation(() => undefined);
     mocks.resolveTextblockLineEndAtPoint.mockReturnValue(null);
-    mocks.resolveInsideBlockTrailingPlainClickAction.mockReturnValue(null);
+    mocks.resolveBlankAreaPlainClickAction.mockReturnValue(null);
     mocks.createBlockRectResolver.mockReturnValue({
       getTopLevelBlockRects: () => [],
       invalidate: vi.fn(),
@@ -105,4 +106,27 @@ describe('focusCurrentEditorAtViewportPoint', () => {
 
     expect(view.posAtCoords).toHaveBeenCalledWith({ left: 460, top: 491 });
   });
+
+  it('uses the resolved blank-area line target before coordinate fallback', () => {
+    const { selection, transaction, view } = createEditorView();
+    const blockRects = [{ from: 0, to: 8, left: 100, right: 500, top: 260, bottom: 284 }];
+    const action = { targetPos: 7, bias: -1, blockFrom: 0 };
+    mocks.createBlockRectResolver.mockReturnValue({
+      getTopLevelBlockRects: () => blockRects,
+      invalidate: vi.fn(),
+    });
+    mocks.resolveBlankAreaPlainClickAction.mockReturnValue(action);
+    mocks.applyBlankAreaPlainClickSelection.mockReturnValue({ selection });
+
+    expect(focusCurrentEditorAtViewportPoint({ clientX: 680, clientY: 272 })).toBe(true);
+
+    expect(mocks.resolveBlankAreaPlainClickAction).toHaveBeenCalledWith({
+      blockRects,
+      clientX: 680,
+      clientY: 272,
+    });
+    expect(view.posAtCoords).not.toHaveBeenCalled();
+    expect(transaction.setSelection).toHaveBeenCalledWith(selection);
+  });
+
 });

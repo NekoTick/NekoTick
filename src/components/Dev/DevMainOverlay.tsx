@@ -15,11 +15,6 @@ import {
   subscribeDiagnostics,
 } from '@/lib/diagnostics/diagnosticsLog';
 import {
-  DEV_RETRY_SIMULATION_CHANGED_EVENT,
-  isDevRetrySimulationEnabled,
-  setDevRetrySimulationEnabled,
-} from '@/hooks/chatService/preStreamRetry';
-import {
   clearCachedDesktopUpdateInfo,
   createSimulatedDesktopUpdateInfo,
   readCachedDesktopUpdateInfo,
@@ -68,7 +63,6 @@ export function DevMainOverlay({
   const [isExpanded, setIsExpanded] = useState(false);
   const [copyLogState, setCopyLogState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [entryCount, setEntryCount] = useState(() => getDiagnosticsEntryCount());
-  const [isRetrySimulationEnabled, setIsRetrySimulationEnabled] = useState(() => isDevRetrySimulationEnabled());
 
   useEffect(() => {
     document.documentElement.setAttribute('data-vlaina-dev-platform-preview', devPlatformPreview);
@@ -91,17 +85,6 @@ export function DevMainOverlay({
   useEffect(() => subscribeDiagnostics(() => {
     setEntryCount(getDiagnosticsEntryCount());
   }), []);
-
-  useEffect(() => {
-    const syncRetrySimulationState = () => {
-      setIsRetrySimulationEnabled(isDevRetrySimulationEnabled());
-    };
-
-    window.addEventListener(DEV_RETRY_SIMULATION_CHANGED_EVENT, syncRetrySimulationState);
-    return () => {
-      window.removeEventListener(DEV_RETRY_SIMULATION_CHANGED_EVENT, syncRetrySimulationState);
-    };
-  }, []);
 
   const handleMarkdownThemeCycle = useCallback(async () => {
     if (isThemeSwitching) return;
@@ -141,12 +124,6 @@ export function DevMainOverlay({
     setCopyLogState('idle');
   }, []);
 
-  const handleToggleRetrySimulation = useCallback(() => {
-    const nextEnabled = !isRetrySimulationEnabled;
-    setDevRetrySimulationEnabled(nextEnabled);
-    setIsRetrySimulationEnabled(nextEnabled);
-  }, [isRetrySimulationEnabled]);
-
   const isDarkModeSelected = colorMode === 'dark';
   const isMacOSPreviewSelected = devPlatformPreview === 'macos';
   const isManagedQuotaExhausted = isManagedBudgetExhausted(managedBudget);
@@ -182,11 +159,6 @@ export function DevMainOverlay({
       {isExpanded ? (
         <>
           {children}
-          <DevOverlayButton
-            iconName={isRetrySimulationEnabled ? 'common.checkCircle' : 'common.refresh'}
-            label={isRetrySimulationEnabled ? 'Test retry enabled' : 'Test retry'}
-            onClick={handleToggleRetrySimulation}
-          />
           <div
             data-dev-diagnostics-panel="true"
             className="app-no-drag pointer-events-auto flex items-center gap-1.5 rounded-full border border-[var(--vlaina-color-subtle-border)] bg-[var(--vlaina-color-setting-panel)] px-2 py-1.5 text-[var(--vlaina-font-xs)] text-[var(--vlaina-sidebar-notes-text)] shadow-[var(--vlaina-shadow-lg)] backdrop-blur-[var(--vlaina-backdrop-blur-sm)]"

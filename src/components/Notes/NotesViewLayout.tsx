@@ -1,5 +1,5 @@
 import { Suspense, type MutableRefObject, type ReactNode } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { ResizablePanel } from '@/components/layout/ResizablePanel';
 import { ModuleShortcutsDialog } from '@/components/common/ModuleShortcutsDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -7,6 +7,11 @@ import { BlurBackdrop } from '@/components/common/BlurBackdrop';
 import { TreeItemDeleteDialog } from '@/components/Notes/features/FileTree/components/TreeItemDeleteDialog';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { cn } from '@/lib/utils';
+import {
+  FLOATING_CHAT_WINDOW_VARIANTS,
+  RIGHT_SIDEBAR_SLIDE_VARIANTS,
+  SIDEBAR_SLIDE_TRANSITION,
+} from '@/lib/animations';
 import { themeBackdropTokens } from '@/styles/themeTokens';
 import type { useResizableBox } from '@/components/layout/shell/useResizableBox';
 import type { NotesChatFloatingSize } from '@/stores/uiSlice';
@@ -14,6 +19,36 @@ import type { useI18n } from '@/lib/i18n';
 import { EmbeddedChatView } from './notesViewLazyComponents';
 import { NotesSplitDiagnosticsButton } from './features/Split/NotesSplitDiagnosticsButton';
 import { ImageFileHoverPreview } from './features/FileTree/ImageFileHoverPreview';
+
+function DockedChatMotionPanel({
+  children,
+  onAnimationComplete,
+}: {
+  children: ReactNode;
+  onAnimationComplete: (definition: unknown) => void;
+}) {
+  const isPresent = useIsPresent();
+
+  return (
+    <motion.div
+      data-notes-chat-panel-motion="true"
+      aria-hidden={isPresent ? undefined : true}
+      inert={!isPresent}
+      className={cn(
+        'h-full flex-shrink-0 transform-gpu will-change-transform',
+        !isPresent && 'pointer-events-none',
+      )}
+      variants={RIGHT_SIDEBAR_SLIDE_VARIANTS}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+      transition={SIDEBAR_SLIDE_TRANSITION}
+      onAnimationComplete={onAnimationComplete}
+    >
+      {children}
+    </motion.div>
+  );
+}
 
 export function NotesViewLayout({
   active,
@@ -30,10 +65,14 @@ export function NotesViewLayout({
   getDisplayName,
   getDockedChatPanelMaxWidth,
   handleChatPanelDragStateChange,
+  handleDockedChatPanelAnimationComplete,
+  handleFloatingChatAnimationComplete,
   hasSplitPanes,
   isBlankWorkspaceDropActive,
   isEmbeddedChatViewReady,
+  isDockedChatPanelPresent,
   isFloatingChatResizing,
+  isFloatingChatPresent,
   isShortcutsOpen,
   notesViewRef,
   pendingDeleteCurrentNotePath,
@@ -63,10 +102,14 @@ export function NotesViewLayout({
   getDisplayName: (path: string) => string;
   getDockedChatPanelMaxWidth: () => number;
   handleChatPanelDragStateChange: (dragging: boolean) => void;
+  handleDockedChatPanelAnimationComplete: (definition: unknown) => void;
+  handleFloatingChatAnimationComplete: (definition: unknown) => void;
   hasSplitPanes: boolean;
   isBlankWorkspaceDropActive: boolean;
   isEmbeddedChatViewReady: boolean;
+  isDockedChatPanelPresent: boolean;
   isFloatingChatResizing: boolean;
+  isFloatingChatPresent: boolean;
   isShortcutsOpen: boolean;
   notesViewRef: MutableRefObject<HTMLDivElement | null>;
   pendingDeleteCurrentNotePath: string | null;
@@ -112,43 +155,55 @@ export function NotesViewLayout({
           {presentation === 'desktop' ? <ImageFileHoverPreview /> : null}
         </div>
 
-        {active && !chatPanelCollapsed && (
-          <ResizablePanel
-            defaultWidth={320}
-            minWidth={320}
-            maxWidth={760}
-            getMaxWidth={getDockedChatPanelMaxWidth}
-            storageKey="vlaina_notes_chat_panel_width_v2"
-            onWidthChange={scheduleChatPanelCaretRefresh}
-            onDragStateChange={handleChatPanelDragStateChange}
-            className="h-full border-l border-[var(--vlaina-color-border-shell)] bg-[var(--vlaina-bg-primary)]"
-          >
-            <div
-              data-notes-chat-panel="true"
-              data-notes-external-block-selection-root="true"
-              className="h-full min-h-0 relative"
+        <AnimatePresence mode="popLayout">
+          {active && !chatPanelCollapsed && (
+            <DockedChatMotionPanel
+              onAnimationComplete={handleDockedChatPanelAnimationComplete}
             >
-              <Suspense fallback={null}>
-                <EmbeddedChatView
-                  mode="embedded"
-                  active={active}
-                  onCloseEmbeddedPanel={() => setChatPanelCollapsed(true)}
-                />
-              </Suspense>
-            </div>
-          </ResizablePanel>
-        )}
+              <ResizablePanel
+                defaultWidth={320}
+                minWidth={320}
+                maxWidth={760}
+                getMaxWidth={getDockedChatPanelMaxWidth}
+                storageKey="vlaina_notes_chat_panel_width_v2"
+                onWidthChange={scheduleChatPanelCaretRefresh}
+                onDragStateChange={handleChatPanelDragStateChange}
+                className="h-full border-l border-[var(--vlaina-color-border-shell)] bg-[var(--vlaina-bg-primary)]"
+              >
+                <div
+                  data-notes-chat-panel="true"
+                  data-notes-external-block-selection-root="true"
+                  className="h-full min-h-0 relative"
+                >
+                  <Suspense fallback={null}>
+                    <EmbeddedChatView
+                      mode="embedded"
+                      active={active}
+                      onCloseEmbeddedPanel={() => setChatPanelCollapsed(true)}
+                    />
+                  </Suspense>
+                </div>
+              </ResizablePanel>
+            </DockedChatMotionPanel>
+          )}
+        </AnimatePresence>
 
-        {active && chatPanelCollapsed && isEmbeddedChatViewReady && unifiedLoaded && (
+        {active
+          && chatPanelCollapsed
+          && !isDockedChatPanelPresent
+          && isEmbeddedChatViewReady
+          && unifiedLoaded && (
           <Suspense fallback={null}>
-            <div
+            <motion.div
               ref={floatingChatPanelRef}
               data-notes-chat-floating={chatFloatingOpen ? 'true' : undefined}
               data-notes-external-block-selection-root="true"
               aria-hidden={!chatFloatingOpen}
+              inert={!chatFloatingOpen}
               className={cn(
-                'absolute bottom-4 right-4 z-[var(--vlaina-z-40)] overflow-hidden !rounded-[var(--vlaina-notes-ui-radius-panel)]',
-                !chatFloatingOpen && 'hidden',
+                'absolute bottom-4 right-4 z-[var(--vlaina-z-30)] overflow-hidden !rounded-[var(--vlaina-notes-ui-radius-panel)] transform-gpu',
+                !chatFloatingOpen && 'pointer-events-none',
+                isFloatingChatPresent ? 'will-change-transform' : 'invisible',
                 isFloatingChatResizing && 'will-change-[width,height]',
                 raisedPillSurfaceClass,
               )}
@@ -158,6 +213,11 @@ export function NotesViewLayout({
                 maxWidth: 'calc(100% - var(--vlaina-size-32px))',
                 maxHeight: 'calc(100% - var(--vlaina-size-32px))',
               }}
+              variants={FLOATING_CHAT_WINDOW_VARIANTS}
+              initial="hidden"
+              animate={chatFloatingOpen ? 'visible' : 'hidden'}
+              transition={SIDEBAR_SLIDE_TRANSITION}
+              onAnimationComplete={handleFloatingChatAnimationComplete}
             >
               <div
                 aria-hidden="true"
@@ -197,11 +257,11 @@ export function NotesViewLayout({
               />
               <EmbeddedChatView
                 mode="embedded"
-                active={active && chatFloatingOpen}
+                active={active && isFloatingChatPresent}
                 onCloseEmbeddedPanel={closeFloatingChat}
                 onPromoteEmbeddedPanel={promoteFloatingChatToSidePanel}
               />
-            </div>
+            </motion.div>
           </Suspense>
         )}
 

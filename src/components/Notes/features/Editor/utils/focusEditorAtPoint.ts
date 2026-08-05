@@ -2,7 +2,7 @@ import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import {
   applyBlankAreaPlainClickSelection,
-  resolveInsideBlockTrailingPlainClickAction,
+  resolveBlankAreaPlainClickAction,
   type BlankAreaPlainClickAction,
 } from '../plugins/cursor/blankAreaPlainClick';
 import { createBlockRectResolver } from '../plugins/cursor/blockRectResolver';
@@ -50,7 +50,7 @@ function resolveBlankAreaActionAtViewportPoint(
     scrollRootSelector: SCROLL_ROOT_SELECTOR,
   });
   try {
-    return resolveInsideBlockTrailingPlainClickAction({
+    return resolveBlankAreaPlainClickAction({
       blockRects: resolver.getTopLevelBlockRects(),
       clientX: point.clientX,
       clientY: point.clientY,

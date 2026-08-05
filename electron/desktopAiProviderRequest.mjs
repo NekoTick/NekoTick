@@ -10,19 +10,9 @@ const MAX_AI_PROVIDER_URL_CHARS = 4096;
 const MAX_AI_PROVIDER_HEADER_NAME_CHARS = 256;
 const MAX_AI_PROVIDER_HEADER_VALUE_CHARS = 16 * 1024;
 
+export const AI_PROVIDER_CONNECTION_FAILURE_CODE = 'AI_PROVIDER_CONNECTION_FAILED';
 export const MAX_AI_PROVIDER_RESPONSE_BODY_BYTES = 64 * 1024 * 1024;
 export const MAX_AI_PROVIDER_RESPONSE_IPC_CHUNK_BYTES = 256 * 1024;
-
-export function summarizeError(error) {
-  if (!(error instanceof Error)) {
-    if (typeof error === 'string') return error || 'Unknown error';
-    if (typeof error === 'number' || typeof error === 'boolean') return String(error);
-    return 'Unknown error';
-  }
-
-  const cause = error.cause instanceof Error ? `: ${error.cause.message}` : '';
-  return `${error.name}: ${error.message}${cause}`;
-}
 
 export function createAbortError() {
   return new DOMException('Aborted', 'AbortError');
@@ -105,19 +95,21 @@ function delayAiProviderRetry(ms, signal) {
   });
 }
 
-export async function fetchAiProviderRequestWithRetry(request, signal) {
+export async function fetchAiProviderRequestWithRetry(request, signal, fetchImpl = fetch) {
+  const shouldRetry = request.method === 'GET';
   for (let attempt = 0; ; attempt += 1) {
     const startedAt = Date.now();
     try {
-      return await raceWithAbort(fetch(request.url, {
+      return await raceWithAbort(fetchImpl(request.url, {
         method: request.method,
         headers: request.headers,
         body: request.body,
         signal,
         cache: 'no-store',
+        redirect: 'error',
       }), signal);
     } catch (error) {
-      const retryDelayMs = AI_PROVIDER_TRANSPORT_RETRY_DELAYS_MS[attempt];
+      const retryDelayMs = shouldRetry ? AI_PROVIDER_TRANSPORT_RETRY_DELAYS_MS[attempt] : undefined;
       const failedQuickly = Date.now() - startedAt <= AI_PROVIDER_FAST_FAILURE_RETRY_WINDOW_MS;
       if (signal.aborted || retryDelayMs == null || !failedQuickly) {
         throw error;
@@ -239,8 +231,19 @@ function normalizeAiProviderUrl(rawUrl) {
   ) {
     throw new Error('AI provider request URL is not supported.');
   }
+  if (parsed.protocol === 'http:' && !isLoopbackProviderHostname(parsed.hostname)) {
+    throw new Error('AI provider request URL must use HTTPS unless it targets the local computer.');
+  }
 
   return parsed.toString();
+}
+
+function isLoopbackProviderHostname(hostname) {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  return normalized === 'localhost'
+    || normalized.endsWith('.localhost')
+    || normalized === '::1'
+    || /^127(?:\.\d{1,3}){3}$/.test(normalized);
 }
 
 function normalizeAiProviderHeaders(rawHeaders) {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'zustand/vanilla';
 import { createWorkspaceSlice } from './workspaceSlice';
 import type { NotesStore } from '../types';
@@ -85,6 +85,67 @@ describe('workspace note open state races', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storageAdapter.stat.mockResolvedValue({ isFile: true, modifiedAt: 2, size: 11 });
+  });
+
+  afterEach(() => {
+    delete (window as any).vlainaDesktop;
+  });
+
+  it('opens recovered content as dirty while preserving the disk baseline', async () => {
+    const readNoteRecovery = vi.fn().mockResolvedValue({
+      content: '# Recovered edit',
+      diskMatchesBaseline: true,
+      draft: null,
+      updatedAt: '2026-08-01T00:00:00.000Z',
+    });
+    (window as any).vlainaDesktop = {
+      platform: 'electron',
+      app: { readNoteRecovery },
+    };
+    storageAdapter.readFile.mockResolvedValue('# Saved disk');
+    const store = createNotesStore();
+
+    await store.getState().openNote('alpha.md');
+
+    expect(store.getState().currentNote).toEqual({
+      path: 'alpha.md',
+      content: '# Recovered edit',
+    });
+    expect(store.getState().isDirty).toBe(true);
+    expect(store.getState().openTabs).toContainEqual({
+      path: 'alpha.md',
+      name: 'alpha',
+      isDirty: true,
+    });
+    expect(store.getState().noteContentsCache.get('alpha.md')?.savedContent).toBe('# Saved disk');
+    expect(readNoteRecovery).toHaveBeenCalledWith({
+      notesPath: '/notesRoot',
+      notePath: 'alpha.md',
+      currentDiskContent: '# Saved disk',
+    });
+  });
+
+  it('marks a disk-diverged recovery as a save-blocking conflict', async () => {
+    (window as any).vlainaDesktop = {
+      platform: 'electron',
+      app: {
+        readNoteRecovery: vi.fn().mockResolvedValue({
+          content: '# Recovered edit',
+          diskMatchesBaseline: false,
+          draft: null,
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        }),
+      },
+    };
+    storageAdapter.readFile.mockResolvedValue('# Changed disk');
+    const store = createNotesStore();
+
+    await store.getState().openNote('alpha.md');
+
+    expect(store.getState().currentNote?.content).toContain('# Recovered edit');
+    expect(store.getState().currentNote?.content).toContain('# Changed disk');
+    expect(store.getState().saveErrorPath).toBe('alpha.md');
+    expect(store.getState().saveError).toContain('Review or edit');
   });
 
   it('does not overwrite a notesRoot tab that becomes dirty while it is opening', async () => {

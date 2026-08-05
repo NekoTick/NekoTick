@@ -32,14 +32,27 @@ describe('LocalSearchProvider input bounds', () => {
         throw new Error('timeout coercion');
       }),
     };
-    const fetchImpl = vi.fn(async () => new Response('', { status: 404 }));
+    const resolvedUrl = {
+      url: 'https://vlainax.com/',
+      parsed: new URL('https://vlainax.com/'),
+      addresses: [{ address: '203.0.113.10', family: 4 }],
+    };
+    const resolvePublicUrlImpl = vi.fn(async () => resolvedUrl);
+    const fetchResolvedUrlImpl = vi.fn(async () => new Response('', { status: 404 }));
 
-    await expect(localSearchInternals.fetchDirectOfficialSite(fetchImpl, 'vlainax official', {
+    await expect(localSearchInternals.fetchDirectOfficialSite('vlainax official', {
       timeoutMs,
+      resolvePublicUrlImpl,
+      fetchResolvedUrlImpl,
     })).resolves.toEqual([]);
 
     expect(timeoutMs.toString).not.toHaveBeenCalled();
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(resolvePublicUrlImpl).toHaveBeenCalledWith('https://vlainax.com/');
+    expect(fetchResolvedUrlImpl).toHaveBeenCalledWith(
+      resolvedUrl,
+      2500,
+      undefined,
+    );
   });
 
   it('does not coerce non-string search result HTML', () => {
@@ -50,6 +63,7 @@ describe('LocalSearchProvider input bounds', () => {
     };
 
     expect(localSearchInternals.parseBingResults(html, 5)).toEqual([]);
+    expect(localSearchInternals.parseBraveResults(html, 5)).toEqual([]);
     expect(localSearchInternals.parseGoogleResults(html, 5)).toEqual([]);
     expect(localSearchInternals.parseDuckDuckGoResults(html, 5)).toEqual([]);
     expect(html.toString).not.toHaveBeenCalled();

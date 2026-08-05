@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatInputActions } from './ChatInputActions';
 
+const useI18nMock = vi.hoisted(() => vi.fn(() => ({ t: (key: string) => key })));
+
 vi.mock('@/lib/i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: useI18nMock,
 }));
 
 function renderActions(overrides: Partial<Parameters<typeof ChatInputActions>[0]> = {}) {
@@ -27,6 +29,33 @@ function renderActions(overrides: Partial<Parameters<typeof ChatInputActions>[0]
 }
 
 describe('ChatInputActions', () => {
+  beforeEach(() => {
+    useI18nMock.mockClear();
+  });
+
+  it('skips static action rendering when the composer text changes without changing action props', () => {
+    const noop = vi.fn();
+    const props: Parameters<typeof ChatInputActions>[0] = {
+      onTriggerFileSelect: noop,
+      onTriggerMentionSelect: noop,
+      hasMentionCandidates: true,
+      isLoading: false,
+      canSend: true,
+      canSubmit: true,
+      webSearchEnabled: false,
+      onToggleWebSearch: noop,
+      onRequestComposerFocus: noop,
+      onStop: noop,
+      onSend: noop,
+    };
+    const view = render(<ChatInputActions {...props} />);
+    const renderCount = useI18nMock.mock.calls.length;
+
+    view.rerender(<ChatInputActions {...props} />);
+
+    expect(useI18nMock).toHaveBeenCalledTimes(renderCount);
+  });
+
   it('shows the add actions button background only on hover', () => {
     renderActions();
 

@@ -128,7 +128,6 @@ vi.mock('@/components/layout/sidebar/SidebarSearchDrawer', () => ({
     inputRef: { current: null },
     scrollRootRef: { current: null },
     hideSearch: vi.fn(),
-    handleScroll: vi.fn(),
     shouldShowSearchResults: hoisted.shouldShowSearchResults,
   }),
 }));

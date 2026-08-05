@@ -1,6 +1,14 @@
 import type { MessageKey } from '@/lib/i18n';
 import type { IconName } from '@/components/ui/icons';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
+import coloredPencilImage from '../assets/brushes/colored-pencil.png';
+import crayonImage from '../assets/brushes/crayon.png';
+import eraserImage from '../assets/brushes/eraser.png';
+import markerImage from '../assets/brushes/marker.png';
+import penImage from '../assets/brushes/pen.png';
+import pencilImage from '../assets/brushes/pencil.png';
+import selectImage from '../assets/brushes/select.png';
+import watercolorImage from '../assets/brushes/watercolor.png';
 
 export type WhiteboardTool =
   | 'select'
@@ -27,8 +35,12 @@ export interface WhiteboardPoint {
 }
 
 export interface WhiteboardStrokePoint extends WhiteboardPoint {
+  azimuth?: number;
   breakBefore?: boolean;
   pressure: number;
+  rotation?: number;
+  tilt?: number;
+  velocity?: number;
 }
 
 export interface WhiteboardViewport {
@@ -52,15 +64,22 @@ export interface WhiteboardElement {
 export interface WhiteboardStroke {
   color: string;
   id: string;
-  tool: WhiteboardDrawingTool;
-  size: number;
   points: WhiteboardStrokePoint[];
+  renderPathOffset?: number;
+  renderPointOffset?: number;
+  renderSeed?: string;
+  renderTaperEnd?: boolean;
+  renderTaperStart?: boolean;
+  renderTextureScale?: number;
+  size: number;
+  tool: WhiteboardDrawingTool;
 }
 
 interface WhiteboardToolConfig {
   id: WhiteboardTool;
   labelKey: MessageKey;
   icon: IconName;
+  imageSrc: string;
 }
 
 export interface WhiteboardBrush {
@@ -77,18 +96,18 @@ export const WHITEBOARD_INITIAL_VIEWPORT: WhiteboardViewport = {
 };
 
 export const WHITEBOARD_DRAWING_TOOLS: WhiteboardToolConfig[] = [
-  { id: 'pen', labelKey: 'whiteboard.tool.pen', icon: 'whiteboard.pen' },
-  { id: 'pencil', labelKey: 'whiteboard.tool.pencil', icon: 'whiteboard.pencil' },
-  { id: 'marker', labelKey: 'whiteboard.tool.marker', icon: 'whiteboard.marker' },
-  { id: 'colored-pencil', labelKey: 'whiteboard.tool.coloredPencil', icon: 'whiteboard.coloredPencil' },
-  { id: 'watercolor', labelKey: 'whiteboard.tool.watercolor', icon: 'whiteboard.watercolor' },
-  { id: 'crayon', labelKey: 'whiteboard.tool.crayon', icon: 'whiteboard.crayon' },
+  { id: 'pen', labelKey: 'whiteboard.tool.pen', icon: 'whiteboard.pen', imageSrc: penImage },
+  { id: 'pencil', labelKey: 'whiteboard.tool.pencil', icon: 'whiteboard.pencil', imageSrc: pencilImage },
+  { id: 'marker', labelKey: 'whiteboard.tool.marker', icon: 'whiteboard.marker', imageSrc: markerImage },
+  { id: 'colored-pencil', labelKey: 'whiteboard.tool.coloredPencil', icon: 'whiteboard.coloredPencil', imageSrc: coloredPencilImage },
+  { id: 'watercolor', labelKey: 'whiteboard.tool.watercolor', icon: 'whiteboard.watercolor', imageSrc: watercolorImage },
+  { id: 'crayon', labelKey: 'whiteboard.tool.crayon', icon: 'whiteboard.crayon', imageSrc: crayonImage },
 ];
 
 export const WHITEBOARD_ERASER_TOOLS: WhiteboardToolConfig[] = [
-  { id: 'select', labelKey: 'whiteboard.tool.select', icon: 'whiteboard.select' },
-  { id: 'eraser', labelKey: 'whiteboard.tool.eraser', icon: 'whiteboard.areaEraser' },
-  { id: 'stroke-eraser', labelKey: 'whiteboard.tool.strokeEraser', icon: 'whiteboard.eraser' },
+  { id: 'select', labelKey: 'whiteboard.tool.select', icon: 'whiteboard.select', imageSrc: selectImage },
+  { id: 'stroke-eraser', labelKey: 'whiteboard.tool.strokeEraser', icon: 'whiteboard.eraser', imageSrc: eraserImage },
+  { id: 'eraser', labelKey: 'whiteboard.tool.eraser', icon: 'whiteboard.areaEraser', imageSrc: eraserImage },
 ];
 
 export const WHITEBOARD_BRUSHES: Record<WhiteboardDrawingTool, WhiteboardBrush> = {
@@ -245,14 +264,37 @@ export function resizeBrushSize(size: number, deltaY: number): number {
   );
 }
 
-export function createStrokePoint(point: WhiteboardPoint, pressure: number): WhiteboardStrokePoint {
+export function createStrokePoint(point: WhiteboardPoint, pressure: number, dynamics: Pick<WhiteboardStrokePoint, 'azimuth' | 'rotation' | 'tilt' | 'velocity'> = {}): WhiteboardStrokePoint {
+  const azimuth = normalizeAngle(dynamics.azimuth);
+  const rotation = normalizeAngle(dynamics.rotation);
+  const tilt = normalizeUnitValue(dynamics.tilt);
+  const velocity = normalizeVelocity(dynamics.velocity);
   return {
     ...point,
+    ...(azimuth !== null ? { azimuth } : {}),
     pressure: normalizePressure(pressure),
+    ...(rotation !== null ? { rotation } : {}),
+    ...(tilt !== null && tilt > 0 ? { tilt } : {}),
+    ...(velocity !== null ? { velocity } : {}),
   };
 }
 
 function normalizePressure(pressure: number): number {
-  if (!Number.isFinite(pressure) || pressure <= 0) return themeWhiteboardTokens.defaultPointerPressure;
+  if (!Number.isFinite(pressure)) return themeWhiteboardTokens.defaultPointerPressure;
   return Math.min(1, Math.max(themeWhiteboardTokens.minPointerPressure, pressure));
+}
+
+function normalizeAngle(angle: number | undefined): number | null {
+  if (angle === undefined || !Number.isFinite(angle)) return null;
+  const fullTurn = Math.PI * 2;
+  return (angle % fullTurn + fullTurn) % fullTurn;
+}
+
+function normalizeUnitValue(value: number | undefined): number | null {
+  if (value === undefined || !Number.isFinite(value)) return null;
+  return Math.min(1, Math.max(0, value));
+}
+
+function normalizeVelocity(velocity: number | undefined): number | null {
+  return velocity === undefined || !Number.isFinite(velocity) ? null : Math.max(0, velocity);
 }

@@ -48,6 +48,14 @@ describe('asset path resolution', () => {
       ]);
   });
 
+  it('decodes URL-encoded local asset paths before resolving files', async () => {
+    await expect(resolveNotesRootAssetPathCandidates(
+      '/notesRoot',
+      '../assets/cover%20image.png',
+      'daily/note.md',
+    )).resolves.toEqual(['/notesRoot/assets/cover image.png']);
+  });
+
   it('offers a opened-folder fallback for bare asset paths in nested notes', async () => {
     await expect(resolveNotesRootAssetPathCandidates('/notesRoot', 'assets/a.png', 'daily/note.md'))
       .resolves.toEqual([
@@ -116,8 +124,8 @@ describe('asset path resolution', () => {
 
     await expect(resolveNotesRootAssetPathCandidates('/notesRoot', '%2enotes/assets/a.png', 'daily/note.md'))
       .resolves.toEqual([
-        '/notesRoot/daily/%2enotes/assets/a.png',
-        '/notesRoot/%2enotes/assets/a.png',
+        '/notesRoot/daily/.notes/assets/a.png',
+        '/notesRoot/.notes/assets/a.png',
       ]);
   });
 
@@ -171,6 +179,23 @@ describe('asset path resolution', () => {
       .resolves.toEqual([]);
 
     await expect(resolveNotesRootAssetPathCandidates('/notesRoot', `assets/a.png?${'x'.repeat(16 * 1024)}`, 'daily/note.md'))
+      .resolves.toEqual([]);
+
+    await expect(resolveNotesRootAssetPathCandidates('/notesRoot', 'https%3A%2F%2Fexample.com%2Fa.png', 'daily/note.md'))
+      .resolves.toEqual([]);
+
+    await expect(resolveNotesRootAssetPathCandidates('/notesRoot', '%2Fetc%2Fpasswd', 'daily/note.md'))
+      .resolves.toEqual([]);
+
+    await expect(resolveNotesRootAssetPathCandidates('/notesRoot', '%E0%A4%A', 'daily/note.md'))
+      .resolves.toEqual([]);
+  });
+
+  it('keeps URL-encoded parent traversal inside the notesRoot root', async () => {
+    await expect(resolveNotesRootAssetPathCandidates('/notesRoot', '%2e%2e/assets/a.png', 'daily/note.md'))
+      .resolves.toEqual(['/notesRoot/assets/a.png']);
+
+    await expect(resolveNotesRootAssetPathCandidates('/notesRoot', '%2e%2e/%2e%2e/secret.png', 'daily/note.md'))
       .resolves.toEqual([]);
   });
 

@@ -57,7 +57,7 @@ class SlashImageLibrarySession {
     applySlashMenuPosition(this.view, menuElement, this.positionRoot);
     window.addEventListener('resize', this.syncPosition);
     this.scrollRoot?.addEventListener('scroll', this.syncPosition, { passive: true });
-    document.addEventListener('mousedown', this.handleDocumentMouseDown, true);
+    window.addEventListener('mousedown', this.handleWindowMouseDown, true);
     document.addEventListener('keydown', this.handleDocumentKeyDown, true);
   }
 
@@ -67,7 +67,7 @@ class SlashImageLibrarySession {
     this.unlistenOverlay();
     window.removeEventListener('resize', this.syncPosition);
     this.scrollRoot?.removeEventListener('scroll', this.syncPosition);
-    document.removeEventListener('mousedown', this.handleDocumentMouseDown, true);
+    window.removeEventListener('mousedown', this.handleWindowMouseDown, true);
     document.removeEventListener('keydown', this.handleDocumentKeyDown, true);
     const root = this.root;
     this.root = null;
@@ -107,7 +107,7 @@ class SlashImageLibrarySession {
     }
   };
 
-  private handleDocumentMouseDown = (event: MouseEvent) => {
+  private handleWindowMouseDown = (event: MouseEvent) => {
     const target = event.target;
     if (target instanceof Node && !this.menuElement?.contains(target)) {
       this.closeAndFocus();

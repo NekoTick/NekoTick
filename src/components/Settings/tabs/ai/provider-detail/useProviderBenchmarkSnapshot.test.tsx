@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { backgroundBenchmarkRunner } from '@/lib/ai/healthCheck';
 import type { AIModel, Provider, ProviderBenchmarkRecord } from '@/lib/ai/types';
+import { useProviderBenchmark } from './useProviderBenchmark';
 import { useProviderBenchmarkSnapshot } from './useProviderBenchmarkSnapshot';
 
 vi.mock('@/lib/ai/modelBenchmark/batch', () => ({
@@ -130,5 +131,44 @@ describe('useProviderBenchmarkSnapshot', () => {
 
     expect(hook.result.current.healthStatus).toBe(initialHealthStatus);
     expect(hook.result.current.benchmarkingModelIds).toBe(initialModelIds);
+  });
+});
+
+describe('useProviderBenchmark persistence', () => {
+  afterEach(() => {
+    act(() => {
+      backgroundBenchmarkRunner.clear(provider.id);
+    });
+  });
+
+  it('does not restore benchmark results cleared with the provider connection state', async () => {
+    const setProviderBenchmarkResults = vi.fn();
+    const initialResults = { [provider.id]: benchmarkRecord('success', 1) };
+    const hook = renderHook(
+      ({ benchmarkResults }) => useProviderBenchmark({
+        provider,
+        providerModels: [model],
+        availableFetchedModels: [],
+        canUseConnectionActions: true,
+        draft: {
+          name: provider.name,
+          apiHost: provider.apiHost,
+          apiKey: provider.apiKey,
+          enabled: provider.enabled,
+        },
+        benchmarkResults,
+        setProviderBenchmarkResults,
+      }),
+      { initialProps: { benchmarkResults: initialResults as Record<string, ProviderBenchmarkRecord> } },
+    );
+
+    await act(async () => {
+      hook.rerender({ benchmarkResults: {} });
+    });
+
+    await waitFor(() => {
+      expect(hook.result.current.healthStatus).toEqual({});
+    });
+    expect(setProviderBenchmarkResults).not.toHaveBeenCalled();
   });
 });

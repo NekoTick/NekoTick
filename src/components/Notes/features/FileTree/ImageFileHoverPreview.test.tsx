@@ -56,6 +56,9 @@ describe('ImageFileHoverPreview', () => {
       'src',
       'blob:hover-preview',
     );
+    const preview = document.querySelector('[data-image-file-hover-preview="true"]');
+    expect(preview).toHaveClass('z-[var(--vlaina-z-30)]');
+    expect(preview).not.toHaveClass('z-[var(--vlaina-z-40)]');
     expect(document.documentElement).toHaveAttribute(
       'data-image-file-hover-preview-active',
       'true',

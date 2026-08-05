@@ -1,5 +1,6 @@
 import { requestManager } from '@/lib/ai/requestManager';
 import { resolveSessionIdAlias } from '@/lib/ai/sessionIdAliases';
+import { escapeUntrustedErrorTags } from '@/lib/ai/errorTag';
 import { createChunkScheduler, resolveAssistantContent } from './helpers';
 
 export interface ChatErrorPayload {
@@ -93,8 +94,9 @@ export async function runStreamedAssistantMessage({
       if (!isActiveRequest()) {
         return;
       }
-      lastStreamedContent = chunk;
-      streamScheduler.push(chunk);
+      const safeChunk = escapeUntrustedErrorTags(chunk);
+      lastStreamedContent = safeChunk;
+      streamScheduler.push(safeChunk);
     }, controller.signal, { isCurrentRequest, isActiveRequest });
 
     if (isCancelledRequest()) {
@@ -103,7 +105,7 @@ export async function runStreamedAssistantMessage({
 
     clearSessionLoadingIfCurrent();
     streamScheduler.flushNow();
-    resolveAssistantContent(returnedContent, lastStreamedContent, (content) => {
+    resolveAssistantContent(escapeUntrustedErrorTags(returnedContent), lastStreamedContent, (content) => {
       lastStreamedContent = content;
       lastCommittedContent = content;
       updateMessage(sessionId, assistantMessageId, content);

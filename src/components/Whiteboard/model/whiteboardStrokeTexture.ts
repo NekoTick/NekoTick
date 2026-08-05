@@ -25,12 +25,15 @@ export function getWhiteboardStrokeDashStyle(
   lane: number,
 ): WhiteboardStrokeDashStyle {
   const values = pattern.split(/\s+/).map(Number).filter(Number.isFinite);
-  const scale = Math.pow(stroke.size, themeWhiteboardTokens.textureDashScaleExponent);
+  const scale = Math.pow(stroke.size, themeWhiteboardTokens.textureDashScaleExponent) *
+    (stroke.renderTextureScale ?? 1);
   const period = values.reduce((total, value) => total + value, 0);
-  const variation = getWhiteboardStrokeNoise(getWhiteboardStrokeSeed(stroke.id), 0, lane) * period * themeWhiteboardTokens.textureDashOffsetVariationScale;
+  const variation = getWhiteboardStrokeNoise(getWhiteboardStrokeRenderSeed(stroke), 0, lane) * period * themeWhiteboardTokens.textureDashOffsetVariationScale;
+  const scaledPeriod = period * scale;
+  const dashOffset = (baseOffset + variation) * scale + (stroke.renderPathOffset ?? 0);
   return {
     dashArray: values.map((value) => roundTextureValue(value * scale)).join(' '),
-    dashOffset: roundTextureValue((baseOffset + variation) * scale),
+    dashOffset: roundTextureValue(scaledPeriod > 0 ? dashOffset % scaledPeriod : dashOffset),
   };
 }
 
@@ -47,6 +50,14 @@ export function getWhiteboardStrokeSeed(id: string): number {
     hash = Math.imul(hash ^ id.charCodeAt(index), 16777619);
   }
   return hash >>> 0;
+}
+
+export function getWhiteboardStrokeRenderSeed(stroke: WhiteboardStroke): number {
+  return getWhiteboardStrokeSeed(stroke.renderSeed ?? stroke.id);
+}
+
+export function getWhiteboardStrokeRenderPointIndex(stroke: WhiteboardStroke, index: number): number {
+  return (stroke.renderPointOffset ?? 0) + index;
 }
 
 function roundTextureValue(value: number): number {

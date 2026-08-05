@@ -120,8 +120,12 @@ export function NotesView({
     focusNotesChatComposer,
     getDockedChatPanelMaxWidth,
     handleChatPanelDragStateChange,
+    handleDockedChatPanelAnimationComplete,
+    handleFloatingChatAnimationComplete,
     isEmbeddedChatViewReady,
+    isDockedChatPanelPresent,
     isFloatingChatResizing,
+    isFloatingChatPresent,
     openFloatingChat,
     promoteFloatingChatToSidePanel,
     resetChatFloatingSize,
@@ -250,10 +254,14 @@ export function NotesView({
       getDisplayName={getDisplayName}
       getDockedChatPanelMaxWidth={getDockedChatPanelMaxWidth}
       handleChatPanelDragStateChange={handleChatPanelDragStateChange}
+      handleDockedChatPanelAnimationComplete={handleDockedChatPanelAnimationComplete}
+      handleFloatingChatAnimationComplete={handleFloatingChatAnimationComplete}
       hasSplitPanes={hasSplitPanes}
       isBlankWorkspaceDropActive={isBlankWorkspaceDropActive}
       isEmbeddedChatViewReady={isEmbeddedChatViewReady}
+      isDockedChatPanelPresent={isDockedChatPanelPresent}
       isFloatingChatResizing={isFloatingChatResizing}
+      isFloatingChatPresent={isFloatingChatPresent}
       isShortcutsOpen={isShortcutsOpen}
       notesViewRef={notesViewRef}
       presentation={presentation}

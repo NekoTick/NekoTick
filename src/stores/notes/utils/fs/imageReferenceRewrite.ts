@@ -16,6 +16,8 @@ const RENAME_SOURCE_BATCH_SIZE = 8;
 
 export interface ImageReferenceContentUpdate {
   path: string;
+  documentPath?: string;
+  baselineContent: string;
   content: string;
 }
 
@@ -135,18 +137,33 @@ export async function collectImageReferenceContentUpdates(input: Pick<
   );
   const updates: ImageReferenceContentUpdate[] = [];
   let scannedChars = 0;
+  const currentNote = input.currentNote;
+  const currentNotePathKey = currentNote ? getPathComparisonKey(currentNote.path) : null;
 
   for (let index = 0; index < notePaths.length; index += RENAME_READ_BATCH_SIZE) {
     const batch = notePaths.slice(index, index + RENAME_READ_BATCH_SIZE);
     const loaded = await Promise.all(batch.map(async (note) => {
-      const cached = input.currentNote?.path === note.path
-        ? input.currentNote.content
-        : input.noteContentsCache.get(note.path)?.content;
+      const isCurrentNote = currentNote != null && (
+        currentNotePathKey === getPathComparisonKey(note.path)
+        || currentNotePathKey === getPathComparisonKey(note.fullPath)
+      );
+      const relativeCache = input.noteContentsCache.get(note.path);
+      const absoluteCache = input.noteContentsCache.get(note.fullPath);
+      const documentPath = isCurrentNote
+        ? currentNote.path
+        : relativeCache
+          ? note.path
+          : absoluteCache
+            ? note.fullPath
+            : note.path;
+      const cached = isCurrentNote
+        ? currentNote.content
+        : relativeCache?.content ?? absoluteCache?.content;
       const content = cached ?? await storage.readFile(note.fullPath, MAX_SEARCHABLE_NOTE_BYTES);
-      return { note, content };
+      return { note, documentPath, content };
     }));
 
-    for (const { note, content } of loaded) {
+    for (const { note, documentPath, content } of loaded) {
       if (scannedChars + content.length > MAX_RENAME_SCAN_CHARS) {
         throw new Error('The notes folder is too large to update image references safely.');
       }
@@ -159,7 +176,14 @@ export async function collectImageReferenceContentUpdates(input: Pick<
         input.newImagePath,
         input.noteMetadata?.notes[note.path]?.cover,
       );
-      if (nextContent !== content) updates.push({ path: note.path, content: nextContent });
+      if (nextContent !== content) {
+        updates.push({
+          path: note.path,
+          ...(documentPath !== note.path ? { documentPath } : {}),
+          baselineContent: content,
+          content: nextContent,
+        });
+      }
     }
   }
 

@@ -41,7 +41,6 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
           ? session.lastPointerSelectionY
           : null
       ),
-      onScroll: () => undefined,
     }),
     preserveNativeSelectionForKeyboard: false,
     isPointerSelectionActive: false,

@@ -3,7 +3,24 @@ import { primitiveToString } from './managedIpcCommon.mjs';
 const MAX_MANAGED_BINARY_BODY_BYTES = 64 * 1024 * 1024;
 const MAX_MANAGED_BINARY_BODY_BASE64_CHARS = Math.ceil(MAX_MANAGED_BINARY_BODY_BYTES / 3) * 4;
 const MAX_MANAGED_BINARY_HEADER_VALUE_CHARS = 16 * 1024;
+const MAX_MANAGED_JSON_BODY_BYTES = 64 * 1024 * 1024;
 const ALLOWED_MANAGED_BINARY_HEADERS = new Set(['content-type']);
+
+export function stringifyManagedJsonPayload(payload, maxBytes = MAX_MANAGED_JSON_BODY_BYTES) {
+  let serialized;
+  try {
+    serialized = JSON.stringify(payload ?? {});
+  } catch {
+    throw new Error('Invalid managed JSON request body.');
+  }
+  if (typeof serialized !== 'string') {
+    throw new Error('Invalid managed JSON request body.');
+  }
+  if (Buffer.byteLength(serialized, 'utf8') > maxBytes) {
+    throw new Error('Managed JSON request body is too large.');
+  }
+  return serialized;
+}
 
 export function normalizeManagedBinaryPayload(payload) {
   if (typeof payload?.bodyBase64 !== 'string') {

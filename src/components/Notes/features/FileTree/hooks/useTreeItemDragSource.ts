@@ -1,15 +1,18 @@
 import { useCallback } from 'react';
 import type React from 'react';
 import type { NotesSidebarRowDragHandlers } from '../../Sidebar/NotesSidebarRow';
-import { startFileTreePointerDrag, useFileTreePointerDragState } from './fileTreePointerDragState';
+import {
+  startFileTreePointerDrag,
+  useIsFileTreePointerDragSource,
+} from './fileTreePointerDragState';
 import { isEditableShortcutTarget } from '@/lib/shortcuts/editableGuards';
 
 export function useTreeItemDragSource(
   path: string,
   disabled = false,
-  kind: 'note' | 'folder' = 'note',
+  kind: 'note' | 'folder' | 'image' = 'note',
 ): NotesSidebarRowDragHandlers {
-  const isDragging = useFileTreePointerDragState((state) => state.activeSourcePath === path);
+  const isDragging = useIsFileTreePointerDragSource(path);
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {

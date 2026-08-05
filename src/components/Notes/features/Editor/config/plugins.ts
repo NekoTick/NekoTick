@@ -1,3 +1,4 @@
+import { gapCursorPlugin } from '@milkdown/kit/plugin/cursor';
 import { floatingToolbarPlugin } from '../plugins/floating-toolbar/floatingToolbarPlugin';
 import { colorMarksPlugin } from '../plugins/floating-toolbar/colorMarks';
 import { blockAlignmentPlugin } from '../plugins/floating-toolbar/blockAlignmentMarkdown';
@@ -162,6 +163,7 @@ export const customPluginGroups = [
       titleNavigationPlugin,
       typewriterModePlugin,
       editorShortcutsPlugin,
+      gapCursorPlugin,
     ],
   },
 ];

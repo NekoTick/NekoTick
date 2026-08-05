@@ -5,6 +5,8 @@ import { clearDisplayIconSnapshotCacheForTests } from '@/hooks/useTitleSync';
 
 const mocks = vi.hoisted(() => {
   const addToast = vi.fn();
+  const focusEditorAtTop = vi.fn();
+  const focusNoteInitialPosition = vi.fn();
   const loadAssets = vi.fn();
   const resolveCoverAssetUrl = vi.fn();
   const uploadAsset = vi.fn();
@@ -25,6 +27,7 @@ const mocks = vi.hoisted(() => {
         uploadedAt: '2026-05-12T10:51:54.912Z',
       },
     ],
+    isLoadingAssets: false,
     loadAssets,
     uploadAsset,
     noteIconSize: 60,
@@ -34,6 +37,8 @@ const mocks = vi.hoisted(() => {
   return {
     heroProps: null as any,
     addToast,
+    focusEditorAtTop,
+    focusNoteInitialPosition,
     loadAssets,
     notesState,
     resolveCoverAssetUrl,
@@ -58,6 +63,14 @@ vi.mock('@/components/common/HeroIconHeader', () => ({
   },
 }));
 
+vi.mock('./utils/focusEditor', () => ({
+  focusEditorAtTop: mocks.focusEditorAtTop,
+}));
+
+vi.mock('./utils/focusNoteInitialPosition', () => ({
+  focusNoteInitialPosition: mocks.focusNoteInitialPosition,
+}));
+
 vi.mock('@/components/common/UniversalIconPicker/randomEmoji', () => ({
   getRandomHeaderEmoji: () => 'misc.star',
 }));
@@ -76,6 +89,8 @@ describe('NoteHeader', () => {
     mocks.notesState.notesPath = '/notesRoot';
     clearDisplayIconSnapshotCacheForTests();
     mocks.addToast.mockReset();
+    mocks.focusEditorAtTop.mockReset();
+    mocks.focusNoteInitialPosition.mockReset();
     mocks.loadAssets.mockReset();
     mocks.loadAssets.mockResolvedValue(undefined);
     mocks.resolveCoverAssetUrl.mockReset();
@@ -118,6 +133,14 @@ describe('NoteHeader', () => {
       replayAnimated: true,
       animatedPlaybackKey: 'notes/demo.md',
     });
+  });
+
+  it('focuses the first editor line end after the icon picker closes', () => {
+    render(<NoteHeader coverUrl={null} onAddCover={vi.fn()} />);
+
+    mocks.heroProps.onIconPickerClose();
+
+    expect(mocks.focusNoteInitialPosition).toHaveBeenCalledTimes(1);
   });
 
   it('reports a failed icon library refresh instead of presenting stale assets silently', async () => {

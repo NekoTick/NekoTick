@@ -212,7 +212,7 @@ async function sendPrompt(page: Page, prompt: string): Promise<void> {
 test.describe('chat conversation audit', () => {
   test.setTimeout(180_000);
 
-  test('streams successful replies and shows custom provider HTTP errors without managed rewriting', async () => {
+  test('streams successful replies without exposing custom provider HTTP error text', async () => {
     const provider = await createAuditProviderServer();
     const { app, userDataRoot } = await launchIsolatedElectron('chat-conversation-audit-success-errors');
 
@@ -249,7 +249,7 @@ test.describe('chat conversation audit', () => {
 
       await sendPrompt(page, 'AUDIT_HTTP_ERROR_PROMPT trigger custom channel HTTP error.');
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
-        hasText: HTTP_ERROR_SENTINEL,
+        hasText: 'My brain needs a breather',
       })).toBeVisible({ timeout: 30_000 });
       await expect(page.locator('[data-chat-input-region="true"] [role="alert"]')).toHaveCount(0);
       await expect(page.locator(CHAT_VIEW_SELECTOR)).not.toContainText('Unable to reach the AI service');
@@ -258,8 +258,8 @@ test.describe('chat conversation audit', () => {
       const state = await getChatState(page);
       const messages = state.messages[fixture.sessionIds[0]!] ?? [];
       const lastAssistant = [...messages].reverse().find((message: { role: string }) => message.role === 'assistant');
-      expect(lastAssistant?.content).toContain(HTTP_ERROR_SENTINEL);
-      expect(lastAssistant?.content).toContain('<error type="custom_provider"');
+      expect(lastAssistant?.content).not.toContain(HTTP_ERROR_SENTINEL);
+      expect(lastAssistant?.content).toContain('<error type="RATE_LIMIT"');
 
       const prompts = provider.requests().map((request) => request.lastUserText);
       expect(prompts.some((prompt) => prompt.includes('AUDIT_SUCCESS_PROMPT'))).toBe(true);
@@ -289,14 +289,14 @@ test.describe('chat conversation audit', () => {
 
       await sendPrompt(page, 'AUDIT_STREAM_ERROR_PROMPT trigger stream error.');
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
-        hasText: STREAM_ERROR_SENTINEL,
+        hasText: 'My brain needs a breather',
       })).toBeVisible({ timeout: 30_000 });
 
       let state = await getChatState(page);
       let messages = state.messages[fixture.sessionIds[0]!] ?? [];
       let lastAssistant = [...messages].reverse().find((message: { role: string }) => message.role === 'assistant');
-      expect(lastAssistant?.content).toContain(STREAM_ERROR_SENTINEL);
-      expect(lastAssistant?.content).toContain('<error type="custom_provider"');
+      expect(lastAssistant?.content).not.toContain(STREAM_ERROR_SENTINEL);
+      expect(lastAssistant?.content).toContain('<error type="SERVER_ERROR"');
 
       await sendPrompt(page, 'AUDIT_STOP_PROMPT start a slow stream then cancel it.');
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
@@ -361,8 +361,20 @@ test.describe('chat conversation audit', () => {
       const assistant = page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
         hasText: 'Old answer before regeneration',
       }).first();
+      await assistant.locator('[data-chat-selection-start="true"]').evaluate((element) => {
+        const selection = window.getSelection();
+        if (!selection) return;
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.dispatchEvent(new Event('selectionchange'));
+      });
+      const selectionInsertButton = page.locator('[data-chat-selection-insert-button="true"]');
+      await expect(selectionInsertButton).toBeVisible();
       await assistant.hover();
       await assistant.locator(`${CHAT_MESSAGE_ACTION_SELECTOR}[data-chat-message-action="regenerate"]`).click();
+      await expect(selectionInsertButton).toHaveCount(0);
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
         hasText: REGENERATED_SENTINEL,
       })).toBeVisible({ timeout: 30_000 });

@@ -104,7 +104,6 @@ export async function runOpenAIWebSearchToolLoop({
       }, 'warn');
       return finishNoResultSearchLocally({
         body,
-        statusHistory,
         onChunk,
         onApiTranscript,
         signal,

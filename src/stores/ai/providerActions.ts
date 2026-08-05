@@ -3,6 +3,7 @@ import { generateId } from '@/lib/id'
 import {
   isManagedProviderId,
 } from '@/lib/ai/managedService'
+import { backgroundBenchmarkRunner } from '@/lib/ai/healthCheck'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { createChatActions } from './chatActions'
 import {
@@ -40,6 +41,22 @@ function shouldDeleteIncompleteCustomProvider(provider: Provider): boolean {
     !provider.apiHost.trim() &&
     !provider.apiKey.trim()
   );
+}
+
+function providerExecutionContextChanged(current: Provider, next: Provider): boolean {
+  const currentEndpointType = current.endpointType && current.endpointTypeCheckedAt
+    ? current.endpointType
+    : 'openai';
+  const nextEndpointType = next.endpointType && next.endpointTypeCheckedAt
+    ? next.endpointType
+    : 'openai';
+  return current.id !== next.id ||
+    current.name !== next.name ||
+    current.type !== next.type ||
+    currentEndpointType !== nextEndpointType ||
+    current.apiHost !== next.apiHost ||
+    current.apiKey !== next.apiKey ||
+    current.enabled !== next.enabled;
 }
 
 export const actions = {
@@ -91,23 +108,39 @@ export const actions = {
         ? { ...nextProvider, endpointType: undefined, endpointTypeCheckedAt: undefined }
         : nextProvider;
     });
+    const nextProvider = nextProviders.find((item) => item.id === id);
     const nextModels = connectionChanged
       ? ai.models.map((model) => model.providerId === id
         ? { ...model, endpointType: undefined, endpointTypeCheckedAt: undefined }
         : model)
       : ai.models;
     const enabledModels = filterModelsByEnabledProviders(nextModels, nextProviders)
+    const nextSelectedModelId = chooseSessionAwareFallbackSelectedModelId(
+      ai.selectedModelId,
+      enabledModels,
+      nextProviders,
+      ai.sessions
+    )
     const dataUpdates: Parameters<typeof state.updateAIData>[0] = {
       providers: nextProviders,
-      selectedModelId: chooseSessionAwareFallbackSelectedModelId(
-        ai.selectedModelId,
-        enabledModels,
-        nextProviders,
-        ai.sessions
-      )
+      selectedModelId: nextSelectedModelId,
+      ...(nextSelectedModelId !== ai.selectedModelId ? { computerUseEnabled: false } : {}),
     };
+    const selectedModelUsesProvider = ai.models.find(
+      (model) => model.id === ai.selectedModelId,
+    )?.providerId === id;
+    if (selectedModelUsesProvider && nextProvider && providerExecutionContextChanged(provider, nextProvider)) {
+      dataUpdates.computerUseEnabled = false;
+    }
     if (connectionChanged) {
+      backgroundBenchmarkRunner.stop(id);
+      const nextBenchmarkResults = { ...(ai.benchmarkResults || {}) };
+      const nextFetchedModels = { ...(ai.fetchedModels || {}) };
+      delete nextBenchmarkResults[id];
+      delete nextFetchedModels[id];
       dataUpdates.models = nextModels;
+      dataUpdates.benchmarkResults = nextBenchmarkResults;
+      dataUpdates.fetchedModels = nextFetchedModels;
     }
     state.updateAIData(dataUpdates)
   },
@@ -160,16 +193,18 @@ export const actions = {
     const nextFetchedModels = { ...(ai.fetchedModels || {}) }
     delete nextBenchmarkResults[id]
     delete nextFetchedModels[id]
+    const nextSelectedModelId = chooseFallbackSelectedModelId(
+      ai.selectedModelId && ai.models.find(m => m.id === ai.selectedModelId)?.providerId === id ? null : ai.selectedModelId,
+      remainingModels
+    )
     state.updateAIData({
       providers: ai.providers.filter((p) => p.id !== id),
       models: remainingModels,
       benchmarkResults: nextBenchmarkResults,
       fetchedModels: nextFetchedModels,
       deletedProviderIds: Array.from(new Set([...(ai.deletedProviderIds || []), id])),
-      selectedModelId: chooseFallbackSelectedModelId(
-        ai.selectedModelId && ai.models.find(m => m.id === ai.selectedModelId)?.providerId === id ? null : ai.selectedModelId,
-        remainingModels
-      )
+      selectedModelId: nextSelectedModelId,
+      ...(nextSelectedModelId !== ai.selectedModelId ? { computerUseEnabled: false } : {}),
     })
   },
 
@@ -200,6 +235,12 @@ export const actions = {
     const selectedModelProviderId = ai.selectedModelId
       ? ai.models.find((model) => model.id === ai.selectedModelId)?.providerId
       : undefined;
+    const nextSelectedModelId = chooseFallbackSelectedModelId(
+      selectedModelProviderId && providerIdsToDelete.has(selectedModelProviderId)
+        ? null
+        : ai.selectedModelId,
+      remainingModels
+    );
 
     state.updateAIData({
       providers: ai.providers.filter((provider) => !providerIdsToDelete.has(provider.id)),
@@ -207,12 +248,8 @@ export const actions = {
       benchmarkResults: nextBenchmarkResults,
       fetchedModels: nextFetchedModels,
       deletedProviderIds: Array.from(new Set([...(ai.deletedProviderIds || []), ...providerIdsToDelete])),
-      selectedModelId: chooseFallbackSelectedModelId(
-        selectedModelProviderId && providerIdsToDelete.has(selectedModelProviderId)
-          ? null
-          : ai.selectedModelId,
-        remainingModels
-      ),
+      selectedModelId: nextSelectedModelId,
+      ...(nextSelectedModelId !== ai.selectedModelId ? { computerUseEnabled: false } : {}),
     });
     providerIdsToDelete.forEach((providerId) => {
       locallyCreatedProviderIds.delete(providerId);

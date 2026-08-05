@@ -12,6 +12,61 @@ interface BoundaryBlock {
   requiresSeparator?: boolean;
 }
 
+const COMMONMARK_PUNCTUATION_WITHOUT_BACKSLASH = [
+  '!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':',
+  ';', '<', '=', '>', '?', '@', '[', ']', '^', '_', '`', '{', '|', '}', '~',
+];
+const AMBIGUOUS_SOFT_BREAK_LINES = [
+  { name: 'custom-start dot marker', line: '2. item' },
+  { name: 'custom-start parenthesis marker', line: '2) item' },
+  { name: 'tight parenthesis marker', line: '2)item' },
+  { name: 'hashtag', line: '#tag' },
+  { name: 'double hashtag', line: '##tag' },
+  { name: 'plain bracket label', line: '[label]' },
+  { name: 'spaced bracket text', line: '[ label ]' },
+  { name: 'unmatched strong markers', line: '**' },
+  { name: 'unmatched underscore markers', line: '__' },
+  { name: 'unmatched code markers', line: '``' },
+  { name: 'unmatched strike markers', line: '~~' },
+  { name: 'incomplete character reference', line: '&copy' },
+  { name: 'non-email at-sign text', line: 'left@right' },
+  { name: 'single dollar', line: '$' },
+  { name: 'leading pipe text', line: '| text' },
+  { name: 'incomplete URL scheme', line: 'https:/example.test' },
+  { name: 'task-extension colon prefix', line: '-: text' },
+  { name: 'task-extension pipe prefix', line: '-| text' },
+  { name: 'tight double dash prefix', line: '--text' },
+  { name: 'tight equals prefix', line: '=text' },
+];
+const MULTILINGUAL_PUNCTUATION_LINES = [
+  { name: 'CJK at-sign text', line: '中文@文本' },
+  { name: 'CJK spaced dollar text', line: '价格 $ value' },
+  { name: 'CJK underscore text', line: '路径_文件' },
+  { name: 'CJK bracket text', line: '标签[文本]' },
+  { name: 'CJK ampersand text', line: '甲&乙' },
+  { name: 'emoji hashtag text', line: '🙂#标签' },
+  { name: 'emoji backtick text', line: '🙂`文本' },
+  { name: 'emoji tilde text', line: '🙂~文本' },
+];
+const SOURCE_STYLE_SOFT_BREAK_LINES = [
+  ...AMBIGUOUS_SOFT_BREAK_LINES,
+  ...MULTILINGUAL_PUNCTUATION_LINES,
+];
+const SOFT_BREAK_CONTEXTS = [
+  {
+    name: 'HTML image prose',
+    wrap: (line: string) => ['<img src="./assets/example.png" alt="Example" />Intro', line],
+  },
+  { name: 'blockquote', wrap: (line: string) => ['> Intro', `> ${line}`] },
+  { name: 'bullet list item', wrap: (line: string) => ['- Intro', `  ${line}`] },
+  { name: 'ordered list item', wrap: (line: string) => ['1. Intro', `   ${line}`] },
+  { name: 'task list item', wrap: (line: string) => ['- [ ] Intro', `  ${line}`] },
+  {
+    name: 'footnote definition',
+    wrap: (line: string) => ['Footnote[^note].', '', '[^note]: Intro', `    ${line}`],
+  },
+];
+
 describe('markdown syntax persistence matrix', () => {
   it.each([
     {
@@ -361,7 +416,7 @@ describe('markdown syntax persistence matrix', () => {
     {
       name: 'markdown image attrs with escaped text',
       markdown: '![A < B](image.png?a=1&b=2 "Title & More")',
-      expected: '![A < B](image.png?a=1\\&b=2 "Title & More")',
+      expected: '![A < B](image.png?a=1&b=2 "Title & More")',
       expectedText: 'A < BTitle & More',
     },
     {
@@ -827,6 +882,56 @@ describe('markdown syntax persistence matrix', () => {
     await expectStableMarkdownRoundTrip(markdown);
   });
 
+  it.each([1, 2])(
+    'preserves %s authored blank line(s) after definition list raw html',
+    async (blankLineCount) => {
+      const markdown = [
+        'Term HTML',
+        ': <textarea>',
+        '  nested definition raw HTML',
+        '  </textarea>',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '7. ~~~~md',
+        '   ordered list code',
+        '   > ~~~~',
+        '   ~~~~',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([1, 2])(
+    'preserves %s authored blank line(s) between a TOC and an aligned paragraph',
+    async (blankLineCount) => {
+      const markdown = [
+        '[TOC]',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        'Aligned paragraph.',
+        '<!--align:center-->',
+        '',
+        '## After',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([1, 2])(
+    'preserves %s authored blank line(s) after indented code following definition list raw html',
+    async (blankLineCount) => {
+      const markdown = [
+        'Term HTML',
+        ': <textarea>',
+        '  nested definition raw HTML',
+        '  </textarea>',
+        '',
+        '    indented code',
+        ...Array.from({ length: blankLineCount }, () => ''),
+        '![Image](image.png "Title")',
+      ].join('\n');
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
   it.each([
     {
       block: 'heading',
@@ -1136,4 +1241,107 @@ describe('markdown syntax persistence matrix', () => {
       await expectStableMarkdownRoundTrip(markdown);
     },
   );
+
+  it.each(COMMONMARK_PUNCTUATION_WITHOUT_BACKSLASH.flatMap((marker) => [
+    { name: `intraword ${marker}`, markdown: `left${marker}right` },
+    { name: `spaced ${marker}`, markdown: `left ${marker} right` },
+    { name: `trailing ${marker}`, markdown: `left ${marker}` },
+    { name: `doubled ${marker}`, markdown: `left${marker}${marker}right` },
+  ]))('keeps unescaped CommonMark punctuation stable: $name', async ({ markdown }) => {
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it.each(COMMONMARK_PUNCTUATION_WITHOUT_BACKSLASH.flatMap((marker) => [
+    { name: `leading-tight ${marker}`, markdown: `${marker}text` },
+    { name: `leading-spaced ${marker}`, markdown: `${marker} text` },
+  ]))('keeps leading unescaped CommonMark punctuation stable: $name', async ({ markdown }) => {
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it('keeps repeated plain punctuation stable across separate paragraphs', async () => {
+    const markdown = [
+      'Dollar $ value', '', 'Second dollar $ value', '',
+      'Ampersand A & B', '', 'Second ampersand C & D', '',
+      'At sign @ value', '', 'Second at sign @ value', '',
+      'Asterisk * value', '', 'Second asterisk * value', '',
+      'Bracket [ value', '', 'Second bracket [ value', '',
+      'Underscore _ value', '', 'Second underscore _ value', '',
+      'Backtick ` value', '', 'Second backtick ` value', '',
+      'Tilde ~ value', '', 'Second tilde ~ value',
+    ].join('\n');
+
+    await expectStableMarkdownRoundTrip(markdown);
+  });
+
+  it.each(SOURCE_STYLE_SOFT_BREAK_LINES)(
+    'keeps an unescaped soft-break line stable: $name',
+    async ({ line }) => {
+    await expectStableMarkdownRoundTrip(['Intro', line].join('\n'));
+    },
+  );
+
+  it.each(SOFT_BREAK_CONTEXTS.flatMap((context) =>
+    SOURCE_STYLE_SOFT_BREAK_LINES.map(({ name, line }) => ({
+      context: context.name,
+      line,
+      name,
+      markdown: context.wrap(line).join('\n'),
+    }))))(
+    'keeps $name stable in $context',
+    async ({ markdown }) => {
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each([
+    ...COMMONMARK_PUNCTUATION_WITHOUT_BACKSLASH.map((marker) => ({
+      marker,
+      markdown: `left\\${marker}right`,
+    })),
+    { marker: 'backslash', markdown: 'left\\\\right' },
+  ])(
+    'preserves an explicitly authored escape before $marker',
+    async ({ markdown }) => {
+      await expectStableMarkdownRoundTrip(markdown);
+    },
+  );
+
+  it.each(COMMONMARK_PUNCTUATION_WITHOUT_BACKSLASH
+    .filter((marker) => marker !== '|')
+    .map((marker) => ({ marker, markdown: [
+      '| Value |',
+      '| --- |',
+      `| left${marker}right |`,
+    ].join('\n') })))(
+    'keeps unescaped $marker stable inside a table cell',
+    async ({ marker, markdown }) => {
+      await expectStableMarkdownRoundTrip(
+        markdown,
+        ['|Value|', '|-|', `|left${marker}right|`].join('\n'),
+      );
+    },
+  );
+
+  it('restores later unescaped text after inserting an ordered-list boundary', async () => {
+    const source = ['Intro', '2. item', '3. item', '', 'Tail', '[label]'].join('\n');
+    const expected = ['Intro', '', '2. item', '3. item', '', 'Tail', '[label]'].join('\n');
+
+    await expectStableMarkdownRoundTrip(source, expected);
+  });
+
+  it.each([
+    ['plain shortcut-reference-shaped text', 'See [label]'],
+    ['plain image-label-shaped text', 'See ![label]'],
+    ['valid GFM email text', 'user@example.test'],
+    ['invalid email-shaped text', 'user@example'],
+    ['invalid www-shaped text', 'leftW.example'],
+    ['incomplete URL scheme', 'https:/example.test'],
+    ['task-extension colon prefix', '-: text'],
+    ['task-extension pipe prefix', '-| text'],
+    ['tight double dash prefix', '--text'],
+    ['tight equals prefix', '=text'],
+    ['tight parenthesized number', '2)item'],
+  ])('keeps unescaped ambiguous plain text stable: %s', async (_name, markdown) => {
+    await expectStableMarkdownRoundTrip(markdown);
+  });
 });

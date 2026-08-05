@@ -155,7 +155,6 @@ export const themeTyporaFixedLightAppEffectDeclarations = [
   '--vlaina-shadow-panel-soft: 0 10px 30px rgba(0, 0, 0, 0.04);',
   '--vlaina-shadow-selection-soft: 0 2px 8px rgba(30, 150, 235, 0.06);',
   '--vlaina-shadow-accent-action: 0 0 0 3px rgba(65, 168, 234, 0.12), 0 10px 24px rgba(65, 168, 234, 0.28);',
-  '--vlaina-shadow-drag-row: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 10px 24px -18px rgba(30, 150, 235, 0.65);',
 ] as const;
 
 export const themeEventColorTokens = {
@@ -480,6 +479,24 @@ export const themeWhiteboardTokens = {
     watercolor: 0.26,
     crayon: 0.48,
   },
+  strokeFootprintResponse: {
+    pen: { slowWidth: 0.04, tiltMajor: 0, tiltMinor: 0 },
+    pencil: { slowWidth: 0.02, tiltMajor: 1.25, tiltMinor: 0.04 },
+    marker: { slowWidth: 0.06, tiltMajor: 0, tiltMinor: 0 },
+    'colored-pencil': { slowWidth: 0.03, tiltMajor: 1.45, tiltMinor: 0.06 },
+    fountain: { slowWidth: 0.04, tiltMajor: 0, tiltMinor: 0 },
+    watercolor: { slowWidth: 0.1, tiltMajor: 0.45, tiltMinor: 0.14 },
+    crayon: { slowWidth: 0.06, tiltMajor: 0.85, tiltMinor: 0.22 },
+  },
+  strokePigmentResponse: {
+    pen: { pressure: 0.82, slow: 0.18, tilt: 0 },
+    pencil: { pressure: 0.7, slow: 0.4, tilt: -0.1 },
+    marker: { pressure: 0.4, slow: 0.6, tilt: 0 },
+    'colored-pencil': { pressure: 0.64, slow: 0.46, tilt: -0.1 },
+    fountain: { pressure: 0.8, slow: 0.2, tilt: 0 },
+    watercolor: { pressure: 0.42, slow: 0.58, tilt: 0 },
+    crayon: { pressure: 0.58, slow: 0.48, tilt: -0.06 },
+  },
   strokeHitTolerancePx: 10,
   strokeSelectionPaddingPx: 6,
   strokeSelectionWidthPx: 1.4,
@@ -641,6 +658,10 @@ export const themeSidebarTokens = {
   recentNotesRootPathHintEstimatedHeightPx: 34,
 } as const;
 
+export const themeAppViewModeSwitchTokens = {
+  commitDelayMs: 320,
+} as const;
+
 export const themeCodeBlockEditorTokens = {
   fontSize: 'var(--vlaina-font-0875rem)',
   lineHeight: 'var(--vlaina-leading-175)',
@@ -688,11 +709,12 @@ export const themeMotionTokens = {
   standardEase: [0.22, 1, 0.36, 1],
   notesRootModalEase: [0.19, 1, 0.22, 1],
   chatEmbeddedOverlayDuration: 0.1,
-  chatEmbeddedSidebarHiddenX: '-100%',
-  chatEmbeddedSidebarVisibleX: 0,
-  chatEmbeddedSidebarSpringStiffness: 520,
-  chatEmbeddedSidebarSpringDamping: 44,
-  chatEmbeddedSidebarSpringMass: 0.82,
+  sidebarSlideHiddenX: '-100%',
+  sidebarSlideRightHiddenX: '100%',
+  sidebarSlideVisibleX: 0,
+  sidebarSlideSpringStiffness: 520,
+  sidebarSlideSpringDamping: 44,
+  sidebarSlideSpringMass: 0.82,
   chatUserEditInitialOpacity: 0.85,
   chatUserEditInitialX: 12,
   chatUserEditVisibleX: 0,
@@ -785,6 +807,12 @@ export const themeCaretOverlayTokens = {
   opacityHidden: 0,
 } as const;
 
+export const themeBlockSelectionPreviewTokens = {
+  horizontalBleedPx: 72,
+  spacingYPx: 1,
+  radiusPx: 8,
+} as const;
+
 export const themeStyleResetTokens = {
   animationNone: 'none',
   backgroundTransparent: 'transparent',
@@ -792,6 +820,7 @@ export const themeStyleResetTokens = {
   borderNoneImportant: 'none !important',
   borderRadiusNone: '0',
   boxShadowNone: 'none',
+  clipPathNone: 'none',
   colorTransparent: 'transparent',
   colorTransparentImportant: 'transparent !important',
   currentColor: 'currentColor',
@@ -843,6 +872,13 @@ export const themeEmojiPickerTokens = {
 
 export const themeChatLayoutTokens = {
   embeddedSidebarWidth: 'min(clamp(16rem, 80%, 21rem), 86vw)',
+  messageNavigationThresholdPx: 30,
+  messageOutlineLabelChars: 15,
+  messageScrollOffsetPx: 20,
+  userMessageContentGapPx: 8,
+  userMessageMaxWidthRatio: 0.9,
+  userMessageMultipleImageTileSizePx: 152,
+  userMessageSingleImageMaxHeightPx: 256,
 } as const;
 
 export const themeChatComposerTokens = {

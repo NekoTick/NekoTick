@@ -4,7 +4,7 @@ import { clearExternalFileTreeDropTarget, setExternalFileTreeDropTarget } from '
 import { useFolderDropTarget } from './useFolderDropTarget';
 
 vi.mock('./fileTreePointerDragState', () => ({
-  useFileTreePointerDragState: () => false,
+  useIsFileTreePointerFolderDropTarget: () => false,
 }));
 
 function Harness({ path }: { path: string }) {

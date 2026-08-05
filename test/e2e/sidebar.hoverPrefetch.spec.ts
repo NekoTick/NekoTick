@@ -5,6 +5,7 @@ import {
   CHAT_VIEW_SELECTOR,
   EDITOR_SELECTOR,
   FILE_TREE_FILE_SELECTOR,
+  NOTE_COVER_CROPPER_SELECTOR,
   NOTES_SIDEBAR_SCROLL_ROOT_SELECTOR,
   cleanupIsolatedElectron,
   collectEditorDomMetrics,
@@ -302,7 +303,20 @@ test.describe('sidebar hover prefetch', () => {
         name: 'notes-hover-prefetch',
         files: [
           { filename: 'active-prefetch.md', content: createPrefetchMarkdown('active') },
-          { filename: 'target-prefetch.md', content: createPrefetchMarkdown('target') },
+          {
+            filename: 'target-prefetch.md',
+            content: [
+              '---',
+              'vlaina_cover: "assets/hover-prefetch-cover.svg" x=50 y=50 height=220 scale=1',
+              '---',
+              '',
+              createPrefetchMarkdown('target'),
+            ].join('\n'),
+          },
+          {
+            filename: 'assets/hover-prefetch-cover.svg',
+            content: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400"><rect width="1200" height="400" fill="#167c80"/></svg>',
+          },
         ],
       });
       const activePath = 'active-prefetch.md';
@@ -354,6 +368,7 @@ test.describe('sidebar hover prefetch', () => {
       await expect(page.locator(EDITOR_SELECTOR)).toContainText('TARGET_PREFETCH_SENTINEL', {
         timeout: 30_000,
       });
+      await expect(page.locator(NOTE_COVER_CROPPER_SELECTOR)).toBeVisible({ timeout: 10_000 });
       const clickOpenMs = Date.now() - clickStartedAt;
 
       const finalCache = await getNoteContentCacheEntry(page, targetPath);

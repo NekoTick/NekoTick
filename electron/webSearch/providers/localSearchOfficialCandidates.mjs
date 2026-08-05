@@ -1,13 +1,12 @@
 import { buildAllSourceHints } from '../sourceHints/index.mjs';
 import { getMeaningfulTerms } from '../searchRelevance.mjs';
+import { fetchWithTimeout } from '../crawler/fetch.mjs';
+import { resolvePublicUrl } from '../crawler/ssrfGuard.mjs';
 import { boundedInternalQueryText } from './localSearchEngines.mjs';
 import { extractHtmlTitle } from './localSearchHtmlResults.mjs';
 import {
-  SEARCH_TIMEOUT_MS,
-  USER_AGENT,
   createAbortError,
   normalizeSearchTimeoutMs,
-  raceWithAbort,
   readResponseText,
   throwIfAborted,
 } from './localSearchRequestUtils.mjs';
@@ -39,34 +38,28 @@ export function getSingleBrandLikeTerm(query) {
   return hasExplicitSiteIntent || looksInvented ? term : null;
 }
 
-export async function fetchDirectOfficialSite(fetchImpl, query, options = {}) {
+export async function fetchDirectOfficialSite(query, options = {}) {
   const term = getSingleBrandLikeTerm(query);
   if (!term) return [];
 
   const url = `https://${term}.com/`;
-  const timeoutController = new AbortController();
-  const timeoutMs = normalizeSearchTimeoutMs(options.timeoutMs, SEARCH_TIMEOUT_MS, 2500);
-  const timeout = setTimeout(() => timeoutController.abort(), timeoutMs);
-  const signal = options.signal
-    ? AbortSignal.any([options.signal, timeoutController.signal])
-    : timeoutController.signal;
+  const timeoutMs = normalizeSearchTimeoutMs(options.timeoutMs, 2500, 2500);
+  const resolveUrl = options.resolvePublicUrlImpl ?? resolvePublicUrl;
+  const fetchResolvedUrl = options.fetchResolvedUrlImpl ?? ((resolvedUrl, requestTimeoutMs, signal) => (
+    fetchWithTimeout(undefined, resolvedUrl, requestTimeoutMs, signal)
+  ));
 
   try {
-    const response = await raceWithAbort(fetchImpl(url, {
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'User-Agent': USER_AGENT,
-      },
-      cache: 'no-store',
-      signal,
-    }), signal);
-    throwIfAborted(signal);
+    throwIfAborted(options.signal);
+    const resolvedUrl = await resolveUrl(url);
+    throwIfAborted(options.signal);
+    const response = await fetchResolvedUrl(resolvedUrl, timeoutMs, options.signal);
+    throwIfAborted(options.signal);
 
     if (!response.ok) return [];
     const contentType = response.headers?.get?.('content-type') || '';
-    const html = contentType.includes('text/html') ? await readResponseText(response, signal) : '';
-    throwIfAborted(signal);
+    const html = contentType.includes('text/html') ? await readResponseText(response, options.signal) : '';
+    throwIfAborted(options.signal);
     const title = extractHtmlTitle(html) || term;
     return [{
       title,
@@ -81,8 +74,6 @@ export async function fetchDirectOfficialSite(fetchImpl, query, options = {}) {
       throw createAbortError();
     }
     return [];
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

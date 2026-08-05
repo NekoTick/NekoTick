@@ -81,6 +81,32 @@ describe('whiteboard document format', () => {
     expect(restored?.strokes.map((stroke) => stroke.tool)).toEqual(['colored-pencil', 'fountain']);
   });
 
+  it('round-trips stroke dynamics and fragment rendering metadata', () => {
+    const stroke: WhiteboardSnapshot['strokes'][number] = {
+      color: '#663399',
+      id: 'dynamic-fragment',
+      points: [{ azimuth: 1.2, pressure: 0.7, rotation: 0.4, tilt: 0.6, velocity: 0.8, x: 4, y: 8 }],
+      renderPathOffset: 18,
+      renderPointOffset: 6,
+      renderSeed: 'source-stroke',
+      renderTaperStart: false,
+      renderTextureScale: 1.25,
+      size: 1.5,
+      tool: 'crayon',
+    };
+    const serialized = serializeWhiteboardSnapshot({ elements: [], strokes: [stroke], viewport: WHITEBOARD_INITIAL_VIEWPORT });
+    const document = JSON.parse(serialized);
+    const restored = deserializeWhiteboardSnapshot(serialized)?.strokes[0];
+
+    expect(document.content.strokes[0].points[0]).toEqual([4, 8, 0.7, null, 0.6, 1.2, 0.4, 0.8]);
+    expect(restored).toEqual({
+      ...stroke,
+      points: [{ ...stroke.points[0], azimuth: expect.any(Number), rotation: expect.any(Number) }],
+    });
+    expect(restored?.points[0].azimuth).toBeCloseTo(1.2);
+    expect(restored?.points[0].rotation).toBeCloseTo(0.4);
+  });
+
   it('stores asset paths without duplicating preview data URLs', () => {
     const document = JSON.parse(serializeWhiteboardSnapshot({
       ...snapshot,

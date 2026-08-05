@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { openaiClient } from '@/lib/ai/providers/openai';
+import { getModelFetchErrorMessageKey } from '@/lib/ai/providers/modelDetection';
 import type { AIModel, Provider } from '@/lib/ai/types';
 import type { MessageKey } from '@/lib/i18n';
 
@@ -97,9 +98,9 @@ export function useProviderModelActions({
       if (modelsList.length === 0) {
         setFetchError('settings.ai.fetchModelsEmpty');
       }
-    } catch {
+    } catch (error) {
       if (!isCurrentFetchRequest()) return;
-      setFetchError('settings.ai.fetchModelsFailed');
+      setFetchError(getModelFetchErrorMessageKey(error));
     } finally {
       if (fetchRequestRef.current?.id === requestId) {
         fetchRequestRef.current = null;

@@ -23,6 +23,7 @@ import {
   stripTrailingNewlines,
 } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { NOTE_TITLE_INPUT_DATA_ATTR } from '../../utils/titleInputDom';
+import { BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD } from './blockSelectionTypes';
 
 function createMouseEvent(type: string, init: MouseEventInit = {}) {
   return new MouseEvent(type, {
@@ -512,6 +513,63 @@ describe('shouldClearBlockSelectionForTransaction', () => {
         { selectedBlocks: [] }
       )
     ).toBe(false);
+  });
+});
+
+describe('deferred block selection decorations', () => {
+  it('switches committed selections to the preview at the measured performance boundary', async () => {
+    const markdown = Array.from(
+      { length: BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD },
+      (_, index) => `Block ${index}`,
+    ).join('\n\n');
+    const { editor, view } = await createBlockSelectionEditor(markdown);
+
+    try {
+      const blocks = collectSelectableBlockRanges(view.state.doc);
+      dispatchBlockSelectionAction(view, {
+        type: 'set-blocks',
+        blocks: blocks.slice(0, BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD - 1),
+      });
+      expect(getBlockSelectionPluginState(view.state).decorations.find().length).toBeGreaterThan(0);
+
+      dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks });
+      expect(getBlockSelectionPluginState(view.state).decorations.find()).toHaveLength(0);
+    } finally {
+      await editor.destroy();
+    }
+  });
+
+  it('keeps large block ranges on the preview path when the drag settles', async () => {
+    const markdown = Array.from({ length: 256 }, (_, index) => `Block ${index}`).join('\n\n');
+    const { editor, view } = await createBlockSelectionEditor(markdown);
+
+    try {
+      const blocks = collectSelectableBlockRanges(view.state.doc);
+      dispatchBlockSelectionAction(view, {
+        type: 'set-blocks',
+        blocks,
+        deferDecorations: true,
+      });
+
+      const deferredState = getBlockSelectionPluginState(view.state);
+      expect(deferredState.selectedBlocks).toEqual(blocks);
+      expect(deferredState.decorationsDeferred).toBe(true);
+      expect(deferredState.decorations.find()).toHaveLength(0);
+      expect(view.dom.querySelector('.editor-block-selected')).toBeNull();
+      expect(view.dom.classList.contains('editor-block-selection-large')).toBe(true);
+      expect(view.dom.style.caretColor).toBe('');
+
+      dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks });
+
+      const settledState = getBlockSelectionPluginState(view.state);
+      expect(settledState.decorationsDeferred).toBe(false);
+      expect(settledState.decorations.find()).toHaveLength(0);
+      expect(view.dom.querySelector('.editor-block-selected')).toBeNull();
+      expect(document.querySelector('[data-editor-block-selection-committed-preview="true"]')).not.toBeNull();
+      expect(view.dom.style.caretColor).toBe('transparent');
+    } finally {
+      await editor.destroy();
+    }
   });
 });
 
@@ -2297,9 +2355,9 @@ describe('blankAreaDragBoxPlugin trailing plain clicks', () => {
       const firstParagraphEnd = findTextRange(view.state.doc, 'pasted log ending index.css').to;
       const nextParagraphStart = findTextRange(view.state.doc, '8:08 next pasted log line').from;
       view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, nextParagraphStart)));
-      await waitForPointerClickSettled();
-
-      expect(view.state.selection.from).toBe(firstParagraphEnd);
+      await vi.waitFor(() => {
+        expect(view.state.selection.from).toBe(firstParagraphEnd);
+      });
     } finally {
       vi.restoreAllMocks();
       await editor.destroy();

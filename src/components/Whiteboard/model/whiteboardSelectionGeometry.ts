@@ -1,9 +1,9 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
-  getStrokeWidth,
   type WhiteboardElement,
   type WhiteboardStroke,
 } from './whiteboardModel';
+import { getStrokePointMaxWidth } from './whiteboardStrokeDynamics';
 
 export interface WhiteboardSelectionRect {
   height: number;
@@ -34,7 +34,7 @@ export function getStrokeBounds(stroke: WhiteboardStroke): WhiteboardSelectionRe
     minY = Math.min(minY, point.y);
     maxX = Math.max(maxX, point.x);
     maxY = Math.max(maxY, point.y);
-    maxWidth = Math.max(maxWidth, getStrokeWidth(stroke.tool, point.pressure, stroke.size));
+    maxWidth = Math.max(maxWidth, getStrokePointMaxWidth(stroke.tool, point, stroke.size));
   }
   const padding = maxWidth / 2 + themeWhiteboardTokens.strokeSelectionPaddingPx;
   const bounds = {

@@ -39,6 +39,10 @@ export function MarkdownSourceEditor({
     (state) => state.currentNote?.path === currentNotePath && state.isDirty,
     [currentNotePath]
   ));
+  const currentNoteHasSaveError = useNotesStore(useCallback(
+    (state) => Boolean(state.saveError && state.saveErrorPath === currentNotePath),
+    [currentNotePath]
+  ));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const draftRef = useRef(currentNoteContent);
   const committedDraftRef = useRef(currentNoteContent);
@@ -58,8 +62,8 @@ export function MarkdownSourceEditor({
   });
 
   useEffect(() => {
-    if (currentNoteIsDirty) scheduleSave();
-  }, [currentNoteIsDirty, currentNotePath, scheduleSave]);
+    if (currentNoteIsDirty && !currentNoteHasSaveError) scheduleSave();
+  }, [currentNoteHasSaveError, currentNoteIsDirty, currentNotePath, scheduleSave]);
   const updateContentIfCurrentNoteIsActive = useCallback((markdown: string) => {
     const currentNote = useNotesStore.getState().currentNote;
     if (currentNote?.path !== currentNotePath) {

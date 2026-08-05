@@ -146,6 +146,33 @@ describe('outlinePositionCache', () => {
     expect(selectActiveOutlineHeadingId(metrics, 396, 72, 12)).toBe('c');
   });
 
+  it('selects the last heading only after a scrollable editor reaches its end', () => {
+    const metrics = [
+      {
+        id: 'first',
+        level: 1,
+        text: 'First',
+        from: 0,
+        to: 5,
+        top: 0,
+        element: document.createElement('h1'),
+      },
+      {
+        id: 'last',
+        level: 2,
+        text: 'Last',
+        from: 6,
+        to: 10,
+        top: 900,
+        element: document.createElement('h2'),
+      },
+    ];
+
+    expect(selectActiveOutlineHeadingId(metrics, 400, 72, 12, 400)).toBe('last');
+    expect(selectActiveOutlineHeadingId(metrics, 0, 72, 12, 0)).toBe('first');
+    expect(selectActiveOutlineHeadingId(metrics, 0, 72, 12, 1)).toBe('first');
+  });
+
   it('refreshes heading metric tops from live DOM geometry', () => {
     const scrollRoot = document.createElement('div');
     const heading = document.createElement('h2');

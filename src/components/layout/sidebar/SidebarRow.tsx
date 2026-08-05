@@ -137,7 +137,7 @@ export function SidebarRow({
           <div
             data-sidebar-row-trailing={hasActions ? 'true' : undefined}
             className={cn(
-              'pointer-events-none absolute right-3 top-1/2 z-[var(--vlaina-z-10)] -translate-y-1/2 transition-opacity duration-[var(--vlaina-duration-150)]',
+              'pointer-events-none absolute inset-y-0 right-3 z-[var(--vlaina-z-10)] flex items-center transition-opacity duration-[var(--vlaina-duration-150)]',
               hasActions && 'group-hover/sidebar-row:opacity-[var(--vlaina-opacity-0)]',
               hasActions && showActionsOnFocusWithin && 'group-focus-within/sidebar-row:opacity-[var(--vlaina-opacity-0)]',
             )}
@@ -150,7 +150,7 @@ export function SidebarRow({
           <div
             data-sidebar-row-actions="true"
             className={cn(
-              'absolute right-1 top-1/2 z-[var(--vlaina-z-20)] flex -translate-y-1/2 items-center transition-opacity duration-[var(--vlaina-duration-150)]',
+              'absolute inset-y-0 right-1 z-[var(--vlaina-z-20)] flex items-center transition-opacity duration-[var(--vlaina-duration-150)]',
               showActionsByDefault
                 ? 'pointer-events-auto opacity-[var(--vlaina-opacity-100)]'
                 : cn(

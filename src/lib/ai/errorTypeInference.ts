@@ -55,6 +55,7 @@ export function inferErrorTypeByMessage(message: string): AIErrorType {
 
   if (
     includesAny(normalized, [
+      'ai_provider_connection_failed',
       'failed to fetch',
       'fetch failed',
       'load failed',

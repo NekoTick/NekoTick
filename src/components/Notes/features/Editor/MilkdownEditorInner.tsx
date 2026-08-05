@@ -36,7 +36,7 @@ export {
   replaceEditorMarkdown,
 } from './milkdownEditorMarkdownReplacement';
 
-interface MilkdownEditorInnerProps { active?: boolean; showBodyLineNumbers?: boolean; preserveStartupEditorPosition?: boolean; onEditorViewReady?: () => void; }
+interface MilkdownEditorInnerProps { active?: boolean; showBodyLineNumbers?: boolean; onEditorViewReady?: () => void; }
 
 const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
 const EDITOR_CONTENT_INTERACTIVE_SELECTOR = [
@@ -52,7 +52,6 @@ const EDITOR_CONTENT_INTERACTIVE_SELECTOR = [
 export function MilkdownEditorRuntime({
   active = true,
   showBodyLineNumbers = false,
-  preserveStartupEditorPosition = false,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   return (
@@ -60,7 +59,6 @@ export function MilkdownEditorRuntime({
       <MilkdownEditorInner
         active={active}
         showBodyLineNumbers={showBodyLineNumbers}
-        preserveStartupEditorPosition={preserveStartupEditorPosition}
         onEditorViewReady={onEditorViewReady}
       />
     </MilkdownProvider>
@@ -70,7 +68,6 @@ export function MilkdownEditorRuntime({
 export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   active = true,
   showBodyLineNumbers = false,
-  preserveStartupEditorPosition = false,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   const updateContent = useNotesStore(s => s.updateContent);
@@ -80,6 +77,9 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   const currentNotePath = useNotesStore(s => s.currentNote?.path);
   const currentNoteContent = useNotesStore(s => s.currentNote?.content ?? '');
   const currentNoteIsDirty = useNotesStore(s => s.isDirty);
+  const currentNoteHasSaveError = useNotesStore(
+    s => Boolean(s.saveError && s.saveErrorPath === s.currentNote?.path)
+  );
   const currentNoteDiskRevision = useNotesStore(s => s.currentNoteDiskRevision);
   const currentDraftName = useNotesStore(
     useCallback((state) => (
@@ -117,8 +117,8 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   const [activatedRevision, setActivatedRevision] = useState(0);
   const { debouncedSave, flushSave } = useEditorSave(saveNote);
   useEffect(() => {
-    if (currentNotePath && currentNoteIsDirty) debouncedSave();
-  }, [currentNoteIsDirty, currentNotePath, debouncedSave]);
+    if (currentNotePath && currentNoteIsDirty && !currentNoteHasSaveError) debouncedSave();
+  }, [currentNoteHasSaveError, currentNoteIsDirty, currentNotePath, debouncedSave]);
   const markLocalMarkdownCommitted = useCallback((content: string) => {
     hasLocalMarkdownCommitRef.current = true;
     lastAppliedNoteRef.current = {
@@ -199,7 +199,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     currentNoteDiskRevision,
     currentNotePath,
     onEditorViewReadyRef,
-    preserveStartupEditorPosition,
     readyReportedRef,
     setActivatedRevision,
   });
@@ -334,7 +333,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     isDraftNote,
     isNewlyCreated,
     lazyBlockVisibilityRef,
-    preserveStartupEditorPosition,
   });
 
   const handleContentMouseDownCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -365,12 +363,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     if (editor && isBlockSelectionInteractionPending(editor)) {
       return;
     }
-    const editorRect = editor?.getBoundingClientRect();
-    const clientX = editorRect && editorRect.width > 0
-      ? Math.min(Math.max(event.clientX, editorRect.left + 1), editorRect.right - 1)
-      : event.clientX;
-
-    if (focusCurrentEditorAtViewportPoint({ clientX, clientY: event.clientY })) {
+    if (focusCurrentEditorAtViewportPoint({ clientX: event.clientX, clientY: event.clientY })) {
       event.preventDefault();
     }
   }, []);

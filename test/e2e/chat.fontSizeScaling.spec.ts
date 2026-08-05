@@ -154,6 +154,39 @@ test.describe('chat font size scaling', () => {
 
       const expandedMetrics = await collectScaledTextMetrics(page);
       expect(expandedMetrics.clippedScaledSurfaces).toEqual([]);
+
+      await collapsedToggle.scrollIntoViewIfNeeded();
+      const expandedToggleTop = await collapsedToggle.evaluate(
+        (element) => element.getBoundingClientRect().top,
+      );
+      await collapsedToggle.evaluate((toggle) => {
+        toggle.dataset.e2eCollapseIdentity = 'toggle';
+        const row = toggle.closest<HTMLElement>('[data-message-item="true"]');
+        if (row) row.dataset.e2eCollapseIdentity = 'row';
+      });
+      await collapsedToggle.click();
+      await expect(collapsedToggle).toHaveAttribute('aria-expanded', 'false', { timeout: 10_000 });
+      expect(await collapsedToggle.evaluate((toggle) => ({
+        rowIdentity: toggle.closest<HTMLElement>('[data-message-item="true"]')
+          ?.dataset.e2eCollapseIdentity ?? null,
+        toggleIdentity: toggle.dataset.e2eCollapseIdentity ?? null,
+      }))).toEqual({
+        rowIdentity: 'row',
+        toggleIdentity: 'toggle',
+      });
+      const recollapsedToggleTop = await collapsedToggle.evaluate(
+        (element) => element.getBoundingClientRect().top,
+      );
+      expect(Math.abs(recollapsedToggleTop - expandedToggleTop)).toBeLessThanOrEqual(2);
+      await expect(
+        page.locator('[data-chat-long-user-message-text="preview"]:visible').first(),
+      ).toBeVisible();
+      await expect(
+        page.locator('[data-chat-long-user-message-text="full"]:visible'),
+      ).toHaveCount(0);
+
+      const recollapsedMetrics = await collectScaledTextMetrics(page);
+      expect(recollapsedMetrics.clippedScaledSurfaces).toEqual([]);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

@@ -145,6 +145,23 @@ it.each(['2. hello', '２. hello', '2． hello', '２． hello'])(
   }
 )
 
+it.each(['1234567890. hello', '１２３４５６７８９０． hello'])(
+  'should not create an ordered list from a marker longer than nine digits: %s',
+  async (input) => {
+    const editor = createEditor()
+
+    await editor.create()
+
+    const view = editor.ctx.get(editorViewCtx)
+    typeText(view, input)
+
+    expect(view.state.doc.firstChild?.type.name).toBe('paragraph')
+    expect(view.state.doc.textContent).toBe(input)
+
+    await editor.destroy()
+  }
+)
+
 it.each([
   ['ordered', '1. 2\n2. 3'],
   ['bullet', '- 2\n- 3'],

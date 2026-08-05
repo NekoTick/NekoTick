@@ -6,7 +6,7 @@ import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { OPEN_SETTINGS_EVENT } from '@/components/Settings/settingsEvents';
 import { cn, iconButtonStyles } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
-import { isMacOS } from '@/lib/desktop/platform';
+import { isMacOS, isNativeWindows } from '@/lib/desktop/platform';
 import { useUIStore } from '@/stores/uiSlice';
 
 const WorkspaceSwitcher = lazy(async () => {
@@ -21,10 +21,14 @@ interface SidebarUserHeaderProps {
 
 function WorkspaceSwitcherFallback() {
     return (
-        <div className="app-no-drag flex h-full w-[var(--vlaina-width-minus-titlebar-actions)] min-w-0 items-center justify-start">
+        <div className="app-no-drag flex h-full min-w-0 flex-1 items-center justify-start">
             <span className="relative flex size-[var(--vlaina-size-26px)] shrink-0 overflow-hidden rounded-[var(--vlaina-radius-8px)]">
                 <img src={`${import.meta.env.BASE_URL}logo.png?v=20260327`} alt="vlaina" className="h-full w-full object-cover shadow-[var(--vlaina-shadow-sm)]" />
             </span>
+            <span className="ml-2 shrink-0 whitespace-nowrap text-[length:var(--vlaina-font-15)] font-semibold leading-none text-[var(--vlaina-color-brand-wordmark)]">
+                vlaina
+            </span>
+            <Icon name="nav.chevronDown" size="sm" className="ml-1 shrink-0 text-[var(--vlaina-color-brand-wordmark)] opacity-[var(--vlaina-opacity-0)]" />
         </div>
     );
 }
@@ -35,6 +39,7 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
     const [isHovered, setIsHovered] = useState(false);
     const devPlatformPreview = useUIStore((state) => state.devPlatformPreview);
     const shouldReserveMacTrafficLightSpace = isMacOS(devPlatformPreview);
+    const shouldShowPersistentCapsule = isNativeWindows() && !shouldReserveMacTrafficLightSpace;
 
     const clearHeaderInteraction = useCallback(() => {
         setIsHovered(false);
@@ -101,27 +106,28 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
         <div
             ref={headerRef}
             className={cn(
-                'app-drag-region sidebar-user-header group/sidebar-user-header relative flex h-10 w-full items-center pr-3',
-                shouldReserveMacTrafficLightSpace ? 'pl-[var(--vlaina-space-76px)]' : 'pl-3'
+                'sidebar-user-header app-no-drag group/sidebar-user-header relative flex h-10 w-full cursor-pointer items-center',
+                shouldReserveMacTrafficLightSpace
+                    ? 'pl-[var(--vlaina-space-76px)] pr-2'
+                    : 'px-3'
             )}
             data-hovered={!interactionSuppressed && isHovered ? 'true' : undefined}
             data-interaction-suppressed={interactionSuppressed ? 'true' : undefined}
         >
             <div
                 className={cn(
-                    'sidebar-user-header-pill flex h-8 w-full items-center justify-between rounded-full border border-transparent bg-transparent px-1 transition-[background-color,box-shadow]',
+                    'sidebar-user-header-pill app-no-drag flex h-8 w-full cursor-pointer items-center justify-between rounded-full border border-transparent px-1 transition-[background-color,box-shadow]',
+                    shouldShowPersistentCapsule
+                        ? 'bg-[var(--vlaina-color-sidebar-card-surface)] shadow-[var(--vlaina-shadow-raised-soft)]'
+                        : 'bg-transparent',
                 )}
             >
                 <Suspense fallback={<WorkspaceSwitcherFallback />}>
                     <WorkspaceSwitcher
-                        className="h-full w-[var(--vlaina-width-minus-titlebar-actions)] min-w-0 justify-start"
+                        className="h-full flex-1 justify-start"
                         onOpenSettings={handleOpenSettings}
                     />
                 </Suspense>
-                <div
-                    className="app-drag-region h-full min-w-12 flex-1 cursor-grab active:cursor-grabbing"
-                    aria-hidden="true"
-                />
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <button

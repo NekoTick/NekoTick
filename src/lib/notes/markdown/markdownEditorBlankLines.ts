@@ -9,6 +9,7 @@ import {
   isIndentedContinuationBoundaryBlankLine,
   isListBoundaryBlankLine,
   isMarkdownImageStructuralBoundaryBlankLine,
+  isStableParseBoundaryBlankLine,
 } from './markdownBlankLineBoundaries';
 import {
   mapMarkdownOutsideProtectedBlocks,
@@ -21,6 +22,10 @@ import {
 } from './markdownRenderedHtmlBlankLines';
 import { escapeParagraphTrailingBackslashesForEditor } from './plainTextBackslashHardBreaks';
 import { protectUserAuthoredInternalArtifactCommentsForEditor } from './markdownInternalArtifactEscapes';
+import {
+  isBlockquoteInterruptedOrderedListBoundary,
+  normalizeInterruptedOrderedListsForEditor,
+} from './markdownInterruptedOrderedLists';
 
 const BR_ONLY_PATTERN = /^<br\s*\/?>$/i;
 const BLOCKQUOTE_BR_ONLY_PATTERN = /^(\s*(?:>\s*)+)<br\s*\/?>$/i;
@@ -66,8 +71,12 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
 
     const blockquoteEmptyLineMatch = BLOCKQUOTE_EMPTY_LINE_PATTERN.exec(line);
     if (blockquoteEmptyLineMatch) {
+      if (isBlockquoteInterruptedOrderedListBoundary(lines, index)) return line;
       const listGapPlaceholder = createBlockquoteListGapPlaceholderLine(lines, index);
       if (listGapPlaceholder !== null) return listGapPlaceholder;
+      if (!hasAdjacentBlockquoteLine(lines, index, blockquoteEmptyLineMatch[1] ?? '>')) {
+        return `${blockquoteEmptyLineMatch[1]?.trimEnd() ?? '>'} ${EDITOR_EMPTY_PARAGRAPH_PLACEHOLDER}`;
+      }
       return `${blockquoteEmptyLineMatch[1]?.trimEnd() ?? '>'} ${EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER}`;
     }
 
@@ -92,6 +101,10 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
       line.trim() === ''
       && isBlankTerminatedNonEditableHtmlBoundaryLine(lines[index - 1] ?? '')
     ) {
+      return line;
+    }
+
+    if (isStableParseBoundaryBlankLine(lines, index)) {
       return line;
     }
 
@@ -147,9 +160,11 @@ export function preserveMarkdownBlankLinesForEditor(text: string): string {
 
     return line;
   });
-  return normalizeUserBreakSentinels(
-    exposeRenderedHtmlBoundaryBlankLinesForEditor(
-      restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor(preserved)
+  return normalizeInterruptedOrderedListsForEditor(
+    normalizeUserBreakSentinels(
+      exposeRenderedHtmlBoundaryBlankLinesForEditor(
+        restoreExistingRenderedHtmlBoundaryPlaceholdersForEditor(preserved)
+      )
     )
   );
 }
@@ -259,6 +274,18 @@ function countMarkers(text: string, marker: string): number {
     if (character === marker) count += 1;
   }
   return count;
+}
+
+function hasAdjacentBlockquoteLine(
+  lines: readonly string[],
+  index: number,
+  prefix: string,
+): boolean {
+  const depth = countMarkers(prefix, '>');
+  return [lines[index - 1] ?? '', lines[index + 1] ?? ''].some((line) => {
+    const match = /^(\s*(?:>\s*)+)/.exec(line);
+    return match !== null && countMarkers(match[1] ?? '', '>') === depth;
+  });
 }
 
 function findNearestListItemLine(

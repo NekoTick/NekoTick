@@ -1,6 +1,12 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { getStrokeWidth, type WhiteboardStroke, type WhiteboardStrokePoint } from './whiteboardModel';
-import { getWhiteboardStrokeNoise, getWhiteboardStrokeSeed } from './whiteboardStrokeTexture';
+import {
+  getStrokePointPigment,
+  getStrokePointRadius,
+  smoothWhiteboardStrokePoint,
+} from './whiteboardStrokeDynamics';
+import { getWhiteboardStrokeNoise, getWhiteboardStrokeRenderPointIndex, getWhiteboardStrokeRenderSeed } from './whiteboardStrokeTexture';
+import { getWhiteboardStrokePathNeighbors } from './whiteboardStrokeRenderChunks';
 
 export interface StrokeRenderGeometry {
   centerPath: string;
@@ -9,81 +15,74 @@ export interface StrokeRenderGeometry {
   mediumPressurePath: string;
   pressurePath: string;
   renderWidth: number;
-}
-
-export interface StrokeDabGeometry {
-  angle: number;
-  height: number;
-  shape: 'circle' | 'ellipse' | 'rect';
-  width: number;
+  watercolorOuterPath: string;
+  watercolorWashPath: string;
 }
 
 interface StrokeRenderGeometryCacheEntry {
   geometry: StrokeRenderGeometry;
   pointCount: number;
+  renderPointOffset: number;
+  renderSeed: string;
   size: number;
+  taperEnd: boolean;
+  taperStart: boolean;
   tool: WhiteboardStroke['tool'];
 }
 
 const strokeRenderGeometryCache = new WeakMap<WhiteboardStrokePoint[], StrokeRenderGeometryCacheEntry>();
-
+export function invalidateWhiteboardStrokeRenderGeometry(points: WhiteboardStrokePoint[]): void {
+  strokeRenderGeometryCache.delete(points);
+}
 export function getStrokeRenderWidth(stroke: WhiteboardStroke): number {
   if (stroke.points.length === 0) return getStrokeWidth(stroke.tool, 1, stroke.size);
-  const pressure = stroke.points.reduce((total, point) => total + point.pressure, 0) / stroke.points.length;
-  return getStrokeWidth(stroke.tool, pressure, stroke.size);
+  return getStrokeWidth(stroke.tool, stroke.points[0].pressure, stroke.size);
 }
-
-export function getStrokeDabGeometry(tool: WhiteboardStroke['tool'], width: number): StrokeDabGeometry {
-  if (tool === 'marker') {
-    return {
-      angle: themeWhiteboardTokens.markerNibAngleDeg,
-      height: width * themeWhiteboardTokens.markerNibMinWidthScale,
-      shape: 'rect',
-      width,
-    };
-  }
-  if (tool === 'fountain') {
-    return {
-      angle: themeWhiteboardTokens.fountainNibAngleDeg,
-      height: width * themeWhiteboardTokens.fountainNibMinWidthScale,
-      shape: 'ellipse',
-      width,
-    };
-  }
-  return { angle: 0, height: width, shape: 'circle', width };
-}
-
 export function getStrokeRenderGeometry(stroke: WhiteboardStroke): StrokeRenderGeometry {
   const cached = strokeRenderGeometryCache.get(stroke.points);
-  if (cached && cached.pointCount === stroke.points.length && cached.tool === stroke.tool && cached.size === stroke.size) {
+  if (hasSameRenderGeometryInput(cached, stroke)) {
     return cached.geometry;
   }
   const segments = getStrokePointSegments(stroke.points);
-  const hasPressureDetail = stroke.tool === 'pencil' || stroke.tool === 'marker' || stroke.tool === 'watercolor';
+  const hasPressureDetail = stroke.tool !== 'pen';
   const geometry = {
     centerPath: segments.map(getOpenEdgePath).join(' '),
     grainPaths: getStrokeGrainPaths(stroke, segments),
-    heavyPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(segment, themeWhiteboardTokens.pressureDetailHeavyThreshold)).join(' ') : '',
-    mediumPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(segment, themeWhiteboardTokens.pressureDetailMediumThreshold)).join(' ') : '',
+    heavyPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(stroke, segment, themeWhiteboardTokens.pressureDetailHeavyThreshold)).join(' ') : '',
+    mediumPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(stroke, segment, themeWhiteboardTokens.pressureDetailMediumThreshold)).join(' ') : '',
     pressurePath: segments.map((segment) => getPressureSegmentPath(stroke, segment)).join(' '),
-    renderWidth: getStrokeRenderWidth(stroke),
+    renderWidth: getStrokeWidth(stroke.tool, themeWhiteboardTokens.defaultPointerPressure, stroke.size),
+    watercolorOuterPath: stroke.tool === 'watercolor'
+      ? segments.map((segment) => getPressureSegmentPath(stroke, segment, themeWhiteboardTokens.watercolorOuterWidthScale)).join(' ')
+      : '',
+    watercolorWashPath: stroke.tool === 'watercolor'
+      ? segments.map((segment) => getPressureSegmentPath(stroke, segment, themeWhiteboardTokens.watercolorWashWidthScale)).join(' ')
+      : '',
   };
   strokeRenderGeometryCache.set(stroke.points, {
     geometry,
     pointCount: stroke.points.length,
+    renderPointOffset: stroke.renderPointOffset ?? 0,
+    renderSeed: stroke.renderSeed ?? stroke.id,
     size: stroke.size,
+    taperEnd: stroke.renderTaperEnd !== false,
+    taperStart: stroke.renderTaperStart !== false,
     tool: stroke.tool,
   });
   return geometry;
 }
 
-function getPressureDetailPath(points: WhiteboardStrokePoint[], threshold: number): string {
+function getPressureDetailPath(
+  stroke: WhiteboardStroke,
+  points: WhiteboardStrokePoint[],
+  threshold: number,
+): string {
   const commands: string[] = [];
   let drawing = false;
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
     const point = points[index];
-    if ((previous.pressure + point.pressure) / 2 < threshold) {
+    if ((getStrokePointPigment(stroke.tool, previous) + getStrokePointPigment(stroke.tool, point)) / 2 < threshold) {
       drawing = false;
       continue;
     }
@@ -93,18 +92,16 @@ function getPressureDetailPath(points: WhiteboardStrokePoint[], threshold: numbe
   }
   return commands.join(' ');
 }
-
 export function getPressureStrokePath(stroke: WhiteboardStroke): string {
   const cached = strokeRenderGeometryCache.get(stroke.points);
-  if (cached && cached.pointCount === stroke.points.length && cached.tool === stroke.tool && cached.size === stroke.size) {
+  if (hasSameRenderGeometryInput(cached, stroke)) {
     return cached.geometry.pressurePath;
   }
   return getStrokePointSegments(stroke.points).map((segment) => getPressureSegmentPath(stroke, segment)).join(' ');
 }
-
 export function getCenterStrokePath(stroke: WhiteboardStroke): string {
   const cached = strokeRenderGeometryCache.get(stroke.points);
-  if (cached && cached.pointCount === stroke.points.length && cached.tool === stroke.tool && cached.size === stroke.size) {
+  if (hasSameRenderGeometryInput(cached, stroke)) {
     return cached.geometry.centerPath;
   }
   return getStrokePointSegments(stroke.points).map(getOpenEdgePath).join(' ');
@@ -124,26 +121,30 @@ export function getStrokePointSegments(points: WhiteboardStrokePoint[]): Whitebo
   return segments;
 }
 
-function getPressureSegmentPath(stroke: WhiteboardStroke, segment: WhiteboardStrokePoint[]): string {
+function getPressureSegmentPath(
+  stroke: WhiteboardStroke,
+  segment: WhiteboardStrokePoint[],
+  widthScale = 1,
+): string {
   const points = getSmoothedStrokePoints(segment, stroke.tool);
   if (points.length < 2) return '';
   const left: WhiteboardStrokePoint[] = [];
   const right: WhiteboardStrokePoint[] = [];
   const edgeJitter = getStrokeEdgeJitter(stroke.tool);
-  const strokeSeed = getWhiteboardStrokeSeed(stroke.id);
+  const strokeSeed = getWhiteboardStrokeRenderSeed(stroke);
 
   for (let index = 0; index < points.length; index += 1) {
-    const previous = points[Math.max(0, index - 1)];
     const point = points[index];
-    const next = points[Math.min(points.length - 1, index + 1)];
+    const [previous, next] = getWhiteboardStrokePathNeighbors(stroke, segment, points, index);
     const dx = next.x - previous.x;
     const dy = next.y - previous.y;
     const length = Math.hypot(dx, dy) || 1;
-    const radius = getStrokeRadius(stroke, point, dx, dy, index, points.length);
     const normalX = -dy / length;
     const normalY = dx / length;
-    const leftRadius = radius * (1 + getWhiteboardStrokeNoise(strokeSeed, index, 0) * edgeJitter);
-    const rightRadius = radius * (1 + getWhiteboardStrokeNoise(strokeSeed, index, 1) * edgeJitter);
+    const radius = getStrokeRadius(stroke, point, normalX, normalY, index, points.length, widthScale);
+    const renderIndex = getWhiteboardStrokeRenderPointIndex(stroke, index);
+    const leftRadius = radius * (1 + getWhiteboardStrokeNoise(strokeSeed, renderIndex, 0) * edgeJitter);
+    const rightRadius = radius * (1 + getWhiteboardStrokeNoise(strokeSeed, renderIndex, 1) * edgeJitter);
 
     left.push({ ...point, x: point.x + normalX * leftRadius, y: point.y + normalY * leftRadius });
     right.push({ ...point, x: point.x - normalX * rightRadius, y: point.y - normalY * rightRadius });
@@ -155,30 +156,20 @@ function getPressureSegmentPath(stroke: WhiteboardStroke, segment: WhiteboardStr
 function getStrokeRadius(
   stroke: WhiteboardStroke,
   point: WhiteboardStrokePoint,
-  dx: number,
-  dy: number,
+  normalX: number,
+  normalY: number,
   index: number,
   pointCount: number,
+  widthScale: number,
 ): number {
-  let radius = getStrokeWidth(stroke.tool, point.pressure, stroke.size) / 2;
+  let radius = getStrokePointRadius(stroke.tool, point, stroke.size, normalX, normalY) * widthScale;
   if (stroke.tool === 'pen' || stroke.tool === 'pencil' || stroke.tool === 'colored-pencil' || stroke.tool === 'fountain') {
-    const edgeDistance = Math.min(index + 1, pointCount - index);
+    const edgeDistance = Math.min(
+      stroke.renderTaperStart === false ? Infinity : index + 1,
+      stroke.renderTaperEnd === false ? Infinity : pointCount - index,
+    );
     const taperProgress = Math.min(1, edgeDistance / themeWhiteboardTokens.strokeTaperPointCount);
     radius *= themeWhiteboardTokens.strokeTaperMinScale + (1 - themeWhiteboardTokens.strokeTaperMinScale) * taperProgress;
-  }
-  if (stroke.tool === 'fountain') {
-    const direction = Math.atan2(dy, dx);
-    const nibAngle = themeWhiteboardTokens.fountainNibAngleDeg * Math.PI / 180;
-    const directionScale = Math.abs(Math.sin(direction - nibAngle));
-    radius *= themeWhiteboardTokens.fountainNibMinWidthScale +
-      (1 - themeWhiteboardTokens.fountainNibMinWidthScale) * directionScale;
-  }
-  if (stroke.tool === 'marker') {
-    const direction = Math.atan2(dy, dx);
-    const nibAngle = themeWhiteboardTokens.markerNibAngleDeg * Math.PI / 180;
-    const directionScale = Math.abs(Math.sin(direction - nibAngle));
-    radius *= themeWhiteboardTokens.markerNibMinWidthScale +
-      (1 - themeWhiteboardTokens.markerNibMinWidthScale) * directionScale;
   }
   return radius;
 }
@@ -193,11 +184,7 @@ function getSmoothedStrokePoints(
     if (index === 0 || index === points.length - 1) return point;
     const previous = points[index - 1];
     const next = points[index + 1];
-    return {
-      pressure: point.pressure + ((previous.pressure + next.pressure) / 2 - point.pressure) * smoothing,
-      x: point.x + ((previous.x + next.x) / 2 - point.x) * smoothing,
-      y: point.y + ((previous.y + next.y) / 2 - point.y) * smoothing,
-    };
+    return smoothWhiteboardStrokePoint(point, previous, next, smoothing);
   });
 }
 
@@ -242,16 +229,16 @@ function getStrokeGrainLanePath(
   segmentIndex: number,
 ): string {
   const points = getSmoothedStrokePoints(segment, stroke.tool);
-  const strokeSeed = getWhiteboardStrokeSeed(stroke.id);
+  const strokeSeed = getWhiteboardStrokeRenderSeed(stroke);
   const lanePosition = laneCount === 1 ? 0 : laneIndex / (laneCount - 1) * 2 - 1;
   return getOpenEdgePath(points.map((point, index) => {
-    const previous = points[Math.max(0, index - 1)];
-    const next = points[Math.min(points.length - 1, index + 1)];
+    const [previous, next] = getWhiteboardStrokePathNeighbors(stroke, segment, points, index);
     const dx = next.x - previous.x;
     const dy = next.y - previous.y;
     const length = Math.hypot(dx, dy) || 1;
-    const halfWidth = getStrokeWidth(stroke.tool, point.pressure, stroke.size) / 2;
-    const noise = getWhiteboardStrokeNoise(strokeSeed, index + segmentIndex * 4096, laneIndex + 40);
+    const halfWidth = getStrokePointRadius(stroke.tool, point, stroke.size, -dy, dx);
+    const renderIndex = getWhiteboardStrokeRenderPointIndex(stroke, index + segmentIndex * 4096);
+    const noise = getWhiteboardStrokeNoise(strokeSeed, renderIndex, laneIndex + 40);
     const offset = halfWidth * (lanePosition * spread + noise * wander);
     return {
       ...point,
@@ -261,6 +248,19 @@ function getStrokeGrainLanePath(
   }));
 }
 
+function hasSameRenderGeometryInput(
+  cached: StrokeRenderGeometryCacheEntry | undefined,
+  stroke: WhiteboardStroke,
+): cached is StrokeRenderGeometryCacheEntry {
+  return cached !== undefined &&
+    cached.pointCount === stroke.points.length &&
+    cached.renderPointOffset === (stroke.renderPointOffset ?? 0) &&
+    cached.renderSeed === (stroke.renderSeed ?? stroke.id) &&
+    cached.size === stroke.size &&
+    cached.taperEnd === (stroke.renderTaperEnd !== false) &&
+    cached.taperStart === (stroke.renderTaperStart !== false) &&
+    cached.tool === stroke.tool;
+}
 
 function getOpenEdgePath(points: WhiteboardStrokePoint[]): string {
   if (points.length === 0) return '';

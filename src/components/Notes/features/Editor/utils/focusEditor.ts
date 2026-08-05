@@ -1,13 +1,29 @@
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { getCurrentEditorView } from './editorViewRegistry';
-import { createDocumentStartTextSelection } from './editorSelection';
+import {
+  clearCurrentEditorBlockSelection,
+  getCurrentEditorView,
+} from './editorViewRegistry';
+import {
+  createDocumentFirstLineEndTextSelection,
+  createDocumentStartTextSelection,
+} from './editorSelection';
 
 const FIRST_VISUAL_LINE_TOLERANCE_PX = 4;
 const MAX_FIRST_LINE_END_SCAN_POSITIONS = 20_000;
 
 function getEditorElement(): HTMLElement | null {
   return document.querySelector('.milkdown .ProseMirror[contenteditable="true"]');
+}
+
+function focusSourceEditorInitialPosition(): boolean {
+  const sourceEditor = document.querySelector<HTMLTextAreaElement>('[data-note-source-editor="true"]');
+  if (!sourceEditor) return false;
+  const firstLineBreak = sourceEditor.value.search(/[\r\n]/);
+  const initialPosition = firstLineBreak < 0 ? sourceEditor.value.length : firstLineBreak;
+  sourceEditor.focus({ preventScroll: true });
+  sourceEditor.setSelectionRange(initialPosition, initialPosition);
+  return true;
 }
 
 function focusEditorDomStart(editorEl: HTMLElement): void {
@@ -24,6 +40,15 @@ function focusEditorDomStart(editorEl: HTMLElement): void {
 function focusSelectionAtStart(view: EditorView): void {
   const tr = view.state.tr
     .setSelection(createDocumentStartTextSelection(view.state.doc))
+    .scrollIntoView();
+  view.dispatch(tr);
+  view.focus();
+}
+
+function focusSelectionAtInitialPosition(view: EditorView): void {
+  clearCurrentEditorBlockSelection();
+  const tr = view.state.tr
+    .setSelection(createDocumentFirstLineEndTextSelection(view.state.doc))
     .scrollIntoView();
   view.dispatch(tr);
   view.focus();
@@ -216,6 +241,20 @@ export function focusEditorToFirstLineStart(): void {
   const view = getCurrentEditorView();
   if (view) {
     focusSelectionAtStart(view);
+    return;
+  }
+
+  const editorEl = getEditorElement();
+  if (!editorEl) return;
+  focusEditorDomStart(editorEl);
+}
+
+export function focusEditorToInitialPosition(): void {
+  if (focusSourceEditorInitialPosition()) return;
+
+  const view = getCurrentEditorView();
+  if (view) {
+    focusSelectionAtInitialPosition(view);
     return;
   }
 

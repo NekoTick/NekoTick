@@ -29,6 +29,7 @@ export interface UniversalIconPickerProps {
   onSizeChange?: (size: number) => void;
   onSizeConfirm?: (size: number) => void;
   customIcons?: CustomIcon[];
+  customIconsLoading?: boolean;
   onUploadFile?: (file: File) => Promise<{ success: boolean; url?: string; error?: string }>;
   onDeleteCustomIcon?: (id: string) => void | Promise<void>;
   onSkinToneChange?: (tone: number) => void;
@@ -58,6 +59,7 @@ export function UniversalIconPicker({
   onSizeConfirm,
   
   customIcons = [],
+  customIconsLoading = false,
   onUploadFile,
   onDeleteCustomIcon,
   
@@ -97,6 +99,7 @@ export function UniversalIconPicker({
     onRemove,
     onClose,
     customIcons,
+    customIconsLoading,
     onSkinToneChange,
     onPreviewSkinTone,
     embedded,

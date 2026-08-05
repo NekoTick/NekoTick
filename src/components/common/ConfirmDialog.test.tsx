@@ -17,10 +17,12 @@ describe('ConfirmDialog', () => {
     );
 
     const dialog = screen.getByRole('dialog');
+    const title = screen.getByRole('heading', { name: 'Delete Note' });
     const confirmButton = screen.getByRole('button', { name: 'Delete' });
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
 
     expect(confirmButton).toHaveFocus();
+    expect(title).toHaveClass('select-none');
 
     fireEvent.keyDown(dialog, { key: 'ArrowDown' });
     expect(cancelButton).toHaveFocus();

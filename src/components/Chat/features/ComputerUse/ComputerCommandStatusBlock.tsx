@@ -84,7 +84,10 @@ function CommandStatusItem({
   return (
     <div className="rounded-[var(--vlaina-radius-16px)] bg-[var(--vlaina-color-overlay-weak)] p-[var(--vlaina-space-12px)]">
       {showPhase ? (
-        <div className="flex min-w-0 items-center gap-2">
+        <div
+          data-chat-selection-excluded="true"
+          className="flex min-w-0 select-none items-center gap-2"
+        >
           <span className={cn('relative flex size-5 shrink-0 items-center justify-center', phaseColor(status.phase))}>
             {active ? (
               <span
@@ -165,7 +168,7 @@ export function ComputerCommandStatusBlock({ isLoading, statuses }: ComputerComm
         data-chat-selection-excluded="true"
         data-no-focus-input="true"
         className={cn(
-          'flex w-full cursor-pointer items-center justify-between border-0 bg-transparent px-[var(--vlaina-space-4px)] text-left font-medium text-[var(--vlaina-text-primary)]',
+          'flex w-full cursor-pointer select-none items-center justify-between border-0 bg-transparent px-[var(--vlaina-space-4px)] text-left font-medium text-[var(--vlaina-text-primary)]',
           !isCollapsed && 'pb-[var(--vlaina-space-8px)]',
         )}
         onClick={() => setIsCollapsed((collapsed) => !collapsed)}

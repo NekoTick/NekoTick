@@ -14,6 +14,8 @@ import {
 import { pushNoteNavigationHistory } from '../document/noteNavigationHistory';
 import { flushCurrentPendingEditorMarkdown } from '../pendingEditorMarkdownFlusher';
 import type { NotesGet, NotesSet, WorkspaceSlice } from './workspaceSliceTypes';
+import { setNoteTabDirtyState } from '../document/noteTabState';
+import { resolveNoteRecovery } from '../noteRecovery';
 import {
   createOpenNoteRequestId,
   getDiscardableCurrentDraftPath,
@@ -102,6 +104,12 @@ export function createOpenAbsoluteNoteAction(
           cache: noteContentsCache,
           allowStaleCachedContent: existingTabIsDirty,
         });
+        const loadedDiskContent = loadedCache.get(normalizedAbsolutePath)?.savedContent ?? content;
+        const recovery = await resolveNoteRecovery({
+          notesPath,
+          notePath: normalizedAbsolutePath,
+          diskContent: loadedDiskContent,
+        });
         if (!isLatestOpenNoteRequestId(openRequestId) || get().notesPath !== notesPath) {
           return;
         }
@@ -112,7 +120,12 @@ export function createOpenAbsoluteNoteAction(
         const latestOpenTabs = latestState.openTabs;
         const latestCurrentNote = latestState.currentNote;
         const latestExistingTab = latestOpenTabs.find((tab) => tab.path === normalizedAbsolutePath);
-        const latestOpenedContent = resolveLatestOpenedContent(latestState, normalizedAbsolutePath, content);
+        const latestOpenedContent = resolveLatestOpenedContent(
+          latestState,
+          normalizedAbsolutePath,
+          recovery?.content ?? content,
+        );
+        const usesRecovery = Boolean(recovery && latestOpenedContent.dirtyContent === undefined);
         const nextMetadata = setNoteEntry(
           latestState.noteMetadata ?? createEmptyMetadataFile(),
           normalizedAbsolutePath,
@@ -120,18 +133,21 @@ export function createOpenAbsoluteNoteAction(
         );
         const fileName = getNoteTitleFromPath(normalizedAbsolutePath);
         const tabName = fileName;
-        const updatedTabs = mergeOpenedTab(
+        const openedTabs = mergeOpenedTab(
           latestOpenTabs,
           latestCurrentNote,
           normalizedAbsolutePath,
           tabName,
           shouldOpenInNewTab,
         );
+        const updatedTabs = usesRecovery
+          ? setNoteTabDirtyState(openedTabs, normalizedAbsolutePath, true)
+          : openedTabs;
         const nextCache = mergeLoadedNoteCacheEntry(
           latestState.noteContentsCache,
           loadedCache,
           normalizedAbsolutePath,
-          latestOpenedContent.dirtyContent,
+          usesRecovery ? latestOpenedContent.content : latestOpenedContent.dirtyContent,
         );
         const navigationHistoryUpdate = shouldUpdateNavigationHistory
           ? pushNoteNavigationHistory(latestState, normalizedAbsolutePath)
@@ -145,8 +161,10 @@ export function createOpenAbsoluteNoteAction(
           workspaceRestoredNote: options?.restoredFromWorkspace
             ? { path: normalizedAbsolutePath, revision: nextCurrentNoteRevision }
             : null,
-          isDirty: latestExistingTab?.isDirty ?? false,
-          error: preservedDirtySaveError,
+          isDirty: usesRecovery || (latestExistingTab?.isDirty ?? false),
+          error: usesRecovery && recovery?.conflictError
+            ? recovery.conflictError
+            : preservedDirtySaveError,
           openTabs: updatedTabs,
           isNewlyCreated: false,
           noteContentsCache: limitWorkspaceNoteContents(nextCache, {
@@ -155,6 +173,12 @@ export function createOpenAbsoluteNoteAction(
             currentNote: { path: normalizedAbsolutePath, content: latestOpenedContent.content },
           }),
           noteMetadata: nextMetadata,
+          ...(usesRecovery && recovery?.conflictError
+            ? {
+                saveError: recovery.conflictError,
+                saveErrorPath: normalizedAbsolutePath,
+              }
+            : {}),
           ...(navigationHistoryUpdate ?? {}),
         });
       } catch (error) {

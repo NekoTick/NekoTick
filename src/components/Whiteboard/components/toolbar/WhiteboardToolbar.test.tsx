@@ -80,6 +80,7 @@ describe('WhiteboardToolbar', () => {
 
   it('groups lasso and both erasers in one panel', () => {
     renderToolbar();
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
 
     expect(screen.getByRole('button', { name: 'whiteboard.tool.eraser' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'whiteboard.tool.strokeEraser' })).toBeInTheDocument();
@@ -105,22 +106,59 @@ describe('WhiteboardToolbar', () => {
     expect(screen.queryByRole('button', { name: 'whiteboard.tool.fountain' })).not.toBeInTheDocument();
   });
 
-  it('opens the active lasso details when the whiteboard first appears', () => {
+  it('shows the Apple-style instrument images for every brush option', () => {
     const { container } = renderToolbar();
 
-    expect(container.querySelector('[data-whiteboard-tool-panel="true"]')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'whiteboard.tool.select' }).some(
-      (button) => button.getAttribute('aria-pressed') === 'true',
-    )).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const expectedImages = [
+      ['whiteboard.tool.pen', 'pen.png'],
+      ['whiteboard.tool.pencil', 'pencil.png'],
+      ['whiteboard.tool.marker', 'marker.png'],
+      ['whiteboard.tool.coloredPencil', 'colored-pencil.png'],
+      ['whiteboard.tool.watercolor', 'watercolor.png'],
+      ['whiteboard.tool.crayon', 'crayon.png'],
+    ] as const;
+
+    expectedImages.forEach(([label, filename]) => {
+      expect(within(panel).getByRole('button', { name: label }).querySelector('img'))
+        .toHaveAttribute('src', expect.stringContaining(filename));
+    });
   });
 
-  it('highlights the active tool with background only', () => {
+  it('uses the lasso and eraser images in the selection panel', () => {
+    const { container } = renderToolbar();
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.select' }).querySelector('img'))
+      .toHaveAttribute('src', expect.stringContaining('select.png'));
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.eraser' }).querySelector('img'))
+      .toHaveAttribute('src', expect.stringContaining('eraser.png'));
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.strokeEraser' }).querySelector('img'))
+      .toHaveAttribute('src', expect.stringContaining('eraser.png'));
+  });
+
+  it('shows one persistent toolbar and keeps tool details closed initially', () => {
+    const { container } = renderToolbar();
+
+    expect(container.querySelector('[data-whiteboard-tool-panel="true"]')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'whiteboard.tool.select' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '#000000' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'whiteboard.brushSize 100%' })).toBeInTheDocument();
+  });
+
+  it('lifts the active tool without adding a colored background', () => {
     const { container } = renderToolbar();
     const mainToolbar = container.querySelector('[data-whiteboard-main-toolbar="true"]');
     const activeTool = mainToolbar?.querySelector('[aria-label="whiteboard.tool.select"]');
 
-    expect(activeTool).toHaveClass('border-transparent', 'bg-[var(--vlaina-accent-light)]');
+    expect(activeTool).toHaveClass('-translate-y-[var(--vlaina-size-20px)]', 'scale-[var(--vlaina-scale-105)]', 'border-transparent', 'bg-transparent');
+    expect(activeTool).toHaveClass('shadow-none', 'hover:shadow-none');
+    expect(activeTool?.querySelector('img')).toHaveClass('filter-none');
+    expect(activeTool).not.toHaveClass('bg-[var(--vlaina-accent-light)]');
     expect(activeTool).not.toHaveClass('border-[var(--vlaina-color-accent-border-muted)]', 'shadow-[var(--vlaina-shadow-selection-soft)]');
+    expect(screen.getByRole('button', { name: 'whiteboard.addImage' })).toHaveClass('hover:bg-transparent');
   });
 
   it('magnifies bottom toolbar items by pointer distance like a Dock', () => {
@@ -178,7 +216,7 @@ describe('WhiteboardToolbar', () => {
     expect(dockItems.every((item) => readDockZoom(item) === 1)).toBe(true);
   });
 
-  it('applies Dock magnification to every brush panel option for a hovering pen', () => {
+  it('applies Dock magnification to every brush panel option while keeping color and size controls in the main toolbar', () => {
     const animationFrames: FrameRequestCallback[] = [];
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       animationFrames.push(callback);
@@ -217,8 +255,11 @@ describe('WhiteboardToolbar', () => {
     advanceAnimationFrames(animationFrames, 12);
 
     expect(readDockZoom(options[0]!)).toBeCloseTo(1.2, 2);
-    expect(screen.getByRole('button', { name: 'whiteboard.customColor' }).parentElement).toHaveAttribute('data-whiteboard-dock-item', 'true');
-    expect(screen.getByRole('button', { name: 'whiteboard.brushSize 100%' }).parentElement).toHaveAttribute('data-whiteboard-dock-item', 'true');
+    expect(within(panel).queryByRole('button', { name: 'whiteboard.customColor' })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'whiteboard.brushSize 100%' })).not.toBeInTheDocument();
+    const mainToolbar = container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!;
+    expect(within(mainToolbar).getByRole('button', { name: 'whiteboard.customColor' }).parentElement).toHaveAttribute('data-whiteboard-dock-item', 'true');
+    expect(within(mainToolbar).getByRole('button', { name: 'whiteboard.brushSize 100%' }).parentElement).toHaveAttribute('data-whiteboard-dock-item', 'true');
   });
 
   it('keeps brush panel magnification aligned while the panel scrolls', () => {
@@ -357,12 +398,9 @@ describe('WhiteboardToolbar', () => {
     }
   });
 
-  it('opens one brush panel with types, colors, and preset sizes', () => {
+  it('keeps colors and preset sizes in the main toolbar and closes the type panel after selection', () => {
     const { onToolChange } = renderToolbar();
 
-    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
-
-    expect(screen.getByRole('button', { name: 'whiteboard.tool.pencil' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '#000000' })).toContainElement(
       document.querySelector('[data-whiteboard-color-selection-ring="true"]'),
     );
@@ -371,8 +409,15 @@ describe('WhiteboardToolbar', () => {
     expect(sizePreviews).toHaveLength(5);
     expect(sizePreviews[0]).toHaveStyle({ height: '3px', width: '3px' });
     expect(sizePreviews[4]).toHaveStyle({ height: '12px', width: '12px' });
-    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.marker' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
+    const panel = document.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.pencil' })).toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: '#000000' })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'whiteboard.brushSize 100%' })).not.toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole('button', { name: 'whiteboard.tool.marker' }));
     expect(onToolChange).toHaveBeenCalledWith('marker');
+    expect(document.querySelector('[data-whiteboard-tool-panel="true"]')).not.toBeInTheDocument();
   });
 
   it('keeps a preset color selected when its stored hex uses uppercase letters', () => {
@@ -396,6 +441,7 @@ describe('WhiteboardToolbar', () => {
     });
     fireEvent.click(customColor);
 
+    expect(document.querySelector('[data-whiteboard-tool-panel="true"]')).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="popover-content"]')).toBeInTheDocument();
     expect(document.querySelector('[data-slot="dialog-overlay"]')).not.toBeInTheDocument();
     expect(screen.getByLabelText('HEX')).toHaveValue('#000000');
@@ -574,7 +620,11 @@ describe('WhiteboardToolbar', () => {
     expect(panel?.parentElement).toHaveClass('w-max', 'max-w-full');
     expect(panel?.parentElement?.parentElement).toHaveClass('bottom-full', 'left-1/2', '-translate-x-1/2', 'w-max');
     expect(panel?.parentElement?.parentElement).not.toHaveClass('inset-x-2');
-    expect(mainToolbar).toHaveClass('h-[var(--vlaina-size-56px)]', 'gap-1', 'px-1.5');
+    expect(mainToolbar).toHaveClass('h-[var(--vlaina-size-72px)]', 'gap-1', 'px-2', 'rounded-[var(--vlaina-radius-26px)]');
+    expect(mainToolbar).toHaveClass('!bg-[var(--vlaina-color-pill-surface)]');
+    expect(mainToolbar).toHaveClass('hover:!shadow-[var(--vlaina-shadow-raised-soft)]');
+    expect(mainToolbar).not.toHaveClass('hover:!shadow-[var(--vlaina-shadow-menu-hover)]');
+    expect(panel).toHaveClass('bg-[var(--vlaina-color-whiteboard-tool-panel)]', 'rounded-[var(--vlaina-ui-radius-group)]');
   });
 
   it('keeps the image action in the drawing tools group without a ruler action', () => {
@@ -583,7 +633,7 @@ describe('WhiteboardToolbar', () => {
     const mainToolbar = container.querySelector('[data-whiteboard-main-toolbar="true"]');
     const buttons = Array.from(mainToolbar?.querySelectorAll('button') ?? []);
     expect(buttons.some((button) => button.getAttribute('aria-label') === 'whiteboard.tool.ruler')).toBe(false);
-    expect(buttons.at(-1)).toHaveAccessibleName('whiteboard.addImage');
+    expect(buttons.some((button) => button.getAttribute('aria-label') === 'whiteboard.addImage')).toBe(true);
   });
 
   it('places the hand tool first in the main toolbar', () => {
@@ -598,7 +648,10 @@ describe('WhiteboardToolbar', () => {
   it('highlights the hand tool while space temporarily enables panning', () => {
     renderToolbar({ spacePressed: true, tool: 'select' });
 
-    expect(screen.getByRole('button', { name: 'whiteboard.tool.hand' })).toHaveAttribute('aria-pressed', 'true');
+    const handTool = screen.getByRole('button', { name: 'whiteboard.tool.hand' });
+    expect(handTool).toHaveAttribute('aria-pressed', 'true');
+    expect(handTool).toHaveClass('-translate-y-[var(--vlaina-size-4px)]', 'bg-transparent');
+    expect(handTool).not.toHaveClass('bg-[var(--vlaina-accent-light)]');
     expect(screen.getAllByRole('button', { name: 'whiteboard.tool.select' }).every(
       (button) => button.getAttribute('aria-pressed') !== 'true',
     )).toBe(true);

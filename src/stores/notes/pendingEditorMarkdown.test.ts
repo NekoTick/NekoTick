@@ -143,7 +143,7 @@ describe('flushPendingEditorMarkdown', () => {
     });
   });
 
-  it('normalizes serializer-escaped html-like paragraph text before it enters note state', () => {
+  it('preserves user-authored html-like paragraph escapes when they enter note state', () => {
     useNotesStore.setState({
       currentNote: { path: 'alpha.md', content: 'Old content' },
       currentNoteRevision: 3,
@@ -156,14 +156,14 @@ describe('flushPendingEditorMarkdown', () => {
 
     const state = useNotesStore.getState();
     expect(didFlush).toBe(true);
-    expect(state.currentNote).toEqual({ path: 'alpha.md', content: '<p>' });
+    expect(state.currentNote).toEqual({ path: 'alpha.md', content: '\\<p>' });
     expect(state.noteContentsCache.get('alpha.md')).toEqual({
-      content: '<p>',
+      content: '\\<p>',
       modifiedAt: 7,
     });
   });
 
-  it('normalizes serializer-escaped intraword underscores before they enter note state', () => {
+  it('preserves user-authored intraword underscore escapes when they enter note state', () => {
     useNotesStore.setState({
       currentNote: { path: 'alpha.md', content: 'Old content' },
       currentNoteRevision: 3,
@@ -174,7 +174,7 @@ describe('flushPendingEditorMarkdown', () => {
 
     const didFlush = flushPendingEditorMarkdown('alpha.md', 'h\\_i and foo\\_\\_bar');
 
-    const expected = 'h_i and foo__bar';
+    const expected = 'h\\_i and foo\\_\\_bar';
     const state = useNotesStore.getState();
     expect(didFlush).toBe(true);
     expect(state.currentNote).toEqual({ path: 'alpha.md', content: expected });

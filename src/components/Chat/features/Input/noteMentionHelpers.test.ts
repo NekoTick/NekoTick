@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildMentionPreviewParts,
   collectMentionCandidates,
+  createMentionTitleMatcher,
   findMentionTitlesInValue,
   getNoteMentionTrigger,
   MAX_MENTION_QUERY_CHARS,
@@ -267,6 +268,10 @@ describe('mention label matching', () => {
     ]);
   });
 
+  it('does not duplicate long ordinary text into a mention preview', () => {
+    expect(buildMentionPreviewParts('ordinary text '.repeat(10_000), [])).toEqual([]);
+  });
+
   it('prefers the longest mention label when titles share a prefix', () => {
     const parts = buildMentionPreviewParts('@TodayLater and @Today', [
       { path: 'Today.md', title: 'Today', kind: 'note' },
@@ -307,5 +312,21 @@ describe('mention label matching', () => {
 
     expect(matches.has('Title-0')).toBe(true);
     expect(matches.has('AfterBudget')).toBe(false);
+  });
+
+  it('reuses a prepared mention title index across value scans', () => {
+    let titleIterations = 0;
+    const titles = {
+      *[Symbol.iterator]() {
+        titleIterations += 1;
+        yield 'Today';
+        yield 'Tomorrow';
+      },
+    };
+    const matcher = createMentionTitleMatcher(titles);
+
+    expect([...matcher.findInValue('@Today')]).toEqual(['Today']);
+    expect([...matcher.findInValue('@Tomorrow')]).toEqual(['Tomorrow']);
+    expect(titleIterations).toBe(1);
   });
 });

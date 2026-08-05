@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const hoisted = vi.hoisted(() => ({
+  homePath: '',
   userDataPath: '',
   tempPath: '',
 }));
@@ -14,7 +15,7 @@ vi.mock('electron', () => ({
       getPath: vi.fn((name: string) => {
         if (name === 'userData') return hoisted.userDataPath;
         if (name === 'temp') return hoisted.tempPath || os.tmpdir();
-        if (name === 'home') return os.homedir();
+        if (name === 'home') return hoisted.homePath;
         return hoisted.userDataPath;
       }),
     },
@@ -61,8 +62,10 @@ describe('desktop filesystem ipc', () => {
 
   beforeEach(async () => {
     tempDir = await mkdtemp(path.join(os.tmpdir(), 'vlaina-desktop-fs-ipc-'));
+    hoisted.homePath = path.join(tempDir, 'home');
     hoisted.userDataPath = path.join(tempDir, 'user-data');
     hoisted.tempPath = path.join(tempDir, 'tmp');
+    await mkdir(hoisted.homePath, { recursive: true });
     await mkdir(hoisted.userDataPath, { recursive: true });
     await mkdir(hoisted.tempPath, { recursive: true });
     resetAuthorizedFsPathsForTests();
@@ -246,6 +249,36 @@ describe('desktop filesystem ipc', () => {
     await expect(handlers.get('desktop:drag-drop:authorize-path')?.({}, protectedPath)).rejects.toThrow(
       'File path is reserved for internal desktop storage',
     );
+  });
+
+  it('rejects Codex configuration paths through generic filesystem IPC', async () => {
+    const protectedPath = path.join(hoisted.homePath, '.codex', 'config.toml');
+    await mkdir(path.dirname(protectedPath), { recursive: true });
+    await writeFile(protectedPath, 'model = "test"', 'utf8');
+    await authorizeFsPath(hoisted.homePath, 'root');
+    const { handlers } = registerHarness();
+
+    await expect(handlers.get('desktop:fs:read-text')?.({}, protectedPath)).rejects.toThrow(
+      'File path is reserved for internal desktop storage',
+    );
+    await expect(handlers.get('desktop:fs:write-text')?.({}, protectedPath, 'changed')).rejects.toThrow(
+      'File path is reserved for internal desktop storage',
+    );
+  });
+
+  it('rejects Git metadata paths through generic filesystem IPC', async () => {
+    const projectPath = path.join(tempDir, 'protected-git-project');
+    const configPath = path.join(projectPath, '.git', 'config');
+    await mkdir(path.dirname(configPath), { recursive: true });
+    await writeFile(configPath, '[core]\nrepositoryformatversion = 0\n', 'utf8');
+    await authorizeFsPath(projectPath, 'root');
+    const { handlers } = registerHarness();
+
+    await expect(handlers.get('desktop:fs:read-text')?.({}, configPath)).rejects.toThrow(
+      'File path is reserved for internal desktop storage',
+    );
+    await expect(handlers.get('desktop:fs:write-text')?.({}, configPath, '[core]\nfsmonitor = attacker\n'))
+      .rejects.toThrow('File path is reserved for internal desktop storage');
   });
 
   it('resolves and authorizes the Git root for an opened Markdown file', async () => {

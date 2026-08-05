@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import * as ProseModel from '@milkdown/kit/prose/model';
 import { TextSelection } from '@milkdown/kit/prose/state';
 import { setCurrentEditorView } from './editorViewRegistry';
-import { focusEditorToFirstLineEnd, focusEditorToFirstLineStart } from './focusEditor';
+import {
+  focusEditorToFirstLineEnd,
+  focusEditorToFirstLineStart,
+  focusEditorToInitialPosition,
+} from './focusEditor';
 
 const ProseSchema = (ProseModel as unknown as {
   Schema: new (spec: Record<string, unknown>) => {
@@ -66,6 +70,75 @@ describe('focusEditorToFirstLineStart', () => {
     expect((selection as TextSelection).from).toBe(2);
     expect(view.dispatch).toHaveBeenCalledWith(tr);
     expect(view.focus).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('focusEditorToInitialPosition', () => {
+  it('focuses the rich text editor at the first editable line end', () => {
+    const schema = new ProseSchema({
+      nodes: {
+        doc: { content: 'block+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          toDOM: () => ['p', 0],
+          parseDOM: [{ tag: 'p' }],
+        },
+        text: { group: 'inline' },
+      },
+    });
+    const firstLine = 'First editable line';
+    const doc = schema.node('doc', null, [
+      schema.nodes.paragraph.create(null, schema.text(firstLine)),
+      schema.nodes.paragraph.create(null, schema.text('Second line')),
+    ]);
+    const tr = {
+      setSelection: vi.fn(function setSelection(_selection: unknown) {
+        return tr;
+      }),
+      scrollIntoView: vi.fn(function scrollIntoView() {
+        return tr;
+      }),
+    };
+    const view = {
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+      state: {
+        doc,
+        tr,
+      },
+    };
+
+    try {
+      setCurrentEditorView(view as never);
+      focusEditorToInitialPosition();
+    } finally {
+      setCurrentEditorView(null);
+    }
+
+    const selection = tr.setSelection.mock.calls[0]?.[0];
+    expect(selection).toBeInstanceOf(TextSelection);
+    expect((selection as TextSelection).from).toBe(1 + firstLine.length);
+    expect(view.dispatch).toHaveBeenCalledWith(tr);
+    expect(view.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses the source editor at the first line end when source mode is active', () => {
+    const sourceEditor = document.createElement('textarea');
+    sourceEditor.dataset.noteSourceEditor = 'true';
+    sourceEditor.value = '# Heading\n\nBody';
+    document.body.appendChild(sourceEditor);
+    sourceEditor.setSelectionRange(sourceEditor.value.length, sourceEditor.value.length);
+
+    try {
+      focusEditorToInitialPosition();
+
+      expect(document.activeElement).toBe(sourceEditor);
+      expect(sourceEditor.selectionStart).toBe('# Heading'.length);
+      expect(sourceEditor.selectionEnd).toBe('# Heading'.length);
+    } finally {
+      sourceEditor.remove();
+    }
   });
 });
 

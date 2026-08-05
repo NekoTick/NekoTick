@@ -17,6 +17,7 @@ import {
 } from './blockControlsInteractions';
 import { BlockControlsViewSession, __testing__ } from './blockControlsViewSession';
 import { getBlockDragComposerPayload } from './blockDragVisualState';
+import { setBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 import { serializeSelectedBlocksToText } from './blockSelectionSerializer';
 
 const originalElementsFromPoint = document.elementsFromPoint;
@@ -287,6 +288,30 @@ describe('BlockControlsViewSession', () => {
 
       expect(getHandleBlockTargets).toHaveBeenCalledTimes(1);
     } finally {
+      session.destroy();
+    }
+  });
+
+  it('skips handle target scans while deferred block selection is pending', async () => {
+    const view = createView();
+    const session = new BlockControlsViewSession(view);
+
+    try {
+      setBlockSelectionInteractionPending(view.dom, true);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientY: 50, bubbles: true }));
+      await nextFrame();
+
+      const controls = document.querySelector<HTMLElement>('.editor-block-controls');
+      expect(controls?.classList.contains('visible')).toBe(false);
+      expect(getHandleBlockTargets).not.toHaveBeenCalled();
+
+      setBlockSelectionInteractionPending(view.dom, false);
+      document.dispatchEvent(new MouseEvent('mousemove', { clientY: 50, bubbles: true }));
+      await nextFrame();
+
+      expect(getHandleBlockTargets).toHaveBeenCalledTimes(1);
+    } finally {
+      setBlockSelectionInteractionPending(view.dom, false);
       session.destroy();
     }
   });

@@ -1,9 +1,10 @@
 import { act, createRef } from "react";
 import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ChatMessage } from "@/lib/ai/types";
 import { useAccountSessionStore } from "@/stores/accountSession";
 import { initialAccountSessionState } from "@/stores/accountSession/state";
+import { rememberMeasuredChatMessageHeight } from "@/components/Chat/features/Layout/chatMessageFrames";
 
 const { messageItemSpy } = vi.hoisted(() => ({
   messageItemSpy: vi.fn(),
@@ -67,6 +68,7 @@ describe("MessageList", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("renders an empty hidden scroll container when there are no messages", () => {
@@ -154,6 +156,39 @@ describe("MessageList", () => {
       onEdit,
       onSwitchVersion,
     });
+  });
+
+  it("remeasures a toggled user row before scheduling another animation frame", () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+    render(
+      <MessageList
+        messages={[createMessage("u1", "user")]}
+        getImageGallery={() => []}
+        isSessionActive={false}
+        showLoading={false}
+        spacerHeight={0}
+        containerRef={createRef<HTMLDivElement>()}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+    const row = document.querySelector('[data-message-index="0"]') as HTMLDivElement;
+    const getBoundingClientRect = vi.spyOn(row, "getBoundingClientRect").mockReturnValue({
+      height: 144,
+    } as DOMRect);
+    const onUserMessageLayoutChange = messageItemSpy.mock.lastCall?.[0]
+      .onUserMessageLayoutChange as (messageId: string) => void;
+    requestAnimationFrameSpy.mockClear();
+
+    act(() => {
+      onUserMessageLayoutChange("u1");
+    });
+
+    expect(getBoundingClientRect).toHaveBeenCalledOnce();
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 
   it("filters older managed auth prompts before building visible rows", () => {
@@ -319,6 +354,72 @@ describe("MessageList", () => {
     expect(document.querySelector('[data-chat-scrollable="true"]')).toHaveAttribute('aria-busy', 'true');
   });
 
+  it("drops the previous response height when regeneration replaces the active version", async () => {
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 800 });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 600 });
+
+    try {
+      const previousResponse = createMessage("a-regenerate", "assistant");
+      previousResponse.content = "";
+      previousResponse.versions[0] = {
+        ...previousResponse.versions[0]!,
+        content: "",
+      };
+      rememberMeasuredChatMessageHeight(previousResponse, {
+        cacheKey: "chat-regenerate-height",
+        containerWidth: 800,
+        isSessionActive: true,
+        height: 520,
+      });
+
+      const props = {
+        chatId: "chat-regenerate-height",
+        getImageGallery: () => [],
+        isSessionActive: true,
+        showLoading: true,
+        spacerHeight: 0,
+        containerRef: createRef<HTMLDivElement>(),
+        onCopy: () => {},
+        onRegenerate: () => {},
+        onSwitchVersion: () => {},
+      };
+      const view = render(<MessageList {...props} messages={[previousResponse]} />);
+
+      const getLoadingTop = () => Number.parseFloat(
+        screen.getByTestId("chat-loading").parentElement?.style.top || "0",
+      );
+      await waitFor(() => expect(getLoadingTop()).toBeGreaterThan(500));
+
+      const regeneration = {
+        ...previousResponse,
+        versions: [
+          {
+            content: "",
+            createdAt: previousResponse.timestamp + 1,
+            kind: "regeneration" as const,
+            subsequentMessages: [],
+          },
+        ],
+      };
+      view.rerender(<MessageList {...props} messages={[regeneration]} />);
+
+      await waitFor(() => expect(getLoadingTop()).toBeLessThan(200));
+    } finally {
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, "clientWidth", widthDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+      }
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, "clientHeight", heightDescriptor);
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, "clientHeight");
+      }
+    }
+  });
+
   it("navigates to virtualized user prompts using the full frame layout", () => {
     const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
     const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
@@ -345,6 +446,7 @@ describe("MessageList", () => {
           spacerHeight={0}
           containerRef={containerRef}
           navigationRef={navigationRef}
+          showMessageOutline
           onCopy={() => {}}
           onRegenerate={() => {}}
           onSwitchVersion={() => {}}
@@ -362,6 +464,9 @@ describe("MessageList", () => {
       navigationRef.current?.('next');
       expect(scrollTo.mock.calls[1]?.[0].behavior).toBe('smooth');
       expect(scrollTo.mock.calls[1]?.[0].top).toBeGreaterThan(3500);
+
+      fireEvent.click(screen.getByRole('button', { name: 'user-u1' }));
+      expect(scrollTo).toHaveBeenNthCalledWith(3, { top: 12, behavior: 'auto' });
     } finally {
       if (widthDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientWidth', widthDescriptor);
       else Reflect.deleteProperty(HTMLElement.prototype, 'clientWidth');

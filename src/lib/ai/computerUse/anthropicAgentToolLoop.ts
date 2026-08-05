@@ -2,7 +2,8 @@ import { AIErrorType, type ChatSendOptions } from '@/lib/ai/types';
 import { createAIError } from '@/lib/ai/errors';
 import { createStreamAccumulator } from '@/lib/ai/streaming';
 import { translate } from '@/lib/i18n';
-import { buildWebSearchTools } from '@/lib/ai/webSearch/toolDefinitions';
+import { createWebSearchExecutionSession } from '@/lib/ai/webSearch/executionSession';
+import { buildWebSearchTools, WEB_SEARCH_SYSTEM_INSTRUCTION } from '@/lib/ai/webSearch/toolDefinitions';
 import { sanitizeWebSearchStatus } from '@/lib/ai/webSearch/statusMarkup';
 import type { OpenAIStreamToolResult, OpenAIToolCall, OpenAIWireMessage } from '@/lib/ai/webSearch/openAIToolTypes';
 import { isSafeOpenAIToolCallId } from '@/lib/ai/webSearch/openAIToolCallIds';
@@ -14,7 +15,6 @@ import {
   hasVisibleAnswerContent,
   throwIfAborted,
   withSourceLinks,
-  withStatusPrefix,
 } from '@/lib/ai/webSearch/openAIToolLoopShared';
 import { executeAgentToolCall } from './agentToolRuntime';
 import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDefinitions';
@@ -153,27 +153,28 @@ function parseAnthropicResult(payload: Record<string, unknown>): AnthropicParsed
   };
 }
 
-function appendAgentInstruction(body: Record<string, unknown>): string {
+function appendAgentInstruction(body: Record<string, unknown>, webSearchEnabled: boolean): string {
   const existing = typeof body.system === 'string' ? body.system.trim() : '';
   return [
     existing,
     COMPUTER_USE_SYSTEM_INSTRUCTION,
+    webSearchEnabled ? WEB_SEARCH_SYSTEM_INSTRUCTION : '',
   ].filter(Boolean).join('\n\n');
 }
 
 export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopOptions): Promise<string> {
   const messages = Array.isArray(options.body.messages) ? [...options.body.messages] : [];
   const responseTranscript: OpenAIWireMessage[] = [];
-  const webStatuses: WebSearchStatus[] = [];
   const sourceUrls: string[] = [];
   const deniedCommandKeys = new Set<string>();
+  const webSearchSession = options.webSearchEnabled ? createWebSearchExecutionSession() : undefined;
   let commandApprovalCount = 0;
   let totalToolCalls = 0;
   let visibleContent = '';
 
   const emitVisible = (content = visibleContent) => {
     visibleContent = content;
-    options.onChunk(withStatusPrefix(webStatuses, visibleContent));
+    options.onChunk(visibleContent);
   };
   const emitTranscript = (allowAborted = false) => {
     if (allowAborted) {
@@ -185,7 +186,6 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
   const emitWebStatus = (status: WebSearchStatus) => {
     const safe = sanitizeWebSearchStatus(status);
     if (!safe) return;
-    webStatuses.push(safe);
     appendSuccessfulReadSources(sourceUrls, safe);
     options.onWebSearchStatus?.(safe);
     emitVisible();
@@ -196,7 +196,7 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
     const payload = await options.requestResult({
       ...options.body,
       messages,
-      system: appendAgentInstruction(options.body),
+      system: appendAgentInstruction(options.body, options.webSearchEnabled),
       stream: true,
       tools: buildAnthropicAgentTools(options.webSearchEnabled),
       tool_choice: { type: 'auto' },
@@ -224,7 +224,7 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
       emitTranscript();
       const finalContent = withSourceLinks(result.content, sourceUrls);
       emitVisible(finalContent);
-      return withStatusPrefix(webStatuses, finalContent);
+      return finalContent;
     }
 
     if (loopIndex >= MAX_ANTHROPIC_AGENT_LOOPS) {
@@ -269,6 +269,7 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
         defaultCwd: options.defaultCwd,
         signal: options.signal,
         webSearchEnabled: options.webSearchEnabled,
+        webSearchSession,
         onWebSearchStatus: emitWebStatus,
         onCommandStatus: (status) => {
           toolMessage.content = serializeComputerCommandStatus(status);

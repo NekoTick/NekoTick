@@ -17,6 +17,10 @@
 
 <img width="929" height="650"  src="https://github.com/user-attachments/assets/738de093-ab4d-4261-85cb-cd9aa07efffa" />
 
+# 📥 Download
+<a href="https://get.microsoft.com/installer/download/9nlx8nhxq49x?referrer=appbadge" target="_self" >
+	<img src="https://get.microsoft.com/images/en-us%20light.svg" width="600"/>
+</a>
 
 ## License
 

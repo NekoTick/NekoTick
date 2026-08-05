@@ -70,8 +70,20 @@ export function useMessageListMeasurement({
       historicalMessagesRevisionRef.current += 1;
     }
   }
+  const activeMessage = isSessionActive
+    ? renderedMessages[renderedMessages.length - 1]
+    : undefined;
+  const activeMessageVersionIndex = activeMessage?.currentVersionIndex ?? null;
+  const activeMessageVersionCreatedAt = activeMessageVersionIndex === null
+    ? null
+    : activeMessage?.versions?.[activeMessageVersionIndex]?.createdAt ?? null;
   const measuredHeightRestoreTrigger = isSessionActive
-    ? `${renderedMessages.length}:${historicalMessagesRevisionRef.current}`
+    ? [
+        renderedMessages.length,
+        historicalMessagesRevisionRef.current,
+        activeMessageVersionIndex,
+        activeMessageVersionCreatedAt,
+      ].join(':')
     : renderedMessages;
 
   measuredHeightsRef.current = measuredHeights;
@@ -184,6 +196,26 @@ export function useMessageListMeasurement({
       flushMeasuredHeights();
     });
   }, [flushMeasuredHeights]);
+
+  const remeasureVisibleRow = useCallback((messageId: string) => {
+    const node = observedRowsRef.current.get(messageId);
+    if (!node || !activeRef.current) {
+      return;
+    }
+
+    const nextHeight = node.getBoundingClientRect().height;
+    if (!Number.isFinite(nextHeight) || nextHeight <= 0) {
+      return;
+    }
+
+    const normalizedHeight = Math.max(1, Math.ceil(nextHeight));
+    pendingMeasuredHeightsRef.current.set(messageId, normalizedHeight);
+    if (measuredHeightsRafRef.current !== null) {
+      cancelAnimationFrame(measuredHeightsRafRef.current);
+      measuredHeightsRafRef.current = null;
+    }
+    flushMeasuredHeights();
+  }, [activeRef, flushMeasuredHeights]);
 
   const shouldMeasureVisibleRowSynchronously = useCallback((messageId: string) => {
     if (messageId === lastStreamingMessageIdRef.current) {
@@ -302,5 +334,6 @@ export function useMessageListMeasurement({
   return {
     getVisibleRowRef,
     measuredHeights,
+    remeasureVisibleRow,
   };
 }

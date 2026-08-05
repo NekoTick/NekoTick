@@ -15,6 +15,9 @@ export function buildDisconnectedDesktopStatus(options = {}) {
     membershipTier: null,
     membershipName: null,
     ...(options.sessionInvalidated ? { sessionInvalidated: true } : {}),
+    ...(options.sessionInvalidationReason === 'device_limit'
+      ? { sessionInvalidationReason: 'device_limit' }
+      : {}),
   };
 }
 
@@ -67,7 +70,10 @@ export function resolveDesktopSessionProbe(credentials, probe) {
 
   if (probe.kind === 'unauthorized') {
     return {
-      status: buildDisconnectedDesktopStatus({ sessionInvalidated: true }),
+      status: buildDisconnectedDesktopStatus({
+        sessionInvalidated: true,
+        sessionInvalidationReason: probe.sessionInvalidationReason,
+      }),
       nextCredentials: null,
       clearStoredCredentials: true,
     };

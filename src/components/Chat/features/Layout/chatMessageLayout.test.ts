@@ -41,6 +41,28 @@ describe('estimateChatMessageHeight', () => {
     expect(longHeight).toBeGreaterThan(shortHeight);
   });
 
+  it('bounds long user message estimates to the collapsed preview', () => {
+    const nineLineHeight = estimateChatMessageHeight(
+      createMessage('user', Array.from({ length: 9 }, (_, index) => `line ${index}`).join('\n')),
+      { containerWidth: 900, isStreaming: true },
+    );
+    const hundredLineHeight = estimateChatMessageHeight(
+      createMessage('user', Array.from({ length: 100 }, (_, index) => `line ${index}`).join('\n')),
+      { containerWidth: 900, isStreaming: true },
+    );
+    const wrappedLongHeight = estimateChatMessageHeight(
+      createMessage('user', 'wrapped text '.repeat(500)),
+      { containerWidth: 320, isStreaming: true },
+    );
+    const wrappedVeryLongHeight = estimateChatMessageHeight(
+      createMessage('user', 'wrapped text '.repeat(5000)),
+      { containerWidth: 320, isStreaming: true },
+    );
+
+    expect(hundredLineHeight).toBe(nineLineHeight);
+    expect(wrappedVeryLongHeight).toBe(wrappedLongHeight);
+  });
+
   it('does not reserve user toolbar height while waiting for a response', () => {
     const message = createMessage('user', 'short');
     const idleHeight = estimateChatMessageHeight(message, {
@@ -151,6 +173,28 @@ describe('estimateChatMessageHeight', () => {
     );
 
     expect(oversizedHeight - boundedHeight).toBeLessThan(256);
+  });
+
+  it('estimates multiple user images as a wrapping grid', () => {
+    const content = Array.from(
+      { length: 8 },
+      (_, index) => `![image ${index}](https://example.com/${index}.png)`,
+    ).join('\n');
+    const wideHeight = estimateChatMessageHeight(
+      createMessage('user', content),
+      { containerWidth: 900, isStreaming: true },
+    );
+    const singleImageHeight = estimateChatMessageHeight(
+      createMessage('user', '![image](https://example.com/one.png)'),
+      { containerWidth: 900, isStreaming: true },
+    );
+    const narrowHeight = estimateChatMessageHeight(
+      createMessage('user', content),
+      { containerWidth: 320, isStreaming: true },
+    );
+
+    expect(wideHeight).toBeLessThan(singleImageHeight * 2);
+    expect(narrowHeight).toBeGreaterThan(wideHeight);
   });
 
   it('accounts for assistant code fences and images', () => {

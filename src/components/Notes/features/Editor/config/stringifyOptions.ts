@@ -1,6 +1,9 @@
 interface MarkdownFlowNode {
     type?: string;
     children?: unknown[];
+    checked?: boolean | null;
+    ordered?: boolean;
+    start?: number | null;
     sourceTightFirstBlock?: unknown;
     data?: {
         vlainaDefinitionBlankLineCount?: unknown;
@@ -99,9 +102,28 @@ function isTightUserHtmlNode(node: MarkdownFlowNode): boolean {
     if (/^<!\[CDATA\[/i.test(value)) return value.endsWith(']]>');
     if (/^<![A-Za-z]/i.test(value)) return value.endsWith('>');
 
+    return isTightRawTextHtmlNode(node);
+}
+
+function isTightRawTextHtmlNode(node: MarkdownFlowNode): boolean {
+    if (node.type === 'paragraph' && Array.isArray(node.children) && node.children.length === 1) {
+        return isTightRawTextHtmlNode(node.children[0] as MarkdownFlowNode);
+    }
+    if (node.type !== 'html' && node.type !== 'html_block') return false;
+    if (typeof node.value !== 'string') return false;
+
+    const value = node.value.trim();
     const rawTag = /^<(script|pre|style|textarea)(?:\s|>)/i.exec(value)?.[1];
-    return rawTag !== undefined
-        && new RegExp('</' + rawTag + '\\s*>$', 'i').test(value);
+    return rawTag !== undefined && new RegExp('</' + rawTag + '\\s*>$', 'i').test(value);
+}
+
+function isSourceTightUserHtmlNode(node: MarkdownFlowNode): boolean {
+    if (node.data?.vlainaSourceTightBefore === true) return true;
+    if (node.type !== 'paragraph' || !Array.isArray(node.children) || node.children.length !== 1) {
+        return false;
+    }
+
+    return isSourceTightUserHtmlNode(node.children[0] as MarkdownFlowNode);
 }
 
 function getAlignmentBlankLineCount(value: unknown): number | undefined {
@@ -144,6 +166,92 @@ function isSourceTightFirstBlockListBoundary(
     return item?.type === 'listItem' && item.sourceTightFirstBlock === true;
 }
 
+function canListInterruptParagraph(node: MarkdownFlowNode): boolean {
+    if (node.type !== 'list' || !Array.isArray(node.children)) return false;
+
+    const firstItem = node.children[0] as MarkdownFlowNode | undefined;
+    if (!firstItem || firstItem.type !== 'listItem') return false;
+    const hasTaskMarker = typeof firstItem.checked === 'boolean';
+    const hasContent = hasTaskMarker || firstItem.children?.some((child) => {
+        if (!child || typeof child !== 'object') return false;
+        const contentNode = child as MarkdownFlowNode;
+        return contentNode.type !== 'paragraph'
+            || contentNode.children?.some((inline) => {
+                if (!inline || typeof inline !== 'object') return false;
+                const inlineNode = inline as MarkdownFlowNode;
+                return inlineNode.type !== 'html'
+                    || typeof inlineNode.value !== 'string'
+                    || !/^<br\s*\/?>$/i.test(inlineNode.value.trim());
+            }) === true;
+    }) === true;
+    if (!hasContent) return false;
+
+    return node.ordered !== true || node.start === 1;
+}
+
+function endsWithParagraph(node: MarkdownFlowNode): boolean {
+    if (node.type === 'paragraph') return true;
+    if (!Array.isArray(node.children) || node.children.length === 0) return false;
+
+    const lastChild = node.children[node.children.length - 1];
+    return Boolean(lastChild && typeof lastChild === 'object'
+        && endsWithParagraph(lastChild as MarkdownFlowNode));
+}
+
+function requiresBlankLineForStableParse(
+    left: MarkdownFlowNode,
+    right: MarkdownFlowNode,
+    parent: MarkdownParentNode,
+    state?: MarkdownStringifyState,
+): boolean {
+    if (
+        left.type === 'paragraph'
+        && !isTightUserHtmlNode(left)
+        && right.type === 'list'
+    ) {
+        return !canListInterruptParagraph(right);
+    }
+
+    return (
+            left.type === 'blockquote'
+            && endsWithParagraph(left)
+            && right.type === 'paragraph'
+            && !isTightUserHtmlNode(right)
+        )
+        || (
+            left.type === 'footnoteDefinition'
+            && endsWithParagraph(left)
+            && right.type === 'paragraph'
+            && !isTightUserHtmlNode(right)
+        )
+        || (
+            left.type === 'table'
+            && right.type === 'paragraph'
+            && !isTightUserHtmlNode(right)
+        )
+        || (
+            right.type === 'table'
+            && (left.type === 'blockquote' || left.type === 'footnoteDefinition' || left.type === 'list')
+            && endsWithParagraph(left)
+        )
+        || (
+            left.type === 'paragraph'
+            && !isTightUserHtmlNode(left)
+            && right.type === 'thematicBreak'
+        )
+        || (
+            left.type === 'paragraph'
+            && !isTightUserHtmlNode(left)
+            && right.type === 'definitionList'
+        )
+        || (
+            left.type === 'paragraph'
+            && !isTightUserHtmlNode(left)
+            && right.type === 'paragraph'
+            && isFollowedByDefinitionDescription(parent, state)
+        );
+}
+
 function joinAdjacentTightRootBlocks(
     left: MarkdownFlowNode,
     right: MarkdownFlowNode,
@@ -151,11 +259,23 @@ function joinAdjacentTightRootBlocks(
     state?: MarkdownStringifyState,
 ): number | undefined {
     const sourceHtmlBlankLineCountAfter = getTrailingSourceHtmlBlankLineCount(left);
+    if (sourceHtmlBlankLineCountAfter !== undefined && sourceHtmlBlankLineCountAfter > 0) {
+        return sourceHtmlBlankLineCountAfter;
+    }
+
+    if (requiresBlankLineForStableParse(left, right, parent, state)) {
+        return 1;
+    }
+
     if (sourceHtmlBlankLineCountAfter !== undefined) {
         return sourceHtmlBlankLineCountAfter;
     }
 
-    if (isSourceTightFirstBlockListBoundary(left, 'last')) {
+    if (
+        isSourceTightFirstBlockListBoundary(left, 'last')
+        && !isTightUserHtmlNode(right)
+        && !isUserHtmlNode(right)
+    ) {
         return 0;
     }
 
@@ -179,15 +299,23 @@ function joinAdjacentTightRootBlocks(
 
     if (parent.type !== 'root') return undefined;
 
-    if (right.data?.vlainaSourceTightBefore === true) {
+    if (isSourceTightUserHtmlNode(right)) {
         return 0;
     }
 
-    if (isInternalFrontmatterCodeNode(left)) {
+    if (
+        isInternalFrontmatterCodeNode(left)
+        && !isTightUserHtmlNode(right)
+        && !isUserHtmlNode(right)
+    ) {
         return 0;
     }
 
-    if (isTightUserHtmlNode(left) || isTightUserHtmlNode(right)) {
+    if (isTightUserHtmlNode(right)) {
+        return isTightRawTextHtmlNode(right) ? 1 : 0;
+    }
+
+    if (isTightUserHtmlNode(left)) {
         return 0;
     }
 
@@ -208,6 +336,10 @@ function joinAdjacentTightRootBlocks(
     if (
         isNonEmptyTextBlock(left, 'paragraph')
         && isNonEmptyTextBlock(right, 'paragraph')
+        && !isGeneratedBlockParagraph(left)
+        && !isGeneratedBlockParagraph(right)
+        && !isImageParagraph(left)
+        && !isImageParagraph(right)
         && isFollowedByHeading(parent, state)
     ) {
         return 0;
@@ -311,6 +443,20 @@ function isFollowedByHeading(
     }
 
     return false;
+}
+
+function isFollowedByDefinitionDescription(
+    parent: MarkdownParentNode,
+    state?: MarkdownStringifyState,
+): boolean {
+    const currentIndex = state?.indexStack?.[state.indexStack.length - 1];
+    if (typeof currentIndex !== 'number' || !Array.isArray(parent.children)) {
+        return false;
+    }
+
+    const description = parent.children[currentIndex + 2];
+    return description?.type === 'paragraph'
+        && typeof description.data?.vlainaDefinitionBlankLineCount === 'number';
 }
 
 export const notesRemarkStringifyOptions = {

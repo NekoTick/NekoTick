@@ -28,7 +28,7 @@ export function useMessageAutoscrollLifecycle({
   pendingScrollMessageCountRef,
   pendingScrollToCurrentTurnRef,
   prevChatIdRef,
-  restoreShortCompletedTurnAnchor,
+  restoreCurrentTurnAnchorIfOutputFits,
   scrollCurrentTurnIntoView,
   setCurrentTurnTopSpacerHeight,
   setProgrammaticScrollTop,
@@ -60,7 +60,7 @@ export function useMessageAutoscrollLifecycle({
   pendingScrollMessageCountRef: MutableValue<number | null>;
   pendingScrollToCurrentTurnRef: MutableValue<boolean>;
   prevChatIdRef: MutableValue<string | null>;
-  restoreShortCompletedTurnAnchor: () => void;
+  restoreCurrentTurnAnchorIfOutputFits: () => boolean;
   scrollCurrentTurnIntoView: () => "estimated" | "rendered" | false;
   setCurrentTurnTopSpacerHeight: Dispatch<SetStateAction<number>>;
   setProgrammaticScrollTop: (container: HTMLElement, nextScrollTop: number) => number;
@@ -143,15 +143,15 @@ export function useMessageAutoscrollLifecycle({
       }
 
       updateSpacerHeightRef.current();
-      restoreShortCompletedTurnAnchor();
+      restoreCurrentTurnAnchorIfOutputFits();
 
       let secondFrameId: number | null = null;
       const firstFrameId = requestAnimationFrame(() => {
         updateSpacerHeightRef.current();
-        restoreShortCompletedTurnAnchor();
+        restoreCurrentTurnAnchorIfOutputFits();
         secondFrameId = requestAnimationFrame(() => {
           updateSpacerHeightRef.current();
-          restoreShortCompletedTurnAnchor();
+          restoreCurrentTurnAnchorIfOutputFits();
         });
       });
 
@@ -164,7 +164,7 @@ export function useMessageAutoscrollLifecycle({
     }
   }, [
     active, currentTurnAnchorModeRef, currentTurnTopSpacerHeightRef, getLastUserMessageIndex, isAutoFollowRef,
-    isCurrentTurnAnchoredRef, isStreaming, isStreamingRef, messages, messagesRef, restoreShortCompletedTurnAnchor,
+    isCurrentTurnAnchoredRef, isStreaming, isStreamingRef, messages, messagesRef, restoreCurrentTurnAnchorIfOutputFits,
     setCurrentTurnTopSpacerHeight, setSpacerHeight, updateSpacerHeightRef, userDetachedFromCurrentTurnRef,
   ]);
 

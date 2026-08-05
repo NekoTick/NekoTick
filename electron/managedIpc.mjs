@@ -12,12 +12,14 @@ import {
   createManagedStreamTimeoutError,
   isManagedStreamTimeoutError,
   MANAGED_BACKEND_STREAM_ERROR,
+  normalizeManagedPublicErrorCode,
   raceWithAbort,
   readManagedErrorPayload,
 } from './managedIpcErrors.mjs';
 import {
   normalizeManagedBinaryPayload,
   sanitizeManagedChatCompletionBody,
+  stringifyManagedJsonPayload,
 } from './managedIpcPayloads.mjs';
 import {
   createManagedStreamAccumulator,
@@ -27,20 +29,60 @@ import {
 import {
   cancelManagedJsonRequest,
   parseOptionalManagedRequestId,
+  runManagedJsonOperation,
   requestManagedJsonWithOptionalCancel,
 } from './managedIpcJsonRequests.mjs';
+import { createIpcSenderAbortRegistry } from './ipcSenderAbortRegistry.mjs';
 
 const activeManagedStreams = new Map();
+const managedStreamSenderAbortRegistry = createIpcSenderAbortRegistry(createAbortError);
 const MANAGED_STREAM_TIMEOUT_MS = 300_000;
+const MAX_ACTIVE_MANAGED_STREAMS = 16;
+const MAX_MANAGED_STREAM_RESPONSE_BYTES = 64 * 1024 * 1024;
+const SAFE_MANAGED_STREAM_ERROR_MESSAGES = new Set([
+  'INVALID_REQUEST',
+  'Invalid managed stream response chunk.',
+  'MANAGED_QUOTA_EXHAUSTED',
+  'Managed API response body is null',
+  'Managed stream content is too large.',
+  'Managed stream line is too large.',
+  'Managed stream response is too large.',
+  'UNSUPPORTED_MODEL_INPUT',
+  'UNSUPPORTED_TOOL_CALLING',
+  'UPSTREAM_RATE_LIMITED',
+  'UPSTREAM_UNAVAILABLE',
+]);
 
-function deleteActiveManagedStream(requestId, controller) {
-  if (activeManagedStreams.get(requestId) === controller) {
-    activeManagedStreams.delete(requestId);
+function readManagedStreamErrorProperty(error, key) {
+  if (!error || typeof error !== 'object') return undefined;
+  try {
+    return error[key];
+  } catch {
+    return undefined;
   }
 }
 
+function getPublicManagedStreamErrorMessage(error) {
+  const message = getManagedErrorMessage(error);
+  if (
+    readManagedStreamErrorProperty(error, MANAGED_BACKEND_STREAM_ERROR)
+    || SAFE_MANAGED_STREAM_ERROR_MESSAGES.has(message)
+    || /^Managed stream failed: HTTP [1-5]\d\d$/.test(message)
+  ) {
+    return message;
+  }
+  return 'Managed API response stream failed.';
+}
+
+function deleteActiveManagedStream(requestId, active) {
+  if (activeManagedStreams.get(requestId) === active) {
+    activeManagedStreams.delete(requestId);
+  }
+  active.untrackSender();
+}
+
 function isCurrentManagedStream(requestId, controller) {
-  return activeManagedStreams.get(requestId) === controller;
+  return activeManagedStreams.get(requestId)?.controller === controller;
 }
 
 export function registerManagedIpc({
@@ -53,92 +95,128 @@ export function registerManagedIpc({
   submitElectronFeedback,
   requireNonEmptyString,
 }) {
-  handleIpc('desktop:billing:create-checkout', async (_event, tier) => {
-    return await createElectronBillingCheckout(primitiveToString(tier) ?? '');
+  handleIpc('desktop:billing:create-checkout', async (event, tier) => {
+    return await runManagedJsonOperation(
+      (signal) => createElectronBillingCheckout(primitiveToString(tier) ?? '', signal),
+      null,
+      event?.sender,
+    );
   });
 
-  handleIpc('desktop:feedback:submit', async (_event, message) => {
-    return await submitElectronFeedback(primitiveToString(message) ?? '');
+  handleIpc('desktop:feedback:submit', async (event, message) => {
+    return await runManagedJsonOperation(
+      (signal) => submitElectronFeedback(primitiveToString(message) ?? '', signal),
+      null,
+      event?.sender,
+    );
   });
 
-  handleIpc('desktop:managed:get-models', async () => {
-    return await requestManagedPublicJson('/models', { method: 'GET' });
+  handleIpc('desktop:managed:get-models', async (event) => {
+    return await runManagedJsonOperation(
+      (signal) => requestManagedPublicJson('/models', { method: 'GET', signal }),
+      null,
+      event?.sender,
+    );
   });
 
-  handleIpc('desktop:managed:get-models-version', async () => {
-    return await requestManagedPublicJson('/models/version', { method: 'GET' });
+  handleIpc('desktop:managed:get-models-version', async (event) => {
+    return await runManagedJsonOperation(
+      (signal) => requestManagedPublicJson('/models/version', { method: 'GET', signal }),
+      null,
+      event?.sender,
+    );
   });
 
-  handleIpc('desktop:managed:get-budget', async () => {
-    return await requestManagedJson('/budget', { method: 'GET' });
+  handleIpc('desktop:managed:get-budget', async (event) => {
+    return await runManagedJsonOperation(
+      (signal) => requestManagedJson('/budget', { method: 'GET', signal }),
+      null,
+      event?.sender,
+    );
   });
 
-  handleIpc('desktop:managed:client-diagnostic', async (_event, body) => {
-    return await requestManagedJson('/client-diagnostics', {
-      method: 'POST',
-      body: JSON.stringify(body ?? {}),
-    });
+  handleIpc('desktop:managed:client-diagnostic', async (event, body) => {
+    return await runManagedJsonOperation(
+      (signal) => requestManagedJson('/client-diagnostics', {
+        method: 'POST',
+        body: stringifyManagedJsonPayload(body),
+        signal,
+      }),
+      null,
+      event?.sender,
+    );
   });
 
-  handleIpc('desktop:managed:chat-completion', async (_event, requestIdOrBody, maybeBody) => {
+  handleIpc('desktop:managed:chat-completion', async (event, requestIdOrBody, maybeBody) => {
     const { requestId, payload: body } = parseOptionalManagedRequestId(
       requestIdOrBody,
       maybeBody,
       'managed chat completion request id',
     );
-    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, '/chat/completions', {
+    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, event.sender, '/chat/completions', {
       method: 'POST',
-      body: JSON.stringify(sanitizeManagedChatCompletionBody(body)),
+      body: stringifyManagedJsonPayload(sanitizeManagedChatCompletionBody(body)),
     });
   });
 
-  handleIpc('desktop:managed:chat-completion:cancel', async (_event, requestId) => {
-    cancelManagedJsonRequest(requestId, 'managed chat completion request id');
+  handleIpc('desktop:managed:chat-completion:cancel', async (event, requestId) => {
+    return cancelManagedJsonRequest(requestId, 'managed chat completion request id', event.sender);
   });
 
-  handleIpc('desktop:managed:image-generation', async (_event, requestIdOrBody, maybeBody) => {
+  handleIpc('desktop:managed:image-generation', async (event, requestIdOrBody, maybeBody) => {
     const { requestId, payload: body } = parseOptionalManagedRequestId(
       requestIdOrBody,
       maybeBody,
       'managed image generation request id',
     );
-    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, '/images/generations', {
+    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, event.sender, '/images/generations', {
       method: 'POST',
-      body: JSON.stringify(body ?? {}),
+      body: stringifyManagedJsonPayload(body),
     });
   });
 
-  handleIpc('desktop:managed:image-generation:cancel', async (_event, requestId) => {
-    cancelManagedJsonRequest(requestId, 'managed image generation request id');
+  handleIpc('desktop:managed:image-generation:cancel', async (event, requestId) => {
+    return cancelManagedJsonRequest(requestId, 'managed image generation request id', event.sender);
   });
 
-  handleIpc('desktop:managed:image-edit', async (_event, requestIdOrPayload, maybePayload) => {
+  handleIpc('desktop:managed:image-edit', async (event, requestIdOrPayload, maybePayload) => {
     const { requestId, payload } = parseOptionalManagedRequestId(
       requestIdOrPayload,
       maybePayload,
       'managed image edit request id',
     );
     const { body, headers } = normalizeManagedBinaryPayload(payload);
-    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, '/images/edits', {
+    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, event.sender, '/images/edits', {
       method: 'POST',
       headers,
       body,
     });
   });
 
-  handleIpc('desktop:managed:image-edit:cancel', async (_event, requestId) => {
-    cancelManagedJsonRequest(requestId, 'managed image edit request id');
+  handleIpc('desktop:managed:image-edit:cancel', async (event, requestId) => {
+    return cancelManagedJsonRequest(requestId, 'managed image edit request id', event.sender);
   });
 
   handleIpc('desktop:managed:chat-completion-stream:start', async (event, requestId, body) => {
     const id = requireSafeIpcRequestId(requestId, 'managed stream request id');
+    const sender = event.sender;
+    if (!sender || sender.isDestroyed?.()) {
+      throw new Error('Managed stream renderer is unavailable.');
+    }
 
     const previous = activeManagedStreams.get(id);
-    previous?.abort();
+    if (previous) {
+      throw new Error('A managed stream with this id is already active.');
+    }
+    if (activeManagedStreams.size >= MAX_ACTIVE_MANAGED_STREAMS) {
+      throw new Error('Too many managed streams are active.');
+    }
 
     const controller = new AbortController();
-    activeManagedStreams.set(id, controller);
-    const sender = event.sender;
+    const active = { controller, sender, untrackSender: () => {} };
+    activeManagedStreams.set(id, active);
+    active.untrackSender = managedStreamSenderAbortRegistry.track(sender, controller);
+    if (sender.isDestroyed?.()) controller.abort(createAbortError());
     const sendStreamEvent = (suffix, payload) => {
       if (!isCurrentManagedStream(id, controller)) {
         return false;
@@ -161,7 +239,7 @@ export function registerManagedIpc({
             Accept: 'text/event-stream',
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(sanitizeManagedChatCompletionBody(body)),
+          body: stringifyManagedJsonPayload(sanitizeManagedChatCompletionBody(body)),
         }), controller.signal);
 
         if (!response.ok) {
@@ -179,6 +257,7 @@ export function registerManagedIpc({
         controller.signal.addEventListener('abort', cancelReader, { once: true });
         const decoder = new TextDecoder();
         let buffer = '';
+        let responseBytesRead = 0;
 
         const chunkScheduler = createManagedStreamChunkScheduler((delta) => {
           if (!sendStreamEvent('chunk', { delta })) {
@@ -221,6 +300,21 @@ export function registerManagedIpc({
               break;
             }
 
+            const chunkByteLength = value?.byteLength;
+            if (!Number.isSafeInteger(chunkByteLength) || chunkByteLength < 0) {
+              throw new Error('Invalid managed stream response chunk.');
+            }
+            if (chunkByteLength > MAX_MANAGED_STREAM_RESPONSE_BYTES - responseBytesRead) {
+              throw new Error('Managed stream response is too large.');
+            }
+            if (
+              !ArrayBuffer.isView(value)
+              || value instanceof DataView
+              || value.BYTES_PER_ELEMENT !== 1
+            ) {
+              throw new Error('Invalid managed stream response chunk.');
+            }
+            responseBytesRead += chunkByteLength;
             buffer = appendManagedStreamBuffer(buffer, decoder.decode(value, { stream: true }));
             const lines = buffer.split('\n');
             buffer = lines.pop() || '';
@@ -283,25 +377,32 @@ export function registerManagedIpc({
             }
           }
         } else {
+          const statusCode = readManagedStreamErrorProperty(error, 'statusCode');
           sendStreamEvent('error', {
-            message: getManagedErrorMessage(error),
-            statusCode: typeof error?.statusCode === 'number' ? error.statusCode : undefined,
-            errorCode: typeof error?.errorCode === 'string' ? error.errorCode : undefined,
+            message: getPublicManagedStreamErrorMessage(error),
+            statusCode: Number.isInteger(statusCode)
+              && statusCode >= 100
+              && statusCode <= 599
+              ? statusCode
+              : undefined,
+            errorCode: normalizeManagedPublicErrorCode(
+              readManagedStreamErrorProperty(error, 'errorCode'),
+            ) ?? undefined,
           });
         }
       } finally {
         clearTimeout(timeoutId);
-        deleteActiveManagedStream(id, controller);
+        deleteActiveManagedStream(id, active);
       }
     })();
   });
 
-  handleIpc('desktop:managed:chat-completion-stream:cancel', async (_event, requestId) => {
+  handleIpc('desktop:managed:chat-completion-stream:cancel', async (event, requestId) => {
     const id = requireSafeIpcRequestId(requestId, 'managed stream request id');
-    const controller = activeManagedStreams.get(id);
-    if (controller) {
-      controller.abort();
-      deleteActiveManagedStream(id, controller);
-    }
+    const active = activeManagedStreams.get(id);
+    if (!active || active.sender !== event.sender) return false;
+    active.controller.abort();
+    deleteActiveManagedStream(id, active);
+    return true;
   });
 }

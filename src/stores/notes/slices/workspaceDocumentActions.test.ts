@@ -3,6 +3,7 @@ import { createStore } from 'zustand/vanilla';
 import { createWorkspaceSlice } from './workspaceSlice';
 import { markExternalPathDeletion } from '../document/externalPathMutationRegistry';
 import type { NotesStore } from '../types';
+import { NOTE_RECOVERY_CONFLICT_ERROR } from '../noteRecovery';
 
 const mocks = vi.hoisted(() => ({
   chooseDraftSavePath: vi.fn(),
@@ -123,6 +124,26 @@ describe('workspace document actions', () => {
     mocks.storageExists.mockResolvedValue(false);
     mocks.persistWorkspaceSnapshot.mockReturnValue(undefined);
     mocks.flushCurrentPendingEditorMarkdown.mockReturnValue(false);
+  });
+
+  it('requires an explicit save for an unreviewed recovery conflict', async () => {
+    const store = createNotesStore({
+      currentNote: { path: 'alpha.md', content: 'recovered conflict document' },
+      isDirty: true,
+      saveError: NOTE_RECOVERY_CONFLICT_ERROR,
+      saveErrorPath: 'alpha.md',
+      openTabs: [{ path: 'alpha.md', name: 'alpha', isDirty: true }],
+      noteContentsCache: new Map([
+        ['alpha.md', { content: 'recovered conflict document', modifiedAt: 1 }],
+      ]),
+    });
+
+    await store.getState().saveNote();
+    expect(mocks.saveNoteDocument).not.toHaveBeenCalled();
+    expect(store.getState().isDirty).toBe(true);
+
+    await store.getState().saveNote({ explicit: true });
+    expect(mocks.saveNoteDocument).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the regular note cache stable while editing the current note', () => {

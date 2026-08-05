@@ -1,12 +1,23 @@
 import { normalizeNotePathKey } from '@/lib/notes/displayName';
 import { getParentPath } from './pathOperations';
 
-export function isInvalidMoveTarget(sourcePath: string, targetFolderPath: string): boolean {
-  const normalizedSourcePath = normalizeNotePathKey(sourcePath) ?? sourcePath;
-  const normalizedTargetFolderPath = normalizeNotePathKey(targetFolderPath) ?? targetFolderPath;
-  const sourceParentPath = getParentPath(normalizedSourcePath);
+function normalizeMovePath(path: string) {
+  return normalizeNotePathKey(path) ?? path;
+}
 
-  if (normalizedSourcePath && sourceParentPath === normalizedTargetFolderPath) {
+function hasCurrentParent(sourcePath: string, targetFolderPath: string) {
+  return Boolean(sourcePath) && getParentPath(sourcePath) === targetFolderPath;
+}
+
+export function isCurrentParentMoveTarget(sourcePath: string, targetFolderPath: string): boolean {
+  return hasCurrentParent(normalizeMovePath(sourcePath), normalizeMovePath(targetFolderPath));
+}
+
+export function isInvalidMoveTarget(sourcePath: string, targetFolderPath: string): boolean {
+  const normalizedSourcePath = normalizeMovePath(sourcePath);
+  const normalizedTargetFolderPath = normalizeMovePath(targetFolderPath);
+
+  if (hasCurrentParent(normalizedSourcePath, normalizedTargetFolderPath)) {
     return true;
   }
 

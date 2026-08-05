@@ -3,7 +3,7 @@ import { expandKnownSelectableListItemHeaderRanges } from './blockUnitResolver';
 import {
   createBlockRectYIndex,
   convertBlockRectsToDocumentSpace,
-  convertViewportDragRectToDocumentRect,
+  createDragSelectionRect,
   getBlockRangesKey,
   preferNestedBlockRanges,
   preferNestedBlockRangesUnlessHeaderIntersects,
@@ -15,6 +15,11 @@ import {
 } from './blockSelectionUtils';
 import { expandDragRectPointerEdgeY, areRectBoundsEqual } from './blankAreaSelectionDragBox';
 import { filterExternalBlankAreaSelectionEdgeGrazes } from './blankAreaSelectionGeometry';
+import {
+  createRoundedBlockSelectionPreviewPath,
+  resolveBlockSelectionPreviewMetrics,
+  resolveBlockSelectionPreviewRects,
+} from './blockSelectionPreviewGeometry';
 
 interface BlankAreaSelectionRectResolver {
   getSelectionBlockRects: () => readonly BlockRect[];
@@ -30,6 +35,8 @@ export function createBlankAreaSelectionResolver(args: {
   startScrollTop: number;
   getScrollLeft: () => number;
   getScrollTop: () => number;
+  getPointerClientX: () => number;
+  getPointerClientY: () => number;
   initialSelectedBlocks: readonly BlockRange[];
   shouldFilterExternalEdgeGrazes: boolean;
   onSelectionChange: (blocks: BlockRange[]) => void;
@@ -45,6 +52,11 @@ export function createBlankAreaSelectionResolver(args: {
   let cachedSelectionResolutionExpandedKey = '';
   let cachedDocSpaceBlockRects: readonly BlockRect[] | null = null;
   let cachedDocSpaceBlockIndex: BlockRectYIndex | null = null;
+  let cachedDocSpaceBlocksByRange: Map<string, BlockRect> | null = null;
+  let selectedPreviewDocSpaceRects: RectBounds[] = [];
+  let selectedPreviewRanges: BlockRange[] = [];
+  let selectedPreviewPath = '';
+  const previewMetrics = resolveBlockSelectionPreviewMetrics(args.view.dom);
 
   const getDocSpaceBlockRectIndex = (
     currentScrollLeft: number,
@@ -69,6 +81,10 @@ export function createBlankAreaSelectionResolver(args: {
     const docSpaceBlockIndex = createBlockRectYIndex(docSpaceBlockRects);
     cachedDocSpaceBlockRects = docSpaceBlockRects;
     cachedDocSpaceBlockIndex = docSpaceBlockIndex;
+    cachedDocSpaceBlocksByRange = new Map(docSpaceBlockRects.map((block) => [
+      `${block.from}:${block.to}`,
+      block,
+    ]));
     return {
       blockRects: docSpaceBlockRects,
       index: docSpaceBlockIndex,
@@ -79,6 +95,10 @@ export function createBlankAreaSelectionResolver(args: {
     args.rectResolver.invalidate();
     cachedDocSpaceBlockRects = null;
     cachedDocSpaceBlockIndex = null;
+    cachedDocSpaceBlocksByRange = null;
+    selectedPreviewDocSpaceRects = [];
+    selectedPreviewRanges = [];
+    selectedPreviewPath = '';
     cachedSelectionResolutionKey = '';
     cachedSelectionResolutionBlocks = [];
     cachedSelectionResolutionExpandedKey = '';
@@ -93,14 +113,11 @@ export function createBlankAreaSelectionResolver(args: {
     lastAppliedViewportDragRect = viewportDragRect;
     lastAppliedScrollLeft = currentScrollLeft;
     lastAppliedScrollTop = currentScrollTop;
-    const docSpaceDragRect = convertViewportDragRectToDocumentRect(
-      viewportDragRect,
-      args.startClientX,
-      args.startClientY,
-      args.startScrollLeft,
-      args.startScrollTop,
-      currentScrollLeft,
-      currentScrollTop,
+    const docSpaceDragRect = createDragSelectionRect(
+      args.startClientX + args.startScrollLeft,
+      args.startClientY + args.startScrollTop,
+      args.getPointerClientX() + currentScrollLeft,
+      args.getPointerClientY() + currentScrollTop,
     );
     const hitTestDragRect = expandDragRectPointerEdgeY(docSpaceDragRect, args.startClientY + args.startScrollTop);
     const { blockRects: docSpaceBlockRects, index: docSpaceBlockIndex } = getDocSpaceBlockRectIndex(
@@ -137,6 +154,23 @@ export function createBlankAreaSelectionResolver(args: {
       cachedSelectionResolutionBlocks = expandedBlocks;
       cachedSelectionResolutionExpandedKey = nextKey;
     }
+
+    const previewBlocks = expandedBlocks
+      .map((range) => cachedDocSpaceBlocksByRange?.get(`${range.from}:${range.to}`))
+      .filter((block): block is BlockRect => Boolean(block));
+    selectedPreviewRanges = previewBlocks.map((block) => ({
+      from: block.from,
+      to: block.to,
+    }));
+    selectedPreviewDocSpaceRects = resolveBlockSelectionPreviewRects(
+      args.view.state.doc,
+      previewBlocks,
+      previewMetrics,
+    );
+    selectedPreviewPath = createRoundedBlockSelectionPreviewPath(
+      selectedPreviewDocSpaceRects,
+      previewMetrics.radiusPx,
+    );
     if (nextKey === selectedBlocksKey) return;
 
     selectedBlocksKey = nextKey;
@@ -157,5 +191,15 @@ export function createBlankAreaSelectionResolver(args: {
     applyDragRectSelection(viewportDragRect);
   };
 
-  return { applyDragRectSelectionIfNeeded, invalidateGeometryCache };
+  const getSelectionPreviewDocumentRects = (): readonly RectBounds[] => selectedPreviewDocSpaceRects;
+  const getSelectionPreviewPath = (): string => selectedPreviewPath;
+  const getSelectionPreviewRanges = (): BlockRange[] => selectedPreviewRanges;
+
+  return {
+    applyDragRectSelectionIfNeeded,
+    getSelectionPreviewRanges,
+    getSelectionPreviewDocumentRects,
+    getSelectionPreviewPath,
+    invalidateGeometryCache,
+  };
 }

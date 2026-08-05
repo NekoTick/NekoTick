@@ -8,6 +8,14 @@ describe('LocalSearchProvider quality controls', () => {
     const provider = new LocalSearchProvider({
       fetchImpl: async (url) => {
         calls.push(url);
+        if (url.startsWith('https://search.brave.com/search')) {
+          return {
+            ok: true,
+            async text() {
+              return '';
+            },
+          };
+        }
         if (url.startsWith('https://www.google.com/search')) {
           return {
             ok: true,
@@ -48,9 +56,10 @@ describe('LocalSearchProvider quality controls', () => {
         source: 'local-web-search:duckduckgo',
       }),
     ]);
-    expect(calls[0]).toMatch(/^https:\/\/www\.google\.com\/search/);
-    expect(calls[1]).toMatch(/^https:\/\/www\.bing\.com\/search/);
-    expect(calls[2]).toMatch(/^https:\/\/html\.duckduckgo\.com\/html\//);
+    expect(calls[0]).toMatch(/^https:\/\/search\.brave\.com\/search/);
+    expect(calls[1]).toMatch(/^https:\/\/www\.google\.com\/search/);
+    expect(calls[2]).toMatch(/^https:\/\/www\.bing\.com\/search/);
+    expect(calls[3]).toMatch(/^https:\/\/html\.duckduckgo\.com\/html\//);
   });
 
   it('returns Catime official sources without waiting on external engines', async () => {
@@ -172,6 +181,30 @@ describe('LocalSearchProvider quality controls', () => {
     });
 
     await expect(provider.search('weather in shanghai today', { engines: ['bing'], limit: 5 })).resolves.toEqual([]);
+  });
+
+  it('treats search engine challenge pages as unavailable instead of empty results', async () => {
+    const provider = new LocalSearchProvider({
+      fetchImpl: async () => ({
+        ok: true,
+        async text() {
+          return '<div class="captcha"><div id="turnstile-widget"></div></div>';
+        },
+      }),
+    });
+
+    await expect(provider.search('Beijing weather today', { engines: ['bing'], limit: 5 }))
+      .rejects.toMatchObject({ code: 'search_unavailable' });
+  });
+
+  it('uses Chinese market parameters for Chinese queries', () => {
+    const engines = localSearchInternals.selectSearchEngines(['google', 'bing']);
+    const googleParams = engines.find((engine) => engine.id === 'google').params('北京天气', 5, {});
+    const bingParams = engines.find((engine) => engine.id === 'bing').params('北京天气', 5, {});
+
+    expect(googleParams).toMatchObject({ hl: 'zh-CN', gl: 'cn' });
+    expect(bingParams).toMatchObject({ mkt: 'zh-CN', setlang: 'zh-Hans', cc: 'CN' });
+    expect(bingParams).not.toHaveProperty('ensearch');
   });
 
   it('probes a direct .com site for single-token products when search results are irrelevant', async () => {

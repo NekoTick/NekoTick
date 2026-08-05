@@ -180,6 +180,25 @@ body.editor-block-drag-active .milkdown .ProseMirror .editor-native-selected-tex
   pointer-events: none;
 }
 
+.milkdown .editor-block-selection-large-preview-layer {
+  position: absolute;
+  inset: 0;
+  z-index: var(--vlaina-z-0);
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.milkdown .editor-block-selection-large-preview-layer path {
+  fill: var(--vlaina-block-selection-color-default);
+}
+
+.milkdown .ProseMirror.editor-block-selection-large-preview-active {
+  position: relative;
+  z-index: var(--vlaina-z-1);
+}
+
 .milkdown .editor-block-selection-line-fill {
   --vlaina-block-selection-color: var(--vlaina-block-selection-color-default);
   --vlaina-block-selection-bleed-y: var(--vlaina-block-selection-bleed-y-default);

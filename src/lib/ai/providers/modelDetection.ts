@@ -1,8 +1,15 @@
-import type { Provider } from '../types'
+import { AIErrorType, type Provider } from '../types'
+import {
+  extractErrorCode,
+  extractErrorMessage,
+  inferErrorTypeByMessage,
+  isErrorNamed,
+} from '../errorClassification'
 import { buildAnthropicBaseUrl, buildOpenAIBaseUrl } from '../utils'
 import { providerFetch } from '../providerHttp'
 import { buildAnthropicHeaders } from './anthropic'
 import { readBoundedProviderJsonResponse } from './boundedResponseText'
+import { MAX_AI_MODEL_FIELD_CHARS, MAX_AI_PROVIDER_FETCHED_MODELS } from '@/lib/storage/unifiedStorageSaveTypes'
 
 export type ProviderEndpointType = NonNullable<Provider['endpointType']>
 
@@ -17,8 +24,61 @@ interface ModelListResponse {
   data: unknown
 }
 
-export const MAX_PROVIDER_MODEL_LIST_IDS = 2048
-export const MAX_PROVIDER_MODEL_ID_CHARS = 4096
+export const MAX_PROVIDER_MODEL_LIST_IDS = MAX_AI_PROVIDER_FETCHED_MODELS
+export const MAX_PROVIDER_MODEL_ID_CHARS = MAX_AI_MODEL_FIELD_CHARS
+const MODEL_FETCH_RESPONSE_TOO_LARGE_MESSAGE = 'AI provider response body is too large.'
+const MODEL_FETCH_INVALID_RESPONSE_MESSAGE = 'AI provider returned an invalid model list response.'
+
+type ModelFetchErrorMessageKey =
+  | 'settings.ai.fetchModelsFailed'
+  | 'settings.ai.fetchModelsResponseTooLarge'
+  | 'settings.ai.fetchModelsInvalidResponse'
+  | 'chat.error.authFailed'
+  | 'chat.error.timeout'
+  | 'chat.error.customProviderConnectionFailed'
+  | 'chat.error.upstreamRateLimited'
+
+export function getModelFetchErrorMessageKey(error: unknown): ModelFetchErrorMessageKey {
+  const message = extractErrorMessage(error)
+  const normalized = message.toLowerCase()
+  const status = extractErrorCode(error) || normalized.match(/:\s*(\d{3})\s*$/)?.[1] || ''
+
+  if (status === '401' || status === '403') return 'chat.error.authFailed'
+  if (status === '429') return 'chat.error.upstreamRateLimited'
+  if (/^5\d{2}$/.test(status)) return 'chat.error.customProviderConnectionFailed'
+  if (normalized.includes('response body is too large')) {
+    return 'settings.ai.fetchModelsResponseTooLarge'
+  }
+  if (
+    normalized.includes('invalid model list response')
+    || normalized.includes('invalid response metadata')
+    || normalized.includes('invalid json')
+    || normalized.includes('unexpected token')
+    || normalized.includes('unexpected end of json')
+    || isErrorNamed(error, 'SyntaxError')
+  ) {
+    return 'settings.ai.fetchModelsInvalidResponse'
+  }
+
+  if (isErrorNamed(error, 'AbortError')) return 'chat.error.timeout'
+  switch (inferErrorTypeByMessage(message)) {
+    case AIErrorType.AUTH_ERROR:
+      return 'chat.error.authFailed'
+    case AIErrorType.TIMEOUT:
+      return 'chat.error.timeout'
+    case AIErrorType.RATE_LIMIT:
+      return 'chat.error.upstreamRateLimited'
+    case AIErrorType.NETWORK_ERROR:
+    case AIErrorType.SERVER_ERROR:
+      return 'chat.error.customProviderConnectionFailed'
+    default:
+      return 'settings.ai.fetchModelsFailed'
+  }
+}
+
+function createInvalidModelListResponseError(): Error {
+  return new Error(MODEL_FETCH_INVALID_RESPONSE_MESSAGE)
+}
 
 function normalizeModelId(value: string): string {
   return value.slice(0, MAX_PROVIDER_MODEL_ID_CHARS).trim()
@@ -82,8 +142,7 @@ function normalizeModelList(values: unknown): string[] {
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError'
+  return isErrorNamed(error, 'AbortError')
 }
 
 function createAbortError(): DOMException {
@@ -136,17 +195,20 @@ async function getOpenAIModels(provider: Provider, apiKey: string, signal?: Abor
     throw new Error(`Failed to fetch OpenAI-compatible models: ${response.status}`)
   }
 
+  if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
+    throw createInvalidModelListResponseError()
+  }
   const data = response.data as { data?: unknown; models?: unknown }
-  const dataModels = normalizeModelList(data.data)
-  if (dataModels.length > 0) {
-    return dataModels
+  if (Array.isArray(data.data)) {
+    const dataModels = normalizeModelList(data.data)
+    if (dataModels.length > 0 || !Array.isArray(data.models) || data.data.length === 0) {
+      return dataModels
+    }
   }
-  const models = normalizeModelList(data.models)
-  if (models.length > 0) {
-    return models
+  if (Array.isArray(data.models)) {
+    return normalizeModelList(data.models)
   }
-
-  return []
+  throw createInvalidModelListResponseError()
 }
 
 async function getAnthropicModels(provider: Provider, apiKey: string, signal?: AbortSignal): Promise<string[]> {
@@ -158,19 +220,35 @@ async function getAnthropicModels(provider: Provider, apiKey: string, signal?: A
     throw new Error(`Failed to fetch Anthropic models: ${response.status}`)
   }
 
-  const data = response.data as { data?: unknown }
-  const models = normalizeModelList(data.data)
-  if (models.length > 0) {
-    return models
+  if (!response.data || typeof response.data !== 'object' || Array.isArray(response.data)) {
+    throw createInvalidModelListResponseError()
   }
-
-  return []
+  const data = response.data as { data?: unknown }
+  if (!Array.isArray(data.data)) {
+    throw createInvalidModelListResponseError()
+  }
+  return normalizeModelList(data.data)
 }
 
 async function readModelListJson(response: Response, signal: AbortSignal): Promise<unknown> {
   throwIfAborted(signal)
-  throwIfAborted(signal)
-  return await readBoundedProviderJsonResponse<unknown>(response, signal)
+  try {
+    return await readBoundedProviderJsonResponse<unknown>(response, signal)
+  } catch (error) {
+    if (isAbortError(error) || signal.aborted) {
+      throw error
+    }
+    if (
+      error instanceof Error
+      && error.message === MODEL_FETCH_RESPONSE_TOO_LARGE_MESSAGE
+    ) {
+      throw error
+    }
+    if (isErrorNamed(error, 'SyntaxError')) {
+      throw createInvalidModelListResponseError()
+    }
+    throw error
+  }
 }
 
 async function fetchModelListResponse(

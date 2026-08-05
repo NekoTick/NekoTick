@@ -1,4 +1,5 @@
-import { parseAPIError, parseHTTPError } from '../errors';
+import { getUserFacingAIError, parseAPIError, parseHTTPError } from '../errors';
+import { isErrorNamed, readErrorField } from '../errorClassification';
 import { buildAnthropicBaseUrl, buildOpenAIBaseUrl, resolveApiModelId } from '../utils';
 import { providerFetch } from '../providerHttp';
 import type { AIModel, Provider } from '../types';
@@ -25,6 +26,7 @@ import {
 
 const BENCHMARK_TEXT_PROMPT = 'say 6';
 const BENCHMARK_TEXT_MAX_OUTPUT_TOKENS = 128;
+const UNEXPECTED_BENCHMARK_RESPONSE = 'Unexpected benchmark response';
 
 function buildBenchmarkUrl(provider: Provider, endpoint: BenchmarkEndpoint, endpointType?: Provider['endpointType']): string {
   if (endpointType === 'anthropic') {
@@ -49,8 +51,7 @@ function buildBenchmarkUrl(provider: Provider, endpoint: BenchmarkEndpoint, endp
 }
 
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError'
-    || !!error && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError';
+  return isErrorNamed(error, 'AbortError');
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -176,7 +177,9 @@ export async function checkModelHealth(
     const parsedError = parseAPIError(error);
     return {
       status: 'error',
-      error: parsedError.message || 'Unknown error',
+      error: parsedError.message === UNEXPECTED_BENCHMARK_RESPONSE
+        ? UNEXPECTED_BENCHMARK_RESPONSE
+        : getUserFacingAIError(error, { managed: isManagedProviderId(provider.id) }).message,
       endpoint: resultEndpoint,
     };
   };
@@ -191,7 +194,7 @@ export async function checkModelHealth(
       }, controller.signal);
       throwIfAborted(controller.signal);
       if (readErrorMessage(payload) || !isExpectedSuccessPayload(payload, 'chat')) {
-        throw new Error(readErrorMessage(payload) || 'Unexpected benchmark response');
+        throw new Error(readErrorMessage(payload) || UNEXPECTED_BENCHMARK_RESPONSE);
       }
       return {
         status: 'success',
@@ -200,13 +203,14 @@ export async function checkModelHealth(
       };
     } catch (error: unknown) {
       const result = toErrorResult(error, 'chat');
-      const errorRecord = error && typeof error === 'object' ? error as Record<string, unknown> : {};
+      const errorCode = readErrorField(error, 'errorCode');
+      const statusCode = readErrorField(error, 'statusCode');
       const diagnosticCode = didTimeout
         ? 'model_benchmark_timeout'
-        : result.error === 'Unexpected benchmark response'
+        : result.error === UNEXPECTED_BENCHMARK_RESPONSE
           ? 'unexpected_benchmark_response'
-          : typeof errorRecord.errorCode === 'string'
-            ? errorRecord.errorCode
+          : typeof errorCode === 'string'
+            ? errorCode
             : 'model_benchmark_failed';
       if (!didAbortExternally) {
         void reportManagedDesktopClientDiagnostic({
@@ -217,7 +221,7 @@ export async function checkModelHealth(
           isStream: false,
           errorCode: diagnosticCode,
           message: result.error,
-          ...(typeof errorRecord.statusCode === 'number' ? { statusCode: errorRecord.statusCode } : {}),
+          ...(typeof statusCode === 'number' ? { statusCode } : {}),
         }).catch(() => undefined);
       }
       return result;
@@ -261,7 +265,7 @@ export async function checkModelHealth(
     }
 
     if (!isExpectedSuccessPayload(payload, attemptEndpoint)) {
-      throw new Error('Unexpected benchmark response');
+      throw new Error(UNEXPECTED_BENCHMARK_RESPONSE);
     }
 
     return {

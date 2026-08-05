@@ -31,6 +31,7 @@ function createHarness(overrides: Partial<Parameters<typeof createDesktopAccount
     rotateStoredSessionToken: vi.fn(async () => undefined),
     writeStoredAccountCredentials: vi.fn(async () => undefined),
     writeStoredAccountCredentialsIfCurrent: vi.fn(async () => true),
+    getDesktopDeviceId: vi.fn(async () => `vld_${'11'.repeat(16)}`),
     ...overrides,
   };
   return {
@@ -107,12 +108,74 @@ describe('desktop account session client', () => {
       headers: {
         Authorization: 'Bearer attacker',
         'x-app-session-token': 'attacker',
+        'x-vlaina-device-id': 'attacker',
       },
     });
 
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer legacy_session_token');
     expect(headers['x-app-session-token']).toBe('legacy_session_token');
+    expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe('error');
+    expect(headers['x-vlaina-device-id']).toBe(`vld_${'11'.repeat(16)}`);
+  });
+
+  it('clears an evicted session immediately and preserves the device-limit reason until sign-in', async () => {
+    let storedCredentials: typeof credentials | null = credentials;
+    const readStoredAccountCredentials = vi.fn(async () => storedCredentials);
+    const clearStoredAccountCredentialsIfCurrent = vi.fn(async (expectedToken: string) => {
+      if (storedCredentials?.appSessionToken !== expectedToken) return false;
+      storedCredentials = null;
+      return true;
+    });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: false,
+      error: 'Session signed out because device limit was reached',
+      errorCode: 'session_device_limit',
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { client } = createHarness({
+      readStoredAccountCredentials,
+      clearStoredAccountCredentialsIfCurrent,
+    });
+
+    await expect(client.fetchWithStoredSession('https://api.example.com/managed')).rejects.toMatchObject({
+      statusCode: 401,
+      errorCode: 'session_device_limit',
+    });
+    await expect(client.getDesktopAccountSessionStatus()).resolves.toMatchObject({
+      connected: false,
+      sessionInvalidated: true,
+      sessionInvalidationReason: 'device_limit',
+    });
+    await expect(client.getDesktopAccountSessionStatus()).resolves.toMatchObject({
+      sessionInvalidationReason: 'device_limit',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(clearStoredAccountCredentialsIfCurrent).toHaveBeenCalledWith(credentials.appSessionToken);
+  });
+
+  it('does not retry a device-limit response during the post-login grace period', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: false,
+      errorCode: 'session_device_limit',
+    }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { client, options } = createHarness();
+
+    await expect(client.getDesktopAccountSessionStatus()).resolves.toMatchObject({
+      connected: false,
+      sessionInvalidationReason: 'device_limit',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(options.clearStoredAccountCredentialsIfCurrent).toHaveBeenCalledWith(credentials.appSessionToken);
   });
 
   it('cancels 401 activation retry delays before retrying', async () => {
@@ -136,6 +199,24 @@ describe('desktop account session client', () => {
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(options.rotateStoredSessionToken).not.toHaveBeenCalled();
+  });
+
+  it('does not replay non-idempotent requests after a 401 during activation', async () => {
+    const fetchMock = vi.fn(async () => new Response('', { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { client } = createHarness({
+      readStoredAccountCredentials: vi.fn(async () => ({
+        ...credentials,
+        authenticatedAt: Date.now(),
+      })),
+    });
+
+    await expect(client.fetchWithStoredSession('https://api.example.com/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({ message: 'test' }),
+    })).rejects.toThrow('vlaina session is still activating');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('requests budget data during desktop session status probes', async () => {

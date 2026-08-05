@@ -67,6 +67,7 @@ function renderChatInput(overrides: Partial<ChatInputProps> = {}) {
 function openComputerUseEnableDialog(): HTMLTextAreaElement {
   (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
     platform: 'electron',
+    computer: {},
   } as DesktopApi;
   renderChatInput();
   const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
@@ -139,6 +140,52 @@ describe('ChatInput', () => {
     await expectComposerFocusAfterDialogCloses(textarea);
   });
 
+  it('stops the active request when execution mode is disabled', () => {
+    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
+      platform: 'electron',
+      computer: {},
+    } as DesktopApi;
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          computerUseEnabled: true,
+        },
+      },
+    }));
+    const onStop = vi.fn();
+    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
+    renderChatInput({ isLoading: true, onStop });
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse.disable' }));
+
+    expect(setComputerUseEnabled).toHaveBeenCalledWith(false);
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('revokes execution mode when the desktop command capability is unavailable', () => {
+    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
+      platform: 'electron',
+    } as DesktopApi;
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          computerUseEnabled: true,
+        },
+      },
+    }));
+    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
+
+    renderChatInput();
+
+    expect(setComputerUseEnabled).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+    expect(screen.queryByRole('button', { name: 'chat.computerUse' })).not.toBeInTheDocument();
+  });
+
   it('does not clear persisted web search while the selected model is unresolved', () => {
     useUnifiedStore.setState((state) => ({
       data: {
@@ -198,7 +245,11 @@ describe('ChatInput', () => {
     setWebSearchEnabled.mockRestore();
   });
 
-  it('disables web search for standalone image generation models', () => {
+  it('disables tools for standalone image generation models', () => {
+    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
+      platform: 'electron',
+      computer: {},
+    } as DesktopApi;
     useUnifiedStore.setState((state) => ({
       loaded: true,
       data: {
@@ -226,15 +277,21 @@ describe('ChatInput', () => {
           }],
           selectedModelId: 'image-model',
           webSearchEnabled: true,
+          computerUseEnabled: true,
         },
       },
     }));
     const setWebSearchEnabled = vi.spyOn(aiActions, 'setWebSearchEnabled').mockImplementation(() => {});
+    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
 
     renderChatInput();
 
     expect(setWebSearchEnabled).toHaveBeenCalledWith(false);
+    expect(setComputerUseEnabled).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+    expect(screen.queryByRole('button', { name: 'chat.computerUse' })).not.toBeInTheDocument();
     setWebSearchEnabled.mockRestore();
+    setComputerUseEnabled.mockRestore();
   });
 
   it('keeps the composer editable and lets submit retry quota refresh while managed quota is shown', async () => {
@@ -264,6 +321,62 @@ describe('ChatInput', () => {
     expect(textarea.value).toBe('still editable');
   });
 
+  it('keeps long ordinary drafts in the native textarea without a duplicate preview layer', () => {
+    renderChatInput();
+    const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
+    const longDraft = 'ordinary chat text '.repeat(8_000);
+
+    fireEvent.change(textarea, { target: { value: longDraft } });
+
+    expect(textarea.value).toBe(longDraft);
+    expect(textarea.parentElement?.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('does not measure or reset the textarea selection on ordinary changes', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    renderChatInput();
+    const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
+    const getClientRects = vi.spyOn(textarea, 'getClientRects');
+    const setSelectionRange = vi.spyOn(textarea, 'setSelectionRange');
+
+    fireEvent.change(textarea, { target: { value: 'ordinary typing' } });
+
+    expect(getClientRects).not.toHaveBeenCalled();
+    expect(setSelectionRange).not.toHaveBeenCalled();
+  });
+
+  it('inserts a mention trigger into the latest draft after repeated text updates', () => {
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
+    useNotesStore.setState({
+      rootFolder: {
+        children: [{ isFolder: false, path: 'Today.md' }],
+      } as any,
+      notesPath: '/notesRoot',
+      getDisplayName: getTestDisplayName,
+    });
+    try {
+      renderChatInput();
+      const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
+
+      fireEvent.change(textarea, { target: { value: 'first draft' } });
+      fireEvent.change(textarea, { target: { value: 'latest draft' } });
+      fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+      fireEvent.click(document.querySelector('[data-chat-input-action="mention"]')!);
+
+      expect(textarea.value).toBe('latest draft @');
+    } finally {
+      if (originalScrollIntoView) {
+        Object.defineProperty(Element.prototype, 'scrollIntoView', originalScrollIntoView);
+      } else {
+        Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+      }
+    }
+  });
+
   it('renders the managed quota notice as part of an expanded composer frame', () => {
     const { container } = renderChatInput({
       isManagedQuotaExhausted: true,
@@ -274,6 +387,7 @@ describe('ChatInput', () => {
     expect(banner).not.toBeNull();
     expect(frame).toHaveClass('bg-[var(--vlaina-color-accent-soft)]');
     expect(frame).toHaveClass('overflow-hidden');
+    expect(frame).toHaveClass('rounded-[var(--vlaina-radius-26px)]');
     expect(banner).toHaveClass('min-h-[var(--vlaina-size-32px)]');
     expect(banner).not.toHaveClass('absolute');
   });
@@ -285,10 +399,9 @@ describe('ChatInput', () => {
       commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
       purpose: 'Inspect the system',
       timeoutSeconds: 600,
-      risk: 'standard',
-      canAlwaysAllow: true,
     });
     const { container } = renderChatInput();
 
@@ -308,7 +421,7 @@ describe('ChatInput', () => {
     expect(approvalFrame).toHaveClass('bg-[var(--vlaina-color-accent-soft)]');
     expect(composer).toHaveClass('!shadow-none');
     expect(screen.getByRole('button', { name: 'chat.computerUse.runOnce' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'chat.computerUse.alwaysRun' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'chat.computerUse.alwaysRun' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument();
     for (const button of screen.getAllByRole('button').filter((item) => [
       'chat.computerUse.runOnce',
@@ -331,10 +444,9 @@ describe('ChatInput', () => {
       commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
       purpose: 'Inspect the system',
       timeoutSeconds: 600,
-      risk: 'standard',
-      canAlwaysAllow: true,
     });
     renderChatInput();
 
@@ -359,10 +471,9 @@ describe('ChatInput', () => {
       commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
       purpose: 'Inspect the system',
       timeoutSeconds: 600,
-      risk: 'standard',
-      canAlwaysAllow: true,
     });
     const { container } = renderChatInput({ isManagedQuotaExhausted: true });
 
@@ -385,10 +496,9 @@ describe('ChatInput', () => {
       commandId: 'command-1',
       command: 'uname -a',
       cwd: '/tmp/project',
+      workspaceRoot: '/tmp/project',
       purpose: 'Inspect the system',
       timeoutSeconds: 600,
-      risk: 'standard',
-      canAlwaysAllow: true,
     });
     const { container } = renderChatInput({ active: false });
 
@@ -398,6 +508,7 @@ describe('ChatInput', () => {
   it('suspends input portals when the chat becomes inactive', async () => {
     (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
       platform: 'electron',
+      computer: {},
     } as DesktopApi;
     const { props, rerender } = renderChatInput();
 

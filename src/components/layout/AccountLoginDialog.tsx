@@ -1,8 +1,8 @@
 import React from 'react';
 import { AccountSignInOptions } from '@/components/account/AccountSignInOptions';
+import { DialogCloseIconButton } from '@/components/common/DialogCloseIconButton';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { Icon } from '@/components/ui/icons';
 import { useAccountSessionStore } from '@/stores/accountSession';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
@@ -136,18 +136,15 @@ export function AccountLoginDialog({ open, onOpenChange }: AccountLoginDialogPro
           {t('account.signInDescription')}
         </DialogDescription>
         <div className={cn(
-          "relative w-full rounded-[var(--vlaina-ui-radius-panel)] px-5 py-6 sm:px-8 sm:py-9 md:p-12",
+          "relative w-full rounded-[var(--vlaina-radius-36px)] px-5 py-6 sm:rounded-[var(--vlaina-radius-48px)] sm:px-8 sm:py-9 md:rounded-[var(--vlaina-radius-56px)] md:p-12",
           raisedPillSurfaceClass
         )} data-account-login-panel="true">
-          <DialogClose
-            ref={closeButtonRef}
-            aria-label={t('common.close')}
-            className={cn(
-              "absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--vlaina-sidebar-notes-text-soft)] transition-all hover:text-[var(--vlaina-color-text-strong)] sm:right-5 sm:top-5",
-              "hover:bg-[var(--vlaina-hover-filled)]"
-            )}
-          >
-            <Icon name="common.close" size="md" />
+          <DialogClose asChild>
+            <DialogCloseIconButton
+              ref={closeButtonRef}
+              label={t('common.close')}
+              className="absolute right-4 top-4 sm:right-5 sm:top-5"
+            />
           </DialogClose>
 
           <div data-account-login-scroll="true">

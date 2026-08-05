@@ -633,6 +633,31 @@ describe('accountSession auth actions', () => {
     expect(mocks.refreshAvatar).not.toHaveBeenCalled();
   });
 
+  it('shows a localized explanation when the desktop session is evicted by the device limit', async () => {
+    mocks.hasElectronDesktopBridge.mockReturnValue(true);
+    mocks.accountCommands.getAccountSessionStatus.mockResolvedValue({
+      connected: false,
+      provider: null,
+      username: null,
+      primaryEmail: null,
+      avatarUrl: null,
+      membershipTier: null,
+      membershipName: null,
+      sessionInvalidated: true,
+      sessionInvalidationReason: 'device_limit',
+    });
+
+    const set = vi.fn();
+    const get = vi.fn(() => ({ isConnected: true, error: null }));
+
+    await createCheckStatus(set as never, get as never)();
+
+    expect(mocks.applyDisconnectedAccount).toHaveBeenCalledWith(set);
+    expect(set).toHaveBeenCalledWith({
+      error: '๑ᵒᯅᵒ๑ 登录设备已达到 5 台上限，此设备已退出。请重新登录以继续使用。',
+    });
+  });
+
   it('ignores an in-flight status probe after sign-out invalidates the account session', async () => {
     mocks.hasElectronDesktopBridge.mockReturnValue(true);
     let resolveStatus!: (value: unknown) => void;

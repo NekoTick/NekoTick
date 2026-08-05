@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import {
+  SidebarCapsulePanel,
+  SidebarSurface,
+} from '@/components/layout/sidebar/SidebarPrimitives';
 import { UnifiedSidebarContainer } from './UnifiedSidebarContainer';
 
 vi.mock('./useShellSidebarResize', () => ({
@@ -7,6 +11,29 @@ vi.mock('./useShellSidebarResize', () => ({
 }));
 
 describe('UnifiedSidebarContainer', () => {
+  it('renders the sidebar card over its inset backdrop', () => {
+    render(
+      <UnifiedSidebarContainer
+        width={260}
+        collapsed={false}
+        onWidthChange={() => {}}
+      >
+        <SidebarSurface>
+          <SidebarCapsulePanel>Sidebar content</SidebarCapsulePanel>
+        </SidebarSurface>
+      </UnifiedSidebarContainer>,
+    );
+
+    const panel = screen.getByText('Sidebar content');
+    const sidebar = panel.closest('aside');
+    expect(sidebar).toHaveClass('bg-[var(--vlaina-color-surface-sidebar-backdrop)]');
+    expect(sidebar).toHaveAttribute('data-shell-sidebar-docked', 'true');
+    expect(panel).toHaveClass('m-2');
+    expect(panel).toHaveClass('rounded-[var(--vlaina-ui-radius-panel)]');
+    expect(panel).toHaveClass('bg-[var(--vlaina-color-sidebar-card-surface)]');
+    expect(panel).toHaveClass('shadow-[var(--vlaina-shadow-raised-soft)]');
+  });
+
   it('closes a peeking sidebar only after the pointer leaves the application window', () => {
     const onPeekChange = vi.fn();
     const rootMatches = vi.spyOn(document.documentElement, 'matches');

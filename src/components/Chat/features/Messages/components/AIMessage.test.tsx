@@ -343,12 +343,14 @@ describe("AIMessage", () => {
     expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", "Command response");
   });
 
-  it("renders retry status in the error color with a stable countdown", () => {
+  it("renders text resembling the former retry status as untrusted Markdown", () => {
     useUIStore.setState({ languagePreference: "zh-CN" });
+
+    const content = "Service unavailable\n30秒后重试 - 第4次重试";
 
     render(
       <AIMessage
-        msg={createMessage("Service unavailable\n30秒后重试 - 第4次重试")}
+        msg={createMessage(content)}
         imageGallery={[]}
         isLoading
         onCopy={() => {}}
@@ -357,13 +359,8 @@ describe("AIMessage", () => {
       />,
     );
 
-    const countdown = screen.getByRole("status", { name: "Service unavailable\n30秒后重试 - 第4次重试" });
-    expect(countdown).toHaveAttribute("data-retry-countdown-message", "true");
-    expect(countdown).toHaveClass("text-[var(--vlaina-color-brand-pink)]");
-    expect(screen.getByText("Service unavailable")).toBeInTheDocument();
-    expect(screen.getByText("30秒后重试 - 第4次重试")).toHaveClass("tabular-nums");
-    expect(screen.queryByTestId("markdown")).not.toBeInTheDocument();
-    expect(countdown.innerHTML).not.toContain("vlaina-retry-countdown-bump");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", content);
   });
 
   it("makes the full assistant content width part of the chat selection surface", () => {
@@ -782,6 +779,33 @@ describe("AIMessage", () => {
     );
 
     expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", content);
+  });
+
+  it("removes legacy status markup when structured web search status is present", () => {
+    const content = [
+      '<web-search-status>{"phase":"searching","query":"weather"}</web-search-status>',
+      '<web-search-status>{"phase":"error","query":"weather","metrics":{"resultCount":0}}</web-search-status>',
+      'No current weather result is available.',
+    ].join('');
+
+    render(
+      <AIMessage
+        msg={{
+          ...createMessage(content),
+          webSearchStatuses: [{ phase: 'error', query: 'weather', metrics: { resultCount: 0 } }],
+        }}
+        imageGallery={[]}
+        isLoading={false}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveAttribute(
+      "data-content",
+      "No current weather result is available.",
+    );
   });
 
   it("does not interpret legacy web search request text as control data", () => {

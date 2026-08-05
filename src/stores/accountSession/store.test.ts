@@ -4,6 +4,7 @@ import { useManagedAIStore } from '../useManagedAIStore';
 import { ACCOUNT_USER_PERSIST_KEY } from '../accountSession/state';
 import { ACCOUNT_STATUS_REFRESH_KEY } from '../accountSession/authSupport';
 import { ACCOUNT_AUTH_INVALIDATED_EVENT } from '@/lib/account/sessionEvent';
+import { translate } from '@/lib/i18n';
 
 describe('accountSession store', () => {
   beforeEach(() => {
@@ -47,6 +48,24 @@ describe('accountSession store', () => {
     expect(state.hasCheckedStatus).toBe(true);
     expect(state.error).toBeNull();
     expect(useManagedAIStore.getState().budget).toBeNull();
+  });
+
+  it('keeps a localized explanation when device limits invalidate the session', () => {
+    useAccountSessionStore.setState({
+      isConnected: true,
+      provider: 'google',
+      username: 'account-user',
+      error: null,
+    });
+
+    window.dispatchEvent(new CustomEvent(ACCOUNT_AUTH_INVALIDATED_EVENT, {
+      detail: { reason: 'device_limit' },
+    }));
+
+    expect(useAccountSessionStore.getState()).toMatchObject({
+      isConnected: false,
+      error: translate('account.error.deviceLimit'),
+    });
   });
 
   it('reloads persisted account identity after a cross-window storage update', () => {

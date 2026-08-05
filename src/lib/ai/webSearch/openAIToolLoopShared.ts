@@ -1,16 +1,10 @@
 import type { ChatCompletionRequest } from '@/lib/ai/types';
-import { buildWebSearchStatusMarkup, sanitizeWebSearchSourceUrl, sanitizeWebSearchStatus } from './statusMarkup';
+import { sanitizeWebSearchSourceUrl, sanitizeWebSearchStatus } from './statusMarkup';
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
 import { buildWebSearchCapabilityAnswer } from './intent';
 import type { WebSearchStatus } from './types';
 import type { OpenAIWireMessage } from './openAIToolTypes';
 import { MAX_NO_RESULT_SEARCH_ATTEMPTS } from './openAIToolLoopTypes';
-
-export function withStatusPrefix(statuses: WebSearchStatus[], content: string): string {
-  if (statuses.length === 0) return content;
-  const separator = content.trim().length > 0 ? '\n\n' : '';
-  return `${statuses.map(buildWebSearchStatusMarkup).join('')}${separator}${content}`;
-}
 
 export function throwIfAborted(signal?: AbortSignal): void {
   if (!signal?.aborted) return;
@@ -142,28 +136,45 @@ export function buildNoSearchResultsAnswer(body: ChatCompletionRequest): string 
   const userText = getLatestUserText(body);
   const isChinese = /[\u3400-\u9fff]/.test(userText);
   return isChinese
-    ? '我这边连续尝试了几个搜索词，但都没有找到可用的联网搜索结果，所以不能可靠确认这个问题的最新信息。你可以换一个更具体的名称、官网名或英文关键词再试。'
-    : 'I tried several search queries but could not find usable web results, so I cannot reliably verify the latest information for this request. Try a more specific name, official site, or English keyword.';
+    ? '我这边没有找到可用的联网搜索结果，所以不能可靠确认这个问题的最新信息。你可以换一个更具体的名称、官网名或英文关键词再试。'
+    : 'I could not find usable web results, so I cannot reliably verify the latest information for this request. Try a more specific name, official site, or English keyword.';
 }
 
 export function finishNoResultSearchLocally({
   body,
-  statusHistory,
   onChunk,
   onApiTranscript,
   signal,
 }: {
   body: ChatCompletionRequest;
-  statusHistory: WebSearchStatus[];
   onChunk: (chunk: string) => void;
   onApiTranscript?: (messages: OpenAIWireMessage[]) => void;
   signal?: AbortSignal;
 }): string {
   const content = buildNoSearchResultsAnswer(body);
-  const finalContent = withStatusPrefix(statusHistory, content);
   emitApiTranscript(onApiTranscript, signal, [buildFinalAssistantTranscriptMessage(content)]);
-  emitChunk(onChunk, signal, finalContent);
-  return finalContent;
+  emitChunk(onChunk, signal, content);
+  return content;
+}
+
+export function finishUnavailableSearchLocally({
+  body,
+  onChunk,
+  onApiTranscript,
+  signal,
+}: {
+  body: ChatCompletionRequest;
+  onChunk: (chunk: string) => void;
+  onApiTranscript?: (messages: OpenAIWireMessage[]) => void;
+  signal?: AbortSignal;
+}): string {
+  const userText = getLatestUserText(body);
+  const content = /[\u3400-\u9fff]/.test(userText)
+    ? '联网搜索服务暂时不可用，请稍后再试。'
+    : 'Web search is temporarily unavailable. Please try again later.';
+  emitApiTranscript(onApiTranscript, signal, [buildFinalAssistantTranscriptMessage(content)]);
+  emitChunk(onChunk, signal, content);
+  return content;
 }
 
 export function finishWebSearchCapabilityLocally({

@@ -27,7 +27,11 @@ describe('ComputerCommandStatusBlock', () => {
     const toggle = screen.getByRole('button', { name: 'Execution mode' });
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveClass('select-none');
     expect(screen.getAllByText('Completed')).toHaveLength(1);
+    expect(screen.getByText('Completed').parentElement).toHaveClass('select-none');
+    expect(screen.getByText('Completed').parentElement)
+      .toHaveAttribute('data-chat-selection-excluded', 'true');
     expect(screen.getByText('Failed')).toBeInTheDocument();
     expect(screen.getByText('printf one')).toBeInTheDocument();
     expect(screen.getByText('printf two')).toBeInTheDocument();

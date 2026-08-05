@@ -236,18 +236,22 @@ export function CoverPicker({
       }
     };
 
-    document.addEventListener('mousedown', handleOutsideMouseDown);
+    window.addEventListener('mousedown', handleOutsideMouseDown, true);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('paste', handlePaste);
     return () => {
-      document.removeEventListener('mousedown', handleOutsideMouseDown);
+      window.removeEventListener('mousedown', handleOutsideMouseDown, true);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('paste', handlePaste);
     };
   }, [currentNotePath, isOpen, onClose, uploadAsset, onSelect, onPreview, t]);
 
   return (
-    <Popover open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => !open && onClose()}
+      dismissOnWindowPointerDown={false}
+    >
       <PopoverAnchor className={anchorClassName} />
 
       <PopoverContent

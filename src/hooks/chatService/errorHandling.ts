@@ -1,8 +1,11 @@
 import { ACCOUNT_AUTH_INVALIDATED_EVENT, ACCOUNT_LOGIN_REQUESTED_EVENT } from '@/lib/account/sessionEvent';
-import { buildErrorTag } from '@/lib/ai/errorTag';
+import { buildCustomProviderErrorTag, buildErrorTag } from '@/lib/ai/errorTag';
+import {
+  MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS,
+  normalizeUserFacingMessage,
+} from '@/lib/ai/errorClassification';
 import { getUserFacingAIError } from '@/lib/ai/errors';
 import { AIErrorType } from '@/lib/ai/types';
-import { isDesktopCustomProviderConnectionFailureMessage } from '@/lib/ai/userFacingErrorMessages';
 import { useAIUIStore } from '@/stores/ai/chatState';
 import { applyManagedQuotaExhaustedSnapshot } from '@/stores/useManagedAIStore';
 
@@ -24,24 +27,28 @@ function primitiveToString(value: unknown): string {
 }
 
 export function extractRawErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message.trim();
-  }
-  if (error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string') {
-    const message = (error as { message: string }).message.trim();
-    if (message) {
-      return message;
+  let message: unknown;
+  if (error && typeof error === 'object') {
+    try {
+      message = (error as { message?: unknown }).message;
+    } catch {
+      message = undefined;
     }
   }
-  return primitiveToString(error).trim() || 'AI request failed.';
+  const normalized = normalizeUserFacingMessage(
+    typeof message === 'string' ? message : primitiveToString(error),
+  ).slice(0, MAX_USER_FACING_AI_ERROR_MESSAGE_CHARS);
+  return normalized || 'AI request failed.';
 }
 
-function dispatchAccountAuthInvalidated() {
+function dispatchAccountAuthInvalidated(reason?: 'device_limit') {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.dispatchEvent(new Event(ACCOUNT_AUTH_INVALIDATED_EVENT));
+  window.dispatchEvent(reason
+    ? new CustomEvent(ACCOUNT_AUTH_INVALIDATED_EVENT, { detail: { reason } })
+    : new Event(ACCOUNT_AUTH_INVALIDATED_EVENT));
 }
 
 export function requestManagedAccountSignIn(sessionId?: string | null) {
@@ -56,33 +63,21 @@ export function requestManagedAccountSignIn(sessionId?: string | null) {
 }
 
 export function buildChatErrorPayload(error: unknown, managed = true) {
-  if (!managed) {
-    const message = extractRawErrorMessage(error);
-    if (isDesktopCustomProviderConnectionFailureMessage(message)) {
-      const normalized = getUserFacingAIError(error);
-      return {
-        message: normalized.message,
-        xml: buildErrorTag(normalized.type, normalized.code, normalized.message),
-      };
-    }
-
-    return {
-      message,
-      xml: buildErrorTag('custom_provider', '', message),
-    };
-  }
-
-  const normalized = getUserFacingAIError(error);
-  if (normalized.type === AIErrorType.QUOTA_EXHAUSTED) {
+  const normalized = getUserFacingAIError(error, { managed });
+  if (managed && normalized.type === AIErrorType.QUOTA_EXHAUSTED) {
     applyManagedQuotaExhaustedSnapshot();
   }
-  if (normalized.type === AIErrorType.AUTH_ERROR) {
-    dispatchAccountAuthInvalidated();
+  if (managed && normalized.type === AIErrorType.AUTH_ERROR) {
+    dispatchAccountAuthInvalidated(
+      normalized.code === 'session_device_limit' ? 'device_limit' : undefined,
+    );
   }
 
   return {
     message: normalized.message,
-    xml: buildErrorTag(normalized.type, normalized.code, normalized.message),
+    xml: managed
+      ? buildErrorTag(normalized.type, normalized.code, normalized.message)
+      : buildCustomProviderErrorTag(normalized.type, normalized.code, normalized.message),
   };
 }
 
@@ -91,7 +86,7 @@ export function markManagedAuthPromptForError(sessionId: string, error: unknown,
     return;
   }
 
-  const normalized = getUserFacingAIError(error);
+  const normalized = getUserFacingAIError(error, { managed: true });
   if (normalized.type === AIErrorType.AUTH_ERROR) {
     requestManagedAccountSignIn(sessionId);
   }

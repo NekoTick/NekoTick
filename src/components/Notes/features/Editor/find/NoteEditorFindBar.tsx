@@ -9,6 +9,7 @@ import {
   preventImageClipboardTextPaste,
   preventImageDataTransferTextDrop,
 } from '@/lib/clipboardImagePayload';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 interface NoteEditorFindBarProps {
   controller: NoteEditorFindController;
@@ -73,8 +74,8 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
       controller.close(false);
     };
 
-    document.addEventListener('mousedown', handleMouseDown, true);
-    return () => document.removeEventListener('mousedown', handleMouseDown, true);
+    window.addEventListener('mousedown', handleMouseDown, true);
+    return () => window.removeEventListener('mousedown', handleMouseDown, true);
   }, [controller.close, controller.isOpen]);
 
   if (!controller.isOpen) {
@@ -109,6 +110,7 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
           damping: themeMotionTokens.noteFindSpringDamping,
         },
       }}
+      onAnimationComplete={requestNativeCaretOverlayRefresh}
       className="w-[var(--vlaina-width-note-find-bar)] max-w-full rounded-[var(--vlaina-notes-ui-radius-panel)] bg-[var(--vlaina-color-setting-field)] border border-[var(--vlaina-color-panel-border)] backdrop-blur-[var(--vlaina-backdrop-blur-3xl)] p-1.5"
     >
       <div

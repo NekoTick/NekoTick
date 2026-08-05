@@ -2,7 +2,8 @@ import { AIErrorType, type ChatCompletionRequest } from '@/lib/ai/types';
 import { createAIError } from '@/lib/ai/errors';
 import { translate } from '@/lib/i18n';
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
-import { buildWebSearchTools } from '@/lib/ai/webSearch/toolDefinitions';
+import { createWebSearchExecutionSession } from '@/lib/ai/webSearch/executionSession';
+import { buildWebSearchTools, WEB_SEARCH_SYSTEM_INSTRUCTION } from '@/lib/ai/webSearch/toolDefinitions';
 import { sanitizeWebSearchStatus } from '@/lib/ai/webSearch/statusMarkup';
 import {
   consumeOpenAIStreamWithTools,
@@ -19,7 +20,6 @@ import {
   hasVisibleAnswerContent,
   throwIfAborted,
   withSourceLinks,
-  withStatusPrefix,
 } from '@/lib/ai/webSearch/openAIToolLoopShared';
 import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDefinitions';
 import { executeAgentToolCall } from './agentToolRuntime';
@@ -61,7 +61,7 @@ function appendAgentSystemInstruction(
 ): OpenAIWireMessage[] {
   const content = [
     COMPUTER_USE_SYSTEM_INSTRUCTION,
-    webSearchEnabled ? 'Web search tools are also available. Read sources before citing them.' : '',
+    webSearchEnabled ? WEB_SEARCH_SYSTEM_INSTRUCTION : '',
   ].filter(Boolean).join(' ');
   const firstConversationMessage = messages.findIndex((message) => message.role !== 'system');
   const insertionIndex = firstConversationMessage === -1 ? messages.length : firstConversationMessage;
@@ -92,10 +92,10 @@ async function runAgentLoop(
   options: AgentLoopBaseOptions,
   requestResult: (body: ChatCompletionRequest, onContent: (content: string) => void) => Promise<OpenAIStreamToolResult>,
 ): Promise<string> {
-  const statuses: WebSearchStatus[] = [];
   const sourceUrls: string[] = [];
   const responseTranscript: OpenAIWireMessage[] = [];
   const deniedCommandKeys = new Set<string>();
+  const webSearchSession = options.webSearchEnabled ? createWebSearchExecutionSession() : undefined;
   let commandApprovalCount = 0;
   let totalToolCalls = 0;
   let visibleContent = '';
@@ -106,7 +106,7 @@ async function runAgentLoop(
 
   const emitVisible = (content = visibleContent) => {
     visibleContent = content;
-    options.onChunk(withStatusPrefix(statuses, visibleContent));
+    options.onChunk(visibleContent);
   };
   const emitTranscript = (allowAborted = false) => {
     if (allowAborted) {
@@ -118,7 +118,6 @@ async function runAgentLoop(
   const emitWebStatus = (status: WebSearchStatus) => {
     const safe = sanitizeWebSearchStatus(status);
     if (!safe) return;
-    statuses.push(safe);
     appendSuccessfulReadSources(sourceUrls, safe);
     options.onWebSearchStatus?.(safe);
     emitVisible();
@@ -155,7 +154,7 @@ async function runAgentLoop(
       emitTranscript();
       const finalContent = withSourceLinks(result.content || answer, sourceUrls);
       emitVisible(finalContent);
-      return withStatusPrefix(statuses, finalContent);
+      return finalContent;
     }
 
     if (loopIndex >= MAX_AGENT_TOOL_LOOPS) {
@@ -200,6 +199,7 @@ async function runAgentLoop(
         defaultCwd: options.defaultCwd,
         signal: options.signal,
         webSearchEnabled: options.webSearchEnabled,
+        webSearchSession,
         onWebSearchStatus: emitWebStatus,
         onCommandStatus: (status) => {
           toolMessage.content = serializeComputerCommandStatus(status);

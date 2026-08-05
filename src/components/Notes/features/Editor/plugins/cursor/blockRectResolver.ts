@@ -1,11 +1,19 @@
 import type { EditorState } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { BlockRect } from './blockSelectionUtils';
+import { resolveContentHorizontalBounds } from './blockRectContentBounds';
 import {
-  getFreshCachedEditorBlockTargets,
+  getInteractionCachedEditorBlockTargetNearY,
+  getInteractionCachedEditorBlockTargets,
+  getInteractionCachedEditorBlockTargetsNearY,
+  getInteractionCachedEditorGeometry,
   isTooLargeForBlockPositionSnapshot,
 } from '../../utils/editorBlockPositionCache';
-import { collectSelectableBlockTargets, type SelectableBlockTarget } from './blockUnitResolver';
+import {
+  collectSelectableBlockTargets,
+  resolveSelectableBlockTargetByPos,
+  type SelectableBlockTarget,
+} from './blockUnitResolver';
 import { resolveInlineCaretRange } from './blockUnitRangeCollection';
 
 interface BlockRectResolverOptions {
@@ -16,154 +24,34 @@ interface BlockRectResolverOptions {
 
 export interface BlockRectResolver {
   getTopLevelBlockRects: () => BlockRect[];
+  getPlainClickBlockRects: (clientX: number, clientY: number) => BlockRect[];
   getSelectionBlockRects: () => BlockRect[];
+  getSelectionBlockElements: (ranges: readonly { from: number; to: number }[]) => HTMLElement[];
   invalidate: () => void;
 }
 
 export { collectSelectableBlockRanges } from './blockUnitResolver';
+export {
+  collectTextContentBounds,
+  MAX_BLOCK_RECT_CONTENT_LINES,
+  MAX_BLOCK_RECT_CONTENT_RECTS,
+  MAX_BLOCK_RECT_CONTENT_TEXT_NODES,
+  MAX_BLOCK_RECT_LIST_CONTENT_CHILDREN,
+} from './blockRectContentBounds';
+const PLAIN_CLICK_VERTICAL_OVERSCAN_PX = 48;
+const MAX_PLAIN_CLICK_CANDIDATE_BLOCKS = 12;
 
-export const MAX_BLOCK_RECT_CONTENT_TEXT_NODES = 512;
-export const MAX_BLOCK_RECT_CONTENT_RECTS = 1024;
-export const MAX_BLOCK_RECT_CONTENT_LINES = 256;
-export const MAX_BLOCK_RECT_LIST_CONTENT_CHILDREN = 1024;
-
-interface ContentLineRect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-}
-
-function shouldIgnoreContentBoundsElement(root: HTMLElement, element: Element): boolean {
-  for (let current: Element | null = element; current && root.contains(current); current = current.parentElement) {
-    if (current.matches('ul, ol, button, .editor-collapse-btn')) return true;
-    if (current.matches('[contenteditable="false"]') && !current.closest('.footnote-ref')) return true;
-  }
-  return false;
-}
-
-function appendContentLineRect(lines: ContentLineRect[], rect: DOMRect): boolean {
-  const centerY = rect.top + rect.height / 2;
-  const line = lines.find((candidate) => (
-    centerY >= candidate.top - 2 && centerY <= candidate.bottom + 2
-  ));
-  if (line) {
-    line.left = Math.min(line.left, rect.left);
-    line.top = Math.min(line.top, rect.top);
-    line.right = Math.max(line.right, rect.right);
-    line.bottom = Math.max(line.bottom, rect.bottom);
-    return true;
-  }
-
-  if (lines.length >= MAX_BLOCK_RECT_CONTENT_LINES) {
-    return false;
-  }
-
-  lines.push({
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-  });
-  return true;
-}
-
-export function collectTextContentBounds(root: HTMLElement): { left: number; right: number; lineRects?: ContentLineRect[] } | null {
-  const doc = root.ownerDocument;
-  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const parent = node.parentElement;
-      if (!parent) return NodeFilter.FILTER_REJECT;
-      if (shouldIgnoreContentBoundsElement(root, parent)) {
-        return NodeFilter.FILTER_REJECT;
-      }
-      return node.textContent && node.textContent.length > 0
-        ? NodeFilter.FILTER_ACCEPT
-        : NodeFilter.FILTER_REJECT;
-    },
-  });
-
-  let left = Number.POSITIVE_INFINITY;
-  let right = Number.NEGATIVE_INFINITY;
-  let hasBounds = false;
-  let textNodeCount = 0;
-  let rectCount = 0;
-  const lineRects: ContentLineRect[] = [];
-
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    textNodeCount += 1;
-    if (textNodeCount > MAX_BLOCK_RECT_CONTENT_TEXT_NODES) {
-      return null;
-    }
-
-    const range = doc.createRange();
-    try {
-      range.selectNodeContents(node);
-      const rects = range.getClientRects();
-      if (rects.length > MAX_BLOCK_RECT_CONTENT_RECTS - rectCount) {
-        return null;
-      }
-
-      for (let index = 0; index < rects.length; index += 1) {
-        const rect = rects.item?.(index) ?? rects[index];
-        if (!rect || (rect.width <= 0 && rect.height <= 0)) continue;
-        rectCount += 1;
-        left = Math.min(left, rect.left);
-        right = Math.max(right, rect.right);
-        if (!appendContentLineRect(lineRects, rect)) {
-          return null;
-        }
-        hasBounds = true;
-      }
-    } finally {
-      range.detach();
-    }
-  }
-
-  if (!hasBounds) return null;
-
-  return {
-    left,
-    right,
-    ...(lineRects.length > 0 ? { lineRects } : {}),
-  };
-}
-
-function resolveContentBoundsElement(element: HTMLElement): HTMLElement {
-  if (element.tagName !== 'LI') return element;
-
-  const childCount = Math.min(element.children.length, MAX_BLOCK_RECT_LIST_CONTENT_CHILDREN);
-  for (let index = 0; index < childCount; index += 1) {
-    const child = element.children.item(index);
-    if (!(child instanceof HTMLElement)) continue;
-    if (shouldIgnoreContentBoundsElement(element, child)) continue;
-    return child;
-  }
-
-  return element;
-}
-
-function resolveContentHorizontalBounds(element: HTMLElement, rect: DOMRect): { left: number; right: number; lineRects?: { left: number; top: number; right: number; bottom: number }[] } {
-  const contentElement = resolveContentBoundsElement(element);
-  return collectTextContentBounds(contentElement) ?? {
-    left: rect.left,
-    right: rect.right,
-  };
-}
-
-function collectSelectableBlockRects(view: EditorView): BlockRect[] {
-  if (isTooLargeForBlockPositionSnapshot(view.state.doc)) {
-    return [];
-  }
-
-  const targets = collectSelectableBlockTargets(view);
-  const editorRect = view.dom.getBoundingClientRect();
+function mapTargetsToPlainClickBlockRects(
+  view: EditorView,
+  targets: readonly SelectableBlockTarget[],
+  editorRect: DOMRect,
+): BlockRect[] {
   const useEditorHorizontalBounds = editorRect.width > 0;
 
   return targets.map(({ range, element, rect }) => {
     const contentBounds = resolveContentHorizontalBounds(element, rect);
     const caretRange = resolveInlineCaretRange(view.state.doc, range);
-    const blockRect = {
+    return {
       from: range.from,
       to: range.to,
       ...(caretRange ? { caretRange } : {}),
@@ -178,8 +66,16 @@ function collectSelectableBlockRects(view: EditorView): BlockRect[] {
         ? { allowInsideTrailingClick: true }
         : {}),
     };
-    return blockRect;
   });
+}
+
+function collectSelectableBlockRects(view: EditorView, editorRect: DOMRect): BlockRect[] {
+  if (isTooLargeForBlockPositionSnapshot(view.state.doc)) {
+    return [];
+  }
+
+  const targets = collectSelectableBlockTargets(view);
+  return mapTargetsToPlainClickBlockRects(view, targets, editorRect);
 }
 
 function mapTargetsToSelectionBlockRects(
@@ -201,16 +97,14 @@ function mapTargetsToSelectionBlockRects(
   }));
 }
 
-function collectSelectionBlockRects(
+function collectSelectionBlockTargets(
   view: EditorView,
-  scrollRoot: HTMLElement | null,
   usePositionCache: boolean,
-): BlockRect[] {
-  const editorRect = view.dom.getBoundingClientRect();
+): SelectableBlockTarget[] {
   if (usePositionCache) {
-    const cachedTargets = getFreshCachedEditorBlockTargets(view, scrollRoot);
+    const cachedTargets = getInteractionCachedEditorBlockTargets(view);
     if (cachedTargets) {
-      return mapTargetsToSelectionBlockRects(cachedTargets, editorRect);
+      return cachedTargets;
     }
   }
 
@@ -218,7 +112,7 @@ function collectSelectionBlockRects(
     return [];
   }
 
-  return mapTargetsToSelectionBlockRects(collectSelectableBlockTargets(view), editorRect);
+  return collectSelectableBlockTargets(view);
 }
 
 function getScrollCoordinates(view: EditorView, scrollRootSelector: string): { left: number; top: number } {
@@ -243,6 +137,55 @@ export function createBlockRectResolver({
   let cachedSelectionScrollLeft = Number.NaN;
   let cachedSelectionScrollTop = Number.NaN;
   let cachedSelectionRects: BlockRect[] = [];
+  let cachedSelectionElementsByRange = new Map<string, HTMLElement>();
+  let cachedEditorRect: DOMRect | null = null;
+  let trustPositionCache = usePositionCache;
+
+  const getEditorRect = (): DOMRect => {
+    if (cachedEditorRect) return cachedEditorRect;
+    cachedEditorRect = trustPositionCache
+      ? getInteractionCachedEditorGeometry(view)?.editorRect ?? view.dom.getBoundingClientRect()
+      : view.dom.getBoundingClientRect();
+    return cachedEditorRect;
+  };
+
+  const getPlainClickCandidateTargets = (
+    clientX: number,
+    clientY: number,
+    editorRect: DOMRect,
+  ): SelectableBlockTarget[] | null => {
+    const cachedTargets = trustPositionCache ? getInteractionCachedEditorBlockTargetsNearY(
+      view,
+      clientY,
+      (rect, pointerY) => {
+        const slack = Math.max(
+          12,
+          Math.min(PLAIN_CLICK_VERTICAL_OVERSCAN_PX, rect.height * 0.5),
+        );
+        return pointerY >= rect.top - slack && pointerY <= rect.bottom + slack;
+      },
+    ) : null;
+    if (cachedTargets && cachedTargets.length > 0) {
+      return cachedTargets.slice(-MAX_PLAIN_CLICK_CANDIDATE_BLOCKS);
+    }
+
+    const cachedNearestTarget = trustPositionCache
+      ? getInteractionCachedEditorBlockTargetNearY(view, clientY)
+      : null;
+    if (cachedNearestTarget) return [cachedNearestTarget];
+
+    try {
+      const safeX = Math.max(editorRect.left + 1, Math.min(editorRect.right - 1, clientX));
+      const resolved = view.posAtCoords({ left: safeX, top: clientY });
+      if (resolved) {
+        const target = resolveSelectableBlockTargetByPos(view, resolved.pos);
+        if (target) return [target];
+      }
+    } catch {
+    }
+
+    return null;
+  };
 
   return {
     getTopLevelBlockRects() {
@@ -258,13 +201,19 @@ export function createBlockRectResolver({
       cachedDoc = view.state.doc;
       cachedScrollLeft = left;
       cachedScrollTop = top;
-      cachedRects = collectSelectableBlockRects(view);
+      cachedRects = collectSelectableBlockRects(view, getEditorRect());
       return cachedRects;
     },
+    getPlainClickBlockRects(clientX, clientY) {
+      const editorRect = getEditorRect();
+      const candidateTargets = getPlainClickCandidateTargets(clientX, clientY, editorRect);
+      if (candidateTargets) {
+        return mapTargetsToPlainClickBlockRects(view, candidateTargets, editorRect);
+      }
+      return collectSelectableBlockRects(view, editorRect);
+    },
     getSelectionBlockRects() {
-      const scrollRoot = view.dom.closest(scrollRootSelector) as HTMLElement | null;
-      const left = scrollRoot?.scrollLeft ?? 0;
-      const top = scrollRoot?.scrollTop ?? 0;
+      const { left, top } = getScrollCoordinates(view, scrollRootSelector);
       if (
         cachedSelectionDoc === view.state.doc
         && cachedSelectionScrollLeft === left
@@ -276,8 +225,22 @@ export function createBlockRectResolver({
       cachedSelectionDoc = view.state.doc;
       cachedSelectionScrollLeft = left;
       cachedSelectionScrollTop = top;
-      cachedSelectionRects = collectSelectionBlockRects(view, scrollRoot, usePositionCache);
+      const targets = collectSelectionBlockTargets(
+        view,
+        trustPositionCache,
+      );
+      cachedSelectionElementsByRange = new Map(targets.map((target) => [
+        `${target.range.from}:${target.range.to}`,
+        target.element,
+      ]));
+      cachedSelectionRects = mapTargetsToSelectionBlockRects(targets, getEditorRect());
       return cachedSelectionRects;
+    },
+    getSelectionBlockElements(ranges) {
+      if (cachedSelectionDoc !== view.state.doc) return [];
+      return ranges
+        .map((range) => cachedSelectionElementsByRange.get(`${range.from}:${range.to}`))
+        .filter((element): element is HTMLElement => Boolean(element));
     },
     invalidate() {
       cachedDoc = null;
@@ -288,6 +251,9 @@ export function createBlockRectResolver({
       cachedSelectionScrollLeft = Number.NaN;
       cachedSelectionScrollTop = Number.NaN;
       cachedSelectionRects = [];
+      cachedSelectionElementsByRange = new Map();
+      cachedEditorRect = null;
+      trustPositionCache = false;
     },
   };
 }

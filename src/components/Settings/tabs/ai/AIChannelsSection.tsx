@@ -1,9 +1,6 @@
 import { type DragEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
-import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import { themeMotionTokens } from '@/styles/themeTokens';
 import { ChannelObject, CreateChannelObject } from './AIChannelObjects';
 import type { ProviderCardDraft } from './AIChannelTypes';
@@ -127,58 +124,7 @@ export function AIChannelsSection({
               <CreateChannelObject onClick={onAddCustomProvider} />
             </div>
           </motion.div>
-        ) : (
-          <motion.div
-            key="channels-empty"
-            initial={{
-              opacity: themeMotionTokens.opacityHidden,
-              y: themeMotionTokens.aiChannelEmptyInitialY,
-            }}
-            animate={{
-              opacity: themeMotionTokens.opacityVisible,
-              y: themeMotionTokens.toastVisibleY,
-            }}
-            exit={{
-              opacity: themeMotionTokens.opacityHidden,
-              y: themeMotionTokens.aiChannelEmptyExitY,
-            }}
-            transition={{
-              duration: themeMotionTokens.aiChannelEmptyDuration,
-              ease: themeMotionTokens.standardEase,
-            }}
-            className="mb-8 px-1"
-          >
-            <motion.button
-              type="button"
-              onClick={onAddCustomProvider}
-              aria-label={t('settings.ai.newChannel')}
-              data-settings-ai-action="new-channel"
-              transition={{
-                duration: themeMotionTokens.aiChannelEmptyDuration,
-                ease: themeMotionTokens.standardEase,
-              }}
-              className={cn(
-                "w-full rounded-[var(--vlaina-ui-radius-group)] border border-transparent px-6 py-8 text-left transition-all duration-[var(--vlaina-duration-200)] shadow-[var(--vlaina-shadow-sm)] hover:shadow-[var(--vlaina-shadow-md)] active:scale-[var(--vlaina-scale-98)]",
-                raisedPillSurfaceClass
-              )}
-            >
-              <div className="mx-auto flex max-w-[var(--vlaina-size-420px)] items-center gap-4">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[var(--vlaina-radius-16px)] bg-[var(--vlaina-color-accent-soft-bg)] text-[var(--vlaina-color-accent)]">
-                  <Icon name="common.add" size="lg" />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <strong className="text-[var(--vlaina-font-sm)] text-[var(--vlaina-sidebar-notes-text)]">
-                    {t('settings.ai.newChannel')}
-                  </strong>
-                  <span className="text-[var(--vlaina-font-xs)] leading-normal text-[var(--vlaina-sidebar-notes-text-soft)]">
-                    {t('settings.ai.openaiCompatibleProviderDescription')}
-                  </span>
-                </span>
-                <Icon name="nav.chevronRight" size="md" className="shrink-0 text-[var(--vlaina-sidebar-notes-text-soft)]" />
-              </div>
-            </motion.button>
-          </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
     </>
   );

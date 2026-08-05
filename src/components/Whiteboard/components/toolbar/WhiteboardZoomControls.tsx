@@ -41,7 +41,7 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
     >
       <WhiteboardToolbarGroup
         className={cn(
-          'h-10 gap-1 rounded-[var(--vlaina-radius-8px)] px-1 [&:has([data-whiteboard-zoom-percentage]:hover)]:!shadow-[var(--vlaina-shadow-raised-soft)]',
+          'h-10 gap-1 rounded-[var(--vlaina-radius-8px)] px-1',
           whiteboardFloatingPanelClassName,
         )}
       >
@@ -53,7 +53,7 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
           aria-label={`${Math.round(viewport.zoom * 100)}%`}
           onClick={onResetView}
           onWheel={handleZoomWheel}
-          className="h-8 min-w-[var(--vlaina-size-48px)] cursor-pointer rounded-[var(--vlaina-radius-4px)] px-1 text-center text-[var(--vlaina-font-13)] font-medium tabular-nums text-[var(--vlaina-color-text-secondary)] shadow-none"
+          className="h-8 min-w-[var(--vlaina-size-48px)] cursor-pointer rounded-[var(--vlaina-radius-8px)] px-1 text-center text-[var(--vlaina-font-13)] font-medium tabular-nums text-[var(--vlaina-color-text-secondary)] shadow-none transition-colors duration-[var(--vlaina-duration-150)] hover:bg-transparent hover:text-[var(--vlaina-color-control-hover-fg)] hover:shadow-none"
         >
           {Math.round(viewport.zoom * 100)}%
         </button>

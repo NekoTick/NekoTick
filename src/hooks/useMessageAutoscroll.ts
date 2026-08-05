@@ -7,7 +7,7 @@ import {
 import type { CurrentTurnAnchorMode, MessageAutoscrollBehavior, UseMessageAutoscrollOptions } from "./messageAutoscrollTypes";
 import {
   findLastUserMessageIndex,
-  restoreShortCompletedTurnAnchorForContainer,
+  restoreCurrentTurnAnchorIfOutputFitsForContainer,
   scrollCurrentTurnIntoViewForContainer,
 } from "./messageAutoscrollAnchoring";
 import {
@@ -33,6 +33,7 @@ export const useMessageAutoscroll = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const updateSpacerHeightRef = useRef<() => void>(() => {});
   const scrollActiveOutputIfNeededRef = useRef<() => void>(() => {});
+  const restoreCurrentTurnAnchorIfOutputFitsRef = useRef<() => boolean>(() => false);
   const isStreamingRef = useRef(isStreaming);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const contentResizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -135,16 +136,21 @@ export const useMessageAutoscroll = ({
     });
   }, [setProgrammaticScrollTop]);
 
-  const restoreShortCompletedTurnAnchor = useCallback(() => {
-    restoreShortCompletedTurnAnchorForContainer({
+  const restoreCurrentTurnAnchorIfOutputFits = useCallback(() => {
+    return restoreCurrentTurnAnchorIfOutputFitsForContainer({
+      active: activeRef.current,
       container: containerRef.current,
       isCurrentTurnAnchored: isCurrentTurnAnchoredRef.current,
       userDetachedFromCurrentTurn: userDetachedFromCurrentTurnRef.current,
       messages,
+      chatId,
+      isStreaming: isStreamingRef.current,
       currentTurnAnchorMode: currentTurnAnchorModeRef.current,
+      currentTurnTopSpacerHeight: currentTurnTopSpacerHeightRef.current,
       setProgrammaticScrollTop,
     });
-  }, [messages, setProgrammaticScrollTop]);
+  }, [chatId, messages, setProgrammaticScrollTop]);
+  restoreCurrentTurnAnchorIfOutputFitsRef.current = restoreCurrentTurnAnchorIfOutputFits;
 
   const hasVisibleAssistantOutput = useMemo(() => {
     return hasVisibleAssistantOutputAfterLastUser(messages);
@@ -208,7 +214,7 @@ export const useMessageAutoscroll = ({
     pendingScrollMessageCountRef,
     pendingScrollToCurrentTurnRef,
     prevChatIdRef,
-    restoreShortCompletedTurnAnchor,
+    restoreCurrentTurnAnchorIfOutputFits,
     scrollCurrentTurnIntoView,
     setCurrentTurnTopSpacerHeight,
     setProgrammaticScrollTop,
@@ -247,12 +253,11 @@ export const useMessageAutoscroll = ({
     pendingScrollToCurrentTurnRef,
     programmaticScrollTopRef,
     resizeObserverRef,
+    restoreCurrentTurnAnchorIfOutputFitsRef,
     scheduleSpacerHeightUpdate,
     scrollActiveOutputIfNeeded,
     scrollActiveOutputIfNeededRef,
-    scrollCurrentTurnIntoView,
     setProgrammaticScrollTop,
-    updateSpacerHeightRef,
     userDetachedFromCurrentTurnRef,
   });
 

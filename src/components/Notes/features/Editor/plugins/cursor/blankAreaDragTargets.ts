@@ -2,8 +2,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { isClickBelowLastBlock } from './endBlankClickUtils';
 import { type BlockDragStartZone } from './blockDragSession';
 import {
-  getCachedEditorBlockTargetsNearY,
-  refreshCurrentEditorBlockPositionSnapshot,
+  getInteractionCachedEditorBlockTargetsNearY,
 } from '../../utils/editorBlockPositionCache';
 import {
   INTERACTIVE_SELECTOR,
@@ -90,14 +89,8 @@ function resolveCachedTextLinePointerHit(
   clientX: number,
   clientY: number,
 ): CachedTextLinePointerHitResult {
-  let targets = getCachedEditorBlockTargetsNearY(view, clientY, isPointNearBlockY);
-  if (!targets) {
-    refreshCurrentEditorBlockPositionSnapshot(view);
-    targets = getCachedEditorBlockTargetsNearY(view, clientY, isPointNearBlockY);
-    if (!targets) {
-      return { checked: false, hit: null };
-    }
-  }
+  const targets = getInteractionCachedEditorBlockTargetsNearY(view, clientY, isPointNearBlockY);
+  if (!targets) return { checked: false, hit: null };
 
   for (const target of targets) {
     if (getScrollRoot(target.element) !== scrollRoot) continue;

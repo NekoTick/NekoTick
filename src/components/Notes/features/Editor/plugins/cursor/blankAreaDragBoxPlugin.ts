@@ -21,6 +21,7 @@ import {
   syncBlockSelectionVisualState,
   type BlankAreaDragBoxState,
 } from './blockSelectionPluginState';
+import { isLargeBlockSelectionDocument } from './blockSelectionTypes';
 import { resolveBlankAreaDragStartZone } from './blankAreaDragTargets';
 import {
   DRAG_BOX_COLOR,
@@ -47,6 +48,7 @@ import {
 import { createBlankAreaDragBoxPluginView } from './blankAreaDragBoxPluginView';
 import { createBlankAreaDragBoxPluginProps } from './blankAreaDragBoxPluginProps';
 import { resolveTextblockLineEndPlainClick } from './listParagraphEndPlainClick';
+import type { BlankAreaPlainClickAction } from './blankAreaPlainClick';
 
 export { blankAreaDragBoxPluginKey } from './blockSelectionPluginState';
 export { shouldClearBlockSelectionForTransaction } from './blankAreaDragBoxState';
@@ -115,6 +117,26 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
     if (!startZone) return null;
     clearTextSelectionForDragSession(view);
     clearSession();
+    const deferSelectionDecorations = isLargeBlockSelectionDocument(view.state.doc);
+    const initialSelectedBlocks = getBlockSelectionPluginState(view.state).selectedBlocks;
+    let deferredDragActivated = false;
+    let deferredSelectionBlocks = [...initialSelectedBlocks];
+
+    const dispatchResolvedPlainClickAction = (
+      action: BlankAreaPlainClickAction | null,
+      clientX: number,
+      clientY: number,
+    ): boolean => {
+      const textblockLineEndAction = resolveTextblockLineEndPlainClick(view, event);
+      const resolvedAction = textblockLineEndAction ?? action;
+      if (!resolvedAction) return false;
+      if (textblockLineEndAction) {
+        dispatchBlankAreaPlainClick(view, resolvedAction);
+      } else {
+        dispatchBlankAreaPlainClick(view, resolvedAction, clientX, clientY);
+      }
+      return true;
+    };
 
     const session = startBlankAreaSelectionSession({
       view,
@@ -123,16 +145,22 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
       dragThreshold: DRAG_THRESHOLD,
       cursor: DRAG_SESSION_CURSOR,
       dragBoxColor: DRAG_BOX_COLOR,
+      useSelectionPreview: deferSelectionDecorations,
       scrollRootSelector: SCROLL_ROOT_SELECTOR,
-      initialSelectedBlocks: getBlockSelectionPluginState(view.state).selectedBlocks,
+      initialSelectedBlocks,
       onSelectionChange(blocks) {
+        if (deferSelectionDecorations) {
+          deferredSelectionBlocks = blocks;
+          return;
+        }
         dispatchBlockSelectionAction(view, blocks.length > 0
           ? { type: 'set-blocks', blocks }
           : CLEAR_BLOCKS_ACTION);
       },
+      onPendingPlainClick({ action, clientX, clientY }) {
+        return dispatchResolvedPlainClickAction(action, clientX, clientY);
+      },
       onPlainClick({ zone, action, clientX, clientY }) {
-        const textblockLineEndAction = resolveTextblockLineEndPlainClick(view, event);
-        const resolvedAction = textblockLineEndAction ?? action;
         if (zone === 'below-last-block') {
           dispatchTailBlankClickAction(view);
           return;
@@ -141,20 +169,36 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
           clearBlockSelection(view);
           return;
         }
-        if (!resolvedAction) {
+        if (!dispatchResolvedPlainClickAction(action, clientX, clientY)) {
           clearBlockSelection(view);
-          return;
         }
-        if (textblockLineEndAction) {
-          dispatchBlankAreaPlainClick(view, resolvedAction);
-          return;
-        }
-        dispatchBlankAreaPlainClick(view, resolvedAction, clientX, clientY);
       },
       onActivateSelectionState() {
-        setBlockSelectionVisualState(view, true);
+        deferredDragActivated = true;
+        if (deferSelectionDecorations && initialSelectedBlocks.length > 0) {
+          dispatchBlockSelectionAction(view, {
+            type: 'set-blocks',
+            blocks: initialSelectedBlocks,
+            deferDecorations: true,
+          });
+        }
+        setBlockSelectionVisualState(view, !deferSelectionDecorations);
       },
       onSyncSelectionState() {
+        if (deferSelectionDecorations && deferredDragActivated) {
+          dispatchBlockSelectionAction(view, deferredSelectionBlocks.length > 0
+            ? { type: 'set-blocks', blocks: deferredSelectionBlocks }
+            : CLEAR_BLOCKS_ACTION);
+          syncBlockSelectionVisualState(view);
+          return;
+        }
+        const selectionState = getBlockSelectionPluginState(view.state);
+        if (selectionState.decorationsDeferred && selectionState.selectedBlocks.length > 0) {
+          dispatchBlockSelectionAction(view, {
+            type: 'set-blocks',
+            blocks: selectionState.selectedBlocks,
+          });
+        }
         syncBlockSelectionVisualState(view);
       },
     });

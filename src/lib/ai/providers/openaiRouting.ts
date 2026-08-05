@@ -1,6 +1,6 @@
 import type { ApiTranscriptMessage, AIModel, ChatCompletionRequest, ChatMessage, ChatMessageContent, ChatMessageContentPart, ChatSendOptions, Provider } from '../types'
 import { resolveApiModelId } from '../utils'
-import { normalizeApiTranscriptMessages } from '@/lib/ai/apiTranscript'
+import { normalizeApiTranscriptMessagesForProviderReplay } from '@/lib/ai/apiTranscript'
 import { parseThinkingContent, stripThinkingContent } from '@/lib/ai/stripThinkingContent'
 import { stripWebSearchStatusMarkup } from '@/lib/ai/webSearch/statusMarkup'
 import {
@@ -155,7 +155,7 @@ export function buildOpenAIChatRequest(
   const apiMessages: ApiTranscriptMessage[] = history.flatMap((entry) => {
     const transcript = entry.apiTranscript ?? entry.versions?.[entry.currentVersionIndex]?.apiTranscript
     if (replayApiTranscript && entry.role === 'assistant' && transcript?.length) {
-      const normalizedTranscript = normalizeApiTranscriptMessages(transcript)
+      const normalizedTranscript = normalizeApiTranscriptMessagesForProviderReplay(transcript)
       if (normalizedTranscript) return normalizedTranscript
     }
     return [{

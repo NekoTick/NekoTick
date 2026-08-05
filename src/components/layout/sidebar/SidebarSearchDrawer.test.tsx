@@ -17,7 +17,6 @@ function SearchControlsHarness({
   } = useSidebarSearchDrawerState({
     isOpen: true,
     query: 'alpha',
-    onOpen: () => {},
     onClose,
     scopeRef,
   });

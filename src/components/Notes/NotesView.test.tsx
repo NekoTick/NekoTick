@@ -141,6 +141,7 @@ const mocks = vi.hoisted(() => {
     notesSplitPanesActive: false,
     setNotesSplitPanesActive: vi.fn(),
     setLayoutPanelDragging: vi.fn(),
+    setLayoutPanelTransitioning: vi.fn(),
     setAppViewMode: vi.fn(),
     setNotesSidebarView: vi.fn(),
     universalPreviewTarget: null as string | null,
@@ -616,6 +617,7 @@ describe('NotesView', () => {
     uiState.notesSplitPanesActive = false;
     uiState.setNotesSplitPanesActive.mockClear();
     uiState.setLayoutPanelDragging.mockClear();
+    uiState.setLayoutPanelTransitioning.mockClear();
     uiState.setAppViewMode.mockClear();
     uiState.setNotesSidebarView.mockClear();
     uiState.universalPreviewTarget = null;
@@ -2067,6 +2069,8 @@ describe('NotesView', () => {
     expect(panel).toBeInTheDocument();
     expect(panel.style.width).toBe('512px');
     expect(panel.style.height).toBe('720px');
+    expect(panel).toHaveClass('z-[var(--vlaina-z-30)]');
+    expect(panel).not.toHaveClass('z-[var(--vlaina-z-40)]');
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="left"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="top"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="top-left"]')).toBeInTheDocument();
@@ -2079,7 +2083,12 @@ describe('NotesView', () => {
     await waitForNotesRootInitializationEffects();
 
     const chatView = await screen.findByTestId('embedded-chat-view');
+    const floatingShell = chatView.parentElement;
     expect(chatView).toHaveAttribute('data-active', 'false');
+    expect(floatingShell).toHaveAttribute('aria-hidden', 'true');
+    expect(floatingShell).toHaveAttribute('inert');
+    expect(floatingShell).not.toHaveClass('hidden');
+    expect(floatingShell).toHaveClass('invisible');
     expect(document.querySelector('[data-notes-chat-floating="true"]')).toBeNull();
 
     uiState.notesChatFloatingOpen = true;
@@ -2087,6 +2096,8 @@ describe('NotesView', () => {
 
     expect(screen.getByTestId('embedded-chat-view')).toBe(chatView);
     expect(chatView).toHaveAttribute('data-active', 'true');
+    expect(floatingShell).not.toHaveAttribute('inert');
+    expect(floatingShell).not.toHaveClass('invisible');
     expect(document.querySelector('[data-notes-chat-floating="true"]')).toBeInTheDocument();
   });
 
@@ -2151,7 +2162,7 @@ describe('NotesView', () => {
     uiState.notesChatPanelCollapsed = false;
     uiState.notesChatFloatingOpen = false;
 
-    render(<NotesView />);
+    const { rerender } = render(<NotesView />);
     await waitForNotesRootInitializationEffects();
 
     const resizablePanel = screen.getByTestId('resizable-panel');
@@ -2159,6 +2170,15 @@ describe('NotesView', () => {
     expect(resizablePanel).toHaveAttribute('data-default-width', '320');
     expect(document.querySelector('[data-notes-chat-panel="true"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating="true"]')).toBeNull();
+    expect(uiState.setLayoutPanelTransitioning).toHaveBeenCalledWith('docked-chat', true);
+
+    uiState.setLayoutPanelTransitioning.mockClear();
+    uiState.notesChatPanelCollapsed = true;
+    rerender(<NotesView />);
+
+    expect(uiState.setLayoutPanelTransitioning).toHaveBeenCalledWith('docked-chat', true);
+    expect(document.querySelector('[data-notes-chat-panel-motion="true"]')).toHaveAttribute('inert');
+    expect(screen.getAllByTestId('embedded-chat-view')).toHaveLength(1);
   });
 
   it('refreshes the native caret overlay after docked chat panel width changes', async () => {

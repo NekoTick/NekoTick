@@ -34,6 +34,21 @@ function stable(source: string): GeneratedBlock {
 
 const blockFactories: readonly BlockFactory[] = [
   (id) => stable(`Paragraph ${id} with **bold**, *emphasis*, \`code\`, and [link](https://example.test/${id}).`),
+  (id) => stable([
+    `Ambiguous paragraph ${id}`,
+    '2. item',
+    '#tag',
+    '[label]',
+    '中文@文本',
+    '价格 $ value',
+    '路径_文件',
+    '标签[文本]',
+  ].join('\n')),
+  (id) => stable([
+    `[Docs ${id}](https://example.test/docs?a=${id}&b=${id + 1})`,
+    `![Image ${id}](image-${id}.png?a=${id}&b=${id + 1})`,
+  ].join('\n')),
+  (id) => stable(`Authored escapes ${id}: left\\@right left\\#right left\\_right left\\&right left\\|right left\\!right.`),
   (id) => stable(`## ATX heading ${id}`),
   (id) => stable([`Setext heading ${id}`, '----------------'].join('\n')),
   (id) => stable([`7) Ordered ${id}`, `8) Ordered ${id + 1}`].join('\n')),

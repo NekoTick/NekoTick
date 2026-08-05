@@ -329,10 +329,10 @@ describe('selectionRequest', () => {
     }));
   });
 
-  it('localizes custom provider desktop transport failures', async () => {
+  it('preserves custom provider desktop transport failures', async () => {
     mockSendMessageWithEndpointFallback.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI provider request to https://api.example.com/v1/chat/completions failed before an HTTP response was received: TypeError: fetch failed"
+        "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED"
       ),
     );
 
@@ -346,9 +346,9 @@ describe('selectionRequest', () => {
 
     expect(result).toEqual({
       suggestion: null,
-      errorMessage: 'The custom channel still could not be reached after automatic retries. Check your network or the upstream service, then try again.',
+      errorMessage: "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED",
       errorType: 'NETWORK_ERROR',
-      errorCode: '',
+      errorCode: 'ai_provider_connection_failed',
     });
   });
 
@@ -366,8 +366,8 @@ describe('selectionRequest', () => {
     expect(result).toEqual({
       suggestion: null,
       errorMessage: 'Custom upstream validation failed',
-      errorType: null,
-      errorCode: null,
+      errorType: 'SERVER_ERROR',
+      errorCode: '',
     });
   });
 

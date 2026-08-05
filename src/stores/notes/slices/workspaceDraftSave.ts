@@ -20,6 +20,7 @@ import { buildSortedRootFolder } from '../utils/fs/rootFolderState';
 import { resolveUniquePath } from '../utils/fs/pathOperations';
 import { invalidatePendingFileTreeLoads } from './fileSystemSliceTreeActions';
 import type { NotesGet, NotesSet, WorkspaceSlice } from './workspaceSliceTypes';
+import { migrateDraftNoteRecovery } from '../noteRecovery';
 
 type SaveNoteOptions = Parameters<WorkspaceSlice['saveNote']>[0];
 
@@ -208,6 +209,16 @@ export async function saveDraftNote({
     error: null,
     saveError: null,
     saveErrorPath: null,
+  });
+
+  void migrateDraftNoteRecovery({
+    notesPath,
+    draftPath: currentNote.path,
+    savedPath,
+    sourceContent: contentAtSaveStart,
+    savedContent: content,
+    latestContent: nextContent,
+    state: get(),
   });
 
   persistWorkspaceSnapshot(notesPath, {

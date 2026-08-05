@@ -7,10 +7,17 @@ function htmlResponse(html) {
 
 describe('LocalSearchProvider', () => {
   it('parses and normalizes results from supported engines', () => {
+    const brave = '<div class="snippet result" data-type="web"><a href="https://example.com/brave" class="result l1"><div class="title search-snippet-title">Needle Brave</div></a><div class="generic-snippet"><div class="content">Needle summary.</div></div></div>';
     const google = '<a href="/url?q=https%3A%2F%2Fexample.com%2Fg"><h3>Needle Google</h3></a><div class="VwiC3b">Needle summary.</div>';
     const bing = '<li class="b_algo"><h2><a href="https://example.com/b">Needle Bing</a></h2><p>Needle summary.</p></li>';
     const duck = '<a class="result__a" href="https://example.com/d">Needle Duck</a><div class="result__snippet">Needle summary.</div>';
 
+    expect(localSearchInternals.parseBraveResults(brave, 5)[0]).toMatchObject({
+      title: 'Needle Brave',
+      url: 'https://example.com/brave',
+      snippet: 'Needle summary.',
+      source: 'local-web-search:brave',
+    });
     expect(localSearchInternals.parseGoogleResults(google, 5)[0].url).toBe('https://example.com/g');
     expect(localSearchInternals.parseBingResults(bing, 5)[0].url).toBe('https://example.com/b');
     expect(localSearchInternals.parseDuckDuckGoResults(duck, 5)[0].url).toBe('https://example.com/d');
@@ -20,23 +27,23 @@ describe('LocalSearchProvider', () => {
     const requestedHosts = [];
     let active = 0;
     let maxActive = 0;
-    const fetchImpl = vi.fn(async (url) => {
+    const fetchImpl = vi.fn(async (url, options) => {
       active += 1;
       maxActive = Math.max(maxActive, active);
       requestedHosts.push(new URL(url).hostname);
+      expect(options.redirect).toBe('error');
       await Promise.resolve();
       active -= 1;
-      if (url.includes('google.com')) return htmlResponse('');
-      if (url.includes('bing.com')) {
-        return htmlResponse('<li class="b_algo"><h2><a href="https://example.com/result">Needle Result</a></h2><p>Needle result page.</p></li>');
+      if (url.includes('search.brave.com')) {
+        return htmlResponse('<div class="snippet result" data-type="web"><a href="https://example.com/result" class="result l1"><div class="title search-snippet-title">Needle Result</div></a><div class="generic-snippet"><div class="content">Needle result page.</div></div></div>');
       }
-      throw new Error('DuckDuckGo should not be needed');
+      throw new Error('Fallback engines should not be needed');
     });
 
     const results = await new LocalSearchProvider({ fetchImpl }).search('Needle Result', { limit: 1 });
 
     expect(results[0].url).toBe('https://example.com/result');
-    expect(requestedHosts).toEqual(['www.google.com', 'www.bing.com']);
+    expect(requestedHosts).toEqual(['search.brave.com']);
     expect(maxActive).toBe(1);
   });
 

@@ -10,6 +10,7 @@ import {
 } from '@/lib/ui/caretOverlayStyles';
 import { isTagTokenBoundary } from './textBlockCaretTagBoundary';
 import { resolveTextBlockCaretLineHeight } from './textBlockCaretGeometry';
+import { isBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 
 export { isTagTokenBoundaryAtTextblock } from './textBlockCaretTagBoundary';
 
@@ -36,6 +37,7 @@ function ensureTextBlockCaretStyle(doc: Document): void {
 }
 
 export function shouldShowTextBlockCaretOverlay(view: EditorView): boolean {
+  if (isBlockSelectionInteractionPending(view.dom)) return false;
   if (!view.hasFocus()) return false;
   if (view.composing) return false;
   if (view.dom.classList.contains(FORCED_LINE_END_CARET_CLASS)) return false;

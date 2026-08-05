@@ -79,6 +79,13 @@ describe('UserMessage', () => {
     expect(useNotesStoreMock).not.toHaveBeenCalled();
   });
 
+  it('does not pin compact text bubbles to measured pixel widths', () => {
+    render(<UserMessage message={createMessage('hi')} containerWidth={880} onEdit={vi.fn()} />);
+
+    const bubble = screen.getByText('hi').parentElement;
+    expect(bubble?.style.width).toBe('');
+  });
+
   it('uses the shared compact icon button styling for sent message actions', () => {
     render(<UserMessage message={createMessage()} containerWidth={880} onEdit={vi.fn()} />);
 
@@ -177,6 +184,52 @@ describe('UserMessage', () => {
       getComputedStyleSpy.mockRestore();
       scrollHeightSpy.mockRestore();
     }
+  });
+
+  it('reuses the bounded preview when an oversized message is collapsed again', () => {
+    const tail = 'END-OF-LONG-MESSAGE';
+    const content = `${'x'.repeat(5_000)}${tail}`;
+    const onLayoutChange = vi.fn();
+    const { container } = render(
+      <div data-chat-scrollable="true">
+        <UserMessage
+          message={createMessage(content)}
+          containerWidth={880}
+          onEdit={vi.fn()}
+          onLayoutChange={onLayoutChange}
+        />
+      </div>,
+    );
+    const bubble = container.querySelector('[data-chat-long-user-message]');
+    const preview = container.querySelector('[data-chat-long-user-message-text="preview"]');
+
+    expect(bubble).toHaveAttribute('data-chat-long-user-message', 'collapsed');
+    expect(preview).not.toHaveAttribute('hidden');
+    expect(container.querySelector('[data-chat-long-user-message-text="full"]')).toBeNull();
+    expect(container.textContent).not.toContain(tail);
+
+    fireEvent.click(screen.getByLabelText('Expand'));
+
+    expect(onLayoutChange).toHaveBeenLastCalledWith('u1');
+    expect(preview).toHaveAttribute('hidden');
+    expect(container.textContent).toContain(tail);
+
+    const scrollable = container.querySelector('[data-chat-scrollable="true"]') as HTMLDivElement;
+    scrollable.scrollTop = 500;
+    const collapseButton = screen.getByLabelText('Collapse');
+    vi.spyOn(collapseButton, 'getBoundingClientRect').mockImplementation(() => ({
+      top: collapseButton.getAttribute('aria-expanded') === 'true' ? 300 : 240,
+    } as DOMRect));
+    onLayoutChange.mockClear();
+    fireEvent.click(collapseButton);
+
+    expect(onLayoutChange).toHaveBeenCalledOnce();
+    expect(onLayoutChange).toHaveBeenCalledWith('u1');
+    expect(scrollable.scrollTop).toBe(440);
+    expect(container.querySelector('[data-chat-long-user-message-text="preview"]')).toBe(preview);
+    expect(preview).not.toHaveAttribute('hidden');
+    expect(container.querySelector('[data-chat-long-user-message-text="full"]')).toBeNull();
+    expect(container.textContent).not.toContain(tail);
   });
 
   it('keeps 8-line user messages expanded without a long-message toggle', () => {

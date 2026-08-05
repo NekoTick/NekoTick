@@ -1,4 +1,6 @@
 import type { AIModel, Provider } from '../types';
+import { getUserFacingAIError } from '../errors';
+import { isManagedProviderId } from '../managedService';
 import {
   DEFAULT_BENCHMARK_BATCH_DELAY_MS,
   DEFAULT_BENCHMARK_CONCURRENCY,
@@ -80,7 +82,7 @@ export async function benchmarkModels(
         } catch (error: unknown) {
           result = {
             status: 'error',
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: getUserFacingAIError(error, { managed: isManagedProviderId(provider.id) }).message,
             endpoint: 'chat',
           };
         }

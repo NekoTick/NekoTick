@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS } from '@/lib/ui/composerTextLimit';
 import { resolveUserMessageBubbleWidth } from './chatUserBubbleWidth';
 
 describe('chatUserBubbleWidth', () => {
@@ -7,10 +8,12 @@ describe('chatUserBubbleWidth', () => {
     expect(resolveUserMessageBubbleWidth('hello', 0)).toBeNull();
   });
 
-  it('keeps short single-line messages compact', () => {
-    const width = resolveUserMessageBubbleWidth('ok', 900);
-    expect(width).not.toBeNull();
-    expect(width!).toBeLessThan(120);
+  it('lets the browser size short single-line messages from rendered text', () => {
+    expect(resolveUserMessageBubbleWidth('hi', 900)).toBeNull();
+  });
+
+  it('lets the browser size compact messages with explicit line breaks', () => {
+    expect(resolveUserMessageBubbleWidth('hi\nok', 900)).toBeNull();
   });
 
   it('shrinks long wrapped messages below the maximum bubble width', () => {
@@ -30,5 +33,15 @@ describe('chatUserBubbleWidth', () => {
     const second = resolveUserMessageBubbleWidth(text, 727);
 
     expect(first).toBe(second);
+  });
+
+  it('uses the maximum bubble width without measuring oversized user messages', () => {
+    const containerWidth = 900;
+    const contentWidth = Math.max(240, Math.min(850, containerWidth - 32));
+
+    expect(resolveUserMessageBubbleWidth(
+      'x'.repeat(MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS + 1),
+      containerWidth,
+    )).toBe(Math.floor(contentWidth * 0.9));
   });
 });

@@ -36,12 +36,34 @@ vi.mock('./EmojiTab', () => ({
 }));
 
 vi.mock('./UploadTab', () => ({
-  UploadTab: () => <div data-testid="upload-tab" />,
+  UploadTab: ({ onSelect }: { onSelect: (value: string) => void }) => (
+    <div data-testid="upload-tab">
+      <button type="button" onClick={() => onSelect('assets/icons/logo.png')}>Select uploaded icon</button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/ui/premium-slider', () => ({
   PremiumSlider: () => <div data-testid="premium-slider" />,
 }));
+
+const uploadedIcon = {
+  id: 'assets/icons/logo.png',
+  url: 'assets/icons/logo.png',
+  name: 'logo.png',
+  createdAt: 1,
+};
+
+function createPicker(customIcons: typeof uploadedIcon[] = [], customIconsLoading = false) {
+  return (
+    <UniversalIconPicker
+      onSelect={vi.fn()}
+      onClose={vi.fn()}
+      customIcons={customIcons}
+      customIconsLoading={customIconsLoading}
+    />
+  );
+}
 
 describe('UniversalIconPicker', () => {
   beforeEach(() => {
@@ -201,6 +223,7 @@ describe('UniversalIconPicker', () => {
         onSelect={vi.fn()}
         onClose={vi.fn()}
         onSkinToneChange={onSkinToneChange}
+        customIcons={[uploadedIcon]}
       />,
     );
 
@@ -239,6 +262,48 @@ describe('UniversalIconPicker', () => {
     await waitFor(() => expect(screen.getByTestId('emoji-tab')).toHaveAttribute('data-recent', '😀'));
     expect(screen.getByTestId('emoji-tab')).toHaveAttribute('data-skin-tone', '2');
     expect(onSkinToneChange).toHaveBeenCalledWith(2);
+  });
+
+  it('falls back from a restored upload tab after the icon library loads empty', async () => {
+    localStorage.setItem(ACTIVE_TAB_KEY, 'upload');
+
+    const { rerender } = render(createPicker([], true));
+
+    expect(screen.getByTestId('upload-tab')).toBeInTheDocument();
+
+    rerender(createPicker());
+
+    await waitFor(() => expect(screen.getByTestId('emoji-tab')).toBeInTheDocument());
+    expect(loadActiveTab()).toBe('emoji');
+  });
+
+  it('keeps an explicitly opened empty upload tab without restoring it next time', async () => {
+    const { unmount } = render(createPicker());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+
+    expect(screen.getByTestId('upload-tab')).toBeInTheDocument();
+    await waitFor(() => expect(loadActiveTab()).toBe('emoji'));
+
+    unmount();
+    render(createPicker());
+
+    expect(screen.getByTestId('emoji-tab')).toBeInTheDocument();
+  });
+
+  it('restores the upload tab after an icon is uploaded to the empty library', async () => {
+    const { unmount } = render(createPicker());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    await waitFor(() => expect(loadActiveTab()).toBe('emoji'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select uploaded icon' }));
+    expect(loadActiveTab()).toBe('upload');
+
+    unmount();
+    render(createPicker([uploadedIcon]));
+
+    expect(await screen.findByTestId('upload-tab')).toBeInTheDocument();
   });
 
   it('passes image and symbol icons through to recent icons', async () => {

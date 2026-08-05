@@ -1,6 +1,16 @@
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
+import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
+
+export function createGapCursorSelectionAt(doc: ProseNode, pos: number): GapCursor | null {
+  try {
+    const $pos = doc.resolve(pos);
+    return GapCursor.valid($pos) ? new GapCursor($pos) : null;
+  } catch {
+    return null;
+  }
+}
 
 export function syncEditorSelectionFromDOM(view: EditorView): boolean {
   const domSelection = view.dom.ownerDocument.getSelection();
@@ -71,7 +81,11 @@ export function createDocumentStartTextSelection(doc: ProseNode): Selection {
     }
   }
 
-  return Selection.near(doc.resolve(0), 1);
+  return (
+    createGapCursorSelectionAt(doc, 0)
+    ?? createGapCursorSelectionAt(doc, doc.content.size)
+    ?? Selection.near(doc.resolve(0), 1)
+  );
 }
 
 export function createDocumentFirstLineEndTextSelection(doc: ProseNode): Selection {
@@ -112,5 +126,9 @@ export function createDocumentFirstLineEndTextSelection(doc: ProseNode): Selecti
     return createCollapsedTextSelectionNear(doc, textSelectionPos, -1);
   }
 
-  return Selection.near(doc.resolve(0), 1);
+  return (
+    createGapCursorSelectionAt(doc, doc.content.size)
+    ?? createGapCursorSelectionAt(doc, 0)
+    ?? Selection.near(doc.resolve(0), 1)
+  );
 }

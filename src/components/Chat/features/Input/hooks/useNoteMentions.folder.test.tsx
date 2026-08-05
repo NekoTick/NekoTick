@@ -5,6 +5,7 @@ import {
   MAX_NOTE_MENTION_SCAN_ITEMS,
   MAX_NOTE_MENTION_TITLE_CHARS,
 } from '@/lib/ai/noteMentions';
+import { MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS } from '@/lib/ui/composerTextLimit';
 import { useNoteMentionState } from './useNoteMentionState';
 import { useNoteMentions } from './useNoteMentions';
 
@@ -191,6 +192,48 @@ describe('useNoteMentions folder candidates', () => {
         { path: 'Projects', title: 'Projects/', kind: 'folder' },
       ]);
     });
+  });
+
+  it('skips automatic mention work for oversized drafts but synchronizes on demand', () => {
+    const oversizedValue = `@Projects/ ${'x'.repeat(MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS)}`;
+    const syncMentions = vi.fn(({ value }: { value: string }) => (
+      value.includes('@Projects/')
+        ? [{ path: 'Projects', title: 'Projects/', kind: 'folder' as const }]
+        : []
+    ));
+    const textarea = document.createElement('textarea');
+    const { result } = renderHook(() => {
+      const textareaRef = useRef<HTMLTextAreaElement>(textarea);
+      return useNoteMentionState({
+        value: oversizedValue,
+        onValueChange: vi.fn(),
+        textareaRef,
+        syncMentions,
+      });
+    });
+
+    act(() => {
+      result.current.restoreMentions([
+        { path: 'Projects', title: 'Projects/', kind: 'folder' },
+      ]);
+    });
+
+    expect(syncMentions).not.toHaveBeenCalled();
+    expect(result.current.mentions).toEqual([
+      { path: 'Projects', title: 'Projects/', kind: 'folder' },
+    ]);
+    expect(result.current.mentionPreviewParts).toEqual([]);
+
+    let synchronizedMentions: ReturnType<typeof result.current.getSynchronizedMentions> = [];
+    act(() => {
+      synchronizedMentions = result.current.getSynchronizedMentions();
+    });
+
+    expect(syncMentions).toHaveBeenCalledOnce();
+    expect(syncMentions).toHaveBeenCalledWith(expect.objectContaining({ value: oversizedValue }));
+    expect(synchronizedMentions).toEqual([
+      { path: 'Projects', title: 'Projects/', kind: 'folder' },
+    ]);
   });
 
   it('keeps a dragged folder mention scoped to its exact path when folder names collide', async () => {

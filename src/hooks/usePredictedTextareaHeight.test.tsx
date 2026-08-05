@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRef } from 'react';
+import { MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS } from '@/lib/ui/composerTextLimit';
 import { usePredictedTextareaHeight } from './usePredictedTextareaHeight';
 
 const textLayoutMocks = vi.hoisted(() => ({
@@ -39,6 +40,18 @@ function Harness({ value }: { value: string }) {
     value,
     minHeight: 24,
     maxHeight: 320,
+    maxPredictedLayoutChars: MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS,
+  });
+
+  return <textarea ref={textareaRef} />;
+}
+
+function UnboundedHarness({ value }: { value: string }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  usePredictedTextareaHeight(textareaRef, {
+    value,
+    minHeight: 24,
+    maxHeight: 100_000,
   });
 
   return <textarea ref={textareaRef} />;
@@ -164,6 +177,60 @@ describe('usePredictedTextareaHeight', () => {
 
       expect(textarea!.style.height).toBe('60px');
       expect(textLayoutMocks.measureTextareaContentHeight).toHaveBeenCalledTimes(2);
+    } finally {
+      if (originalClientWidth) {
+        Object.defineProperty(HTMLTextAreaElement.prototype, 'clientWidth', originalClientWidth);
+      } else {
+        delete (HTMLTextAreaElement.prototype as { clientWidth?: number }).clientWidth;
+      }
+    }
+  });
+
+  it('caps oversized textarea values without preparing their full text layout', () => {
+    const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLTextAreaElement.prototype, 'clientWidth', {
+      configurable: true,
+      get: () => 320,
+    });
+
+    try {
+      const view = render(
+        <Harness value={'x'.repeat(MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS + 1)} />,
+      );
+      const textarea = view.container.querySelector('textarea');
+
+      expect(textarea!.style.height).toBe('320px');
+      expect(textLayoutMocks.resolveElementTextLayoutMetrics).not.toHaveBeenCalled();
+      expect(textLayoutMocks.measureTextareaContentHeight).not.toHaveBeenCalled();
+
+      view.rerender(<Harness value="short again" />);
+
+      expect(textarea!.style.height).toBe('60px');
+      expect(textLayoutMocks.measureTextareaContentHeight).toHaveBeenCalledTimes(1);
+    } finally {
+      if (originalClientWidth) {
+        Object.defineProperty(HTMLTextAreaElement.prototype, 'clientWidth', originalClientWidth);
+      } else {
+        delete (HTMLTextAreaElement.prototype as { clientWidth?: number }).clientWidth;
+      }
+    }
+  });
+
+  it('keeps oversized non-Chat textareas on exact predicted layout measurement', () => {
+    const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'clientWidth');
+    Object.defineProperty(HTMLTextAreaElement.prototype, 'clientWidth', {
+      configurable: true,
+      get: () => 320,
+    });
+
+    try {
+      const view = render(
+        <UnboundedHarness value={'x'.repeat(MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS + 1)} />,
+      );
+      const textarea = view.container.querySelector('textarea');
+
+      expect(textarea!.style.height).toBe('60px');
+      expect(textLayoutMocks.measureTextareaContentHeight).toHaveBeenCalledTimes(1);
     } finally {
       if (originalClientWidth) {
         Object.defineProperty(HTMLTextAreaElement.prototype, 'clientWidth', originalClientWidth);

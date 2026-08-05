@@ -10,6 +10,7 @@ import { restoreSetextHeadingStyleFromReference } from '@/lib/notes/markdown/mar
 import { restoreListMarkerStyleFromReference } from '@/lib/notes/markdown/markdownListMarkerStyle';
 import { restoreReferenceLinkStyleFromReference } from '@/lib/notes/markdown/markdownReferenceLinkStyle';
 import { restoreThematicBreakMarkerStyleFromReference } from '@/lib/notes/markdown/markdownThematicBreakMarkerStyle';
+import { restoreUnrequestedMarkdownEscapesFromReference } from '@/lib/notes/markdown/markdownEscapeStyle';
 import { mapMarkdownOutsideProtectedSegments } from '@/lib/notes/markdown/markdownProtectedBlocks';
 import { serializeLeadingFrontmatterMarkdown } from '../plugins/frontmatter/frontmatterMarkdown';
 import { restoreMermaidFenceSourceFromReference } from '../plugins/mermaid/mermaidFenceSourceRestore';
@@ -82,7 +83,7 @@ export function serializeEditorMarkdownSnapshot(markdown: string, referenceMarkd
     normalizedMarkdown,
     referenceMarkdown,
   )));
-  return restoreHardBreakStyleFromReference(restoreBlockquoteMarkerSpacingFromReference(
+  const sourceStyledMarkdown = restoreHardBreakStyleFromReference(restoreBlockquoteMarkerSpacingFromReference(
     restoreThematicBreakMarkerStyleFromReference(
       restoreListMarkerStyleFromReference(
         restoreFenceMarkerStyleFromReference(
@@ -104,6 +105,7 @@ export function serializeEditorMarkdownSnapshot(markdown: string, referenceMarkd
     ),
     referenceMarkdown,
   ), referenceMarkdown);
+  return restoreUnrequestedMarkdownEscapesFromReference(sourceStyledMarkdown, referenceMarkdown);
 }
 
 export function normalizeMarkdownParagraphSeparatorsForEditorComparison(markdown: string): string {
@@ -130,7 +132,8 @@ export function normalizeMarkdownParagraphSeparatorsForEditorComparison(markdown
       previousLine !== null &&
       nextLine !== null &&
       isPlainTextParagraphLine(previousLine) &&
-      isPlainTextParagraphLine(nextLine);
+      isPlainTextParagraphLine(nextLine) &&
+      !beginsDefinitionList(lines, index);
 
     if (isPlainParagraphGap) {
       continue;
@@ -194,7 +197,8 @@ function markEditorParagraphSeparatorsInSegment(markdown: string): string {
     const shouldCompact = previousLine !== null
       && nextLine !== null
       && isPlainTextParagraphLine(previousLine)
-      && isPlainTextParagraphLine(nextLine);
+      && isPlainTextParagraphLine(nextLine)
+      && !beginsDefinitionList(lines, index);
 
     if (!shouldCompact) {
       for (let blankIndex = runStart; blankIndex < index; blankIndex += 1) {
@@ -258,6 +262,16 @@ function isPlainTextParagraphLine(line: string): boolean {
   if (STRUCTURAL_MARKDOWN_LINE_PATTERN.test(line)) return false;
   if (MARKDOWN_IMAGE_ONLY_LINE_PATTERN.test(line)) return false;
   return true;
+}
+
+function beginsDefinitionList(lines: readonly string[], termIndex: number): boolean {
+  if (!isPlainTextParagraphLine(lines[termIndex] ?? '')) return false;
+
+  let descriptionIndex = termIndex + 1;
+  while (descriptionIndex < lines.length && (lines[descriptionIndex] ?? '').trim() === '') {
+    descriptionIndex += 1;
+  }
+  return /^\s{0,3}:\s+\S/.test(lines[descriptionIndex] ?? '');
 }
 
 function isInternalEditorBlankLineComment(line: string): boolean {

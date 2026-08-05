@@ -242,6 +242,12 @@ export function createSyncE2EEditorActions(): EditorBridgeActions {
           requestedCount,
           selectedStateCount: (blankAreaDragBoxPluginKey.getState(view.state)?.selectedBlocks ?? []).length,
           selectedDomCount: document.querySelectorAll('.milkdown .ProseMirror .editor-block-selected').length,
+          committedPreviewCount: Number.parseInt(
+            document.querySelector<SVGSVGElement>(
+              '[data-editor-block-selection-committed-preview="true"]'
+            )?.dataset.selectionCount ?? '0',
+            10,
+          ),
           lineFillCount: document.querySelectorAll('.editor-block-selection-line-fill').length,
           dispatchMs: Math.round((dispatchedAt - startedAt) * 10) / 10,
           firstFrameMs: Math.round((firstFrameAt - dispatchedAt) * 10) / 10,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAIChatSession, useAIUIStore } from './chatState';
 import { useUnifiedStore } from '../unified/useUnifiedStore';
 import { aliasSessionId, clearSessionIdAliases } from '@/lib/ai/sessionIdAliases';
+import { requestManager } from '@/lib/ai/requestManager';
 
 const mocked = vi.hoisted(() => ({
   saveSessionJson: vi.fn(async () => {}),
@@ -134,6 +135,47 @@ describe('AI chat UI state', () => {
     expect(useAIUIStore.getState().authPromptSessionId).toBeNull();
   });
 
+  it('revokes computer access when the active chat context changes', () => {
+    useUnifiedStore.setState({
+      loaded: true,
+      data: {
+        settings: {} as never,
+        customIcons: [],
+        ai: {
+          providers: [],
+          models: [],
+          benchmarkResults: {},
+          fetchedModels: {},
+          sessions: [],
+          messages: {},
+          unreadSessionIds: [],
+          selectedModelId: null,
+          currentSessionId: null,
+          temporaryChatEnabled: false,
+          customSystemPrompt: '',
+          includeTimeContext: true,
+          webSearchEnabled: false,
+          computerUseEnabled: true,
+        },
+      },
+      undoStack: [],
+    });
+    useAIUIStore.setState({
+      currentSessionId: 'session-1',
+      temporaryChatEnabled: false,
+      selectionInitialized: true,
+    });
+    const controller = requestManager.start('session-1', { computerUse: true });
+
+    useAIUIStore.getState().setChatSelection({
+      currentSessionId: 'session-2',
+      temporaryChatEnabled: false,
+    });
+
+    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false);
+    expect(controller.signal.aborted).toBe(true);
+  });
+
   it('keeps a newly created chat in memory when the initial session save rejects', async () => {
     mocked.saveSessionJson.mockRejectedValueOnce(new Error('disk busy'));
     useUnifiedStore.setState({
@@ -154,6 +196,7 @@ describe('AI chat UI state', () => {
           temporaryChatEnabled: false,
           customSystemPrompt: '',
           includeTimeContext: true,
+          computerUseEnabled: true,
         },
       },
       undoStack: [],
@@ -166,6 +209,7 @@ describe('AI chat UI state', () => {
     expect(ai?.sessions[0]?.id).toBe(sessionId);
     expect(ai?.messages[sessionId]).toEqual([]);
     expect(useAIUIStore.getState().currentSessionId).toBe(sessionId);
+    expect(ai?.computerUseEnabled).toBe(false);
     expect(mocked.saveSessionJson).toHaveBeenCalledWith(sessionId, []);
   });
 });
