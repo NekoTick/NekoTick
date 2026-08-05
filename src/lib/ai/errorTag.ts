@@ -10,6 +10,7 @@ const MAX_ERROR_TAG_START_TAG_CHARS = 4096;
 const ERROR_OPEN_TAG = '<error';
 const ERROR_CLOSE_TAG = '</error>';
 const ERROR_ATTRIBUTE_REGEX = /\s(type|code)="([^"]*)"/gi;
+const CUSTOM_PROVIDER_ERROR_SOURCE = 'custom_provider';
 
 interface ErrorTagMatch {
   start: number;
@@ -150,6 +151,20 @@ export function buildErrorTag(type: string | undefined, code: string | number | 
   return `<error type="${safeType}" code="${safeCode}">${safeDetail}</error>`;
 }
 
+export function buildCustomProviderErrorTag(
+  type: string | undefined,
+  code: string | number | undefined,
+  detail: string,
+): string {
+  const safeType = escapeXmlAttribute(normalizeErrorTagType(type));
+  const safeCode = escapeXmlAttribute(normalizeErrorTagCode(code));
+  return `<error type="${safeType}" code="${safeCode}" source="${CUSTOM_PROVIDER_ERROR_SOURCE}">${escapeXmlText(detail)}</error>`;
+}
+
+function isCustomProviderErrorTag(rawStartTag: string): boolean {
+  return /\ssource="custom_provider"/i.test(rawStartTag);
+}
+
 export function escapeUntrustedErrorTags(content: string): string {
   return content
     .replace(/<error(?=[\s>])/gi, '&lt;error')
@@ -162,9 +177,13 @@ export function parseErrorTag(content: string): ParsedErrorTag | null {
     return null;
   }
 
+  const attributes = parseErrorTagAttributes(match.rawStartTag);
+  const decodedContent = decodeXmlEntities(match.rawContent);
   return {
-    ...parseErrorTagAttributes(match.rawStartTag),
-    content: clipErrorTagContent(decodeXmlEntities(match.rawContent.trim() || 'Unknown error')),
+    ...attributes,
+    content: isCustomProviderErrorTag(match.rawStartTag)
+      ? decodedContent
+      : clipErrorTagContent(decodedContent.trim() || 'Unknown error'),
   };
 }
 
@@ -180,7 +199,10 @@ export function stripErrorTags(content: string): string {
     }
 
     output += content.slice(cursor, match.start);
-    output += clipErrorTagContent(decodeXmlEntities(match.rawContent.trim()));
+    const decodedContent = decodeXmlEntities(match.rawContent);
+    output += isCustomProviderErrorTag(match.rawStartTag)
+      ? decodedContent
+      : clipErrorTagContent(decodedContent.trim());
     cursor = match.end;
   }
 

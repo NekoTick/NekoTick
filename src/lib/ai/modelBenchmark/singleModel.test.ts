@@ -54,7 +54,7 @@ describe('checkModelHealth', () => {
     expect(body.input).toBe('hello world');
   });
 
-  it('does not expose upstream business errors when HTTP status is 200', async () => {
+  it('preserves custom upstream business errors when HTTP status is 200', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ error: { message: 'quota exceeded' } }), {
         status: 200,
@@ -64,11 +64,10 @@ describe('checkModelHealth', () => {
 
     const result = await checkModelHealth(provider, createModel('gpt-4o-mini'));
     expect(result.status).toBe('error');
-    expect(result.error).not.toContain('quota exceeded');
-    expect(result.error).toContain('My brain needs a breather');
+    expect(result.error).toBe('quota exceeded');
   });
 
-  it('does not expose embedded xml errors returned inside chat success payloads', async () => {
+  it('preserves embedded xml errors returned inside custom chat success payloads', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -90,11 +89,10 @@ describe('checkModelHealth', () => {
 
     const result = await checkModelHealth(provider, createModel('grok-4.1'));
     expect(result.status).toBe('error');
-    expect(result.error).not.toContain('No available channel for model grok-4.1 under group default');
-    expect(result.error).toContain('My brain needs a breather');
+    expect(result.error).toBe('No available channel for model grok-4.1 under group default');
   });
 
-  it('treats plain-text 200 responses as errors without exposing the body', async () => {
+  it('treats plain-text 200 responses as errors and preserves the body', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response('No available channel for model grok-4.1 under group default', {
         status: 200,
@@ -104,8 +102,7 @@ describe('checkModelHealth', () => {
 
     const result = await checkModelHealth(provider, createModel('grok-4.1'));
     expect(result.status).toBe('error');
-    expect(result.error).not.toContain('No available channel for model grok-4.1 under group default');
-    expect(result.error).toContain('My brain needs a breather');
+    expect(result.error).toBe('No available channel for model grok-4.1 under group default');
   });
 
   it('treats unexpected 200 payloads as errors', async () => {
@@ -192,7 +189,7 @@ describe('checkModelHealth', () => {
 
     expect(result).toMatchObject({
       status: 'error',
-      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      error: 'Something went wrong',
       endpoint: 'chat',
     });
   });
@@ -417,7 +414,7 @@ describe('checkModelHealth', () => {
     expect(result).toMatchObject({
       status: 'error',
       endpoint: 'chat',
-      error: 'Authentication failed. Check your API key or sign in again.',
+      error: 'Forbidden request. Check model access.',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
@@ -465,7 +462,7 @@ describe('checkModelHealth', () => {
     expect(result).toMatchObject({
       status: 'error',
       endpoint: 'chat',
-      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      error: 'Too many requests',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0][0]).toBe('https://api.example.com/v1/chat/completions');
@@ -478,7 +475,7 @@ describe('checkModelHealth', () => {
 
     expect(result).toMatchObject({
       status: 'error',
-      error: 'The custom channel could not be reached. Check your network or the upstream service, then try again.',
+      error: 'AI_PROVIDER_CONNECTION_FAILED',
       endpoint: 'chat',
     });
   });
@@ -616,7 +613,7 @@ describe('checkModelHealth', () => {
 
     expect(result).toMatchObject({
       status: 'error',
-      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+      error: 'Unknown error',
       endpoint: 'chat',
     });
     expect(cancel).toHaveBeenCalledTimes(1);

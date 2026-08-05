@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildCustomProviderErrorTag,
   buildErrorTag,
   escapeUntrustedErrorTags,
   MAX_ERROR_TAG_ATTRIBUTE_CHARS,
@@ -32,6 +33,18 @@ describe('errorTag', () => {
     expect(parsed?.type).toHaveLength(MAX_ERROR_TAG_ATTRIBUTE_CHARS);
     expect(parsed?.code).toHaveLength(MAX_ERROR_TAG_ATTRIBUTE_CHARS);
     expect(parsed?.content).toHaveLength(MAX_ERROR_TAG_CONTENT_CHARS);
+  });
+
+  it('preserves custom provider error content exactly', () => {
+    const detail = ` leading\n${'x'.repeat(MAX_ERROR_TAG_CONTENT_CHARS + 1)}\u202E `;
+    const tag = buildCustomProviderErrorTag('SERVER_ERROR', 'upstream', detail);
+
+    expect(parseErrorTag(tag)).toEqual({
+      type: 'SERVER_ERROR',
+      code: 'upstream',
+      content: detail,
+    });
+    expect(stripErrorTags(tag)).toBe(detail);
   });
 
   it('drops unsafe runtime code values without coercion', () => {

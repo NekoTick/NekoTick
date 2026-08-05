@@ -864,9 +864,7 @@ describe('useChatService session context isolation', () => {
     });
 
     await waitFor(() => {
-      expect(useAIUIStore.getState().error).toBe(
-        '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
-      );
+      expect(useAIUIStore.getState().error).toBe('Unknown error');
     });
     expect(stringReads).toBe(0);
   });

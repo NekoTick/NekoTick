@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ACCOUNT_AUTH_INVALIDATED_EVENT } from '@/lib/account/sessionEvent';
+import { parseErrorTag } from '@/lib/ai/errorTag';
 import { buildChatErrorPayload, extractRawErrorMessage } from './errorHandling';
 
 describe('buildChatErrorPayload', () => {
-  it('localizes desktop custom provider transport failures for custom providers', () => {
+  it('preserves desktop custom provider transport failures for custom providers', () => {
     const result = buildChatErrorPayload(
       new Error(
         "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED"
@@ -12,32 +13,27 @@ describe('buildChatErrorPayload', () => {
     );
 
     expect(result.message).toBe(
-      'The custom channel could not be reached. Check your network or the upstream service, then try again.',
+      "Error invoking remote method 'desktop:ai-provider:request:start': Error: AI_PROVIDER_CONNECTION_FAILED",
     );
     expect(result.xml).toBe(
-      '<error type="NETWORK_ERROR" code="ai_provider_connection_failed">The custom channel could not be reached. Check your network or the upstream service, then try again.</error>',
+      '<error type="NETWORK_ERROR" code="ai_provider_connection_failed" source="custom_provider">Error invoking remote method \'desktop:ai-provider:request:start\': Error: AI_PROVIDER_CONNECTION_FAILED</error>',
     );
   });
 
-  it('does not expose custom provider error text', () => {
-    const result = buildChatErrorPayload(
-      new Error(`Custom provider\u202Eerror\n${'x'.repeat(9000)}`),
-      false,
-    );
+  it('preserves custom provider error text without normalization or clipping', () => {
+    const rawMessage = ` Custom provider\u202Eerror\n${'x'.repeat(9000)} `;
+    const result = buildChatErrorPayload(new Error(rawMessage), false);
 
-    expect(result.message).toBe(
-      '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
-    );
-    expect(result.xml).not.toContain('Custom provider');
-    expect(result.xml).not.toContain('x'.repeat(100));
+    expect(result.message).toBe(rawMessage);
+    expect(parseErrorTag(result.xml)?.content).toBe(rawMessage);
   });
 
-  it('maps custom provider upstream messages to local copy', () => {
+  it('preserves custom provider upstream messages', () => {
     const result = buildChatErrorPayload(new Error('Custom provider rejected the request'), false);
 
     expect(result).toEqual({
-      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
-      xml: '<error type="SERVER_ERROR" code="">๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~</error>',
+      message: 'Custom provider rejected the request',
+      xml: '<error type="SERVER_ERROR" code="" source="custom_provider">Custom provider rejected the request</error>',
     });
   });
 
@@ -50,8 +46,8 @@ describe('buildChatErrorPayload', () => {
 
     expect(extractRawErrorMessage(error)).toBe('AI request failed.');
     expect(buildChatErrorPayload(error, false)).toEqual({
-      message: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
-      xml: '<error type="SERVER_ERROR" code="">๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~</error>',
+      message: 'Unknown error',
+      xml: '<error type="SERVER_ERROR" code="" source="custom_provider">Unknown error</error>',
     });
   });
 

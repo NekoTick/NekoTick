@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '../types';
+import { MANAGED_PROVIDER_ID } from '../managed/constants';
 import { benchmarkModels } from './batch';
 import { checkModelHealth } from './singleModel';
 
@@ -142,5 +143,20 @@ describe('benchmarkModels', () => {
 
     expect(resultMap).toEqual({});
     expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it('keeps managed machine error handling when a model check unexpectedly rejects', async () => {
+    vi.mocked(checkModelHealth).mockRejectedValue(new Error('UPSTREAM_UNAVAILABLE'));
+
+    const result = await benchmarkModels(
+      { ...provider, id: MANAGED_PROVIDER_ID },
+      [createModel('m-1')],
+      { batchDelayMs: 0 },
+    );
+
+    expect(result['m-1']).toMatchObject({
+      status: 'error',
+      error: '๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~',
+    });
   });
 });
