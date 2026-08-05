@@ -1,5 +1,6 @@
 export interface ChatViewProps {
   mode?: 'full' | 'embedded';
+  presentation?: 'desktop' | 'mobile';
   active?: boolean;
   onCloseEmbeddedPanel?: () => void;
   onPromoteEmbeddedPanel?: () => void;

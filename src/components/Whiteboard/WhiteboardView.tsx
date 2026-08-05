@@ -5,17 +5,24 @@ import { useWhiteboardController } from './hooks/useWhiteboardController';
 
 interface WhiteboardViewProps {
   active?: boolean;
+  drawWithTouch?: boolean;
   onPrimaryContentReady?: () => void;
   onStartupReady?: () => void;
 }
 
 export function WhiteboardView({
   active = true,
+  drawWithTouch = false,
   onPrimaryContentReady,
   onStartupReady,
 }: WhiteboardViewProps) {
   const { t } = useI18n();
-  const board = useWhiteboardController({ active, onPrimaryContentReady, onStartupReady });
+  const board = useWhiteboardController({
+    active,
+    drawWithTouch,
+    onPrimaryContentReady,
+    onStartupReady,
+  });
 
   return (
     <section

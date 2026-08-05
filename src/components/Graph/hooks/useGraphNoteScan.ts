@@ -45,6 +45,7 @@ export function useGraphNoteScan(args: {
   const rootFolder = useNotesStore((state) => active ? state.rootFolder : null);
   const rootFolderPath = useNotesStore((state) => active ? state.rootFolderPath : null);
   const notesPath = useNotesStore((state) => active ? state.notesPath : '');
+  const loadFileTree = useNotesStore((state) => state.loadFileTree);
   const scanAllNotes = useNotesStore((state) => state.scanAllNotes);
   const currentNotesRootPath = useNotesRootStore((state) => (
     active ? state.currentNotesRoot?.path ?? null : null
@@ -60,6 +61,7 @@ export function useGraphNoteScan(args: {
   }
   const scanInput = scanInputRef.current;
   const [retryRevision, setRetryRevision] = useState(0);
+  const [fileTreeLoadErrorRoot, setFileTreeLoadErrorRoot] = useState<string | null>(null);
   const [scanState, setScanState] = useState<GraphNoteScanState>({
     currentNotesRootPath: null,
     hasSnapshot: false,
@@ -71,6 +73,7 @@ export function useGraphNoteScan(args: {
   const scanStateRef = useRef(scanState);
   scanStateRef.current = scanState;
   const activeScanRef = useRef<ActiveGraphNoteScan | null>(null);
+  const requestedFileTreeRootRef = useRef<string | null>(null);
   const priorityPathRef = useRef(args.priorityPath ?? null);
   priorityPathRef.current = args.priorityPath ?? null;
   const readyReportedRef = useRef(false);
@@ -84,10 +87,50 @@ export function useGraphNoteScan(args: {
     args.onStartupReady?.();
   }, [active, args.onStartupReady]);
 
+  const fileTreeReady = Boolean(rootFolder && notesPath && rootFolderPath === notesPath);
+  useEffect(() => {
+    if (!active || !currentNotesRootPath) {
+      requestedFileTreeRootRef.current = null;
+      return;
+    }
+    if (fileTreeReady) {
+      requestedFileTreeRootRef.current = null;
+      setFileTreeLoadErrorRoot(null);
+      return;
+    }
+    if (requestedFileTreeRootRef.current === currentNotesRootPath) return;
+
+    let cancelled = false;
+    requestedFileTreeRootRef.current = currentNotesRootPath;
+    setFileTreeLoadErrorRoot(null);
+    void loadFileTree(true).then(() => {
+      if (cancelled) return;
+      const latest = useNotesStore.getState();
+      if (!latest.rootFolder || latest.rootFolderPath !== latest.notesPath) {
+        setFileTreeLoadErrorRoot(currentNotesRootPath);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, currentNotesRootPath, fileTreeReady, loadFileTree, retryRevision]);
+
   useEffect(() => {
     if (!active) return;
 
     const identity = { currentNotesRootPath, notesPath, rootFolder, rootFolderPath };
+    if (currentNotesRootPath && !fileTreeReady) {
+      const failed = fileTreeLoadErrorRoot === currentNotesRootPath;
+      const next = {
+        ...identity,
+        hasSnapshot: false,
+        status: failed ? 'error' as const : 'loading' as const,
+      };
+      scanStateRef.current = next;
+      setScanState(next);
+      if (failed) primaryContentReadyRef.current?.();
+      return;
+    }
     if (!rootFolder || !notesPath || rootFolderPath !== notesPath) {
       const next = { ...identity, hasSnapshot: false, status: 'complete' as const };
       scanStateRef.current = next;
@@ -166,6 +209,8 @@ export function useGraphNoteScan(args: {
   }, [
     active,
     currentNotesRootPath,
+    fileTreeLoadErrorRoot,
+    fileTreeReady,
     hasRootFolder,
     notesPath,
     retryRevision,
@@ -219,6 +264,8 @@ export function useGraphNoteScan(args: {
     ? 'loading'
     : scanState.status;
   const retry = useCallback(() => {
+    requestedFileTreeRootRef.current = null;
+    setFileTreeLoadErrorRoot(null);
     setScanState((current) => ({
       ...currentIdentity,
       hasSnapshot: matchesScanIdentity(current, currentIdentity) && current.hasSnapshot,

@@ -1,4 +1,5 @@
 {
+  "mobile.share": "Bagikan",
   "account.cancelAuthentication": "Batalkan Otentikasi",
   "account.continueSignIn": "Lanjutkan Masuk",
   "account.continueToApp": "Lanjutkan ke vlaina",
@@ -483,6 +484,7 @@
   "settings.ai.addModels": "Tambahkan model",
   "settings.ai.apiKey": "Kunci API",
   "settings.ai.baseUrl": "URL Dasar: {url}",
+  "settings.ai.mobileHttpsRequired": "Penyedia seluler memerlukan URL dasar HTTPS.",
   "settings.ai.budgetInAccountCard": "Progres anggaran ditampilkan di kartu akun di bawah avatar Anda.",
   "settings.ai.channelName": "Nama Saluran",
   "settings.ai.clearComputerPermissions": "Hapus semua",

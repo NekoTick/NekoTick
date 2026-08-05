@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { flushWhiteboardStorage } from '@/components/Whiteboard/storage';
 import { desktopWindow } from '@/lib/desktop/window';
 import { isElectronRuntime } from '@/lib/electron/bridge';
-import { flushPendingSessionJsonSaves } from '@/lib/storage/chatStorage';
-import { flushPendingSave } from '@/lib/storage/unifiedStorage';
-import { getAutoSaveableDraftPaths, saveAutoSaveableDrafts } from '@/stores/notes/autoSaveableDrafts';
+import { flushPendingWrites } from '@/lib/storage/flushPendingWrites';
 import { isDraftNotePath } from '@/stores/notes/draftNote';
-import { saveDirtyRegularOpenTabs } from '@/stores/notes/dirtyOpenTabs';
 import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorMarkdownFlusher';
-import { flushStarredRegistry } from '@/stores/notes/starred';
-import { saveWorkspaceSnapshot } from '@/stores/notes/workspacePersistence';
 import { useNotesStore } from '@/stores/useNotesStore';
-import { flushCurrentTitleCommit } from '@/components/Notes/features/Editor/utils/titleCommitRegistry';
 import { useCloseDraftPersistence } from './useCloseDraftPersistence';
 
 const CLOSE_FLUSH_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 20 : 5000;
@@ -131,94 +124,11 @@ export function useElectronCloseGuard() {
     let unlistenCloseRequested: (() => void) | null = null;
 
     const runFlushAllPendingWrites = async (): Promise<boolean> => {
-      if (activeFlush) return withCloseFlushTimeout(activeFlush);
-
-      activeFlush = (async () => {
-        await flushCurrentTitleCommit();
-        flushCurrentPendingEditorMarkdown();
-
-        const tasks: Array<{ name: string; task: Promise<unknown> }> = [
-          { name: 'unified storage', task: flushPendingSave() },
-          { name: 'chat session storage', task: flushPendingSessionJsonSaves() },
-          { name: 'starred notes registry', task: flushStarredRegistry() },
-          { name: 'whiteboard storage', task: flushWhiteboardStorage() },
-        ];
-
-        const initialNotesState = useNotesStore.getState();
-        const hasInitialDirtyRegularTabs = initialNotesState.openTabs.some(
-          (tab) => tab.isDirty && !isDraftNotePath(tab.path)
-        );
-        const currentInitialRegularDirty =
-          initialNotesState.isDirty && !isDraftNotePath(initialNotesState.currentNote?.path);
-        const hasNotesWork =
-          getAutoSaveableDraftPaths().length > 0 ||
-          hasInitialDirtyRegularTabs ||
-          currentInitialRegularDirty;
-
-        if (hasNotesWork) {
-          tasks.push({
-            name: 'notes storage',
-            task: (async () => {
-              if (getAutoSaveableDraftPaths().length > 0) {
-                const savedDrafts = await saveAutoSaveableDrafts();
-                if (!savedDrafts) {
-                  throw new Error('Auto-saveable drafts still pending after save attempt');
-                }
-              }
-
-              const nextNotesState = useNotesStore.getState();
-              const hasDirtyRegularTabs = nextNotesState.openTabs.some(
-                (tab) => tab.isDirty && !isDraftNotePath(tab.path)
-              );
-              const currentRegularDirty =
-                nextNotesState.isDirty && !isDraftNotePath(nextNotesState.currentNote?.path);
-
-              if (hasDirtyRegularTabs || currentRegularDirty) {
-                const savedRegularTabs = await saveDirtyRegularOpenTabs();
-                const finalNotesState = useNotesStore.getState();
-                const stillHasDirtyRegularTabs = finalNotesState.openTabs.some(
-                  (tab) => tab.isDirty && !isDraftNotePath(tab.path)
-                );
-                const finalCurrentRegularDirty =
-                  finalNotesState.isDirty && !isDraftNotePath(finalNotesState.currentNote?.path);
-                if (!savedRegularTabs || finalCurrentRegularDirty || stillHasDirtyRegularTabs) {
-                  throw new Error('Notes still dirty after save attempt');
-                }
-              }
-            })(),
-          });
-        }
-
-        const results = await Promise.allSettled(tasks.map((entry) => entry.task));
-        let hasFailure = false;
-
-        results.forEach((result, _index) => {
-          if (result.status === 'rejected') {
-            hasFailure = true;
-          }
+      if (!activeFlush) {
+        activeFlush = flushPendingWrites().finally(() => {
+          activeFlush = null;
         });
-
-        const nextNotesState = useNotesStore.getState();
-        const stillHasDirtyRegularTabs = nextNotesState.openTabs.some(
-          (tab) => tab.isDirty && !isDraftNotePath(tab.path)
-        );
-        const currentRegularDirty =
-          nextNotesState.isDirty && !isDraftNotePath(nextNotesState.currentNote?.path);
-        if (!hasFailure && !currentRegularDirty && !stillHasDirtyRegularTabs && nextNotesState.notesPath) {
-          await saveWorkspaceSnapshot(nextNotesState.notesPath, {
-            rootFolder: nextNotesState.rootFolder,
-            currentNotePath: nextNotesState.currentNote?.path ?? null,
-            fileTreeSortMode: nextNotesState.fileTreeSortMode,
-          }).catch(() => {
-            hasFailure = true;
-          });
-        }
-
-        return !hasFailure && !currentRegularDirty && !stillHasDirtyRegularTabs;
-      })().finally(() => {
-        activeFlush = null;
-      });
-
+      }
       return withCloseFlushTimeout(activeFlush);
     };
 

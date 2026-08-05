@@ -1,6 +1,7 @@
 import { type DragEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
+import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { themeMotionTokens } from '@/styles/themeTokens';
@@ -161,9 +162,19 @@ export function AIChannelsSection({
                 raisedPillSurfaceClass
               )}
             >
-              <div className="mx-auto flex w-fit flex-col items-center gap-3">
-                <div className="h-[var(--vlaina-size-10px)] w-[var(--vlaina-size-128px)] rounded-full bg-[var(--vlaina-bg-tertiary)]" />
-                <div className="h-[var(--vlaina-size-10px)] w-[var(--vlaina-size-88px)] rounded-full bg-[var(--vlaina-bg-secondary)]" />
+              <div className="mx-auto flex max-w-[var(--vlaina-size-420px)] items-center gap-4">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[var(--vlaina-radius-16px)] bg-[var(--vlaina-color-accent-soft-bg)] text-[var(--vlaina-color-accent)]">
+                  <Icon name="common.add" size="lg" />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1">
+                  <strong className="text-[var(--vlaina-font-sm)] text-[var(--vlaina-sidebar-notes-text)]">
+                    {t('settings.ai.newChannel')}
+                  </strong>
+                  <span className="text-[var(--vlaina-font-xs)] leading-normal text-[var(--vlaina-sidebar-notes-text-soft)]">
+                    {t('settings.ai.openaiCompatibleProviderDescription')}
+                  </span>
+                </span>
+                <Icon name="nav.chevronRight" size="md" className="shrink-0 text-[var(--vlaina-sidebar-notes-text-soft)]" />
               </div>
             </motion.button>
           </motion.div>

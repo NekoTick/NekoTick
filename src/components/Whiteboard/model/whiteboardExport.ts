@@ -1,5 +1,6 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { writeImageBlobToClipboard } from '@/lib/clipboard';
+import { shareNativeFile } from '@/lib/nativeFileShare';
 import {
   type WhiteboardElement,
   type WhiteboardPaperStyle,
@@ -26,7 +27,11 @@ export async function exportWhiteboard({
 }: WhiteboardExportOptions, format: WhiteboardExportFormat) {
   const blob = await createWhiteboardExportBlob({ elements, paper, root, strokes }, format);
   if (!blob) return false;
-  downloadBlob(blob, `whiteboard-${new Date().toISOString().slice(0, 10)}.${format === 'jpeg' ? 'jpg' : format}`);
+  const fileName = `whiteboard-${new Date().toISOString().slice(0, 10)}.${format === 'jpeg' ? 'jpg' : format}`;
+  if (await shareNativeFile({ data: blob, fileName, mimeType: blob.type, title: 'Whiteboard' })) {
+    return true;
+  }
+  downloadBlob(blob, fileName);
   return true;
 }
 

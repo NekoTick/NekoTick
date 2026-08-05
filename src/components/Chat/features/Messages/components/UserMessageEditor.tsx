@@ -181,6 +181,7 @@ export function UserMessageEditor({
         <ChatComposerField
           textareaRef={editTextareaRef}
           message={editValue}
+          ariaLabel={t('chat.editMessage')}
           placeholder=""
           textareaScrollTop={textareaScrollTop}
           mentionPreviewParts={mentionPreviewParts}

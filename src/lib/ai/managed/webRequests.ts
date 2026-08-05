@@ -13,6 +13,7 @@ import {
 import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody';
 import { consumeOpenAIStreamWithTools } from '@/lib/ai/webSearch/openAIStreamWithTools';
 import type { OpenAIStreamToolResult } from '@/lib/ai/webSearch/openAIToolTypes';
+import { aiTransportFetch } from '@/lib/ai/nativeFetchRuntime';
 
 const MAX_MANAGED_STREAM_ERROR_CODE_CHARS = 512;
 const MANAGED_BACKEND_STREAM_ERROR = Symbol('managedBackendStreamError');
@@ -128,7 +129,7 @@ export async function requestManagedWebBinaryJson<T>(
 
   try {
     throwIfExternallyAborted(signal);
-    const response = await raceManagedRequest(fetch(`${MANAGED_API_BASE}${path}`, {
+    const response = await raceManagedRequest(aiTransportFetch(`${MANAGED_API_BASE}${path}`, {
       method: 'POST',
       cache: 'no-store',
       credentials: 'include',
@@ -169,7 +170,7 @@ export async function requestManagedWebStream(
 
   try {
     throwIfExternallyAborted(signal);
-    const response = await raceManagedRequest(fetch(`${MANAGED_API_BASE}${path}`, {
+    const response = await raceManagedRequest(aiTransportFetch(`${MANAGED_API_BASE}${path}`, {
       method: 'POST',
       cache: 'no-store',
       credentials: 'include',

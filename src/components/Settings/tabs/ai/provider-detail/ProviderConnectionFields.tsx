@@ -24,6 +24,7 @@ export function ProviderConnectionFields({
   providerId,
   name,
   apiHost,
+  apiHostError,
   apiKey,
   showApiKey,
   apiKeyCopied,
@@ -39,6 +40,7 @@ export function ProviderConnectionFields({
   providerId: string;
   name: string;
   apiHost: string;
+  apiHostError?: string;
   apiKey: string;
   showApiKey: boolean;
   apiKeyCopied: boolean;
@@ -52,6 +54,7 @@ export function ProviderConnectionFields({
   onCompositionChange?: (isComposing: boolean) => void;
 }) {
   const { t } = useI18n();
+  const apiHostErrorId = `provider-api-host-error-${providerId}`;
   const [apiKeyRevealedForEditing, setApiKeyRevealedForEditing] = useState(false);
   const [apiKeyTextWidthPx, setApiKeyTextWidthPx] = useState(410);
   const apiHostInputRef = useRef<HTMLInputElement>(null);
@@ -213,6 +216,8 @@ export function ProviderConnectionFields({
               type="text"
               data-settings-provider-field="api-host"
               value={apiHost}
+              aria-invalid={Boolean(apiHostError)}
+              aria-describedby={apiHostError ? apiHostErrorId : undefined}
               maxLength={MAX_AI_MODEL_FIELD_CHARS}
               aria-label={t('settings.ai.baseUrl', { url: '' }).replace(/[:：]\s*$/, '')}
               onChange={(e) => onApiHostChange(e.target.value)}
@@ -228,8 +233,20 @@ export function ProviderConnectionFields({
               data-1p-ignore="true"
               className="w-full max-w-[var(--vlaina-size-520px)] max-[640px]:max-w-full"
               inputClassName={providerInputClassName}
-              shellClassName={providerInputShellClassName}
+              shellClassName={cn(
+                providerInputShellClassName,
+                apiHostError && 'border-[var(--vlaina-color-status-danger-border)]',
+              )}
             />
+            {apiHostError ? (
+              <p
+                id={apiHostErrorId}
+                role="alert"
+                className="mt-2 text-[var(--vlaina-font-xs)] text-[var(--vlaina-color-status-danger-fg)]"
+              >
+                {apiHostError}
+              </p>
+            ) : null}
           </div>
         </div>
 

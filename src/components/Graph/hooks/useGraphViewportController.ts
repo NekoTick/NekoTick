@@ -4,9 +4,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type Dispatch,
   type RefObject,
-  type SetStateAction,
   type WheelEvent,
 } from 'react';
 import { themeGraphTokens } from '@/styles/themeTokens';
@@ -16,10 +14,9 @@ import {
   GRAPH_INITIAL_VIEWPORT,
   zoomGraphViewportAtPoint,
   type GraphPoint,
-  type GraphViewport,
 } from '../model/graphViewport';
 import type { PositionedGraphNode } from '../model/graphLayout';
-import { useGraphViewportActivity } from './useGraphViewportActivity';
+import { useGraphViewportAnimation } from './useGraphViewportAnimation';
 
 export function useGraphViewportController(args: {
   canvasSize?: GraphPoint;
@@ -42,7 +39,6 @@ export function useGraphViewportController(args: {
   const fitFrameRef = useRef<number | null>(null);
   const wheelFrameRef = useRef<number | null>(null);
   const wheelSettleTimeoutRef = useRef<number | null>(null);
-  const viewportAnimationFrameRef = useRef<number | null>(null);
   const previousCanvasSizeRef = useRef<GraphPoint | null>(null);
   const onViewportSettledRef = useRef(args.onViewportSettled);
   nodesRef.current = args.nodes;
@@ -68,67 +64,21 @@ export function useGraphViewportController(args: {
     cancelWheelSettle();
   }, [cancelWheelSettle]);
 
-  const cancelViewportAnimation = useCallback(() => {
-    if (viewportAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(viewportAnimationFrameRef.current);
-    }
-    viewportAnimationFrameRef.current = null;
-  }, []);
-
-  const cancelViewportWork = useCallback(() => {
-    cancelPendingFit();
-    cancelWheelFrame();
-    cancelViewportAnimation();
-  }, [cancelPendingFit, cancelViewportAnimation, cancelWheelFrame]);
-  const canAnimate = useGraphViewportActivity(args.active !== false, cancelViewportWork);
-
-  const setViewportImmediately = useCallback<Dispatch<SetStateAction<GraphViewport>>>((value) => {
-    cancelViewportWork();
-    setViewport((current) => {
-      const next = typeof value === 'function' ? value(current) : value;
-      viewportRef.current = next;
-      return next;
-    });
-  }, [cancelViewportWork]);
-
-  const animateViewportTo = useCallback((target: GraphViewport) => {
-    if (!canAnimate) {
-      cancelViewportWork();
-      return;
-    }
-    cancelWheelFrame();
-    cancelViewportAnimation();
-    const start = viewportRef.current;
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    if (reducedMotion || (
-      start.x === target.x && start.y === target.y && start.zoom === target.zoom
-    )) {
-      setViewportImmediately(target);
-      onViewportSettledRef.current?.();
-      return;
-    }
-
-    const startedAt = performance.now();
-    const step = (now: number) => {
-      const progress = Math.min(1, Math.max(0,
-        (now - startedAt) / themeGraphTokens.viewportAnimationDurationMs));
-      const eased = 1 - (1 - progress) ** 3;
-      const next = {
-        x: start.x + (target.x - start.x) * eased,
-        y: start.y + (target.y - start.y) * eased,
-        zoom: start.zoom + (target.zoom - start.zoom) * eased,
-      };
-      viewportRef.current = next;
-      setViewport(next);
-      if (progress < 1) {
-        viewportAnimationFrameRef.current = window.requestAnimationFrame(step);
-      } else {
-        viewportAnimationFrameRef.current = null;
-        onViewportSettledRef.current?.();
-      }
-    };
-    viewportAnimationFrameRef.current = window.requestAnimationFrame(step);
-  }, [canAnimate, cancelViewportAnimation, cancelViewportWork, cancelWheelFrame, setViewportImmediately]);
+  const {
+    animateViewportTo,
+    canAnimate,
+    cancelViewportAnimation,
+    cancelViewportWork,
+    setViewportImmediately,
+    viewportAnimationTargetRef,
+  } = useGraphViewportAnimation({
+    active: args.active !== false,
+    cancelPendingFit,
+    cancelWheelFrame,
+    onViewportSettledRef,
+    setViewport,
+    viewportRef,
+  });
 
   const getFittedViewport = useCallback((nextNodes: readonly GraphPoint[] = nodesRef.current) => {
     const rect = args.svgRef.current?.getBoundingClientRect();
@@ -168,11 +118,13 @@ export function useGraphViewportController(args: {
   }, [animateViewportTo, args.svgRef, canAnimate]);
 
   const zoomIn = useCallback(() => {
-    zoomTo(viewportRef.current.zoom * themeGraphTokens.zoomControlStep);
+    const zoom = viewportAnimationTargetRef.current?.zoom ?? viewportRef.current.zoom;
+    zoomTo(zoom * themeGraphTokens.zoomControlStep);
   }, [zoomTo]);
 
   const zoomOut = useCallback(() => {
-    zoomTo(viewportRef.current.zoom / themeGraphTokens.zoomControlStep);
+    const zoom = viewportAnimationTargetRef.current?.zoom ?? viewportRef.current.zoom;
+    zoomTo(zoom / themeGraphTokens.zoomControlStep);
   }, [zoomTo]);
 
   const resetZoom = useCallback(() => {

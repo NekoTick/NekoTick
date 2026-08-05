@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "useDefineForClassFields": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "ES2022.Intl"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../src/*"],
+      "@mobile/*": ["./src/*"],
+      "@milkdown/*": ["../src/types/milkdown/index.d.ts"],
+      "@codemirror/language": ["../vendor/milkdown/packages/crepe/node_modules/@codemirror/language"],
+      "@codemirror/language-data": ["../vendor/milkdown/packages/crepe/node_modules/@codemirror/language-data"],
+      "@codemirror/state": ["../vendor/milkdown/packages/crepe/node_modules/@codemirror/state"],
+      "@codemirror/theme-one-dark": ["../vendor/milkdown/packages/crepe/node_modules/@codemirror/theme-one-dark"],
+      "@codemirror/view": ["../vendor/milkdown/packages/crepe/node_modules/@codemirror/view"]
+    }
+  },
+  "include": [
+    "src",
+    "../src/**/*.d.ts",
+    "capacitor.config.ts",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
+}

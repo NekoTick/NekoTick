@@ -1,4 +1,5 @@
 {
+  "mobile.share": "共有",
   "account.cancelAuthentication": "認証をキャンセル",
   "account.continueSignIn": "サインインを続行",
   "account.continueToApp": "vlainaを続行",
@@ -483,6 +484,7 @@
   "settings.ai.addModels": "モデルを追加",
   "settings.ai.apiKey": "APIキー",
   "settings.ai.baseUrl": "ベースURL: {url}",
+  "settings.ai.mobileHttpsRequired": "モバイルではプロバイダーのベースURLにHTTPSが必要です。",
   "settings.ai.budgetInAccountCard": "予算の進捗は、アバターの下のアカウントカードに表示されます。",
   "settings.ai.channelName": "チャンネル名",
   "settings.ai.clearComputerPermissions": "すべて削除",

@@ -5,6 +5,7 @@ import { AccountOauthButtons } from './AccountOauthButtons';
 import { AccountEmailCodeCard } from './AccountEmailCodeCard';
 import { useI18n } from '@/lib/i18n';
 import { openExternalHref } from '@/lib/navigation/externalLinks';
+import { isNativeCapacitorRuntime } from '@/lib/account/capacitorRuntime';
 import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 interface AccountSignInOptionsProps {
@@ -32,6 +33,7 @@ export function AccountSignInOptions({
   const { t } = useI18n();
   const isCompact = variant === 'compact';
   const disabled = isConnecting;
+  const showOauth = !isNativeCapacitorRuntime();
   const [emailCodeCardKey, setEmailCodeCardKey] = useState(0);
 
   const handleOauthSignIn = useCallback(
@@ -48,13 +50,17 @@ export function AccountSignInOptions({
 
   return (
     <div className={cn('flex flex-col gap-6 px-4', className)}>
-      <AccountOauthButtons isCompact={isCompact} disabled={disabled} onOauthSignIn={handleOauthSignIn} />
+      {showOauth ? (
+        <>
+          <AccountOauthButtons isCompact={isCompact} disabled={disabled} onOauthSignIn={handleOauthSignIn} />
 
-      <div className="flex items-center gap-4 px-4">
-        <div className="h-px flex-1 bg-[var(--vlaina-divider)]" />
-        <span className="text-[var(--vlaina-font-10)] font-black uppercase tracking-[var(--vlaina-tracking-label-3xl)] text-[var(--vlaina-text-disabled)]">{t('account.or')}</span>
-        <div className="h-px flex-1 bg-[var(--vlaina-divider)]" />
-      </div>
+          <div className="flex items-center gap-4 px-4">
+            <div className="h-px flex-1 bg-[var(--vlaina-divider)]" />
+            <span className="text-[var(--vlaina-font-10)] font-black uppercase tracking-[var(--vlaina-tracking-label-3xl)] text-[var(--vlaina-text-disabled)]">{t('account.or')}</span>
+            <div className="h-px flex-1 bg-[var(--vlaina-divider)]" />
+          </div>
+        </>
+      ) : null}
 
       <div className="space-y-6">
         <AccountEmailCodeCard

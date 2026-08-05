@@ -1,18 +1,22 @@
 import { hasElectronDesktopBridge } from '@/lib/desktop/backend';
 import { getElectronBridge } from '@/lib/electron/bridge';
-import type { StorageAdapter } from './types';
+import type { StorageAdapter, StoragePlatform } from './types';
 import { ElectronAdapter } from './ElectronAdapter';
 import { WebAdapter } from './WebAdapter';
 import { joinPath as simpleJoin } from './pathUtils';
 
-export type { StorageAdapter, FileInfo, WriteOptions, ReadOptions, ListOptions } from './types';
+export type { StorageAdapter, StoragePlatform, FileInfo, WriteOptions, ReadOptions, ListOptions } from './types';
 export { ElectronAdapter } from './ElectronAdapter';
 export { WebAdapter } from './WebAdapter';
 export * from './pathUtils';
 
 let adapterInstance: StorageAdapter | null = null;
 
-export function getPlatform(): 'electron' | 'web' {
+export function getPlatform(): StoragePlatform {
+  if (adapterInstance) {
+    return adapterInstance.platform;
+  }
+
   if (hasElectronDesktopBridge()) {
     return 'electron';
   }
@@ -26,6 +30,14 @@ export function isElectron(): boolean {
 
 export function isWeb(): boolean {
   return getPlatform() === 'web';
+}
+
+export function isCapacitor(): boolean {
+  return getPlatform() === 'capacitor';
+}
+
+export function registerStorageAdapter(adapter: StorageAdapter): void {
+  adapterInstance = adapter;
 }
 
 export function getStorageAdapter(): StorageAdapter {
@@ -62,6 +74,11 @@ export async function toFileUrl(path: string): Promise<string> {
       throw new Error('Electron path bridge is not available.');
     }
     return bridge.path.toFileUrl(path);
+  }
+
+  const adapter = getStorageAdapter();
+  if (adapter.toFileUrl) {
+    return adapter.toFileUrl(path);
   }
 
   return path;

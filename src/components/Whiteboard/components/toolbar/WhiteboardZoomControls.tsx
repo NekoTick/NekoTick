@@ -35,7 +35,10 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
   };
 
   return (
-    <div className="app-no-drag pointer-events-auto absolute bottom-4 left-3 z-[var(--vlaina-z-50)]">
+    <div
+      data-whiteboard-zoom-controls="true"
+      className="app-no-drag pointer-events-auto absolute bottom-4 left-3 z-[var(--vlaina-z-50)]"
+    >
       <WhiteboardToolbarGroup
         className={cn(
           'h-10 gap-1 rounded-[var(--vlaina-radius-8px)] px-1 [&:has([data-whiteboard-zoom-percentage]:hover)]:!shadow-[var(--vlaina-shadow-raised-soft)]',

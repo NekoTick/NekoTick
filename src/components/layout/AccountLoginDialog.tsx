@@ -102,6 +102,7 @@ export function AccountLoginDialog({ open, onOpenChange }: AccountLoginDialogPro
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        data-account-login-dialog="true"
         showCloseButton={false}
         useBlurBackdrop
         containerClassName="z-[var(--vlaina-z-1001)]"
@@ -137,7 +138,7 @@ export function AccountLoginDialog({ open, onOpenChange }: AccountLoginDialogPro
         <div className={cn(
           "relative w-full rounded-[var(--vlaina-ui-radius-panel)] px-5 py-6 sm:px-8 sm:py-9 md:p-12",
           raisedPillSurfaceClass
-        )}>
+        )} data-account-login-panel="true">
           <DialogClose
             ref={closeButtonRef}
             aria-label={t('common.close')}
@@ -149,34 +150,36 @@ export function AccountLoginDialog({ open, onOpenChange }: AccountLoginDialogPro
             <Icon name="common.close" size="md" />
           </DialogClose>
 
-          <div className="mb-7 flex items-center justify-center text-center sm:mb-10 md:mb-12">
-            <h2 className="text-[var(--vlaina-font-24)] font-black leading-none tracking-tight text-[var(--vlaina-color-text-strong)] sm:text-[var(--vlaina-font-26)] md:text-[var(--vlaina-font-28)]">
-              {t('account.signIn')}
-            </h2>
-          </div>
-
-          <div className="w-full">
-            <AccountSignInOptions
-              variant="panel"
-              isConnecting={isConnecting}
-              error={error}
-              onOauthSignIn={signIn}
-              onEmailCodeRequest={requestEmailCode}
-              onEmailCodeVerify={verifyEmailCode}
-            />
-          </div>
-
-          {isConnecting && (
-            <div className="mt-8 text-center animate-in fade-in duration-[var(--vlaina-duration-100)]">
-              <button
-                type="button"
-                onClick={() => cancelConnect()}
-                className="text-[var(--vlaina-font-11)] font-black uppercase tracking-widest text-[var(--vlaina-sidebar-notes-text-soft)] hover:text-[var(--vlaina-color-text-strong)] transition-colors"
-              >
-                {t('account.cancelAuthentication')}
-              </button>
+          <div data-account-login-scroll="true">
+            <div className="mb-7 flex items-center justify-center text-center sm:mb-10 md:mb-12">
+              <h2 className="text-[var(--vlaina-font-24)] font-black leading-none tracking-tight text-[var(--vlaina-color-text-strong)] sm:text-[var(--vlaina-font-26)] md:text-[var(--vlaina-font-28)]">
+                {t('account.signIn')}
+              </h2>
             </div>
-          )}
+
+            <div className="w-full">
+              <AccountSignInOptions
+                variant="panel"
+                isConnecting={isConnecting}
+                error={error}
+                onOauthSignIn={signIn}
+                onEmailCodeRequest={requestEmailCode}
+                onEmailCodeVerify={verifyEmailCode}
+              />
+            </div>
+
+            {isConnecting && (
+              <div className="mt-8 text-center animate-in fade-in duration-[var(--vlaina-duration-100)]">
+                <button
+                  type="button"
+                  onClick={() => cancelConnect()}
+                  className="text-[var(--vlaina-font-11)] font-black uppercase tracking-widest text-[var(--vlaina-sidebar-notes-text-soft)] hover:text-[var(--vlaina-color-text-strong)] transition-colors"
+                >
+                  {t('account.cancelAuthentication')}
+                </button>
+              </div>
+            )}
+          </div>
 
         </div>
       </DialogContent>

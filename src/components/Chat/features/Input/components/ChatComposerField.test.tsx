@@ -8,6 +8,7 @@ function renderField() {
     <ChatComposerField
       textareaRef={createRef<HTMLTextAreaElement>()}
       message="@3\nlong pasted text"
+      ariaLabel="Write a message"
       placeholder="Message"
       textareaScrollTop={48}
       mentionPreviewParts={[{
@@ -38,6 +39,12 @@ function renderField() {
 }
 
 describe('ChatComposerField', () => {
+  it('exposes a stable accessible name independent of its placeholder', () => {
+    const { getByRole } = renderField();
+
+    expect(getByRole('textbox', { name: 'Write a message' })).toBeInTheDocument();
+  });
+
   it('clips mention preview tokens to the textarea viewport', () => {
     const { container } = renderField();
     const token = container.querySelector('[data-mention-preview-token="true"]');

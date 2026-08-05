@@ -97,8 +97,9 @@ export function WhiteboardSidebar() {
                 <div
                   key={board.id}
                   aria-current={selected ? 'page' : undefined}
+                  data-whiteboard-board-row="true"
                   className={[
-                    'flex min-h-[var(--vlaina-size-36px)] w-full items-center rounded-[var(--vlaina-ui-radius-compact)] px-1.5 text-left text-[length:var(--vlaina-font-sm)] font-medium leading-none',
+                    'group/whiteboard-board flex min-h-[var(--vlaina-size-36px)] w-full items-center rounded-[var(--vlaina-ui-radius-compact)] px-1.5 text-left text-[length:var(--vlaina-font-sm)] font-medium leading-none',
                     selected ? getSidebarSelectedRowSurfaceClass('notes') : getSidebarIdleRowSurfaceClass('notes'),
                   ].join(' ')}
                 >
@@ -140,6 +141,23 @@ export function WhiteboardSidebar() {
                       {board.title}
                     </button>
                   )}
+                  {!editing ? (
+                    <button
+                      type="button"
+                      aria-label={t('sidebar.more')}
+                      data-whiteboard-board-menu-trigger="true"
+                      className="pointer-events-none flex size-[var(--vlaina-size-36px)] shrink-0 items-center justify-center rounded-[var(--vlaina-ui-radius-compact)] opacity-[var(--vlaina-opacity-0)] transition-opacity group-hover/whiteboard-board:pointer-events-auto group-hover/whiteboard-board:opacity-[var(--vlaina-opacity-100)] group-focus-within/whiteboard-board:pointer-events-auto group-focus-within/whiteboard-board:opacity-[var(--vlaina-opacity-100)]"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        const row = event.currentTarget.closest<HTMLElement>('[data-whiteboard-board-row="true"]');
+                        const rect = (row ?? event.currentTarget).getBoundingClientRect();
+                        setContextMenuPosition(getSidebarContextMenuPosition(rect, rect.top));
+                        setContextMenuTarget(board);
+                      }}
+                    >
+                      <Icon name="common.more" size="md" />
+                    </button>
+                  ) : null}
                 </div>
               );
             })}

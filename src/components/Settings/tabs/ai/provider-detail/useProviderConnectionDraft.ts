@@ -4,6 +4,7 @@ import { writeTextToClipboard } from '@/lib/clipboard';
 import { MANAGED_PROVIDER_ID } from '@/lib/ai/managedService';
 import { SETTINGS_BEFORE_CLOSE_EVENT } from '../../../settingsEvents';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
+import { isBlockedNativeProviderUrl } from './nativeProviderUrlPolicy';
 
 interface UseProviderConnectionDraftOptions {
   provider: Provider | undefined;
@@ -166,6 +167,9 @@ export function useProviderConnectionDraft({
       if (!draft.providerId || draft.providerId === MANAGED_PROVIDER_ID) {
         return;
       }
+      if (isBlockedNativeProviderUrl(draft.apiHost)) {
+        return;
+      }
       const sameName = draft.name === draft.persistedName;
       const sameApiHost = draft.apiHost === draft.persistedApiHost;
       const sameApiKey = draft.apiKey === draft.persistedApiKey;
@@ -198,6 +202,7 @@ export function useProviderConnectionDraft({
     const sameApiKey = apiKey === (provider.apiKey || '');
     const sameConnection = sameApiHost && sameApiKey;
     if (sameName && sameApiHost && sameApiKey) return;
+    if (isBlockedNativeProviderUrl(apiHost)) return;
 
     const timer = setTimeout(() => {
       if (isConnectionComposingRef.current) {

@@ -60,6 +60,10 @@ export function SettingsToggle({ checked, onChange }: SettingsToggleProps) {
 
     return (
         <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            data-settings-toggle="true"
             onClick={() => onChange(!checked)}
             className={cn(
                 "relative w-10 h-6 rounded-full transition-colors duration-[var(--vlaina-duration-200)] ease-in-out focus:outline-none",
@@ -100,12 +104,15 @@ export function SettingsItem({
             data-settings-item={dataSettingsItem}
             className={cn("mb-3 flex min-w-0 flex-wrap items-center justify-between gap-4 rounded-[var(--vlaina-ui-radius-group)] px-6 py-4 max-[640px]:px-4", raisedPillSurfaceClass, className)}
         >
-            <div className={cn(
-                hasDescription
-                    ? "min-w-[var(--vlaina-width-settings-control-min)] flex-1"
-                    : "min-w-max flex-[1_1_auto]",
-                "pr-4 max-[420px]:w-full max-[420px]:pr-0",
-            )}>
+            <div
+                className={cn(
+                    hasDescription
+                        ? "min-w-[var(--vlaina-width-settings-control-min)] flex-1"
+                        : "min-w-max flex-[1_1_auto]",
+                    "pr-4 max-[420px]:w-full max-[420px]:pr-0",
+                )}
+                data-settings-item-copy="true"
+            >
                 <div className={cn(
                     "mb-0.5 text-[var(--vlaina-font-sm)] font-semibold text-[var(--vlaina-sidebar-notes-text)]",
                     !hasDescription && "whitespace-nowrap",
@@ -118,7 +125,10 @@ export function SettingsItem({
                     </div>
                 )}
             </div>
-            <div className="min-w-0 flex-shrink-0 max-[420px]:w-full">
+            <div
+                className="min-w-0 flex-shrink-0 max-[420px]:w-full"
+                data-settings-item-control="true"
+            >
                 {children}
             </div>
         </div>
@@ -127,7 +137,10 @@ export function SettingsItem({
 
 export function SettingsSectionHeader({ children, className }: { children: ReactNode; className?: string }) {
     return (
-        <div className={cn("mt-10 mb-4 px-2", className)}>
+        <div
+            className={cn("mt-10 mb-4 px-2", className)}
+            data-settings-section-header="true"
+        >
             <h3 className="text-[var(--vlaina-font-sm)] font-bold text-[var(--vlaina-sidebar-notes-text-soft)] tracking-tight opacity-[var(--vlaina-opacity-80)]">
                 {children}
             </h3>

@@ -1,0 +1,299 @@
+.mobile-main-view,
+.mobile-view-pane {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mobile-view-pane[hidden] {
+  display: none;
+}
+
+.mobile-view-pane[data-mobile-view="notes"] [data-notes-presentation="mobile"] [data-note-chat-button="true"] {
+  display: none;
+}
+
+.mobile-view-pane[data-mobile-view="notes"] [data-note-path-breadcrumb="true"] {
+  display: none;
+}
+
+.mobile-view-pane[data-mobile-view="notes"] [data-note-toolbar-actions="true"] button,
+.mobile-view-pane[data-mobile-view="notes"] [data-hero-icon-add="true"] {
+  min-width: var(--vlaina-size-44px);
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-view-pane[data-mobile-view="notes"] [data-hero-icon-header="true"] .hero-icon-empty {
+  opacity: var(--vlaina-opacity-100);
+}
+
+.mobile-view-pane[data-mobile-view="notes"] .ProseMirror :is(h1, h2, h3, h4, h5, h6, p, li, blockquote, td, th) {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.mobile-view-pane[data-mobile-view="chat"] [data-chat-input-region="true"] {
+  padding-bottom: var(--vlaina-size-8px);
+}
+
+.mobile-view-pane[data-mobile-view="chat"] [data-chat-input-region="true"] > div {
+  padding-inline: var(--vlaina-size-12px);
+}
+
+html[data-mobile-keyboard-open] .mobile-view-pane[data-mobile-view="chat"] [data-chat-input-region="true"] {
+  flex: none;
+  justify-content: flex-end;
+  margin-top: auto;
+}
+
+html[data-mobile-keyboard-open] .mobile-view-pane[data-mobile-view="chat"] [data-chat-welcome="true"] {
+  display: none;
+}
+
+.mobile-view-pane[data-mobile-view="chat"] [data-chat-input="true"] textarea {
+  min-height: var(--vlaina-size-44px);
+  max-height: min(35dvh, var(--vlaina-size-240px));
+}
+
+.mobile-view-pane[data-mobile-view="chat"] button[aria-label] {
+  min-width: var(--vlaina-size-44px);
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-view-pane[data-mobile-view="whiteboard"] [data-whiteboard-main-toolbar="true"] {
+  max-width: calc(100vw - var(--vlaina-size-24px));
+}
+
+.mobile-view-pane[data-mobile-view="whiteboard"] [data-whiteboard-zoom-controls="true"] {
+  top: var(--vlaina-size-12px);
+  bottom: auto;
+}
+
+.mobile-view-pane[data-mobile-view="whiteboard"] [data-whiteboard-main-toolbar="true"] button,
+.mobile-view-pane[data-mobile-view="whiteboard"] button[aria-label] {
+  min-width: var(--vlaina-size-44px);
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-view-pane[data-mobile-view="whiteboard"] [data-whiteboard-tool-panel="true"] {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.mobile-view-pane[data-mobile-view="whiteboard"] [data-whiteboard-tool-panel="true"]::-webkit-scrollbar {
+  display: none;
+}
+
+.mobile-view-pane[data-mobile-view="whiteboard"] [data-whiteboard-tool-panel="true"] [data-whiteboard-dock-item="true"] {
+  width: var(--vlaina-size-44px);
+  height: var(--vlaina-size-44px);
+}
+
+.mobile-view-pane[data-mobile-view="graph"] button[aria-label] {
+  min-width: var(--vlaina-size-44px);
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-sidebar-sheet,
+.mobile-sidebar-sheet__body,
+.mobile-sidebar-sheet__body > [data-sidebar-surface="true"] {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mobile-sidebar-sheet__body {
+  padding-bottom: var(--vlaina-mobile-safe-bottom);
+  background: var(--vlaina-sidebar-notes-surface);
+}
+
+.mobile-sidebar-sheet__body [data-app-view-mode-switch="true"] {
+  display: none;
+}
+
+.mobile-sidebar-sheet__body [data-sidebar-capsule-panel="true"] {
+  margin: var(--vlaina-size-8px);
+  border-radius: var(--vlaina-radius-8px);
+}
+
+.mobile-sidebar-sheet__body [data-sidebar-surface="true"] button:not([role="switch"]),
+.mobile-sidebar-sheet__body [role="option"] {
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-sidebar-sheet__body [data-sidebar-row-main="true"] {
+  padding-right: var(--vlaina-size-48px);
+}
+
+.mobile-sidebar-sheet__body [data-sidebar-row-actions="true"],
+.mobile-sidebar-sheet__body [data-notes-sidebar-section-actions="true"],
+.mobile-sidebar-sheet__body [data-whiteboard-board-menu-trigger="true"] {
+  pointer-events: auto;
+  opacity: var(--vlaina-opacity-100);
+}
+
+.mobile-sidebar-sheet__body [data-sidebar-row-actions="true"] button,
+.mobile-sidebar-sheet__body [data-notes-sidebar-section-actions="true"] button,
+.mobile-sidebar-sheet__body [data-whiteboard-board-menu-trigger="true"] {
+  min-width: var(--vlaina-size-44px);
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-sidebar-sheet__body [data-sidebar-row-trailing="true"] {
+  opacity: var(--vlaina-opacity-0);
+}
+
+body[data-mobile-app="true"] [data-sidebar-context-menu-layer="true"] button {
+  min-height: var(--vlaina-size-44px);
+}
+
+.mobile-account-screen {
+  overflow-y: auto;
+  padding: var(--vlaina-size-24px) max(var(--vlaina-size-16px), var(--vlaina-mobile-safe-right)) max(var(--vlaina-size-24px), var(--vlaina-mobile-safe-bottom)) max(var(--vlaina-size-16px), var(--vlaina-mobile-safe-left));
+  background: var(--vlaina-color-setting-content);
+}
+
+.mobile-account-card {
+  display: grid;
+  grid-template-columns: var(--vlaina-size-64px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--vlaina-size-16px);
+  padding-block: var(--vlaina-size-16px) var(--vlaina-size-24px);
+  border-bottom: var(--vlaina-size-1px) solid var(--vlaina-color-border);
+}
+
+.mobile-account-card__avatar {
+  width: var(--vlaina-size-64px);
+  height: var(--vlaina-size-64px);
+  border-radius: var(--vlaina-radius-8px);
+  object-fit: cover;
+}
+
+.mobile-account-card__identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vlaina-size-4px);
+}
+
+.mobile-account-card__identity strong,
+.mobile-account-card__identity span {
+  overflow-wrap: anywhere;
+}
+
+.mobile-account-card__identity strong {
+  font-size: var(--vlaina-font-17);
+}
+
+.mobile-account-card__identity span {
+  color: var(--vlaina-color-text-muted);
+  font-size: var(--vlaina-font-13);
+}
+
+.mobile-account-card__membership {
+  max-width: var(--vlaina-size-112px);
+  overflow: hidden;
+  padding: var(--vlaina-size-6px) var(--vlaina-size-10px);
+  border-radius: var(--vlaina-radius-pill);
+  background: var(--vlaina-sidebar-row-selected-bg);
+  color: var(--vlaina-sidebar-row-selected-text);
+  font-size: var(--vlaina-font-11);
+  font-weight: var(--vlaina-font-weight-semibold-plus);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-account-error {
+  margin-block: var(--vlaina-size-16px) 0;
+  padding: var(--vlaina-size-12px);
+  border: var(--vlaina-size-1px) solid var(--vlaina-color-status-danger-border);
+  border-radius: var(--vlaina-radius-8px);
+  background: var(--vlaina-color-status-danger-bg);
+  color: var(--vlaina-color-status-danger-fg);
+  font-size: var(--vlaina-font-13);
+}
+
+.mobile-account-actions {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--vlaina-size-16px);
+}
+
+.mobile-action-row {
+  display: grid;
+  grid-template-columns: var(--vlaina-size-24px) minmax(0, 1fr) var(--vlaina-size-24px);
+  align-items: center;
+  min-height: var(--vlaina-size-56px);
+  gap: var(--vlaina-size-12px);
+  padding-inline: var(--vlaina-size-12px);
+  border: 0;
+  border-bottom: var(--vlaina-size-1px) solid var(--vlaina-color-border);
+  background: transparent;
+  color: var(--vlaina-color-text-primary);
+  text-align: left;
+}
+
+.mobile-action-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mobile-action-row--danger {
+  color: var(--vlaina-color-status-danger-fg);
+}
+
+body[data-mobile-app="true"] [role="dialog"] button[aria-label][data-slot="dialog-close"],
+body[data-mobile-app="true"] [role="dialog"] > button[aria-label] {
+  min-width: var(--vlaina-size-44px);
+  min-height: var(--vlaina-size-44px);
+}
+
+body[data-mobile-app="true"] [role="dialog"] button {
+  min-height: var(--vlaina-size-44px);
+}
+
+body[data-mobile-app="true"] [data-account-login-dialog="true"],
+body[data-mobile-app="true"] [data-account-login-panel="true"] {
+  max-height: calc(
+    100dvh - var(--vlaina-mobile-safe-top) - var(--vlaina-mobile-safe-bottom) - var(--vlaina-size-32px)
+  );
+  overflow: hidden;
+}
+
+body[data-mobile-app="true"] [data-account-login-panel="true"] {
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-mobile-app="true"] [data-account-login-scroll="true"] {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+
+body[data-mobile-app="true"] [data-account-login-scroll="true"]::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .mobile-account-card {
+    grid-template-columns: var(--vlaina-size-56px) minmax(0, 1fr);
+  }
+
+  .mobile-account-card__avatar {
+    width: var(--vlaina-size-56px);
+    height: var(--vlaina-size-56px);
+  }
+
+  .mobile-account-card__membership {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

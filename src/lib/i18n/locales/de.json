@@ -1,4 +1,5 @@
 {
+  "mobile.share": "Teilen",
   "account.cancelAuthentication": "Authentifizierung abbrechen",
   "account.continueSignIn": "Anmeldung fortsetzen",
   "account.continueToApp": "Weiter zu vlaina",
@@ -483,6 +484,7 @@
   "settings.ai.addModels": "Modelle hinzufügen",
   "settings.ai.apiKey": "API-Schlüssel",
   "settings.ai.baseUrl": "Basis-URL: {url}",
+  "settings.ai.mobileHttpsRequired": "Mobile Anbieter benötigen eine HTTPS-Basis-URL.",
   "settings.ai.budgetInAccountCard": "Das Budget-Fortschritt wird in der Kontokarte unter Ihrem Avatar angezeigt.",
   "settings.ai.channelName": "Kanalname",
   "settings.ai.clearComputerPermissions": "Alle entfernen",

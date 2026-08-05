@@ -7,6 +7,16 @@ const ALLOWED_LINK_PREFIX_REGEX = /^(https?:\/\/|mailto:|weixin:)/i;
 const UNSAFE_URL_CHARS_REGEX = /[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069\uFFFD]/;
 const MAX_EXTERNAL_HREF_CHARS = 4096;
 
+type NativeExternalUrlOpener = (href: string) => Promise<void>;
+
+let nativeExternalUrlOpener: NativeExternalUrlOpener | null = null;
+
+export function configureNativeExternalUrlOpener(
+  opener: NativeExternalUrlOpener | null,
+): void {
+  nativeExternalUrlOpener = opener;
+}
+
 export function normalizeExternalHref(href: string | null | undefined): string | null {
   if (!href) return null;
   if (href.length > MAX_EXTERNAL_HREF_CHARS) return null;
@@ -43,6 +53,14 @@ export async function openExternalHref(href: string | null | undefined): Promise
   const normalized = normalizeExternalHref(href);
   if (!normalized) {
     return;
+  }
+
+  if (nativeExternalUrlOpener) {
+    try {
+      await nativeExternalUrlOpener(normalized);
+      return;
+    } catch {
+    }
   }
 
   try {

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
+import { hasNativeFileShare } from '@/lib/nativeFileShare';
 import { cn } from '@/lib/utils';
 import type { WhiteboardExportFormat } from '../../model/whiteboardExport';
 import type { WhiteboardPaperStyle } from '../../model/whiteboardModel';
@@ -43,6 +44,7 @@ const paperStyles: WhiteboardPaperStyle[] = ['blank', 'dots', 'grid', 'ruled'];
 export const WhiteboardMoreMenu = memo(function WhiteboardMoreMenu({ onCopyImage, onExport, onPaperStyleChange, paperStyle }: WhiteboardMoreMenuProps) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const nativeFileShareAvailable = hasNativeFileShare();
 
   return (
     <DropdownMenu>
@@ -51,6 +53,7 @@ export const WhiteboardMoreMenu = memo(function WhiteboardMoreMenu({ onCopyImage
           ref={buttonRef}
           type="button"
           aria-label={t('sidebar.more')}
+          data-whiteboard-more-button="true"
           className={moreButtonClassName}
         >
           <Icon name="common.more" size="md" />
@@ -67,11 +70,15 @@ export const WhiteboardMoreMenu = memo(function WhiteboardMoreMenu({ onCopyImage
         }}
         className={cn('w-max min-w-48 p-1 shadow-[var(--vlaina-shadow-md)]', menuSurfaceClassName)}
       >
-        <WhiteboardMenuItem onSelect={onCopyImage}>
-          <Icon size="md" name="common.copy" className="mr-2 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">{t('common.copyToClipboard')}</span>
-        </WhiteboardMenuItem>
-        <WhiteboardMenuSeparator />
+        {!nativeFileShareAvailable ? (
+          <>
+            <WhiteboardMenuItem onSelect={onCopyImage}>
+              <Icon size="md" name="common.copy" className="mr-2 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">{t('common.copyToClipboard')}</span>
+            </WhiteboardMenuItem>
+            <WhiteboardMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger className={cn(menuItemClassName, 'gap-2')}>
             <Icon size="md" name="editor.table" className="mr-2 shrink-0" />

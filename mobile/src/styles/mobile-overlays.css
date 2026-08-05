@@ -1,0 +1,152 @@
+.mobile-layer[data-mobile-layer="sheet"] {
+  align-items: flex-end;
+}
+
+.mobile-layer__panel--sheet {
+  width: 100%;
+  height: auto;
+  max-height: min(78dvh, var(--vlaina-size-720px));
+  align-self: flex-end;
+  border: var(--vlaina-size-1px) solid var(--vlaina-color-menu-border);
+  border-bottom: 0;
+  border-radius: var(--vlaina-radius-28px) var(--vlaina-radius-28px) 0 0;
+  background: var(--vlaina-color-surface-secondary);
+  animation: mobile-sheet-enter var(--vlaina-duration-200) var(--vlaina-ease-out);
+}
+
+.mobile-layer__panel--sheet .mobile-layer__header {
+  min-height: var(--vlaina-size-60px);
+  padding-top: 0;
+  border-bottom: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.mobile-layer__panel--sheet .mobile-layer__header::before {
+  position: absolute;
+  top: var(--vlaina-size-8px);
+  left: 50%;
+  width: var(--vlaina-size-40px);
+  height: var(--vlaina-size-4px);
+  border-radius: var(--vlaina-radius-pill);
+  background: var(--vlaina-color-border);
+  content: "";
+  transform: translateX(-50%);
+}
+
+.mobile-layer__panel--sheet .mobile-layer__content {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.mobile-more-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vlaina-size-12px);
+  padding: var(--vlaina-size-4px) max(var(--vlaina-size-16px), var(--vlaina-mobile-safe-right)) max(var(--vlaina-size-20px), var(--vlaina-mobile-safe-bottom)) max(var(--vlaina-size-16px), var(--vlaina-mobile-safe-left));
+}
+
+.mobile-more-sheet__profile {
+  display: grid;
+  grid-template-columns: var(--vlaina-size-56px) minmax(0, 1fr) var(--vlaina-size-24px);
+  align-items: center;
+  min-height: var(--vlaina-size-80px);
+  gap: var(--vlaina-size-12px);
+  padding: var(--vlaina-size-12px);
+  border: var(--vlaina-size-1px) solid var(--vlaina-color-menu-border);
+  border-radius: var(--vlaina-radius-20px);
+  background: var(--vlaina-color-floating-surface);
+  color: var(--vlaina-color-text-primary);
+  box-shadow: var(--vlaina-shadow-panel-soft);
+  text-align: left;
+}
+
+.mobile-more-sheet__avatar {
+  display: grid;
+  width: var(--vlaina-size-56px);
+  height: var(--vlaina-size-56px);
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--vlaina-radius-18px);
+  background: var(--vlaina-color-accent-soft-bg);
+  color: var(--vlaina-color-accent);
+}
+
+.mobile-more-sheet__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mobile-more-sheet__identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vlaina-size-2px);
+}
+
+.mobile-more-sheet__identity strong,
+.mobile-more-sheet__identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-more-sheet__identity strong {
+  font-size: var(--vlaina-font-base);
+}
+
+.mobile-more-sheet__identity span {
+  color: var(--vlaina-color-text-muted);
+  font-size: var(--vlaina-font-13);
+}
+
+.mobile-more-sheet__actions {
+  overflow: hidden;
+  border: var(--vlaina-size-1px) solid var(--vlaina-color-menu-border);
+  border-radius: var(--vlaina-radius-20px);
+  background: var(--vlaina-color-floating-surface);
+  box-shadow: var(--vlaina-shadow-panel-soft);
+}
+
+.mobile-more-sheet__actions > button {
+  display: grid;
+  width: 100%;
+  min-height: var(--vlaina-size-64px);
+  grid-template-columns: var(--vlaina-size-40px) minmax(0, 1fr) var(--vlaina-size-24px);
+  align-items: center;
+  gap: var(--vlaina-size-12px);
+  padding-inline: var(--vlaina-size-12px);
+  border: 0;
+  border-bottom: var(--vlaina-size-1px) solid var(--vlaina-color-menu-border);
+  background: transparent;
+  color: var(--vlaina-color-text-primary);
+  font-size: var(--vlaina-font-15);
+  font-weight: var(--vlaina-font-weight-semibold-plus);
+  text-align: left;
+}
+
+.mobile-more-sheet__actions > button:last-child {
+  border-bottom: 0;
+}
+
+.mobile-more-sheet__action-icon {
+  display: grid;
+  width: var(--vlaina-size-40px);
+  height: var(--vlaina-size-40px);
+  place-items: center;
+  border-radius: var(--vlaina-radius-12px);
+  background: var(--vlaina-color-surface-tertiary);
+  color: var(--vlaina-color-accent);
+}
+
+@keyframes mobile-sheet-enter {
+  from { transform: translate3d(0, 100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-layer__panel--sheet {
+    animation: none;
+  }
+}

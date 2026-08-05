@@ -43,6 +43,7 @@ interface WhiteboardPointerActionsOptions {
   brushSizes: WhiteboardBrushSizes;
   clearDraftStroke: () => void;
   dragState: WhiteboardDragState | null;
+  drawWithTouch?: boolean;
   getBoardPointFromRect: (clientX: number, clientY: number, rect: DOMRectReadOnly) => WhiteboardPoint;
   getPinchMetrics: () => { center: WhiteboardPoint; distance: number } | null;
   interactionLocked?: boolean;
@@ -78,6 +79,7 @@ export function useWhiteboardPointerActions({
   brushSizes,
   clearDraftStroke,
   dragState,
+  drawWithTouch = false,
   eraserActions,
   getBoardPointFromRect,
   getPinchMetrics,
@@ -151,7 +153,11 @@ export function useWhiteboardPointerActions({
       startPan(event);
       return;
     }
-    if (event.pointerType === 'touch' && (isBrushTool(tool) || tool === 'eraser')) {
+    if (
+      event.pointerType === 'touch'
+      && !drawWithTouch
+      && (isBrushTool(tool) || tool === 'eraser')
+    ) {
       startPan(event);
       return;
     }
@@ -186,7 +192,7 @@ export function useWhiteboardPointerActions({
     }
   }, [
     activePenPointerRef, brushColors, brushSizes, collectEraserSamples, collectStrokePoints,
-    addPointer, eraserActions, getBoardPointFromRect, interactionLocked, setDraftStroke, setDragState,
+    addPointer, drawWithTouch, eraserActions, getBoardPointFromRect, interactionLocked, setDraftStroke, setDragState,
     resetStrokeInput, setSelectedElementId, setSelectedStrokeIds, spacePressedRef, startPan, startPinch,
     startStrokeSelection, strokeEraserActions, strokeIdRef, tool, viewportRef,
   ]);

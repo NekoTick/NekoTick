@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
       ],
     } as { children: Array<Record<string, unknown>> } | null,
     rootFolderPath: '/notes' as string | null,
+    loadFileTree: vi.fn<() => Promise<void>>(),
     scanAllNotes: vi.fn<(options?: ScanAllNotesOptions) => Promise<void>>(),
   },
   roots: {
@@ -20,7 +21,10 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/stores/notes/useNotesStore', () => ({
-  useNotesStore: (selector: (value: typeof state.notes) => unknown) => selector(state.notes),
+  useNotesStore: Object.assign(
+    (selector: (value: typeof state.notes) => unknown) => selector(state.notes),
+    { getState: () => state.notes },
+  ),
 }));
 
 vi.mock('@/stores/useNotesRootStore', () => ({
@@ -37,7 +41,30 @@ describe('useGraphNoteScan', () => {
       ],
     };
     state.roots.currentNotesRoot = { path: '/notes' };
+    state.notes.loadFileTree.mockReset().mockResolvedValue(undefined);
     state.notes.scanAllNotes.mockReset();
+  });
+
+  it('loads the file tree before scanning a directly opened graph', async () => {
+    state.notes.rootFolder = null;
+    state.notes.rootFolderPath = null;
+    state.notes.scanAllNotes.mockResolvedValue(undefined);
+    state.notes.loadFileTree.mockImplementation(async () => {
+      state.notes.rootFolder = {
+        children: [{ id: 'Alpha.md', name: 'Alpha.md', path: 'Alpha.md', isFolder: false }],
+      };
+      state.notes.rootFolderPath = '/notes';
+    });
+    const onPrimaryContentReady = vi.fn();
+    const hook = renderHook(() => useGraphNoteScan({ active: true, onPrimaryContentReady }));
+
+    expect(hook.result.current.status).toBe('loading');
+    expect(onPrimaryContentReady).not.toHaveBeenCalled();
+    await waitFor(() => expect(state.notes.loadFileTree).toHaveBeenCalledWith(true));
+    hook.rerender();
+    await waitFor(() => expect(hook.result.current.status).toBe('complete'));
+    expect(state.notes.scanAllNotes).toHaveBeenCalledOnce();
+    expect(onPrimaryContentReady).toHaveBeenCalledOnce();
   });
 
   it('moves from loading through provisional results to complete', async () => {

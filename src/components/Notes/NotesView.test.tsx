@@ -653,6 +653,19 @@ describe('NotesView', () => {
     expect(useAbsoluteNoteExternalRenameSync).toHaveBeenCalledWith(undefined);
   });
 
+  it('disables desktop file watchers in the mobile presentation', async () => {
+    notesState.currentNote = { path: 'docs/alpha.md', content: '# alpha' };
+    notesState.openTabs = [{ path: 'docs/alpha.md', name: 'alpha', isDirty: false }];
+
+    render(<NotesView presentation="mobile" />);
+    await waitForNotesRootInitializationEffects();
+
+    expect(useCurrentNotesRootExternalPathSync).toHaveBeenCalledWith(null);
+    expect(useNotesExternalSync).toHaveBeenCalledWith(null, '');
+    expect(useAbsoluteNoteExternalRenameSync).toHaveBeenCalledWith(undefined);
+    expect(notesState.loadFileTree).toHaveBeenCalled();
+  });
+
   it('passes inactive state through to the markdown editor', async () => {
     notesState.currentNote = { path: 'docs/alpha.md', content: '# alpha' };
     notesState.openTabs = [{ path: 'docs/alpha.md', name: 'alpha', isDirty: false }];
@@ -665,6 +678,32 @@ describe('NotesView', () => {
 
     expect(screen.queryByTestId('markdown-editor')).toBeNull();
     expect(screen.getByTestId('markdown-editor-shell')).toBeInTheDocument();
+  });
+
+  it('keeps desktop panels and split-drop interactions disabled in mobile presentation', async () => {
+    notesState.currentNote = { path: 'docs/alpha.md', content: '# alpha' };
+    notesState.openTabs = [
+      { path: 'docs/alpha.md', name: 'alpha', isDirty: false },
+      { path: 'docs/beta.md', name: 'beta', isDirty: false },
+    ];
+    uiState.notesChatPanelCollapsed = false;
+
+    render(<NotesView presentation="mobile" />);
+
+    expect(document.querySelector('[data-notes-presentation="mobile"]')).not.toBeNull();
+    expect(screen.queryByTestId('resizable-panel')).toBeNull();
+
+    await act(async () => {
+      dispatchNotesTabSplitDrag({
+        phase: 'move',
+        path: 'docs/beta.md',
+        clientX: 980,
+        clientY: 400,
+      });
+      await Promise.resolve();
+    });
+
+    expect(document.querySelector('[data-notes-split-drop-overlay]')).toBeNull();
   });
 
   it('opens a split preview when a dragged tab is dropped on an editor edge', async () => {

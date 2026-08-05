@@ -20,10 +20,12 @@ import { useNotesWorkspaceLifecycle } from './useNotesWorkspaceLifecycle';
 
 export function NotesView({
   active = true,
+  presentation = 'desktop',
   onStartupReady,
   onPrimaryContentReady,
 }: {
   active?: boolean;
+  presentation?: 'desktop' | 'mobile';
   onStartupReady?: () => void;
   onPrimaryContentReady?: () => void;
 }) {
@@ -105,6 +107,7 @@ export function NotesView({
   const [pendingDeleteCurrentNotePath, setPendingDeleteCurrentNotePath] = useState<string | null>(null);
   const launchContextRef = useRef(readWindowLaunchContext());
   const notesViewRef = useRef<HTMLDivElement>(null);
+  const desktopInteractionsActive = active && presentation === 'desktop';
   const toggleShortcutsDialog = useCallback(() => setIsShortcutsOpen((prev) => !prev), []);
   const {
     beginFloatingChatResize,
@@ -124,7 +127,7 @@ export function NotesView({
     resetChatFloatingSize,
     scheduleChatPanelCaretRefresh,
     setChatPanelCollapsed,
-  } = useNotesFloatingChat({ active, notesViewRef });
+  } = useNotesFloatingChat({ active: desktopInteractionsActive, notesViewRef });
   const {
     activatePrimaryPreviewPane,
     activateSplitPane,
@@ -141,7 +144,7 @@ export function NotesView({
     splitDropTarget,
     splitPaneTree,
   } = useNotesSplitPanes({
-    active,
+    active: desktopInteractionsActive,
     currentNotePath,
     openNote,
     openNoteByAbsolutePath,
@@ -181,6 +184,7 @@ export function NotesView({
     currentNotePath,
     currentNotesRoot,
     draftNotes,
+    externalSyncEnabled: presentation === 'desktop',
     isDirty,
     isLoading,
     launchFolderPath: launchContextRef.current.folderPath,
@@ -202,7 +206,7 @@ export function NotesView({
     setPendingStarredNavigation,
   });
 
-  useModuleShortcutsDialog({ enabled: active, onToggle: toggleShortcutsDialog });
+  useModuleShortcutsDialog({ enabled: desktopInteractionsActive, onToggle: toggleShortcutsDialog });
 
   useEffect(() => {
     return subscribeDeleteCurrentNoteEvent(() => {
@@ -214,7 +218,7 @@ export function NotesView({
   }, [currentNotePath]);
 
   useNotesViewShortcuts({
-    active,
+    active: desktopInteractionsActive,
     currentNotePath,
     openTabs,
     notePathsInTreeOrder,
@@ -233,7 +237,7 @@ export function NotesView({
 
   return (
     <NotesViewLayout
-      active={active}
+      active={desktopInteractionsActive}
       beginFloatingChatResize={beginFloatingChatResize}
       cancelPendingDraftDiscard={cancelPendingDraftDiscard}
       chatFloatingOpen={chatFloatingOpen}
@@ -252,6 +256,7 @@ export function NotesView({
       isFloatingChatResizing={isFloatingChatResizing}
       isShortcutsOpen={isShortcutsOpen}
       notesViewRef={notesViewRef}
+      presentation={presentation}
       pendingDeleteCurrentNotePath={pendingDeleteCurrentNotePath}
       pendingDraftDiscardPath={pendingDraftDiscardPath}
       promoteFloatingChatToSidePanel={promoteFloatingChatToSidePanel}

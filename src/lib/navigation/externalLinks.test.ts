@@ -10,6 +10,7 @@ vi.mock("@/lib/desktop/shell", () => ({
 }));
 
 import {
+  configureNativeExternalUrlOpener,
   normalizeExternalHref,
   openExternalHref,
   getExternalLinkProps,
@@ -18,6 +19,7 @@ import {
 describe("externalLinks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configureNativeExternalUrlOpener(null);
   });
 
   describe("normalizeExternalHref", () => {
@@ -95,6 +97,29 @@ describe("externalLinks", () => {
   });
 
   describe("openExternalHref", () => {
+    it("uses the configured native opener before desktop fallbacks", async () => {
+      const nativeOpen = vi.fn(async () => undefined);
+      configureNativeExternalUrlOpener(nativeOpen);
+
+      await openExternalHref("https://example.com/native");
+
+      expect(nativeOpen).toHaveBeenCalledWith("https://example.com/native");
+      expect(openExternalUrlMock).not.toHaveBeenCalled();
+    });
+
+    it("falls back when the configured native opener cannot handle the URL", async () => {
+      const nativeOpen = vi.fn(async () => {
+        throw new Error("native open failed");
+      });
+      configureNativeExternalUrlOpener(nativeOpen);
+      openExternalUrlMock.mockResolvedValue(undefined);
+
+      await openExternalHref("mailto:hello@example.com");
+
+      expect(nativeOpen).toHaveBeenCalledWith("mailto:hello@example.com");
+      expect(openExternalUrlMock).toHaveBeenCalledWith("mailto:hello@example.com");
+    });
+
     it("uses desktop shell for valid external URLs", async () => {
       openExternalUrlMock.mockResolvedValue(undefined);
 

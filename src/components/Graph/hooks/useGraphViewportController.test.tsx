@@ -376,6 +376,26 @@ describe('useGraphViewportController', () => {
     expect(hook.result.current.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
   });
 
+  it('reverses a pending control zoom without accumulating animation drift', () => {
+    const svgRef = { current: svg };
+    const hook = renderHook(() => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath: null,
+      svgRef,
+    }));
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: 0, y: 0, zoom: 1 }));
+
+    act(() => {
+      hook.result.current.zoomIn();
+      hook.result.current.zoomOut();
+    });
+    act(() => runFrames(1000 + themeGraphTokens.viewportAnimationDurationMs));
+
+    expect(hook.result.current.viewport).toEqual({ x: 0, y: 0, zoom: 1 });
+  });
+
   it('cancels every pending viewport frame when the graph becomes inactive', () => {
     const svgRef = { current: svg };
     const nodes = [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 1000, y: 800 }];

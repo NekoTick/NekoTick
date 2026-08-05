@@ -1,3 +1,9 @@
+import {
+  isNativeCapacitorRuntime,
+  requestNativeAccountHttp,
+  type NativeAccountHttpResponse,
+} from './capacitorRuntime';
+
 const TRANSIENT_ACCOUNT_RETRY_DELAYS_MS = [250, 750];
 const ACCOUNT_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_ACCOUNT_RESPONSE_BODY_BYTES = 64 * 1024;
@@ -62,6 +68,44 @@ async function raceAccountRequest<T>(promise: Promise<T>, signal: AbortSignal): 
   });
 }
 
+function serializeNativeResponseBody(response: NativeAccountHttpResponse): BodyInit | null {
+  if ([204, 205, 304].includes(response.status)) return null;
+  if (typeof response.data === 'string') return response.data;
+  if (response.data === null || response.data === undefined) return null;
+  return JSON.stringify(response.data);
+}
+
+async function fetchNativeAccountResponse(
+  input: RequestInfo | URL,
+  init: RequestInit,
+): Promise<Response> {
+  if (typeof input !== 'string' && !(input instanceof URL)) {
+    throw new Error('Native account HTTP requires a URL.');
+  }
+  if (init.body !== undefined && init.body !== null && typeof init.body !== 'string') {
+    throw new Error('Native account HTTP requires a string body.');
+  }
+
+  const headers: Record<string, string> = {};
+  new Headers(init.headers).forEach((value, key) => {
+    headers[key] = value;
+  });
+  const nativeResponse = await requestNativeAccountHttp({
+    url: input.toString(),
+    method: init.method ?? 'GET',
+    headers,
+    data: typeof init.body === 'string' ? init.body : undefined,
+    connectTimeout: ACCOUNT_REQUEST_TIMEOUT_MS,
+    readTimeout: ACCOUNT_REQUEST_TIMEOUT_MS,
+    responseType: 'text',
+  });
+
+  return new Response(serializeNativeResponseBody(nativeResponse), {
+    status: nativeResponse.status,
+    headers: nativeResponse.headers,
+  });
+}
+
 export async function withAccountRequestTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>
 ): Promise<T> {
@@ -84,10 +128,10 @@ export async function withAccountRequestTimeout<T>(
 
 async function fetchAccountResponse(input: RequestInfo | URL, init: RequestInit = {}, signal: AbortSignal): Promise<Response> {
   throwIfTimedOut(signal);
-  const response = await raceAccountRequest(fetch(input, {
-    ...init,
-    signal,
-  }), signal);
+  const request = isNativeCapacitorRuntime()
+    ? fetchNativeAccountResponse(input, init)
+    : fetch(input, { ...init, signal });
+  const response = await raceAccountRequest(request, signal);
   throwIfTimedOut(signal);
   return response;
 }

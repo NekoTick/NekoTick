@@ -1,5 +1,6 @@
 import type { AccountProvider, MembershipTier } from '@/stores/accountSession/state';
 import { normalizeAccountProvider } from '@/lib/account/provider';
+import { isNativeCapacitorRuntime } from './capacitorRuntime';
 import {
   clearWebAccountCredentials,
   getCachedWebAccountStatus,
@@ -79,6 +80,10 @@ function isSupportedWebAccountOrigin(): boolean {
     return true;
   }
 
+  if (isNativeCapacitorRuntime()) {
+    return true;
+  }
+
   const hostname = window.location.hostname.trim().toLowerCase();
   if (!hostname) {
     return true;
@@ -116,6 +121,9 @@ export const webAccountCommands = {
   async startAuth(
     provider: Exclude<AccountProvider, 'email'>
   ): Promise<{ authUrl: string; state: string } | null> {
+    if (isNativeCapacitorRuntime()) {
+      throw new Error('OAuth sign-in is unavailable in the native app.');
+    }
     assertSupportedWebAccountOrigin();
 
     try {

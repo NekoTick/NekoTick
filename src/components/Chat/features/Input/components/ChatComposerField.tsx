@@ -17,6 +17,7 @@ import { MentionPreviewOverlay } from './MentionPreviewOverlay';
 interface ChatComposerFieldProps {
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   message: string;
+  ariaLabel: string;
   placeholder: string;
   textareaScrollTop: number;
   mentionPreviewParts: MentionPreviewPart[];
@@ -37,6 +38,7 @@ interface ChatComposerFieldProps {
 export function ChatComposerField({
   textareaRef,
   message,
+  ariaLabel,
   placeholder,
   textareaScrollTop,
   mentionPreviewParts,
@@ -69,6 +71,7 @@ export function ChatComposerField({
           onBlur={onBlur}
           onPaste={onPaste}
           onScroll={onScroll}
+          aria-label={ariaLabel}
           placeholder={placeholder}
           disabled={disabled}
           rows={1}

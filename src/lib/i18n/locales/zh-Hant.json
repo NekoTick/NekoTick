@@ -1,4 +1,5 @@
 {
+  "mobile.share": "分享",
   "account.cancelAuthentication": "取消驗證",
   "account.continueSignIn": "繼續登入",
   "account.continueToApp": "繼續前往 vlaina",
@@ -483,6 +484,7 @@
   "settings.ai.addModels": "新增模型",
   "settings.ai.apiKey": "API 金鑰",
   "settings.ai.baseUrl": "基礎 URL：{url}",
+  "settings.ai.mobileHttpsRequired": "行動端供應商需要使用 HTTPS 基礎 URL。",
   "settings.ai.budgetInAccountCard": "預算進度顯示在您個人資料圖片下的帳戶卡片中。",
   "settings.ai.channelName": "頻道名稱",
   "settings.ai.clearComputerPermissions": "全部移除",

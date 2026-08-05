@@ -25,8 +25,10 @@ export interface ListOptions {
   maxEntries?: number;
 }
 
+export type StoragePlatform = 'electron' | 'web' | 'capacitor';
+
 export interface StorageAdapter {
-  readonly platform: 'electron' | 'web';
+  readonly platform: StoragePlatform;
   readFile(path: string, maxBytes?: number | null): Promise<string>;
   readBinaryFile(path: string, maxBytes?: number): Promise<Uint8Array>;
   writeFile(path: string, content: string, options?: WriteOptions): Promise<void>;
@@ -42,4 +44,5 @@ export interface StorageAdapter {
   copyFile(src: string, dest: string, maxBytes?: number | null): Promise<void>;
   stat(path: string): Promise<FileInfo | null>;
   getBasePath(): Promise<string>;
+  toFileUrl?(path: string): Promise<string>;
 }

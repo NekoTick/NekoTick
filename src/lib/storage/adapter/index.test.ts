@@ -23,7 +23,18 @@ vi.mock('./WebAdapter', () => ({
   },
 }));
 
-import { getPlatform, getStorageAdapter, isElectron, isWeb, joinPath, resetStorageAdapter, toFileUrl } from './index';
+import {
+  getPlatform,
+  getStorageAdapter,
+  isCapacitor,
+  isElectron,
+  isWeb,
+  joinPath,
+  registerStorageAdapter,
+  resetStorageAdapter,
+  toFileUrl,
+  type StorageAdapter,
+} from './index';
 
 describe('storage adapter index', () => {
   beforeEach(() => {
@@ -107,5 +118,22 @@ describe('storage adapter index', () => {
 
   it('leaves file paths unchanged on web when converting to file URLs', async () => {
     await expect(toFileUrl('/data/vlaina/theme.css')).resolves.toBe('/data/vlaina/theme.css');
+  });
+
+  it('uses an explicitly registered Capacitor adapter before platform detection', async () => {
+    const mobileToFileUrl = vi.fn().mockResolvedValue('https://localhost/_capacitor_file_/theme.css');
+    const adapter = {
+      platform: 'capacitor',
+      toFileUrl: mobileToFileUrl,
+    } as unknown as StorageAdapter;
+
+    registerStorageAdapter(adapter);
+
+    expect(getPlatform()).toBe('capacitor');
+    expect(isCapacitor()).toBe(true);
+    expect(isWeb()).toBe(false);
+    expect(getStorageAdapter()).toBe(adapter);
+    await expect(toFileUrl('/vlaina/theme.css')).resolves.toContain('_capacitor_file_');
+    expect(mobileToFileUrl).toHaveBeenCalledWith('/vlaina/theme.css');
   });
 });

@@ -41,9 +41,20 @@ const mocks = vi.hoisted(() => {
       onLocalMarkdownCommitted?: (content: string) => void;
     },
   };
+  const debouncedSave = vi.fn();
+  const flushCurrentPendingEditorMarkdown = vi.fn(() => false);
+  const flushSave = vi.fn();
   const focusCurrentEditorAtViewportPoint = vi.fn(() => true);
 
-  return { editorState, focusCurrentEditorAtViewportPoint, notesState, pendingMarkdownAutosaveState };
+  return {
+    debouncedSave,
+    editorState,
+    flushCurrentPendingEditorMarkdown,
+    flushSave,
+    focusCurrentEditorAtViewportPoint,
+    notesState,
+    pendingMarkdownAutosaveState,
+  };
 });
 
 vi.mock('@milkdown/react', () => ({
@@ -102,9 +113,13 @@ vi.mock('./utils/focusEditorAtPoint', () => ({
 
 vi.mock('./hooks/useEditorSave', () => ({
   useEditorSave: () => ({
-    debouncedSave: vi.fn(),
-    flushSave: vi.fn(),
+    debouncedSave: mocks.debouncedSave,
+    flushSave: mocks.flushSave,
   }),
+}));
+
+vi.mock('@/stores/notes/pendingEditorMarkdownFlusher', () => ({
+  flushCurrentPendingEditorMarkdown: mocks.flushCurrentPendingEditorMarkdown,
 }));
 
 vi.mock('./hooks/usePendingMarkdownAutosave', () => ({
@@ -229,6 +244,9 @@ beforeEach(() => {
   mocks.notesState.notesPath = '/notesRoot';
   mocks.editorState.activeEditor = null;
   mocks.editorState.serializedMarkdown = '# Small';
+  mocks.debouncedSave.mockClear();
+  mocks.flushCurrentPendingEditorMarkdown.mockClear();
+  mocks.flushSave.mockClear();
   mocks.focusCurrentEditorAtViewportPoint.mockClear();
   mocks.pendingMarkdownAutosaveState.options = null;
 });
@@ -797,6 +815,18 @@ describe('MilkdownEditorInner shell focus', () => {
 });
 
 describe('MilkdownEditorInner external content sync', () => {
+  it('flushes pending body input and its save before deactivating the editor', () => {
+    createMockActiveEditor();
+    const { rerender } = render(<MilkdownEditorInner active />);
+
+    rerender(<MilkdownEditorInner active={false} />);
+
+    expect(mocks.flushCurrentPendingEditorMarkdown).toHaveBeenCalledTimes(1);
+    expect(mocks.flushSave).toHaveBeenCalledTimes(1);
+    expect(mocks.flushCurrentPendingEditorMarkdown.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.flushSave.mock.invocationCallOrder[0]!);
+  });
+
   it('labels the rich-text surface as a multiline note body editor without changing shortcut semantics', async () => {
     const { view } = createMockActiveEditor();
 

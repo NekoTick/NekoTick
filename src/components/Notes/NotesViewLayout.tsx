@@ -38,6 +38,7 @@ export function NotesViewLayout({
   notesViewRef,
   pendingDeleteCurrentNotePath,
   pendingDraftDiscardPath,
+  presentation,
   promoteFloatingChatToSidePanel,
   resetChatFloatingSize,
   scheduleChatPanelCaretRefresh,
@@ -70,6 +71,7 @@ export function NotesViewLayout({
   notesViewRef: MutableRefObject<HTMLDivElement | null>;
   pendingDeleteCurrentNotePath: string | null;
   pendingDraftDiscardPath: string | null;
+  presentation: 'desktop' | 'mobile';
   promoteFloatingChatToSidePanel: () => void;
   resetChatFloatingSize: () => void;
   scheduleChatPanelCaretRefresh: () => void;
@@ -95,14 +97,19 @@ export function NotesViewLayout({
         )}
       </AnimatePresence>
 
-      <div ref={notesViewRef} data-notes-view-mode="true" className="h-full w-full relative flex min-w-0">
+      <div
+        ref={notesViewRef}
+        data-notes-view-mode="true"
+        data-notes-presentation={presentation}
+        className="h-full w-full relative flex min-w-0"
+      >
         <div
           ref={splitDropRootRef}
           className="flex-1 min-w-0 relative"
           data-notes-split-drop-root="true"
         >
           {children}
-          <ImageFileHoverPreview />
+          {presentation === 'desktop' ? <ImageFileHoverPreview /> : null}
         </div>
 
         {active && !chatPanelCollapsed && (

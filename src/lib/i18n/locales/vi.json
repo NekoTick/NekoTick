@@ -1,4 +1,5 @@
 {
+  "mobile.share": "Chia sẻ",
   "account.cancelAuthentication": "Hủy xác thực",
   "account.continueSignIn": "Tiếp tục đăng nhập",
   "account.continueToApp": "Tiếp tục đến vlaina",
@@ -483,6 +484,7 @@
   "settings.ai.addModels": "Thêm mô hình",
   "settings.ai.apiKey": "Khóa API",
   "settings.ai.baseUrl": "URL cơ sở: {url}",
+  "settings.ai.mobileHttpsRequired": "Nhà cung cấp trên thiết bị di động yêu cầu URL cơ sở HTTPS.",
   "settings.ai.budgetInAccountCard": "Tiến độ ngân sách được hiển thị trong thẻ tài khoản dưới ảnh đại diện của bạn.",
   "settings.ai.channelName": "Tên kênh",
   "settings.ai.clearComputerPermissions": "Xóa tất cả",

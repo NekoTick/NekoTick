@@ -106,16 +106,20 @@ function ColorChoices({ colors, tool, onChange }: {
             aria-pressed={selectedColor === color.toLowerCase()}
             data-whiteboard-dock-visual="true"
             onClick={() => onChange(tool, color)}
-            className="relative size-[var(--vlaina-size-24px)] shrink-0 rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
-            style={{ backgroundColor: color }}
+            className="flex size-[var(--vlaina-size-24px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)]"
           >
-            {selectedColor === color.toLowerCase() ? (
-              <span
-                aria-hidden="true"
-                data-whiteboard-color-selection-ring="true"
-                className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
-              />
-            ) : null}
+            <span
+              aria-hidden="true"
+              className="relative size-[var(--vlaina-size-24px)] rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
+              style={{ backgroundColor: color }}
+            >
+              {selectedColor === color.toLowerCase() ? (
+                <span
+                  data-whiteboard-color-selection-ring="true"
+                  className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
+                />
+              ) : null}
+            </span>
           </button>
         </WhiteboardDockSlot>
       ))}

@@ -391,7 +391,9 @@ describe('WhiteboardToolbar', () => {
     const { onBrushColorChange } = renderToolbar();
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
     const customColor = screen.getByRole('button', { name: 'whiteboard.customColor' });
-    expect(customColor).toHaveStyle({ backgroundImage: 'var(--vlaina-color-picker-rainbow)' });
+    expect(customColor.firstElementChild).toHaveStyle({
+      backgroundImage: 'var(--vlaina-color-picker-rainbow)',
+    });
     fireEvent.click(customColor);
 
     expect(document.querySelector('[data-slot="popover-content"]')).toBeInTheDocument();

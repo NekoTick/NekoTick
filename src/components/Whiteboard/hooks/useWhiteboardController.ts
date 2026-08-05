@@ -36,11 +36,15 @@ import {
 } from '../model/whiteboardModel';
 
 interface WhiteboardControllerOptions {
-  active: boolean; onPrimaryContentReady?: () => void; onStartupReady?: () => void;
+  active: boolean;
+  drawWithTouch?: boolean;
+  onPrimaryContentReady?: () => void;
+  onStartupReady?: () => void;
 }
 
 export function useWhiteboardController({
   active,
+  drawWithTouch = false,
   onPrimaryContentReady,
   onStartupReady,
 }: WhiteboardControllerOptions) {
@@ -122,7 +126,7 @@ export function useWhiteboardController({
   useWhiteboardKeyboardShortcuts({ active, pushHistory, resizeBrush, selectAll, selectedBrushTool: isBrushTool(tool) ? tool : null, selectedElementIds, selectedStrokeIds, setElements, setStrokes, setTool, spatialIndex, viewportZoom: viewport.zoom });
   const pointerActions = useWhiteboardPointerActions({
     activePenPointerRef, addPointer, appendDraftPoints, brushColors, brushSizes, clearDraftStroke,
-    dragState, eraserActions: eraser, getBoardPointFromRect, getPinchMetrics, resizeSelection,
+    dragState, drawWithTouch, eraserActions: eraser, getBoardPointFromRect, getPinchMetrics, resizeSelection,
     interactionLocked, scheduleViewport, setBrushCursorPoint,
     setDragState, setDraftStroke, setSelectedElementId,
     setSelectedStrokeIds, spacePressedRef,

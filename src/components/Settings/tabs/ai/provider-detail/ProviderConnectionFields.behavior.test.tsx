@@ -222,6 +222,19 @@ describe('ProviderConnectionFields channel name input', () => {
 });
 
 describe('ProviderConnectionFields base URL input', () => {
+  it('associates a mobile HTTPS validation error with the base URL field', () => {
+    renderFields({
+      apiHost: 'http://localhost:11434',
+      apiHostError: 'Mobile providers require an HTTPS Base URL.',
+    });
+
+    const input = screen.getByRole('textbox', { name: 'Base URL' });
+    const error = screen.getByRole('alert');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-describedby', error.id);
+    expect(error).toHaveTextContent('Mobile providers require an HTTPS Base URL.');
+  });
+
   it('focuses the base URL field when requested on mount', async () => {
     const onBaseUrlAutoFocusComplete = vi.fn();
     renderFields({

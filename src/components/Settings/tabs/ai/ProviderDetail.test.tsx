@@ -6,6 +6,11 @@ import type { Provider } from '@/lib/ai/types';
 const storeMock = vi.hoisted(() => ({
   updateProvider: vi.fn(),
 }));
+const runtimeMock = vi.hoisted(() => ({ isNative: false }));
+
+vi.mock('@/lib/account/capacitorRuntime', () => ({
+  isNativeCapacitorRuntime: () => runtimeMock.isNative,
+}));
 
 vi.mock('@/stores/useAIStore', () => ({
   useAIStore: () => ({
@@ -44,17 +49,28 @@ vi.mock('./provider-detail/ProviderModelsPanel', () => ({
 
 vi.mock('./provider-detail/ProviderConnectionFields', () => ({
   ProviderConnectionFields: (props: {
+    apiHost: string;
+    apiHostError?: string;
     name: string;
+    onApiHostChange: (value: string) => void;
     onNameChange: (value: string) => void;
     onCompositionChange?: (isComposing: boolean) => void;
   }) => (
-    <input
-      aria-label="Provider name"
-      value={props.name}
-      onChange={(event) => props.onNameChange(event.currentTarget.value)}
-      onCompositionStart={() => props.onCompositionChange?.(true)}
-      onCompositionEnd={() => props.onCompositionChange?.(false)}
-    />
+    <>
+      <input
+        aria-label="Provider name"
+        value={props.name}
+        onChange={(event) => props.onNameChange(event.currentTarget.value)}
+        onCompositionStart={() => props.onCompositionChange?.(true)}
+        onCompositionEnd={() => props.onCompositionChange?.(false)}
+      />
+      <input
+        aria-label="Base URL"
+        value={props.apiHost}
+        onChange={(event) => props.onApiHostChange(event.currentTarget.value)}
+      />
+      {props.apiHostError ? <p role="alert">{props.apiHostError}</p> : null}
+    </>
   ),
 }));
 
@@ -113,6 +129,7 @@ describe('ProviderDetail', () => {
     cleanup();
     vi.useRealTimers();
     storeMock.updateProvider.mockReset();
+    runtimeMock.isNative = false;
   });
 
   it('does not auto-save provider connection drafts while IME composition is active', () => {
@@ -148,5 +165,44 @@ describe('ProviderDetail', () => {
     unmount();
 
     expect(storeMock.updateProvider).not.toHaveBeenCalled();
+  });
+
+  it('shows and does not persist an HTTP provider URL on native mobile', () => {
+    vi.useFakeTimers();
+    runtimeMock.isNative = true;
+    render(<ProviderDetail provider={provider} />);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Base URL' }), {
+      target: { value: 'http://localhost:11434' },
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Mobile providers require an HTTPS Base URL.'
+    );
+    expect(storeMock.updateProvider).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new Event('vlaina:settings-before-close'));
+    expect(storeMock.updateProvider).not.toHaveBeenCalled();
+  });
+
+  it('keeps HTTP provider URLs available on desktop', () => {
+    vi.useFakeTimers();
+    render(<ProviderDetail provider={provider} />);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Base URL' }), {
+      target: { value: 'http://localhost:11434' },
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(storeMock.updateProvider).toHaveBeenCalledWith(
+      'provider-1',
+      expect.objectContaining({ apiHost: 'http://localhost:11434' }),
+    );
   });
 });
