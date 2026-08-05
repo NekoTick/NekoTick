@@ -1636,9 +1636,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       tools: [{ type: 'web_search' }],
     });
     expect(body.tools[0].function).toBeUndefined();
-    expect(result).toContain('<web-search-status>');
-    expect(result).toContain('https://x.ai/news');
-    expect(result).toContain('Grok answer with sources.');
+    expect(result).toBe('Grok answer with sources.');
+    expect(result).not.toContain('<web-search-status>');
     expect(chunks[chunks.length - 1]).toBe(result);
     expect(statuses).toEqual([
       { phase: 'searching', query: 'what is new with xai?' },
@@ -1748,8 +1747,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
         metrics: { successCount: 2 },
       },
     ]);
-    expect(result).toContain('https://x.ai/news');
-    expect(result).toContain('https://docs.x.ai/docs/guides/live-search');
+    expect(result).toBe('Grok answer with filtered sources.');
     expect(result).not.toContain('127.0.0.1');
     expect(result).not.toContain('localhost');
     expect(result).not.toContain('192.168.1.1');
@@ -1795,7 +1793,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       },
     )).rejects.toMatchObject({ name: 'AbortError' });
 
-    expect(chunks).toEqual(['<web-search-status>{"phase":"searching"}</web-search-status>']);
+    expect(chunks).toEqual([]);
     expect(statuses).toEqual([{ phase: 'searching', query: 'what is new with xai?' }]);
   });
 
@@ -1865,7 +1863,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     controller.abort();
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
-    expect(chunks).toEqual(['<web-search-status>{"phase":"searching"}</web-search-status>']);
+    expect(chunks).toEqual([]);
     expect(statuses).toEqual([{ phase: 'searching', query: 'what is new with xai?' }]);
     expect(reader.cancel).toHaveBeenCalledTimes(1);
     expect(reader.releaseLock).toHaveBeenCalledTimes(1);
@@ -1920,6 +1918,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       }],
     }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
+    const statuses: unknown[] = [];
 
     const result = await new OpenAICompatibleClient().sendMessage(
       'what is new with xai?',
@@ -1928,12 +1927,19 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       buildProvider({ name: 'xAI', apiHost: 'https://api.x.ai', endpointType: 'openai' }),
       vi.fn(),
       undefined,
-      { webSearchEnabled: true },
+      {
+        webSearchEnabled: true,
+        onWebSearchStatus: (status) => statuses.push(status),
+      },
     );
 
-    expect(result).toContain('<web-search-status>');
-    expect(result).toContain('https://docs.x.ai/docs/guides/live-search');
-    expect(result).toContain('Nested citation answer.');
+    expect(result).toBe('Nested citation answer.');
+    expect(statuses).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        phase: 'complete',
+        urls: ['https://docs.x.ai/docs/guides/live-search'],
+      }),
+    ]));
   });
 
   it('bounds deep xAI citation scans without losing shallow sources', async () => {
@@ -1944,6 +1950,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       `"output":${deepOutput}}`,
     ].join(''), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
+    const statuses: unknown[] = [];
 
     const result = await new OpenAICompatibleClient().sendMessage(
       'what is new with xai?',
@@ -1952,13 +1959,15 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       buildProvider({ name: 'xAI', apiHost: 'https://api.x.ai', endpointType: 'openai' }),
       vi.fn(),
       undefined,
-      { webSearchEnabled: true },
+      {
+        webSearchEnabled: true,
+        onWebSearchStatus: (status) => statuses.push(status),
+      },
     );
 
-    expect(result).toContain('<web-search-status>');
-    expect(result).toContain('https://x.ai/news');
-    expect(result).not.toContain('https://deep.example.com/source');
-    expect(result).toContain('Bounded citation answer.');
+    expect(result).toBe('Bounded citation answer.');
+    expect(JSON.stringify(statuses)).toContain('https://x.ai/news');
+    expect(JSON.stringify(statuses)).not.toContain('https://deep.example.com/source');
   });
 
   it('rejects xAI native search responses that contain sources but no visible answer', async () => {
@@ -1981,7 +1990,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       ),
     ).rejects.toThrow('returned no visible answer');
 
-    expect(chunks).toEqual(['<web-search-status>{"phase":"searching"}</web-search-status>']);
+    expect(chunks).toEqual([]);
   });
 
   it('does not inject local web search tools for non-xAI Grok-compatible providers', async () => {
@@ -2746,6 +2755,104 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mocks.bridge.webSearch?.search).not.toHaveBeenCalled();
     expect(mocks.bridge.webSearch?.readBatch).not.toHaveBeenCalled();
+  });
+
+  it('finishes managed DeepSeek searches locally when no web results are available', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const chunks: string[] = [];
+    const statuses: unknown[] = [];
+    mocks.bridge = {
+      webSearch: {
+        search: vi.fn(async (query: string) => ({ query, results: [] })),
+        read: vi.fn(),
+        readBatch: vi.fn(),
+        cancelRequest: vi.fn(),
+      },
+    };
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      '搜一下今天北京的天气',
+      [],
+      buildModel({
+        id: 'vlaina-managed:deepseek-v4-flash',
+        apiModelId: 'deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
+        providerId: 'vlaina-managed',
+      }),
+      buildProvider({ id: 'vlaina-managed', apiHost: 'https://api.vlaina.com/v1', apiKey: '' }),
+      (chunk) => chunks.push(chunk),
+      undefined,
+      {
+        webSearchEnabled: true,
+        onWebSearchStatus: (status) => statuses.push(status),
+      },
+    );
+
+    expect(result).toBe('我这边没有找到可用的联网搜索结果，所以不能可靠确认这个问题的最新信息。你可以换一个更具体的名称、官网名或英文关键词再试。');
+    expect(chunks).toEqual([result]);
+    expect(result).not.toContain('<web-search-status>');
+    expect(result).not.toContain('{"phase"');
+    expect(statuses).toEqual([
+      { phase: 'searching', query: '今天北京的天气' },
+      {
+        phase: 'error',
+        query: '今天北京的天气',
+        results: [],
+        metrics: { durationMs: expect.any(Number), resultCount: 0 },
+        message: 'No relevant results were found.',
+      },
+    ]);
+    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('今天北京的天气', { limit: 5 }, undefined);
+    expect(mocks.bridge.webSearch?.readBatch).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('finishes managed DeepSeek search failures with an unavailable message', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const chunks: string[] = [];
+    const statuses: unknown[] = [];
+    mocks.bridge = {
+      webSearch: {
+        search: vi.fn(async () => {
+          throw new Error('Search backend unavailable.');
+        }),
+        read: vi.fn(),
+        readBatch: vi.fn(),
+        cancelRequest: vi.fn(),
+      },
+    };
+
+    const result = await new OpenAICompatibleClient().sendMessage(
+      '搜一下今天北京的天气',
+      [],
+      buildModel({
+        id: 'vlaina-managed:deepseek-v4-flash',
+        apiModelId: 'deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
+        providerId: 'vlaina-managed',
+      }),
+      buildProvider({ id: 'vlaina-managed', apiHost: 'https://api.vlaina.com/v1', apiKey: '' }),
+      (chunk) => chunks.push(chunk),
+      undefined,
+      {
+        webSearchEnabled: true,
+        onWebSearchStatus: (status) => statuses.push(status),
+      },
+    );
+
+    expect(result).toBe('联网搜索服务暂时不可用，请稍后再试。');
+    expect(chunks).toEqual([result]);
+    expect(statuses).toEqual([
+      { phase: 'searching', query: '今天北京的天气' },
+      {
+        phase: 'error',
+        query: '今天北京的天气',
+        message: 'Web search is temporarily unavailable.',
+      },
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('answers OpenAI-compatible tool web search capability questions before model routing', async () => {

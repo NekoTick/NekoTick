@@ -8,7 +8,6 @@ import {
   hasVisibleAnswerContent,
   throwIfAborted,
   withSourceLinks,
-  withStatusPrefix,
   withoutTools,
 } from '@/lib/ai/webSearch/openAIToolLoopShared';
 import { extractOpenAIMessageFromJson } from '@/lib/ai/webSearch/openAIToolParsing';
@@ -195,7 +194,6 @@ export function createManagedProtocolChunkHandler(onChunk: (content: string) => 
 }
 
 export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopOptions): Promise<string> {
-  const webStatuses: WebSearchStatus[] = [];
   const sourceUrls: string[] = [];
   const responseTranscript: OpenAIWireMessage[] = [];
   const deniedCommandKeys = new Set<string>();
@@ -207,7 +205,7 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
 
   const emitVisible = (content = visibleContent) => {
     visibleContent = content;
-    options.onChunk(withStatusPrefix(webStatuses, visibleContent));
+    options.onChunk(visibleContent);
   };
   const emitTranscript = (allowAborted = false) => {
     if (allowAborted) options.onApiTranscript?.(responseTranscript);
@@ -216,7 +214,6 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
   const emitWebStatus = (status: WebSearchStatus) => {
     const safe = sanitizeWebSearchStatus(status);
     if (!safe) return;
-    webStatuses.push(safe);
     appendSuccessfulReadSources(sourceUrls, safe);
     options.onWebSearchStatus?.(safe);
     emitVisible();
@@ -252,7 +249,7 @@ export async function runManagedTextAgentToolLoop(options: ManagedTextAgentLoopO
       emitTranscript();
       const finalContent = withSourceLinks(answer, sourceUrls);
       emitVisible(finalContent);
-      return withStatusPrefix(webStatuses, finalContent);
+      return finalContent;
     }
 
     if (loopIndex >= MAX_AGENT_TOOL_LOOPS) {

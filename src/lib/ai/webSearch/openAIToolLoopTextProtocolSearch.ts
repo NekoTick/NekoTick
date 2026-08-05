@@ -28,6 +28,7 @@ export async function buildTextProtocolSearchMessages({
   messages: OpenAIWireMessage[];
   statusHistory: WebSearchStatus[];
   sourceUrls: string[];
+  searchUnavailable: boolean;
 }> {
   const client = providedClient ?? createWebSearchClient();
   const userText = getLatestUserText(body);
@@ -53,9 +54,27 @@ export async function buildTextProtocolSearchMessages({
       isFallback: searchQuery !== query,
     });
     emitStatus({ phase: 'searching', query: searchQuery });
-    const attemptResponse = signal
-      ? await client.webSearch(searchQuery, { limit: 5 }, signal)
-      : await client.webSearch(searchQuery, { limit: 5 });
+    let attemptResponse: Awaited<ReturnType<typeof client.webSearch>>;
+    try {
+      attemptResponse = signal
+        ? await client.webSearch(searchQuery, { limit: 5 }, signal)
+        : await client.webSearch(searchQuery, { limit: 5 });
+    } catch {
+      addChatDebugLog('web-search-text-protocol', 'search attempt failed', {
+        query: searchQuery,
+      }, 'warn');
+      emitStatus({
+        phase: 'error',
+        query: searchQuery,
+        message: 'Web search is temporarily unavailable.',
+      });
+      return {
+        messages: body.messages as OpenAIWireMessage[],
+        statusHistory,
+        sourceUrls,
+        searchUnavailable: true,
+      };
+    }
     throwIfAborted(signal);
     const safeResults = sanitizeSearchResults(attemptResponse.results, 5);
     const safeSearchResponse = { ...attemptResponse, results: safeResults };
@@ -132,6 +151,7 @@ export async function buildTextProtocolSearchMessages({
     ],
     statusHistory,
     sourceUrls,
+    searchUnavailable: false,
   };
 }
 

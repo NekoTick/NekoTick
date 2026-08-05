@@ -2,14 +2,21 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_WEB_SEARCH_STATUS_JSON_LENGTH,
   MAX_WEB_SEARCH_STATUS_MARKUPS,
-  buildWebSearchStatusMarkup,
   extractWebSearchStatuses,
   sanitizeWebSearchSourceUrl,
 } from './statusMarkup';
 
+function legacyStatusMarkup(status: unknown): string {
+  const json = JSON.stringify(status)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<web-search-status>${json}</web-search-status>`;
+}
+
 describe('web search status markup', () => {
   it('round-trips status payloads and removes markup from content', () => {
-    const markup = buildWebSearchStatusMarkup({
+    const markup = legacyStatusMarkup({
       phase: 'results',
       query: 'a < b & c',
       results: [{ title: 'Title', url: 'https://example.com', snippet: 'Summary', publishedAt: null }],
@@ -28,7 +35,7 @@ describe('web search status markup', () => {
   });
 
   it('drops malformed or unsafe status payload fields', () => {
-    const markup = buildWebSearchStatusMarkup({
+    const markup = legacyStatusMarkup({
       phase: 'results',
       query: 'safe',
       urls: ['javascript:alert(1)', 'https://example.com/read'],
@@ -60,7 +67,7 @@ describe('web search status markup', () => {
   });
 
   it('drops local network and control-character source URLs', () => {
-    const markup = buildWebSearchStatusMarkup({
+    const markup = legacyStatusMarkup({
       phase: 'results',
       urls: [
         'https://example.com/read',
@@ -97,23 +104,10 @@ describe('web search status markup', () => {
   });
 
   it('limits parsed status markup count while still stripping excess markup', () => {
-    const markup = buildWebSearchStatusMarkup({ phase: 'searching', query: 'bounded' });
+    const markup = legacyStatusMarkup({ phase: 'searching', query: 'bounded' });
     const parsed = extractWebSearchStatuses(`${markup.repeat(MAX_WEB_SEARCH_STATUS_MARKUPS + 2)}Answer`);
 
     expect(parsed.statuses).toHaveLength(MAX_WEB_SEARCH_STATUS_MARKUPS);
-    expect(parsed.content).toBe('Answer');
-  });
-
-  it('keeps generated status markup within the parser length budget', () => {
-    const urls = Array.from({ length: 8 }, (_, index) =>
-      `https://example.com/${index}/${'a'.repeat(3900)}`
-    );
-    const markup = buildWebSearchStatusMarkup({ phase: 'reading', urls });
-    const parsed = extractWebSearchStatuses(`${markup}Answer`);
-
-    expect(parsed.statuses).toHaveLength(1);
-    expect(parsed.statuses[0]?.phase).toBe('reading');
-    expect(parsed.statuses[0]?.urls?.length).toBeGreaterThan(0);
     expect(parsed.content).toBe('Answer');
   });
 

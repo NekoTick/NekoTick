@@ -5,6 +5,7 @@ import { ErrorBlock } from './ErrorBlock';
 import type { ChatMessage } from '@/lib/ai/types';
 import { parseErrorTag, stripFirstErrorTag } from '@/lib/ai/errorTag';
 import { isManagedModelId } from '@/lib/ai/managedService';
+import { stripWebSearchStatusMarkup } from '@/lib/ai/webSearch/statusMarkup';
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
 import { WebSearchStatusBlock } from '@/components/Chat/features/WebSearch/WebSearchStatusBlock';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
@@ -89,12 +90,15 @@ export function AIMessage({
     const withoutError = nextErrorContent
       ? stripFirstErrorTag(msg.content)
       : msg.content;
+    const visibleContent = msg.webSearchStatuses?.length
+      ? stripWebSearchStatusMarkup(withoutError)
+      : withoutError;
     return {
       errorType: parsedError?.type,
       errorCode: parsedError?.code,
       errorContent: nextErrorContent,
       webSearchStatuses: msg.webSearchStatuses || [],
-      contentWithoutError: withoutError,
+      contentWithoutError: visibleContent,
     };
   }, [contentMayContainControlMarkup, msg.content, msg.webSearchStatuses]);
   const isStreamingContentVisible = isLoading && contentWithoutError.trim().length > 0;

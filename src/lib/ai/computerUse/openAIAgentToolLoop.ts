@@ -20,7 +20,6 @@ import {
   hasVisibleAnswerContent,
   throwIfAborted,
   withSourceLinks,
-  withStatusPrefix,
 } from '@/lib/ai/webSearch/openAIToolLoopShared';
 import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDefinitions';
 import { executeAgentToolCall } from './agentToolRuntime';
@@ -93,7 +92,6 @@ async function runAgentLoop(
   options: AgentLoopBaseOptions,
   requestResult: (body: ChatCompletionRequest, onContent: (content: string) => void) => Promise<OpenAIStreamToolResult>,
 ): Promise<string> {
-  const statuses: WebSearchStatus[] = [];
   const sourceUrls: string[] = [];
   const responseTranscript: OpenAIWireMessage[] = [];
   const deniedCommandKeys = new Set<string>();
@@ -108,7 +106,7 @@ async function runAgentLoop(
 
   const emitVisible = (content = visibleContent) => {
     visibleContent = content;
-    options.onChunk(withStatusPrefix(statuses, visibleContent));
+    options.onChunk(visibleContent);
   };
   const emitTranscript = (allowAborted = false) => {
     if (allowAborted) {
@@ -120,7 +118,6 @@ async function runAgentLoop(
   const emitWebStatus = (status: WebSearchStatus) => {
     const safe = sanitizeWebSearchStatus(status);
     if (!safe) return;
-    statuses.push(safe);
     appendSuccessfulReadSources(sourceUrls, safe);
     options.onWebSearchStatus?.(safe);
     emitVisible();
@@ -157,7 +154,7 @@ async function runAgentLoop(
       emitTranscript();
       const finalContent = withSourceLinks(result.content || answer, sourceUrls);
       emitVisible(finalContent);
-      return withStatusPrefix(statuses, finalContent);
+      return finalContent;
     }
 
     if (loopIndex >= MAX_AGENT_TOOL_LOOPS) {

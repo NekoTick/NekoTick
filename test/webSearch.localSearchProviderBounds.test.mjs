@@ -63,6 +63,7 @@ describe('LocalSearchProvider input bounds', () => {
     };
 
     expect(localSearchInternals.parseBingResults(html, 5)).toEqual([]);
+    expect(localSearchInternals.parseBraveResults(html, 5)).toEqual([]);
     expect(localSearchInternals.parseGoogleResults(html, 5)).toEqual([]);
     expect(localSearchInternals.parseDuckDuckGoResults(html, 5)).toEqual([]);
     expect(html.toString).not.toHaveBeenCalled();

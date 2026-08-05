@@ -13,10 +13,12 @@ import {
   getQueryMatchScore,
   isBlockedResultUrl,
   parseBingResults,
+  parseBraveResults,
   parseDuckDuckGoResults,
   parseGoogleResults,
   parseResults,
 } from './localSearchHtmlResults.mjs';
+import { isSearchChallengePage } from './localSearchOrchestration.mjs';
 import {
   buildOfficialSourceHints,
   fetchDirectOfficialSite,
@@ -52,9 +54,11 @@ export const localSearchInternals = {
   getMeaningfulTerms,
   isBlockedResultUrl,
   parseBingResults,
+  parseBraveResults,
   parseDuckDuckGoResults,
   parseGoogleResults,
   parseResults,
+  isSearchChallengePage,
   selectSearchEngines,
   shouldUseFastOfficialHints,
   getSingleBrandLikeTerm,

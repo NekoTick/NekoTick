@@ -15,7 +15,6 @@ import {
   hasVisibleAnswerContent,
   throwIfAborted,
   withSourceLinks,
-  withStatusPrefix,
 } from '@/lib/ai/webSearch/openAIToolLoopShared';
 import { executeAgentToolCall } from './agentToolRuntime';
 import { buildComputerUseTools, COMPUTER_USE_SYSTEM_INSTRUCTION } from './toolDefinitions';
@@ -166,7 +165,6 @@ function appendAgentInstruction(body: Record<string, unknown>, webSearchEnabled:
 export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopOptions): Promise<string> {
   const messages = Array.isArray(options.body.messages) ? [...options.body.messages] : [];
   const responseTranscript: OpenAIWireMessage[] = [];
-  const webStatuses: WebSearchStatus[] = [];
   const sourceUrls: string[] = [];
   const deniedCommandKeys = new Set<string>();
   const webSearchSession = options.webSearchEnabled ? createWebSearchExecutionSession() : undefined;
@@ -176,7 +174,7 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
 
   const emitVisible = (content = visibleContent) => {
     visibleContent = content;
-    options.onChunk(withStatusPrefix(webStatuses, visibleContent));
+    options.onChunk(visibleContent);
   };
   const emitTranscript = (allowAborted = false) => {
     if (allowAborted) {
@@ -188,7 +186,6 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
   const emitWebStatus = (status: WebSearchStatus) => {
     const safe = sanitizeWebSearchStatus(status);
     if (!safe) return;
-    webStatuses.push(safe);
     appendSuccessfulReadSources(sourceUrls, safe);
     options.onWebSearchStatus?.(safe);
     emitVisible();
@@ -227,7 +224,7 @@ export async function runAnthropicAgentToolLoop(options: AnthropicAgentToolLoopO
       emitTranscript();
       const finalContent = withSourceLinks(result.content, sourceUrls);
       emitVisible(finalContent);
-      return withStatusPrefix(webStatuses, finalContent);
+      return finalContent;
     }
 
     if (loopIndex >= MAX_ANTHROPIC_AGENT_LOOPS) {

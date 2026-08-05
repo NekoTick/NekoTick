@@ -39,6 +39,12 @@ function collectDuckDuckGoBlocks(html) {
     }));
 }
 
+function collectBraveBlocks(html) {
+  const input = getSearchHtmlString(html);
+  const matches = [...input.matchAll(/<div class="[^"]*\bsnippet\b[^"]*"[^>]*data-type="web"[^>]*>/gi)];
+  return matches.map((match, index) => input.slice(match.index ?? 0, matches[index + 1]?.index ?? input.length));
+}
+
 function extractResultSnippet(block, title) {
   const patterns = [
     /<(?:a|div|span)[^>]*class="[^"]*(?:result__snippet|VwiC3b|IsZvec|BNeawe|st|snippet)[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div|span)>/i,
@@ -65,7 +71,9 @@ function parseResultItems(items, limit, existingUrls = new Set(), options = {}) 
     if (!url || seenUrls.has(url)) continue;
     if (isBlockedResultUrl(url, { query: options.query })) continue;
     const title = cleanText(item.title);
-    const snippet = extractResultSnippet(item.block, title);
+    const snippet = item.snippet === undefined
+      ? extractResultSnippet(item.block, title)
+      : cleanText(item.snippet);
     if (!title) continue;
     if (minQueryScore > 0 && getQueryMatchScore(options.query, `${title} ${snippet}`) < minQueryScore) continue;
 
@@ -103,7 +111,19 @@ export function parseDuckDuckGoResults(html, limit, existingUrls = new Set(), op
   return parseResultItems(collectDuckDuckGoBlocks(html), limit, existingUrls, { ...options, engine: 'duckduckgo' });
 }
 
+export function parseBraveResults(html, limit, existingUrls = new Set(), options = {}) {
+  const items = collectBraveBlocks(html).map((block) => {
+    const anchor = block.match(/<a\b[^>]*class="[^"]*\bl1\b[^"]*"[^>]*>/i)?.[0] || '';
+    const url = (anchor.match(/\bhref="([^"]+)"/i) || [])[1];
+    const title = (block.match(/<div[^>]*class="[^"]*\bsearch-snippet-title\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) || [])[1];
+    const snippet = (block.match(/<div[^>]*class="[^"]*\bgeneric-snippet\b[^"]*"[^>]*>[\s\S]*?<div[^>]*class="[^"]*\bcontent\b[^"]*"[^>]*>([\s\S]*?)<\/div>/i) || [])[1];
+    return url && title ? { url, title, snippet, block } : null;
+  }).filter(Boolean);
+  return parseResultItems(items, limit, existingUrls, { ...options, engine: 'brave' });
+}
+
 export function parseResults(engine, html, limit, existingUrls = new Set(), options = {}) {
+  if (engine === 'brave') return parseBraveResults(html, limit, existingUrls, options);
   if (engine === 'google') return parseGoogleResults(html, limit, existingUrls, options);
   if (engine === 'duckduckgo') return parseDuckDuckGoResults(html, limit, existingUrls, options);
   return parseBingResults(html, limit, existingUrls, options);

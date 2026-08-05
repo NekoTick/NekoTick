@@ -10,11 +10,13 @@ import {
   emitApiTranscript,
   emitChunk,
   finishWebSearchCapabilityLocally,
+  finishNoResultSearchLocally,
+  finishUnavailableSearchLocally,
   getLatestUserText,
+  hasAnySearchResults,
   throwIfAborted,
   throwIfMissingVisibleAnswer,
   withSourceLinks,
-  withStatusPrefix,
   withoutTools,
 } from './openAIToolLoopShared';
 import {
@@ -92,17 +94,25 @@ export async function runOpenAIWebSearchTextProtocolRequest({
   });
   const {
     messages,
+    searchUnavailable,
     statusHistory,
     sourceUrls,
   } = await buildTextProtocolSearchMessages({ body, query: searchRequest.query, client, onStatus, signal });
 
+  if (searchUnavailable) {
+    return finishUnavailableSearchLocally({ body, onChunk, onApiTranscript, signal });
+  }
+
+  if (!hasAnySearchResults(statusHistory)) {
+    return finishNoResultSearchLocally({ body, onChunk, onApiTranscript, signal });
+  }
+
   let latestContent = '';
   const emitContent = (content: string) => {
     latestContent = content;
-    emitChunk(onChunk, signal, withStatusPrefix(statusHistory, latestContent));
+    emitChunk(onChunk, signal, latestContent);
   };
 
-  emitChunk(onChunk, signal, withStatusPrefix(statusHistory, latestContent));
   const answerResponse = await request({
     ...withoutTools(body),
     messages: messages as ChatCompletionRequest['messages'],
@@ -111,15 +121,14 @@ export async function runOpenAIWebSearchTextProtocolRequest({
   throwIfAborted(signal);
   const finalApiContent = withSourceLinks(answer.assistantContent || answer.content, sourceUrls);
   throwIfMissingVisibleAnswer(finalApiContent);
-  const finalContent = withStatusPrefix(statusHistory, finalApiContent);
   addChatDebugLog('web-search-text-protocol', 'stream search answer completed', {
     statuses: statusHistory.map((status) => status.phase),
     sources: sourceUrls,
     finalChars: finalApiContent.length,
   });
-  emitChunk(onChunk, signal, finalContent);
+  emitChunk(onChunk, signal, finalApiContent);
   emitApiTranscript(onApiTranscript, signal, [
     buildFinalAssistantTranscriptMessage(finalApiContent, answer.reasoningContent),
   ]);
-  return finalContent;
+  return finalApiContent;
 }

@@ -9,11 +9,13 @@ import {
   emitApiTranscript,
   emitChunk,
   finishWebSearchCapabilityLocally,
+  finishNoResultSearchLocally,
+  finishUnavailableSearchLocally,
   getLatestUserText,
+  hasAnySearchResults,
   throwIfAborted,
   throwIfMissingVisibleAnswer,
   withSourceLinks,
-  withStatusPrefix,
   withoutTools,
 } from './openAIToolLoopShared';
 import {
@@ -87,29 +89,36 @@ export async function runOpenAIWebSearchTextProtocolTextRequest({
   });
   const {
     messages,
+    searchUnavailable,
     statusHistory,
     sourceUrls,
   } = await buildTextProtocolSearchMessages({ body, query: searchRequest.query, client, onStatus, signal });
 
-  emitChunk(onChunk, signal, withStatusPrefix(statusHistory, ''));
+  if (searchUnavailable) {
+    return finishUnavailableSearchLocally({ body, onChunk, onApiTranscript, signal });
+  }
+
+  if (!hasAnySearchResults(statusHistory)) {
+    return finishNoResultSearchLocally({ body, onChunk, onApiTranscript, signal });
+  }
+
   const answerContent = await requestText({
     ...withoutTools(body),
     messages: messages as ChatCompletionRequest['messages'],
   }, (content) => {
-    emitChunk(onChunk, signal, withStatusPrefix(statusHistory, content));
+    emitChunk(onChunk, signal, content);
   });
   throwIfAborted(signal);
   const finalApiContent = withSourceLinks(stripThinkingContent(answerContent), sourceUrls);
   throwIfMissingVisibleAnswer(finalApiContent);
-  const finalContent = withStatusPrefix(statusHistory, finalApiContent);
   addChatDebugLog('web-search-text-protocol', 'text search answer completed', {
     statuses: statusHistory.map((status) => status.phase),
     sources: sourceUrls,
     finalChars: finalApiContent.length,
   });
-  emitChunk(onChunk, signal, finalContent);
+  emitChunk(onChunk, signal, finalApiContent);
   emitApiTranscript(onApiTranscript, signal, [
     buildFinalAssistantTranscriptMessage(finalApiContent),
   ]);
-  return finalContent;
+  return finalApiContent;
 }

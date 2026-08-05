@@ -781,6 +781,33 @@ describe("AIMessage", () => {
     expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", content);
   });
 
+  it("removes legacy status markup when structured web search status is present", () => {
+    const content = [
+      '<web-search-status>{"phase":"searching","query":"weather"}</web-search-status>',
+      '<web-search-status>{"phase":"error","query":"weather","metrics":{"resultCount":0}}</web-search-status>',
+      'No current weather result is available.',
+    ].join('');
+
+    render(
+      <AIMessage
+        msg={{
+          ...createMessage(content),
+          webSearchStatuses: [{ phase: 'error', query: 'weather', metrics: { resultCount: 0 } }],
+        }}
+        imageGallery={[]}
+        isLoading={false}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveAttribute(
+      "data-content",
+      "No current weather result is available.",
+    );
+  });
+
   it("does not interpret legacy web search request text as control data", () => {
     const content = [
       'We need to search.',
