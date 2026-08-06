@@ -74,6 +74,65 @@ describe('focusEditorToFirstLineStart', () => {
 });
 
 describe('focusEditorToInitialPosition', () => {
+  it('skips leading frontmatter and focuses the first body line end', () => {
+    const schema = new ProseSchema({
+      nodes: {
+        doc: { content: 'block+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          toDOM: () => ['p', 0],
+          parseDOM: [{ tag: 'p' }],
+        },
+        frontmatter: {
+          content: 'text*',
+          group: 'block',
+          code: true,
+          isolating: true,
+          toDOM: () => ['div', 0],
+          parseDOM: [{ tag: 'div' }],
+        },
+        text: { group: 'inline' },
+      },
+    });
+    const bodyText = 'First body line';
+    const frontmatter = schema.nodes.frontmatter.create(null, schema.text('title: Demo'));
+    const doc = schema.node('doc', null, [
+      frontmatter,
+      schema.nodes.paragraph.create(null, schema.text(bodyText)),
+    ]);
+    const tr = {
+      setSelection: vi.fn(function setSelection(_selection: unknown) {
+        return tr;
+      }),
+      scrollIntoView: vi.fn(function scrollIntoView() {
+        return tr;
+      }),
+    };
+    const view = {
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+      state: {
+        doc,
+        tr,
+      },
+    };
+
+    try {
+      setCurrentEditorView(view as never);
+      focusEditorToInitialPosition();
+    } finally {
+      setCurrentEditorView(null);
+    }
+
+    const selection = tr.setSelection.mock.calls[0]?.[0];
+    expect(selection).toBeInstanceOf(TextSelection);
+    expect((selection as TextSelection).from).toBe(frontmatter.nodeSize + 1 + bodyText.length);
+    expect((selection as TextSelection).$from.parent.type.name).toBe('paragraph');
+    expect(view.dispatch).toHaveBeenCalledWith(tr);
+    expect(view.focus).toHaveBeenCalledTimes(1);
+  });
+
   it('focuses the rich text editor at the first editable line end', () => {
     const schema = new ProseSchema({
       nodes: {
