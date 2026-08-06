@@ -134,11 +134,11 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
           >
             <WhiteboardToolbarGroup>
               <WhiteboardToolbarButton dock large active={visualTool === 'hand'} icon="whiteboard.hand" label={t('whiteboard.tool.hand')} onClick={() => chooseStandaloneTool('hand')} />
-              <WhiteboardToolbarButton dock large active={eraserActive} icon={eraserConfig.icon} imageSrc={eraserConfig.imageSrc} label={t(eraserConfig.labelKey)} onClick={() => togglePanel('eraser', eraserActive, lastEraserTool)} />
+              <WhiteboardToolbarButton dock large partiallyRevealed active={eraserActive} icon={eraserConfig.icon} imageSrc={eraserConfig.imageSrc} label={t(eraserConfig.labelKey)} onClick={() => togglePanel('eraser', eraserActive, lastEraserTool)} />
             </WhiteboardToolbarGroup>
             <WhiteboardToolbarGroup>
               <span className="mx-0.5 h-[var(--vlaina-size-32px)] w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />
-              <WhiteboardToolbarButton dock large active={drawingActive} icon={drawingConfig.icon} imageSrc={drawingConfig.imageSrc} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
+              <WhiteboardToolbarButton dock large partiallyRevealed active={drawingActive} icon={drawingConfig.icon} imageSrc={drawingConfig.imageSrc} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
               <WhiteboardToolbarButton dock large icon="whiteboard.image" label={t('whiteboard.addImage')} onClick={handleImageSelect} />
             </WhiteboardToolbarGroup>
             <ToolbarDivider />

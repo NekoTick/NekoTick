@@ -15,6 +15,7 @@ import { appendWhiteboardItems } from '../model/whiteboardCollection';
 
 interface WhiteboardPointerFinishOptions {
   activePenPointerRef: MutableRefObject<number | null>;
+  applyFinalDrawSample?: (event: PointerEvent<HTMLDivElement>) => void;
   clearDraftStroke: () => void;
   deletePointer: (pointerId: number) => void;
   dragState: WhiteboardDragState | null;
@@ -39,6 +40,7 @@ interface WhiteboardPointerFinishOptions {
 
 export function useWhiteboardPointerFinish({
   activePenPointerRef,
+  applyFinalDrawSample,
   clearDraftStroke,
   deletePointer,
   dragState,
@@ -61,6 +63,9 @@ export function useWhiteboardPointerFinish({
   strokes,
 }: WhiteboardPointerFinishOptions) {
   return useCallback((event?: PointerEvent<HTMLDivElement>) => {
+    if (event?.type !== 'pointercancel' && dragState?.kind === 'draw') {
+      applyFinalDrawSample?.(event);
+    }
     if (event) deletePointer(event.pointerId);
     finishEraserGesture(event?.type === 'pointercancel');
     finishStrokeEraserGesture(event?.type === 'pointercancel');
@@ -150,7 +155,7 @@ export function useWhiteboardPointerFinish({
     clearDraftStroke();
     setDragState(null);
   }, [
-    activePenPointerRef, clearDraftStroke, deletePointer, dragState,
+    activePenPointerRef, applyFinalDrawSample, clearDraftStroke, deletePointer, dragState,
     elements, finishEraserGesture, finishStrokeEraserGesture, flushResizeDrags, getBoardPoint,
     getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory, setDragState, setElements, setSelectedElementIds,
     setSelectedStrokeIds, setStrokes, strokeIdRef, strokes,

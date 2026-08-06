@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getStrokesInLasso } from './whiteboardSelection';
-import { eraseWhiteboardStrokes } from './whiteboardStrokeEraser';
+import { eraseWhiteboardStroke, eraseWhiteboardStrokes } from './whiteboardStrokeEraser';
+import type { WhiteboardDrawingTool } from './whiteboardModel';
 
 describe('whiteboard stroke eraser', () => {
   it('removes only the swept section and preserves both sides', () => {
@@ -39,6 +40,60 @@ describe('whiteboard stroke eraser', () => {
     expect(eraseWhiteboardStrokes(strokes, [{ point: { x: 50, y: 100 }, size: 1 }])).toBe(strokes);
   });
 
+  it('erases the visible smoothed path instead of the raw control polygon', () => {
+    const stroke = {
+      color: '#111111',
+      id: 'stroke',
+      points: [
+        { pressure: 0.5, x: 0, y: 0 },
+        { pressure: 0.5, x: 50, y: 100 },
+        { pressure: 0.5, x: 100, y: 0 },
+      ],
+      size: 1,
+      tool: 'pen' as const,
+    };
+
+    expect(eraseWhiteboardStrokes([stroke], [{ point: { x: 50, y: 40 }, size: 1 }]))
+      .not.toEqual([stroke]);
+    expect(eraseWhiteboardStrokes([stroke], [{ point: { x: 50, y: 90 }, size: 1 }]))
+      .toEqual([stroke]);
+  });
+
+  it('uses the same eraser span across different brush widths', () => {
+    const createStroke = (tool: 'pen' | 'marker') => ({
+      color: '#111111',
+      id: tool,
+      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+      size: 1,
+      tool,
+    });
+    const sample = [{ point: { x: 50, y: 0 }, size: 1 }];
+    const pen = eraseWhiteboardStrokes([createStroke('pen')], sample);
+    const marker = eraseWhiteboardStrokes([createStroke('marker')], sample);
+
+    expect(marker[0].points.at(-1)?.x).toBe(pen[0].points.at(-1)?.x);
+    expect(marker[1].points[0].x).toBe(pen[1].points[0].x);
+  });
+
+  it('keeps stroke content outside the visible eraser radius', () => {
+    const tools: WhiteboardDrawingTool[] = [
+      'pen', 'pencil', 'marker', 'colored-pencil', 'fountain', 'watercolor', 'crayon',
+    ];
+    for (const tool of tools) {
+      const strokes = eraseWhiteboardStrokes([{
+        color: '#111111',
+        id: tool,
+        points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+        size: 1,
+        tool,
+      }], [{ point: { x: 50, y: 0 }, size: 1 }]);
+
+      expect(strokes).toHaveLength(2);
+      expect(strokes[0].points.at(-1)!.x).toBeGreaterThanOrEqual(40);
+      expect(strokes[1].points[0].x).toBeLessThanOrEqual(60);
+    }
+  });
+
   it('does not rebuild distant strokes while erasing a nearby stroke', () => {
     const distant = {
       color: '#111111',
@@ -58,6 +113,38 @@ describe('whiteboard stroke eraser', () => {
     const result = eraseWhiteboardStrokes([nearby, distant], [{ point: { x: 50, y: 0 }, size: 1 }]);
 
     expect(result.find((stroke) => stroke.id === distant.id)).toBe(distant);
+  });
+
+  it('checks only nearby sampled points after indexing a long stroke', () => {
+    const stroke = {
+      color: '#111111',
+      id: 'long-stroke',
+      points: Array.from({ length: 10_001 }, (_, x) => ({ pressure: 0.5, x, y: 0 })),
+      size: 1,
+      tool: 'pen' as const,
+    };
+    const usedIds = new Set([stroke.id]);
+    const initial = eraseWhiteboardStroke(
+      stroke,
+      null,
+      [{ point: { x: 9000, y: 0 }, size: 1 }],
+      usedIds,
+    )!;
+    const sampledPoints = new Proxy(initial.sampledPoints, {
+      get(target, property, receiver) {
+        if (typeof property === 'string' && /^\d+$/.test(property) && Number(property) > 500) {
+          throw new Error('distant sampled points were inspected');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() => eraseWhiteboardStroke(
+      stroke,
+      { ...initial, sampledPoints },
+      [{ point: { x: 100, y: 0 }, size: 1 }],
+      usedIds,
+    )).not.toThrow();
   });
 
   it('preserves untouched source points and material metadata around an erased gap', () => {

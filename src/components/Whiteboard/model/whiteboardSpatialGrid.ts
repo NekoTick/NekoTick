@@ -33,6 +33,10 @@ export function getSweepCellKeys(sweeps: WhiteboardSpatialSweep[]): Set<string> 
   return keys;
 }
 
+export function getPointCellKey(point: WhiteboardPoint): string {
+  return `${Math.floor(point.x / CELL_SIZE)}:${Math.floor(point.y / CELL_SIZE)}`;
+}
+
 function getCellKeys(bounds: WhiteboardSelectionRect, maxCells = Infinity): string[] | null {
   const minCellX = Math.floor(bounds.x / CELL_SIZE);
   const maxCellX = Math.floor((bounds.x + bounds.width) / CELL_SIZE);

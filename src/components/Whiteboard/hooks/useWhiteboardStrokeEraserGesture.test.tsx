@@ -53,7 +53,7 @@ describe('useWhiteboardStrokeEraserGesture', () => {
     expect(options.setStrokes).not.toHaveBeenCalled();
   });
 
-  it('commits the same stroke fragments shown in the live preview', () => {
+  it('commits fragments from the same sweep shown in the live preview', () => {
     let publishFrame: FrameRequestCallback | null = null;
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       publishFrame = callback;
@@ -72,6 +72,26 @@ describe('useWhiteboardStrokeEraserGesture', () => {
     expect(committed).toEqual(preview);
     expect(committed[0]).toBe(preview?.[0]);
     expect(committed[1]).toBe(preview?.[1]);
+  });
+
+  it('updates preview fragments without committing during drag', () => {
+    let publishFrame: FrameRequestCallback | null = null;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      publishFrame = callback;
+      return 1;
+    });
+    const options = createOptions();
+    const { result } = renderHook(() => useWhiteboardStrokeEraserGesture(options));
+    const samples = [
+      { point: { x: 40, y: 0 }, size: 1 },
+      { point: { x: 60, y: 0 }, size: 1 },
+    ];
+
+    act(() => result.current.begin(samples));
+    act(() => publishFrame?.(0));
+
+    expect(result.current.preview?.replacements.get('stroke')).toHaveLength(2);
+    expect(options.setStrokes).not.toHaveBeenCalled();
   });
 
   it('keeps generated fragment ids unique from existing source ids', () => {

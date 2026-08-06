@@ -31,6 +31,16 @@ describe('whiteboard object eraser', () => {
     expect(targets).toMatchObject({ elementIds: [], strokeIds: [] });
   });
 
+  it('matches the visible object eraser trail width', () => {
+    const targets = getWhiteboardEraserTargets(
+      [{ height: 2, id: 'image', text: '', type: 'image', width: 2, x: 6, y: -1 }],
+      [],
+      [{ point: { x: 0, y: 0 }, size: 1 }],
+    );
+
+    expect(targets.elementIds).toEqual(['image']);
+  });
+
   it('limits exact hit testing to nearby indexed content', () => {
     const nearby = { height: 40, id: 'nearby', text: '', type: 'image' as const, width: 40, x: 20, y: 20 };
     const distant = Array.from({ length: 1000 }, (_, index) => ({

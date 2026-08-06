@@ -105,7 +105,7 @@ describe('WhiteboardStrokeLayer brush rendering', () => {
     const fountain = renderBrush('fountain');
 
     expect(watercolor.querySelectorAll('path')).toHaveLength(5);
-    expect(fountain.querySelectorAll('path')).toHaveLength(2);
+    expect(fountain.querySelectorAll('path')).toHaveLength(4);
     expect(fountain.querySelectorAll('circle')).toHaveLength(0);
   });
 
@@ -127,9 +127,9 @@ describe('WhiteboardStrokeLayer brush rendering', () => {
 
     expect(container.querySelector('[data-whiteboard-brush-dab="marker"]')).toHaveAttribute('transform', 'rotate(90 20 30)');
     expect(container.querySelector('[data-whiteboard-brush-dab="fountain"]')).toHaveAttribute('transform', 'rotate(-42 20 30)');
-    expect(container.querySelector('[data-whiteboard-brush-dab="colored-pencil"]')?.querySelectorAll('circle')).toHaveLength(2);
-    expect(container.querySelector('[data-whiteboard-brush-dab="watercolor"]')?.querySelectorAll('circle')).toHaveLength(3);
-    expect(container.querySelector('[data-whiteboard-brush-dab="crayon"]')?.querySelectorAll('circle')).toHaveLength(2);
+    expect(container.querySelector('[data-whiteboard-brush-dab="colored-pencil"]')?.querySelectorAll('ellipse')).toHaveLength(2);
+    expect(container.querySelector('[data-whiteboard-brush-dab="watercolor"]')?.querySelectorAll('ellipse')).toHaveLength(3);
+    expect(container.querySelector('[data-whiteboard-brush-dab="crayon"]')?.querySelectorAll('ellipse')).toHaveLength(2);
   });
 
   it('dims complete strokes selected by an active erase gesture', () => {
@@ -146,17 +146,19 @@ describe('WhiteboardStrokeLayer brush rendering', () => {
       .toHaveAttribute('opacity', String(themeWhiteboardTokens.eraserTargetPreviewOpacity));
   });
 
-  it('uses identical chunked paths before and after a long stroke is committed', () => {
+  it.each([
+    'pen', 'pencil', 'marker', 'colored-pencil', 'fountain', 'watercolor', 'crayon',
+  ] as const)('uses identical chunked %s paths before and after commit', (tool) => {
     const stroke: WhiteboardStroke = {
       color: '#334455',
-      id: 'long-crayon',
-      points: Array.from({ length: 1_200 }, (_, index) => ({
+      id: `long-${tool}`,
+      points: Array.from({ length: 300 }, (_, index) => ({
         pressure: 0.4 + index % 5 / 10,
         x: index,
         y: Math.sin(index / 20) * 40,
       })),
       size: 1,
-      tool: 'crayon',
+      tool,
     };
     const { container, rerender } = render(<WhiteboardDraftStrokeLayer stroke={stroke} />);
     const previewPaths = Array.from(container.querySelectorAll('path')).map((path) => path.getAttribute('d'));

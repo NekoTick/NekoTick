@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardStroke } from './whiteboardModel';
-import { appendStrokePointsInPlace, getStrokePointMinDistance, getStrokeRenderGeometry } from './whiteboardStrokeGeometry';
+import { appendStrokePointsInPlace, getStrokeDabGeometry, getStrokePointMinDistance, getStrokeRenderGeometry } from './whiteboardStrokeGeometry';
 
 describe('whiteboard stroke point sampling', () => {
   it('keeps stroke point spacing stable in screen pixels across zoom levels', () => {
@@ -20,6 +20,16 @@ describe('whiteboard stroke point sampling', () => {
 });
 
 describe('whiteboard stroke render geometry', () => {
+  it('uses stylus tilt for broad media while keeping the pen tip round', () => {
+    const point = { azimuth: 0, pressure: 0.7, tilt: 1, x: 0, y: 0 };
+
+    for (const tool of ['pencil', 'colored-pencil', 'watercolor', 'crayon'] as const) {
+      const dab = getStrokeDabGeometry(tool, 10, point);
+      expect(dab.width).toBeGreaterThan(dab.height);
+    }
+    expect(getStrokeDabGeometry('pen', 10, point)).toMatchObject({ height: 10, width: 10 });
+  });
+
   it('updates cached render geometry when draft points are appended in place', () => {
     const stroke: WhiteboardStroke = {
       color: '#111111',
@@ -57,7 +67,50 @@ describe('whiteboard stroke render geometry', () => {
     const centerEdge = outlinePoints.find(([x, y]) => x === 20 && y > 0);
 
     expect(centerEdge).toBeDefined();
+    expect(firstRadius).toBeCloseTo(
+      (themeWhiteboardTokens.penBaseWidthPx + themeWhiteboardTokens.penPressureWidthPx) / 2
+        * themeWhiteboardTokens.strokeTaperMinScale,
+    );
     expect(centerEdge![1]).toBeGreaterThan(firstRadius * 2);
+  });
+
+  it('rounds pen endpoints instead of closing the pressure outline with flat caps', () => {
+    const stroke: WhiteboardStroke = {
+      color: '#111111',
+      id: 'rounded-pen',
+      points: [
+        { pressure: 1, x: 0, y: 0 },
+        { pressure: 1, x: 10, y: 0 },
+      ],
+      size: 1,
+      tool: 'pen',
+    };
+
+    const path = getStrokeRenderGeometry(stroke).pressurePath;
+    const capControls = Array.from(path.matchAll(/C (-?\d+(?:\.\d+)?) [^ ]+ (-?\d+(?:\.\d+)?) [^ ]+/g));
+
+    expect(capControls).toHaveLength(2);
+    expect(Number(capControls[0]![1])).toBeGreaterThan(10);
+    expect(Number(capControls[1]![1])).toBeLessThan(0);
+  });
+
+  it('smooths short pen turns before building their pressure outline', () => {
+    const stroke: WhiteboardStroke = {
+      color: '#111111',
+      id: 'smooth-turn',
+      points: [
+        { pressure: 0.7, x: 0, y: 0 },
+        { pressure: 0.7, x: 10, y: 0 },
+        { pressure: 0.7, x: 10, y: 10 },
+      ],
+      size: 1,
+      tool: 'pen',
+    };
+
+    const path = getStrokeRenderGeometry(stroke).pressurePath;
+
+    expect(path).not.toContain('Q 10 0');
+    expect(path.match(/Q /g)).toHaveLength(2);
   });
 
   it('uses a fixed fountain nib angle for directional line weight', () => {

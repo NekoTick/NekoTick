@@ -89,10 +89,10 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
     const appendedLayer = container.querySelector('[data-whiteboard-layer="appended"]');
     const interactionLayer = container.querySelector('[data-whiteboard-layer="interaction"]');
     expect(contentLayer).toHaveStyle({ willChange: 'transform' });
-    expect(appendedLayer).toHaveStyle({ willChange: 'transform' });
     expect(interactionLayer).toHaveStyle({ willChange: 'transform' });
-    expect(contentLayer?.parentElement).toBe(appendedLayer?.parentElement);
-    expect(appendedLayer?.parentElement).toBe(interactionLayer?.parentElement);
+    expect(appendedLayer).not.toHaveStyle({ willChange: 'transform' });
+    expect(contentLayer?.parentElement).toBe(interactionLayer?.parentElement);
+    expect(appendedLayer?.parentElement).toBe(interactionLayer);
     expect(appendedLayer).toHaveClass('pointer-events-none');
     expect(interactionLayer).toHaveClass('pointer-events-none');
   });
