@@ -1002,7 +1002,6 @@
   --vlaina-color-whiteboard-watercolor: #10b981;
   --vlaina-color-whiteboard-crayon: #ef4444;
   --vlaina-color-whiteboard-element: rgb(255 255 255 / 0.92);
-  --vlaina-color-whiteboard-element-border: rgb(30 150 235 / 0.45);
   --vlaina-color-whiteboard-selected: var(--vlaina-color-accent);
   --vlaina-color-whiteboard-selection-fill: rgb(30 150 235 / 0.1);
   --vlaina-color-whiteboard-eraser-trail: var(--vlaina-color-whiteboard-selected);
@@ -1502,7 +1501,6 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-color-whiteboard-watercolor: #34d399;
   --vlaina-color-whiteboard-crayon: #f87171;
   --vlaina-color-whiteboard-element: rgb(21 21 23 / 0.94);
-  --vlaina-color-whiteboard-element-border: rgb(65 168 234 / 0.46);
   --vlaina-color-whiteboard-selected: var(--vlaina-color-accent);
   --vlaina-color-whiteboard-selection-fill: rgb(93 190 255 / 0.14);
   --vlaina-color-whiteboard-eraser-trail: var(--vlaina-color-whiteboard-selected);

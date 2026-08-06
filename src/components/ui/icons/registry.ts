@@ -116,6 +116,7 @@ import {
   EyeSlashIcon
 } from '@heroicons/react/24/outline';
 import {
+  PhotoIcon as PhotoSolidIcon,
   StarIcon as StarSolidIcon,
 } from '@heroicons/react/24/solid';
 
@@ -286,7 +287,7 @@ export const icons: Record<string, IconSource> = {
   'whiteboard.crayon': Pencil,
   'whiteboard.eraser': Eraser,
   'whiteboard.areaEraser': EraserBlockIcon,
-  'whiteboard.image': PhotoIcon,
+  'whiteboard.image': PhotoSolidIcon,
   'whiteboard.pickColor': Pipette,
   'media.play': PlayIcon,
   'media.pause': PauseIcon,

@@ -65,6 +65,31 @@ describe('useWhiteboardPointerFinish', () => {
     expect(update([])[0].id).toBe(draft.id);
   });
 
+  it('applies the pointer-up sample before committing a stroke', () => {
+    const draft = {
+      color: '#111111', id: 'draft',
+      points: [{ pressure: 0.5, x: 0, y: 0 }], size: 1, tool: 'pen' as const,
+    };
+    const applyFinalDrawSample = vi.fn(() => {
+      draft.points.push({ pressure: 0.5, x: 20, y: 10 });
+    });
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null as number | null }, applyFinalDrawSample,
+      clearDraftStroke: vi.fn(), deletePointer: vi.fn(), dragState: { kind: 'draw' }, elements: [],
+      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 20, y: 10 })), getDraftStroke: vi.fn(() => draft), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef: { current: 1 }, strokes: [],
+    }));
+
+    act(() => result.current({ clientX: 20, clientY: 10, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    expect(applyFinalDrawSample).toHaveBeenCalledOnce();
+    const update = setStrokes.mock.calls[0][0] as (strokes: typeof draft[]) => typeof draft[];
+    expect(update([])[0].points.at(-1)).toMatchObject({ x: 20, y: 10 });
+  });
+
   it('keeps the last valid move position when pointer cancellation coordinates are invalid', () => {
     const element = { height: 10, id: 'image', text: '', type: 'image' as const, width: 10, x: 5, y: 5 };
     const setElements = vi.fn();

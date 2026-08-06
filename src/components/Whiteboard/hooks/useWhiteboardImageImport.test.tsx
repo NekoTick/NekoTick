@@ -5,6 +5,9 @@ import type { WhiteboardElement } from '../model/whiteboardModel';
 import { useWhiteboardImageImport } from './useWhiteboardImageImport';
 
 const mocks = vi.hoisted(() => ({
+  setSelectedElementId: vi.fn(),
+  setSelectedStrokeIds: vi.fn(),
+  setTool: vi.fn(),
   writeActiveAsset: vi.fn(),
 }));
 
@@ -54,6 +57,18 @@ describe('useWhiteboardImageImport', () => {
     expect(result.current.elements).toHaveLength(2);
     expect(new Set(result.current.elements.map((element) => element.id)).size).toBe(2);
   });
+
+  it('adds an image without leaving it selected', async () => {
+    mocks.writeActiveAsset.mockResolvedValue('assets/image.png');
+    const { result } = renderHook(useImageImportHarness);
+
+    await act(() => result.current.importImage(createImageFile()));
+
+    expect(result.current.elements).toHaveLength(1);
+    expect(mocks.setSelectedElementId).toHaveBeenLastCalledWith(null);
+    expect(mocks.setSelectedStrokeIds).toHaveBeenLastCalledWith([]);
+    expect(mocks.setTool).toHaveBeenLastCalledWith('select');
+  });
 });
 
 function useImageImportHarness() {
@@ -63,9 +78,9 @@ function useImageImportHarness() {
   const importImage = useWhiteboardImageImport({
     pushHistory,
     setElements,
-    setSelectedElementId: vi.fn(),
-    setSelectedStrokeIds: vi.fn(),
-    setTool: vi.fn(),
+    setSelectedElementId: mocks.setSelectedElementId,
+    setSelectedStrokeIds: mocks.setSelectedStrokeIds,
+    setTool: mocks.setTool,
     viewport: { x: 0, y: 0, zoom: 1 },
     viewportRef,
   });

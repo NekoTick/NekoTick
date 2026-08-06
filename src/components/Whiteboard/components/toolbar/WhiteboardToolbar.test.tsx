@@ -126,6 +126,64 @@ describe('WhiteboardToolbar', () => {
     });
   });
 
+  it('partially reveals brush instruments themselves and lifts the selected one', () => {
+    const { container } = renderToolbar({ tool: 'pen' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const selectedPen = within(panel).getByRole('button', { name: 'whiteboard.tool.pen' });
+    const pencil = within(panel).getByRole('button', { name: 'whiteboard.tool.pencil' });
+    const selectedReveal = selectedPen.querySelector('[data-whiteboard-instrument-reveal="true"]');
+    const pencilReveal = pencil.querySelector('[data-whiteboard-instrument-reveal="true"]');
+
+    expect(container.querySelector('[data-whiteboard-instrument-shelf="true"]')).not.toBeInTheDocument();
+    expect(selectedReveal).toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
+    expect(pencilReveal).toHaveClass(
+      'h-[var(--vlaina-size-48px)]',
+      'group-hover:h-[var(--vlaina-size-72px)]',
+      'overflow-hidden',
+    );
+    expect(selectedPen).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
+    expect(pencil).toHaveClass('group', 'hover:-translate-y-[var(--vlaina-size-12px)]');
+    expect(selectedPen).not.toHaveClass('hover:-translate-y-[var(--vlaina-size-12px)]');
+    expect(selectedPen.parentElement).toHaveClass('h-[var(--vlaina-size-100px)]');
+  });
+
+  it('partially reveals eraser panel instruments with the same hover lift', () => {
+    const { container } = renderToolbar({ tool: 'select' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const selectedLasso = within(panel).getByRole('button', { name: 'whiteboard.tool.select' });
+    const eraser = within(panel).getByRole('button', { name: 'whiteboard.tool.eraser' });
+
+    expect(selectedLasso.querySelector('[data-whiteboard-instrument-reveal="true"]'))
+      .toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
+    expect(eraser.querySelector('[data-whiteboard-instrument-reveal="true"]')).toHaveClass(
+      'h-[var(--vlaina-size-48px)]',
+      'group-hover:h-[var(--vlaina-size-72px)]',
+      'overflow-hidden',
+    );
+    expect(selectedLasso).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
+    expect(eraser).toHaveClass('group', 'hover:-translate-y-[var(--vlaina-size-12px)]');
+    expect(panel).not.toHaveClass('bg-[var(--vlaina-color-whiteboard-tool-panel)]');
+  });
+
+  it('partially reveals the main toolbar brush and adjacent selection tool', () => {
+    const { container } = renderToolbar({ tool: 'pen' });
+    const mainToolbar = container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!;
+    const selectedPen = within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.pen' });
+    const selectionTool = within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.select' });
+
+    expect(selectedPen.querySelector('[data-whiteboard-instrument-reveal="true"]'))
+      .toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
+    expect(selectionTool.querySelector('[data-whiteboard-instrument-reveal="true"]'))
+      .toHaveClass('h-[var(--vlaina-size-48px)]', 'overflow-hidden');
+    expect(selectedPen).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
+    expect(selectionTool).not.toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
+    expect(selectionTool).not.toHaveClass('hover:-translate-y-[var(--vlaina-size-12px)]');
+  });
+
   it('uses the lasso and eraser images in the selection panel', () => {
     const { container } = renderToolbar();
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
@@ -153,7 +211,7 @@ describe('WhiteboardToolbar', () => {
     const mainToolbar = container.querySelector('[data-whiteboard-main-toolbar="true"]');
     const activeTool = mainToolbar?.querySelector('[aria-label="whiteboard.tool.select"]');
 
-    expect(activeTool).toHaveClass('-translate-y-[var(--vlaina-size-20px)]', 'scale-[var(--vlaina-scale-105)]', 'border-transparent', 'bg-transparent');
+    expect(activeTool).toHaveClass('-translate-y-[var(--vlaina-size-12px)]', 'scale-[var(--vlaina-scale-105)]', 'border-transparent', 'bg-transparent');
     expect(activeTool).toHaveClass('shadow-none', 'hover:shadow-none');
     expect(activeTool?.querySelector('img')).toHaveClass('filter-none');
     expect(activeTool).not.toHaveClass('bg-[var(--vlaina-accent-light)]');
@@ -624,7 +682,8 @@ describe('WhiteboardToolbar', () => {
     expect(mainToolbar).toHaveClass('!bg-[var(--vlaina-color-pill-surface)]');
     expect(mainToolbar).toHaveClass('hover:!shadow-[var(--vlaina-shadow-raised-soft)]');
     expect(mainToolbar).not.toHaveClass('hover:!shadow-[var(--vlaina-shadow-menu-hover)]');
-    expect(panel).toHaveClass('bg-[var(--vlaina-color-whiteboard-tool-panel)]', 'rounded-[var(--vlaina-ui-radius-group)]');
+    expect(panel).not.toHaveClass('bg-[var(--vlaina-color-whiteboard-tool-panel)]');
+    expect(container.querySelector('[data-whiteboard-instrument-shelf="true"]')).not.toBeInTheDocument();
   });
 
   it('keeps the image action in the drawing tools group without a ruler action', () => {

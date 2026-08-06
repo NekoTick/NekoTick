@@ -2,11 +2,11 @@ import { memo } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   getBrushPreviewRadius,
-  getStrokeWidth,
   type WhiteboardBrushTool,
   type WhiteboardPoint,
+  type WhiteboardStroke,
 } from '../../model/whiteboardModel';
-import { getStrokeDabGeometry } from '../../model/whiteboardStrokeGeometry';
+import { WhiteboardStrokeNode } from './WhiteboardStrokeNode';
 
 interface WhiteboardBrushCursorProps {
   point: WhiteboardPoint | null;
@@ -28,27 +28,29 @@ export const WhiteboardBrushCursor = memo(function WhiteboardBrushCursor({ color
           cy={point.y}
           r={getBrushPreviewRadius(tool, size)}
           fill="var(--vlaina-color-whiteboard-selection-fill)"
-          stroke="var(--vlaina-color-whiteboard-selected)"
-          strokeWidth={themeWhiteboardTokens.brushCursorStrokeWidthPx}
-          vectorEffect="non-scaling-stroke"
         />
       </svg>
     );
   }
-  const width = getStrokeWidth(tool, 1, size);
-  const geometry = getStrokeDabGeometry(tool, width);
-  const transform = geometry.angle ? `rotate(${geometry.angle} ${point.x} ${point.y})` : undefined;
+  const cursorStroke: WhiteboardStroke = {
+    color,
+    id: 'whiteboard-brush-cursor',
+    points: [{
+      pressure: themeWhiteboardTokens.defaultPointerPressure,
+      tilt: 0,
+      velocity: 0,
+      x: point.x,
+      y: point.y,
+    }],
+    size,
+    tool,
+  };
 
   return (
     <svg aria-hidden="true" className={brushCursorLayerClassName}>
-      {geometry.shape === 'rect' ? (
-        <rect data-whiteboard-brush-cursor="marker" x={point.x - geometry.width / 2} y={point.y - geometry.height / 2} width={geometry.width} height={geometry.height} rx={themeWhiteboardTokens.strokeEdgeFeatherWidthPx} fill={color} opacity={themeWhiteboardTokens.brushCursorInkOpacity} stroke={color} strokeWidth={themeWhiteboardTokens.brushCursorStrokeWidthPx} transform={transform} vectorEffect="non-scaling-stroke" />
-      ) : geometry.shape === 'ellipse' ? (
-        <ellipse data-whiteboard-brush-cursor="fountain" cx={point.x} cy={point.y} rx={geometry.width / 2} ry={geometry.height / 2} fill={color} opacity={themeWhiteboardTokens.brushCursorInkOpacity} stroke={color} strokeWidth={themeWhiteboardTokens.brushCursorStrokeWidthPx} transform={transform} vectorEffect="non-scaling-stroke" />
-      ) : (
-        <circle data-whiteboard-brush-cursor={tool} cx={point.x} cy={point.y} r={getBrushPreviewRadius(tool, size)} fill={color} opacity={themeWhiteboardTokens.brushCursorInkOpacity} stroke={color} strokeWidth={themeWhiteboardTokens.brushCursorStrokeWidthPx} vectorEffect="non-scaling-stroke" />
-      )}
-      {tool === 'watercolor' ? <circle cx={point.x} cy={point.y} r={width * themeWhiteboardTokens.watercolorWashWidthScale / 2} fill={themeWhiteboardTokens.strokeNoFill} opacity={themeWhiteboardTokens.brushCursorWashGuideOpacity} stroke={color} strokeWidth={themeWhiteboardTokens.brushCursorStrokeWidthPx} /> : null}
+      <g data-whiteboard-brush-cursor={tool}>
+        <WhiteboardStrokeNode stroke={cursorStroke} />
+      </g>
     </svg>
   );
 });

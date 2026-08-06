@@ -34,7 +34,7 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
       style={{
         borderColor: showSelectionBorder
           ? 'var(--vlaina-color-whiteboard-selected)'
-          : 'var(--vlaina-color-whiteboard-element-border)',
+          : 'transparent',
         height: element.height,
         left: element.x,
         opacity: erasing ? themeWhiteboardTokens.eraserTargetPreviewOpacity : undefined,
