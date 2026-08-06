@@ -298,6 +298,27 @@ describe('MarkdownEditor source fallback', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Markdown source editor'));
   });
 
+  it('focuses the open note at its initial position when returning to notes', async () => {
+    const { rerender } = render(<MarkdownEditor active />);
+
+    const sourceEditor = await screen.findByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    const outsideButton = document.createElement('button');
+    document.body.appendChild(outsideButton);
+    outsideButton.focus();
+    expect(document.activeElement).toBe(outsideButton);
+
+    rerender(<MarkdownEditor active={false} />);
+    rerender(<MarkdownEditor active />);
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(sourceEditor);
+    });
+    expect(sourceEditor.selectionStart).toBe('# Alpha'.length);
+    expect(sourceEditor.selectionEnd).toBe('# Alpha'.length);
+
+    outsideButton.remove();
+  });
+
   it('uploads a pasted image in source mode without inserting companion clipboard text', async () => {
     const file = new File(['image'], 'source shot.png', { type: 'image/png' });
     mocks.notesState.uploadAsset.mockResolvedValue({

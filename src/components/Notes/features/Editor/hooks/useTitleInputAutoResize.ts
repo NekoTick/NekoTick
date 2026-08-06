@@ -14,7 +14,6 @@ export function useTitleInputAutoResize(
     if (!input) return;
 
     if (input.getBoundingClientRect().width <= 0) {
-      input.style.height = '';
       return;
     }
 
