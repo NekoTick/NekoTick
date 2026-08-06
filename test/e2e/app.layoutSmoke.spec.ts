@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import {
   CHAT_COMPOSER_TEXTAREA_SELECTOR,
   CHAT_SCROLLABLE_SELECTOR,
@@ -15,6 +17,7 @@ import {
   getOpenBridgePages,
   installReferenceTyporaTheme,
   launchIsolatedElectron,
+  openAbsoluteNote,
   openNotesRootInNotes,
   setAppViewMode,
   waitForChatSession,
@@ -86,6 +89,142 @@ async function expectOverlayScrollbarDraggable(page: Page, viewportSelector: str
 
 test.describe('app layout smoke', () => {
   test.setTimeout(120_000);
+
+  test('keeps the Notes body geometry stable when returning from other views', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-return-focus-geometry');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      await setAppViewMode(page, 'notes');
+      const fixture = await createNotesRootFilesFixture(page, {
+        name: 'notes-return-focus-geometry',
+        files: [{
+          filename: 'return-focus-geometry-with-a-long-wrapped-title-that-stays-stable-across-every-view.md',
+          content: [
+            '---',
+            'vlaina_cover: "./assets/cover.png" x=50 y=50 height=180 scale=1',
+            '---',
+            '',
+            'First line focus target',
+            '',
+            'Second paragraph geometry sentinel.',
+            '',
+            ...Array.from({ length: 30 }, (_, index) => `Body line ${index + 1}.`),
+          ].join('\n'),
+        }],
+      });
+      const notePath = fixture.notePaths[0];
+      if (!notePath) {
+        throw new Error('Missing Notes return geometry fixture path');
+      }
+      const coverAssetPath = path.join(path.dirname(notePath), 'assets', 'cover.png');
+      await fs.mkdir(path.dirname(coverAssetPath), { recursive: true });
+      await fs.writeFile(coverAssetPath, Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+        'base64',
+      ));
+      await openAbsoluteNote(page, notePath);
+      const cover = page.locator('[data-note-cover-region="true"]');
+      await expect(cover).toBeVisible({ timeout: 10_000 });
+      await expect(cover.locator('img[src]').first()).toBeVisible({ timeout: 10_000 });
+
+      const baseline = await page.evaluate(() => {
+        const scrollRoot = document.querySelector<HTMLElement>('[data-note-scroll-root="true"]');
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        const firstBlock = editor?.firstElementChild?.getBoundingClientRect();
+        const title = document.querySelector<HTMLElement>('[data-note-title-input="true"]');
+        const coverRegion = document.querySelector<HTMLElement>('[data-note-cover-region="true"]');
+        return {
+          scrollTop: scrollRoot?.scrollTop ?? null,
+          firstBlockTop: firstBlock?.top ?? null,
+          titleHeight: title?.getBoundingClientRect().height ?? null,
+          coverHeight: coverRegion?.getBoundingClientRect().height ?? null,
+        };
+      });
+
+      await expect(page.locator(EDITOR_SELECTOR)).toBeFocused();
+      expect(baseline.titleHeight).toBeGreaterThan(44);
+      for (const awayView of ['chat', 'graph', 'whiteboard'] as const) {
+        await page.evaluate((mode) => (window as any).__vlainaE2E.setAppViewMode(mode), awayView);
+        const awayViewSelector = awayView === 'chat'
+          ? '[data-chat-view-mode="full"]'
+          : awayView === 'graph'
+            ? '[data-graph-view-mode="true"]'
+            : '[data-whiteboard-active="true"]';
+        await expect(page.locator(awayViewSelector)).toBeVisible({ timeout: 30_000 });
+
+        const frames = await page.evaluate(async () => new Promise<Array<{
+          scrollTop: number | null;
+          firstBlockTop: number | null;
+          titleHeight: number | null;
+          coverHeight: number | null;
+          hasCoverImage: boolean;
+        }>>((resolve) => {
+          const samples: Array<{
+            scrollTop: number | null;
+            firstBlockTop: number | null;
+            titleHeight: number | null;
+            coverHeight: number | null;
+            hasCoverImage: boolean;
+          }> = [];
+          (window as any).__vlainaE2E.setAppViewMode('notes');
+
+          const sample = () => {
+            const scrollRoot = document.querySelector<HTMLElement>('[data-note-scroll-root="true"]');
+            const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+            const firstBlock = editor?.firstElementChild?.getBoundingClientRect();
+            const title = document.querySelector<HTMLElement>('[data-note-title-input="true"]');
+            const coverRegion = document.querySelector<HTMLElement>('[data-note-cover-region="true"]');
+            samples.push({
+              scrollTop: scrollRoot?.scrollTop ?? null,
+              firstBlockTop: firstBlock?.top ?? null,
+              titleHeight: title?.getBoundingClientRect().height ?? null,
+              coverHeight: coverRegion?.getBoundingClientRect().height ?? null,
+              hasCoverImage: Boolean(coverRegion?.querySelector('img[src]')),
+            });
+            if (samples.length >= 6) {
+              resolve(samples);
+              return;
+            }
+            requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }));
+
+        expect(frames, awayView).toHaveLength(6);
+        expect(frames.every((frame) => frame.scrollTop === baseline.scrollTop), awayView).toBe(true);
+        expect(frames.every((frame) => (
+          frame.firstBlockTop !== null &&
+          baseline.firstBlockTop !== null &&
+          Math.abs(frame.firstBlockTop - baseline.firstBlockTop) <= 0.1
+        )), awayView).toBe(true);
+        expect(frames.every((frame) => (
+          frame.titleHeight !== null &&
+          baseline.titleHeight !== null &&
+          Math.abs(frame.titleHeight - baseline.titleHeight) <= 0.1
+        )), awayView).toBe(true);
+        expect(frames.every((frame) => (
+          frame.coverHeight !== null &&
+          baseline.coverHeight !== null &&
+          Math.abs(frame.coverHeight - baseline.coverHeight) <= 0.1
+        )), awayView).toBe(true);
+        expect(frames.every((frame) => frame.hasCoverImage), awayView).toBe(true);
+        await expect(page.locator(EDITOR_SELECTOR), awayView).toBeFocused();
+        const selection = await page.evaluate(() => ({
+          offset: window.getSelection()?.anchorOffset ?? null,
+          text: window.getSelection()?.anchorNode?.textContent ?? null,
+        }));
+        expect(selection, awayView).toEqual({
+          offset: 'First line focus target'.length,
+          text: 'First line focus target',
+        });
+      }
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
 
   test('keeps a multiline Chat composer height stable when returning from Notes', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('chat-composer-view-switch-stability');

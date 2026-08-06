@@ -159,6 +159,22 @@ describe('TitleInput', () => {
     expect(input.style.height).toBe('46px');
   });
 
+  it('keeps the measured title height while its parent view is hidden', async () => {
+    width = 360;
+    scrollHeight = 44;
+    render(<TitleInput notePath="/notesRoot/test.md" initialTitle="test" />);
+
+    const input = screen.getByDisplayValue('test') as HTMLTextAreaElement;
+    expect(input.style.height).toBe('46px');
+
+    width = 0;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'next title' } });
+    });
+
+    expect(input.style.height).toBe('46px');
+  });
+
   it('resets stale internal title scroll before refreshing the focused caret overlay', async () => {
     width = 360;
     scrollHeight = 44;

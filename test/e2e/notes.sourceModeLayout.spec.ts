@@ -329,6 +329,112 @@ async function measureSourceToRenderedSwitchMs(page: Page, expectedRenderedText:
 test.describe('notes source mode layout', () => {
   test.setTimeout(120_000);
 
+  test('keeps source geometry stable when returning from other views', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-source-return-geometry');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      await page.evaluate(() => (window as any).__vlainaE2E.setUIPreferences({
+        languagePreference: 'en',
+      }));
+      await openMarkdownFixture(page, {
+        filename: 'source-return-geometry.md',
+        content: sourceModeFixtureMarkdown(),
+      });
+      await toggleSourceModeWithShortcut(page, 'source');
+
+      const sourceEditor = page.locator(SOURCE_EDITOR_SELECTOR);
+      await expect(sourceEditor).toBeFocused();
+      const baseline = await sourceEditor.evaluate((element) => {
+        const textarea = element as HTMLTextAreaElement;
+        const scrollRoot = textarea.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+        const title = document.querySelector<HTMLElement>('[data-note-title-input="true"]');
+        const rect = textarea.getBoundingClientRect();
+        return {
+          height: rect.height,
+          inlineHeight: textarea.style.height,
+          scrollTop: scrollRoot?.scrollTop ?? null,
+          titleHeight: title?.getBoundingClientRect().height ?? null,
+          top: rect.top,
+        };
+      });
+      expect(baseline.height).toBeGreaterThan(1000);
+
+      for (const awayView of ['chat', 'graph', 'whiteboard'] as const) {
+        await page.evaluate((mode) => (window as any).__vlainaE2E.setAppViewMode(mode), awayView);
+        const awayViewSelector = awayView === 'chat'
+          ? '[data-chat-view-mode="full"]'
+          : awayView === 'graph'
+            ? '[data-graph-view-mode="true"]'
+            : '[data-whiteboard-active="true"]';
+        await expect(page.locator(awayViewSelector)).toBeVisible({ timeout: 30_000 });
+
+        const hiddenInlineHeight = await page.evaluate(async () => {
+          const textarea = document.querySelector<HTMLTextAreaElement>('[data-note-source-editor="true"]');
+          if (!textarea || textarea.value.length < 2) throw new Error('Source textarea is unavailable');
+          const replaceAt = textarea.value.length - 2;
+          const replacement = textarea.value[replaceAt] === 'x' ? 'y' : 'x';
+          textarea.setRangeText(replacement, replaceAt, replaceAt + 1, 'preserve');
+          textarea.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            data: replacement,
+            inputType: 'insertText',
+          }));
+          await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+          return textarea.style.height;
+        });
+        expect(hiddenInlineHeight, awayView).toBe(baseline.inlineHeight);
+
+        const frames = await page.evaluate(async () => new Promise<Array<{
+          height: number | null;
+          scrollTop: number | null;
+          titleHeight: number | null;
+          top: number | null;
+        }>>((resolve) => {
+          const samples: Array<{
+            height: number | null;
+            scrollTop: number | null;
+            titleHeight: number | null;
+            top: number | null;
+          }> = [];
+          (window as any).__vlainaE2E.setAppViewMode('notes');
+          const sample = () => {
+            const textarea = document.querySelector<HTMLTextAreaElement>('[data-note-source-editor="true"]');
+            const scrollRoot = textarea?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+            const title = document.querySelector<HTMLElement>('[data-note-title-input="true"]');
+            const rect = textarea?.getBoundingClientRect();
+            samples.push({
+              height: rect?.height ?? null,
+              scrollTop: scrollRoot?.scrollTop ?? null,
+              titleHeight: title?.getBoundingClientRect().height ?? null,
+              top: rect?.top ?? null,
+            });
+            if (samples.length === 6) {
+              resolve(samples);
+              return;
+            }
+            requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }));
+
+        expect(frames.every((frame) => frame.height === baseline.height), awayView).toBe(true);
+        expect(frames.every((frame) => frame.scrollTop === baseline.scrollTop), awayView).toBe(true);
+        expect(frames.every((frame) => frame.titleHeight === baseline.titleHeight), awayView).toBe(true);
+        expect(frames.every((frame) => frame.top === baseline.top), awayView).toBe(true);
+        await expect(sourceEditor, awayView).toBeFocused();
+        const selectionStart = await sourceEditor.evaluate((element) => (
+          element as HTMLTextAreaElement
+        ).selectionStart);
+        expect(selectionStart, awayView).toBe('# Source Mode Layout'.length);
+      }
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('matches rendered editor width with the right chat panel open and keeps source input responsive', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-source-mode-layout');
 
