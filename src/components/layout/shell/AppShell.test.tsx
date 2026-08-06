@@ -40,6 +40,7 @@ vi.mock('./UnifiedSidebarContainer', () => ({
     children,
     collapsed,
     peeking,
+    onDragStateChange,
     onPeekChange,
     onLayoutAnimationComplete,
     widthScopeRef,
@@ -47,6 +48,7 @@ vi.mock('./UnifiedSidebarContainer', () => ({
     children: ReactNode;
     collapsed: boolean;
     peeking?: boolean;
+    onDragStateChange?: (dragging: boolean) => void;
     onPeekChange?: (peeking: boolean) => void;
     onLayoutAnimationComplete?: () => void;
     widthScopeRef?: Ref<HTMLDivElement>;
@@ -65,6 +67,12 @@ vi.mock('./UnifiedSidebarContainer', () => ({
         type="button"
         data-testid="sidebar-layout-animation-complete"
         onClick={onLayoutAnimationComplete}
+      />
+      <button
+        type="button"
+        data-testid="sidebar-drag-start"
+        onMouseDown={() => onDragStateChange?.(true)}
+        onMouseUp={() => onDragStateChange?.(false)}
       />
     </aside>
   ),
@@ -288,5 +296,40 @@ describe('AppShell', () => {
 
     fireEvent.click(getByTestId('sidebar-layout-animation-complete'));
     expect(mocks.setLayoutPanelTransitioning).toHaveBeenLastCalledWith('shell-sidebar', false);
+  });
+
+  it('freezes the main layout width and marks the shell while resizing the sidebar', () => {
+    const { container, getByTestId } = render(
+      <AppShell
+        sidebarWidth={300}
+        sidebarCollapsed={false}
+        sidebarContent={<div>Sidebar</div>}
+        onSidebarWidthChange={() => {}}
+        onSidebarToggle={() => {}}
+      >
+        <div data-testid="main-content" style={{ width: '75%', minWidth: '12px' }}>Main</div>
+      </AppShell>
+    );
+
+    const shell = container.querySelector<HTMLElement>('[data-app-shell-root="true"]');
+    const main = container.querySelector<HTMLElement>('main');
+    const mainContent = getByTestId('main-content');
+    const dragHandle = getByTestId('sidebar-drag-start');
+
+    fireEvent.mouseDown(dragHandle);
+
+    expect(shell).toHaveAttribute('data-layout-panel-dragging', 'true');
+    expect(main?.style.overflow).toBe('hidden');
+    expect(mainContent.style.width).toBe('0px');
+    expect(mainContent.style.minWidth).toBe('0px');
+    expect(mocks.setLayoutPanelDragging).toHaveBeenLastCalledWith(true);
+
+    fireEvent.mouseUp(dragHandle);
+
+    expect(shell).not.toHaveAttribute('data-layout-panel-dragging');
+    expect(main?.style.overflow).toBe('');
+    expect(mainContent.style.width).toBe('75%');
+    expect(mainContent.style.minWidth).toBe('12px');
+    expect(mocks.setLayoutPanelDragging).toHaveBeenLastCalledWith(false);
   });
 });

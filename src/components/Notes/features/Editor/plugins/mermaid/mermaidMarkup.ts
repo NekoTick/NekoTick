@@ -8,13 +8,18 @@ import { getEffectiveAppLanguage } from '@/lib/i18n/languages';
 import { normalizeMermaidCodeForRender } from './mermaidFenceCode';
 import { useUIStore } from '@/stores/uiSlice';
 import {
-  cancelQueuedMermaidRender,
+  EDITOR_MERMAID_RENDER_GROUP,
   getActiveMermaidRenderCount,
   MAX_CONCURRENT_MERMAID_RENDERS,
-  promoteMermaidRender,
-  scheduleMermaidRender,
   type MermaidRenderPriority,
 } from './mermaidRenderQueue';
+import {
+  clearMermaidMarkupCache,
+  getPendingMermaidMarkupCount,
+  readCachedMermaidMarkup as readSharedCachedMermaidMarkup,
+  releaseMermaidMarkupConsumer,
+  resolveCachedMermaidMarkup,
+} from '@/components/common/markdown/mermaidMarkupCache';
 
 export {
   getActiveMermaidRenderCount,
@@ -25,15 +30,6 @@ export {
 export type MermaidRender = (code: string, id: string) => Promise<string>;
 
 let mermaidIdCounter = 0;
-const MERMAID_RENDER_CACHE_LIMIT = 80;
-export const MAX_PENDING_MERMAID_RENDERS = 80;
-const mermaidMarkupCache = new Map<string, string>();
-type PendingMermaidRender = {
-  consumers: Set<object>;
-  hasUnscopedConsumer: boolean;
-  promise: Promise<string>;
-};
-const mermaidRenderPromiseCache = new Map<string, PendingMermaidRender>();
 const MAX_MERMAID_RENDER_CODE_CHARS = 20_000;
 
 function escapeHtmlText(value: string): string {
@@ -154,53 +150,20 @@ async function renderDefaultMermaidHtmlWithRetry(code: string) {
   return renderMermaidHtml(code, defaultRenderMermaid);
 }
 
-function readCachedMermaidMarkupByKey(cacheKey: string) {
-  const cached = mermaidMarkupCache.get(cacheKey);
-  if (cached == null) {
-    return null;
-  }
-
-  mermaidMarkupCache.delete(cacheKey);
-  mermaidMarkupCache.set(cacheKey, cached);
-  return cached;
-}
-
 export function readCachedMermaidMarkup(code: string) {
-  return readCachedMermaidMarkupByKey(getMermaidMarkupCacheKey(code));
-}
-
-function cacheMermaidMarkup(cacheKey: string, markup: string) {
-  mermaidMarkupCache.set(cacheKey, markup);
-  while (mermaidMarkupCache.size > MERMAID_RENDER_CACHE_LIMIT) {
-    const oldestKey = mermaidMarkupCache.keys().next().value;
-    if (typeof oldestKey !== 'string') {
-      break;
-    }
-    mermaidMarkupCache.delete(oldestKey);
-  }
-  return markup;
+  return readSharedCachedMermaidMarkup(getMermaidMarkupCacheKey(code));
 }
 
 export function clearMermaidRenderCaches(): void {
-  mermaidMarkupCache.clear();
-  mermaidRenderPromiseCache.clear();
+  clearMermaidMarkupCache();
 }
 
 export function getPendingMermaidRenderCount(): number {
-  return mermaidRenderPromiseCache.size;
+  return getPendingMermaidMarkupCount();
 }
 
 export function releaseMermaidRenderConsumer(consumer: object): void {
-  for (const [cacheKey, pending] of mermaidRenderPromiseCache) {
-    if (!pending.consumers.delete(consumer)) continue;
-    if (
-      !pending.hasUnscopedConsumer &&
-      pending.consumers.size === 0 &&
-      cancelQueuedMermaidRender(cacheKey)
-    ) {
-      mermaidRenderPromiseCache.delete(cacheKey);
-    }
-  }
+  releaseMermaidMarkupConsumer(consumer);
 }
 
 export async function resolveMermaidMarkup(
@@ -221,46 +184,13 @@ export async function resolveMermaidMarkup(
   }
 
   const cacheKey = getMermaidMarkupCacheKey(code);
-  const cached = readCachedMermaidMarkupByKey(cacheKey);
-  if (cached != null) {
-    return cached;
-  }
-
-  const existingRender = mermaidRenderPromiseCache.get(cacheKey);
-  if (existingRender) {
-    if (consumer) {
-      existingRender.consumers.add(consumer);
-    } else {
-      existingRender.hasUnscopedConsumer = true;
-    }
-    if (priority === 'interactive') {
-      promoteMermaidRender(cacheKey);
-    }
-    return existingRender.promise;
-  }
-  if (mermaidRenderPromiseCache.size >= MAX_PENDING_MERMAID_RENDERS) {
-    return sanitizeMermaidMarkup(mermaidRenderErrorMarkup());
-  }
-
-  const promise = scheduleMermaidRender(
+  return resolveCachedMermaidMarkup({
     cacheKey,
+    consumer,
+    group: EDITOR_MERMAID_RENDER_GROUP,
     priority,
-    () => renderDefaultMermaidHtmlWithRetry(code),
-    mermaidRenderErrorMarkup(),
-  )
-    .then(sanitizeMermaidMarkup)
-    .then((markup) => (
-      isMermaidErrorMarkup(markup) ? markup : cacheMermaidMarkup(cacheKey, markup)
-    ))
-    .finally(() => {
-      if (mermaidRenderPromiseCache.get(cacheKey)?.promise === promise) {
-        mermaidRenderPromiseCache.delete(cacheKey);
-      }
-    });
-  mermaidRenderPromiseCache.set(cacheKey, {
-    consumers: new Set(consumer ? [consumer] : []),
-    hasUnscopedConsumer: !consumer,
-    promise,
+    render: async () => sanitizeMermaidMarkup(
+      await renderDefaultMermaidHtmlWithRetry(code),
+    ),
   });
-  return promise;
 }

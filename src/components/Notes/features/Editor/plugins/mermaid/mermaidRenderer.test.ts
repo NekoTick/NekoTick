@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 
 const zenumlDiagram = { id: 'zenuml' };
 const registerExternalDiagrams = vi.fn(async () => undefined);
@@ -96,6 +97,34 @@ describe('mermaidRenderer', () => {
 
     expect(registerExternalDiagrams).not.toHaveBeenCalled();
     expect(render).toHaveBeenCalledWith('diagram-1', 'sequenceDiagram\nAlice->Bob: Hi', expect.any(HTMLElement));
+  });
+
+  it('serializes cold-start renders and waits for active interaction before resuming', async () => {
+    let resolveFirstRender = (_value: { svg: string }) => {};
+    render
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFirstRender = resolve;
+      }))
+      .mockResolvedValueOnce({ svg: '<svg data-testid="second"></svg>' });
+    const interactionRoot = document.createElement('div');
+    const { renderMermaid } = await import('./mermaidRenderer');
+
+    const first = renderMermaid('flowchart TD\nA --> B', 'diagram-first');
+    const second = renderMermaid('flowchart TD\nB --> C', 'diagram-second');
+    await vi.waitFor(() => {
+      expect(render).toHaveBeenCalledTimes(1);
+    });
+    interactionRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(interactionRoot);
+    resolveFirstRender({ svg: '<svg data-testid="first"></svg>' });
+    await expect(first).resolves.toContain('data-testid="first"');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(render).toHaveBeenCalledTimes(1);
+
+    delete interactionRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+    await expect(second).resolves.toContain('data-testid="second"');
+    expect(render).toHaveBeenCalledTimes(2);
   });
 
   it('renders in a measurable offscreen host for diagrams that use SVG layout metrics', async () => {

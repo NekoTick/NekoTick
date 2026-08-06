@@ -315,21 +315,49 @@ describe('renderNoteExportHtml', () => {
     expect(doc.querySelector('code.language-mermaid')).toBeNull();
   });
 
-  it('bounds export waiting when Mermaid rendering remains pending', async () => {
-    let animationFrames = 0;
-    vi.mocked(renderMermaid).mockImplementation(() => new Promise(() => undefined));
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      animationFrames += 1;
-      window.setTimeout(() => callback(performance.now()), 0);
-      return animationFrames;
-    });
+  it('exports more than 80 Mermaid diagrams without overflow errors', async () => {
+    const diagramCount = 85;
+    const markdown = Array.from({ length: diagramCount }, (_value, index) => [
+      '```mermaid',
+      'sequenceDiagram',
+      `Alice->>Bob: Diagram ${index}`,
+      '```',
+    ].join('\n')).join('\n\n');
 
-    const html = await renderNoteExportHtml('```mermaid\nflowchart TD\nA --> B\n```', 'Pending');
+    const html = await renderNoteExportHtml(markdown, 'Many diagrams');
     const doc = parseExportHtml(html);
 
-    expect(animationFrames).toBeGreaterThanOrEqual(120);
-    expect(animationFrames).toBeLessThan(130);
-    expect(doc.querySelector('.mermaid-placeholder')).not.toBeNull();
+    expect(doc.querySelectorAll('.mermaid-block')).toHaveLength(diagramCount);
+    expect(doc.querySelectorAll('.mermaid-block svg')).toHaveLength(diagramCount);
+    expect(doc.querySelector('.mermaid-placeholder, .mermaid-error')).toBeNull();
+  });
+
+  it('does not serialize export HTML while Mermaid rendering remains pending', async () => {
+    let resolveRender = (_markup: string) => {};
+    vi.mocked(renderMermaid).mockImplementation(() => new Promise((resolve) => {
+      resolveRender = resolve;
+    }));
+    let settled = false;
+    const htmlPromise = renderNoteExportHtml(
+      '```mermaid\nflowchart TD\nA --> B\n```',
+      'Pending',
+    ).then((html) => {
+      settled = true;
+      return html;
+    });
+
+    await vi.waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 10));
+    expect(settled).toBe(false);
+
+    resolveRender('<svg><text>Completed diagram</text></svg>');
+    const html = await htmlPromise;
+    const doc = parseExportHtml(html);
+
+    expect(doc.querySelector('.mermaid-placeholder')).toBeNull();
+    expect(doc.querySelector('.mermaid-block svg')).not.toBeNull();
   });
 
   it('exports Markdown videos as static safe links', async () => {

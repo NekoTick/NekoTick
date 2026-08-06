@@ -35,6 +35,6 @@ export function useShellSidebarResize({
       threshold: SNAP_THRESHOLD,
       resistance: SNAP_RESISTANCE,
     },
-    liveUpdateMode: 'sync',
+    liveUpdateMode: 'animation-frame',
   });
 }

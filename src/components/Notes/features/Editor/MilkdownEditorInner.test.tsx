@@ -1302,6 +1302,22 @@ describe('shouldUseLazyBlockVisibility', () => {
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
   });
 
+  it('enables lazy block visibility for syntax notes with multiple Mermaid blocks', () => {
+    const markdown = [
+      '# Syntax checks',
+      '',
+      ...Array.from({ length: 4 }, (_, index) => [
+        '```mermaid',
+        'flowchart TD',
+        `  A${index} --> B${index}`,
+        '```',
+        '',
+      ].join('\n')),
+    ].join('\n');
+
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
+  });
+
   it('enables lazy block visibility for dense medium-size markdown', () => {
     const markdown = [
       '# Dense Manual',

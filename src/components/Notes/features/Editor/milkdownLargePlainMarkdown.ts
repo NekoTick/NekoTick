@@ -4,6 +4,7 @@ import type { ProseMirrorJSONNode } from './MilkdownEditorInnerTypes';
 const LARGE_PLAIN_MARKDOWN_FAST_PARSE_MIN_LENGTH = 1_000_000;
 const LAZY_BLOCK_VISIBILITY_MIN_LENGTH = 60_000;
 const LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES = 500;
+const LAZY_BLOCK_VISIBILITY_MIN_MERMAID_BLOCKS = 4;
 const LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_MIN_LINES = 40;
 const LAZY_BLOCK_VISIBILITY_DENSE_HEAVY_LINE_RATIO = 5;
 const MARKDOWN_BLANK_LINE_COMMENT = '<!--vlaina-markdown-blank-line-->';
@@ -18,7 +19,20 @@ function needsFullMarkdownInlineParsing(text: string): boolean {
 }
 
 export function shouldUseLazyBlockVisibility(markdown: string): boolean {
-  return createLargePlainMarkdownDocJSON(markdown) !== null || hasLargeScrollableMarkdownShape(markdown);
+  return createLargePlainMarkdownDocJSON(markdown) !== null
+    || hasMultipleMermaidBlocks(markdown)
+    || hasLargeScrollableMarkdownShape(markdown);
+}
+
+function hasMultipleMermaidBlocks(markdown: string): boolean {
+  let mermaidBlockCount = 0;
+  for (const line of markdown.split('\n')) {
+    if (/^(?:`{3,}|~{3,})mermaid(?:\s|$)/i.test(line.trim())) {
+      mermaidBlockCount += 1;
+      if (mermaidBlockCount >= LAZY_BLOCK_VISIBILITY_MIN_MERMAID_BLOCKS) return true;
+    }
+  }
+  return false;
 }
 
 function hasLargeScrollableMarkdownShape(markdown: string): boolean {

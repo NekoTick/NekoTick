@@ -27,6 +27,16 @@ interface AppShellProps {
   isDragging?: boolean;
 }
 
+interface FrozenMainLayout {
+  main: HTMLElement;
+  overflow: string;
+  children: Array<{
+    element: HTMLElement;
+    width: string;
+    minWidth: string;
+  }>;
+}
+
 export function AppShell({
   children,
   
@@ -48,6 +58,8 @@ export function AppShell({
 }: AppShellProps) {
   const titleBarWidthScopeRef = useRef<HTMLDivElement>(null);
   const sidebarWidthScopeRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const frozenMainLayoutRef = useRef<FrozenMainLayout | null>(null);
   const previousSidebarCollapsedRef = useRef(sidebarCollapsed);
   const sidebarPeekCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
@@ -102,10 +114,46 @@ export function AppShell({
     }
   }, []);
 
+  const restoreFrozenMainLayout = useCallback(() => {
+    const frozenMainLayout = frozenMainLayoutRef.current;
+    if (!frozenMainLayout) return;
+
+    frozenMainLayout.main.style.overflow = frozenMainLayout.overflow;
+    for (const child of frozenMainLayout.children) {
+      child.element.style.width = child.width;
+      child.element.style.minWidth = child.minWidth;
+    }
+    frozenMainLayoutRef.current = null;
+  }, []);
+
   const handleSidebarDragStateChange = useCallback((dragging: boolean) => {
+    if (dragging && !frozenMainLayoutRef.current) {
+      const main = mainRef.current;
+      if (main) {
+        const width = `${main.clientWidth}px`;
+        const overflow = main.style.overflow;
+        const children = Array.from(main.children)
+          .filter((child): child is HTMLElement => child instanceof HTMLElement)
+          .map((element) => ({
+            element,
+            width: element.style.width,
+            minWidth: element.style.minWidth,
+          }));
+
+        main.style.overflow = 'hidden';
+        for (const child of children) {
+          child.element.style.width = width;
+          child.element.style.minWidth = width;
+        }
+        frozenMainLayoutRef.current = { main, overflow, children };
+      }
+    } else if (!dragging) {
+      restoreFrozenMainLayout();
+    }
+
     setIsSidebarDragging(dragging);
     setLayoutPanelDragging(dragging);
-  }, [setLayoutPanelDragging]);
+  }, [restoreFrozenMainLayout, setLayoutPanelDragging]);
 
   const handleSidebarLayoutAnimationComplete = useCallback(() => {
     setLayoutPanelTransitioning('shell-sidebar', false);
@@ -133,13 +181,17 @@ export function AppShell({
 
   useEffect(() => clearSidebarPeekCloseTimer, [clearSidebarPeekCloseTimer]);
   useEffect(
-    () => () => setLayoutPanelTransitioning('shell-sidebar', false),
-    [setLayoutPanelTransitioning],
+    () => () => {
+      restoreFrozenMainLayout();
+      setLayoutPanelTransitioning('shell-sidebar', false);
+    },
+    [restoreFrozenMainLayout, setLayoutPanelTransitioning],
   );
 
   return (
     <div
       data-app-shell-root="true"
+      data-layout-panel-dragging={isSidebarDragging ? 'true' : undefined}
       className={cn(
         "h-full flex overflow-hidden flex-col",
         (isDragging || isSidebarDragging) && "select-none cursor-col-resize"
@@ -192,6 +244,7 @@ export function AppShell({
         ) : null}
         
         <main
+          ref={mainRef}
           className="flex-1 flex flex-col min-w-0 relative app-scrollbar"
         >
           {children}

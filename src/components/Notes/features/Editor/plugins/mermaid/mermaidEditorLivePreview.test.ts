@@ -18,6 +18,7 @@ import {
   createMermaidElement,
   disposeMermaidElement,
   getMermaidElementCode,
+  getPendingMermaidRenderCount,
   renderMermaidEditorLivePreview,
   resolveMermaidMarkup,
 } from './mermaidDom';
@@ -33,6 +34,8 @@ describe('mermaidEditorLivePreview', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    document.documentElement.removeAttribute('data-layout-panel-dragging');
+    window.dispatchEvent(new MouseEvent('mouseup'));
     document.body.replaceChildren();
   });
 
@@ -77,7 +80,7 @@ describe('mermaidEditorLivePreview', () => {
     expect(getMermaidElementCode(element)).toBe('sequenceDiagram\nAlice->Bob: Hello');
   });
 
-  it('lazy renders initial Mermaid elements in browsers until they approach the viewport', async () => {
+  it('preloads initial Mermaid elements before they approach the viewport', async () => {
     let observerCallback: IntersectionObserverCallback = () => undefined;
     let observerRootMargin = '';
     let observerScrollMargin = '';
@@ -100,11 +103,18 @@ describe('mermaidEditorLivePreview', () => {
     }
     vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
     vi.mocked(renderMermaid).mockClear();
+    let finishRender = (_markup: string) => {};
+    vi.mocked(renderMermaid).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        finishRender = resolve;
+      }),
+    );
 
     const element = createMermaidElement('sequenceDiagram\nAlice->Bob: Lazy render unique');
 
-    await Promise.resolve();
-    expect(renderMermaid).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
     expect(element.dataset.mermaidLazy).toBe('true');
     expect(element.querySelector('.mermaid-placeholder')).not.toBeNull();
     expect(observerRootMargin).toBe('0px');
@@ -112,14 +122,81 @@ describe('mermaidEditorLivePreview', () => {
 
     observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
 
-    await waitFor(() => {
-      expect(renderMermaid).toHaveBeenCalledTimes(1);
-    });
+    expect(renderMermaid).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalled();
     expect(element.dataset.mermaidLazy).toBeUndefined();
+    finishRender('<svg data-rendered="preloaded"></svg>');
     await waitFor(() => {
       expect(element.querySelector('svg, .mermaid-error')).not.toBeNull();
     });
+  });
+
+  it('defers background markup commits while a layout panel is dragging', async () => {
+    let finishRender = (_markup: string) => {};
+    vi.mocked(renderMermaid).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        finishRender = resolve;
+      }),
+    );
+    const element = createMermaidElement('sequenceDiagram\nAlice->Bob: deferred commit');
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
+
+    document.documentElement.setAttribute('data-layout-panel-dragging', 'true');
+    finishRender('<svg data-rendered="after-drag"></svg>');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(element.querySelector('[data-rendered="after-drag"]')).toBeNull();
+
+    document.documentElement.removeAttribute('data-layout-panel-dragging');
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    await waitFor(() => {
+      expect(element.querySelector('[data-rendered="after-drag"]')).not.toBeNull();
+    });
+  });
+
+  it('bounds whole-document Mermaid preloads and eventually renders every diagram', async () => {
+    class TestIntersectionObserver {
+      constructor(_callback: IntersectionObserverCallback) {}
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    let releaseRenders = () => {};
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRenders = resolve;
+    });
+    vi.mocked(renderMermaid).mockImplementation(async (code) => {
+      await renderGate;
+      return `<svg data-rendered="${code}"></svg>`;
+    });
+    const elementCount = 85;
+    const elements = Array.from({ length: elementCount }, (_value, index) =>
+      createMermaidElement(`sequenceDiagram\nAlice->Bob: preload ${index}`)
+    );
+
+    try {
+      await waitFor(() => {
+        expect(getPendingMermaidRenderCount()).toBeGreaterThan(2);
+      });
+      expect(getPendingMermaidRenderCount()).toBeLessThan(elementCount);
+      expect(elements.some((element) => element.querySelector('.mermaid-error'))).toBe(false);
+
+      releaseRenders();
+      await waitFor(() => {
+        expect(elements.every((element) => element.querySelector('svg'))).toBe(true);
+      }, { timeout: 10_000 });
+      expect(renderMermaid).toHaveBeenCalledTimes(elementCount);
+      expect(getPendingMermaidRenderCount()).toBe(0);
+    } finally {
+      releaseRenders();
+    }
   });
 
   it('waits for active note scrolling before starting a visible lazy render', async () => {

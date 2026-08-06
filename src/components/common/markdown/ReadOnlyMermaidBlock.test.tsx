@@ -1,7 +1,8 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MERMAID_FORMAT_FIXTURES } from '@/test/fixtures/mermaidFormatFixtures';
 import { useUIStore } from '@/stores/uiSlice';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 
 vi.mock('./mermaidRenderer', () => ({
   generateMermaidId: () => 'mermaid-readonly-test',
@@ -12,8 +13,9 @@ vi.mock('./mermaidRenderer', () => ({
 
 import {
   clearReadOnlyMermaidRenderCaches,
+  getActiveReadOnlyMermaidRenderCount,
   getPendingReadOnlyMermaidRenderCount,
-  MAX_PENDING_READONLY_MERMAID_RENDERS,
+  MAX_CONCURRENT_READONLY_MERMAID_RENDERS,
   ReadOnlyMermaidBlock,
   resolveReadOnlyMermaidMarkup,
 } from './ReadOnlyMermaidBlock';
@@ -24,6 +26,13 @@ describe('ReadOnlyMermaidBlock', () => {
     useUIStore.setState({ languagePreference: 'en' });
     clearReadOnlyMermaidRenderCaches();
     vi.mocked(renderMermaid).mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    document.documentElement.removeAttribute('data-layout-panel-dragging');
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    document.body.replaceChildren();
   });
 
   it('renders empty Mermaid blocks without visible placeholder copy', () => {
@@ -51,6 +60,9 @@ describe('ReadOnlyMermaidBlock', () => {
     expect(container.innerHTML).not.toContain('data-code');
     expect(container.innerHTML).not.toContain('secret token');
 
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
     resolveRender('<svg><text>rendered</text></svg>');
 
     await waitFor(() => {
@@ -60,20 +72,59 @@ describe('ReadOnlyMermaidBlock', () => {
     expect(container.innerHTML).not.toContain('secret token');
   });
 
-  it('refreshes read-only Mermaid placeholder copy when language changes', () => {
+  it('defers rendered markup commits while a layout panel is dragging', async () => {
+    let resolveRender: (markup: string) => void = () => undefined;
+    vi.mocked(renderMermaid).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveRender = resolve;
+      })
+    );
+    render(<ReadOnlyMermaidBlock code="sequenceDiagram\nAlice->Bob: deferred commit" />);
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
+
+    document.documentElement.setAttribute('data-layout-panel-dragging', 'true');
+    act(() => resolveRender('<svg><text>after drag</text></svg>'));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('after drag')).not.toBeInTheDocument();
+
+    document.documentElement.removeAttribute('data-layout-panel-dragging');
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    await waitFor(() => {
+      expect(screen.getByText('after drag')).toBeInTheDocument();
+    });
+  });
+
+  it('refreshes read-only Mermaid placeholder copy when language changes', async () => {
+    const resolveRenders: Array<(markup: string) => void> = [];
     vi.mocked(renderMermaid).mockImplementation(
-      () => new Promise(() => undefined)
+      () => new Promise((resolve) => {
+        resolveRenders.push(resolve);
+      })
     );
 
     render(<ReadOnlyMermaidBlock code="sequenceDiagram\nAlice->Bob: hi" />);
 
     expect(screen.getByText('Enter Mermaid diagram...')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(resolveRenders).toHaveLength(1);
+    });
 
     act(() => {
       useUIStore.setState({ languagePreference: 'zh-CN' });
     });
 
     expect(screen.getByText('输入图表内容...')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(resolveRenders).toHaveLength(2);
+    });
+    resolveRenders.forEach((resolve) => resolve('<svg><text>rendered</text></svg>'));
+    await waitFor(() => {
+      expect(getActiveReadOnlyMermaidRenderCount()).toBe(0);
+    });
   });
 
   it('marks Gantt diagrams for readable chart sizing while loading and rendered', async () => {
@@ -101,8 +152,10 @@ describe('ReadOnlyMermaidBlock', () => {
     const first = resolveReadOnlyMermaidMarkup('sequenceDiagram\nAlice->Bob: hi');
     const second = resolveReadOnlyMermaidMarkup('sequenceDiagram\nAlice->Bob: hi');
 
-    expect(renderMermaid).toHaveBeenCalledTimes(1);
     expect(getPendingReadOnlyMermaidRenderCount()).toBe(1);
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
 
     resolveRender('<svg><text>rendered</text></svg>');
 
@@ -131,38 +184,130 @@ describe('ReadOnlyMermaidBlock', () => {
 
       expect(renderMermaid, `${fixture.label} should reach the read-only renderer`).toHaveBeenCalledWith(
         code,
-        expect.any(String)
+        expect.any(String),
       );
       expect(markup, `${fixture.label} should return SVG markup`).toContain('data-readonly-rendered');
       expect(markup, `${fixture.label} should not render an error`).not.toContain('mermaid-error');
     }
   });
 
-  it('bounds pending read-only Mermaid renders for different diagrams', async () => {
+  it('bounds active work while eventually rendering more than 80 diagrams', async () => {
     const renderResolves: Array<(markup: string) => void> = [];
+    let maxActiveRenderCount = 0;
     vi.mocked(renderMermaid).mockImplementation(
       () => new Promise((resolve) => {
+        maxActiveRenderCount = Math.max(
+          maxActiveRenderCount,
+          getActiveReadOnlyMermaidRenderCount(),
+        );
         renderResolves.push(resolve);
       })
     );
 
-    const renders = Array.from({ length: MAX_PENDING_READONLY_MERMAID_RENDERS }, (_value, index) =>
+    const diagramCount = 85;
+    const renders = Array.from({ length: diagramCount }, (_value, index) =>
       resolveReadOnlyMermaidMarkup(`sequenceDiagram\nAlice->Bob: ${index}`)
     );
     renders.forEach((renderPromise) => {
       renderPromise.catch(() => undefined);
     });
 
-    expect(getPendingReadOnlyMermaidRenderCount()).toBe(MAX_PENDING_READONLY_MERMAID_RENDERS);
-    const overflowMarkup = await resolveReadOnlyMermaidMarkup('sequenceDiagram\nAlice->Bob: overflow');
+    expect(getPendingReadOnlyMermaidRenderCount()).toBe(diagramCount);
 
-    expect(overflowMarkup).toContain('mermaid-error');
-    expect(getPendingReadOnlyMermaidRenderCount()).toBe(MAX_PENDING_READONLY_MERMAID_RENDERS);
-
-    renderResolves.forEach((resolve, index) => {
-      resolve(`<svg><text>rendered ${index}</text></svg>`);
+    await waitFor(() => {
+      expect(renderResolves).toHaveLength(MAX_CONCURRENT_READONLY_MERMAID_RENDERS);
     });
+    for (let index = 0; index < renders.length; index += 1) {
+      await waitFor(() => {
+        expect(renderResolves.length).toBeGreaterThanOrEqual(index + 1);
+      });
+      renderResolves[index]?.(`<svg><text>rendered ${index}</text></svg>`);
+    }
     await Promise.all(renders);
+    expect(maxActiveRenderCount).toBe(MAX_CONCURRENT_READONLY_MERMAID_RENDERS);
+    expect(getActiveReadOnlyMermaidRenderCount()).toBe(0);
+    expect(getPendingReadOnlyMermaidRenderCount()).toBe(0);
+  });
+
+  it('does not start another read-only Mermaid render during active scrolling', async () => {
+    vi.useFakeTimers();
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(scrollRoot);
+    vi.mocked(renderMermaid).mockResolvedValue('<svg><text>rendered</text></svg>');
+
+    const markupPromise = resolveReadOnlyMermaidMarkup(
+      'sequenceDiagram\nAlice->Bob: wait for scroll',
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(renderMermaid).not.toHaveBeenCalled();
+
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+    await vi.runAllTimersAsync();
+
+    await expect(markupPromise).resolves.toContain('rendered');
+    expect(renderMermaid).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start read-only Mermaid work during pointer text selection', async () => {
+    vi.useFakeTimers();
+    const editor = document.createElement('div');
+    editor.dataset.editorPointerSelecting = 'true';
+    document.body.appendChild(editor);
+    vi.mocked(renderMermaid).mockResolvedValue('<svg><text>rendered</text></svg>');
+
+    const markupPromise = resolveReadOnlyMermaidMarkup(
+      'sequenceDiagram\nAlice->Bob: wait for selection',
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(renderMermaid).not.toHaveBeenCalled();
+
+    delete editor.dataset.editorPointerSelecting;
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    await vi.runAllTimersAsync();
+
+    await expect(markupPromise).resolves.toContain('rendered');
+    expect(renderMermaid).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels queued read-only Mermaid work when its document unmounts', async () => {
+    const startedCodes: string[] = [];
+    const renderResolves: Array<(markup: string) => void> = [];
+    vi.mocked(renderMermaid).mockImplementation(
+      (code) => new Promise((resolve) => {
+        startedCodes.push(code);
+        renderResolves.push(resolve);
+      }),
+    );
+    const oldDiagramCount = MAX_CONCURRENT_READONLY_MERMAID_RENDERS + 5;
+    const oldDocument = render(<>
+      {Array.from({ length: oldDiagramCount }, (_value, index) => (
+        <ReadOnlyMermaidBlock
+          code={`sequenceDiagram\nAlice->Bob: old ${index}`}
+          key={index}
+        />
+      ))}
+    </>);
+
+    await waitFor(() => {
+      expect(startedCodes).toHaveLength(MAX_CONCURRENT_READONLY_MERMAID_RENDERS);
+    });
+    oldDocument.unmount();
+    const currentDocument = render(
+      <ReadOnlyMermaidBlock code="sequenceDiagram\nAlice->Bob: current" />,
+    );
+    renderResolves.splice(0).forEach((resolve) => resolve('<svg><text>old</text></svg>'));
+
+    await waitFor(() => {
+      expect(startedCodes.at(-1)).toContain('current');
+    });
+    expect(startedCodes).toHaveLength(MAX_CONCURRENT_READONLY_MERMAID_RENDERS + 1);
+    renderResolves.splice(0).forEach((resolve) => resolve('<svg><text>current</text></svg>'));
+    await waitFor(() => {
+      expect(getPendingReadOnlyMermaidRenderCount()).toBe(0);
+    });
+    currentDocument.unmount();
   });
 
   it('converts read-only Mermaid render failures to sanitized error markup', async () => {

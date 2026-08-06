@@ -1,6 +1,7 @@
 import { translate } from '@/lib/i18n';
 import { createDefaultMermaidThemeConfig } from '@/lib/notes/mermaid/mermaidTheme';
 import { getFirstMermaidDirective } from './mermaidDirective';
+import { waitForMermaidInteractionIdle } from './mermaidRenderScheduler';
 
 let mermaidInstance: any = null;
 let mermaidPromise: Promise<any> | null = null;
@@ -9,6 +10,9 @@ let zenumlRegistered = false;
 let zenumlAvailable = true;
 let mermaidAvailable = true;
 let mermaidCounter = 0;
+let mermaidWarmupComplete = false;
+let mermaidWarmupPromise: Promise<void> | null = null;
+let resolveMermaidWarmup = () => {};
 
 type ConsoleMethodName = 'debug' | 'error' | 'info' | 'log' | 'warn';
 
@@ -164,6 +168,25 @@ function createMermaidRenderContainer(): HTMLElement | undefined {
   return container;
 }
 
+async function acquireMermaidWarmup() {
+  if (mermaidWarmupComplete) return null;
+  if (mermaidWarmupPromise) {
+    await mermaidWarmupPromise;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await waitForMermaidInteractionIdle();
+    return null;
+  }
+
+  mermaidWarmupPromise = new Promise<void>((resolve) => {
+    resolveMermaidWarmup = resolve;
+  });
+  return () => {
+    mermaidWarmupComplete = true;
+    resolveMermaidWarmup();
+    mermaidWarmupPromise = null;
+  };
+}
+
 export async function renderMermaid(code: string, id: string): Promise<string> {
   if (code.length > MAX_MERMAID_CODE_CHARS) {
     return `<div class="mermaid-error">${escapeHtmlText(translate('editor.mermaidRenderTooLarge'))}</div>`;
@@ -175,6 +198,7 @@ export async function renderMermaid(code: string, id: string): Promise<string> {
     return `<div class="mermaid-error">${escapeHtmlText(translate('editor.mermaidNotAvailable'))}</div>`;
   }
 
+  const releaseWarmup = await acquireMermaidWarmup();
   try {
     mermaid.initialize(createMermaidRenderConfig());
     if (isZenumlDiagram(code) && !(await ensureZenumlExternalDiagram(mermaid))) {
@@ -196,6 +220,8 @@ export async function renderMermaid(code: string, id: string): Promise<string> {
     }
   } catch {
     return mermaidRenderErrorMarkup();
+  } finally {
+    releaseWarmup?.();
   }
 }
 

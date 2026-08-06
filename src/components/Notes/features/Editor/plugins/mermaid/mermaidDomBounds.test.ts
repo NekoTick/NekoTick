@@ -15,12 +15,14 @@ import {
   getMermaidElementCode,
   getPendingMermaidRenderCount,
   MAX_LEGACY_MERMAID_DATA_CODE_CHARS,
-  MAX_CONCURRENT_MERMAID_RENDERS,
-  MAX_PENDING_MERMAID_RENDERS,
   renderMermaidEditorLivePreview,
   resolveMermaidMarkup,
 } from './mermaidDom';
 import { renderMermaid } from './mermaidRenderer';
+import {
+  MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS,
+  resolveMermaidRenderConcurrency,
+} from './mermaidRenderQueue';
 
 describe('mermaid DOM render bounds', () => {
   beforeEach(() => {
@@ -172,6 +174,26 @@ describe('mermaid DOM render bounds', () => {
     expect(getMermaidElementCode(element)).toHaveLength(MAX_LEGACY_MERMAID_DATA_CODE_CHARS);
   });
 
+  it('selects bounded Mermaid concurrency from device capacity', () => {
+    expect(resolveMermaidRenderConcurrency({
+      hardwareConcurrency: 2,
+      deviceMemory: 2,
+    })).toBe(4);
+    expect(resolveMermaidRenderConcurrency({
+      hardwareConcurrency: 8,
+      deviceMemory: 8,
+    })).toBe(5);
+    expect(resolveMermaidRenderConcurrency({
+      hardwareConcurrency: 16,
+      deviceMemory: 16,
+    })).toBe(5);
+    expect(resolveMermaidRenderConcurrency({
+      hardwareConcurrency: 16,
+      deviceMemory: 4,
+    })).toBe(4);
+    expect(resolveMermaidRenderConcurrency({})).toBe(4);
+  });
+
   it('promotes an already queued interactive render ahead of background work', async () => {
     const startedCodes: string[] = [];
     const renderResolves = new Map<string, (markup: string) => void>();
@@ -181,13 +203,12 @@ describe('mermaid DOM render bounds', () => {
         renderResolves.set(code, resolve);
       })
     );
-    const firstCode = 'sequenceDiagram\nAlice->>Bob: first';
-    const secondCode = 'sequenceDiagram\nAlice->>Bob: second';
-    const backgroundCode = 'sequenceDiagram\nAlice->>Bob: background';
+    const backgroundCodes = Array.from(
+      { length: MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS + 1 },
+      (_value, index) => `sequenceDiagram\nAlice->>Bob: background ${index}`,
+    );
     const targetCode = 'sequenceDiagram\nAlice->>Bob: visible';
-    const first = resolveMermaidMarkup(firstCode);
-    const second = resolveMermaidMarkup(secondCode);
-    const background = resolveMermaidMarkup(backgroundCode);
+    const backgroundRenders = backgroundCodes.map((code) => resolveMermaidMarkup(code));
     const target = resolveMermaidMarkup(targetCode);
     const finishRender = async (code: string) => {
       await vi.waitFor(() => {
@@ -197,20 +218,95 @@ describe('mermaid DOM render bounds', () => {
     };
 
     await vi.waitFor(() => {
-      expect(startedCodes).toHaveLength(MAX_CONCURRENT_MERMAID_RENDERS);
+      expect(startedCodes).toHaveLength(MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS);
     }, { interval: 1, timeout: 2_000 });
     const promotedTarget = resolveMermaidMarkup(targetCode, undefined, 'interactive');
-    await finishRender(firstCode);
+    await finishRender(backgroundCodes[0]!);
 
     await vi.waitFor(() => {
-      expect(startedCodes).toHaveLength(MAX_CONCURRENT_MERMAID_RENDERS + 1);
+      expect(startedCodes[MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS]).toBe(targetCode);
     }, { interval: 1, timeout: 2_000 });
-    expect(startedCodes[MAX_CONCURRENT_MERMAID_RENDERS]).toBe(targetCode);
 
     await finishRender(targetCode);
-    await finishRender(secondCode);
-    await finishRender(backgroundCode);
-    await Promise.all([first, second, background, target, promotedTarget]);
+    for (const code of backgroundCodes.slice(1)) {
+      await finishRender(code);
+    }
+    await Promise.all([...backgroundRenders, target, promotedTarget]);
+  });
+
+  it('starts more than two background Mermaid renders on every device tier', async () => {
+    let releaseRenders = () => {};
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRenders = resolve;
+    });
+    vi.mocked(renderMermaid).mockImplementation(async (code) => {
+      await renderGate;
+      return `<svg data-rendered="${code}"></svg>`;
+    });
+
+    const renders = Array.from(
+      { length: MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS + 1 },
+      (_value, index) => resolveMermaidMarkup(
+        `sequenceDiagram\nAlice->>Bob: parallel ${index}`,
+      ),
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS).toBeGreaterThan(2);
+        expect(renderMermaid).toHaveBeenCalledTimes(
+          MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS,
+        );
+        expect(getActiveMermaidRenderCount()).toBe(
+          MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS,
+        );
+      }, { interval: 1, timeout: 2_000 });
+    } finally {
+      releaseRenders();
+      await Promise.all(renders);
+    }
+  });
+
+  it('keeps one render slot available for interactive Mermaid work', async () => {
+    let releaseRenders = () => {};
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRenders = resolve;
+    });
+    const startedCodes: string[] = [];
+    vi.mocked(renderMermaid).mockImplementation(async (code) => {
+      startedCodes.push(code);
+      await renderGate;
+      return `<svg data-rendered="${code}"></svg>`;
+    });
+    const backgroundRenders = Array.from(
+      { length: MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS + 1 },
+      (_value, index) => resolveMermaidMarkup(
+        `sequenceDiagram\nAlice->>Bob: reserved background ${index}`,
+      ),
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(startedCodes).toHaveLength(MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS);
+      }, { interval: 1, timeout: 2_000 });
+
+      const interactive = resolveMermaidMarkup(
+        'sequenceDiagram\nAlice->>Bob: reserved interactive',
+        undefined,
+        'interactive',
+      );
+      await vi.waitFor(() => {
+        expect(startedCodes.at(-1)).toContain('reserved interactive');
+        expect(getActiveMermaidRenderCount()).toBe(
+          MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS + 1,
+        );
+      }, { interval: 1, timeout: 2_000 });
+
+      releaseRenders();
+      await Promise.all([...backgroundRenders, interactive]);
+    } finally {
+      releaseRenders();
+    }
   });
 
   it('checks scroll interaction once before starting an otherwise idle render', async () => {
@@ -227,7 +323,7 @@ describe('mermaid DOM render bounds', () => {
     expect(querySelectorSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('waits for every Notes scroll root to become idle without polling the DOM', async () => {
+  it('waits for every active scroll interaction to become idle', async () => {
     vi.useFakeTimers();
     const firstScrollRoot = document.createElement('div');
     firstScrollRoot.dataset.noteScrollRoot = 'true';
@@ -236,26 +332,21 @@ describe('mermaid DOM render bounds', () => {
     secondScrollRoot.dataset.noteScrollRoot = 'true';
     secondScrollRoot.dataset.overlayScrollbarInteracting = 'true';
     document.body.append(firstScrollRoot, secondScrollRoot);
-    const querySelectorSpy = vi.spyOn(document, 'querySelector');
     vi.mocked(renderMermaid).mockResolvedValue('<svg data-rendered="idle"></svg>');
 
     const markupPromise = resolveMermaidMarkup('sequenceDiagram\nAlice->>Bob: idle wake');
 
-    expect(querySelectorSpy).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(querySelectorSpy).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(0);
     expect(renderMermaid).not.toHaveBeenCalled();
 
     delete firstScrollRoot.dataset.overlayScrollbarInteracting;
     window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
-    expect(querySelectorSpy).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(0);
     expect(renderMermaid).not.toHaveBeenCalled();
 
     delete secondScrollRoot.dataset.overlayScrollbarInteracting;
     window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
-    expect(querySelectorSpy).toHaveBeenCalledTimes(3);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(querySelectorSpy).toHaveBeenCalledTimes(4);
+    await vi.runAllTimersAsync();
 
     await expect(markupPromise).resolves.toContain('data-rendered="idle"');
     expect(renderMermaid).toHaveBeenCalledTimes(1);
@@ -275,13 +366,13 @@ describe('mermaid DOM render bounds', () => {
 
     editor.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
     window.dispatchEvent(new MouseEvent('mouseup'));
-    await vi.advanceTimersByTimeAsync(0);
+    await vi.runAllTimersAsync();
 
     await expect(markupPromise).resolves.toContain('data-rendered="selection-idle"');
     expect(renderMermaid).toHaveBeenCalledTimes(1);
   });
 
-  it('bounds pending default Mermaid renders for different diagrams', async () => {
+  it('bounds active work while eventually rendering more than 80 diagrams', async () => {
     const renderResolves: Array<(markup: string) => void> = [];
     let maxActiveRenderCount = 0;
     vi.mocked(renderMermaid).mockImplementation(
@@ -291,21 +382,18 @@ describe('mermaid DOM render bounds', () => {
       })
     );
 
-    const renders = Array.from({ length: MAX_PENDING_MERMAID_RENDERS }, (_value, index) =>
+    const diagramCount = 85;
+    const renders = Array.from({ length: diagramCount }, (_value, index) =>
       resolveMermaidMarkup(`sequenceDiagram\nAlice->>Bob: message ${index}`)
     );
     renders.forEach((render) => {
       render.catch(() => undefined);
     });
 
-    expect(getPendingMermaidRenderCount()).toBe(MAX_PENDING_MERMAID_RENDERS);
-    const overflowMarkup = await resolveMermaidMarkup('sequenceDiagram\nAlice->>Bob: overflow');
-
-    expect(overflowMarkup).toContain('mermaid-error');
-    expect(getPendingMermaidRenderCount()).toBe(MAX_PENDING_MERMAID_RENDERS);
+    expect(getPendingMermaidRenderCount()).toBe(diagramCount);
 
     await vi.waitFor(() => {
-      expect(renderResolves).toHaveLength(MAX_CONCURRENT_MERMAID_RENDERS);
+      expect(renderResolves).toHaveLength(MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS);
     }, { interval: 1, timeout: 2_000 });
     for (let index = 0; index < renders.length; index += 1) {
       await vi.waitFor(() => {
@@ -315,7 +403,7 @@ describe('mermaid DOM render bounds', () => {
     }
     await Promise.all(renders);
 
-    expect(maxActiveRenderCount).toBe(MAX_CONCURRENT_MERMAID_RENDERS);
+    expect(maxActiveRenderCount).toBe(MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS);
     expect(getActiveMermaidRenderCount()).toBe(0);
     expect(getPendingMermaidRenderCount()).toBe(0);
   });
@@ -327,26 +415,34 @@ describe('mermaid DOM render bounds', () => {
         renderResolves.push(resolve);
       })
     );
-    const elements = Array.from({ length: 4 }, (_value, index) =>
+    const elementCount = MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS + 2;
+    const sharedQueuedIndex = MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS;
+    const elements = Array.from({ length: elementCount }, (_value, index) =>
       createMermaidElement(`sequenceDiagram\nAlice->>Bob: disposed ${index}`)
     );
     const sharedQueuedElement = createMermaidElement(
-      'sequenceDiagram\nAlice->>Bob: disposed 2'
+      `sequenceDiagram\nAlice->>Bob: disposed ${sharedQueuedIndex}`
     );
 
     await vi.waitFor(() => {
-      expect(renderResolves).toHaveLength(MAX_CONCURRENT_MERMAID_RENDERS);
+      expect(renderResolves).toHaveLength(MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS);
     }, { interval: 1, timeout: 2_000 });
-    expect(getPendingMermaidRenderCount()).toBe(4);
+    expect(getPendingMermaidRenderCount()).toBe(elementCount);
 
-    disposeMermaidElement(elements[2]!);
-    expect(getPendingMermaidRenderCount()).toBe(4);
+    disposeMermaidElement(elements[sharedQueuedIndex]!);
+    expect(getPendingMermaidRenderCount()).toBe(elementCount);
     disposeMermaidElement(sharedQueuedElement);
-    expect(getPendingMermaidRenderCount()).toBe(3);
-    elements.filter((_element, index) => index !== 2).forEach(disposeMermaidElement);
+    expect(getPendingMermaidRenderCount()).toBe(elementCount - 1);
+    elements
+      .filter((_element, index) => index !== sharedQueuedIndex)
+      .forEach(disposeMermaidElement);
 
-    expect(getPendingMermaidRenderCount()).toBe(MAX_CONCURRENT_MERMAID_RENDERS);
-    expect(renderMermaid).toHaveBeenCalledTimes(MAX_CONCURRENT_MERMAID_RENDERS);
+    expect(getPendingMermaidRenderCount()).toBe(
+      MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS,
+    );
+    expect(renderMermaid).toHaveBeenCalledTimes(
+      MAX_BACKGROUND_CONCURRENT_MERMAID_RENDERS,
+    );
     renderResolves.forEach((resolve, index) => {
       resolve(`<svg data-rendered="active-${index}"></svg>`);
     });
