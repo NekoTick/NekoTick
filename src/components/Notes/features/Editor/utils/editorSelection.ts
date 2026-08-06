@@ -3,6 +3,10 @@ import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 
+export function isInitialCaretTextblock(node: ProseNode): boolean {
+  return node.isTextblock && node.type.name !== 'frontmatter';
+}
+
 export function createGapCursorSelectionAt(doc: ProseNode, pos: number): GapCursor | null {
   try {
     const $pos = doc.resolve(pos);
@@ -66,7 +70,7 @@ export function createDocumentStartTextSelection(doc: ProseNode): Selection {
 
   doc.descendants((node, pos) => {
     if (textSelectionPos !== null) return false;
-    if (node.isTextblock) {
+    if (isInitialCaretTextblock(node)) {
       textSelectionPos = pos + 1;
       return false;
     }
@@ -93,7 +97,7 @@ export function createDocumentFirstLineEndTextSelection(doc: ProseNode): Selecti
 
   doc.descendants((node, pos) => {
     if (textSelectionPos !== null) return false;
-    if (!node.isTextblock) return true;
+    if (!isInitialCaretTextblock(node)) return true;
 
     let lineEndOffset = 0;
     let foundLineBreak = false;

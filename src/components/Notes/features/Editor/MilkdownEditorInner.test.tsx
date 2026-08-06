@@ -969,6 +969,42 @@ describe('createDocumentStartTextSelection', () => {
 });
 
 describe('createDocumentFirstLineEndTextSelection', () => {
+  it('skips leading frontmatter and places the cursor at the first body line end', () => {
+    const schema = new ProseSchema({
+      nodes: {
+        doc: { content: 'block+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          toDOM: () => ['p', 0],
+          parseDOM: [{ tag: 'p' }],
+        },
+        frontmatter: {
+          content: 'text*',
+          group: 'block',
+          code: true,
+          isolating: true,
+          toDOM: () => ['div', 0],
+          parseDOM: [{ tag: 'div' }],
+        },
+        text: { group: 'inline' },
+      },
+    });
+    const bodyText = 'First body line';
+    const frontmatter = schema.nodes.frontmatter.create(null, schema.text('title: Demo'));
+    const doc = schema.node('doc', null, [
+      frontmatter,
+      schema.nodes.paragraph.create(null, schema.text(bodyText)),
+    ]);
+
+    const selection = createDocumentFirstLineEndTextSelection(doc);
+
+    expect(selection).toBeInstanceOf(TextSelection);
+    expect(selection.from).toBe(frontmatter.nodeSize + 1 + bodyText.length);
+    expect(selection.$from.parent.type.name).toBe('paragraph');
+    expect(selection.empty).toBe(true);
+  });
+
   it('skips a leading atomic block and places the cursor at the end of the first text block line', () => {
     const schema = new ProseSchema({
       nodes: {
