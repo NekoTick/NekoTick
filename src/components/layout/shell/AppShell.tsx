@@ -66,6 +66,7 @@ export function AppShell({
   const [isSidebarPeeking, setIsSidebarPeeking] = useState(false);
   const setLayoutPanelDragging = useUIStore((state) => state.setLayoutPanelDragging);
   const setLayoutPanelTransitioning = useUIStore((state) => state.setLayoutPanelTransitioning);
+  const hasSidebar = Boolean(sidebarContent);
 
   const clearSidebarPeekCloseTimer = useCallback(() => {
     if (!sidebarPeekCloseTimerRef.current) return;
@@ -178,6 +179,19 @@ export function AppShell({
       setIsSidebarPeeking(false);
     }
   }, [clearSidebarPeekCloseTimer, sidebarCollapsed, sidebarHoverPeekEnabled]);
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const hasCollapsedSidebar = hasSidebar && sidebarCollapsed;
+    const sidebarPeekOpen = hasCollapsedSidebar && sidebarHoverPeekEnabled && isSidebarPeeking;
+    root.toggleAttribute('data-shell-sidebar-peek', hasCollapsedSidebar);
+    root.toggleAttribute('data-shell-sidebar-peek-open', sidebarPeekOpen);
+
+    return () => {
+      root.removeAttribute('data-shell-sidebar-peek');
+      root.removeAttribute('data-shell-sidebar-peek-open');
+    };
+  }, [hasSidebar, isSidebarPeeking, sidebarCollapsed, sidebarHoverPeekEnabled]);
 
   useEffect(() => clearSidebarPeekCloseTimer, [clearSidebarPeekCloseTimer]);
   useEffect(

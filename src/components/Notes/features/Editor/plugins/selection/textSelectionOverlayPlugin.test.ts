@@ -32,6 +32,7 @@ import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from './textSelectionOverlayState'
 
 const OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
+const LARGE_SELECTION_CLASS = 'editor-large-all-selection';
 const KEYBOARD_SELECTION_PENDING_CLASS = 'editor-keyboard-selection-pending';
 
 function getOverlayText(view: EditorView): string {
@@ -214,6 +215,114 @@ describe('textSelectionOverlayPlugin', () => {
     view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 4)));
 
     expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
+  });
+
+  it('renders large editor-wide selections with a collapsed native anchor and no text overlays', async () => {
+    const view = await createEditor('x'.repeat(100_001));
+
+    view.focus();
+    view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)));
+
+    expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(false);
+    expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(true);
+    expect(view.dom.querySelectorAll(`.${TEXT_SELECTION_OVERLAY_CLASS}`)).toHaveLength(0);
+    expect(window.getSelection()?.rangeCount).toBe(1);
+    expect(window.getSelection()?.isCollapsed).toBe(true);
+
+    const nativeSelection = window.getSelection();
+    const anchorNode = nativeSelection?.anchorNode;
+    const anchorOffset = nativeSelection?.anchorOffset;
+    expect(anchorNode).not.toBeNull();
+    expect(anchorOffset).toBeDefined();
+    nativeSelection?.removeAllRanges();
+    const restoredAnchor = document.createRange();
+    restoredAnchor.setStart(anchorNode!, anchorOffset!);
+    restoredAnchor.collapse(true);
+    nativeSelection?.addRange(restoredAnchor);
+    (view as unknown as {
+      domObserver: { suppressingSelectionUpdates: boolean };
+    }).domObserver.suppressingSelectionUpdates = false;
+    document.dispatchEvent(new Event('selectionchange'));
+
+    expect(view.state.selection).toBeInstanceOf(AllSelection);
+
+    const arrowEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'ArrowRight',
+    });
+    view.dom.dispatchEvent(arrowEvent);
+
+    expect(arrowEvent.defaultPrevented).toBe(true);
+    expect(view.state.selection.empty).toBe(true);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(false);
+  });
+
+  it('uses the large selection path for structurally dense documents only when the range is broad', async () => {
+    const markdown = Array.from({ length: 260 }, (_, index) => `## Dense ${index}`).join('\n');
+    const view = await createEditor(markdown);
+
+    view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)));
+
+    expect(view.state.doc.content.size).toBeLessThan(100_000);
+    expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(false);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(false);
+    expect(view.dom.querySelectorAll('.editor-large-selection-visible').length).toBeGreaterThan(0);
+    expect(view.dom.querySelectorAll(`.${TEXT_SELECTION_OVERLAY_CLASS}`)).toHaveLength(0);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 5)));
+
+    expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(false);
+  });
+
+  it('handles large keyboard boundary selections with a collapsed native anchor and no text overlays', async () => {
+    const view = await createEditor('x'.repeat(100_001), [floatingToolbarPlugin]);
+    view.focus();
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)));
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      key: 'End',
+      shiftKey: true,
+    });
+
+    view.dom.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.to - view.state.selection.from).toBeGreaterThanOrEqual(100_000);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(true);
+    expect(view.dom.querySelectorAll(`.${TEXT_SELECTION_OVERLAY_CLASS}`)).toHaveLength(0);
+    expect(window.getSelection()?.rangeCount).toBe(1);
+    expect(window.getSelection()?.isCollapsed).toBe(true);
+    expect(floatingToolbarKey.getState(view.state)?.isVisible).toBe(false);
+
+    const arrowEvent = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'ArrowLeft',
+    });
+    view.dom.dispatchEvent(arrowEvent);
+
+    expect(arrowEvent.defaultPrevented).toBe(true);
+    expect(view.state.selection.empty).toBe(true);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(false);
+  });
+
+  it('replaces a large editor-wide selection when typing', async () => {
+    const view = await createEditor('x'.repeat(100_001));
+    view.focus();
+    view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)));
+    const event = new KeyboardEvent('keypress', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'charCode', { value: 'z'.charCodeAt(0) });
+
+    view.dom.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.textContent).toBe('z');
   });
 
   it('clears stale text selection overlays when block selection starts', async () => {
@@ -1291,12 +1400,15 @@ describe('textSelectionOverlayPlugin', () => {
     expect(view.dom.querySelectorAll(`.${TEXT_SELECTION_OVERLAY_CLASS}`)).toHaveLength(4);
   });
 
-  it('caps text selection overlay decorations across selected text nodes', async () => {
+  it('skips text selection overlays across structurally large selections', async () => {
     const view = await createEditor(Array.from({ length: 1005 }, (_, index) => `line ${index}`).join('\n\n'));
 
     view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)));
 
-    expect(view.dom.querySelectorAll(`.${TEXT_SELECTION_OVERLAY_CLASS}`)).toHaveLength(1000);
+    expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(false);
+    expect(view.dom.classList.contains(LARGE_SELECTION_CLASS)).toBe(false);
+    expect(view.dom.querySelectorAll('.editor-large-selection-visible').length).toBeGreaterThan(0);
+    expect(view.dom.querySelectorAll(`.${TEXT_SELECTION_OVERLAY_CLASS}`)).toHaveLength(0);
   });
 
   it('caps text selection overlay node scans', async () => {

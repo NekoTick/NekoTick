@@ -1,4 +1,4 @@
-import { TextSelection, type EditorState } from '@milkdown/kit/prose/state';
+import { AllSelection, TextSelection, type EditorState } from '@milkdown/kit/prose/state';
 import { Fragment, type Slice } from '@milkdown/kit/prose/model';
 import { CellSelection } from '@milkdown/kit/prose/tables';
 import type { Serializer } from '@milkdown/kit/transformer';
@@ -37,6 +37,14 @@ function isTextSelectionLike(selection: EditorState['selection']): boolean {
   }
 
   return selection.constructor?.name === 'TextSelection';
+}
+
+function isAllSelectionLike(selection: EditorState['selection']): boolean {
+  if (typeof AllSelection === 'function' && selection instanceof AllSelection) {
+    return true;
+  }
+
+  return selection.constructor?.name === 'AllSelection';
 }
 
 function shouldCopyTextSelectionAsPlainText(state: EditorState, slice: Slice): boolean {
@@ -212,25 +220,36 @@ export function serializeSelectionToClipboardText(
     return serializeSelectionFrontmatterMarkdown(singleListItemText);
   }
 
-  if (markdownSerializer && isSliceWithinClipboardTraversalBudget(slice)) {
-    const selectedListText = serializeBoundarySelectedListItemsWithMarkdown(state, markdownSerializer);
-    if (selectedListText !== null) {
-      return serializeSelectionFrontmatterMarkdown(selectedListText);
-    }
-
-    const topLevelBlockText = serializeSliceTopLevelBlocks(state, slice, markdownSerializer);
-    if (topLevelBlockText !== null) {
-      return serializeSelectionFrontmatterMarkdown(topLevelBlockText);
-    }
-
-    try {
-      const doc = state.schema.topNodeType.createAndFill(undefined, slice.content);
-      if (doc) {
-        return serializeSelectionFrontmatterMarkdown(
-          normalizeSerializedMarkdownSelection(markdownSerializer(doc))
-        );
+  if (markdownSerializer) {
+    if (isSliceWithinClipboardTraversalBudget(slice)) {
+      const selectedListText = serializeBoundarySelectedListItemsWithMarkdown(state, markdownSerializer);
+      if (selectedListText !== null) {
+        return serializeSelectionFrontmatterMarkdown(selectedListText);
       }
-    } catch {
+
+      const topLevelBlockText = serializeSliceTopLevelBlocks(state, slice, markdownSerializer);
+      if (topLevelBlockText !== null) {
+        return serializeSelectionFrontmatterMarkdown(topLevelBlockText);
+      }
+
+      try {
+        const doc = state.schema.topNodeType.createAndFill(undefined, slice.content);
+        if (doc) {
+          return serializeSelectionFrontmatterMarkdown(
+            normalizeSerializedMarkdownSelection(markdownSerializer(doc))
+          );
+        }
+      } catch {
+        // Fall through to the plain-text fallback below.
+      }
+    } else if (isAllSelectionLike(selection)) {
+      try {
+        return serializeSelectionFrontmatterMarkdown(
+          normalizeSerializedMarkdownSelection(markdownSerializer(state.doc))
+        );
+      } catch {
+        // Fall through to the plain-text fallback below.
+      }
     }
   }
 

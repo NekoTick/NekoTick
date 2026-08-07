@@ -198,6 +198,7 @@ export function collapseCommittedCompositionSelection(
     const { state } = view;
     const { selection } = state;
     if (selection.empty) return false;
+    if (selection.to - selection.from > MAX_COMPOSITION_REPAIR_TEXT_LENGTH) return false;
 
     const selectedText = state.doc.textBetween(selection.from, selection.to, '\n');
     if (selectedText !== committedText) return false;
@@ -249,6 +250,7 @@ export function replaceSelectedTextWithCommittedComposition(
     const { state } = view;
     const { selection } = state;
     if (selection.empty) return false;
+    if (selection.to - selection.from > MAX_COMPOSITION_REPAIR_TEXT_LENGTH) return false;
 
     const selectedText = state.doc.textBetween(selection.from, selection.to, '\n');
     if (

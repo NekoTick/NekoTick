@@ -7,15 +7,25 @@ import { DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT } from '../shared/boundedProseNodeSca
 export const TEXT_SELECTION_OVERLAY_CLASS = 'editor-text-selection-overlay';
 export const TEXT_SELECTION_OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 export const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
+export const LARGE_SELECTION_CLASS = 'editor-large-all-selection';
+export const LARGE_SELECTION_HIGHLIGHT_NAME = 'editor-large-all-selection';
+export const LARGE_SELECTION_VISIBLE_ELEMENT_CLASS = 'editor-large-selection-visible';
 export const POINTER_SELECTION_ACTIVE_ATTRIBUTE = 'data-editor-pointer-selecting';
 export const KEYBOARD_SELECTION_PENDING_CLASS = 'editor-keyboard-selection-pending';
 export const KEY_EVENT_LISTENER_OPTIONS = { capture: true };
 export const POINTER_NATIVE_SELECTION_META = 'editorTextSelectionPointerNative';
-export const EDITOR_ONLY_TEXT_SELECTION_PLACEHOLDERS = new Set(['\u200B', '\u200C', '\u2800']);
 export const VISIBLE_TEXT_PATTERN = /\S/u;
-export const LINE_BREAK_PATTERN = /[\n\r\u2028\u2029]/u;
 export const MAX_TEXT_SELECTION_OVERLAY_DECORATIONS = 1000;
 export const MAX_TEXT_SELECTION_OVERLAY_SCAN_NODES = DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT;
+export const LARGE_SELECTION_MIN_RANGE_SIZE = 100_000;
+export const LARGE_SELECTION_MIN_SELECTED_NODES = 500;
+
+const STOP_LARGE_SELECTION_NODE_SCAN = Symbol('stopLargeSelectionNodeScan');
+const largeSelectionNodeScanCache = new WeakMap<object, {
+  from: number;
+  isLarge: boolean;
+  to: number;
+}>();
 
 export interface TextSelectionOverlayState {
   decorations: DecorationSet;
@@ -77,6 +87,70 @@ export function isTextSelectionOverlayEligible(state: EditorState): boolean {
   if (!(selection instanceof TextSelection) && !(selection instanceof AllSelection)) return false;
   if (hasSelectedBlocks(state)) return false;
   return true;
+}
+
+export function isStructurallyLargeEditorSelectionRange(
+  doc: EditorState['doc'],
+  selection: EditorState['selection'],
+): boolean {
+  if (selection.to - selection.from < LARGE_SELECTION_MIN_SELECTED_NODES) {
+    return false;
+  }
+
+  const cached = largeSelectionNodeScanCache.get(doc);
+  if (cached?.from === selection.from && cached.to === selection.to) {
+    return cached.isLarge;
+  }
+
+  let selectedNodes = 0;
+  let isLarge = false;
+  try {
+    doc.nodesBetween(selection.from, selection.to, () => {
+      selectedNodes += 1;
+      if (selectedNodes >= LARGE_SELECTION_MIN_SELECTED_NODES) {
+        isLarge = true;
+        throw STOP_LARGE_SELECTION_NODE_SCAN;
+      }
+    });
+  } catch (error) {
+    if (error !== STOP_LARGE_SELECTION_NODE_SCAN) throw error;
+  }
+
+  largeSelectionNodeScanCache.set(doc, {
+    from: selection.from,
+    isLarge,
+    to: selection.to,
+  });
+  return isLarge;
+}
+
+export function isLargeEditorSelectionRange(
+  doc: EditorState['doc'],
+  selection: EditorState['selection'],
+): boolean {
+  return (
+    selection.to - selection.from >= LARGE_SELECTION_MIN_RANGE_SIZE
+    || isStructurallyLargeEditorSelectionRange(doc, selection)
+  );
+}
+
+export function isLargeEditorAllSelection(state: EditorState): boolean {
+  return (
+    state.selection instanceof AllSelection
+    && isLargeEditorSelectionRange(state.doc, state.selection)
+  );
+}
+
+export function isLargeEditorTextSelection(state: EditorState): boolean {
+  return (
+    state.selection instanceof TextSelection
+    && !state.selection.empty
+    && isLargeEditorSelectionRange(state.doc, state.selection)
+  );
+}
+
+export function isLargeEditorSelection(state: EditorState): boolean {
+  return isLargeEditorAllSelection(state) || isLargeEditorTextSelection(state);
 }
 
 export function showTextSelectionOverlayForTransaction(tr: EditorState['tr']): EditorState['tr'] {
