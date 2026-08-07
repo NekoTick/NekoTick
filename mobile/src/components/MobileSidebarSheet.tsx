@@ -4,6 +4,7 @@ import { useAIUIStore } from '@/stores/ai/chatState';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
 import { useGraphUIStore } from '@/components/Graph/store/useGraphUIStore';
 import { useWhiteboardStore } from '@/components/Whiteboard/stores/useWhiteboardStore';
+import { Icon } from '@/components/ui/icons';
 import type { MobileViewMode } from '../app/mobilePlatform';
 import { MobileLayer } from './MobileLayer';
 
@@ -28,9 +29,15 @@ interface MobileSidebarSheetProps {
   activeView: MobileViewMode;
   open: boolean;
   onClose: () => void;
+  onOpenMore: () => void;
 }
 
-export function MobileSidebarSheet({ activeView, open, onClose }: MobileSidebarSheetProps) {
+export function MobileSidebarSheet({
+  activeView,
+  open,
+  onClose,
+  onOpenMore,
+}: MobileSidebarSheetProps) {
   const { t } = useI18n();
   const currentNotePath = useNotesStore((state) => state.currentNote?.path ?? null);
   const currentSessionId = useAIUIStore((state) => state.currentSessionId);
@@ -71,6 +78,16 @@ export function MobileSidebarSheet({ activeView, open, onClose }: MobileSidebarS
       variant="drawer"
       onClose={onClose}
       contentClassName="mobile-sidebar-sheet"
+      headerTrailing={(
+        <button
+          type="button"
+          className="mobile-icon-button"
+          aria-label={t('sidebar.more')}
+          onClick={onOpenMore}
+        >
+          <Icon name="common.more" size="lg" />
+        </button>
+      )}
     >
       <div
         className="mobile-sidebar-sheet__body"

@@ -64,23 +64,18 @@ vi.mock('./app/MobileProviders', () => ({
 vi.mock('./components/MobileTopBar', () => ({
   MobileTopBar: ({
     activeView,
-    onCreateNote,
-    onOpenMore,
+    onOpenSidebar,
+    onViewChange,
   }: {
     activeView: string;
-    onCreateNote: () => void;
-    onOpenMore: () => void;
+    onOpenSidebar: () => void;
+    onViewChange: (view: 'chat') => void;
   }) => (
     <header data-testid="top-bar" data-view={activeView}>
-      <button type="button" onClick={onCreateNote}>Create note</button>
-      <button type="button" onClick={onOpenMore}>Open more</button>
+      <button type="button" onClick={onOpenSidebar}>Open sidebar</button>
+      <button type="button" onClick={() => onViewChange('chat')}>Open Chat</button>
     </header>
   ),
-}));
-vi.mock('./components/MobileBottomNav', () => ({
-  MobileBottomNav: ({ onViewChange }: {
-    onViewChange: (view: 'chat') => void;
-  }) => <button type="button" onClick={() => onViewChange('chat')}>Open Chat</button>,
 }));
 vi.mock('./components/MobileMoreSheet', () => ({
   MobileMoreSheet: ({
@@ -112,11 +107,23 @@ vi.mock('./components/MobileMoreSheet', () => ({
   ) : null,
 }));
 vi.mock('./components/MobileSidebarSheet', () => ({
-  MobileSidebarSheet: () => null,
+  MobileSidebarSheet: ({ open, onOpenMore }: { open: boolean; onOpenMore: () => void }) => open ? (
+    <section role="dialog" aria-label="Sidebar">
+      <button type="button" onClick={onOpenMore}>Open more</button>
+    </section>
+  ) : null,
 }));
 vi.mock('./screens/MobileMainView', () => ({
-  MobileMainView: ({ activeView }: { activeView: string }) => (
-    <main data-testid="main-view" data-view={activeView} />
+  MobileMainView: ({
+    activeView,
+    onCreateNote,
+  }: {
+    activeView: string;
+    onCreateNote: () => void;
+  }) => (
+    <main data-testid="main-view" data-view={activeView}>
+      <button type="button" onClick={onCreateNote}>Create note</button>
+    </main>
   ),
 }));
 vi.mock('./screens/MobileSettingsScreen', () => ({
@@ -192,6 +199,7 @@ describe('MobileApp shell integration', () => {
     const share = vi.fn().mockResolvedValue(true);
     render(<MobileApp platform={{ share }} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open sidebar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open more' }));
     fireEvent.click(screen.getByRole('button', { name: 'Share current note' }));
 
@@ -208,6 +216,7 @@ describe('MobileApp shell integration', () => {
   it('opens Settings and resolves externally requested settings tabs', () => {
     render(<MobileApp platform={{}} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open sidebar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open more' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     expect(screen.getByRole('dialog', { name: 'Settings' })).toHaveTextContent(
@@ -227,6 +236,7 @@ describe('MobileApp shell integration', () => {
   it('routes a signed-out Account action to Login', () => {
     render(<MobileApp platform={{}} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open sidebar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open more' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open account' }));
 
@@ -238,6 +248,7 @@ describe('MobileApp shell integration', () => {
     controls.isConnected = true;
     render(<MobileApp platform={{}} />);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Open sidebar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open more' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open account' }));
     expect(screen.getByRole('dialog', { name: 'Account' })).toBeInTheDocument();
