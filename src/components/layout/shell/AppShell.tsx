@@ -112,6 +112,16 @@ export function AppShell({
       target.style.setProperty('--vlaina-shell-sidebar-width', sidebarWidthValue);
       target.style.setProperty('--vlaina-width-sidebar-content-inner', sidebarContentInnerValue);
     }
+
+    // Keep the temporary main-layout freeze aligned with the live main width.
+    // Otherwise right-anchored content stays at the drag-start boundary until release.
+    const frozenMainLayout = frozenMainLayoutRef.current;
+    if (!frozenMainLayout) return;
+    const mainWidth = `${frozenMainLayout.main.clientWidth}px`;
+    for (const child of frozenMainLayout.children) {
+      child.element.style.width = mainWidth;
+      child.element.style.minWidth = mainWidth;
+    }
   }, []);
 
   const restoreFrozenMainLayout = useCallback(() => {
