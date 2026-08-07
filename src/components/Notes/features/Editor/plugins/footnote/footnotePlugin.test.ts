@@ -12,11 +12,13 @@ import {
   MAX_FOOTNOTE_REF_INPUT_PREFIX_CHECK_CHARS,
   footnoteInteractionPluginKey,
   footnotePlugin,
+  FOOTNOTE_TOOLTIP_POSITIONED_CLASS,
   handleEmptyFootnoteDefinitionDelete,
   handleFootnoteArrowNavigation,
   handleFootnoteModEnterExit,
   hasNonBlankFootnoteRefInputPrefix,
   serializeFootnoteDefinitionToMarkdown,
+  syncFootnoteTooltipPosition,
   transactionTouchesFootnoteContext,
 } from './footnotePlugin';
 import { normalizeFootnoteLabel, normalizeFootnotePreview } from './footnoteLabels';
@@ -88,6 +90,27 @@ function pressEnter(view: EditorView): boolean {
 }
 
 describe('footnote markdown serialization', () => {
+  it('positions a visible tooltip outside overflow containers', () => {
+    const ref = document.createElement('sup');
+    vi.spyOn(ref, 'getBoundingClientRect').mockReturnValue({
+      x: 120,
+      y: 80,
+      left: 120,
+      top: 80,
+      right: 136,
+      bottom: 96,
+      width: 16,
+      height: 16,
+      toJSON: () => ({}),
+    });
+
+    syncFootnoteTooltipPosition(ref);
+
+    expect(ref.classList.contains(FOOTNOTE_TOOLTIP_POSITIONED_CLASS)).toBe(true);
+    expect(ref.style.getPropertyValue('--vlaina-footnote-tooltip-left')).toBe('128px');
+    expect(ref.style.getPropertyValue('--vlaina-footnote-tooltip-top')).toBe('80px');
+  });
+
   it('serializes footnote definitions as real footnoteDefinition nodes', () => {
     const { calls, state } = createRecorder();
     const content = { id: 'footnote-content' };
@@ -127,6 +150,38 @@ describe('footnote markdown serialization', () => {
 });
 
 describe('footnote reference markup', () => {
+  it('positions the tooltip when a reference is hovered', async () => {
+    const editor = Editor.make()
+      .config((ctx) => ctx.set(defaultValueCtx, ['Text[^note].', '', '[^note]: Body'].join('\n')))
+      .use(commonmark)
+      .use(gfm)
+      .use(footnotePlugin)
+      .use(configureTheme);
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const reference = view.dom.querySelector<HTMLElement>('sup.footnote-ref');
+    expect(reference).toBeInstanceOf(HTMLElement);
+    vi.spyOn(reference!, 'getBoundingClientRect').mockReturnValue({
+      x: 120,
+      y: 80,
+      left: 120,
+      top: 80,
+      right: 136,
+      bottom: 96,
+      width: 16,
+      height: 16,
+      toJSON: () => ({}),
+    });
+
+    reference!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+    expect(reference!.classList.contains(FOOTNOTE_TOOLTIP_POSITIONED_CLASS)).toBe(true);
+    expect(reference!.style.getPropertyValue('--vlaina-footnote-tooltip-left')).toBe('128px');
+    await editor.destroy();
+  });
+
   it('creates an editable footnote definition from its typed marker', async () => {
     const editor = Editor.make()
       .config((ctx) => ctx.set(defaultValueCtx, ''))

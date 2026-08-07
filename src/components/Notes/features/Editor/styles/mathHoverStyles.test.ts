@@ -95,7 +95,7 @@ describe('math hover styles', () => {
     expect(mathCss).toContain(".milkdown .mermaid-block:hover,");
     const mermaidRule = extendedCss.match(/^\.milkdown \.mermaid-block \{(?<body>[\s\S]*?)\n\}/m)?.groups?.body ?? '';
     const lazyMermaidRule = extendedCss.match(
-      /\.milkdown-editor\[data-note-lazy-block-visibility='true'\] \.milkdown \.mermaid-block \{(?<body>[\s\S]*?)\n\}/,
+      /\.milkdown-editor\[data-note-lazy-block-visibility='true'\]\[data-markdown-compat-layer='native'\][\s\S]*?\.milkdown \.ProseMirror:not\(\.editor-find-active\) \.mermaid-block \{(?<body>[\s\S]*?)\n\}/,
     )?.groups?.body ?? '';
     const placeholderRule = extendedCss.match(
       /\.milkdown \.mermaid-placeholder \{(?<body>[\s\S]*?)\n\}/,
@@ -172,14 +172,15 @@ describe('math hover styles', () => {
     const css = readMathStyles();
     const themeCss = readThemeStyle();
 
-    expect(css).toContain(".milkdown-editor[data-note-lazy-block-visibility='true']");
-    expect(css).toContain(".milkdown [data-type='math-block'].math-block-wrapper {");
+    expect(css).toContain(".milkdown-editor[data-note-lazy-block-visibility='true'][data-markdown-compat-layer='native']");
+    expect(css).toContain(".milkdown .ProseMirror:not(.editor-find-active) [data-type='math-block'].math-block-wrapper {");
     expect(css).toContain('content-visibility: auto;');
     expect(css).toContain('contain-intrinsic-size: var(--vlaina-height-math-block-intrinsic);');
     expect(themeCss).toContain('--vlaina-height-math-block-intrinsic: auto var(--vlaina-size-96px);');
     expect(css).toContain('overflow-x: auto;');
     expect(css).toContain(".milkdown [data-type='math-block'].math-block-wrapper .katex-display {");
     expect(css).toContain('max-width: 100%;');
+    expect(css).toContain('padding-block: var(--vlaina-space-2px);');
     expect(css).toContain(".milkdown [data-type='math-block'].math-block-wrapper .katex-display > .katex {");
     expect(css).toContain('min-width: max-content;');
   });

@@ -66,6 +66,24 @@ describe("editor markdown presentation styles", () => {
     expect(css).toContain('bottom: var(--vlaina-space--025em);');
   });
 
+  it('allows table footnote tooltips to extend beyond the table border', () => {
+    const commonCss = readCommonMarkdownSurfaceStyle();
+    const editorCss = readStyleFile('extended.css');
+    const themeCss = readThemeStyle();
+    const tableRule = extractCssRule(commonCss, '.markdown-surface table {');
+    const positionedTooltipRule = extractCssRule(
+      editorCss,
+      '.milkdown .footnote-ref.editor-footnote-tooltip-positioned::after {'
+    );
+
+    expect(tableRule).toContain('border-radius: var(--vlaina-markdown-radius-table);');
+    expect(tableRule).toContain('overflow: visible;');
+    expect(positionedTooltipRule).toContain('position: fixed;');
+    expect(positionedTooltipRule).toContain('left: clamp(');
+    expect(positionedTooltipRule).toContain('var(--vlaina-footnote-tooltip-inline-reserve),');
+    expect(themeCss).toContain('--vlaina-footnote-tooltip-inline-reserve: calc(');
+  });
+
   it('shows a pointer cursor over coordinate-resolved task checkboxes', () => {
     const css = readStyleFile('markdown.css');
 

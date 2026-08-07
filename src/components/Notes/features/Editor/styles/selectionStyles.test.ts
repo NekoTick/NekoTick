@@ -51,6 +51,11 @@ describe("editor style theme compatibility", () => {
     expect(css).toContain('.milkdown-table-block.table-figure.editor-typora-table-figure-without-caption');
     expect(css).toContain(`${scope} #write .v-btn-group.editor-typora-button-group-has-selected {`);
     expect(css).toContain(`:where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora #write :is(blockquote, details, .md-alert)) {`);
+    const typoraCalloutRule = extractCssRule(
+      css,
+      `:where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora #write .callout.md-alert)`
+    );
+    expect(typoraCalloutRule).toContain('overflow: visible;');
     expect(css).toContain(`${scope} #write table :is(th, td).td-span {`);
     expect(css).toContain(`${scope} #write .vlook-caption-gap {`);
     expect(css).toContain(`${scope} #write .vlook-caption-target-codeblock.code-block-container.md-fences,`);

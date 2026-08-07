@@ -46,6 +46,28 @@ const schema = new SchemaCtor({
       toDOM: () => ['span', { class: 'image-block-container' }],
       parseDOM: [{ tag: 'span.image-block-container' }],
     },
+    html: {
+      inline: true,
+      group: 'inline',
+      atom: true,
+      attrs: { value: { default: '' } },
+      toDOM: () => ['span', { 'data-type': 'html' }],
+      parseDOM: [{ tag: 'span[data-type="html"]' }],
+    },
+    footnote_ref: {
+      inline: true,
+      group: 'inline',
+      atom: true,
+      toDOM: () => ['sup', { class: 'footnote-ref' }],
+      parseDOM: [{ tag: 'sup.footnote-ref' }],
+    },
+    footnote_reference: {
+      inline: true,
+      group: 'inline',
+      atom: true,
+      toDOM: () => ['sup', { 'data-type': 'footnote_reference' }],
+      parseDOM: [{ tag: 'sup[data-type="footnote_reference"]' }],
+    },
     html_block: {
       group: 'block',
       atom: true,
@@ -74,6 +96,14 @@ const schema = new SchemaCtor({
       parseDOM: [{ tag: 'strong' }],
       toDOM: () => ['strong', 0],
     },
+    superscript: {
+      parseDOM: [{ tag: 'sup' }],
+      toDOM: () => ['sup', 0],
+    },
+    subscript: {
+      parseDOM: [{ tag: 'sub' }],
+      toDOM: () => ['sub', 0],
+    },
   },
 });
 
@@ -85,8 +115,8 @@ function paragraph(text = '', attrs?: Record<string, unknown>) {
   return schema.nodes.paragraph.create(attrs, textNode(text));
 }
 
-function image() {
-  return schema.nodes.image.create({ src: 'image.png' });
+function image(src = 'image.png') {
+  return schema.nodes.image.create({ src });
 }
 
 function paragraphWithChildren(children: unknown[], attrs?: Record<string, unknown>) {
@@ -167,6 +197,29 @@ describe('structuralStyleDecorations', () => {
     );
     expect(getStructuralStyleDecorationClass(paragraph('plain text '.repeat(300)))).toBeNull();
     expect(getStructuralStyleDecorationClass(paragraphWithChildren(denseChildren.slice(0, 6)))).toBeNull();
+  });
+
+  it('eagerly lays out paragraphs with overflow-prone inline content', () => {
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      schema.text('up', [schema.marks.superscript.create()]),
+    ]))).toBe(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      schema.text('down', [schema.marks.subscript.create()]),
+    ]))).toBe(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      schema.nodes.footnote_ref.create(),
+    ]))).toBe(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      schema.nodes.footnote_reference.create(),
+    ]))).toBe(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      schema.nodes.html.create({ value: '<kbd>Enter</kbd>' }),
+    ]))).toBe(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
+    expect(getStructuralStyleDecorationClass(paragraphWithChildren([
+      image('image.png#shadow'),
+    ]))).toBe(
+      `${STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS} ${STRUCTURAL_PARAGRAPH_HAS_IMAGE_BLOCK_CLASS}`,
+    );
   });
 
   it('marks list items based on direct child text alignment', () => {

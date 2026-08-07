@@ -195,8 +195,8 @@
   background: transparent !important;
 }
 
-.milkdown-editor[data-note-lazy-block-visibility='true']
-  .milkdown [data-type='math-block'].math-block-wrapper {
+.milkdown-editor[data-note-lazy-block-visibility='true'][data-markdown-compat-layer='native']
+  .milkdown .ProseMirror:not(.editor-find-active) [data-type='math-block'].math-block-wrapper {
   content-visibility: auto;
   contain-intrinsic-size: var(--vlaina-height-math-block-intrinsic);
   display: block;
@@ -214,6 +214,7 @@
   display: block;
   max-width: 100%;
   margin: var(--vlaina-space-0);
+  padding-block: var(--vlaina-space-2px);
   overflow-x: auto;
   overflow-y: hidden;
   text-align: center;

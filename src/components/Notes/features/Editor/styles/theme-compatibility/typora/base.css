@@ -154,7 +154,7 @@
   display: block;
   grid-template-columns: none;
   gap: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 :where(.milkdown-editor[data-markdown-compat-layer='external'].theme-typora #write .callout.md-alert .callout-title) {
