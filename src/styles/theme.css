@@ -447,6 +447,10 @@
   --vlaina-width-math-editor: min(var(--vlaina-math-editor-width, calc(100vw - var(--vlaina-size-48px))), calc(100vw - var(--vlaina-size-48px)));
   --vlaina-width-math-editor-mobile: min(var(--vlaina-math-editor-width, calc(100vw - var(--vlaina-size-24px))), calc(100vw - var(--vlaina-size-24px)));
   --vlaina-width-footnote-tooltip-max: min(var(--vlaina-size-16rem), var(--vlaina-size-60vw));
+  --vlaina-width-footnote-tooltip-half-max: min(var(--vlaina-size-8rem), 30vw);
+  --vlaina-footnote-tooltip-inline-reserve: calc(var(--vlaina-width-footnote-tooltip-half-max) + var(--vlaina-space-065rem) + var(--vlaina-border-width-1) + var(--vlaina-space-8px));
+  --vlaina-footnote-tooltip-left: auto;
+  --vlaina-footnote-tooltip-top: auto;
   --vlaina-width-task-align-max: calc(100% - var(--vlaina-size-24px));
   --vlaina-markdown-size-blank-line: calc(1em + var(--vlaina-size-8px));
   --vlaina-height-block-intrinsic: var(--vlaina-size-56px);

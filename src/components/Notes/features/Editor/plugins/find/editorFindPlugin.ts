@@ -17,18 +17,31 @@ import {
   type EditorFindPluginState,
 } from './editorFindState';
 
+export const EDITOR_FIND_ACTIVE_CLASS = 'editor-find-active';
+
+export function syncEditorFindActiveClass(view: EditorView, state: EditorFindPluginState) {
+  view.dom.classList.toggle(EDITOR_FIND_ACTIVE_CLASS, state.query.length > 0);
+}
+
 class EditorFindPluginView {
   constructor(private view: EditorView) {
-    publishEditorFindSnapshot(this.view, editorFindPluginKey.getState(this.view.state) ?? EMPTY_STATE);
+    this.publish();
   }
 
   update(view: EditorView) {
     this.view = view;
-    publishEditorFindSnapshot(this.view, editorFindPluginKey.getState(this.view.state) ?? EMPTY_STATE);
+    this.publish();
   }
 
   destroy() {
+    this.view.dom.classList.remove(EDITOR_FIND_ACTIVE_CLASS);
     publishEditorFindSnapshot(null, null);
+  }
+
+  private publish() {
+    const state = editorFindPluginKey.getState(this.view.state) ?? EMPTY_STATE;
+    syncEditorFindActiveClass(this.view, state);
+    publishEditorFindSnapshot(this.view, state);
   }
 }
 

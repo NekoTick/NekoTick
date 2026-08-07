@@ -19,6 +19,8 @@ export const MAX_STRUCTURAL_STYLE_SCAN_NODES = DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT
 export const MAX_STRUCTURAL_STYLE_RANGE_SCAN_NODES = MAX_STRUCTURAL_STYLE_SCAN_NODES;
 
 const STRUCTURAL_STYLE_NODE_TYPES = new Set(['paragraph', 'list_item']);
+const EAGER_LAYOUT_INLINE_NODE_TYPES = new Set(['footnote_ref', 'footnote_reference', 'html']);
+const EAGER_LAYOUT_MARK_TYPES = new Set(['subscript', 'superscript']);
 const EAGER_LAYOUT_PARAGRAPH_MIN_CONTENT_SIZE = 2000;
 const EAGER_LAYOUT_PARAGRAPH_MIN_CHILD_COUNT = 12;
 
@@ -34,6 +36,26 @@ function getDirectImageChildCount(node: ProseNode): number {
     }
   }
   return count;
+}
+
+function paragraphHasOverflowProneInlineContent(node: ProseNode): boolean {
+  for (let index = 0; index < node.childCount; index += 1) {
+    const child = node.child(index);
+    if (EAGER_LAYOUT_INLINE_NODE_TYPES.has(child.type.name)) {
+      return true;
+    }
+    if (
+      child.type.name === 'image'
+      && typeof child.attrs?.src === 'string'
+      && child.attrs.src.includes('#shadow')
+    ) {
+      return true;
+    }
+    if (child.marks.some((mark) => EAGER_LAYOUT_MARK_TYPES.has(mark.type.name))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function getDirectListItemTextAlignment(node: ProseNode): 'center' | 'right' | null {
@@ -61,8 +83,11 @@ export function getStructuralStyleDecorationClass(node: ProseNode): string | nul
       classes.push(STRUCTURAL_EMPTY_PARAGRAPH_CLASS);
     }
     if (
-      node.content.size >= EAGER_LAYOUT_PARAGRAPH_MIN_CONTENT_SIZE
-      && node.childCount >= EAGER_LAYOUT_PARAGRAPH_MIN_CHILD_COUNT
+      paragraphHasOverflowProneInlineContent(node)
+      || (
+        node.content.size >= EAGER_LAYOUT_PARAGRAPH_MIN_CONTENT_SIZE
+        && node.childCount >= EAGER_LAYOUT_PARAGRAPH_MIN_CHILD_COUNT
+      )
     ) {
       classes.push(STRUCTURAL_EAGER_LAYOUT_PARAGRAPH_CLASS);
     }
