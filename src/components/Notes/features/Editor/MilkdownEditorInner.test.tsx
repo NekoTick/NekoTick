@@ -716,7 +716,7 @@ describe('isSameVisibleNoteContentIgnoringManagedFrontmatter', () => {
 });
 
 describe('MilkdownEditorInner lazy block visibility', () => {
-  it('recomputes lazy block visibility when switching to a large plain note', () => {
+  it('recomputes lazy block visibility after first painting a switched large plain note', async () => {
     const { container, rerender } = render(<MilkdownEditorInner />);
     const getShell = () => container.querySelector<HTMLElement>('[data-note-content-root="true"]');
 
@@ -726,17 +726,26 @@ describe('MilkdownEditorInner lazy block visibility', () => {
     mocks.notesState.currentNoteDiskRevision = 2;
     rerender(<MilkdownEditorInner showBodyLineNumbers />);
 
-    expect(getShell()?.getAttribute('data-note-lazy-block-visibility')).toBe('true');
+    expect(getShell()?.getAttribute('data-note-lazy-block-visibility')).toBeNull();
+    await waitFor(() => {
+      expect(getShell()?.getAttribute('data-note-lazy-block-visibility')).toBe('true');
+    });
   });
 
-  it('keeps lazy block visibility when same-revision large note content becomes complex markdown', () => {
+  it('defers cold large-note analysis until after the first paint and then keeps lazy block visibility', async () => {
     const plainMarkdown = createLargePlainMarkdown();
     mocks.notesState.currentNote = { path: 'large.md', content: plainMarkdown };
     mocks.notesState.currentNoteDiskRevision = 2;
     const { container, rerender } = render(<MilkdownEditorInner />);
     const getShell = () => container.querySelector<HTMLElement>('[data-note-content-root="true"]');
 
-    expect(getShell()?.getAttribute('data-note-lazy-block-visibility')).toBe('true');
+    expect(getShell()?.getAttribute('data-note-lazy-block-visibility')).toBeNull();
+    expect(container.querySelector('[data-testid="milkdown-runtime"]')).toBeNull();
+
+    await waitFor(() => {
+      expect(getShell()?.getAttribute('data-note-lazy-block-visibility')).toBe('true');
+      expect(container.querySelector('[data-testid="milkdown-runtime"]')).not.toBeNull();
+    });
 
     mocks.notesState.currentNote = {
       path: 'large.md',
@@ -1381,7 +1390,7 @@ describe('shouldUseLazyBlockVisibility', () => {
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
   });
 
-  it('keeps dense heavy block markdown on stable block layout', () => {
+  it('keeps medium dense heavy block markdown on stable block layout', () => {
     const markdown = [
       '# Dense Heavy Manual',
       '',
@@ -1401,7 +1410,60 @@ describe('shouldUseLazyBlockVisibility', () => {
     ].join('\n');
 
     expect(markdown.length).toBeGreaterThan(60_000);
+    expect(markdown.length).toBeLessThan(1_000_000);
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
+  });
+
+  it('enables lazy block visibility for dense imported documents with many editable blocks', () => {
+    const markdown = [
+      '# Imported document',
+      '',
+      ...Array.from({ length: 70 }, (_, index) => [
+        `${index + 1}. Imported compatibility note ${index} with broken [link](https://example.invalid/${index} ${'legacy syntax and ordinary text '.repeat(18)}`,
+        '<!--vlaina-markdown-blank-line-->',
+        `## Shortcut ${index}`,
+        '<!--vlaina-markdown-blank-line-->',
+        `| Feature ${index} | Windows | macOS |`,
+        '| --- | --- | --- |',
+        `| Row ${index} | Ctrl+/ | command+/ |`,
+        `> Nested quote ${index}`,
+        `<video src="./assets/${index}.mp4" />`,
+        `[^bad-${index}: incomplete footnote`,
+        `- [ ] task ${index}`,
+        '```txt',
+        `Imported code ${index}`,
+        '```',
+        '<!--vlaina-markdown-blank-line-->',
+        `Final section ${index}`,
+        '',
+      ].join('\n')),
+    ].join('\n');
+
+    expect(markdown.length).toBeGreaterThan(60_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
+  });
+
+  it('enables lazy block visibility for very large dense heavy markdown', () => {
+    const markdown = [
+      '# Very Large Dense Heavy Manual',
+      '',
+      ...Array.from({ length: 1300 }, (_, index) => [
+        `## Section ${index}`,
+        '```txt',
+        `heavy fenced block ${index}`,
+        '```',
+        `| Feature ${index} | Value |`,
+        '| --- | --- |',
+        `| Row ${index} | ${index} |`,
+        `<video src="./assets/${index}.mp4"></video>`,
+        `<iframe src="https://example.invalid/${index}"></iframe>`,
+        `Section prose ${index} ${'ordinary text '.repeat(60)}`,
+        '',
+      ].join('\n')),
+    ].join('\n');
+
+    expect(markdown.length).toBeGreaterThan(1_000_000);
+    expect(shouldUseLazyBlockVisibility(markdown)).toBe(true);
   });
 
   it('keeps sparse heavy blocks lazy in an otherwise ordinary long note', () => {

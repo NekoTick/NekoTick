@@ -264,6 +264,10 @@
     box-shadow var(--vlaina-duration-input-focus) var(--vlaina-ease-css-default);
 }
 
+.math-editor-textarea[data-native-caret-overlay-disabled='true'] {
+  caret-color: var(--vlaina-caret-color);
+}
+
 .math-editor-textarea:focus {
   border-color: var(--vlaina-accent);
   background: var(--vlaina-color-input-surface);

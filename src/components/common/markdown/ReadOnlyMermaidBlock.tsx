@@ -114,6 +114,9 @@ export function ReadOnlyMermaidBlock({ code }: ReadOnlyMermaidBlockProps) {
   const renderConsumer = useMemo(() => ({}), []);
   const blockRef = useRef<HTMLDivElement>(null);
   const [renderPriority, setRenderPriority] = useState<MermaidRenderPriority>('background');
+  const [shouldRender, setShouldRender] = useState(
+    () => typeof window === 'undefined' || typeof IntersectionObserver === 'undefined',
+  );
   const [markup, setMarkup] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -121,7 +124,7 @@ export function ReadOnlyMermaidBlock({ code }: ReadOnlyMermaidBlockProps) {
     let cancelled = false;
     setMarkup(null);
     setFailed(false);
-    if (!normalizedCode) {
+    if (!normalizedCode || !shouldRender) {
       return;
     }
 
@@ -148,28 +151,46 @@ export function ReadOnlyMermaidBlock({ code }: ReadOnlyMermaidBlockProps) {
       cancelled = true;
       releaseMermaidMarkupConsumer(renderConsumer);
     };
-  }, [language, normalizedCode, renderConsumer, renderPriority]);
+  }, [language, normalizedCode, renderConsumer, renderPriority, shouldRender]);
 
   useEffect(() => {
     const block = blockRef.current;
     if (
       !block
       || !normalizedCode
-      || renderPriority === 'interactive'
+      || shouldRender
       || typeof IntersectionObserver === 'undefined'
     ) {
       return;
     }
-    const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
+    let isIntersecting = false;
+    let waitingForIdle = false;
+    let cancelled = false;
+
+    const renderIfStillIntersecting = async () => {
+      if (!isIntersecting || waitingForIdle) return;
+      waitingForIdle = true;
+      await waitForMermaidInteractionIdle();
+      waitingForIdle = false;
+      if (cancelled || !isIntersecting) return;
+
       observer.disconnect();
       setRenderPriority('interactive');
+      setShouldRender(true);
+    };
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries.find((candidate) => candidate.target === block) ?? entries.at(-1);
+      isIntersecting = entry?.isIntersecting ?? false;
+      void renderIfStillIntersecting();
     }, {
       scrollMargin: themeLazyLoadTokens.mermaidPreloadMargin,
     });
     observer.observe(block);
-    return () => observer.disconnect();
-  }, [normalizedCode, renderPriority]);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [normalizedCode, shouldRender]);
 
   if (!normalizedCode) {
     return (

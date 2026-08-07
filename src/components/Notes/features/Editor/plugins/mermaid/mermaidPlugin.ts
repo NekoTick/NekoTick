@@ -27,7 +27,7 @@ export const mermaidSchema = $node('mermaid', () => ({
   }],
   toDOM: (node) => {
     const attrs = node.attrs as MermaidAttrs;
-    return createMermaidElement(normalizeMermaidCodeAttr(attrs.code));
+    return createMermaidElement(normalizeMermaidCodeAttr(attrs.code), { render: false });
   },
   parseMarkdown: {
     match: (node) => {

@@ -8,13 +8,30 @@ import {
   normalizeTocMaxLevel,
   renderTocContent,
 } from './tocViewUtils';
-import { collectTocBlocks, docHasTocNode, stepSliceContainsToc } from './tocScan';
+import { collectTocBlocks, countTocNodes, stepSliceContainsToc } from './tocScan';
 
-const tocViewPluginKey = new PluginKey<{ hasToc: boolean }>('tocView');
+type TocViewState = {
+  hasToc: boolean;
+  tocCount: number;
+};
+
+const tocViewPluginKey = new PluginKey<TocViewState>('tocView');
 
 function transactionMayInsertToc(tr: unknown): boolean {
   const steps = (tr as { steps?: readonly unknown[] }).steps ?? [];
   return steps.some(stepSliceContainsToc);
+}
+
+export function shouldRenderTocContentUpdate(input: {
+  force: boolean;
+  headingSignature: string;
+  lastHeadingSignature: string;
+  lastTocCount: number;
+  tocCount: number;
+}): boolean {
+  return input.force
+    || input.lastHeadingSignature !== input.headingSignature
+    || input.lastTocCount !== input.tocCount;
 }
 
 export const tocViewPlugin = $prose(() => {
@@ -26,7 +43,8 @@ export const tocViewPlugin = $prose(() => {
     key: tocViewPluginKey,
     state: {
       init(_config, state) {
-        return { hasToc: docHasTocNode(state.doc) };
+        const tocCount = countTocNodes(state.doc);
+        return { hasToc: tocCount > 0, tocCount };
       },
       apply(tr, previous) {
         if (!tr.docChanged) {
@@ -35,7 +53,8 @@ export const tocViewPlugin = $prose(() => {
         if (!previous.hasToc && !transactionMayInsertToc(tr)) {
           return previous;
         }
-        return { hasToc: docHasTocNode(tr.doc) };
+        const tocCount = countTocNodes(tr.doc);
+        return { hasToc: tocCount > 0, tocCount };
       },
     },
     view(editorView) {
@@ -66,7 +85,8 @@ export const tocViewPlugin = $prose(() => {
       editorView.dom.addEventListener('click', handleTocClick);
 
       const syncTocBlocks = (view: EditorView, force = false) => {
-        if (!tocViewPluginKey.getState(view.state)?.hasToc) {
+        const tocState = tocViewPluginKey.getState(view.state);
+        if (!tocState?.hasToc) {
           lastDoc = view.state.doc;
           lastHeadingSignature = '';
           lastTocCount = 0;
@@ -77,6 +97,19 @@ export const tocViewPlugin = $prose(() => {
         if (!force && lastDoc === doc) {
           return;
         }
+        const headings = extractHeadings(doc, 6);
+        const headingSignature = createHeadingsSignature(headings);
+        if (!shouldRenderTocContentUpdate({
+          force,
+          headingSignature,
+          lastHeadingSignature,
+          lastTocCount,
+          tocCount: tocState.tocCount,
+        })) {
+          lastDoc = doc;
+          return;
+        }
+
         const tocElements = collectTocBlocks(view.dom);
         if (tocElements.length === 0) {
           lastDoc = doc;
@@ -85,20 +118,9 @@ export const tocViewPlugin = $prose(() => {
           return;
         }
 
-        const headings = extractHeadings(doc, 6);
-        const headingSignature = createHeadingsSignature(headings);
-        if (
-          !force &&
-          lastDoc === doc
-          && lastHeadingSignature === headingSignature
-          && lastTocCount === tocElements.length
-        ) {
-          return;
-        }
-
         lastDoc = doc;
         lastHeadingSignature = headingSignature;
-        lastTocCount = tocElements.length;
+        lastTocCount = tocState.tocCount;
 
         for (const el of tocElements) {
           const maxLevel = normalizeTocMaxLevel(el.getAttribute('data-max-level') || '6');

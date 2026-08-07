@@ -1,6 +1,11 @@
+import { render } from '@testing-library/react';
+import { createElement } from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { canPersistNoteScrollPosition } from './MarkdownEditor';
-import { createLargeMarkdownFirstPaintPreviewBlocks } from './LargeMarkdownFirstPaintPreview';
+import {
+  LargeMarkdownFirstPaintPreview,
+  shouldShowLargeMarkdownFirstPaintPreview,
+} from './LargeMarkdownFirstPaintPreview';
 import {
   loadPersistedNoteScrollPosition,
   NOTE_SCROLL_POSITION_STORAGE_KEY,
@@ -60,54 +65,30 @@ describe('canPersistNoteScrollPosition', () => {
   });
 });
 
-describe('createLargeMarkdownFirstPaintPreviewBlocks', () => {
-  it('returns no preview for small notes', () => {
-    expect(createLargeMarkdownFirstPaintPreviewBlocks('# Title\n\nBody')).toEqual([]);
+describe('large markdown first paint preview', () => {
+  it('keeps small notes on the normal editor path', () => {
+    expect(shouldShowLargeMarkdownFirstPaintPreview('# Title\n\nBody')).toBe(false);
   });
 
-  it('creates a bounded rendered preview from the beginning of a large markdown note', () => {
-    const longParagraph = `Paragraph 0: ${'plain text '.repeat(400)}`;
+  it('uses the immediate preview for long notes', () => {
+    expect(shouldShowLargeMarkdownFirstPaintPreview('x'.repeat(60_000))).toBe(true);
+  });
+
+  it('puts the complete markdown in the immediate source view', () => {
     const markdown = [
       '# Large Note',
       '',
-      '<!--vlaina-markdown-blank-line-->',
-      '',
-      longParagraph,
-      '',
-      ...Array.from({ length: 1200 }, (_, index) => `Paragraph ${index + 1}: ${'more text '.repeat(90)}`),
+      'First visible paragraph.',
+      'x'.repeat(60_000),
+      'Final preview sentinel.',
     ].join('\n');
+    const { container } = render(createElement(LargeMarkdownFirstPaintPreview, { markdown }));
+    const source = container.querySelector<HTMLTextAreaElement>(
+      '[data-note-first-paint-preview-source="true"]',
+    );
 
-    const blocks = createLargeMarkdownFirstPaintPreviewBlocks(markdown);
-
-    expect(markdown.length).toBeGreaterThan(1_000_000);
-    expect(blocks).toHaveLength(6);
-    expect(blocks[0]).toEqual({
-      key: 'h-0',
-      type: 'heading',
-      level: 1,
-      text: 'Large Note',
-    });
-    expect(blocks[1]?.type).toBe('paragraph');
-    expect(blocks[1]?.text.startsWith('Paragraph 0:')).toBe(true);
-    expect(blocks[1]?.text.endsWith('...')).toBe(true);
-    expect(blocks.every((block) => block.text.length <= 2403)).toBe(true);
-  });
-
-  it('normalizes closing atx heading markers in large note previews', () => {
-    const markdown = [
-      '# Large Note #',
-      '',
-      ...Array.from({ length: 1200 }, (_, index) => `Paragraph ${index}: ${'plain text '.repeat(90)}`),
-    ].join('\n');
-
-    const blocks = createLargeMarkdownFirstPaintPreviewBlocks(markdown);
-
-    expect(markdown.length).toBeGreaterThan(1_000_000);
-    expect(blocks[0]).toEqual({
-      key: 'h-0',
-      type: 'heading',
-      level: 1,
-      text: 'Large Note',
-    });
+    expect(source?.value).toBe(markdown);
+    expect(source?.value.endsWith('Final preview sentinel.')).toBe(true);
+    expect(source?.wrap).toBe('off');
   });
 });
