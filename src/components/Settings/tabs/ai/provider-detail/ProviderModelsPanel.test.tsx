@@ -380,6 +380,7 @@ describe('ProviderModelsPanel', () => {
   });
 
   it('leaves wheel scrolling on quick add suggestions to the browser', () => {
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
     render(
       <ProviderModelsPanel
         {...buildProps({
@@ -394,10 +395,13 @@ describe('ProviderModelsPanel', () => {
     const scrollRoot = document.querySelector('[data-settings-scroll-root="ai-model-suggestions"]') as HTMLElement | null;
     expect(scrollRoot).not.toBeNull();
 
+    requestAnimationFrameSpy.mockClear();
+    scrollRoot!.style.overflowY = 'auto';
     setScrollMetrics(scrollRoot!, { clientHeight: 100, scrollHeight: 360, scrollTop: 0 });
     fireEvent.wheel(scrollRoot!, { deltaY: 90 });
 
     expect(scrollRoot!.scrollTop).toBe(0);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 
   it('adds all visible available models from the available header', () => {

@@ -86,28 +86,6 @@ function hasNestedScrollableConsumer(
   return false;
 }
 
-function hasNestedScrollableVerticalConsumer(
-  target: EventTarget | null,
-  root: HTMLElement,
-  deltaY: number,
-) {
-  let element = getElementFromTarget(target);
-
-  while (element && element !== root) {
-    if (
-      element instanceof HTMLElement &&
-      canElementScrollVertically(element) &&
-      canElementConsumeVerticalDelta(element, deltaY)
-    ) {
-      return true;
-    }
-
-    element = element.parentElement;
-  }
-
-  return false;
-}
-
 function scrollElementHorizontally(scrollRoot: HTMLElement, deltaX: number) {
   const maxScrollLeft = Math.max(scrollRoot.scrollWidth - scrollRoot.clientWidth, 0);
   if (maxScrollLeft <= 0) {
@@ -123,52 +101,6 @@ function scrollElementHorizontally(scrollRoot: HTMLElement, deltaX: number) {
   return true;
 }
 
-function canElementConsumeVerticalDelta(element: HTMLElement, deltaY: number) {
-  const maxScrollTop = Math.max(element.scrollHeight - element.clientHeight, 0);
-
-  if (deltaY < 0) {
-    return element.scrollTop > SCROLL_EPSILON_PX;
-  }
-
-  if (deltaY > 0) {
-    return element.scrollTop < maxScrollTop - SCROLL_EPSILON_PX;
-  }
-
-  return false;
-}
-
-function scheduleVerticalNativeScrollFallback(
-  scrollRoot: HTMLElement,
-  deltaY: number,
-) {
-  const beforeScrollTop = scrollRoot.scrollTop;
-  if (!canElementConsumeVerticalDelta(scrollRoot, deltaY)) {
-    return;
-  }
-
-  const checkNativeScroll = () => {
-    const nativeScrollTop = scrollRoot.scrollTop;
-    if (Math.abs(nativeScrollTop - beforeScrollTop) > SCROLL_EPSILON_PX) {
-      return;
-    }
-
-    const maxScrollTop = Math.max(scrollRoot.scrollHeight - scrollRoot.clientHeight, 0);
-    const nextScrollTop = clamp(beforeScrollTop + deltaY, 0, maxScrollTop);
-    if (Math.abs(nextScrollTop - beforeScrollTop) < SCROLL_EPSILON_PX) {
-      return;
-    }
-
-    scrollRoot.scrollTop = nextScrollTop;
-  };
-
-  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(checkNativeScroll);
-    return;
-  }
-
-  window.setTimeout(checkNativeScroll, 0);
-}
-
 export function handleScrollableWheel(event: ReactWheelEvent<HTMLElement>) {
   if (event.defaultPrevented || event.ctrlKey || event.metaKey) {
     return;
@@ -178,10 +110,6 @@ export function handleScrollableWheel(event: ReactWheelEvent<HTMLElement>) {
   const canScrollVertically = canElementScrollVertically(scrollRoot);
 
   if (event.deltaY !== 0 && canScrollVertically) {
-    const deltaY = normalizeWheelDelta(event.deltaY, event.deltaMode, scrollRoot.clientHeight);
-    if (!hasNestedScrollableVerticalConsumer(event.target, scrollRoot, deltaY)) {
-      scheduleVerticalNativeScrollFallback(scrollRoot, deltaY);
-    }
     return;
   }
 
