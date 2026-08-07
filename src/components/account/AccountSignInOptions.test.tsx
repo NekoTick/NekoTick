@@ -179,6 +179,22 @@ describe('AccountSignInOptions', () => {
     expect(emailInput).toHaveAttribute('autocomplete', 'email');
   });
 
+  it('filters Chinese characters from the email field', () => {
+    render(
+      <AccountEmailCodeCard
+        onEmailCodeRequest={vi.fn().mockResolvedValue(true)}
+        onEmailCodeVerify={vi.fn().mockResolvedValue(true)}
+      />
+    );
+
+    const emailInput = screen.getByPlaceholderText(/email address/i);
+    fireEvent.change(emailInput, {
+      target: { value: 'user\u4e2d\u6587@example.com' },
+    });
+
+    expect(emailInput).toHaveValue('user@example.com');
+  });
+
   it('keeps the verification code field selection-compatible for the shared caret overlay', async () => {
     render(
       <AccountEmailCodeCard

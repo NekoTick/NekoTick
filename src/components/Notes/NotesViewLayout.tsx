@@ -13,12 +13,17 @@ import {
   SIDEBAR_SLIDE_TRANSITION,
 } from '@/lib/animations';
 import { themeBackdropTokens } from '@/styles/themeTokens';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 import type { useResizableBox } from '@/components/layout/shell/useResizableBox';
 import type { NotesChatFloatingSize } from '@/stores/uiSlice';
 import type { useI18n } from '@/lib/i18n';
 import { EmbeddedChatView } from './notesViewLazyComponents';
 import { NotesSplitDiagnosticsButton } from './features/Split/NotesSplitDiagnosticsButton';
 import { ImageFileHoverPreview } from './features/FileTree/ImageFileHoverPreview';
+
+function refreshNativeCaretAfterMotionUpdate(): void {
+  queueMicrotask(requestNativeCaretOverlayRefresh);
+}
 
 function DockedChatMotionPanel({
   children,
@@ -43,6 +48,7 @@ function DockedChatMotionPanel({
       animate="visible"
       exit="hidden"
       transition={SIDEBAR_SLIDE_TRANSITION}
+      onUpdate={refreshNativeCaretAfterMotionUpdate}
       onAnimationComplete={onAnimationComplete}
     >
       {children}
@@ -217,6 +223,7 @@ export function NotesViewLayout({
               initial="hidden"
               animate={chatFloatingOpen ? 'visible' : 'hidden'}
               transition={SIDEBAR_SLIDE_TRANSITION}
+              onUpdate={refreshNativeCaretAfterMotionUpdate}
               onAnimationComplete={handleFloatingChatAnimationComplete}
             >
               <div
