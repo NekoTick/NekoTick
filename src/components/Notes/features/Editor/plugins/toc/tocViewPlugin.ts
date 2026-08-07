@@ -74,11 +74,15 @@ export const tocViewPlugin = $prose(() => {
         const { doc } = editorView.state;
         const heading = doc.nodeAt(headingPos);
         if (!heading || heading.type.name !== 'heading' || !heading.inlineContent) return;
-        const safePos = Math.max(0, Math.min(headingPos + 1, doc.content.size));
+        const safePos = Math.max(0, Math.min(headingPos + heading.nodeSize - 1, doc.content.size));
         const tr = editorView.state.tr
           .setSelection(TextSelection.create(doc, safePos))
           .scrollIntoView();
         editorView.dispatch(tr);
+        const headingDom = editorView.nodeDOM(headingPos);
+        if (headingDom instanceof HTMLElement) {
+          headingDom.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
         editorView.focus();
       };
 
