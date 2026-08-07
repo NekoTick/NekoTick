@@ -28,7 +28,11 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
       aria-label={element.text}
       className={cn(
         'absolute select-none overflow-hidden rounded-[var(--vlaina-radius-8px)] border bg-[var(--vlaina-color-whiteboard-element)] shadow-[var(--vlaina-shadow-whiteboard-element)]',
-        tool === 'select' ? moving ? 'cursor-grabbing' : selected ? 'cursor-grab' : 'cursor-move' : 'pointer-events-none',
+        tool === 'select'
+          ? selected
+            ? moving ? 'cursor-grabbing' : 'cursor-grab'
+            : 'pointer-events-none cursor-crosshair'
+          : 'pointer-events-none',
       )}
       onPointerDown={(event) => onPointerDown(event, element)}
       style={{
