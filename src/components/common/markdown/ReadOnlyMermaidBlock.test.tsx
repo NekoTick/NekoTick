@@ -30,6 +30,7 @@ describe('ReadOnlyMermaidBlock', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     document.documentElement.removeAttribute('data-layout-panel-dragging');
     window.dispatchEvent(new MouseEvent('mouseup'));
     document.body.replaceChildren();
@@ -70,6 +71,49 @@ describe('ReadOnlyMermaidBlock', () => {
     });
     expect(container.innerHTML).not.toContain('data-code');
     expect(container.innerHTML).not.toContain('secret token');
+  });
+
+  it('does not render a diagram passed during active scrolling until it remains near the viewport', async () => {
+    let observerCallback: IntersectionObserverCallback = () => undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(scrollRoot);
+    const code = 'sequenceDiagram\nAlice->Bob: readonly lazy';
+    vi.mocked(renderMermaid).mockResolvedValue('<svg><text>rendered</text></svg>');
+
+    const { container } = render(<ReadOnlyMermaidBlock code={code} />);
+    const block = container.querySelector('.mermaid-block')!;
+    expect(renderMermaid).not.toHaveBeenCalled();
+
+    observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    observerCallback([{ target: block, isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(renderMermaid).not.toHaveBeenCalled();
+
+    observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledWith(code, expect.any(String));
+      expect(screen.getByText('rendered')).toBeInTheDocument();
+    });
   });
 
   it('defers rendered markup commits while a layout panel is dragging', async () => {

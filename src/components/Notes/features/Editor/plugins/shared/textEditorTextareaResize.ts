@@ -7,8 +7,10 @@ export function createTextEditorTextareaResizeController(args: {
   getEditorElement: () => HTMLElement | null;
   getTextarea: () => HTMLTextAreaElement | null;
   constrainToViewport: boolean;
+  idleDelayMs?: number;
 }) {
   let textareaResizeFrame: number | null = null;
+  let textareaResizeTimer: number | null = null;
 
   const resizeToContent = () => {
     const editorElement = args.getEditorElement();
@@ -28,13 +30,17 @@ export function createTextEditorTextareaResizeController(args: {
   };
 
   const clear = () => {
+    if (textareaResizeTimer !== null && typeof window !== 'undefined') {
+      window.clearTimeout(textareaResizeTimer);
+    }
+    textareaResizeTimer = null;
     if (textareaResizeFrame !== null && typeof window !== 'undefined') {
       window.cancelAnimationFrame(textareaResizeFrame);
     }
     textareaResizeFrame = null;
   };
 
-  const schedule = () => {
+  const scheduleFrame = () => {
     if (typeof window === 'undefined') {
       resizeToContent();
       return;
@@ -48,6 +54,20 @@ export function createTextEditorTextareaResizeController(args: {
       textareaResizeFrame = null;
       resizeToContent();
     });
+  };
+
+  const schedule = () => {
+    if (!args.idleDelayMs || args.idleDelayMs <= 0 || typeof window === 'undefined') {
+      scheduleFrame();
+      return;
+    }
+    if (textareaResizeTimer !== null) {
+      window.clearTimeout(textareaResizeTimer);
+    }
+    textareaResizeTimer = window.setTimeout(() => {
+      textareaResizeTimer = null;
+      scheduleFrame();
+    }, args.idleDelayMs);
   };
 
   return { clear, resizeToContent, schedule };

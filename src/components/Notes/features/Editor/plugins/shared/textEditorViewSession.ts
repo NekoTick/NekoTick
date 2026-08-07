@@ -65,6 +65,9 @@ export function createTextEditorViewSession<
     getEditorElement: () => editorElement,
     getTextarea: () => refs.textareaElement,
     constrainToViewport: constrainTextareaHeightToViewport,
+    idleDelayMs: editorView.dom.closest('[data-note-lazy-block-visibility="true"]')
+      ? themeUiFeedbackTokens.editorTextEditorLivePreviewDebounceMs
+      : 0,
   });
   const textareaFocusController = createTextEditorTextareaFocusController(() => refs.textareaElement);
   const popupVisibilityScrollScheduler = createTextEditorPopupVisibilityScrollScheduler({

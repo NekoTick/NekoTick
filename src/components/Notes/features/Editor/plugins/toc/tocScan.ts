@@ -1,3 +1,5 @@
+import { scanProseDescendants } from '../shared/boundedProseNodeScan';
+
 export const MAX_TOC_DOM_SCAN_ELEMENTS = 20_000;
 export const MAX_TOC_DOC_SCAN_NODES = 20_000;
 
@@ -105,6 +107,15 @@ export function scanTocNodes(root: TocScanNode, maxNodes = MAX_TOC_DOC_SCAN_NODE
 export function docHasTocNode(doc: TocScanNode, maxNodes = MAX_TOC_DOC_SCAN_NODES): boolean {
   const result = scanTocNodes(doc, maxNodes);
   return result.found || result.exhausted;
+}
+
+export function countTocNodes(doc: TocScanNode, maxNodes = MAX_TOC_DOC_SCAN_NODES): number {
+  let count = 0;
+  const completed = scanProseDescendants(doc, (node) => {
+    if (node.type?.name === 'toc') count += 1;
+    return true;
+  }, maxNodes);
+  return completed ? count : maxNodes + 1;
 }
 
 export function stepSliceContainsToc(step: unknown): boolean {

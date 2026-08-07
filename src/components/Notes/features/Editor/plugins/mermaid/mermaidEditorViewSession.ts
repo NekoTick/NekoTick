@@ -49,7 +49,6 @@ export function createMermaidEditorViewSession(args: {
     resolveAnchorElement: (_state, nodeDom) => resolveMermaidAnchorElement(null, nodeDom),
     getAnchorViewportPosition: getMermaidAnchorViewportPosition,
     preferStatePositionOnInitialRender: (state) => state.openSource === 'new-empty-block',
-    previewInputDebounceMs: 0,
     previewInput({ value, resolveAnchor, scheduleResize }) {
       void renderMermaidEditorLivePreview({
         anchor: resolveAnchor(),

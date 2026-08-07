@@ -100,6 +100,18 @@ export function useNativeCaretOverlay(): void {
     };
 
     const schedule = () => {
+      const activeElement = doc.activeElement;
+      if (
+        isTextControl(activeElement) &&
+        activeElement.matches('[data-native-caret-overlay-disabled="true"]')
+      ) {
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId);
+          frameId = null;
+        }
+        if (caret) hide();
+        return;
+      }
       if (frameId !== null) return;
       frameId = window.requestAnimationFrame(render);
     };

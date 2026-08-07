@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   collectTocBlocks,
+  countTocNodes,
   docHasTocNode,
   MAX_TOC_DOC_SCAN_NODES,
   scanTocNodes,
@@ -56,5 +57,15 @@ describe('tocScan', () => {
     expect(scanTocNodes(doc, 2)).toEqual({ found: false, exhausted: true });
     expect(docHasTocNode(doc, 2)).toBe(true);
     expect(stepSliceContainsToc({ slice: { content: oversizedContent } })).toBe(true);
+  });
+
+  it('counts TOC nodes without touching the DOM', () => {
+    const doc = createScanNode('doc', [
+      createScanNode('toc'),
+      createScanNode('paragraph', [createScanNode('toc')]),
+    ]);
+
+    expect(countTocNodes(doc)).toBe(2);
+    expect(countTocNodes(doc, 1)).toBe(2);
   });
 });

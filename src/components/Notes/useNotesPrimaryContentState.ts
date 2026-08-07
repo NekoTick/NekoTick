@@ -3,7 +3,7 @@ import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay'
 import { useNotesStore } from '@/stores/notes/useNotesStore';
 import type { NoteMetadataEntry } from '@/stores/notes/types';
 import { preloadMarkdownEditor } from './features/Editor/preloadMarkdownEditor';
-import { createLargeMarkdownFirstPaintPreviewBlocks } from './features/Editor/LargeMarkdownFirstPaintPreview';
+import { shouldShowLargeMarkdownFirstPaintPreview } from './features/Editor/LargeMarkdownFirstPaintPreview';
 import { focusNoteTitleInputAtEnd } from './features/Editor/utils/titleInputDom';
 import { isEmptyUntitledDraft } from './notesViewHelpers';
 
@@ -120,12 +120,14 @@ export function useNotesPrimaryContentState(args: {
     setPrimaryContentReadyPath(null);
   }, [currentNotePath, primaryContentReadyPath]);
 
-  const firstPaintPreviewBlocks = useMemo(() => {
+  const firstPaintPreviewMarkdown = useMemo(() => {
     if (!active || !currentNotePath || primaryContentReadyPath === currentNotePath) {
-      return [];
+      return null;
     }
 
-    return createLargeMarkdownFirstPaintPreviewBlocks(firstPaintNoteContent);
+    return shouldShowLargeMarkdownFirstPaintPreview(firstPaintNoteContent)
+      ? firstPaintNoteContent
+      : null;
   }, [active, currentNotePath, firstPaintNoteContent, primaryContentReadyPath]);
 
   useEffect(() => {
@@ -134,7 +136,7 @@ export function useNotesPrimaryContentState(args: {
 
   return {
     canLoadMarkdownEditor,
-    firstPaintPreviewBlocks,
+    firstPaintPreviewMarkdown,
     isPrimaryContentReady: Boolean(currentNotePath && primaryContentReadyPath === currentNotePath),
     reportNotesPrimaryContentReady,
   };
