@@ -118,7 +118,7 @@ describe('handleTocShortcutEnter', () => {
     }
   });
 
-  it('moves a toc click to the exact heading text start', async () => {
+  it('moves a toc click to the exact heading text end', async () => {
     const editor = Editor.make()
       .config((ctx) => {
         ctx.set(defaultValueCtx, '');
@@ -146,12 +146,17 @@ describe('handleTocShortcutEnter', () => {
       });
       const link = view.dom.querySelector<HTMLElement>('.toc-link[data-heading-pos]');
       expect(link).not.toBeNull();
+      const headingDom = view.nodeDOM(headingPos);
+      expect(headingDom).toBeInstanceOf(HTMLElement);
+      const scrollIntoView = vi.fn();
+      (headingDom as HTMLElement).scrollIntoView = scrollIntoView;
 
       link!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 
       expect(view.state.selection).toBeInstanceOf(TextSelection);
-      expect(view.state.selection.from).toBe(headingPos + 1);
-      expect(view.state.selection.to).toBe(headingPos + 1);
+      expect(view.state.selection.from).toBe(headingPos + heading.nodeSize - 1);
+      expect(view.state.selection.to).toBe(headingPos + heading.nodeSize - 1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'start' });
     } finally {
       await editor.destroy();
     }

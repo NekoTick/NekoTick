@@ -139,6 +139,44 @@ describe('installLinkTooltipEvents', () => {
         cleanup();
     });
 
+    it('leaves generated TOC links for the TOC click handler', async () => {
+        const { editorDom, handlers } = createHandlers();
+        const link = document.createElement('a');
+        link.className = 'toc-link';
+        link.dataset.headingPos = '12';
+        link.href = '#';
+        link.textContent = 'Heading';
+        editorDom.appendChild(link);
+        const tocClickHandler = vi.fn();
+        link.addEventListener('click', tocClickHandler);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        const mouseDown = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            detail: 1,
+            button: 0,
+            buttons: 1,
+        });
+        const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            detail: 1,
+            button: 0,
+        });
+
+        link.dispatchEvent(mouseDown);
+        link.dispatchEvent(click);
+        await flushAsyncHandlers();
+
+        expect(mouseDown.defaultPrevented).toBe(false);
+        expect(click.defaultPrevented).toBe(false);
+        expect(tocClickHandler).toHaveBeenCalledOnce();
+        expect(openEditorLinkHref).not.toHaveBeenCalled();
+
+        cleanup();
+    });
+
     it('keeps mouse-activated editor links editable after preparing text selection', async () => {
         const { editorDom, handlers } = createHandlers();
         const link = document.createElement('a');
