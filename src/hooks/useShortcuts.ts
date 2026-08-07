@@ -140,6 +140,10 @@ export function useShortcuts(options: UseShortcutsOptions = {}) {
       if ((!e.ctrlKey && !e.metaKey) || e.deltaY === 0) {
         return;
       }
+      if (isEventInsideDialog(e.target)) {
+        e.preventDefault();
+        return;
+      }
 
       e.preventDefault();
       const currentFontSize = useAppUIStore.getState().fontSize;

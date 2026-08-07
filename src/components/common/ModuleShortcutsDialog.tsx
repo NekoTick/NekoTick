@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils';
 import { ModuleShortcutId, ModuleShortcutSection, getModuleShortcutPreset } from '@/lib/shortcuts/moduleShortcuts';
 import { useDialogWindowDrag } from '@/hooks/useDialogWindowDrag';
 import { useI18n } from '@/lib/i18n';
-import { handleScrollableWheel } from '@/lib/scroll/wheelScroll';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { themeBackdropTokens, themeIconTokens } from '@/styles/themeTokens';
 
@@ -239,7 +238,6 @@ export function ModuleShortcutsDialog({
         <div
           className="max-h-[var(--vlaina-size-65vh)] overflow-y-auto space-y-3 pr-1"
           data-module-shortcuts-scroll-root="true"
-          onWheel={handleScrollableWheel}
         >
           {filteredSections.length > 0 ? filteredSections.map((section) => (
             <section key={section.title} className="rounded-[var(--vlaina-radius-16px)]">

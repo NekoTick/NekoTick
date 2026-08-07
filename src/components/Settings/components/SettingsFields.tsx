@@ -3,7 +3,6 @@ import type { ComponentPropsWithoutRef, ReactNode, TextareaHTMLAttributes } from
 import { cn } from '@/lib/utils';
 import { usePredictedTextareaHeight } from '@/hooks/usePredictedTextareaHeight';
 import { themeTextAreaTokens } from '@/styles/themeTokens';
-import { handleScrollableWheel } from '@/lib/scroll/wheelScroll';
 
 const fieldShellClassName =
   'rounded-[var(--vlaina-ui-radius-group)] border border-[var(--vlaina-border)] bg-[var(--vlaina-color-setting-field)] shadow-[var(--vlaina-shadow-control-active)] transition-colors focus-within:border-[var(--vlaina-accent)]';
@@ -48,7 +47,7 @@ interface SettingsTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaEleme
 
 export const SettingsTextarea = forwardRef<HTMLTextAreaElement, SettingsTextareaProps>(
   function SettingsTextarea(
-    { shellClassName, textareaClassName, className, autoGrow = false, value, onChange, onWheel, ...props },
+    { shellClassName, textareaClassName, className, autoGrow = false, value, onChange, ...props },
     ref
   ) {
     const innerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -79,10 +78,6 @@ export const SettingsTextarea = forwardRef<HTMLTextAreaElement, SettingsTextarea
           ref={attachRef}
           value={value}
           onChange={onChange}
-          onWheel={(event) => {
-            onWheel?.(event);
-            handleScrollableWheel(event);
-          }}
           spellCheck={false}
           className={cn(
         'block w-full min-w-0 rounded-[var(--vlaina-ui-radius-group)] border-0 bg-transparent px-4 py-3 text-[var(--vlaina-font-sm)] leading-6 text-[var(--vlaina-sidebar-chat-text)] outline-none placeholder:text-[var(--vlaina-sidebar-chat-text-soft)] focus:ring-0',
