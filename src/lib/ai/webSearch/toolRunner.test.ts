@@ -204,6 +204,30 @@ describe('web search tool runner', () => {
     })).rejects.toMatchObject({ name: 'AbortError' });
   });
 
+  it('reports quota exhaustion as a stable search status', async () => {
+    const client = createClient();
+    const statuses: WebSearchStatus[] = [];
+    const error = Object.assign(new Error('WEB_SEARCH_QUOTA_EXHAUSTED'), {
+      errorCode: 'web_search_monthly_quota_exceeded',
+    });
+    vi.mocked(client.webSearch).mockRejectedValueOnce(error);
+
+    const content = await runWebSearchToolCall({
+      name: 'web_search',
+      arguments: JSON.stringify({ query: 'current information' }),
+    }, {
+      client,
+      session: createWebSearchExecutionSession(),
+      onStatus: (status) => statuses.push(status),
+    });
+
+    expect(content).toContain('The web search quota has been used.');
+    expect(statuses.at(-1)).toMatchObject({
+      phase: 'error',
+      message: 'The web search quota has been used.',
+    });
+  });
+
   it('contains hostile page-read error fields inside a generic tool result', async () => {
     const client = createClient();
     const session = createWebSearchExecutionSession();

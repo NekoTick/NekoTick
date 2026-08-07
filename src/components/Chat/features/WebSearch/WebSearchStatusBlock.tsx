@@ -26,6 +26,8 @@ const WEB_SEARCH_MESSAGE_KEYS: Record<string, MessageKey> = {
   'The page could not be reached.': 'chat.webSearch.pageUnreachable',
   'The page returned an HTTP error.': 'chat.webSearch.pageHttpError',
   'Web search is temporarily unavailable.': 'chat.webSearch.unavailable',
+  'The monthly web search quota has been used.': 'chat.webSearch.quotaExceeded',
+  'The web search quota has been used.': 'chat.webSearch.quotaExceeded',
   'Only URLs returned by the current web search can be read.': 'chat.webSearch.blockedSource',
   'New searches are not allowed after page reading has started.': 'chat.webSearch.unavailable',
   'The search request budget was exhausted.': 'chat.webSearch.unavailable',
@@ -133,6 +135,7 @@ export function WebSearchStatusBlock({ statuses, isWaitingForAnswer = false }: W
       return url ? { ...source, url } : null;
     })
     .filter((source): source is NonNullable<typeof source> => Boolean(source));
+  const shouldShowFailedSources = sourceItems.length === 0 && failedSources.length > 0;
 
   return (
     <div
@@ -167,7 +170,7 @@ export function WebSearchStatusBlock({ statuses, isWaitingForAnswer = false }: W
               <a
                 key={source.url}
                 {...getExternalLinkProps(source.url)}
-                className="inline-flex h-7 max-w-[var(--vlaina-size-220px)] cursor-pointer items-center gap-1.5 rounded-full bg-[var(--vlaina-accent-light)] px-2.5 text-[var(--vlaina-font-xs)] font-medium text-[var(--vlaina-accent)] transition-opacity hover:opacity-[var(--vlaina-opacity-80)]"
+                className="inline-flex h-7 max-w-[var(--vlaina-size-220px)] cursor-pointer items-center gap-1.5 rounded-full bg-[var(--vlaina-accent-light)] px-2.5 text-[var(--vlaina-font-xs)] font-medium !text-[var(--vlaina-accent-hover)] transition-opacity hover:opacity-[var(--vlaina-opacity-80)]"
               >
                 <span className="min-w-0 truncate">{source.label}</span>
                 {source.detail && source.detail !== source.label && (
@@ -180,7 +183,7 @@ export function WebSearchStatusBlock({ statuses, isWaitingForAnswer = false }: W
         </div>
       )}
 
-      {failedSources.length > 0 && (
+      {shouldShowFailedSources && (
         <div className="mt-2 space-y-1 text-[var(--vlaina-text-tertiary)]">
           <div className="font-medium text-[var(--vlaina-text-secondary)]">{t('chat.skippedSources')}</div>
           {failedSources.slice(0, 4).map((source) => (

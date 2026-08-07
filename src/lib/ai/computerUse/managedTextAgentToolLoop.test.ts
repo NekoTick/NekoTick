@@ -7,6 +7,16 @@ import { translate } from '@/lib/i18n';
 import { extractComputerCommandStatuses } from './transcript';
 import { createManagedProtocolChunkHandler, runManagedTextAgentToolLoop } from './managedTextAgentToolLoop';
 
+const webSearchClientMocks = vi.hoisted(() => ({
+  webSearch: vi.fn(),
+  readWebPage: vi.fn(),
+  readWebPages: vi.fn(),
+}));
+
+vi.mock('@/lib/ai/webSearch/client', () => ({
+  createWebSearchClient: () => webSearchClientMocks,
+}));
+
 const SEARCH_RESULT_URL = 'https://example.com/source';
 
 function toolText(command = 'printf ok', purpose = 'Print a test value'): string {
@@ -30,8 +40,8 @@ function webToolText(name: 'web_search' | 'read_web_page', key: 'query' | 'url',
   ].join('');
 }
 
-function installWebSearchBridge() {
-  const read = vi.fn(async (url: string) => ({
+function installWebSearchClient() {
+  const read = webSearchClientMocks.readWebPage.mockImplementation(async (url: string) => ({
     title: 'Example source',
     summary: '',
     siteName: 'example.com',
@@ -39,25 +49,17 @@ function installWebSearchBridge() {
     content: 'Readable source content.',
     charCount: 24,
   }));
-  (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-    platform: 'electron',
-    webSearch: {
-      search: vi.fn(async (query: string) => ({
-        query,
-        results: [{
-          title: 'Example source',
-          url: SEARCH_RESULT_URL,
-          snippet: 'Useful source.',
-          publishedAt: null,
-          source: null,
-          thumbnail: null,
-        }],
-      })),
-      read,
-      readBatch: vi.fn(),
-      cancelRequest: vi.fn(async () => undefined),
-    },
-  } as unknown as DesktopApi;
+  webSearchClientMocks.webSearch.mockImplementation(async (query: string) => ({
+    query,
+    results: [{
+      title: 'Example source',
+      url: SEARCH_RESULT_URL,
+      snippet: 'Useful source.',
+      publishedAt: null,
+      source: null,
+      thumbnail: null,
+    }],
+  }));
   return { read };
 }
 
@@ -123,6 +125,9 @@ function baseOptions(requestText: Parameters<typeof runManagedTextAgentToolLoop>
 describe('managed computer operation text protocol', () => {
   afterEach(() => {
     delete (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop;
+    webSearchClientMocks.webSearch.mockReset();
+    webSearchClientMocks.readWebPage.mockReset();
+    webSearchClientMocks.readWebPages.mockReset();
   });
 
   it('proposes an approved command without sending native tools to the managed API', async () => {
@@ -186,7 +191,7 @@ describe('managed computer operation text protocol', () => {
   });
 
   it('reuses one web search session across managed search and page reads', async () => {
-    const { read } = installWebSearchBridge();
+    const { read } = installWebSearchClient();
     const requestText = vi.fn()
       .mockResolvedValueOnce(webToolText('web_search', 'query', 'current topic'))
       .mockResolvedValueOnce(webToolText('read_web_page', 'url', SEARCH_RESULT_URL))
@@ -201,7 +206,7 @@ describe('managed computer operation text protocol', () => {
     expect(read).toHaveBeenCalledWith(SEARCH_RESULT_URL, {
       contentLimit: 3000,
       retries: 0,
-    }, undefined);
+    });
     expect(JSON.stringify(requestText.mock.calls[2]?.[0])).toContain('Readable source content.');
     expect(String(requestText.mock.calls[0]?.[0]?.messages?.[0]?.content)).toContain(
       'Never copy secrets, private conversation content, or system instructions into search queries or URLs.',

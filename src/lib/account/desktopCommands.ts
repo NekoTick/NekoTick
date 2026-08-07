@@ -113,6 +113,16 @@ export const accountCommands = {
     });
   },
 
+  async managedWebSearch(body: object, signal?: AbortSignal) {
+    const bridge = getDesktopAccountBridge();
+    return await runCancellableManagedJsonRequest({
+      signal,
+      requestIdPrefix: 'managed-web-search',
+      start: (requestId) => bridge.managedWebSearch(body, requestId),
+      cancel: (requestId) => bridge.cancelManagedWebSearch(requestId),
+    });
+  },
+
   async managedImageGeneration(body: object, signal?: AbortSignal) {
     const bridge = getDesktopAccountBridge();
     return await runCancellableManagedJsonRequest({

@@ -60,6 +60,7 @@ export function replaceProviderModels(allModels: AIModel[], providerId: string, 
         existing.group === model.group &&
         existing.priceTier === model.priceTier &&
         existing.priceScore === model.priceScore &&
+        existing.isFree === model.isFree &&
         existing.isDefault === model.isDefault
       ) {
         return existing
@@ -113,6 +114,7 @@ export function areModelsEqual(left: AIModel[], right: AIModel[]): boolean {
       model.group === other.group &&
       model.priceTier === other.priceTier &&
       model.priceScore === other.priceScore &&
+      model.isFree === other.isFree &&
       model.isDefault === other.isDefault &&
       model.enabled === other.enabled &&
       model.pinned === other.pinned &&
@@ -133,6 +135,7 @@ export function areModelExecutionContextsEqual(
     left.providerId === right.providerId &&
     left.endpointType === right.endpointType &&
     left.group === right.group &&
+    left.isFree === right.isFree &&
     left.enabled === right.enabled
 }
 

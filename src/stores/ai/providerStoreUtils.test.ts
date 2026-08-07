@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AIModel, Provider } from '@/lib/ai/types';
-import { areProvidersEqual, chooseFallbackSelectedModelId } from './providerStoreUtils';
+import {
+  areModelExecutionContextsEqual,
+  areModelsEqual,
+  areProvidersEqual,
+  chooseFallbackSelectedModelId,
+  replaceProviderModels,
+} from './providerStoreUtils';
 
 function buildProvider(overrides: Partial<Provider> = {}): Provider {
   return {
@@ -55,5 +61,25 @@ describe('chooseFallbackSelectedModelId', () => {
       buildModel({ id: 'model-default', isDefault: true, enabled: false }),
       buildModel({ id: 'model-enabled', apiModelId: 'model-enabled' }),
     ], 'provider-1')).toBe('model-enabled');
+  });
+});
+
+describe('free model metadata', () => {
+  it('updates provider models when the free flag changes', () => {
+    const existing = buildModel({ isFree: false, pinned: true });
+    const [updated] = replaceProviderModels([existing], 'provider-1', [
+      buildModel({ isFree: true }),
+    ]);
+
+    expect(updated).not.toBe(existing);
+    expect(updated).toMatchObject({ isFree: true, pinned: true });
+  });
+
+  it('participates in model and execution context equality', () => {
+    const paid = buildModel({ isFree: false });
+    const free = buildModel({ isFree: true });
+
+    expect(areModelsEqual([paid], [free])).toBe(false);
+    expect(areModelExecutionContextsEqual(paid, free)).toBe(false);
   });
 });

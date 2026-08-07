@@ -30,6 +30,7 @@ import {
   isComputerCommandApprovalForSession,
   usePendingComputerCommandApprovals,
 } from '@/lib/ai/computerUse/approvalState';
+import { useWebSearchQuotaStore } from '@/stores/useWebSearchQuotaStore';
 
 interface ChatInputComposerFrameProps {
   active: boolean;
@@ -151,7 +152,8 @@ export function ChatInputComposerFrame({
   );
   const hasComputerCommandApproval = showComputerCommandApproval &&
     sessionComputerCommandApprovals.length > 0;
-  const hasComposerNotice = isQuotaSendBlocked || hasComputerCommandApproval;
+  const isWebSearchQuotaExhausted = useWebSearchQuotaStore((state) => state.exhausted);
+  const hasComposerNotice = isQuotaSendBlocked || isWebSearchQuotaExhausted || hasComputerCommandApproval;
   const previousApprovalCountRef = useRef(sessionComputerCommandApprovals.length);
 
   useEffect(() => {
@@ -194,7 +196,7 @@ export function ChatInputComposerFrame({
             <ComputerCommandApprovalNotice sessionId={sessionId} />
           </div>
         ) : null}
-        <div className={cn(isQuotaSendBlocked && managedQuotaNoticeFrameClass)}>
+        <div className={cn((isQuotaSendBlocked || isWebSearchQuotaExhausted) && managedQuotaNoticeFrameClass)}>
           <div
             data-chat-input="true"
             ref={composerRootRef}
@@ -296,7 +298,11 @@ export function ChatInputComposerFrame({
             />
           </div>
           </div>
-          {isQuotaSendBlocked && <ManagedQuotaNotice />}
+          {isQuotaSendBlocked ? (
+            <ManagedQuotaNotice />
+          ) : isWebSearchQuotaExhausted ? (
+            <ManagedQuotaNotice messageKey="chat.webSearchQuotaExhausted" />
+          ) : null}
         </div>
       </div>
     </>

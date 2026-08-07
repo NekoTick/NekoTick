@@ -169,6 +169,19 @@ function isInternalHashHref(href: unknown): href is string {
   return typeof href === 'string' && /^#[A-Za-z0-9_-]+$/.test(href);
 }
 
+function compactRawExternalLinkLabel(href: unknown, children: React.ReactNode): React.ReactNode {
+  if (typeof href !== 'string' || typeof children !== 'string' || children.trim() !== href.trim()) {
+    return children;
+  }
+  try {
+    const url = new URL(href);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return children;
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return children;
+  }
+}
+
 function renderUnavailableImage(unavailableImageLabel = translate('chat.imageUnavailable')) {
   return (
     <span
@@ -223,7 +236,7 @@ export function createMarkdownComponents({
           {...getExternalLinkProps(typeof href === 'string' ? href : null)}
           data-no-focus-input="true"
         >
-          {children}
+          {compactRawExternalLinkLabel(href, children)}
         </a>
       );
     },

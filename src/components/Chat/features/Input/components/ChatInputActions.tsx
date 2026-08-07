@@ -199,7 +199,7 @@ export const ChatInputActions = memo(function ChatInputActions({
             </button>
           </PopoverContent>
         </Popover>
-        {webSearchEnabled && (
+        {webSearchAvailable && webSearchEnabled && (
           <button
             type="button"
             aria-pressed="true"

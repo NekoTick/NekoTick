@@ -155,7 +155,6 @@
       createAccountApi,
       createAiProviderApi,
       createComputerApi,
-      createWebSearchApi,
     } = require('./preloadRequestApis.cjs');
 
     function createDesktopApi(deps) {
@@ -376,7 +375,6 @@
         },
         aiProvider: createAiProviderApi(deps),
         computer: hostPlatform === 'linux' ? createComputerApi(deps) : undefined,
-        webSearch: createWebSearchApi(deps),
         dragDrop: {
           getPathForFile(file) {
             return webUtils.getPathForFile(file);
@@ -546,26 +544,6 @@
       };
     }
 
-    function createWebSearchApi({ ipcRenderer, requireSafeIpcRequestId }) {
-      return {
-        search(query, options, requestId) {
-          const id = requestId == null ? undefined : requireSafeIpcRequestId(requestId, 'Web search request id');
-          return ipcRenderer.invoke('desktop:web-search:search', query, options, id);
-        },
-        read(url, options, requestId) {
-          const id = requestId == null ? undefined : requireSafeIpcRequestId(requestId, 'Web search request id');
-          return ipcRenderer.invoke('desktop:web-search:read', url, options, id);
-        },
-        readBatch(urls, options, requestId) {
-          const id = requestId == null ? undefined : requireSafeIpcRequestId(requestId, 'Web search request id');
-          return ipcRenderer.invoke('desktop:web-search:read-batch', urls, options, id);
-        },
-        cancelRequest(requestId) {
-          return ipcRenderer.invoke('desktop:web-search:cancel', requireSafeIpcRequestId(requestId, 'Web search request id'));
-        },
-      };
-    }
-
     function createComputerApi({ ipcRenderer, callIpcCallback, requireSafeIpcRequestId }) {
       return {
         startCommand(requestId, request) {
@@ -613,6 +591,7 @@
     function createAccountApi(deps) {
       const { ipcRenderer, requireSafeIpcRequestId } = deps;
       const managedChatRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed chat completion request id');
+      const managedWebSearchRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed web search request id');
       const managedImageRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed image generation request id');
       const managedImageEditRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed image edit request id');
       const managedStreamRequestId = (requestId) => requireSafeIpcRequestId(requestId, 'managed stream request id');
@@ -660,6 +639,12 @@
         cancelManagedChatCompletion(requestId) {
           return ipcRenderer.invoke('desktop:managed:chat-completion:cancel', managedChatRequestId(requestId));
         },
+        managedWebSearch(body, requestId) {
+          return invokeManagedRequest(ipcRenderer, 'desktop:managed:web-search', managedWebSearchRequestId, requestId, body);
+        },
+        cancelManagedWebSearch(requestId) {
+          return ipcRenderer.invoke('desktop:managed:web-search:cancel', managedWebSearchRequestId(requestId));
+        },
         managedImageGeneration(body, requestId) {
           return invokeManagedRequest(ipcRenderer, 'desktop:managed:image-generation', managedImageRequestId, requestId, body);
         },
@@ -688,7 +673,6 @@
       createAccountApi,
       createAiProviderApi,
       createComputerApi,
-      createWebSearchApi,
     };
 
   },

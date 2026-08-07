@@ -73,7 +73,7 @@ function invalidToolArgumentsResult(
 }
 
 function errorCode(error: unknown): string | undefined {
-  const code = readErrorField(error, 'code');
+  const code = readErrorField(error, 'errorCode') ?? readErrorField(error, 'code');
   return typeof code === 'string'
     ? code
     : undefined;
@@ -86,6 +86,9 @@ function friendlyToolErrorMessage(toolName: string, error?: unknown): string {
       return typeof message === 'string' ? message : 'Tool call failed.';
     }
   } catch {
+  }
+  if (errorCode(error) === 'web_search_monthly_quota_exceeded') {
+    return 'The web search quota has been used.';
   }
   if (toolName === WEB_SEARCH_TOOL_NAMES.search) {
     return 'Web search is temporarily unavailable.';

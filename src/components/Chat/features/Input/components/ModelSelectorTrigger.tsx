@@ -6,7 +6,7 @@ import {
   type ModelFamily,
 } from '../modelFamilyRegistry'
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles'
-import { CustomModelIcon, monochromeModelIconClass } from './ModelSelectorOption'
+import { CustomModelIcon, FreeModelBadge, monochromeModelIconClass } from './ModelSelectorOption'
 import type { ModelSelectorThemeStyles } from '../modelSelectorTypes'
 
 interface ModelSelectorTriggerProps {
@@ -15,6 +15,7 @@ interface ModelSelectorTriggerProps {
   styles: ModelSelectorThemeStyles
   isOpen: boolean
   selectModelLabel: string
+  freeModelLabel: string
   onToggle: () => void
   popupId?: string
 }
@@ -25,6 +26,7 @@ export function ModelSelectorTrigger({
   styles,
   isOpen,
   selectModelLabel,
+  freeModelLabel,
   onToggle,
   popupId,
 }: ModelSelectorTriggerProps) {
@@ -59,6 +61,7 @@ export function ModelSelectorTrigger({
         <span className="whitespace-nowrap text-[var(--vlaina-font-15)] font-semibold tracking-tight">
           {selectedModel ? getModelPresentationName(selectedModel) : selectModelLabel}
         </span>
+        {selectedModel?.isFree && <FreeModelBadge label={freeModelLabel} />}
         {/* Chevron glyph adapted from Lucide Icons (ISC). */}
         <svg
           aria-hidden="true"

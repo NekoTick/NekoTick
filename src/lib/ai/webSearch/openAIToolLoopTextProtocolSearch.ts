@@ -1,4 +1,5 @@
 import { addChatDebugLog } from '@/lib/debug/chatDebugLog';
+import { readErrorField } from '@/lib/ai/errorClassification';
 import { createWebSearchClient } from './client';
 import { formatBatchPagesForModel, formatSearchResultsForModel } from './format';
 import {
@@ -59,14 +60,16 @@ export async function buildTextProtocolSearchMessages({
       attemptResponse = signal
         ? await client.webSearch(searchQuery, { limit: 5 }, signal)
         : await client.webSearch(searchQuery, { limit: 5 });
-    } catch {
+    } catch (error) {
       addChatDebugLog('web-search-text-protocol', 'search attempt failed', {
         query: searchQuery,
       }, 'warn');
       emitStatus({
         phase: 'error',
         query: searchQuery,
-        message: 'Web search is temporarily unavailable.',
+        message: readErrorField(error, 'errorCode') === 'web_search_monthly_quota_exceeded'
+          ? 'The web search quota has been used.'
+          : 'Web search is temporarily unavailable.',
       });
       return {
         messages: body.messages as OpenAIWireMessage[],

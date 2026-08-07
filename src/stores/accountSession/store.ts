@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { ACCOUNT_AUTH_INVALIDATED_EVENT } from '@/lib/account/sessionEvent';
 import { translate } from '@/lib/i18n';
 import { clearManagedBudgetUnlessQuotaExhausted, useManagedAIStore } from '@/stores/useManagedAIStore';
+import { clearWebSearchQuotaExhausted } from '@/stores/useWebSearchQuotaStore';
 import {
   createCheckStatus,
   createCancelConnect,
@@ -61,6 +62,7 @@ function registerAccountAuthInvalidationListener(): void {
       : null;
     invalidateAccountSessionAuthState();
     useManagedAIStore.getState().clearBudget();
+    clearWebSearchQuotaExhausted();
     useAccountSessionStore.setState({
       isConnected: false,
       provider: null,

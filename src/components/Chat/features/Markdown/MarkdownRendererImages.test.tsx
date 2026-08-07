@@ -21,6 +21,15 @@ import MarkdownRenderer from './MarkdownRenderer';
 import { createMarkdownComponents } from './markdownRendererComponents';
 
 describe('MarkdownRenderer images', () => {
+  it('shortens raw external URL labels while preserving the link destination', () => {
+    render(<MarkdownRenderer content="https://www.example.com/articles/current" />);
+
+    expect(screen.getByRole('link', { name: 'example.com' })).toHaveAttribute(
+      'href',
+      'https://www.example.com/articles/current',
+    );
+  });
+
   it('removes KaTeX source annotations from read-only markdown output', () => {
     const { container } = render(<MarkdownRenderer content={'Before $x% hidden_secret_marker$ after'} />);
 

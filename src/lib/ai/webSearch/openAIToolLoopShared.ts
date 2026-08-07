@@ -50,10 +50,34 @@ export function appendSuccessfulReadSources(target: string[], status: WebSearchS
 }
 
 export function withSourceLinks(content: string, sourceUrls: string[]): string {
-  const urls = sourceUrls.slice(0, 5);
-  const missingUrls = urls.filter((url) => !content.includes(url));
-  if (missingUrls.length === 0) return content;
-  return `${content.trimEnd()}\n\nSources:\n${missingUrls.map((url) => `- ${url}`).join('\n')}`;
+  const urls = sourceUrls
+    .map(sanitizeWebSearchSourceUrl)
+    .filter((url): url is string => Boolean(url))
+    .slice(0, 5);
+  const linkedContent = linkKnownSourceUrls(content, urls);
+  const missingUrls = urls.filter((url) => !linkedContent.includes(url));
+  if (missingUrls.length === 0) return linkedContent;
+  return `${linkedContent.trimEnd()}\n\nSources:\n${missingUrls.map((url) => `- [${sourceLabel(url)}](${url})`).join('\n')}`;
+}
+
+function linkKnownSourceUrls(content: string, urls: string[]): string {
+  return urls.reduce((result, url) => {
+    const escapedUrl = url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const link = `[${sourceLabel(url)}](${url})`;
+    const normalizedLinks = result
+      .replace(new RegExp(`\\[${escapedUrl}\\]\\(${escapedUrl}\\)`, 'g'), link)
+      .replace(new RegExp(`<${escapedUrl}>`, 'g'), link);
+    const pattern = new RegExp(escapedUrl, 'g');
+    return normalizedLinks.replace(pattern, (match, offset: number, whole: string) => {
+      const prefix = whole.slice(Math.max(0, offset - 3), offset);
+      if (prefix.endsWith('](') || prefix === '](<') return match;
+      return `[${sourceLabel(url)}](${match})`;
+    });
+  }, content);
+}
+
+function sourceLabel(url: string): string {
+  return new URL(url).hostname.replace(/^www\./, '');
 }
 
 export function buildFinalAssistantTranscriptMessage(content: string, reasoningContent?: string): OpenAIWireMessage {

@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => {
     reportManagedClientDiagnostic: vi.fn().mockResolvedValue({}),
     managedChatCompletion: vi.fn().mockResolvedValue({ id: 'resp-1' }),
     cancelManagedChatCompletion: vi.fn().mockResolvedValue(undefined),
+    managedWebSearch: vi.fn().mockResolvedValue({ query: 'test', results: [] }),
+    cancelManagedWebSearch: vi.fn().mockResolvedValue(undefined),
     managedImageGeneration: vi.fn().mockResolvedValue({ data: [] }),
     cancelManagedImageGeneration: vi.fn().mockResolvedValue(undefined),
     managedImageEdit: vi.fn().mockResolvedValue({ data: [] }),
@@ -253,6 +255,22 @@ describe('desktop account commands', () => {
     const requestId = mocks.account.managedChatCompletion.mock.calls[0]?.[1] as string;
     expect(requestId).toMatch(/^managed-json-/);
     expect(mocks.account.cancelManagedChatCompletion).toHaveBeenCalledWith(requestId);
+  });
+
+  it('cancels managed web search requests when the signal aborts', async () => {
+    mocks.account.managedWebSearch.mockImplementationOnce(() => new Promise(() => {}));
+
+    const controller = new AbortController();
+    const request = accountCommands.managedWebSearch(
+      { action: 'search', query: 'latest news' },
+      controller.signal,
+    );
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    const requestId = mocks.account.managedWebSearch.mock.calls[0]?.[1] as string;
+    expect(requestId).toMatch(/^managed-web-search-/);
+    expect(mocks.account.cancelManagedWebSearch).toHaveBeenCalledWith(requestId);
   });
 
   it('does not return managed chat completion results after signal cancellation', async () => {

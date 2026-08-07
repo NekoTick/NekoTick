@@ -21,6 +21,7 @@ describe('normalizeManagedModelsPayload', () => {
           group: 'OpenAI',
           price_tier: '$$',
           price_score: 0.42,
+          is_free: true,
           is_default: true,
         },
       ],
@@ -31,6 +32,7 @@ describe('normalizeManagedModelsPayload', () => {
       apiModelId: 'gpt-test',
       priceTier: '$$',
       priceScore: 0.42,
+      isFree: true,
       isDefault: true,
     });
   });
