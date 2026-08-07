@@ -519,6 +519,7 @@ export const themeWhiteboardTokens = {
   brushCursorInkOpacity: 1,
   brushCursorWashGuideOpacity: 0.2,
   brushColorSwatches: ['#84cfff', '#f0a0b5', '#21c45d', '#ff8c38', '#fd5e5e', '#929292', '#000000'],
+  colorPickerSwatches: ['#1018f5', '#ffffff', '#d9dadd', '#000000', '#ff5b61', '#f2a3b1', '#f276a2', '#f39a06', '#21c65b', '#8a70c6'],
   exportPaddingPx: 56,
   exportEmptyWidthPx: 1200,
   exportEmptyHeightPx: 800,

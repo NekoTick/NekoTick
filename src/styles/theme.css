@@ -997,8 +997,7 @@
   --vlaina-color-whiteboard-grid-dot: rgb(39 39 42 / 0.13);
   --vlaina-whiteboard-toolbar-max-width: calc(100% - var(--vlaina-size-56px));
   --vlaina-whiteboard-panel-max-width: calc(100vw - var(--vlaina-size-24px));
-  --vlaina-whiteboard-color-picker-max-height: calc(100vh - var(--vlaina-size-32px));
-  --vlaina-whiteboard-color-selection-ring-offset: calc(var(--vlaina-size-4px) * -1);
+  --vlaina-whiteboard-color-picker-max-height: calc(100vh - var(--vlaina-size-120px));
   --vlaina-color-whiteboard-pen: #27272a;
   --vlaina-color-whiteboard-pencil: #52525b;
   --vlaina-color-whiteboard-marker: #f59e0b;
@@ -1019,7 +1018,7 @@
   --vlaina-shadow-whiteboard-tool-panel: 0 10px 26px rgb(0 0 0 / 0.12);
   --vlaina-color-picker-white: #ffffff;
   --vlaina-color-picker-black: #000000;
-  --vlaina-color-picker-rainbow: linear-gradient(135deg, #ef4444, #f59e0b, #10b981, #1e96eb, #8b5cf6, #ec4899);
+  --vlaina-color-picker-trigger-outer: conic-gradient(from 45deg, #ef4444, #f59e0b, #10b981, #1e96eb, #8b5cf6, #ec4899, #ef4444);
   --vlaina-cursor-whiteboard-eyedropper: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='m21.7 3.5 6.8 6.8-4.4 4.4-1.9-1.9-9.6 9.6v4.1H8.5v-4.1l9.6-9.6-1.9-1.9z' fill='%23fff' stroke='%2318181b' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='m7 25 2.5-2.5 3 3L10 28H7z' fill='%2318181b'/%3E%3C/svg%3E") 8 26, crosshair;
   --vlaina-color-editor-inline-code-bg: var(--vlaina-code-inline-background);
   --vlaina-color-editor-html-source-text: #a7a7a7;
