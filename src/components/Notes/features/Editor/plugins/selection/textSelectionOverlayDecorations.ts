@@ -3,8 +3,6 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { ATOMIC_TEXT_SELECTION_OVERLAY_NODE_NAMES } from '../shared/blockNodeTypes';
 import {
-  EDITOR_ONLY_TEXT_SELECTION_PLACEHOLDERS,
-  LINE_BREAK_PATTERN,
   MAX_TEXT_SELECTION_OVERLAY_DECORATIONS,
   MAX_TEXT_SELECTION_OVERLAY_SCAN_NODES,
   TEXT_SELECTION_OVERLAY_CLASS,
@@ -12,6 +10,8 @@ import {
   isTextSelectionOverlayEligible,
   type TextSelectionOverlayState,
 } from './textSelectionOverlayState';
+
+const TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS = /[\u200B\u200C\u2800\n\r\u2028\u2029]/gu;
 
 export function addTextSelectionOverlayDecorations(
   decorations: Decoration[],
@@ -36,29 +36,23 @@ export function addTextSelectionOverlayDecorations(
     }));
   };
 
-  let rangeStart: number | null = null;
-  for (let pos = from; pos < to && decorations.length < MAX_TEXT_SELECTION_OVERLAY_DECORATIONS; pos += 1) {
-    const char = text[pos - nodeStart];
-    if (EDITOR_ONLY_TEXT_SELECTION_PLACEHOLDERS.has(char)) {
-      if (rangeStart !== null) {
-        pushVisibleDecoration(rangeStart, pos);
-      }
-      rangeStart = null;
-      continue;
-    }
-    if (LINE_BREAK_PATTERN.test(char)) {
-      if (rangeStart !== null) {
-        pushVisibleDecoration(rangeStart, pos);
-      }
-      rangeStart = null;
-      continue;
-    }
-
-    rangeStart ??= pos;
+  const selectedText = text.slice(from - nodeStart, to - nodeStart);
+  let segmentStart = 0;
+  TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS.lastIndex = 0;
+  let excludedMatch: RegExpExecArray | null;
+  while (
+    decorations.length < MAX_TEXT_SELECTION_OVERLAY_DECORATIONS &&
+    (excludedMatch = TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS.exec(selectedText)) !== null
+  ) {
+    pushVisibleDecoration(
+      from + segmentStart,
+      from + excludedMatch.index,
+    );
+    segmentStart = excludedMatch.index + excludedMatch[0].length;
   }
 
-  if (rangeStart !== null && to > rangeStart) {
-    pushVisibleDecoration(rangeStart, to);
+  if (segmentStart < selectedText.length) {
+    pushVisibleDecoration(from + segmentStart, to);
   }
 }
 

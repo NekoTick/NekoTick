@@ -12,6 +12,7 @@ import { installFloatingToolbarPluginViewEventMethods } from './floatingToolbarP
 import { installFloatingToolbarPluginViewLayoutMethods } from './floatingToolbarPluginViewLayoutMethods';
 import { installFloatingToolbarPluginViewRenderMethods } from './floatingToolbarPluginViewRenderMethods';
 import type { FloatingToolbarPluginViewContext } from './floatingToolbarPluginViewTypes';
+import { isLargeEditorTextSelection } from '../selection/textSelectionOverlayState';
 
 export type { FloatingToolbarInteractionState } from './floatingToolbarPluginViewUtils';
 export { shouldLockPreviewToolbarPosition } from './floatingToolbarPluginViewUtils';
@@ -99,9 +100,15 @@ export function createFloatingToolbarPluginView(
   return {
     update(view: EditorView) {
       const { selection } = view.state;
-      if (hasUsableTextSelection(selection, view.state.doc)) {
+      const pluginState = toolbarKey.getState(view.state);
+      const hasReviewPanels = Boolean(pluginState && (
+        pluginState.aiReviews.length > 0 || pluginState.aiReview
+      ));
+      if (
+        (!isLargeEditorTextSelection(view.state) || hasReviewPanels)
+        && hasUsableTextSelection(selection, view.state.doc)
+      ) {
         ctx.rememberTextSelection(selection);
-        const pluginState = toolbarKey.getState(view.state);
         if (pluginState?.isVisible) {
           const signature = `${selection.from}:${selection.to}`;
           if (signature !== ctx.lastExclusiveToolbarSignature) {

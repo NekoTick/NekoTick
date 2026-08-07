@@ -136,7 +136,7 @@ describe('caret styles', () => {
 
   it('hides non-modal text overlays while the collapsed sidebar is peeking', () => {
     const css = readIndexStyles();
-    const selector = "body:has([data-shell-sidebar-peek='true'][data-open='true']) :is(";
+    const selector = 'html[data-shell-sidebar-peek-open] :is(';
     const ruleStart = css.indexOf(selector);
 
     expect(ruleStart).toBeGreaterThanOrEqual(0);
@@ -152,7 +152,7 @@ describe('caret styles', () => {
     const css = readIndexStyles();
 
     expect(css).toContain(
-      "body:has([data-shell-sidebar-peek='true'])\n  [data-chat-selection-insert-layer='true']"
+      "html[data-shell-sidebar-peek]\n  [data-chat-selection-insert-layer='true']"
     );
     expect(css).toContain('clip-path: inset(0 0 0 var(--vlaina-size-48px));');
   });

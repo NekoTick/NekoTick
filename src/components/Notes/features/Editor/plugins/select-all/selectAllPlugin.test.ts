@@ -1,15 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@milkdown/kit/prose/state', () => ({
-  Plugin: class {
-    constructor(public spec: unknown) {}
-  },
-  AllSelection: {
-    create: vi.fn(() => 'all-selection'),
-  },
-}));
+vi.mock('@milkdown/kit/prose/state', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@milkdown/kit/prose/state')>();
+  return {
+    ...actual,
+    Plugin: class {
+      constructor(public spec: unknown) {}
+    },
+    AllSelection: class {
+      static create = vi.fn(() => new this());
+    },
+  };
+});
 
 import { handleEditorSelectAll } from './selectAllPlugin';
+import { AllSelection } from '@milkdown/kit/prose/state';
 
 describe('handleEditorSelectAll', () => {
   it('dispatches an editor-wide selection for Mod-a', () => {
@@ -77,6 +82,40 @@ describe('handleEditorSelectAll', () => {
 
     expect(handleEditorSelectAll(view, event)).toBe(false);
     expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('does not refocus a large editor after selecting all', () => {
+    const transaction = {};
+    const selection = Object.assign(new AllSelection({}), {
+      empty: false,
+      from: 0,
+      to: 100_001,
+    });
+    const setSelection = vi.fn(() => {
+      view.state.selection = selection;
+      return transaction;
+    });
+    const view = {
+      dom: document.createElement('div'),
+      state: {
+        doc: { content: { size: 100_001 } },
+        selection: { empty: true, from: 1, to: 1 },
+        tr: { setSelection },
+      },
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+    } as any;
+    const event = {
+      key: 'a',
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+      preventDefault: vi.fn(),
+    } as any;
+
+    expect(handleEditorSelectAll(view, event)).toBe(true);
+    expect(view.focus).not.toHaveBeenCalled();
   });
 
   it('leaves composing Mod-a to the input method', () => {

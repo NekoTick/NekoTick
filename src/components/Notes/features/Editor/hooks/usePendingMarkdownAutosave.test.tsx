@@ -18,7 +18,11 @@ import {
   replaceSelectedTextWithCommittedComposition,
   usePendingMarkdownAutosave,
 } from './usePendingMarkdownAutosave';
-import { splitBlockAfterCommittedCompositionSelection } from './pendingMarkdownCompositionSelection';
+import {
+  captureCompositionStartSelection,
+  getSelectedCompositionText,
+  splitBlockAfterCommittedCompositionSelection,
+} from './pendingMarkdownCompositionSelection';
 
 function createEditor(defaultValue = '') {
   return Editor.make()
@@ -82,6 +86,24 @@ describe('usePendingMarkdownAutosave', () => {
       noteContentsCache: new Map([['docs/alpha.md', { content: '# alpha', modifiedAt: 1 }]]),
       notesPath: '/notesRoot',
     });
+  });
+
+  it('skips full-document composition reads for oversized selections', () => {
+    const textBetween = vi.fn(() => {
+      throw new Error('oversized composition selection should not be read');
+    });
+    const view = {
+      state: {
+        doc: { textBetween },
+        selection: { empty: false, from: 1, to: 1_000 },
+      },
+    } as unknown as EditorView;
+
+    expect(captureCompositionStartSelection(view)).toBeNull();
+    expect(getSelectedCompositionText(view)).toBeNull();
+    expect(collapseCommittedCompositionSelection(view, '好')).toBe(false);
+    expect(replaceSelectedTextWithCommittedComposition(view, '好')).toBe(false);
+    expect(textBetween).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

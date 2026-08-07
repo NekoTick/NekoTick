@@ -45,6 +45,25 @@ function createVeryLargePlainMarkdown(paragraphCount: number): {
   };
 }
 
+function createVeryLargeSingleParagraphMarkdown(targetLength = 300_000): string {
+  const chunk = 'single paragraph selection performance alpha beta gamma delta epsilon ';
+  const body = chunk.repeat(Math.ceil(targetLength / chunk.length)).slice(0, targetLength);
+  return [
+    '# Large Single Paragraph Selection Performance',
+    '',
+    body,
+    '',
+    'Final large single paragraph selection sentinel',
+  ].join('\n');
+}
+
+function createStructurallyDenseMarkdown(blockCount = 2_500): string {
+  return Array.from(
+    { length: blockCount },
+    (_, index) => `## Dense block ${index}`,
+  ).join('\n');
+}
+
 function createLargeMixedSyntaxSection(index: number): string {
   const longPlainRun = [
     `Large mixed paragraph ${index} keeps a plain-text body while carrying inline syntax markers`,
@@ -291,6 +310,210 @@ async function collectFrameMetrics(page: Page, durationMs: number): Promise<{
   }), { durationMs, styleId: MARKDOWN_FONT_SIZE_STYLE_ID });
 }
 
+async function measureSelectAll(page: Page): Promise<{
+  defaultPrevented: boolean;
+  largeSelectionHighlightActive: boolean;
+  keydownMs: number;
+  nativeSelectionExpanded: boolean;
+  nextFrameMs: number;
+  overlayCount: number;
+  visibleTopLevelChildCount: number;
+  visibleTopLevelHighlightedChildCount: number;
+  usesNativeSelection: boolean;
+}> {
+  await page.locator(EDITOR_SELECTOR).focus();
+  await waitForEditorAnimationFrame(page);
+
+  const metrics = await page.evaluate(({ editorSelector, metaKey }) => new Promise((resolve) => {
+    const editor = document.querySelector<HTMLElement>(editorSelector);
+    if (!editor) {
+      throw new Error('Editor not found');
+    }
+
+    const event = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: !metaKey,
+      key: 'a',
+      metaKey,
+    });
+    const startedAt = performance.now();
+    editor.dispatchEvent(event);
+    const keydownCompletedAt = performance.now();
+    const nativeSelection = window.getSelection();
+
+    requestAnimationFrame(() => {
+      const nextFrameMs = performance.now() - keydownCompletedAt;
+      const largeSelectionHighlight = (
+        window.CSS as CSS & { highlights?: Map<string, unknown> }
+      ).highlights?.get('editor-large-all-selection') as (Iterable<Range> & { size?: number }) | undefined;
+      const highlightRanges = Array.from(largeSelectionHighlight ?? []);
+      const scrollRoot = editor.closest<HTMLElement>('[data-note-scroll-root="true"]');
+      const scrollRect = scrollRoot?.getBoundingClientRect();
+      const viewportTop = Math.max(0, scrollRect?.top ?? 0);
+      const viewportBottom = Math.min(window.innerHeight, scrollRect?.bottom ?? window.innerHeight);
+      const visibleTopLevelChildren = Array.from(editor.children).filter((child) => {
+        const rect = (child as HTMLElement).getBoundingClientRect();
+        return rect.bottom > viewportTop && rect.top < viewportBottom;
+      });
+      resolve({
+        defaultPrevented: event.defaultPrevented,
+        largeSelectionHighlightActive: (
+          (largeSelectionHighlight?.size ?? 0) > 0
+          || editor.querySelectorAll('.editor-large-selection-visible').length > 0
+        ),
+        keydownMs: keydownCompletedAt - startedAt,
+        nativeSelectionExpanded: Boolean(nativeSelection && !nativeSelection.isCollapsed),
+        nextFrameMs,
+        overlayCount: editor.querySelectorAll('.editor-text-selection-overlay').length,
+        visibleTopLevelChildCount: visibleTopLevelChildren.length,
+        visibleTopLevelHighlightedChildCount: visibleTopLevelChildren.filter((child) => (
+          child.classList.contains('editor-large-selection-visible')
+          || highlightRanges.some((range) => range.intersectsNode(child))
+        )).length,
+        usesNativeSelection: editor.classList.contains('editor-pointer-native-selection'),
+      });
+    });
+  }), {
+    editorSelector: EDITOR_SELECTOR,
+    metaKey: process.platform === 'darwin',
+  }) as Promise<{
+    defaultPrevented: boolean;
+    largeSelectionHighlightActive: boolean;
+    keydownMs: number;
+    nativeSelectionExpanded: boolean;
+    nextFrameMs: number;
+    overlayCount: number;
+    visibleTopLevelChildCount: number;
+    visibleTopLevelHighlightedChildCount: number;
+    usesNativeSelection: boolean;
+  }>;
+  return metrics;
+}
+
+async function measureSelectionAfterScroll(page: Page): Promise<{
+  allSelected: boolean;
+  scrollTop: number;
+  visibleHighlightRangeCount: number;
+  visibleTopLevelChildCount: number;
+  visibleTopLevelHighlightedChildCount: number;
+}> {
+  await page.evaluate((editorSelector) => {
+    const editor = document.querySelector<HTMLElement>(editorSelector);
+    const scrollRoot = editor?.closest<HTMLElement>('[data-note-scroll-root="true"]');
+    if (!editor || !scrollRoot) {
+      throw new Error('Editor or note scroll root not found');
+    }
+    scrollRoot.scrollTop = Math.max(
+      scrollRoot.clientHeight * 2,
+      (scrollRoot.scrollHeight - scrollRoot.clientHeight) * 0.6,
+    );
+  }, EDITOR_SELECTOR);
+  await waitForEditorAnimationFrame(page);
+  await waitForEditorAnimationFrame(page);
+
+  return page.evaluate((editorSelector) => {
+    const editor = document.querySelector<HTMLElement>(editorSelector);
+    const scrollRoot = editor?.closest<HTMLElement>('[data-note-scroll-root="true"]');
+    if (!editor || !scrollRoot) {
+      throw new Error('Editor or note scroll root not found');
+    }
+
+    const scrollRect = scrollRoot.getBoundingClientRect();
+    const viewportTop = Math.max(0, scrollRect.top);
+    const viewportBottom = Math.min(window.innerHeight, scrollRect.bottom);
+    const visibleTopLevelChildren = Array.from(editor.children).filter((child) => {
+      const rect = (child as HTMLElement).getBoundingClientRect();
+      return rect.bottom > viewportTop && rect.top < viewportBottom;
+    });
+    const largeSelectionHighlight = (
+      window.CSS as CSS & { highlights?: Map<string, Iterable<Range>> }
+    ).highlights?.get('editor-large-all-selection');
+    const highlightRanges = Array.from(largeSelectionHighlight ?? []);
+    const visibleHighlightRangeCount = highlightRanges.filter((range) => (
+      Array.from(range.getClientRects()).some((rect) => (
+        rect.bottom > viewportTop && rect.top < viewportBottom
+      ))
+    )).length;
+    const selection = (window as any).__vlainaE2E.getEditorSelectionSummary();
+
+    return {
+      allSelected: selection?.from === 0 && selection?.to === selection?.docTextLength,
+      scrollTop: scrollRoot.scrollTop,
+      visibleHighlightRangeCount,
+      visibleTopLevelChildCount: visibleTopLevelChildren.length,
+      visibleTopLevelHighlightedChildCount: visibleTopLevelChildren.filter((child) => (
+        child.classList.contains('editor-large-selection-visible')
+        || highlightRanges.some((range) => range.intersectsNode(child))
+      )).length,
+    };
+  }, EDITOR_SELECTOR);
+}
+
+async function measureModifiedEndSelection(page: Page): Promise<{
+  capturedKey: string;
+  defaultPrevented: boolean;
+  keydownMs: number;
+  nextFrameMs: number;
+  overlayCount: number;
+  selectedTextLength: number;
+  timedOut: boolean;
+}> {
+  await page.evaluate(() => (window as any).__vlainaE2E.setEditorSelectionRange(1, 1));
+  await page.evaluate((editorSelector) => {
+    const editor = document.querySelector<HTMLElement>(editorSelector);
+    if (!editor) throw new Error('Editor not found');
+
+    (window as any).__vlainaModifiedEndSelectionPromise = new Promise((resolve) => {
+      let startedAt = 0;
+      let event: KeyboardEvent | null = null;
+      let completed = false;
+      const finish = (timedOut: boolean) => {
+        if (completed) return;
+        completed = true;
+        const completedAt = performance.now();
+        window.clearTimeout(timeout);
+        document.removeEventListener('keydown', handleKeyDown, true);
+        requestAnimationFrame(() => {
+          const summary = (window as any).__vlainaE2E.getEditorSelectionSummary();
+          resolve({
+            capturedKey: event?.key ?? '',
+            defaultPrevented: Boolean(event?.defaultPrevented),
+            keydownMs: startedAt > 0 ? completedAt - startedAt : 0,
+            nextFrameMs: performance.now() - completedAt,
+            overlayCount: editor.querySelectorAll('.editor-text-selection-overlay').length,
+            selectedTextLength: summary?.selectedText?.length ?? 0,
+            timedOut,
+          });
+        });
+      };
+      const handleKeyDown = (nextEvent: KeyboardEvent) => {
+        if (
+          !nextEvent.shiftKey ||
+          (nextEvent.key !== 'End' && nextEvent.key !== 'ArrowDown')
+        ) return;
+        startedAt = performance.now();
+        event = nextEvent;
+        queueMicrotask(() => finish(false));
+      };
+      const timeout = window.setTimeout(() => finish(true), 5_000);
+      document.addEventListener('keydown', handleKeyDown, true);
+    });
+  }, EDITOR_SELECTOR);
+
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Shift+ArrowDown' : 'Control+Shift+End');
+  const metrics = await page.evaluate(() => (window as any).__vlainaModifiedEndSelectionPromise) as {
+    capturedKey: string;
+    defaultPrevented: boolean;
+    keydownMs: number;
+    nextFrameMs: number;
+    overlayCount: number;
+    selectedTextLength: number;
+    timedOut: boolean;
+  };
+  return metrics;
+}
+
 async function measurePointerNativeSelectionTransaction(page: Page, text: string): Promise<{
   frameCount: number;
   maxFrameMs: number;
@@ -452,12 +675,17 @@ test.describe('large markdown interaction performance', () => {
       await expect(page.locator(EDITOR_SELECTOR)).toContainText('Final large markdown interaction performance sentinel');
 
       const selectionMetrics = await measurePointerNativeSelectionTransaction(page, targetText);
+      const modifiedEndSelectionMetrics = await measureModifiedEndSelection(page);
+      const selectAllMetrics = await measureSelectAll(page);
+      await page.evaluate(() => (window as any).__vlainaE2E.focusCurrentEditorAtEnd());
       const sliderMetrics = await measureFontSizeSliderDrag(page);
 
       console.info('[notes-large-markdown-interaction-performance]', {
         contentLength: content.length,
         opened,
         selectionMetrics,
+        modifiedEndSelectionMetrics,
+        selectAllMetrics,
         sliderMetrics,
       });
 
@@ -470,11 +698,93 @@ test.describe('large markdown interaction performance', () => {
       expect(selectionMetrics.duringPointerOverlayCount).toBe(0);
       expect(selectionMetrics.finalOverlayCount).toBe(0);
       expect(selectionMetrics.finalPointerNative).toBe(true);
+      expect(modifiedEndSelectionMetrics.timedOut).toBe(false);
+      expect(modifiedEndSelectionMetrics.defaultPrevented).toBe(true);
+      expect(modifiedEndSelectionMetrics.selectedTextLength).toBeGreaterThan(1_000_000);
+      expect(modifiedEndSelectionMetrics.overlayCount).toBe(0);
+      expect(modifiedEndSelectionMetrics.keydownMs).toBeLessThan(150);
+      expect(selectAllMetrics.defaultPrevented).toBe(true);
+      expect(selectAllMetrics.largeSelectionHighlightActive).toBe(true);
+      expect(selectAllMetrics.nativeSelectionExpanded).toBe(false);
+      expect(selectAllMetrics.usesNativeSelection).toBe(false);
+      expect(selectAllMetrics.overlayCount).toBe(0);
+      expect(selectAllMetrics.keydownMs).toBeLessThan(150);
+      expect(selectAllMetrics.nextFrameMs).toBeLessThan(100);
       expect(sliderMetrics.sliderValue).toBeGreaterThan(17);
       expect(sliderMetrics.fontSize).toBeGreaterThan(17);
       expect(sliderMetrics.sliderGestureMs).toBeLessThan(2_500);
       expect(sliderMetrics.maxFrameMs).toBeLessThan(450);
       expect(sliderMetrics.styleMutationCount).toBeLessThanOrEqual(4);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('selects an oversized single paragraph without expanding the native DOM range', async () => {
+    const content = createVeryLargeSingleParagraphMarkdown();
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-large-single-paragraph-performance');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await openMarkdownFixture(page, {
+        filename: 'large-single-paragraph-performance.md',
+        content,
+      });
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Final large single paragraph selection sentinel');
+
+      const selectAllMetrics = await measureSelectAll(page);
+      const scrolledSelectionMetrics = await measureSelectionAfterScroll(page);
+
+      expect(content.length).toBeGreaterThan(250_000);
+      expect(selectAllMetrics.defaultPrevented).toBe(true);
+      expect(selectAllMetrics.largeSelectionHighlightActive).toBe(true);
+      expect(selectAllMetrics.nativeSelectionExpanded).toBe(false);
+      expect(selectAllMetrics.usesNativeSelection).toBe(false);
+      expect(selectAllMetrics.overlayCount).toBe(0);
+      expect(selectAllMetrics.keydownMs).toBeLessThan(150);
+      expect(selectAllMetrics.nextFrameMs).toBeLessThan(100);
+      expect(scrolledSelectionMetrics.scrollTop).toBeGreaterThan(0);
+      expect(scrolledSelectionMetrics.allSelected).toBe(true);
+      expect(scrolledSelectionMetrics.visibleHighlightRangeCount).toBeGreaterThan(0);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('selects a structurally dense note without expanding the native DOM range', async () => {
+    const content = createStructurallyDenseMarkdown();
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-dense-selection-performance');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await openMarkdownFixture(page, {
+        filename: 'dense-selection-performance.md',
+        content,
+      });
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Dense block 2499');
+      const selectAllMetrics = await measureSelectAll(page);
+      const scrolledSelectionMetrics = await measureSelectionAfterScroll(page);
+
+      expect(content.length).toBeLessThan(100_000);
+      expect(selectAllMetrics.defaultPrevented).toBe(true);
+      expect(selectAllMetrics.largeSelectionHighlightActive).toBe(true);
+      expect(selectAllMetrics.nativeSelectionExpanded).toBe(false);
+      expect(selectAllMetrics.usesNativeSelection).toBe(false);
+      expect(selectAllMetrics.overlayCount).toBe(0);
+      expect(selectAllMetrics.visibleTopLevelChildCount).toBeGreaterThan(0);
+      expect(selectAllMetrics.visibleTopLevelHighlightedChildCount).toBe(
+        selectAllMetrics.visibleTopLevelChildCount,
+      );
+      expect(selectAllMetrics.keydownMs).toBeLessThan(150);
+      expect(selectAllMetrics.nextFrameMs).toBeLessThan(100);
+      expect(scrolledSelectionMetrics.scrollTop).toBeGreaterThan(0);
+      expect(scrolledSelectionMetrics.allSelected).toBe(true);
+      expect(scrolledSelectionMetrics.visibleTopLevelChildCount).toBeGreaterThan(0);
+      expect(scrolledSelectionMetrics.visibleTopLevelHighlightedChildCount).toBe(
+        scrolledSelectionMetrics.visibleTopLevelChildCount,
+      );
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }
@@ -504,6 +814,13 @@ test.describe('large markdown interaction performance', () => {
         timeoutMs: 20_000,
       });
       const domMetrics = await collectEditorDomMetrics(page);
+      await expect(page.locator(`${EDITOR_SELECTOR} .mermaid-block svg`)).toHaveCount(
+        domMetrics.countsBySelector.mermaid,
+        { timeout: 30_000 },
+      );
+      const mixedSelectAllMetrics = await measureSelectAll(page);
+      await page.evaluate(() => (window as any).__vlainaE2E.setEditorSelectionRange(1, 1));
+      await waitForEditorAnimationFrame(page);
       const scrollMetrics = await measureScrollFrames(page, 60);
       const blockScanMetrics = await measureRepeatedBlockScan(page, 20);
 
@@ -529,6 +846,7 @@ test.describe('large markdown interaction performance', () => {
         selectedCount,
         selectedWallMs,
         selectedScrollMetrics,
+        mixedSelectAllMetrics,
       });
 
       expect(content.length).toBeGreaterThan(1_000_000);
@@ -549,6 +867,12 @@ test.describe('large markdown interaction performance', () => {
       expect(selectedWallMs).toBeLessThan(6_000);
       expect(selectedScrollMetrics).not.toBeNull();
       expect(selectedScrollMetrics!.p95FrameMs).toBeLessThan(300);
+      expect(mixedSelectAllMetrics.defaultPrevented).toBe(true);
+      expect(mixedSelectAllMetrics.largeSelectionHighlightActive).toBe(true);
+      expect(mixedSelectAllMetrics.nativeSelectionExpanded).toBe(false);
+      expect(mixedSelectAllMetrics.overlayCount).toBe(0);
+      expect(mixedSelectAllMetrics.keydownMs).toBeLessThan(150);
+      expect(mixedSelectAllMetrics.nextFrameMs).toBeLessThan(300);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

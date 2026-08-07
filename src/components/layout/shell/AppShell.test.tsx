@@ -163,17 +163,21 @@ describe('AppShell', () => {
     expect(peekSidebar).not.toBeNull();
     expect(peekSidebar).toHaveAttribute('data-open', 'false');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'true');
+    expect(document.documentElement).toHaveAttribute('data-shell-sidebar-peek');
+    expect(document.documentElement).not.toHaveAttribute('data-shell-sidebar-peek-open');
     expect(hotzone!.style.width).toBe('48px');
     expect(peekSidebar!.style.getPropertyValue('--vlaina-shell-sidebar-width')).toBe('300px');
     fireEvent.mouseEnter(hotzone!);
 
     expect(peekSidebar).toHaveAttribute('data-open', 'true');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'false');
+    expect(document.documentElement).toHaveAttribute('data-shell-sidebar-peek-open');
 
     fireEvent.mouseLeave(peekSidebar!);
 
     expect(peekSidebar).toHaveAttribute('data-open', 'false');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'true');
+    expect(document.documentElement).not.toHaveAttribute('data-shell-sidebar-peek-open');
   });
 
   it('shows collapsed sidebar content from the titlebar toggle hover', () => {

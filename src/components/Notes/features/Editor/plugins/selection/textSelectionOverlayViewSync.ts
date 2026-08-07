@@ -8,6 +8,7 @@ import {
   TEXT_SELECTION_OVERLAY_ACTIVE_CLASS,
   clearNativeSelectionRange,
   getNativeSelectionMetrics,
+  isLargeEditorSelection,
   isTextSelectionOverlayEligible,
   textSelectionOverlayPluginKey,
 } from './textSelectionOverlayState';
@@ -58,18 +59,25 @@ export function syncTextSelectionOverlayActiveClass(context: TextSelectionOverla
   const { session, view } = context;
   const pluginState = textSelectionOverlayPluginKey.getState(view.state);
   const usePointerNativeSelection = Boolean(pluginState?.usePointerNativeSelection);
-  const active = isTextSelectionOverlayEligible(view.state);
+  const showPointerNativeSelection = (
+    usePointerNativeSelection
+    && !isLargeEditorSelection(view.state)
+  );
+  const active = (
+    isTextSelectionOverlayEligible(view.state)
+    && !isLargeEditorSelection(view.state)
+  );
   if (!active) {
     session.preserveNativeSelectionForKeyboard = false;
   }
   view.dom.classList.toggle(TEXT_SELECTION_OVERLAY_ACTIVE_CLASS, active);
-  view.dom.classList.toggle(POINTER_NATIVE_SELECTION_CLASS, usePointerNativeSelection);
+  view.dom.classList.toggle(POINTER_NATIVE_SELECTION_CLASS, showPointerNativeSelection);
   if (active || !usePointerNativeSelection) {
     view.dom.classList.remove(KEYBOARD_SELECTION_PENDING_CLASS);
   }
   const classSignature = [
     active ? 'overlay-active' : 'overlay-inactive',
-    usePointerNativeSelection ? 'native-active' : 'native-inactive',
+    showPointerNativeSelection ? 'native-active' : 'native-inactive',
     pluginState?.decorationCount ?? 0,
   ].join(':');
   if (classSignature !== session.lastClassSignature) {

@@ -11,6 +11,7 @@ import { floatingToolbarKey } from './floatingToolbarKey';
 import { openLinkTooltipFromSelection } from './linkTooltipActions';
 import { getAiReviewSelectionDecorations } from './ai/reviewSelection';
 import { hasUsableTextSelection } from './selectionValidity';
+import { isLargeEditorTextSelection } from '../selection/textSelectionOverlayState';
 
 export function shouldHideToolbarForArrowNavigation(selection: Selection, event: KeyboardEvent): boolean {
   if (
@@ -127,11 +128,25 @@ export const floatingToolbarPlugin = $prose(() => {
           const { selection } = newState;
           const selectionIsEmpty = selection.empty;
           const isAiReviewPinned = mappedState.subMenu === 'aiReview' && Boolean(mappedState.aiReview);
+          const hasReviewPanels = mappedState.aiReviews.length > 0 || Boolean(mappedState.aiReview);
           const isSelectionSubMenuOpen =
             mappedState.subMenu === 'ai' ||
             mappedState.subMenu === 'block' ||
             mappedState.subMenu === 'alignment' ||
             mappedState.subMenu === 'color';
+          if (isLargeEditorTextSelection(newState) && !hasReviewPanels) {
+            interactionState.pendingShow = false;
+            if (!mappedState.isVisible && !mappedState.selectionRange) {
+              return mappedState;
+            }
+            return {
+              ...mappedState,
+              isVisible: false,
+              subMenu: null,
+              copied: false,
+              selectionRange: null,
+            };
+          }
           if (!hasUsableTextSelection(selection, newState.doc)) {
             if (mappedState.isVisible) {
               if (isAiReviewPinned) {
