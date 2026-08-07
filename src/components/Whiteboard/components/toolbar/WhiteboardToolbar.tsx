@@ -45,6 +45,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
     radiusPx: themeWhiteboardTokens.toolbarDockMagnificationRadiusPx,
   });
   const [openPanel, setOpenPanel] = useState<WhiteboardToolPanelName | null>(null);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [lastDrawingTool, setLastDrawingTool] = useState<WhiteboardDrawingTool>('pen');
   const [lastEraserTool, setLastEraserTool] = useState<WhiteboardTool>('select');
   const visualTool = props.spacePressed ? 'hand' : props.tool;
@@ -124,9 +125,9 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
             ref={dock.ref}
             data-whiteboard-main-toolbar="true"
             onPointerCancel={dock.onPointerCancel}
-            onPointerEnter={dock.onPointerEnter}
+            onPointerEnter={(event) => { if (!colorPickerOpen) dock.onPointerEnter(event); }}
             onPointerLeave={dock.onPointerLeave}
-            onPointerMove={dock.onPointerMove}
+            onPointerMove={(event) => { if (!colorPickerOpen) dock.onPointerMove(event); }}
             className={cn(
               'flex h-[var(--vlaina-size-72px)] max-w-[var(--vlaina-whiteboard-toolbar-max-width)] min-w-0 items-center gap-1 overflow-x-auto px-2 sm:overflow-visible',
               whiteboardMainToolbarSurfaceClassName,
@@ -142,7 +143,13 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
               <WhiteboardToolbarButton dock large icon="whiteboard.image" label={t('whiteboard.addImage')} onClick={handleImageSelect} />
             </WhiteboardToolbarGroup>
             <ToolbarDivider />
-            <ColorChoices colors={props.brushColors} tool={drawingTool} onChange={handleBrushColorChange} onOpen={() => setOpenPanel(null)} />
+            <ColorChoices
+              colors={props.brushColors}
+              tool={drawingTool}
+              onChange={handleBrushColorChange}
+              onOpen={() => { setOpenPanel(null); setColorPickerOpen(true); dock.onPointerLeave(); }}
+              onClose={() => setColorPickerOpen(false)}
+            />
             <ToolbarDivider />
             <SizeChoices sizes={props.brushSizes} tool={sizeTool} onChange={handleBrushSizeSelect} />
           </div>
@@ -160,41 +167,22 @@ function getPanelForTool(tool: WhiteboardTool): WhiteboardToolPanelName | null {
   return null;
 }
 
-function ColorChoices({ colors, tool, onChange, onOpen }: {
+function ColorChoices({ colors, tool, onChange, onClose, onOpen }: {
   colors: WhiteboardBrushColors;
   tool: WhiteboardDrawingTool;
   onChange: (tool: WhiteboardDrawingTool, color: string) => void;
+  onClose: () => void;
   onOpen: () => void;
 }) {
-  const selectedColor = colors[tool].toLowerCase();
   return (
     <WhiteboardToolbarGroup>
-      {themeWhiteboardTokens.brushColorSwatches.map((color) => (
-        <WhiteboardDockSlot key={color} size="small">
-          <button
-            type="button"
-            aria-label={color}
-            aria-pressed={selectedColor === color.toLowerCase()}
-            data-whiteboard-dock-visual="true"
-            onClick={() => onChange(tool, color)}
-            className="flex size-[var(--vlaina-size-32px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] shadow-none hover:shadow-none"
-          >
-            <span
-              aria-hidden="true"
-              className="relative size-[var(--vlaina-size-32px)] rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
-              style={{ backgroundColor: color }}
-            >
-              {selectedColor === color.toLowerCase() ? (
-                <span
-                  data-whiteboard-color-selection-ring="true"
-                  className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
-                />
-              ) : null}
-            </span>
-          </button>
-        </WhiteboardDockSlot>
-      ))}
-      <WhiteboardColorPicker color={colors[tool]} onChange={(color) => onChange(tool, color)} onOpen={onOpen} />
+      <WhiteboardColorPicker
+        color={colors[tool]}
+        swatches={themeWhiteboardTokens.colorPickerSwatches}
+        onChange={(color) => onChange(tool, color)}
+        onClose={onClose}
+        onOpen={onOpen}
+      />
     </WhiteboardToolbarGroup>
   );
 }
