@@ -10,7 +10,6 @@ import { useI18n } from '@/lib/i18n';
 import { rankByFuzzySearch } from './fuzzyModelSearch';
 import { providerInputClassName, providerInputShellClassName } from './providerInputStyles';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
-import { handleScrollableWheel } from '@/lib/scroll/wheelScroll';
 import { MAX_AI_MODEL_FIELD_CHARS } from '@/lib/storage/unifiedStorage';
 
 interface ProviderQuickAddProps {
@@ -183,7 +182,6 @@ export function ProviderQuickAdd({
               role="listbox"
               className="max-h-64 overflow-y-auto p-1.5"
               data-settings-scroll-root="ai-model-suggestions"
-              onWheel={handleScrollableWheel}
             >
               {suggestions.map((modelId, index) => (
                 <button

@@ -7,6 +7,13 @@ const controls = vi.hoisted(() => ({
   modelSelectorProps: vi.fn(),
 }));
 
+vi.mock('@/components/layout/AccountAvatarImage', () => ({
+  AccountAvatarImage: ({ alt }: { alt: string }) => <img alt={alt} data-testid="avatar" />,
+}));
+vi.mock('@/hooks/useUserAvatar', () => ({
+  useUserAvatar: () => null,
+}));
+
 vi.mock('@/components/Chat/features/Input/ModelSelector', () => ({
   ModelSelector: (props: Record<string, unknown>) => {
     controls.modelSelectorProps(props);
@@ -21,30 +28,36 @@ vi.mock('@/lib/i18n', () => ({
 }));
 
 describe('MobileTopBar', () => {
-  it('exposes the Notes title and all Notes actions', () => {
-    const onCreateNote = vi.fn();
-    const onOpenMore = vi.fn();
+  it('renders the view navigation and opens the sidebar', () => {
     const onOpenSidebar = vi.fn();
+    const onViewChange = vi.fn();
 
     render(
       <MobileTopBar
         activeView="notes"
-        onCreateNote={onCreateNote}
-        onOpenMore={onOpenMore}
         onOpenSidebar={onOpenSidebar}
+        onViewChange={onViewChange}
       />,
     );
 
-    expect(screen.getByRole('heading', { name: 'app.viewNotes' })).toBeInTheDocument();
+    const notesButton = screen.getByRole('button', { name: 'app.viewNotes' });
+    expect(notesButton).toHaveAttribute('aria-current', 'page');
     expect(document.querySelector('[data-icon="file.text"]')).not.toBeNull();
+    expect(screen.getByText('app.viewNotes')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', {
+      name: /app\.viewNotes|app\.viewGraph|app\.viewWhiteboard|app\.viewChat/,
+    }).map((button) => button.getAttribute('aria-label'))).toEqual([
+      'app.viewNotes',
+      'app.viewGraph',
+      'app.viewWhiteboard',
+      'app.viewChat',
+    ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'sidebar.mobileTitle' }));
-    fireEvent.click(screen.getByRole('button', { name: 'sidebar.newNote' }));
-    fireEvent.click(screen.getByRole('button', { name: 'sidebar.more' }));
+    fireEvent.click(screen.getByRole('button', { name: 'app.viewGraph' }));
 
     expect(onOpenSidebar).toHaveBeenCalledOnce();
-    expect(onCreateNote).toHaveBeenCalledOnce();
-    expect(onOpenMore).toHaveBeenCalledOnce();
+    expect(onViewChange).toHaveBeenCalledWith('graph');
   });
 
   it.each([
@@ -58,13 +71,12 @@ describe('MobileTopBar', () => {
     render(
       <MobileTopBar
         activeView={activeView}
-        onCreateNote={vi.fn()}
-        onOpenMore={vi.fn()}
         onOpenSidebar={vi.fn()}
+        onViewChange={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole('heading', { name: label })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-current', 'page');
     expect(document.querySelector(`[data-icon="${icon}"]`)).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'sidebar.newNote' })).not.toBeInTheDocument();
   });
@@ -73,9 +85,8 @@ describe('MobileTopBar', () => {
     render(
       <MobileTopBar
         activeView="chat"
-        onCreateNote={vi.fn()}
-        onOpenMore={vi.fn()}
         onOpenSidebar={vi.fn()}
+        onViewChange={vi.fn()}
       />,
     );
 

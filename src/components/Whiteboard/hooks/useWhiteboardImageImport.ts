@@ -55,7 +55,7 @@ export function useWhiteboardImageImport({
     };
     pushHistory();
     setElements((current) => appendWhiteboardItems(current, [nextElement]));
-    setSelectedElementId(nextElement.id);
+    setSelectedElementId(null);
     setSelectedStrokeIds([]);
     setTool('select');
   }, [pushHistory, setElements, setSelectedElementId, setSelectedStrokeIds, setTool, viewport, viewportRef, writeActiveAsset]);

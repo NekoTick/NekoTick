@@ -341,7 +341,7 @@
   font-size: var(--vlaina-markdown-font-body-size);
   border: var(--vlaina-border-width-1) solid var(--vlaina-markdown-color-border);
   border-radius: var(--vlaina-markdown-radius-table);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .markdown-surface .markdown-table-scroll table {

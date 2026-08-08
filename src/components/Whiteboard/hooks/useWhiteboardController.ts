@@ -133,7 +133,8 @@ export function useWhiteboardController({
     startStrokeSelection, strokeEraserActions: strokeEraser, strokeIdRef, tool, updatePointer, viewport, viewportRef,
   });
   const finishPointerAction = useWhiteboardPointerFinish({
-    activePenPointerRef, clearDraftStroke, deletePointer, dragState,
+    activePenPointerRef, applyFinalDrawSample: pointerActions.handlePointerMove,
+    clearDraftStroke, deletePointer, dragState,
     elements, finishEraserGesture: eraser.finish,
     finishStrokeEraserGesture: strokeEraser.finish,
     flushResizeDrags, getBoardPoint, getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory,

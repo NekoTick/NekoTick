@@ -234,6 +234,7 @@ describe('SettingsModal', () => {
   });
 
   it('leaves wheel scrolling on the settings sidebar root to the browser', () => {
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
     render(
       <SettingsModal
         open
@@ -245,10 +246,13 @@ describe('SettingsModal', () => {
     const scrollRoot = document.querySelector('[data-settings-scroll-root="sidebar"]') as HTMLElement | null;
     expect(scrollRoot).not.toBeNull();
 
+    requestAnimationFrameSpy.mockClear();
+    scrollRoot!.style.overflowY = 'auto';
     setScrollMetrics(scrollRoot!, { clientHeight: 120, scrollHeight: 360, scrollTop: 10 });
     fireEvent.wheel(scrollRoot!, { deltaY: 80 });
 
     expect(scrollRoot!.scrollTop).toBe(10);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 
   it('flushes pending settings before closing', async () => {

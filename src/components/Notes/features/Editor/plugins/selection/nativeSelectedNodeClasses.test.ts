@@ -5,10 +5,41 @@ import {
   NATIVE_SELECTED_TEXTLIKE_CLASS,
   TABLE_BLOCK_ZERO_MIN_WIDTH_CLASS,
   isNativeSelectedTextLikeElement,
+  shouldSyncNativeSelectedNodeClasses,
   syncNativeSelectedNodeClasses,
 } from './nativeSelectedNodeClasses';
+import { Schema } from '@milkdown/kit/prose/model';
+import { AllSelection, EditorState, NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
+
+const schema = new Schema({
+  nodes: {
+    doc: { content: 'block+' },
+    paragraph: { content: 'text*', group: 'block' },
+    text: { group: 'inline' },
+  },
+});
+
+function createState(selection: 'all' | 'node' | 'text'): EditorState {
+  const doc = schema.node('doc', null, [schema.node('paragraph', null, [schema.text('hello')])]);
+  const nextSelection = selection === 'all'
+    ? new AllSelection(doc)
+    : selection === 'node'
+      ? NodeSelection.create(doc, 0)
+      : TextSelection.create(doc, 1);
+
+  return EditorState.create({ doc, schema, selection: nextSelection });
+}
 
 describe('nativeSelectedNodeClasses', () => {
+  it('skips full DOM scans when only a text-wide selection changes', () => {
+    expect(shouldSyncNativeSelectedNodeClasses(createState('text'), createState('all'))).toBe(false);
+  });
+
+  it('syncs when entering or leaving a native node selection', () => {
+    expect(shouldSyncNativeSelectedNodeClasses(createState('text'), createState('node'))).toBe(true);
+    expect(shouldSyncNativeSelectedNodeClasses(createState('node'), createState('text'))).toBe(true);
+  });
+
   it('marks native selected text-like nodes without CSS :has selectors', () => {
     const root = document.createElement('div');
     root.innerHTML = `

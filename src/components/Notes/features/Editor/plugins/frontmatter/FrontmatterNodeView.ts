@@ -25,6 +25,7 @@ import {
 import { forwardCodeBlockUpdate } from '../code/codeBlockNodeViewUtils';
 import { subscribeCodeBlockSelectionSync } from '../code/codeBlockSelectionSync';
 import { markEditorUserInput } from '../shared/userInputEvents';
+import { isLargeEditorSelection } from '../selection/textSelectionOverlayState';
 import { buildFrontmatterFindHighlightRanges, clearMirroredFrontmatterSelection, createFrontmatterClipboardHandlers, createFrontmatterCodeMirrorKeymap, getFrontmatterOwnerWindow, getFrontmatterSelectionMirror, scheduleFrontmatterMeasure, shouldStopFrontmatterEvent, syncFrontmatterFindHighlightRanges } from './FrontmatterNodeViewUtils';
 import { FrontmatterPropertiesSession } from './FrontmatterPropertiesSession';
 
@@ -270,7 +271,11 @@ export class FrontmatterNodeView implements NodeView {
   private readonly syncProseMirrorSelection = () => {
     const nodePos = this.getPos();
     const selectionMirror = getFrontmatterSelectionMirror(this.view, this.node, nodePos);
-    const shouldMirrorOuterSelection = selectionMirror !== null && !this.cm.hasFocus;
+    const shouldMirrorOuterSelection = (
+      selectionMirror !== null
+      && !this.cm.hasFocus
+      && !isLargeEditorSelection(this.view.state)
+    );
 
     this.dom.dataset.pmSelected = shouldMirrorOuterSelection ? 'true' : 'false';
 

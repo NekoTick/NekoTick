@@ -109,8 +109,10 @@ describe('scroll wheel handling', () => {
   });
 
   it('leaves ordinary vertical wheel events to native scrolling', () => {
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
     const root = document.createElement('div');
     const child = document.createElement('div');
+    root.style.overflowY = 'auto';
     root.append(child);
     document.body.append(root);
     setScrollMetrics(root, { clientHeight: 200, scrollHeight: 800, scrollTop: 20 });
@@ -120,37 +122,11 @@ describe('scroll wheel handling', () => {
 
     expect(root.scrollTop).toBe(20);
     expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 
-  it('falls back when native vertical wheel scrolling does not advance', () => {
-    const requestAnimationFrameSpy = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      });
-    const root = document.createElement('div');
-    const child = document.createElement('div');
-    root.style.overflowY = 'auto';
-    root.append(child);
-    document.body.append(root);
-    setScrollMetrics(root, { clientHeight: 200, scrollHeight: 800, scrollTop: 20 });
-
-    const event = createWheelEvent({ root, target: child, deltaY: 120 });
-    handleScrollableWheel(event);
-
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
-    expect(root.scrollTop).toBe(140);
-    expect(event.preventDefault).not.toHaveBeenCalled();
-  });
-
-  it('lets a nested scrollable element consume wheel movement while it can scroll', () => {
-    const requestAnimationFrameSpy = vi
-      .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      });
+  it('leaves nested vertical wheel chaining to the browser', () => {
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
     const root = document.createElement('div');
     const nested = document.createElement('div');
     const child = document.createElement('div');
@@ -159,37 +135,14 @@ describe('scroll wheel handling', () => {
     nested.append(child);
     root.append(nested);
     document.body.append(root);
-    setScrollMetrics(root, { clientHeight: 200, scrollHeight: 800, scrollTop: 0 });
-    setScrollMetrics(nested, { clientHeight: 100, scrollHeight: 400, scrollTop: 0 });
+    setScrollMetrics(root, { clientHeight: 200, scrollHeight: 800, scrollTop: 20 });
+    setScrollMetrics(nested, { clientHeight: 100, scrollHeight: 400, scrollTop: 100 });
 
     const event = createWheelEvent({ root, target: child, deltaY: 120 });
     handleScrollableWheel(event);
 
     expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
-    expect(root.scrollTop).toBe(0);
-    expect(event.preventDefault).not.toHaveBeenCalled();
-  });
-
-  it('falls back to the root when a nested scrollable is at the wheel boundary', () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
-      callback(0);
-      return 1;
-    });
-    const root = document.createElement('div');
-    const nested = document.createElement('div');
-    const child = document.createElement('div');
-    root.style.overflowY = 'auto';
-    nested.style.overflowY = 'auto';
-    nested.append(child);
-    root.append(nested);
-    document.body.append(root);
-    setScrollMetrics(root, { clientHeight: 200, scrollHeight: 800, scrollTop: 0 });
-    setScrollMetrics(nested, { clientHeight: 100, scrollHeight: 400, scrollTop: 300 });
-
-    const event = createWheelEvent({ root, target: child, deltaY: 120 });
-    handleScrollableWheel(event);
-
-    expect(root.scrollTop).toBe(120);
+    expect(root.scrollTop).toBe(20);
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
 

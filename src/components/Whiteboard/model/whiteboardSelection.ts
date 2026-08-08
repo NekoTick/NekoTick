@@ -51,6 +51,17 @@ export function findStrokeAtPoint(
   return null;
 }
 
+export function findElementAtPoint(
+  elements: WhiteboardElement[],
+  point: WhiteboardPoint,
+): WhiteboardElement | null {
+  for (let index = elements.length - 1; index >= 0; index -= 1) {
+    const element = elements[index];
+    if (pointInRect(point, getElementBounds(element))) return element;
+  }
+  return null;
+}
+
 export function getLassoBounds(path: WhiteboardLassoPath): WhiteboardSelectionRect | null {
   if (path.length === 0) return null;
   const minX = Math.min(...path.map((point) => point.x));
@@ -121,7 +132,6 @@ function elementIntersectsLasso(
     { x: bounds.x + bounds.width, y: bounds.y },
     { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
     { x: bounds.x, y: bounds.y + bounds.height },
-    { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 },
   ];
   return points.some((point) => pointInPolygon(point, path)) || segments.some(([start, end]) => segmentIntersectsRect(start, end, bounds));
 }
@@ -176,7 +186,6 @@ function getLassoSegments(path: WhiteboardLassoPath): WhiteboardLassoSegment[] {
 }
 
 function segmentIntersectsRect(start: WhiteboardPoint, end: WhiteboardPoint, rect: WhiteboardSelectionRect): boolean {
-  if (pointInRect(start, rect) || pointInRect(end, rect)) return true;
   const topLeft = { x: rect.x, y: rect.y };
   const topRight = { x: rect.x + rect.width, y: rect.y };
   const bottomRight = { x: rect.x + rect.width, y: rect.y + rect.height };

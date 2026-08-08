@@ -12,13 +12,15 @@ interface WhiteboardColorPickerProps {
   color: string;
   onChange: (color: string) => void;
   onOpen?: () => void;
+  onClose?: () => void;
+  swatches: readonly string[];
 }
 
 type EyeDropperWindow = Window & {
   EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> };
 };
 
-export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardColorPickerProps) {
+export function WhiteboardColorPicker({ color, onChange, onClose, onOpen, swatches }: WhiteboardColorPickerProps) {
   const { t } = useI18n();
   const initialRgb = hexToRgb(color) ?? { r: 39, g: 39, b: 42 };
   const [open, setOpen] = useState(false);
@@ -40,8 +42,12 @@ export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardCol
     if (nextOpen) {
       onOpen?.();
       resetDraft();
-    }
+    } else onClose?.();
     setOpen(nextOpen);
+  };
+  const closePicker = () => {
+    onClose?.();
+    setOpen(false);
   };
   const updateFromRgb = (nextRgb: { r: number; g: number; b: number }) => {
     setHsv(rgbToHsv(nextRgb));
@@ -174,20 +180,29 @@ export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardCol
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
-      <WhiteboardDockSlot size="small">
+      <WhiteboardDockSlot size="compact">
         <PopoverTrigger asChild>
           <button
             type="button"
             aria-label={t('whiteboard.customColor')}
             aria-pressed={open}
             data-whiteboard-dock-visual="true"
-            className="flex size-[var(--vlaina-size-32px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)]"
+            className="flex size-[var(--vlaina-size-36px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)]"
           >
             <span
               aria-hidden="true"
-              className="size-[var(--vlaina-size-32px)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)] hover:shadow-none"
-              style={{ backgroundImage: 'var(--vlaina-color-picker-rainbow)' }}
-            />
+              data-whiteboard-color-trigger="true"
+              className="flex size-[var(--vlaina-size-36px)] items-center justify-center rounded-[var(--vlaina-radius-circle)] shadow-[var(--vlaina-shadow-sm)]"
+              style={{ backgroundImage: 'var(--vlaina-color-picker-trigger-outer)' }}
+            >
+              <span className="flex size-[var(--vlaina-size-28px)] items-center justify-center rounded-[var(--vlaina-radius-circle)] bg-[var(--vlaina-color-picker-white)]">
+                <span
+                  data-whiteboard-applied-color="true"
+                  className="size-[var(--vlaina-size-22px)] rounded-[var(--vlaina-radius-circle)] shadow-[var(--vlaina-shadow-xs)]"
+                  style={{ backgroundColor: color }}
+                />
+              </span>
+            </span>
           </button>
         </PopoverTrigger>
       </WhiteboardDockSlot>
@@ -207,13 +222,38 @@ export function WhiteboardColorPicker({ color, onChange, onOpen }: WhiteboardCol
           </div>
         </div>
 
+        <div data-whiteboard-common-colors="true" className="grid grid-cols-8 gap-1.5 py-1">
+          {swatches.map((swatch) => {
+            const selected = resolvedHex.toLowerCase() === swatch.toLowerCase();
+            return (
+              <button
+                key={swatch}
+                type="button"
+                aria-label={swatch}
+                aria-pressed={selected}
+                onClick={() => chooseSwatch(swatch)}
+                className="flex h-9 min-w-0 items-center justify-center rounded-[var(--vlaina-radius-8px)]"
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'block size-full rounded-[var(--vlaina-radius-8px)] border border-[var(--vlaina-color-subtle-border-strong)]',
+                    selected && 'ring-2 ring-[var(--vlaina-color-whiteboard-selected)] app-ring-offset-1 ring-offset-[var(--vlaina-color-whiteboard-toolbar-bg)]',
+                  )}
+                  style={{ backgroundColor: swatch }}
+                />
+              </button>
+            );
+          })}
+        </div>
+
         <div className="flex flex-wrap justify-between gap-2">
           <button type="button" aria-label={t('whiteboard.pickColor')} onClick={pickFromScreen} className="flex size-9 items-center justify-center rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-color-control-hover-bg)] text-[var(--vlaina-color-text-primary)]">
             <Icon name="whiteboard.pickColor" size="sm" />
           </button>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setOpen(false)} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-color-control-hover-bg)] px-4 text-[var(--vlaina-font-13)] font-medium">{t('common.cancel')}</button>
-            <button type="button" onClick={() => { onChange(resolvedHex); setOpen(false); }} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-accent)] px-4 text-[var(--vlaina-font-13)] font-medium text-[var(--vlaina-color-inverse-text)]">{t('common.apply')}</button>
+            <button type="button" onClick={closePicker} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-color-control-hover-bg)] px-4 text-[var(--vlaina-font-13)] font-medium">{t('common.cancel')}</button>
+            <button type="button" onClick={() => { onChange(resolvedHex); closePicker(); }} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-accent)] px-4 text-[var(--vlaina-font-13)] font-medium text-[var(--vlaina-color-inverse-text)]">{t('common.apply')}</button>
           </div>
         </div>
         <input ref={nativeColorInputRef} type="color" value={resolvedHex} aria-label={t('whiteboard.pickColor')} onChange={(event) => chooseSwatch(event.target.value)} className="sr-only" />

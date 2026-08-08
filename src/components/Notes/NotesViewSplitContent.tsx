@@ -5,7 +5,6 @@ import type { NoteMetadataEntry } from '@/stores/notes/types';
 import { NoteToolbarActions } from './features/Editor/NoteToolbarActions';
 import {
   LargeMarkdownFirstPaintPreview,
-  type FirstPaintPreviewBlock,
 } from './features/Editor/LargeMarkdownFirstPaintPreview';
 import type { EditorViewportPoint } from './features/Editor/utils/focusEditorAtPoint';
 import {
@@ -37,7 +36,7 @@ export function NotesViewSplitContent({
   currentNoteMetadata,
   currentNotePath,
   currentNoteStarred,
-  firstPaintPreviewBlocks,
+  firstPaintPreviewMarkdown,
   getDisplayName,
   hasSplitPanes,
   isPrimaryContentReady,
@@ -61,7 +60,7 @@ export function NotesViewSplitContent({
   currentNoteMetadata: NoteMetadataEntry | undefined;
   currentNotePath: string | undefined;
   currentNoteStarred: boolean;
-  firstPaintPreviewBlocks: FirstPaintPreviewBlock[];
+  firstPaintPreviewMarkdown: string | null;
   getDisplayName: ReturnType<typeof useNotesStore.getState>['getDisplayName'];
   hasSplitPanes: boolean;
   isPrimaryContentReady: boolean;
@@ -96,9 +95,9 @@ export function NotesViewSplitContent({
       className="relative h-full min-h-0 min-w-0"
       data-notes-split-pane-content="primary"
     >
-      {firstPaintPreviewBlocks.length > 0 ? (
-        <div className="absolute inset-x-0 top-0 z-[var(--vlaina-z-1)] flex justify-center pointer-events-none">
-          <LargeMarkdownFirstPaintPreview blocks={firstPaintPreviewBlocks} />
+      {firstPaintPreviewMarkdown ? (
+        <div className="absolute inset-0 z-[var(--vlaina-z-1)] flex justify-center bg-[var(--vlaina-bg-primary)]">
+          <LargeMarkdownFirstPaintPreview markdown={firstPaintPreviewMarkdown} />
         </div>
       ) : null}
 

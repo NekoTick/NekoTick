@@ -22,4 +22,13 @@ describe('Icon', () => {
     expect(icon).toHaveAttribute('focusable', 'false');
     expect(icon).not.toHaveAttribute('aria-hidden');
   });
+
+  it('uses a fill-only image icon for the inactive whiteboard upload action', () => {
+    const { container } = render(<Icon name="whiteboard.image" />);
+    const icon = container.querySelector('svg');
+
+    expect(icon).toHaveAttribute('fill', 'currentColor');
+    expect(icon).not.toHaveAttribute('stroke');
+    expect(icon).not.toHaveAttribute('stroke-width');
+  });
 });

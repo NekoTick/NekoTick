@@ -1,27 +1,18 @@
-import { distanceToSegment } from './whiteboardSegmentGeometry';
-import { getEraserStrokeSamples } from './whiteboardStrokeGeometry';
-import {
-  getStrokeEraserRadius,
-  type WhiteboardStroke,
-} from './whiteboardModel';
-import { getStrokePointMaxWidth } from './whiteboardStrokeDynamics';
+import { getEraserStrokeSamples, type WhiteboardEraserStrokeRange } from './whiteboardStrokeGeometry';
+import { type WhiteboardStroke } from './whiteboardModel';
 import type { WhiteboardEraserSample } from './whiteboardEraser';
-import { getStrokeBounds } from './whiteboardSelectionTransform';
+import {
+  createWhiteboardStrokePointIndex,
+  eraseWhiteboardStrokeSamplePoints,
+  getWhiteboardStrokeEraserSweeps,
+  strokeMayIntersectEraserSweeps,
+  type WhiteboardStrokePointIndex,
+} from './whiteboardStrokeEraserGeometry';
 import {
   createWhiteboardStrokeFragment,
   createWhiteboardStrokeSegmentId,
   type WhiteboardMutableIdSet,
 } from './whiteboardStrokeSegments';
-
-interface StrokeEraserSweep {
-  end: WhiteboardEraserSample;
-  maxX: number;
-  maxY: number;
-  minX: number;
-  minY: number;
-  radius: number;
-  start: WhiteboardEraserSample;
-}
 
 export interface WhiteboardStrokeEraserPreview {
   replacements: ReadonlyMap<string, WhiteboardStroke[]>;
@@ -37,10 +28,11 @@ interface WhiteboardStrokeEraserSegment {
 export interface WhiteboardStrokeEraserState {
   erasedPoints: Uint8Array;
   fragments: WhiteboardStroke[];
-  halfWidths: Float32Array;
   pathOffsets: Float64Array;
+  pointIndex: WhiteboardStrokePointIndex;
   sampledPoints: WhiteboardStroke['points'];
   segments: WhiteboardStrokeEraserSegment[];
+  sourcePoints: WhiteboardStroke['points'];
   sourcePositions: Float64Array;
 }
 
@@ -75,89 +67,67 @@ export function eraseWhiteboardStroke(
   samples: WhiteboardEraserSample[],
   existingIds: WhiteboardMutableIdSet,
 ): WhiteboardStrokeEraserState | null {
-  const sweeps = getSweeps(samples);
+  const sweeps = getWhiteboardStrokeEraserSweeps(samples);
   if (sweeps.length === 0) return current;
   if (current && current.fragments.length === 0) return current;
-  if (!strokeMayIntersectSweep(stroke, sweeps)) return current;
+  if (!strokeMayIntersectEraserSweeps(stroke, sweeps)) return current;
   const sampleData = current ? null : getEraserStrokeSamples(stroke);
   const sampledPoints = current?.sampledPoints ?? sampleData!.points;
-  const halfWidths = current?.halfWidths ?? Float32Array.from(
-    sampledPoints,
-    (point) => getStrokePointMaxWidth(stroke.tool, point, stroke.size) / 2,
-  );
+  const sourcePoints = current?.sourcePoints ?? sampleData!.sourcePoints;
   const pathOffsets = current?.pathOffsets ?? sampleData!.pathOffsets;
   const sourcePositions = current?.sourcePositions ?? sampleData!.sourcePositions;
   const erasedPoints = current?.erasedPoints ?? new Uint8Array(sampledPoints.length);
-  let changed = false;
-
-  const survivingRanges = current?.segments ?? (
-    sampledPoints.length > 0 ? [{ startIndex: 0, endIndex: sampledPoints.length - 1 }] : []
-  );
-  for (const range of survivingRanges) {
-    for (let index = range.startIndex; index <= range.endIndex; index += 1) {
-      const point = sampledPoints[index];
-      const halfWidth = halfWidths[index];
-      if (!sweeps.some((sweep) => sweepTouchesPoint(sweep, point, halfWidth))) continue;
-      erasedPoints[index] = 1;
-      changed = true;
-    }
-  }
-
-  if (!changed) return current;
-  const segments = createSurvivingSegments(
-    stroke,
+  const pointIndex = current?.pointIndex ?? createWhiteboardStrokePointIndex(sampledPoints);
+  const changedIndexes = eraseWhiteboardStrokeSamplePoints(
     sampledPoints,
     erasedPoints,
+    pointIndex,
+    sweeps,
+  );
+  if (changedIndexes.length === 0) return current;
+  const ranges = splitSurvivingRanges(current?.segments ?? sampleData!.ranges, changedIndexes);
+  const segments = createSurvivingSegments(
+    stroke,
+    erasedPoints,
+    sourcePoints,
     pathOffsets,
     sourcePositions,
+    ranges,
     current?.segments ?? [],
     existingIds,
   );
   return {
     erasedPoints,
     fragments: segments.map((segment) => segment.stroke),
-    halfWidths,
     pathOffsets,
+    pointIndex,
     sampledPoints,
     segments,
+    sourcePoints,
     sourcePositions,
   };
 }
 
-function strokeMayIntersectSweep(stroke: WhiteboardStroke, sweeps: StrokeEraserSweep[]): boolean {
-  const bounds = getStrokeBounds(stroke);
-  if (!bounds) return false;
-  return sweeps.some((sweep) => (
-    bounds.x <= sweep.maxX && bounds.x + bounds.width >= sweep.minX &&
-    bounds.y <= sweep.maxY && bounds.y + bounds.height >= sweep.minY
-  ));
-}
-
-function sweepTouchesPoint(
-  sweep: StrokeEraserSweep,
-  point: WhiteboardStroke['points'][number],
-  halfWidth: number,
-): boolean {
-  if (point.x < sweep.minX - halfWidth || point.x > sweep.maxX + halfWidth ||
-    point.y < sweep.minY - halfWidth || point.y > sweep.maxY + halfWidth) {
-    return false;
-  }
-  return distanceToSegment(point, sweep.start.point, sweep.end.point) <= sweep.radius + halfWidth;
-}
-
 function createSurvivingSegments(
   source: WhiteboardStroke,
-  sampledPoints: WhiteboardStroke['points'],
   erasedPoints: Uint8Array,
+  sourcePoints: WhiteboardStroke['points'],
   pathOffsets: Float64Array,
   sourcePositions: Float64Array,
+  ranges: WhiteboardEraserStrokeRange[],
   previous: WhiteboardStrokeEraserSegment[],
   existingIds: WhiteboardMutableIdSet,
 ): WhiteboardStrokeEraserSegment[] {
-  const ranges = getSurvivingRanges(sampledPoints, erasedPoints);
   const preservedSegments = matchPreservedSegments(ranges, previous);
   return ranges.map((range, index) => {
     const preserved = preservedSegments.get(index);
+    const renderStartIndex = range.startIndex > 0 && erasedPoints[range.startIndex - 1] && !sourcePoints[range.startIndex].breakBefore
+      ? range.startIndex - 1
+      : range.startIndex;
+    const renderEndIndex = range.endIndex + 1 < erasedPoints.length &&
+      erasedPoints[range.endIndex + 1] && !sourcePoints[range.endIndex + 1].breakBefore
+      ? range.endIndex + 1
+      : range.endIndex;
     const id = preserved?.id ?? (
       previous.length === 0 && index === 0
         ? source.id
@@ -172,33 +142,35 @@ function createSurvivingSegments(
       stroke: createWhiteboardStrokeFragment(
         source,
         id,
-        getFragmentPoints(source, sampledPoints, sourcePositions, range.startIndex, range.endIndex),
+        getFragmentPoints(source, sourcePoints, sourcePositions, renderStartIndex, renderEndIndex),
         {
-          pathOffset: pathOffsets[range.startIndex],
-          pointOffset: Math.floor(sourcePositions[range.startIndex]),
-          taperEnd: sourcePositions[range.endIndex] === source.points.length - 1 && source.renderTaperEnd !== false,
-          taperStart: sourcePositions[range.startIndex] === 0 && source.renderTaperStart !== false,
+          pathOffset: pathOffsets[renderStartIndex],
+          pointOffset: Math.floor(sourcePositions[renderStartIndex]),
+          taperEnd: sourcePositions[renderEndIndex] === source.points.length - 1 && source.renderTaperEnd !== false,
+          taperStart: sourcePositions[renderStartIndex] === 0 && source.renderTaperStart !== false,
         },
       ),
     };
   });
 }
 
-function getSurvivingRanges(
-  points: WhiteboardStroke['points'],
-  erasedPoints: Uint8Array,
-): Array<Pick<WhiteboardStrokeEraserSegment, 'endIndex' | 'startIndex'>> {
-  const ranges: Array<Pick<WhiteboardStrokeEraserSegment, 'endIndex' | 'startIndex'>> = [];
-  let startIndex: number | null = null;
-  for (let index = 0; index < points.length; index += 1) {
-    const startsNewSourceSegment = Boolean(points[index].breakBefore && startIndex !== null);
-    if ((erasedPoints[index] || startsNewSourceSegment) && startIndex !== null) {
-      ranges.push({ endIndex: index - 1, startIndex });
-      startIndex = null;
+function splitSurvivingRanges(
+  current: WhiteboardEraserStrokeRange[],
+  erasedIndexes: number[],
+): WhiteboardEraserStrokeRange[] {
+  const ranges: WhiteboardEraserStrokeRange[] = [];
+  let erasedIndex = 0;
+  for (const range of current) {
+    while (erasedIndexes[erasedIndex] < range.startIndex) erasedIndex += 1;
+    let startIndex = range.startIndex;
+    while (erasedIndexes[erasedIndex] <= range.endIndex) {
+      const erased = erasedIndexes[erasedIndex];
+      if (erased > startIndex) ranges.push({ endIndex: erased - 1, startIndex });
+      startIndex = erased + 1;
+      erasedIndex += 1;
     }
-    if (!erasedPoints[index] && startIndex === null) startIndex = index;
+    if (startIndex <= range.endIndex) ranges.push({ endIndex: range.endIndex, startIndex });
   }
-  if (startIndex !== null) ranges.push({ endIndex: points.length - 1, startIndex });
   return ranges;
 }
 
@@ -234,10 +206,10 @@ function getFragmentPoints(
 ): WhiteboardStroke['points'] {
   const startPosition = sourcePositions[startIndex];
   const endPosition = sourcePositions[endIndex];
-  const points = [removeBreakMarker(sampledPoints[startIndex])];
-  for (let index = Math.floor(startPosition) + 1; index <= Math.floor(endPosition); index += 1) {
-    points.push(removeBreakMarker(source.points[index]));
-  }
+  const points = [removeBreakMarker(sampledPoints[startIndex]), ...source.points.slice(
+    Math.floor(startPosition) + 1,
+    Math.floor(endPosition) + 1,
+  )];
   if (!Number.isInteger(endPosition) && endIndex !== startIndex) {
     points.push(removeBreakMarker(sampledPoints[endIndex]));
   }
@@ -248,26 +220,4 @@ function removeBreakMarker(point: WhiteboardStroke['points'][number]): Whiteboar
   if (!point.breakBefore) return point;
   const { breakBefore: _breakBefore, ...cleanPoint } = point;
   return cleanPoint;
-}
-
-function getSweeps(samples: WhiteboardEraserSample[]): StrokeEraserSweep[] {
-  if (samples.length === 0) return [];
-  if (samples.length === 1) {
-    const sample = samples[0];
-    return [createSweep(sample, sample)];
-  }
-  return samples.slice(1).map((end, index) => createSweep(samples[index], end));
-}
-
-function createSweep(start: WhiteboardEraserSample, end: WhiteboardEraserSample): StrokeEraserSweep {
-  const radius = getStrokeEraserRadius(Math.max(start.size, end.size));
-  return {
-    end,
-    maxX: Math.max(start.point.x, end.point.x) + radius,
-    maxY: Math.max(start.point.y, end.point.y) + radius,
-    minX: Math.min(start.point.x, end.point.x) - radius,
-    minY: Math.min(start.point.y, end.point.y) - radius,
-    radius,
-    start,
-  };
 }

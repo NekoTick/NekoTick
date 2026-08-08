@@ -1,5 +1,4 @@
 import { useI18n } from '@/lib/i18n';
-import { cn } from '@/lib/utils';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   WHITEBOARD_DRAWING_TOOLS,
@@ -9,7 +8,6 @@ import {
 import {
   WhiteboardToolbarButton,
   WhiteboardToolbarGroup,
-  whiteboardToolPanelSurfaceClassName,
 } from './WhiteboardToolbarPrimitives';
 import { useWhiteboardDockMagnification } from './useWhiteboardDockMagnification';
 
@@ -39,12 +37,9 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
       onPointerEnter={dock.onPointerEnter}
       onPointerLeave={dock.onPointerLeave}
       onPointerMove={dock.onPointerMove}
-      className={cn(
-        'flex h-[var(--vlaina-size-120px)] max-w-full items-center overflow-x-auto px-2 py-1.5 sm:overflow-visible',
-        whiteboardToolPanelSurfaceClassName,
-      )}
+      className="flex h-[var(--vlaina-size-120px)] max-w-full items-center overflow-x-auto px-2 py-1.5 sm:overflow-visible"
     >
-      <WhiteboardToolbarGroup className="gap-2">
+      <WhiteboardToolbarGroup className="h-full items-end gap-2">
         {tools.map((item) => (
           <WhiteboardToolbarButton
             dock
@@ -53,6 +48,8 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
             icon={item.icon}
             imageSrc={item.imageSrc}
             label={t(item.labelKey)}
+            partiallyRevealed
+            revealOnHover
             onClick={() => props.onToolChange(item.id)}
           />
         ))}

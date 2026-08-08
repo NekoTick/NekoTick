@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import { useUIStore } from '@/stores/uiSlice';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 
 vi.mock('./mermaidRenderer', () => ({
   generateMermaidId: () => 'mermaid-test',
@@ -122,8 +123,10 @@ describe('mermaidEditorLivePreview', () => {
 
     observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
 
-    expect(renderMermaid).toHaveBeenCalledTimes(1);
-    expect(disconnect).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+      expect(disconnect).toHaveBeenCalled();
+    });
     expect(element.dataset.mermaidLazy).toBeUndefined();
     finishRender('<svg data-rendered="preloaded"></svg>');
     await waitFor(() => {
@@ -229,6 +232,50 @@ describe('mermaidEditorLivePreview', () => {
 
     await waitFor(() => {
       expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not render an offscreen diagram passed during active scrolling', async () => {
+    let observerCallback: IntersectionObserverCallback = () => undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.noteScrollRoot = 'true';
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(scrollRoot);
+    vi.mocked(renderMermaid).mockClear();
+
+    const code = 'sequenceDiagram\nAlice->Bob: skipped while scrolling';
+    const renderCount = () => vi.mocked(renderMermaid).mock.calls
+      .filter(([renderCode]) => renderCode === code).length;
+    const element = createMermaidElement(
+      code,
+      { preloadBackground: false },
+    );
+    observerCallback([{ target: element, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    observerCallback([{ target: element, isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(renderCount()).toBe(0);
+    expect(element.dataset.mermaidLazy).toBe('true');
+
+    observerCallback([{ target: element, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await waitFor(() => {
+      expect(renderCount()).toBe(1);
     });
   });
 

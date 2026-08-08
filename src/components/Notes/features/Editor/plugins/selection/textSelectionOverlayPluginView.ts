@@ -18,8 +18,10 @@ import {
 import { cancelPointerClickCollapseReassertion } from './textSelectionOverlayPointerClick';
 import { setPointerNativeSelection, syncTextSelectionOverlayActiveClass } from './textSelectionOverlayViewSync';
 import type { TextSelectionOverlayViewContext, TextSelectionOverlayViewSession } from './textSelectionOverlayViewTypes';
+import { installLargeSelectionHighlight } from './largeSelectionHighlight';
 
 export function createTextSelectionOverlayPluginView(view: EditorView) {
+  const largeSelectionHighlight = installLargeSelectionHighlight(view);
   const scrollRoot = view.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
   let context: TextSelectionOverlayViewContext;
   const session: TextSelectionOverlayViewSession = {
@@ -52,7 +54,10 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
 
   const handleMouseDown = (event: MouseEvent) => handleTextSelectionOverlayMouseDown(context, event);
   const handleMouseMove = (event: MouseEvent) => handleTextSelectionOverlayMouseMove(context, event);
-  const handleKeyDown = (event: KeyboardEvent) => handleTextSelectionOverlayKeyDown(context, event);
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (largeSelectionHighlight.handleKeyDown(event)) return;
+    handleTextSelectionOverlayKeyDown(context, event);
+  };
   const handleMouseUp = (event: MouseEvent) => handleTextSelectionOverlayMouseUp(context, event);
   const handleClick = (event: MouseEvent) => handleTextSelectionOverlayClick(context, event);
   const handleWindowBlur = () => handleTextSelectionOverlayWindowBlur(context);
@@ -67,9 +72,11 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
   session.syncActiveClass();
   return {
     update() {
+      largeSelectionHighlight.update();
       session.syncActiveClass();
     },
     destroy() {
+      largeSelectionHighlight.destroy();
       if (session.keyClearFrame !== null) {
         cancelAnimationFrame(session.keyClearFrame);
       }

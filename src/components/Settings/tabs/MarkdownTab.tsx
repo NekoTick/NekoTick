@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import {
   selectMarkdownBodyLineNumbersEnabled,
@@ -12,9 +13,11 @@ import { SettingsSwitch } from '../components/SettingsFields';
 import { MarkdownCodeBlockSettings } from './markdown/MarkdownCodeBlockSettings';
 import { ImagesTab } from './ImagesTab';
 import { useI18n } from '@/lib/i18n';
+import { ModuleShortcutsDialog } from '@/components/common/ModuleShortcutsDialog';
 
 export function MarkdownTab() {
   const { t } = useI18n();
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const typewriterMode = useUnifiedStore(
     selectMarkdownTypewriterModeEnabled
   );
@@ -36,16 +39,25 @@ export function MarkdownTab() {
 
   return (
     <div className="max-w-3xl pb-10" data-settings-tab-panel="markdown">
-      <div
-        className={cn('mb-8 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-[var(--vlaina-ui-radius-group)] px-6 py-3 text-[var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)] max-[640px]:px-4', raisedPillSurfaceClass)}
+      <button
+        type="button"
+        className={cn('mb-8 flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-[var(--vlaina-ui-radius-group)] px-6 py-3 text-left text-[var(--vlaina-font-13)] text-[var(--vlaina-sidebar-notes-text-soft)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--vlaina-accent)] max-[640px]:px-4', raisedPillSurfaceClass)}
         data-settings-desktop-only="markdown-shortcut"
+        aria-haspopup="dialog"
+        aria-expanded={isShortcutsOpen}
+        onClick={() => setIsShortcutsOpen(true)}
       >
         <span className="min-w-0 flex-1">{t('settings.markdown.shortcutHint')}</span>
         <ShortcutKeys
           keys={['Ctrl', 'Shift', '/']}
           keyClassName={SOFT_SHORTCUT_KEY_CLASSNAME}
         />
-      </div>
+      </button>
+      <ModuleShortcutsDialog
+        module="notes"
+        open={isShortcutsOpen}
+        onOpenChange={setIsShortcutsOpen}
+      />
       <SettingsSectionHeader>{t('settings.markdown.editing')}</SettingsSectionHeader>
       <div className="space-y-1">
         <SettingsItem

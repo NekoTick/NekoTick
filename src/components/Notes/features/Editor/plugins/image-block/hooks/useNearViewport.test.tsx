@@ -86,6 +86,35 @@ describe('useNearViewport', () => {
         });
     });
 
+    it('keeps offscreen images deferred in a lazy-layout editor', () => {
+        const editor = document.createElement('div');
+        editor.dataset.noteLazyBlockVisibility = 'true';
+        const element = document.createElement('div');
+        editor.appendChild(element);
+        document.body.appendChild(editor);
+        const ref = { current: element };
+        const { result } = renderHook(() => useNearViewport(ref));
+
+        act(() => {
+            vi.advanceTimersByTime(
+                nearViewportTesting.BACKGROUND_LOAD_START_DELAY_MS
+                + nearViewportTesting.BACKGROUND_LOAD_INTERVAL_MS,
+            );
+        });
+        expect(result.current).toEqual({
+            isNearViewport: false,
+            shouldLoadImage: false,
+        });
+
+        act(() => {
+            callbacks[0]?.([{ target: element, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+        });
+        expect(result.current).toEqual({
+            isNearViewport: true,
+            shouldLoadImage: true,
+        });
+    });
+
     it('releases background image prefetches in small batches', () => {
         const hookCount = nearViewportTesting.BACKGROUND_LOAD_BATCH_SIZE + 1;
         const hooks = Array.from({ length: hookCount }, () => {

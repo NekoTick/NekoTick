@@ -308,6 +308,24 @@ describe('FrontmatterNodeView', () => {
     nodeView.destroy();
   });
 
+  it('does not mirror a large outer selection into CodeMirror', () => {
+    const node = createMockNode('title: note');
+    const selection = { from: 1, to: 100_001, empty: false };
+    Object.setPrototypeOf(selection, TextSelection.prototype);
+    const view = createMockView(selection);
+    const nodeView = new FrontmatterNodeView(node, view, () => 0);
+    const cm = getCodeMirror(nodeView);
+    const dispatchSpy = vi.spyOn(cm, 'dispatch');
+
+    syncProseMirrorSelection(nodeView);
+
+    expect(nodeView.dom.dataset.pmSelected).toBe('false');
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(cm.state.selection.main.empty).toBe(true);
+
+    nodeView.destroy();
+  });
+
   it('syncs outer selection changes after document selectionchange', async () => {
     const node = createMockNode('title: note');
     const selection = { from: 1, to: 1 };

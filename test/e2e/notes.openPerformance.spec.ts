@@ -121,8 +121,8 @@ async function measureLongNoteOpenAndDrag(page: Page, notePath: string, contentC
     const rect = firstParagraph?.getBoundingClientRect();
     const scrollRootRect = scrollRoot?.getBoundingClientRect();
     const preview = document.querySelector<HTMLElement>('[data-note-first-paint-preview="true"]');
-    const previewParagraph = preview?.querySelector<HTMLElement>('[data-note-preview-block="paragraph"]');
-    const previewRect = previewParagraph?.getBoundingClientRect();
+    const previewSource = preview?.querySelector<HTMLTextAreaElement>('[data-note-first-paint-preview-source="true"]');
+    const previewRect = previewSource?.getBoundingClientRect();
     const previewScrollRoot = preview?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
     const previewScrollRootRect = previewScrollRoot?.getBoundingClientRect();
     const previewViewportRect = previewScrollRootRect ?? {
@@ -135,7 +135,7 @@ async function measureLongNoteOpenAndDrag(page: Page, notePath: string, contentC
       previewRect.height > 0 &&
       previewRect.bottom > previewViewportRect.top &&
       previewRect.top < previewViewportRect.bottom &&
-      previewParagraph?.textContent?.startsWith('Paragraph 0:') === true
+      previewSource?.value.includes('Paragraph 0:') === true
     );
     const firstParagraphVisible = Boolean(
       rect &&

@@ -42,6 +42,7 @@ export function createTextEditorPopupElements(
 
   const textarea = document.createElement('textarea');
   textarea.className = 'text-editor-textarea math-editor-textarea';
+  textarea.setAttribute('data-native-caret-overlay-disabled', 'true');
   textarea.placeholder = placeholder;
 
   const actions = document.createElement('div');

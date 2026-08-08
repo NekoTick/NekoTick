@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { MAX_CLIPBOARD_SERIALIZATION_DEPTH } from './clipboardTraversalBudget';
+import {
+  MAX_CLIPBOARD_SERIALIZATION_DEPTH,
+  MAX_CLIPBOARD_SERIALIZATION_NODES,
+} from './clipboardTraversalBudget';
 import { serializeSelectionToClipboardText } from './selectionSerialization';
 
 function createTextNode(text: string) {
@@ -71,5 +74,38 @@ describe('selectionSerialization clipboard traversal budget', () => {
 
     expect(serializeSelectionToClipboardText(state, serializer)).toBe('');
     expect(serializer).not.toHaveBeenCalled();
+  });
+
+  it('serializes an over-budget full document selection in one pass', () => {
+    const slice = createSlice(Array.from(
+      { length: MAX_CLIPBOARD_SERIALIZATION_NODES + 1 },
+      (_, index) => createTextNode(`node-${index}`),
+    ));
+    const selection = {
+      constructor: { name: 'AllSelection' },
+      from: 0,
+      to: MAX_CLIPBOARD_SERIALIZATION_NODES + 1,
+      empty: false,
+      content: () => slice,
+    };
+    const doc = {
+      slice: vi.fn(() => slice),
+    };
+    const serializer = vi.fn(() => 'first sentinel\n\nlast sentinel\n');
+    const state: any = {
+      selection,
+      doc,
+      schema: {
+        topNodeType: {
+          createAndFill: vi.fn(() => ({ type: 'doc' })),
+        },
+      },
+    };
+
+    expect(serializeSelectionToClipboardText(state, serializer)).toBe(
+      'first sentinel\n\nlast sentinel',
+    );
+    expect(serializer).toHaveBeenCalledTimes(1);
+    expect(serializer).toHaveBeenCalledWith(doc);
   });
 });

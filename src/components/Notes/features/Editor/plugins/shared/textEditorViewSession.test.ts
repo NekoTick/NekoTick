@@ -16,12 +16,16 @@ interface TestRefs extends TextEditorSessionRefs {
 }
 
 function createSessionHarness(args?: {
+  lazyLayout?: boolean;
   preferStatePositionOnInitialRender?: (state: TestState) => boolean;
   previewInputDebounceMs?: number;
   scrollPopupIntoViewOnInitialRender?: boolean;
 }) {
+  const editorShell = document.createElement('div');
+  if (args?.lazyLayout) editorShell.dataset.noteLazyBlockVisibility = 'true';
   const editorDom = document.createElement('div');
-  document.body.appendChild(editorDom);
+  editorShell.appendChild(editorDom);
+  document.body.appendChild(editorShell);
   const anchor = document.createElement('div');
   document.body.appendChild(anchor);
 
@@ -417,6 +421,30 @@ describe('createTextEditorViewSession', () => {
     frameCallbacks[0]?.(0);
 
     expect(textarea.style.height).toBe('240px');
+
+    session.destroy();
+  });
+
+  it('waits for input idle before autosizing textareas in lazy-layout editors', () => {
+    vi.useFakeTimers();
+    const frameCallbacks: FrameRequestCallback[] = [];
+    const requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      frameCallbacks.push(callback);
+      return frameCallbacks.length;
+    });
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const { refs, session } = createSessionHarness({ lazyLayout: true });
+
+    session.update();
+    typeInTextarea(refs.textareaElement!, 'first');
+    typeInTextarea(refs.textareaElement!, 'second');
+
+    vi.advanceTimersByTime(179);
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
 
     session.destroy();
   });

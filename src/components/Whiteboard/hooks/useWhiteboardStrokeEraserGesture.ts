@@ -51,12 +51,7 @@ export function useWhiteboardStrokeEraserGesture({
     let nextReplacements: Map<string, WhiteboardStroke[]> | null = null;
     for (const source of getWhiteboardStrokeEraserCandidates(spatialIndexRef.current, samples)) {
       const current = eraseStatesRef.current.get(source.id) ?? null;
-      const next = eraseWhiteboardStroke(
-        source,
-        current,
-        samples,
-        usedStrokeIdsRef.current,
-      );
+      const next = eraseWhiteboardStroke(source, current, samples, usedStrokeIdsRef.current);
       if (!next || next === current) continue;
       nextEraseStates ??= new Map(eraseStatesRef.current);
       nextEraseStates.set(source.id, next);

@@ -87,6 +87,24 @@ describe('whiteboard lasso selection', () => {
     });
   });
 
+  it('selects a stroke drawn on an image without selecting the image around it', () => {
+    const image: WhiteboardElement = { height: 300, id: 'image', text: '', type: 'image', width: 300, x: 0, y: 0 };
+    const stroke: WhiteboardStroke = {
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: 130, y: 150 }, { pressure: 0.5, x: 170, y: 150 }],
+      size: 1,
+      tool: 'pen',
+    };
+    const strokeLasso = [
+      { x: 110, y: 130 }, { x: 190, y: 130 }, { x: 190, y: 170 }, { x: 110, y: 170 },
+    ];
+
+    expect(getItemsInLasso([image], [stroke], strokeLasso)).toEqual({
+      elementIds: [],
+      strokeIds: ['stroke'],
+    });
+  });
+
   it('finds the topmost stroke at a point after skipping distant stroke bounds', () => {
     const strokes: WhiteboardStroke[] = [
       {

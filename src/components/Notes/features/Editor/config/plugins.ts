@@ -48,6 +48,7 @@ import { blankAreaDragBoxPlugin } from '../plugins/cursor/blankAreaDragBoxPlugin
 import { blockControlsPlugin } from '../plugins/cursor/blockControlsPlugin';
 import { textBlockCaretOverlayPlugin } from '../plugins/cursor/textBlockCaretOverlayPlugin';
 import { nestedListPointerCaretPlugin } from '../plugins/cursor/nestedListPointerCaretPlugin';
+import { lazyScrollToSelectionPlugin } from '../plugins/cursor/lazyScrollToSelectionPlugin';
 import { atomicBlockKeyboardNavigationPlugin } from '../plugins/cursor/atomicBlockKeyboardNavigationPlugin';
 import { endBlankClickPlugin } from '../plugins/cursor/endBlankClickPlugin';
 import { nativeDragGuardPlugin } from '../plugins/cursor/nativeDragGuard';
@@ -153,6 +154,7 @@ export const customPluginGroups = [
       externalTextDropCursorPlugin,
       blockControlsPlugin,
       nestedListPointerCaretPlugin,
+      lazyScrollToSelectionPlugin,
       blankAreaDragBoxPlugin,
       textBlockCaretOverlayPlugin,
       atomicBlockKeyboardNavigationPlugin,

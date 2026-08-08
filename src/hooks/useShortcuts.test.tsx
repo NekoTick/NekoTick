@@ -590,6 +590,31 @@ describe('useShortcuts', () => {
     }
   });
 
+  it('does not adjust the appearance font size for Ctrl+wheel inside a dialog', () => {
+    useUIStore.setState({ fontSize: 17 });
+    renderHook(() => useShortcuts());
+
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const target = document.createElement('div');
+    dialog.appendChild(target);
+    document.body.appendChild(dialog);
+
+    const event = new WheelEvent('wheel', {
+      ctrlKey: true,
+      deltaY: -80,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(useUIStore.getState().fontSize).toBe(17);
+    dialog.remove();
+  });
+
   it('creates a notes draft with Ctrl+Shift+T and leaves Ctrl+T free', async () => {
     const createNote = vi.fn().mockResolvedValue('draft:test');
     useNotesStore.setState({
