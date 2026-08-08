@@ -80,8 +80,7 @@ export function WhiteboardToolbarButton({
             !dock && 'active:scale-[var(--vlaina-scale-95)]',
         ),
         partiallyRevealed && 'items-end',
-        revealOnHover && 'group',
-        revealOnHover && !active && 'hover:-translate-y-[var(--vlaina-size-12px)]',
+        revealOnHover && !active && 'group-hover/instrument:-translate-y-[var(--vlaina-size-12px)]',
       )}
     >
       {imageSrc && partiallyRevealed ? (
@@ -94,7 +93,7 @@ export function WhiteboardToolbarButton({
               ? 'h-[var(--vlaina-size-72px)]'
               : cn(
                 'h-[var(--vlaina-size-48px)]',
-                revealOnHover && 'group-hover:h-[var(--vlaina-size-72px)]',
+                revealOnHover && 'group-hover/instrument:h-[var(--vlaina-size-72px)]',
               ),
           )}
         >
@@ -123,14 +122,18 @@ export function WhiteboardToolbarButton({
   );
   if (!dock) return button;
   return (
-    <WhiteboardDockSlot size={imageSrc && !large ? 'instrument' : large ? 'large' : compact ? 'compact' : 'default'}>
+    <WhiteboardDockSlot
+      size={imageSrc && !large ? 'instrument' : large ? 'large' : compact ? 'compact' : 'default'}
+      className={revealOnHover ? 'group/instrument' : undefined}
+    >
       {button}
     </WhiteboardDockSlot>
   );
 }
 
-export function WhiteboardDockSlot({ children, size }: {
+export function WhiteboardDockSlot({ children, className, size }: {
   children: ReactNode;
+  className?: string;
   size: 'small' | 'compact' | 'default' | 'instrument' | 'large';
 }) {
   return (
@@ -143,6 +146,7 @@ export function WhiteboardDockSlot({ children, size }: {
         size === 'default' && 'size-[var(--vlaina-size-36px)]',
         size === 'instrument' && 'h-[var(--vlaina-size-100px)] w-[var(--vlaina-size-56px)]',
         size === 'large' && 'size-[var(--vlaina-size-56px)]',
+        className,
       )}
     >
       {children}

@@ -26,8 +26,14 @@ describe('WhiteboardZoomControls', () => {
     expect(container.firstElementChild).toHaveClass('absolute', 'bottom-4', 'left-3');
     expect(screen.getByRole('button', { name: 'whiteboard.fitView' })).toBeInTheDocument();
     const percentage = screen.getByRole('button', { name: '100%' });
+    expect(percentage.parentElement).toHaveClass(
+      'rounded-[var(--vlaina-radius-26px)]',
+      '!bg-[var(--vlaina-color-pill-surface)]',
+      '!shadow-[var(--vlaina-shadow-raised-soft)]',
+    );
     expect(percentage).toHaveClass(
       'shadow-none',
+      'text-[length:var(--vlaina-font-13)]',
       'hover:bg-transparent',
       'hover:text-[var(--vlaina-color-control-hover-fg)]',
       'hover:shadow-none',

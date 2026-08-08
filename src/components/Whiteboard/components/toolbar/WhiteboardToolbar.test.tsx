@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WHITEBOARD_DEFAULT_BRUSH_COLORS, WHITEBOARD_DEFAULT_BRUSH_SIZES } from '../../model/whiteboardModel';
@@ -106,6 +106,23 @@ describe('WhiteboardToolbar', () => {
     expect(screen.queryByRole('button', { name: 'whiteboard.tool.fountain' })).not.toBeInTheDocument();
   });
 
+  it('closes the brush panel when drawing starts without selecting another brush', () => {
+    const { container, onToolChange } = renderToolbar({ tool: 'pen' });
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
+    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const pencil = within(panel).getByRole('button', { name: 'whiteboard.tool.pencil' });
+
+    fireEvent.pointerDown(pencil);
+    expect(container.querySelector('[data-whiteboard-tool-panel="true"]')).toBeInTheDocument();
+
+    const drawingStart = new PointerEvent('pointerdown', { bubbles: true, cancelable: true });
+    act(() => document.body.dispatchEvent(drawingStart));
+
+    expect(drawingStart.defaultPrevented).toBe(false);
+    expect(container.querySelector('[data-whiteboard-tool-panel="true"]')).not.toBeInTheDocument();
+    expect(onToolChange).not.toHaveBeenCalled();
+  });
+
   it('shows the Apple-style instrument images for every brush option', () => {
     const { container } = renderToolbar();
 
@@ -140,12 +157,13 @@ describe('WhiteboardToolbar', () => {
     expect(selectedReveal).toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
     expect(pencilReveal).toHaveClass(
       'h-[var(--vlaina-size-48px)]',
-      'group-hover:h-[var(--vlaina-size-72px)]',
+      'group-hover/instrument:h-[var(--vlaina-size-72px)]',
       'overflow-hidden',
     );
     expect(selectedPen).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
-    expect(pencil).toHaveClass('group', 'hover:-translate-y-[var(--vlaina-size-12px)]');
-    expect(selectedPen).not.toHaveClass('hover:-translate-y-[var(--vlaina-size-12px)]');
+    expect(pencil).toHaveClass('group-hover/instrument:-translate-y-[var(--vlaina-size-12px)]');
+    expect(pencil).not.toHaveClass('hover:-translate-y-[var(--vlaina-size-12px)]');
+    expect(pencil.parentElement).toHaveClass('group/instrument');
     expect(selectedPen.parentElement).toHaveClass('h-[var(--vlaina-size-100px)]');
   });
 
@@ -161,11 +179,12 @@ describe('WhiteboardToolbar', () => {
       .toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
     expect(eraser.querySelector('[data-whiteboard-instrument-reveal="true"]')).toHaveClass(
       'h-[var(--vlaina-size-48px)]',
-      'group-hover:h-[var(--vlaina-size-72px)]',
+      'group-hover/instrument:h-[var(--vlaina-size-72px)]',
       'overflow-hidden',
     );
     expect(selectedLasso).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
-    expect(eraser).toHaveClass('group', 'hover:-translate-y-[var(--vlaina-size-12px)]');
+    expect(eraser).toHaveClass('group-hover/instrument:-translate-y-[var(--vlaina-size-12px)]');
+    expect(eraser.parentElement).toHaveClass('group/instrument');
     expect(panel).not.toHaveClass('bg-[var(--vlaina-color-whiteboard-tool-panel)]');
   });
 
@@ -202,7 +221,7 @@ describe('WhiteboardToolbar', () => {
 
     expect(container.querySelector('[data-whiteboard-tool-panel="true"]')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'whiteboard.tool.select' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'whiteboard.customColor' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'whiteboard.customColor' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '#000000' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'whiteboard.brushSize 100%' })).toBeInTheDocument();
   });
@@ -281,7 +300,7 @@ describe('WhiteboardToolbar', () => {
       animationFrames.push(callback);
       return animationFrames.length;
     });
-    const { container } = renderToolbar();
+    const { container } = renderToolbar({ tool: 'pen' });
     const mainToolbar = container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!;
     const dockItems = Array.from(mainToolbar.querySelectorAll<HTMLElement>('[data-whiteboard-dock-item="true"]'));
     dockItems.forEach((item, index) => {
@@ -329,7 +348,7 @@ describe('WhiteboardToolbar', () => {
       animationFrames.push(callback);
       return animationFrames.length;
     });
-    const { container } = renderToolbar();
+    const { container } = renderToolbar({ tool: 'pen' });
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
     const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
     const options = Array.from(panel.querySelectorAll<HTMLElement>('[data-whiteboard-dock-item="true"]'));
@@ -506,7 +525,7 @@ describe('WhiteboardToolbar', () => {
   });
 
   it('keeps the color picker and preset sizes in the main toolbar and closes the type panel after selection', () => {
-    const { onToolChange } = renderToolbar();
+    const { onToolChange } = renderToolbar({ tool: 'pen' });
 
     expect(screen.getByRole('button', { name: 'whiteboard.customColor' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '#000000' })).not.toBeInTheDocument();
@@ -540,7 +559,7 @@ describe('WhiteboardToolbar', () => {
   });
 
   it('applies a custom brush color only after confirmation', () => {
-    const { onBrushColorChange } = renderToolbar();
+    const { onBrushColorChange } = renderToolbar({ tool: 'pen' });
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
     const customColor = screen.getByRole('button', { name: 'whiteboard.customColor' });
     expect(customColor.firstElementChild).toHaveAttribute('data-whiteboard-color-trigger', 'true');
@@ -560,12 +579,18 @@ describe('WhiteboardToolbar', () => {
     expect(appliedColor).toHaveStyle({ backgroundColor: '#000000' });
     expect(onBrushColorChange).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.apply' }));
+    const applyButton = screen.getByRole('button', { name: 'common.apply' });
+    expect(applyButton).toHaveClass(
+      'bg-[var(--vlaina-color-control-hover-bg)]',
+      'text-[length:var(--vlaina-font-13)]',
+      'text-[color:var(--vlaina-color-accent)]',
+    );
+    fireEvent.click(applyButton);
     expect(onBrushColorChange).toHaveBeenCalledWith('pen', '#43A555');
   });
 
   it('keeps common colors in the picker until confirmation', () => {
-    const { onBrushColorChange } = renderToolbar();
+    const { onBrushColorChange } = renderToolbar({ tool: 'pen' });
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
     fireEvent.click(screen.getByRole('button', { name: '#f39a06' }));
 
@@ -575,7 +600,7 @@ describe('WhiteboardToolbar', () => {
   });
 
   it('discards a custom brush color when cancelled', () => {
-    const { onBrushColorChange } = renderToolbar();
+    const { onBrushColorChange } = renderToolbar({ tool: 'pen' });
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
     fireEvent.change(screen.getByLabelText('HEX'), { target: { value: '#43a555' } });
@@ -591,7 +616,7 @@ describe('WhiteboardToolbar', () => {
     Object.defineProperty(window, 'EyeDropper', { configurable: true, value: undefined });
     Object.defineProperty(HTMLInputElement.prototype, 'showPicker', { configurable: true, value: showPicker });
     try {
-      renderToolbar();
+      renderToolbar({ tool: 'pen' });
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));
@@ -614,7 +639,7 @@ describe('WhiteboardToolbar', () => {
     Object.defineProperty(window, 'EyeDropper', { configurable: true, value: class { open = open; } });
     Object.defineProperty(HTMLInputElement.prototype, 'showPicker', { configurable: true, value: showPicker });
     try {
-      renderToolbar();
+      renderToolbar({ tool: 'pen' });
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));
@@ -636,7 +661,7 @@ describe('WhiteboardToolbar', () => {
       value: { media: { capturePage }, platform: 'electron' },
     });
     try {
-      renderToolbar();
+      renderToolbar({ tool: 'pen' });
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));
@@ -665,7 +690,7 @@ describe('WhiteboardToolbar', () => {
       value: { media: { capturePage }, platform: 'electron' },
     });
     try {
-      renderToolbar();
+      renderToolbar({ tool: 'pen' });
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));
@@ -711,7 +736,7 @@ describe('WhiteboardToolbar', () => {
       return originalCreateElement(tagName, options);
     }) as typeof document.createElement);
     try {
-      renderToolbar();
+      renderToolbar({ tool: 'pen' });
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));

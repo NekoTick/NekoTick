@@ -169,21 +169,18 @@ export const WHITEBOARD_DEFAULT_BRUSH_SIZES: WhiteboardBrushSizes = {
 };
 export const WHITEBOARD_DEFAULT_BRUSH_COLORS: WhiteboardBrushColors = {
   pen: themeWhiteboardTokens.brushColorSwatches[6],
-  pencil: themeWhiteboardTokens.brushColorSwatches[1],
-  marker: themeWhiteboardTokens.brushColorSwatches[2],
-  'colored-pencil': themeWhiteboardTokens.brushColorSwatches[0],
+  pencil: themeWhiteboardTokens.brushColorSwatches[6],
+  marker: themeWhiteboardTokens.brushColorSwatches[6],
+  'colored-pencil': themeWhiteboardTokens.brushColorSwatches[6],
   fountain: themeWhiteboardTokens.brushColorSwatches[6],
-  watercolor: themeWhiteboardTokens.brushColorSwatches[2],
-  crayon: themeWhiteboardTokens.brushColorSwatches[4],
+  watercolor: themeWhiteboardTokens.brushColorSwatches[6],
+  crayon: themeWhiteboardTokens.brushColorSwatches[6],
 };
 
 export const WHITEBOARD_DEFAULT_PAPER_STYLE: WhiteboardPaperStyle = 'dots';
 
 export function clampWhiteboardZoom(zoom: number): number {
-  return Math.min(
-    themeWhiteboardTokens.maxZoom,
-    Math.max(themeWhiteboardTokens.minZoom, Math.round(zoom * 100) / 100),
-  );
+  return Math.max(themeWhiteboardTokens.minZoom, Math.round(zoom * 100) / 100);
 }
 
 export function screenPointToBoardPoint(
@@ -258,10 +255,7 @@ export function getStrokeEraserRadius(size: number): number {
 export function resizeBrushSize(size: number, deltaY: number): number {
   const direction = deltaY > 0 ? -1 : 1;
   const nextSize = size + direction * themeWhiteboardTokens.brushWheelStep;
-  return Math.min(
-    themeWhiteboardTokens.maxBrushSize,
-    Math.max(themeWhiteboardTokens.minBrushSize, Math.round(nextSize * 100) / 100),
-  );
+  return Math.max(themeWhiteboardTokens.minBrushSize, Math.round(nextSize * 100) / 100);
 }
 
 export function createStrokePoint(point: WhiteboardPoint, pressure: number, dynamics: Pick<WhiteboardStrokePoint, 'azimuth' | 'rotation' | 'tilt' | 'velocity'> = {}): WhiteboardStrokePoint {
