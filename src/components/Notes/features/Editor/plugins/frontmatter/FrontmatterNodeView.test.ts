@@ -14,11 +14,18 @@ function createMockNode(textContent = 'title: note'): ProseNode {
 }
 
 function createMockView(selection = { from: 1, to: 1 }): EditorView {
+  const tr = {
+    doc: { nodeAt: vi.fn(() => null) },
+    mapping: { map: (value: number) => value },
+    setSelection: vi.fn(function setSelection() { return tr; }),
+  };
+
   return {
+    dom: document.createElement('div'),
     root: document,
     editable: true,
     state: {
-      tr: {},
+      tr,
       selection,
       doc: { resolve: vi.fn(() => ({})) },
       schema: {
@@ -54,6 +61,11 @@ function handleFrontmatterUpdate(nodeView: FrontmatterNodeView, update: unknown)
   (nodeView as unknown as { handleUpdate: (update: unknown) => void }).handleUpdate(update);
 }
 
+function handlePropertiesChange(nodeView: FrontmatterNodeView, rawText: string) {
+  (nodeView as unknown as { handlePropertiesChange: (rawText: string) => void })
+    .handlePropertiesChange(rawText);
+}
+
 function getPendingMeasureFrame(nodeView: FrontmatterNodeView) {
   return (nodeView as unknown as { pendingMeasureFrame: number | null }).pendingMeasureFrame;
 }
@@ -73,6 +85,139 @@ describe('FrontmatterNodeView', () => {
 
     expect(nodeView.dom.classList.contains('frontmatter-block-container')).toBe(true);
     expect(nodeView.dom.classList.contains('md-meta-block')).toBe(true);
+
+    nodeView.destroy();
+  });
+
+  it('uses the property list for valid YAML and source editing for invalid YAML', () => {
+    const validNodeView = new FrontmatterNodeView(createMockNode('title: note'), createMockView(), () => 0);
+    const invalidNodeView = new FrontmatterNodeView(
+      createMockNode('vlaina_cover: "image.png" x=50'),
+      createMockView(),
+      () => 0,
+    );
+
+    expect(validNodeView.dom.querySelector<HTMLElement>('.frontmatter-block-editor')?.hidden).toBe(true);
+    expect(invalidNodeView.dom.querySelector<HTMLElement>('.frontmatter-block-editor')?.hidden).toBe(false);
+
+    validNodeView.destroy();
+    invalidNodeView.destroy();
+  });
+
+  it('focuses the title end for blank clicks on the visual block', () => {
+    const titleInput = document.createElement('textarea');
+    titleInput.dataset.noteTitleInput = 'true';
+    titleInput.value = 'Notes title';
+    document.body.appendChild(titleInput);
+    const nodeView = new FrontmatterNodeView(createMockNode('title: note'), createMockView(), () => 0);
+
+    const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+    nodeView.dom.dispatchEvent(event);
+
+    expect(titleInput).toHaveFocus();
+    expect(titleInput.selectionStart).toBe(titleInput.value.length);
+    expect(titleInput.selectionEnd).toBe(titleInput.value.length);
+
+    nodeView.destroy();
+    titleInput.remove();
+  });
+
+
+  it('focuses the source editor when a source-mode block is selected', () => {
+    const nodeView = new FrontmatterNodeView(
+      createMockNode('vlaina_cover: "image.png" x=50'),
+      createMockView(),
+      () => 0,
+    );
+    const cm = getCodeMirror(nodeView) as unknown as { focus: ReturnType<typeof vi.fn> };
+    const focusSpy = vi.spyOn(cm, 'focus');
+
+    nodeView.selectNode();
+
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    nodeView.destroy();
+  });
+
+  it('places the source cursor at the document end after leaving visual mode', async () => {
+    const node = createMockNode('title: note\ntags:\n  - syntax');
+    const end = node.textContent.length + 1;
+    const view = createMockView({ from: 1, to: end });
+    const collapsedSelection = { from: end, to: end };
+    const createSelectionSpy = vi.spyOn(TextSelection, 'create')
+      .mockReturnValue(collapsedSelection as never);
+    vi.mocked(view.dispatch).mockImplementation(() => {
+      view.state.selection = collapsedSelection as never;
+    });
+    const nodeView = new FrontmatterNodeView(node, view, () => 0);
+    document.body.appendChild(nodeView.dom);
+    const cm = getCodeMirror(nodeView);
+
+    let modeButton: HTMLButtonElement | null = null;
+    await vi.waitFor(() => {
+      modeButton = nodeView.dom.querySelector<HTMLButtonElement>('.frontmatter-properties-mode');
+      expect(modeButton).not.toBeNull();
+    });
+    modeButton!.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+
+    await vi.waitFor(() => {
+      expect(cm.hasFocus).toBe(true);
+      expect(cm.state.selection.main.anchor).toBe(cm.state.doc.length);
+      expect(cm.state.selection.main.head).toBe(cm.state.doc.length);
+      expect(nodeView.dom.dataset.pmSelected).toBe('false');
+    });
+    expect(createSelectionSpy).toHaveBeenCalledWith(view.state.doc, end);
+    expect(view.state.tr.setSelection).toHaveBeenCalledWith(collapsedSelection);
+    expect(view.dispatch).toHaveBeenCalledWith(view.state.tr);
+
+    nodeView.destroy();
+    createSelectionSpy.mockRestore();
+  });
+
+  it('restores the source selection when it expands during window blur', async () => {
+    const view = createMockView();
+    const nodeView = new FrontmatterNodeView(
+      createMockNode('invalid: ['),
+      view,
+      () => 0,
+    );
+    document.body.appendChild(nodeView.dom);
+    const cm = getCodeMirror(nodeView);
+    const end = cm.state.doc.length;
+    cm.focus();
+    cm.dispatch({ selection: { anchor: end, head: end } });
+    vi.mocked(view.dispatch).mockClear();
+
+    window.dispatchEvent(new FocusEvent('blur'));
+    cm.dispatch({ selection: { anchor: 0, head: end } });
+
+    await vi.waitFor(() => {
+      expect(cm.state.selection.main.anchor).toBe(end);
+      expect(cm.state.selection.main.head).toBe(end);
+    });
+    expect(view.dispatch).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new FocusEvent('focus'));
+    nodeView.destroy();
+  });
+
+  it('writes property edits back into the ProseMirror frontmatter node', () => {
+    const node = createMockNode('title: note');
+    const view = createMockView();
+    const tr = view.state.tr as unknown as {
+      replaceWith: ReturnType<typeof vi.fn>;
+    };
+    tr.replaceWith = vi.fn(() => tr);
+    const nodeView = new FrontmatterNodeView(node, view, () => 4);
+
+    handlePropertiesChange(nodeView, 'title: updated');
+
+    expect(view.state.schema.text).toHaveBeenCalledWith('title: updated');
+    expect(tr.replaceWith).toHaveBeenCalledWith(5, 5 + node.textContent.length, 'title: updated');
+    expect(view.dispatch).toHaveBeenCalledWith(tr);
 
     nodeView.destroy();
   });
@@ -105,6 +250,10 @@ describe('FrontmatterNodeView', () => {
     nodeView.selectNode();
     expect(nodeView.dom.classList.contains('ProseMirror-selectednode')).toBe(true);
     expect(nodeView.dom.classList.contains('md-focus')).toBe(true);
+    expect(nodeView.dom.querySelector<HTMLElement>('.frontmatter-block-editor')?.hidden).toBe(true);
+
+    nodeView.setSelection(0, 4);
+    expect(nodeView.dom.querySelector<HTMLElement>('.frontmatter-block-editor')?.hidden).toBe(true);
 
     nodeView.deselectNode();
     expect(nodeView.dom.classList.contains('ProseMirror-selectednode')).toBe(false);
@@ -124,6 +273,23 @@ describe('FrontmatterNodeView', () => {
 
     expect(dispatchSpy).not.toHaveBeenCalled();
     expect(getPendingMeasureFrame(nodeView)).toBeNull();
+    nodeView.destroy();
+  });
+
+  it('commits property deletions before the editor update returns', async () => {
+    const initialNode = createMockNode('title: note\npriority: 2');
+    const nextNode = {
+      ...createMockNode('title: note'),
+      type: initialNode.type,
+    } as ProseNode;
+    const nodeView = new FrontmatterNodeView(initialNode, createMockView(), () => 0);
+    await vi.waitFor(() => {
+      expect(nodeView.dom.querySelectorAll('.frontmatter-property-row')).toHaveLength(2);
+    });
+
+    nodeView.update(nextNode);
+
+    expect(nodeView.dom.querySelectorAll('.frontmatter-property-row')).toHaveLength(1);
     nodeView.destroy();
   });
 

@@ -16,6 +16,11 @@ export function createGapCursorSelectionAt(doc: ProseNode, pos: number): GapCurs
   }
 }
 
+function isInsideCodeMirror(node: Node): boolean {
+  const element = node instanceof globalThis.Element ? node : node.parentElement;
+  return Boolean(element?.closest('.cm-editor'));
+}
+
 export function syncEditorSelectionFromDOM(view: EditorView): boolean {
   const domSelection = view.dom.ownerDocument.getSelection();
   const anchorNode = domSelection?.anchorNode;
@@ -25,7 +30,9 @@ export function syncEditorSelectionFromDOM(view: EditorView): boolean {
     !anchorNode ||
     !focusNode ||
     !view.dom.contains(anchorNode) ||
-    !view.dom.contains(focusNode)
+    !view.dom.contains(focusNode) ||
+    isInsideCodeMirror(anchorNode) ||
+    isInsideCodeMirror(focusNode)
   ) {
     return false;
   }

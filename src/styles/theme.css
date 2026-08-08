@@ -619,6 +619,9 @@
   --vlaina-min-height-frontmatter-content: var(--vlaina-size-175rem);
   --vlaina-padding-frontmatter-line: var(--vlaina-space-0) var(--vlaina-space-0875rem);
   --vlaina-inset-frontmatter-placeholder: var(--vlaina-space-0) var(--vlaina-space-0875rem) auto var(--vlaina-space-0875rem);
+  --vlaina-min-height-frontmatter-property-row: var(--vlaina-size-36px);
+  --vlaina-width-frontmatter-property-key: var(--vlaina-size-140px);
+  --vlaina-size-frontmatter-property-action: var(--vlaina-size-28px);
   --vlaina-padding-code-block-editable: var(--vlaina-space-025rem) var(--vlaina-space-0) var(--vlaina-space-1rem);
   --vlaina-column-gap-code-block-lazy: var(--vlaina-space-0);
   --vlaina-margin-code-block-lazy: var(--vlaina-space-0);
@@ -648,6 +651,7 @@
   --vlaina-shadow-user-message-editor-submit: 0 0 0 3px rgb(65 168 234 / 0.16), 0 10px 24px rgb(65 168 234 / 0.24);
   --vlaina-shadow-macos-traffic-light: inset 0 0 0 0.5px rgb(255 255 255 / 0.35);
   --vlaina-shadow-math-editor-focus: 0 0 0 2px var(--vlaina-accent-light);
+  --vlaina-shadow-frontmatter-invalid: 0 0 0 var(--vlaina-size-2px) var(--vlaina-color-focus-ring-danger);
   --vlaina-gradient-notes-root-divider: linear-gradient(90deg, transparent, var(--vlaina-border), transparent);
   --vlaina-slider-percentage: 0%;
   --vlaina-appearance-font-size-progress: 0%;
@@ -917,6 +921,8 @@
   --vlaina-color-callout-gray-bg: color-mix(in srgb, var(--vlaina-text-tertiary) 10%, var(--vlaina-bg-secondary));
   --vlaina-color-callout-icon-hover-bg: color-mix(in srgb, var(--vlaina-text-primary) 8%, transparent);
   --vlaina-color-frontmatter-border: color-mix(in srgb, var(--vlaina-border), transparent 45%);
+  --vlaina-color-frontmatter-chip-bg: var(--vlaina-color-accent-soft-bg);
+  --vlaina-color-frontmatter-chip-fg: var(--vlaina-color-accent-hover);
   --vlaina-color-footnote-ref-bg: color-mix(in srgb, var(--crepe-color-inline-area, var(--vlaina-code-block-background)), transparent 40%);
   --vlaina-color-external-drop-cursor-shadow: color-mix(in srgb, var(--vlaina-color-white) 72%, transparent);
   --vlaina-color-block-drag-preview-fg: color-mix(in srgb, var(--vlaina-text-primary, currentColor) 40%, var(--vlaina-color-white) 60%);
