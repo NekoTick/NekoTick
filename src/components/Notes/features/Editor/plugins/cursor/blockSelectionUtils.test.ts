@@ -12,6 +12,7 @@ import {
   createBlockRectYIndex,
   convertViewportDragRectToDocumentRect,
   createBlockSelectionDecorations,
+  createBlockSelectionPreviewSurfaceDecorations,
   createDragSelectionRect,
   getBlockSelectionDecorationClass,
   getDisplayBlockRangesForDecorations,
@@ -51,6 +52,13 @@ const richSelectionSchema = new RichSelectionSchemaCtor({
       toDOM: () => ['p', 0],
       parseDOM: [{ tag: 'p' }],
     },
+    heading: {
+      group: 'block',
+      content: 'text*',
+      attrs: { level: { default: 2 } },
+      toDOM: () => ['h2', 0],
+      parseDOM: [{ tag: 'h2' }],
+    },
     html_block: {
       group: 'block',
       content: 'text*',
@@ -71,6 +79,24 @@ const richSelectionSchema = new RichSelectionSchemaCtor({
       marks: '',
       toDOM: () => ['div', { 'data-type': 'math-block' }, 0],
       parseDOM: [{ tag: 'div[data-type="math-block"]', preserveWhitespace: 'full' }],
+    },
+    blockquote: {
+      group: 'block',
+      content: 'block+',
+      toDOM: () => ['blockquote', 0],
+      parseDOM: [{ tag: 'blockquote' }],
+    },
+    callout: {
+      group: 'block',
+      content: 'block+',
+      toDOM: () => ['div', { 'data-type': 'callout' }, 0],
+      parseDOM: [{ tag: 'div[data-type="callout"]' }],
+    },
+    footnote_def: {
+      group: 'block',
+      content: 'block+',
+      toDOM: () => ['div', { class: 'footnote-def' }, 0],
+      parseDOM: [{ tag: 'div.footnote-def' }],
     },
     mermaid: {
       group: 'block',
@@ -859,6 +885,41 @@ describe('blockSelectionUtils', () => {
     expect(classes.at(-2)).toContain('editor-block-selected-has-previous');
 
     await editor.destroy();
+  });
+
+  it('marks containers that hide rich children during a deferred preview', () => {
+    const doc = richSelectionDocWith([
+      richSelectionSchema.nodes.blockquote.create(null, [
+        richSelectionParagraph('quote container'),
+        richSelectionRichBlock('math_block', 'E = mc^2'),
+      ]),
+      richSelectionSchema.nodes.blockquote.create(null, [
+        richSelectionParagraph('plain quote container'),
+      ]),
+      richSelectionSchema.nodes.callout.create(null, [
+        richSelectionParagraph('callout container'),
+      ]),
+      richSelectionSchema.nodes.footnote_def.create(null, [
+        richSelectionParagraph('footnote container'),
+      ]),
+      richSelectionSchema.nodes.heading.create({ level: 2 }, [
+        richSelectionTextNode('heading container')!,
+      ]),
+    ]);
+    const ranges: Array<{ from: number; to: number }> = [];
+    doc.forEach((node: ProseNode, offset: number) => {
+      ranges.push({ from: offset, to: offset + node.nodeSize });
+    });
+
+    const decorations = createBlockSelectionPreviewSurfaceDecorations(doc, ranges);
+
+    expect(decorations.find().map((decoration: Decoration) => `${decoration.from}:${decoration.to}`))
+      .toEqual([
+        `${ranges[0]!.from}:${ranges[0]!.to}`,
+        `${ranges[2]!.from}:${ranges[2]!.to}`,
+        `${ranges[3]!.from}:${ranges[3]!.to}`,
+        `${ranges[4]!.from}:${ranges[4]!.to}`,
+      ]);
   });
 
   it('marks atomic rich node types on the large selection path', () => {

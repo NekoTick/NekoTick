@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   EDITOR_SELECTOR,
   cleanupIsolatedElectron,
@@ -764,6 +766,124 @@ test.describe('notes block selection performance', () => {
       expect(metrics.scrollTop).toBeGreaterThan(80);
       expect(metrics.selectedDomCount + metrics.committedPreviewCount).toBeGreaterThan(20);
       expect(frameProbe.p95FrameMs).toBeLessThan(100);
+      expect(frameProbe.maxFrameMs).toBeLessThan(380);
+      expect(frameProbe.longFramesOver100).toBeLessThanOrEqual(3);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('measures drag block selection in the full syntax manual fixture', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-block-selection-full-syntax-drag-performance');
+    const manualMarkdown = readFileSync(
+      resolve(process.cwd(), 'test/e2e/notes-manual-performance.md'),
+      'utf8',
+    );
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      await openMarkdownFixture(page, {
+        filename: 'block-selection-full-syntax-drag-performance.md',
+        content: manualMarkdown,
+      });
+
+      await expect(page.locator(EDITOR_SELECTOR)).toBeVisible();
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Markdown 编辑器测试手册');
+      await expect.poll(
+        async () => page.evaluate(() => (window as any).__vlainaE2E.getNoteSelectableBlocks().length),
+        { timeout: 30_000 },
+      ).toBeGreaterThanOrEqual(180);
+      await waitForEditorAnimationFrame(page);
+      await page.waitForTimeout(500);
+
+      const dragTarget = await getBlankAreaDragTarget(page, '这份文档模拟一份功能全面的 Markdown 使用手册');
+      expect(dragTarget, 'full syntax blank-area drag target').not.toBeNull();
+      if (!dragTarget) return;
+      expect(dragTarget.hitInsideEditor).toBe(false);
+
+      const edgeTarget = await page.evaluate(() => {
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+        if (!editor || !scrollRoot) return null;
+        const editorRect = editor.getBoundingClientRect();
+        const scrollRootRect = scrollRoot.getBoundingClientRect();
+        return {
+          x: Math.max(editorRect.left + 24, Math.min(editorRect.right - 24, editorRect.left + editorRect.width * 0.35)),
+          y: scrollRootRect.bottom - 4,
+        };
+      });
+      expect(edgeTarget, 'full syntax edge auto-scroll target').not.toBeNull();
+      if (!edgeTarget) return;
+
+      await page.mouse.move(dragTarget.startX, dragTarget.startY);
+      const dragDispatchProfileStarted = await page.evaluate(() => (
+        window as any
+      ).__vlainaE2E.startEditorDispatchProfile?.() ?? false);
+      await waitForEditorAnimationFrame(page);
+      await startMainThreadFrameProbe(page, '__vlainaBlockSelectionFullSyntaxDragProbe');
+      const dragStartedAt = Date.now();
+      const phaseDurations: Record<string, number> = {};
+      const markPhase = (name: string, startedAt: number) => {
+        phaseDurations[name] = Date.now() - startedAt;
+      };
+
+      let phaseStartedAt = Date.now();
+      await page.mouse.down();
+      markPhase('mouseDown', phaseStartedAt);
+      phaseStartedAt = Date.now();
+      await page.mouse.move(dragTarget.endX, dragTarget.endY, { steps: 12 });
+      markPhase('initialMove', phaseStartedAt);
+      phaseStartedAt = Date.now();
+      await page.mouse.move(edgeTarget.x, edgeTarget.y, { steps: 18 });
+      markPhase('edgeMove', phaseStartedAt);
+      phaseStartedAt = Date.now();
+      await page.waitForTimeout(1_800);
+      markPhase('edgeWait', phaseStartedAt);
+
+      const frameProbe = await stopMainThreadFrameProbe(page, '__vlainaBlockSelectionFullSyntaxDragProbe');
+      const dragDispatchProfile = dragDispatchProfileStarted
+        ? await page.evaluate(() => (
+          window as any
+        ).__vlainaE2E.stopEditorDispatchProfile?.() ?? null)
+        : null;
+      const dragMetrics = await page.evaluate(() => {
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+        const preview = document.querySelector<SVGSVGElement>(
+          '[data-editor-block-selection-preview="true"]',
+        );
+        return {
+          codeBlockCount: document.querySelectorAll('.code-block-container').length,
+          previewCount: Number.parseInt(preview?.dataset.selectionCount ?? '0', 10),
+          previewSurfaceCount: document.querySelectorAll(
+            '.editor-block-selection-preview-surface',
+          ).length,
+          scrollTop: Math.round(scrollRoot?.scrollTop ?? 0),
+          selectableCount: (window as any).__vlainaE2E.getNoteSelectableBlocks().length,
+        };
+      });
+
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      console.info('[notes-block-selection-full-syntax-drag-performance]', {
+        ...dragMetrics,
+        dragDispatchProfile,
+        dragMs: Date.now() - dragStartedAt,
+        frameProbe,
+        phaseDurations,
+        sourceLength: manualMarkdown.length,
+      });
+
+      expect(dragMetrics.selectableCount).toBeGreaterThanOrEqual(180);
+      expect(dragMetrics.scrollTop).toBeGreaterThan(80);
+      expect(dragMetrics.previewCount).toBeGreaterThan(10);
+      expect(dragMetrics.previewSurfaceCount).toBeGreaterThan(0);
+      expect(dragDispatchProfile?.docChangedCount ?? 0).toBeLessThanOrEqual(1);
+      expect(frameProbe.p95FrameMs).toBeLessThan(90);
       expect(frameProbe.maxFrameMs).toBeLessThan(380);
       expect(frameProbe.longFramesOver100).toBeLessThanOrEqual(3);
     } finally {

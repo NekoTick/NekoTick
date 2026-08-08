@@ -96,6 +96,12 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('.milkdown .editor-block-selection-line-fill-host {');
     expect(css).toContain('.milkdown .editor-block-selection-line-fill-layer {');
     expect(css).toContain('.milkdown .editor-block-selection-line-fill {');
+    expect(css).toContain('.milkdown .ProseMirror.editor-block-selection-large-preview-active,');
+    expect(css).toContain('.milkdown .ProseMirror.editor-block-selection-drag-preview-active {');
+    expect(css).toContain('z-index: var(--vlaina-z-1);');
+    expect(css).toContain('.milkdown .ProseMirror .editor-block-selection-preview-surface {');
+    expect(css).toContain('.code-block-container.editor-block-selection-preview-surface,');
+    expect(css).toContain('.milkdown-table-block.editor-block-selection-preview-surface,');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selection-line-marker {');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selected-inline-line {');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selected-inline-line::after,');

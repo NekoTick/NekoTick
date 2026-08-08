@@ -14,6 +14,7 @@ const rectResolverMockState = vi.hoisted(() => ({
   currentRects: [] as BlockRect[],
   getPlainClickBlockRects: vi.fn(() => [] as BlockRect[]),
   getSelectionBlockRects: vi.fn(() => [] as BlockRect[]),
+  getLiveSelectionBlockRects: vi.fn(() => [] as BlockRect[]),
   getSelectionBlockElements: vi.fn(() => [] as HTMLElement[]),
   getTopLevelBlockRects: vi.fn(() => [] as BlockRect[]),
   invalidate: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('./blockRectResolver', () => ({
   createBlockRectResolver: vi.fn(() => ({
     getPlainClickBlockRects: rectResolverMockState.getPlainClickBlockRects,
     getSelectionBlockRects: rectResolverMockState.getSelectionBlockRects,
+    getLiveSelectionBlockRects: rectResolverMockState.getLiveSelectionBlockRects,
     getSelectionBlockElements: rectResolverMockState.getSelectionBlockElements,
     getTopLevelBlockRects: rectResolverMockState.getTopLevelBlockRects,
     invalidate: rectResolverMockState.invalidate,
@@ -33,6 +35,7 @@ class TestResizeObserver {
   static instances: TestResizeObserver[] = [];
 
   readonly observe = vi.fn();
+  readonly unobserve = vi.fn();
   readonly disconnect = vi.fn();
 
   constructor(readonly callback: ResizeObserverCallback) {
@@ -51,7 +54,7 @@ function blockRect(from: number, to: number, top: number, bottom: number): Block
   };
 }
 
-function createView(): EditorView {
+function createView(nodeAfter: unknown = null): EditorView {
   const scrollRoot = document.createElement('div');
   scrollRoot.setAttribute('data-note-scroll-root', 'true');
   const editorDom = document.createElement('div');
@@ -63,10 +66,24 @@ function createView(): EditorView {
     state: {
       doc: {
         content: { size: 20 },
-        resolve: vi.fn(() => ({ nodeAfter: null })),
+        resolve: vi.fn(() => ({ nodeAfter })),
       },
     },
   } as unknown as EditorView;
+}
+
+function captureAnimationFrames(): FrameRequestCallback[] {
+  const animationFrames: FrameRequestCallback[] = [];
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+    animationFrames.push(callback);
+    return animationFrames.length;
+  });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(vi.fn());
+  return animationFrames;
+}
+
+function getMaxPreviewPathVerticalCoordinate(pathData: string | null | undefined): number {
+  return Math.max(...(pathData?.match(/V-?\d+(?:\.\d+)?/g) ?? []).map((value) => Number(value.slice(1))));
 }
 
 afterEach(() => {
@@ -79,6 +96,8 @@ afterEach(() => {
   rectResolverMockState.getPlainClickBlockRects.mockImplementation(() => rectResolverMockState.currentRects);
   rectResolverMockState.getSelectionBlockRects.mockReset();
   rectResolverMockState.getSelectionBlockRects.mockImplementation(() => rectResolverMockState.currentRects);
+  rectResolverMockState.getLiveSelectionBlockRects.mockReset();
+  rectResolverMockState.getLiveSelectionBlockRects.mockImplementation(() => rectResolverMockState.currentRects);
   rectResolverMockState.getSelectionBlockElements.mockReset();
   rectResolverMockState.getSelectionBlockElements.mockImplementation(() => []);
   rectResolverMockState.getTopLevelBlockRects.mockReset();
@@ -193,7 +212,6 @@ describe('startBlankAreaSelectionSession', () => {
       configurable: true,
       value: view.dom,
     });
-
     const session = startBlankAreaSelectionSession({
       view,
       event,
@@ -217,7 +235,13 @@ describe('startBlankAreaSelectionSession', () => {
   });
 
   it('renders selected block feedback outside ProseMirror while decorations are deferred', () => {
-    const view = createView();
+    const view = createView({
+      nodeSize: 5,
+      type: { name: 'code_block' },
+    });
+    const previewSurface = document.createElement('div');
+    view.dom.appendChild(previewSurface);
+    rectResolverMockState.getSelectionBlockElements.mockReturnValue([previewSurface]);
     view.dom.setAttribute('contenteditable', 'true');
     view.dom.tabIndex = -1;
     view.dom.focus();
@@ -234,6 +258,327 @@ describe('startBlankAreaSelectionSession', () => {
       y: 0,
       toJSON: () => ({}),
     });
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+    const onPreviewSurfaceRangesChange = vi.fn();
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 0,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      selectionPreviewColor: 'rgb(190, 223, 254)',
+      useSelectionPreview: true,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPreviewSurfaceRangesChange,
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 170,
+      buttons: 1,
+    }));
+
+    const preview = document.querySelector<HTMLElement>('[data-editor-block-selection-preview="true"]');
+    expect(preview).not.toBeNull();
+    expect(preview?.children).toHaveLength(1);
+    expect(preview?.parentElement).toBe(view.dom.parentElement);
+    expect(preview?.style.zIndex).toBe('0');
+    expect(view.dom.querySelector('[data-editor-block-selection-preview="true"]')).toBeNull();
+    expect(view.dom).toHaveClass('editor-block-selection-drag-preview-active');
+    expect(onPreviewSurfaceRangesChange).toHaveBeenLastCalledWith([{ from: 1, to: 6 }]);
+    expect(document.activeElement).toBe(view.dom);
+    expect(document.querySelector<HTMLElement>('[data-editor-drag-box="true"]')?.style.background)
+      .toBe('transparent');
+    const previewPath = preview?.firstElementChild as SVGPathElement | null;
+    expect(previewPath?.style.fill).toBe('rgb(190, 223, 254)');
+    const initialPathData = previewPath?.getAttribute('d');
+    expect(initialPathData).toBe(
+      'M36 96H564A8 8 0 0 1 572 104V156A8 8 0 0 1 564 164H36A8 8 0 0 1 28 156V104A8 8 0 0 1 36 96Z',
+    );
+
+    scrollRoot.scrollTop = 40;
+    scrollRoot.dispatchEvent(new Event('scroll'));
+
+    expect(previewPath?.getAttribute('d')).toBe(initialPathData);
+    expect(previewPath?.style.transform).toBe('translate3d(0px, -40px, 0)');
+
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    expect(document.querySelector('[data-editor-block-selection-preview="true"]')).toBeNull();
+    expect(view.dom).not.toHaveClass('editor-block-selection-drag-preview-active');
+    expect(onPreviewSurfaceRangesChange).toHaveBeenLastCalledWith([]);
+
+    session.stop();
+  });
+
+  it('passes the final logical drag ranges to teardown sync', () => {
+    const view = createView();
+    rectResolverMockState.currentRects = [
+      blockRect(1, 6, 100, 160),
+      blockRect(7, 12, 180, 240),
+      blockRect(13, 18, 260, 320),
+    ];
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+    const onSelectionChange = vi.fn();
+    const onSyncSelectionState = vi.fn();
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 0,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      useSelectionPreview: true,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange,
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState,
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 170,
+      buttons: 1,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 330,
+      buttons: 1,
+    }));
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    const finalRanges = [
+      { from: 1, to: 6 },
+      { from: 7, to: 12 },
+      { from: 13, to: 18 },
+    ];
+    expect(onSelectionChange).toHaveBeenLastCalledWith(finalRanges);
+    expect(onSyncSelectionState).toHaveBeenCalledWith(finalRanges);
+
+    session.stop();
+  });
+
+  it('refreshes the drag preview from live block geometry after editor height changes', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+    const animationFrames = captureAnimationFrames();
+    const view = createView({
+      nodeSize: 5,
+      type: { name: 'code_block' },
+    });
+    const previewSurface = document.createElement('div');
+    view.dom.appendChild(previewSurface);
+    rectResolverMockState.getSelectionBlockElements.mockReturnValue([previewSurface]);
+    rectResolverMockState.currentRects = [blockRect(1, 6, 100, 160)];
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+    const onPreviewSurfaceRangesChange = vi.fn();
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 0,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      useSelectionPreview: true,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPreviewSurfaceRangesChange,
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 170,
+      buttons: 1,
+    }));
+    const previewPath = document.querySelector<SVGPathElement>(
+      '[data-editor-block-selection-preview="true"] path',
+    );
+    const initialPathData = previewPath?.getAttribute('d');
+    expect(initialPathData).toContain('V156');
+
+    const resizeObserver = TestResizeObserver.instances[0]!;
+    resizeObserver.callback([{
+      target: view.dom,
+      contentRect: { width: 500, height: 300 },
+    } as unknown as ResizeObserverEntry], resizeObserver as unknown as ResizeObserver);
+    rectResolverMockState.currentRects = [blockRect(1, 6, 100, 260)];
+    resizeObserver.callback([{
+      target: view.dom,
+      contentRect: { width: 500, height: 400 },
+    } as unknown as ResizeObserverEntry], resizeObserver as unknown as ResizeObserver);
+    animationFrames.splice(0).forEach((callback) => callback(16));
+
+    expect(rectResolverMockState.getLiveSelectionBlockRects)
+      .toHaveBeenCalledWith([{ from: 1, to: 6 }]);
+    expect(rectResolverMockState.invalidate).not.toHaveBeenCalled();
+    expect(previewPath?.getAttribute('d')).not.toBe(initialPathData);
+    expect(getMaxPreviewPathVerticalCoordinate(previewPath?.getAttribute('d')))
+      .toBeGreaterThan(getMaxPreviewPathVerticalCoordinate(initialPathData));
+
+    onPreviewSurfaceRangesChange.mockClear();
+    resizeObserver.callback([{
+      target: view.dom,
+      contentRect: { width: 600, height: 400 },
+    } as unknown as ResizeObserverEntry], resizeObserver as unknown as ResizeObserver);
+    animationFrames.splice(0).forEach((callback) => callback(32));
+
+    expect(rectResolverMockState.invalidate).toHaveBeenCalledOnce();
+    expect(onPreviewSurfaceRangesChange).toHaveBeenLastCalledWith([{ from: 1, to: 6 }]);
+
+    session.stop();
+  });
+
+  it('refreshes the drag preview when a selected rich block changes size', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+    const animationFrames = captureAnimationFrames();
+    const view = createView({
+      nodeSize: 5,
+      type: { name: 'code_block' },
+    });
+    const previewSurfaces = Array.from({ length: 3 }, () => document.createElement('div'));
+    view.dom.append(...previewSurfaces);
+    rectResolverMockState.currentRects = [
+      blockRect(1, 6, 100, 160),
+      blockRect(7, 12, 180, 240),
+      blockRect(13, 18, 260, 320),
+    ];
+    rectResolverMockState.getSelectionBlockElements.mockImplementation((ranges) => ranges
+      .map((range) => previewSurfaces[
+        rectResolverMockState.currentRects.findIndex((rect) => (
+          rect.from === range.from && rect.to === range.to
+        ))
+      ])
+      .filter((element): element is HTMLElement => Boolean(element)));
+    rectResolverMockState.getLiveSelectionBlockRects.mockImplementation((ranges) => ranges
+      .map((range) => rectResolverMockState.currentRects.find((rect) => (
+        rect.from === range.from && rect.to === range.to
+      )))
+      .filter((rect): rect is BlockRect => Boolean(rect)));
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 0,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      useSelectionPreview: true,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 330,
+      buttons: 1,
+    }));
+    const resizeObserver = TestResizeObserver.instances[0]!;
+    expect(resizeObserver.observe).toHaveBeenCalledWith(previewSurfaces[1]);
+    const previewPath = document.querySelector<SVGPathElement>(
+      '[data-editor-block-selection-preview="true"] path',
+    );
+    const initialPathData = previewPath?.getAttribute('d');
+
+    rectResolverMockState.currentRects = [
+      blockRect(1, 6, 100, 160),
+      blockRect(7, 12, 180, 340),
+      blockRect(13, 18, 360, 420),
+    ];
+    resizeObserver.callback([{
+      target: previewSurfaces[1],
+      contentRect: { width: 400, height: 160 },
+    } as unknown as ResizeObserverEntry], resizeObserver as unknown as ResizeObserver);
+    animationFrames.splice(0).forEach((callback) => callback(16));
+
+    expect(rectResolverMockState.getLiveSelectionBlockRects)
+      .toHaveBeenCalledWith([{ from: 7, to: 12 }]);
+    expect(previewPath?.getAttribute('d')).not.toBe(initialPathData);
+    expect(getMaxPreviewPathVerticalCoordinate(previewPath?.getAttribute('d')))
+      .toBeGreaterThan(getMaxPreviewPathVerticalCoordinate(initialPathData));
+
+    const scrollRoot = view.dom.parentElement as HTMLElement;
+    scrollRoot.scrollTop = 40;
+    scrollRoot.dispatchEvent(new Event('scroll'));
+
+    expect(getMaxPreviewPathVerticalCoordinate(previewPath?.getAttribute('d')))
+      .toBeGreaterThan(getMaxPreviewPathVerticalCoordinate(initialPathData));
+
+    session.stop();
+  });
+
+  it('does not mutate text-like blocks while rendering the drag preview', () => {
+    const view = createView({
+      nodeSize: 5,
+      type: { name: 'paragraph' },
+    });
+    const textBlock = document.createElement('p');
+    view.dom.appendChild(textBlock);
+    rectResolverMockState.getSelectionBlockElements.mockImplementation((ranges) =>
+      ranges.length > 0 ? [textBlock] : []);
+    rectResolverMockState.currentRects = [blockRect(1, 6, 100, 160)];
     const event = new MouseEvent('mousedown', {
       bubbles: true,
       clientX: 80,
@@ -269,28 +614,55 @@ describe('startBlankAreaSelectionSession', () => {
       buttons: 1,
     }));
 
-    const preview = document.querySelector<HTMLElement>('[data-editor-block-selection-preview="true"]');
-    expect(preview).not.toBeNull();
-    expect(preview?.children).toHaveLength(1);
-    expect(preview?.parentElement).toBe(document.body);
-    expect(view.dom.querySelector('[data-editor-block-selection-preview="true"]')).toBeNull();
-    expect(document.activeElement).toBe(view.dom);
-    expect(document.querySelector<HTMLElement>('[data-editor-drag-box="true"]')?.style.background)
-      .toBe('transparent');
-    const previewPath = preview?.firstElementChild as SVGPathElement | null;
-    const initialPathData = previewPath?.getAttribute('d');
-    expect(initialPathData).toBe(
-      'M36 98H564A8 8 0 0 1 572 106V154A8 8 0 0 1 564 162H36A8 8 0 0 1 28 154V106A8 8 0 0 1 36 98Z',
-    );
+    expect(rectResolverMockState.getSelectionBlockElements).toHaveBeenCalledWith([{ from: 1, to: 6 }]);
 
-    scrollRoot.scrollTop = 40;
-    scrollRoot.dispatchEvent(new Event('scroll'));
+    session.stop();
+  });
 
-    expect(previewPath?.getAttribute('d')).toBe(initialPathData);
-    expect(previewPath?.style.transform).toBe('translate3d(0px, -40px, 0)');
+  it('keeps the normal drag box behind editor content', () => {
+    const view = createView();
+    rectResolverMockState.currentRects = [blockRect(1, 6, 100, 160)];
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 0,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 170,
+      buttons: 1,
+    }));
+
+    const dragBox = document.querySelector<HTMLElement>('[data-editor-drag-box="true"]');
+    expect(dragBox?.style.zIndex).toBe('0');
+    expect(dragBox?.style.background).toBe('rgba(0, 0, 0, 0.1)');
+    expect(view.dom).toHaveClass('editor-block-selection-drag-preview-active');
 
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    expect(document.querySelector('[data-editor-block-selection-preview="true"]')).toBeNull();
+    expect(view.dom).not.toHaveClass('editor-block-selection-drag-preview-active');
 
     session.stop();
   });
@@ -349,6 +721,78 @@ describe('startBlankAreaSelectionSession', () => {
     session.stop();
   });
 
+  it('keeps preview geometry cached across editor-only height changes', () => {
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+    const animationFrames = captureAnimationFrames();
+    const view = createView();
+    const scrollRoot = view.dom.parentElement as HTMLElement;
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 4,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      useSelectionPreview: true,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+    const resizeObserver = TestResizeObserver.instances[0]!;
+
+    resizeObserver.callback([
+      {
+        target: view.dom,
+        contentRect: { width: 500, height: 300 },
+      } as unknown as ResizeObserverEntry,
+      {
+        target: scrollRoot,
+        contentRect: { width: 700, height: 600 },
+      } as unknown as ResizeObserverEntry,
+    ], resizeObserver as unknown as ResizeObserver);
+    resizeObserver.callback([
+      {
+        target: view.dom,
+        contentRect: { width: 500, height: 900 },
+      } as unknown as ResizeObserverEntry,
+    ], resizeObserver as unknown as ResizeObserver);
+
+    expect(rectResolverMockState.invalidate).not.toHaveBeenCalled();
+
+    resizeObserver.callback([
+      {
+        target: view.dom,
+        contentRect: { width: 520, height: 900 },
+      } as unknown as ResizeObserverEntry,
+    ], resizeObserver as unknown as ResizeObserver);
+    resizeObserver.callback([
+      {
+        target: scrollRoot,
+        contentRect: { width: 700, height: 640 },
+      } as unknown as ResizeObserverEntry,
+    ], resizeObserver as unknown as ResizeObserver);
+    animationFrames.splice(0).forEach((callback) => callback(16));
+
+    expect(rectResolverMockState.invalidate).toHaveBeenCalledTimes(1);
+
+    session.stop();
+  });
+
   it('resolves an outside-editor plain click target on pointer down', () => {
     const view = createView();
     rectResolverMockState.currentRects = [
@@ -396,6 +840,56 @@ describe('startBlankAreaSelectionSession', () => {
 
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     expect(onPlainClick).not.toHaveBeenCalled();
+
+    session.stop();
+  });
+
+  it('defers outside-editor plain click hit testing for preview sessions', () => {
+    const view = createView();
+    rectResolverMockState.currentRects = [blockRect(7, 12, 180, 240)];
+    const onPendingPlainClick = vi.fn(() => true);
+    const onPlainClick = vi.fn();
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 540,
+      clientY: 200,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 4,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      useSelectionPreview: true,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange: vi.fn(),
+      onPendingPlainClick,
+      onPlainClick,
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    expect(onPendingPlainClick).not.toHaveBeenCalled();
+    expect(rectResolverMockState.getPlainClickBlockRects).not.toHaveBeenCalled();
+
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+    expect(rectResolverMockState.getPlainClickBlockRects).toHaveBeenCalledWith(540, 200);
+    expect(onPlainClick).toHaveBeenCalledWith(expect.objectContaining({
+      zone: 'outside-editor',
+      action: expect.objectContaining({ blockFrom: 7 }),
+      clientX: 540,
+      clientY: 200,
+    }));
 
     session.stop();
   });
@@ -649,12 +1143,7 @@ describe('startBlankAreaSelectionSession', () => {
 
   it('refreshes hit testing when block geometry changes during a drag', () => {
     vi.stubGlobal('ResizeObserver', TestResizeObserver);
-    const animationFrames: FrameRequestCallback[] = [];
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
-      animationFrames.push(callback);
-      return animationFrames.length;
-    });
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(vi.fn());
+    const animationFrames = captureAnimationFrames();
 
     const view = createView();
     rectResolverMockState.currentRects = [
@@ -704,6 +1193,7 @@ describe('startBlankAreaSelectionSession', () => {
       blockRect(7, 12, 140, 200),
     ];
     TestResizeObserver.instances[0]!.callback([], TestResizeObserver.instances[0] as unknown as ResizeObserver);
+    animationFrames.splice(0).forEach((callback) => callback(16));
 
     expect(rectResolverMockState.invalidate).toHaveBeenCalled();
     expect(selectionChanges).toHaveBeenLastCalledWith([

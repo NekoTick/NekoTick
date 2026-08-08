@@ -4,6 +4,8 @@ import type { RectBounds } from './blockSelectionUtils';
 const DRAG_SELECTION_POINTER_EDGE_HIT_SLOP_PX = 8;
 const GEOMETRY_RESIZE_TOLERANCE_PX = 1;
 
+export const DRAG_SELECTION_PREVIEW_ACTIVE_CLASS = 'editor-block-selection-drag-preview-active';
+
 export function createDragBox(
   doc: Document,
   dragBoxColor: string,
@@ -13,7 +15,7 @@ export function createDragBox(
   box.setAttribute('data-editor-drag-box', 'true');
   box.style.position = themeDomStyleTokens.positionFixed;
   box.style.pointerEvents = themeStyleResetTokens.pointerEventsNone;
-  box.style.zIndex = themeDomStyleTokens.zIndexMax;
+  box.style.zIndex = themeDomStyleTokens.zIndexBase;
   box.style.border = themeDomStyleTokens.borderNone;
   box.style.background = showFill ? dragBoxColor : themeStyleResetTokens.backgroundTransparent;
   box.style.borderRadius = themeStyleResetTokens.borderRadiusNone;
@@ -45,7 +47,7 @@ export function createBlockSelectionPreviewLayer(
   layer.setAttribute('data-editor-block-selection-preview', 'true');
   layer.style.position = themeDomStyleTokens.positionFixed;
   layer.style.pointerEvents = themeStyleResetTokens.pointerEventsNone;
-  layer.style.zIndex = themeDomStyleTokens.zIndexMax;
+  layer.style.zIndex = themeDomStyleTokens.zIndexBase;
   layer.style.left = themeDomStyleTokens.sizeZeroPx;
   layer.style.top = themeDomStyleTokens.sizeZeroPx;
   layer.style.right = themeDomStyleTokens.sizeZeroPx;
@@ -160,6 +162,14 @@ export function hasMeaningfulResizeDelta(
     Math.abs(previous.width - next.width) > GEOMETRY_RESIZE_TOLERANCE_PX ||
     Math.abs(previous.height - next.height) > GEOMETRY_RESIZE_TOLERANCE_PX
   );
+}
+
+export function hasMeaningfulWidthResizeDelta(
+  previous: { width: number; height: number } | undefined,
+  next: { width: number; height: number },
+): boolean {
+  if (!previous) return false;
+  return Math.abs(previous.width - next.width) > GEOMETRY_RESIZE_TOLERANCE_PX;
 }
 
 export function blurActiveEditableElement(doc: Document): void {

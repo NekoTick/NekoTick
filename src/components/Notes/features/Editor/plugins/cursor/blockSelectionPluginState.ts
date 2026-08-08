@@ -21,7 +21,11 @@ export interface BlankAreaDragBoxState {
 }
 
 export type BlockSelectionAction =
-  | { type: 'set-blocks'; blocks: BlockRange[]; deferDecorations?: boolean }
+  | {
+    type: 'set-blocks';
+    blocks: BlockRange[];
+    deferDecorations?: boolean;
+  }
   | { type: 'clear-blocks' };
 
 export const blankAreaDragBoxPluginKey = new PluginKey<BlankAreaDragBoxState>('blankAreaDragBox');

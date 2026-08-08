@@ -21,6 +21,7 @@ export {
 } from './blockUnitDomRects';
 export {
   collectSelectableBlockTargets,
+  resolveSelectableBlockElement,
   resolveSelectableBlockTargetByPos,
   type SelectableBlockTarget,
 } from './blockUnitTargetResolver';

@@ -442,6 +442,39 @@ describe('createBlockRectResolver', () => {
     }
   });
 
+  it('remeasures requested preview ranges after their live height changes', () => {
+    const dom = document.createElement('div');
+    const paragraph = document.createElement('p');
+    paragraph.textContent = '1';
+    dom.append(paragraph);
+    withRect(dom, { left: 20, top: 10, width: 600, height: 300 });
+    withRect(paragraph, { left: 60, top: 40, width: 10, height: 24 });
+
+    const doc = createDoc([createNode('paragraph', 3)]);
+    const view = {
+      dom,
+      state: { doc },
+      nodeDOM: () => paragraph,
+      domAtPos: () => ({ node: paragraph.firstChild as Node }),
+    };
+    const resolver = createBlockRectResolver({
+      view: view as any,
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+    });
+
+    withRect(paragraph, { left: 60, top: 120, width: 10, height: 80 });
+
+    expect(resolver.getLiveSelectionBlockRects([{ from: 0, to: 3 }])).toEqual([{
+      from: 0,
+      to: 3,
+      left: 20,
+      top: 120,
+      right: 620,
+      bottom: 200,
+      allowInsideTrailingClick: true,
+    }]);
+  });
+
   it('measures only cached blocks near a plain-click point', () => {
     const dom = document.createElement('div');
     const paragraphs = [0, 1, 2].map((index) => {

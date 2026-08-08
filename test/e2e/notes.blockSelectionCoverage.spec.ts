@@ -5,11 +5,13 @@ import {
   EDITOR_SELECTOR,
   SELECTED_BLOCK_SELECTOR,
   cleanupIsolatedElectron,
+  getBlankAreaDragTarget,
   getOpenBridgePages,
   getSelectableBlocks,
   launchIsolatedElectron,
   openMarkdownFixture,
   selectNoteBlocksByIndexes,
+  waitForEditorAnimationFrame,
 } from './notesE2E';
 import { createMarkdownSyntaxFixture } from './notesMarkdownSyntaxFixture';
 
@@ -40,30 +42,11 @@ type SelectionPaintEdgeSample = {
   largeActive: boolean;
   leftGap: number;
   paintLeft: number;
+  previewSelectionCount: number;
   rectLeft: number;
   selectedCount: number;
   text: string;
-};
-
-type RichBlockPaintSample = {
-  afterDisplay: string;
-  afterLeft: number | null;
-  backgroundColor: string;
-  bleedStart: number;
-  boxShadow: string;
-  className: string;
-  expectedPaintLeft: number;
-  innerBackgroundColor: string | null;
-  largeActive: boolean;
-  leftGap: number;
-  paintLeft: number;
-  rectLeft: number;
-  selectedCount: number;
-  selectionColor: string;
-  shadowPaintLeft: number | null;
-  text: string;
-  wrapperBackgroundColor: string | null;
-  wrapperPaintLeft: number | null;
+  usesSvgPreview: boolean;
 };
 
 type DraggedCodeBlockPaintSample = {
@@ -81,6 +64,10 @@ type DraggedCodeBlockPaintSample = {
   codeLineColor: string | null;
   codeLineTextFillColor: string | null;
   codeSelected: boolean;
+  committedPreviewPresent: boolean;
+  dragPreviewActive: boolean;
+  dragPreviewPresent: boolean;
+  editorZIndex: string;
   expectedBorderColor: string;
   expectedCodeLineColor: string;
   expectedLanguageColor: string;
@@ -89,7 +76,10 @@ type DraggedCodeBlockPaintSample = {
   languageColor: string | null;
   languageTextFillColor: string | null;
   largeActive: boolean;
-  pendingActive: boolean;
+  previewFillColor: string | null;
+  previewSelectionCount: number;
+  previewSurfaceActive: boolean;
+  previewZIndex: string | null;
   selectedCount: number;
   selectionColor: string;
   text: string;
@@ -97,6 +87,16 @@ type DraggedCodeBlockPaintSample = {
   tokenColor: string | null;
   tokenText: string | null;
   tokenTextFillColor: string | null;
+};
+
+type DragPreviewGeometrySample = {
+  pathIndex: number;
+  previewBottom: number;
+  previewHeight: number;
+  previewTop: number;
+  targetBottom: number;
+  targetHeight: number;
+  targetTop: number;
 };
 
 type RenderedSelectionPixelSlot =
@@ -133,6 +133,7 @@ type RenderedSelectionPixelReport = {
     right: number;
     top: number;
   };
+  previewSelectionCount: number;
   samples: RenderedSelectionPixelSample[];
   selectedCount: number;
   selectionColor: string;
@@ -180,8 +181,6 @@ type LargeSelectionPaintCase = {
   anchorText: string;
   targetIndexSelector?: string;
   targetText?: string;
-  expectedClass: 'textlike' | 'rich';
-  minBleedStart?: number;
 };
 
 const LARGE_SELECTION_SAMPLE_COUNT = 132;
@@ -192,128 +191,107 @@ const LARGE_SELECTION_SYNTAX_PAINT_CASES: LargeSelectionPaintCase[] = [
     selector: '.frontmatter-block-container',
     anchorText: 'title: E2E Markdown Syntax',
     targetText: 'title: E2E Markdown Syntax',
-    expectedClass: 'rich',
   },
   {
     label: 'toc',
     selector: 'div[data-type="toc"]',
     anchorText: 'Heading Coverage',
     targetText: 'Heading Coverage',
-    expectedClass: 'textlike',
   },
   {
     label: 'heading',
     selector: 'h2',
     anchorText: 'Inline Marks And Links',
     targetText: 'Inline Marks And Links',
-    expectedClass: 'textlike',
   },
   {
     label: 'paragraph',
     selector: 'p',
     anchorText: 'Inline marks paragraph',
     targetText: 'Inline marks paragraph',
-    expectedClass: 'textlike',
   },
   {
     label: 'blockquote',
     selector: 'blockquote',
     anchorText: 'Regular quote line one',
     targetText: 'Regular quote line one',
-    expectedClass: 'textlike',
   },
   {
     label: 'callout',
     selector: 'div[data-type="callout"]',
     anchorText: 'Emoji callout sentinel',
     targetText: 'Emoji callout sentinel',
-    expectedClass: 'textlike',
   },
   {
     label: 'list-item',
     selector: 'ul > li',
     anchorText: 'Bullet item alpha',
     targetText: 'Bullet item alpha',
-    expectedClass: 'textlike',
-    minBleedStart: 96,
   },
   {
     label: 'nested-list-item',
     selector: 'li li li',
     anchorText: 'Third-level bullet sentinel',
     targetText: 'Third-level bullet sentinel',
-    expectedClass: 'textlike',
-    minBleedStart: 128,
   },
   {
     label: 'task-list-item',
     selector: 'li[data-item-type="task"]',
     anchorText: 'Task item unchecked sentinel',
     targetText: 'Task item unchecked sentinel',
-    expectedClass: 'textlike',
-    minBleedStart: 96,
   },
   {
     label: 'table',
     selector: '.milkdown-table-block',
     anchorText: 'Table alpha',
     targetText: 'Table alpha',
-    expectedClass: 'rich',
   },
   {
     label: 'horizontal-rule',
     selector: '.md-hr',
     anchorText: 'Horizontal Rules',
     targetIndexSelector: '.md-hr',
-    expectedClass: 'textlike',
   },
   {
     label: 'code-block',
     selector: '.code-block-container',
     anchorText: 'syntaxSentinel',
     targetText: 'syntaxSentinel',
-    expectedClass: 'rich',
   },
   {
     label: 'math-block',
     selector: 'div[data-type="math-block"]',
     anchorText: 'E=mc',
     targetText: 'E=mc',
-    expectedClass: 'rich',
   },
   {
     label: 'mermaid-block',
     selector: '.mermaid-block',
     anchorText: 'Inline math sentinel',
-    expectedClass: 'rich',
   },
   {
     label: 'image-block',
     selector: '.image-block-container[data-alt="Image alt sentinel"]',
     anchorText: 'Media',
     targetIndexSelector: '.image-block-container[data-alt="Image alt sentinel"]',
-    expectedClass: 'rich',
   },
   {
     label: 'video-block',
     selector: 'div[data-type="video"]',
     anchorText: 'Media',
     targetIndexSelector: 'div[data-type="video"]',
-    expectedClass: 'rich',
   },
   {
     label: 'footnote-definition',
     selector: 'div.footnote-def[data-type="footnote_definition"]',
     anchorText: 'Footnote definition sentinel',
     targetText: 'Footnote definition sentinel',
-    expectedClass: 'textlike',
   },
   {
     label: 'html-block',
     selector: '.md-htmlblock',
     anchorText: 'Raw HTML block sentinel',
     targetText: 'Raw HTML block sentinel',
-    expectedClass: 'rich',
   },
 ];
 
@@ -334,11 +312,11 @@ function createLargeSelectionSyntaxAuditMarkdown(): string {
 
 function createLargeDragSelectionCodeMarkdown(): string {
   const beforeCode = Array.from(
-    { length: 96 },
+    { length: 30 },
     (_, index) => `Drag code selection filler before ${index} sentinel.`,
   ).join('\n\n');
   const afterCode = Array.from(
-    { length: 92 },
+    { length: 158 },
     (_, index) => `Drag code selection filler after ${index} sentinel.`,
   ).join('\n\n');
 
@@ -475,18 +453,16 @@ test.describe('notes block selection visual coverage', () => {
       const targetText = selectableBlocks[targetIndex].text.slice(0, 28);
       await selectNoteBlocksByIndexes(page, [targetIndex]);
       const singleSelection = await measureSelectedPaintEdge(page, targetText);
-      expect(singleSelection.largeActive).toBe(false);
+      expect(singleSelection.largeActive).toBe(true);
       expect(singleSelection.afterDisplay).not.toBe('none');
       expect(Math.abs(singleSelection.leftGap)).toBeLessThanOrEqual(1);
 
       const largeIndexes = Array.from({ length: 132 }, (_, offset) => targetIndex + offset);
+      const codeIndex = selectableBlocks.findIndex((block) => block.text.includes('blockquote{border-left'));
+      expect(codeIndex).toBeGreaterThanOrEqual(0);
+      expect(largeIndexes).toContain(codeIndex);
       await selectNoteBlocksByIndexes(page, largeIndexes);
       const largeSelection = await measureSelectedPaintEdge(page, targetText);
-      const largeCodeBlockSelection = await measureSelectedRichBlockPaint(page, {
-        selector: '.code-block-container',
-        targetText: 'blockquote{border-left',
-        innerSelector: '.code-block-editable, .cm-editor, .code-block-lazy-preview',
-      });
       const largeCodeBlockPixels = await measureRenderedSelectionPixels(page, {
         selector: '.code-block-container',
         targetText: 'blockquote{border-left',
@@ -496,22 +472,23 @@ test.describe('notes block selection visual coverage', () => {
         targetIndex,
         singleSelection,
         largeSelection,
-        largeCodeBlockSelection,
         largeCodeBlockPixels,
       });
 
       expect(largeSelection.largeActive).toBe(true);
-      expect(largeSelection.selectedCount).toBeGreaterThanOrEqual(128);
-      expect(largeSelection.className).toContain('editor-block-selected-large-textlike');
-      expect(largeSelection.afterDisplay).not.toBe('none');
+      expect(largeSelection.usesSvgPreview).toBe(true);
+      expect(largeSelection.previewSelectionCount).toBeGreaterThanOrEqual(128);
+      expect(largeSelection.selectedCount).toBe(0);
+      expect(largeSelection.afterDisplay).toBe('svg');
       expect(Math.abs(largeSelection.leftGap)).toBeLessThanOrEqual(1);
       expect(Math.abs(largeSelection.paintLeft - singleSelection.paintLeft)).toBeLessThanOrEqual(2);
-      expect(largeCodeBlockSelection.largeActive).toBe(true);
-      expect(largeCodeBlockSelection.className).toContain('editor-block-selected-large-rich');
-      expect(largeCodeBlockSelection.afterDisplay).not.toBe('none');
-      expect(Math.abs(largeCodeBlockSelection.leftGap)).toBeLessThanOrEqual(1);
-      expect(largeCodeBlockSelection.backgroundColor).not.toBe(largeCodeBlockSelection.innerBackgroundColor);
-      expectSelectionPixels(largeCodeBlockPixels, 'manual fixture code block');
+      expect(largeCodeBlockPixels.largeActive).toBe(true);
+      expect(largeCodeBlockPixels.selectedCount).toBe(0);
+      expectSelectionPixels(largeCodeBlockPixels, 'manual fixture code block', [
+        'innerSurface',
+        'leftBleed',
+        'rightBleed',
+      ]);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }
@@ -542,43 +519,119 @@ test.describe('notes block selection visual coverage', () => {
       await page.mouse.down();
       mouseIsDown = true;
       await page.mouse.move(dragTarget.edgeX, dragTarget.edgeY, { steps: 10 });
-
-      const draggingSample = await waitForDraggedCodeBlockPaint(page, 'dragCodeSentinel');
-      expect(draggingSample.pendingActive).toBe(true);
-      expect(draggingSample.largeActive).toBe(true);
-      expect(draggingSample.selectedCount).toBeGreaterThanOrEqual(128);
-      expect(draggingSample.codeSelected).toBe(true);
-      expect(draggingSample.codeBackgroundColor).toBe(draggingSample.selectionColor);
-      expect(draggingSample.innerBackgroundColor).toBe('rgba(0, 0, 0, 0)');
-      expectSelectedCodeBlockColors(draggingSample, 'dragging code block');
-      const draggingPixels = await measureRenderedSelectionPixels(page, {
-        selector: '.code-block-container',
+      await page.waitForFunction(({ editorSelector, targetText }) => {
+        const editor = document.querySelector<HTMLElement>(editorSelector);
+        const target = Array.from(editor?.querySelectorAll<HTMLElement>('.code-block-container') ?? [])
+          .find((element) => element.textContent?.includes(targetText));
+        const preview = document.querySelector<SVGSVGElement>('[data-editor-block-selection-preview="true"]');
+        return Boolean(
+          editor?.classList.contains('editor-block-selection-drag-preview-active')
+          && preview?.firstElementChild?.hasAttribute('d')
+          // One visible block can sit just above the viewport while the
+          // committed preview threshold is reached during auto-scroll.
+          && Number(preview.dataset.selectionCount ?? '0') >= 31
+          && target?.classList.contains('editor-block-selection-preview-surface')
+        );
+      }, {
+        editorSelector: EDITOR_SELECTOR,
         targetText: 'dragCodeSentinel',
       });
-      expectSelectionPixels(draggingPixels, 'dragging code block', ['topBleed', 'bottomBleed', 'leftBleed', 'rightBleed']);
+
+      const draggingSample = await measureDraggedCodeBlockPaint(page, 'dragCodeSentinel');
+      expect(draggingSample).not.toBeNull();
+      if (!draggingSample) return;
+      expect(draggingSample.dragPreviewActive).toBe(true);
+      expect(draggingSample.dragPreviewPresent).toBe(true);
+      expect(draggingSample.committedPreviewPresent).toBe(false);
+      expect(draggingSample.largeActive).toBe(true);
+      expect(draggingSample.selectedCount).toBe(0);
+      expect(draggingSample.previewSelectionCount).toBeGreaterThan(0);
+      expect(draggingSample.codeSelected).toBe(true);
+      expect(draggingSample.previewSurfaceActive).toBe(true);
+      expect(draggingSample.previewFillColor).toBe(draggingSample.selectionColor);
+      expect(draggingSample.previewZIndex).toBe('0');
+      expect(draggingSample.editorZIndex).toBe('1');
+      expect(draggingSample.codeBackgroundColor).toBe('rgba(0, 0, 0, 0)');
+      expect(draggingSample.innerBackgroundColor).toBe('rgba(0, 0, 0, 0)');
+      if (draggingSample.codeLineColor !== null) {
+        expect(draggingSample.codeLineColor, 'dragging code block: CodeMirror line color')
+          .toBe(draggingSample.expectedCodeLineColor);
+        expect(draggingSample.codeLineTextFillColor, 'dragging code block: CodeMirror line text fill')
+          .toBe(draggingSample.expectedCodeLineColor);
+      }
+
+      const codeCenter = await page.evaluate((targetText) => {
+        const target = Array.from(document.querySelectorAll<HTMLElement>('.code-block-container'))
+          .find((element) => element.textContent?.includes(targetText));
+        if (!target) return null;
+        const rect = target.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      }, 'dragCodeSentinel');
+      expect(codeCenter, 'selected code block center').not.toBeNull();
+      if (!codeCenter) return;
+      await page.mouse.move(codeCenter.x, codeCenter.y);
+      await waitForEditorAnimationFrame(page);
+
+      const initialGeometry = await measureDragPreviewGeometry(page, 'dragCodeSentinel');
+      expect(initialGeometry, 'initial code block drag preview geometry').not.toBeNull();
+      if (!initialGeometry) return;
+      expect(Math.abs(initialGeometry.previewTop - initialGeometry.targetTop)).toBeLessThanOrEqual(8);
+      expect(Math.abs(initialGeometry.previewBottom - initialGeometry.targetBottom)).toBeLessThanOrEqual(8);
+
+      await page.evaluate((targetText) => {
+        const target = Array.from(document.querySelectorAll<HTMLElement>('.code-block-container'))
+          .find((element) => element.textContent?.includes(targetText));
+        if (!target) return;
+        target.style.minHeight = `${Math.ceil(target.getBoundingClientRect().height + 240)}px`;
+      }, 'dragCodeSentinel');
+
+      let resizedGeometry: DragPreviewGeometrySample | null = null;
+      await expect.poll(async () => {
+        resizedGeometry = await measureDragPreviewGeometry(
+          page,
+          'dragCodeSentinel',
+          initialGeometry.pathIndex,
+        );
+        if (!resizedGeometry) return Number.POSITIVE_INFINITY;
+        return Math.max(
+          Math.abs(resizedGeometry.previewTop - resizedGeometry.targetTop),
+          Math.abs(resizedGeometry.previewBottom - resizedGeometry.targetBottom),
+        );
+      }, { timeout: 5_000 }).toBeLessThanOrEqual(8);
+      expect(resizedGeometry).not.toBeNull();
+      expect(resizedGeometry!.targetHeight - initialGeometry.targetHeight).toBeGreaterThanOrEqual(220);
+      expect(resizedGeometry!.previewHeight - initialGeometry.previewHeight).toBeGreaterThanOrEqual(220);
 
       await page.mouse.up();
       mouseIsDown = false;
 
-      const settledSample = await measureDraggedCodeBlockPaint(page, 'dragCodeSentinel');
-      expect(settledSample).not.toBeNull();
-      expect(settledSample!.pendingActive).toBe(false);
-      expect(settledSample!.largeActive).toBe(true);
-      expect(settledSample!.codeBackgroundColor).toBe(settledSample!.selectionColor);
-      expect(settledSample!.innerBackgroundColor).toBe('rgba(0, 0, 0, 0)');
-      expectSelectedCodeBlockColors(settledSample!, 'settled code block');
+      const settledSample = await waitForDraggedCodeBlockPaint(page, 'dragCodeSentinel');
+      expect(settledSample.dragPreviewActive).toBe(false);
+      expect(settledSample.dragPreviewPresent).toBe(false);
+      expect(settledSample.committedPreviewPresent).toBe(true);
+      expect(settledSample.largeActive).toBe(true);
+      expect(settledSample.selectedCount).toBe(0);
+      expect(settledSample.previewSelectionCount).toBeGreaterThanOrEqual(32);
+      expect(settledSample.previewSurfaceActive).toBe(true);
+      expect(settledSample.previewFillColor).toBe(settledSample.selectionColor);
+      expect(settledSample.previewZIndex).toBe('0');
+      expect(settledSample.editorZIndex).toBe('1');
+      expect(settledSample.codeBackgroundColor).toBe('rgba(0, 0, 0, 0)');
+      expect(settledSample.innerBackgroundColor).toBe('rgba(0, 0, 0, 0)');
+      expectSelectedCodeBlockColors(settledSample, 'settled code block');
       const settledPixels = await measureRenderedSelectionPixels(page, {
         selector: '.code-block-container',
         targetText: 'dragCodeSentinel',
       });
-      expectSelectionPixels(settledPixels, 'settled code block');
+      expectSelectionPixels(settledPixels, 'settled code block', ['innerSurface', 'leftBleed', 'rightBleed']);
       const settledBorderPixels = await measureRenderedCodeBlockBorderPixels(page, 'dragCodeSentinel');
       expectCodeBlockBorderPixels(settledBorderPixels, 'settled code block');
 
       console.info('[notes-block-selection-drag-code-large-paint]', {
         dragTarget,
         draggingSample,
-        draggingPixels,
+        initialGeometry,
+        resizedGeometry,
         settledSample,
         settledPixels,
         settledBorderPixels,
@@ -624,8 +677,9 @@ test.describe('notes block selection visual coverage', () => {
         containedPixels,
       });
 
+      expect(selection.selectedCount).toBeGreaterThanOrEqual(128);
       expect(containedPixels.largeActive).toBe(true);
-      expect(containedPixels.selectedCount).toBeGreaterThanOrEqual(128);
+      expect(containedPixels.selectedCount).toBe(0);
       expect(
         containedPixels.targetSelected || containedPixels.insideSelectedParent,
         'contained code block should be selected directly or through its parent',
@@ -659,39 +713,37 @@ test.describe('notes block selection visual coverage', () => {
       await expect(page.locator(`${EDITOR_SELECTOR} div[data-type="mermaid"]`).first()).toBeVisible();
       await expect(page.locator(`${EDITOR_SELECTOR} .image-block-container[data-alt="Image alt sentinel"]`)).toBeVisible();
 
-      const samples: Array<RichBlockPaintSample & {
+      const samples: Array<RenderedSelectionPixelReport & {
         label: string;
         selectedStartIndex: number;
         targetIndex: number;
       }> = [];
 
       for (const paintCase of LARGE_SELECTION_SYNTAX_PAINT_CASES) {
+        await scrollLargeSelectionPaintTargetIntoView(page, paintCase);
         const selection = await selectLargeRangeForPaintCase(page, paintCase);
-        const sample = await measureSelectedRichBlockPaint(page, {
-          label: paintCase.label,
+        await scrollLargeSelectionPaintTargetIntoView(page, paintCase);
+        await waitForCommittedSelectionTargetPreview(page, paintCase, selection.selectedCount);
+        const sample = await measureRenderedSelectionPixels(page, {
           selector: paintCase.selector,
           targetText: paintCase.targetText,
+          allowCommittedPreviewTarget: true,
         });
-        const expectedClass = paintCase.expectedClass === 'rich'
-          ? 'editor-block-selected-large-rich'
-          : 'editor-block-selected-large-textlike';
 
+        expect(selection.selectedCount, `${paintCase.label}: logical selection count`).toBeGreaterThanOrEqual(128);
         expect(sample.largeActive, `${paintCase.label}: large selection class`).toBe(true);
-        expect(sample.selectedCount, `${paintCase.label}: selected count`).toBeGreaterThanOrEqual(128);
-        expect(sample.className, `${paintCase.label}: large paint class`).toContain(expectedClass);
-        if (paintCase.label === 'image-block') {
-          expect(sample.afterDisplay, `${paintCase.label}: disabled pseudo display`).toBe('none');
-          expect(sample.wrapperBackgroundColor, `${paintCase.label}: wrapper background`).toBe(sample.selectionColor);
-          expect(sample.wrapperPaintLeft, `${paintCase.label}: wrapper paint left`).not.toBeNull();
-          expect(Math.abs((sample.wrapperPaintLeft ?? 0) - sample.rectLeft), `${paintCase.label}: wrapper left gap`).toBeLessThanOrEqual(1);
-        } else {
-          expect(sample.afterDisplay, `${paintCase.label}: selection pseudo display`).not.toBe('none');
-          if (paintCase.label === 'html-block') {
-            expect(Math.abs((sample.afterLeft ?? 0) + sample.bleedStart), `${paintCase.label}: pseudo fill follows rich-block bleed`).toBeLessThanOrEqual(1);
-          }
-          expect(Math.abs(sample.leftGap), `${paintCase.label}: left bleed gap`).toBeLessThanOrEqual(1);
+        expect(sample.selectedCount, `${paintCase.label}: deferred DOM decoration count`).toBe(0);
+        expect(sample.previewSelectionCount, `${paintCase.label}: SVG selection count`).toBeGreaterThanOrEqual(128);
+        expect(sample.targetSelected, `${paintCase.label}: selected target`).toBe(true);
+        if (paintCase.label !== 'mermaid-block') {
+          expectSelectionPixels(
+            sample,
+            paintCase.label,
+            paintCase.label === 'image-block' || paintCase.label === 'video-block'
+              ? ['leftBleed', 'rightBleed']
+              : ['innerSurface'],
+          );
         }
-        expect(sample.bleedStart, `${paintCase.label}: bleed start`).toBeGreaterThanOrEqual(paintCase.minBleedStart ?? 72);
 
         samples.push({
           ...sample,
@@ -704,18 +756,104 @@ test.describe('notes block selection visual coverage', () => {
       console.info('[notes-block-selection-large-syntax-paint-audit]', samples.map((sample) => ({
         label: sample.label,
         className: sample.className,
-        afterDisplay: sample.afterDisplay,
-        bleedStart: sample.bleedStart,
-        leftGap: sample.leftGap,
-        paintLeft: sample.paintLeft,
-        shadowPaintLeft: sample.shadowPaintLeft,
+        previewSelectionCount: sample.previewSelectionCount,
+        sampledColors: sample.samples.map(({ slot, color }) => ({ slot, color })),
         selectionColor: sample.selectionColor,
-        wrapperBackgroundColor: sample.wrapperBackgroundColor,
-        wrapperPaintLeft: sample.wrapperPaintLeft,
         selectedStartIndex: sample.selectedStartIndex,
         targetIndex: sample.targetIndex,
         text: sample.text,
       })));
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('keeps nested rich surfaces transparent during drag previews', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-block-selection-nested-rich-drag-preview');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      await openMarkdownFixture(page, {
+        filename: 'nested-rich-drag-preview.md',
+        content: createLargeSelectionSyntaxAuditMarkdown(),
+      });
+
+      await expect.poll(
+        async () => (await getSelectableBlocks(page)).length,
+        { timeout: 30_000 },
+      ).toBeGreaterThanOrEqual(180);
+      await expect(page.locator(`${EDITOR_SELECTOR} .code-block-container`, { hasText: 'quoteCodeSentinel' })).toBeVisible();
+      await expect(page.locator(`${EDITOR_SELECTOR} div[data-type="callout"]`, { hasText: 'Emoji callout sentinel' })).toBeVisible();
+
+      const dragTarget = await getBlankAreaDragTarget(page, 'Nested quote container sentinel');
+      expect(dragTarget, 'nested rich drag target').not.toBeNull();
+      if (!dragTarget) return;
+
+      await page.mouse.move(dragTarget.startX, dragTarget.startY);
+      await page.mouse.down();
+      await page.mouse.move(dragTarget.endX, dragTarget.endY, { steps: 12 });
+      await waitForEditorAnimationFrame(page);
+
+      const draggingVisual = await page.evaluate(() => {
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
+        const quote = Array.from(editor?.querySelectorAll<HTMLElement>('blockquote') ?? [])
+          .find((element) => element.textContent?.includes('Nested quote container sentinel')) ?? null;
+        const code = Array.from(editor?.querySelectorAll<HTMLElement>('.code-block-container') ?? [])
+          .find((element) => element.textContent?.includes('quoteCodeSentinel')) ?? null;
+        const callout = Array.from(editor?.querySelectorAll<HTMLElement>('div[data-type="callout"]') ?? [])
+          .find((element) => element.textContent?.includes('Emoji callout sentinel')) ?? null;
+        const previewSurfaceSelector = '.editor-block-selection-preview-surface';
+        const getSurface = (element: HTMLElement | null) => element?.closest<HTMLElement>(previewSurfaceSelector) ?? null;
+        const getBackground = (element: HTMLElement | null) => element ? getComputedStyle(element).backgroundColor : null;
+        const getInnerBackground = (element: HTMLElement | null) => {
+          const inner = element?.querySelector<HTMLElement>('.code-block-editable, .cm-editor, .callout-content');
+          return inner ? getComputedStyle(inner).backgroundColor : null;
+        };
+        return {
+          calloutBackground: getBackground(callout),
+          calloutSurface: Boolean(getSurface(callout)),
+          codeBackground: getBackground(code),
+          codeInnerBackground: getInnerBackground(code),
+          codeSurface: Boolean(getSurface(code)),
+          previewActive: Boolean(editor?.classList.contains('editor-block-selection-drag-preview-active')),
+          quoteSurface: Boolean(getSurface(quote)),
+        };
+      });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      const settledVisual = await page.evaluate(() => {
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
+        const quote = Array.from(editor?.querySelectorAll<HTMLElement>('blockquote') ?? [])
+          .find((element) => element.textContent?.includes('Nested quote container sentinel')) ?? null;
+        const code = Array.from(editor?.querySelectorAll<HTMLElement>('.code-block-container') ?? [])
+          .find((element) => element.textContent?.includes('quoteCodeSentinel')) ?? null;
+        const callout = Array.from(editor?.querySelectorAll<HTMLElement>('div[data-type="callout"]') ?? [])
+          .find((element) => element.textContent?.includes('Emoji callout sentinel')) ?? null;
+        const selectedSelector = '.editor-block-selected, .editor-block-selection-preview-surface';
+        const selected = (element: HTMLElement | null) => Boolean(element?.matches(selectedSelector) || element?.closest(selectedSelector));
+        return {
+          calloutSelected: selected(callout),
+          codeSelected: selected(code),
+          previewActive: Boolean(editor?.classList.contains('editor-block-selection-drag-preview-active')),
+          quoteSelected: selected(quote),
+        };
+      });
+
+      expect(draggingVisual.previewActive).toBe(true);
+      expect(draggingVisual.quoteSurface).toBe(true);
+      expect(draggingVisual.codeSurface).toBe(true);
+      expect(draggingVisual.codeBackground).toBe('rgba(0, 0, 0, 0)');
+      expect(draggingVisual.codeInnerBackground).toBe('rgba(0, 0, 0, 0)');
+      expect(draggingVisual.calloutSurface).toBe(true);
+      expect(draggingVisual.calloutBackground).toBe('rgba(0, 0, 0, 0)');
+      expect(settledVisual.previewActive).toBe(false);
+      expect(settledVisual.quoteSelected).toBe(true);
+      expect(settledVisual.codeSelected).toBe(true);
+      expect(settledVisual.calloutSelected).toBe(true);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }
@@ -726,43 +864,86 @@ async function measureSelectedPaintEdge(
   page: import('@playwright/test').Page,
   targetText: string,
 ): Promise<SelectionPaintEdgeSample> {
-  const sample = await page.evaluate(async ({ editorSelector, targetText }) => {
-    const editor = document.querySelector<HTMLElement>(editorSelector);
-    if (!editor) return null;
-    const selected = Array.from(editor.querySelectorAll<HTMLElement>('.editor-block-selected'))
-      .find((element) => element.textContent?.includes(targetText)) ?? null;
-    if (!selected) return null;
+  let sample: SelectionPaintEdgeSample | null = null;
+  await expect.poll(async () => {
+    sample = await page.evaluate(async ({ editorSelector, targetText }) => {
+      const editors = Array.from(document.querySelectorAll<HTMLElement>(editorSelector));
+      const activePreviewPath = Array.from(document.querySelectorAll<SVGPathElement>(
+        '[data-editor-block-selection-committed-preview="true"] path',
+      )).find((path) => (
+        path.hasAttribute('d') && path.ownerSVGElement?.dataset.selectionCount !== '0'
+      )) ?? null;
+      const editor = activePreviewPath?.ownerSVGElement?.parentElement?.querySelector<HTMLElement>(
+        ':scope > .ProseMirror[contenteditable="true"]',
+      ) ?? editors[0] ?? null;
+      if (!editor) return null;
+      const findCommittedPreviewPath = () => {
+        const path = Array.from(document.querySelectorAll<SVGPathElement>(
+          '[data-editor-block-selection-committed-preview="true"] path',
+        )).find((candidate) => (
+          candidate.hasAttribute('d')
+          && candidate.ownerSVGElement?.dataset.selectionCount !== '0'
+        ));
+        return path ?? null;
+      };
+      const findSelectionRoot = () => (
+        Array.from(editor.querySelectorAll<HTMLElement>('.editor-block-selected'))
+          .find((element) => element.textContent?.includes(targetText))
+        ?? Array.from(editor.querySelectorAll<HTMLElement>('.editor-block-selection-preview-surface'))
+          .find((element) => element.textContent?.includes(targetText))
+        ?? (findCommittedPreviewPath()
+          ? Array.from(editor.querySelectorAll<HTMLElement>('p,h1,h2,h3,h4,h5,h6,li,blockquote,pre'))
+              .find((element) => element.textContent?.includes(targetText))
+          : null)
+        ?? null
+      );
+      let selected = findSelectionRoot();
+      if (!selected) return null;
 
-    selected.scrollIntoView({ block: 'center', inline: 'nearest' });
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      if (!findCommittedPreviewPath()) {
+        selected.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        selected = findSelectionRoot();
+        if (!selected) return null;
+      }
 
-    const rect = selected.getBoundingClientRect();
-    const style = getComputedStyle(selected);
-    const afterStyle = getComputedStyle(selected, '::after');
-    const bleedStart = Number.parseFloat(style.getPropertyValue('--vlaina-block-selection-bleed-x-start')) || 0;
-    const afterLeft = Number.parseFloat(afterStyle.left);
-    const paintLeft = afterStyle.display !== 'none' && Number.isFinite(afterLeft)
-      ? rect.left + afterLeft
-      : rect.left;
-    const expectedPaintLeft = rect.left - bleedStart;
+      const rect = selected.getBoundingClientRect();
+      const style = getComputedStyle(selected);
+      const afterStyle = getComputedStyle(selected, '::after');
+      const bleedStart = Number.parseFloat(style.getPropertyValue('--vlaina-block-selection-bleed-x-start')) || 0;
+      const afterLeft = Number.parseFloat(afterStyle.left);
+      const previewPath = findCommittedPreviewPath();
+      const preview = previewPath?.ownerSVGElement ?? null;
+      const usesSvgPreview = Boolean(previewPath);
+      const previewBox = usesSvgPreview && previewPath ? previewPath.getBBox() : null;
+      const previewRect = usesSvgPreview && preview ? preview.getBoundingClientRect() : null;
+      const paintLeft = previewBox && previewRect
+        ? previewRect.left + previewBox.x
+        : afterStyle.display !== 'none' && Number.isFinite(afterLeft)
+          ? rect.left + afterLeft
+          : rect.left;
+      const expectedPaintLeft = rect.left - bleedStart;
 
-    return {
-      afterDisplay: afterStyle.display,
-      afterLeft: Number.isFinite(afterLeft) ? Math.round(afterLeft * 10) / 10 : null,
-      bleedStart: Math.round(bleedStart * 10) / 10,
-      className: selected.className,
-      expectedPaintLeft: Math.round(expectedPaintLeft * 10) / 10,
-      largeActive: editor.classList.contains('editor-block-selection-large'),
-      leftGap: Math.round((paintLeft - expectedPaintLeft) * 10) / 10,
-      paintLeft: Math.round(paintLeft * 10) / 10,
-      rectLeft: Math.round(rect.left * 10) / 10,
-      selectedCount: editor.querySelectorAll('.editor-block-selected').length,
-      text: selected.textContent?.trim().slice(0, 80) ?? '',
-    };
-  }, { editorSelector: EDITOR_SELECTOR, targetText });
+      return {
+        afterDisplay: usesSvgPreview ? 'svg' : afterStyle.display,
+        afterLeft: Number.isFinite(afterLeft) ? Math.round(afterLeft * 10) / 10 : null,
+        bleedStart: Math.round(bleedStart * 10) / 10,
+        className: selected.className,
+        expectedPaintLeft: Math.round(expectedPaintLeft * 10) / 10,
+        largeActive: editor.classList.contains('editor-block-selection-large'),
+        leftGap: Math.round((paintLeft - expectedPaintLeft) * 10) / 10,
+        paintLeft: Math.round(paintLeft * 10) / 10,
+        previewSelectionCount: Number(preview?.dataset.selectionCount ?? '0'),
+        rectLeft: Math.round(rect.left * 10) / 10,
+        selectedCount: editor.querySelectorAll('.editor-block-selected').length,
+        text: selected.textContent?.trim().slice(0, 80) ?? '',
+        usesSvgPreview,
+      };
+    }, { editorSelector: EDITOR_SELECTOR, targetText });
+    return sample !== null;
+  }, { timeout: 5_000 }).toBe(true);
 
-  expect(sample).not.toBeNull();
   return sample!;
 }
 
@@ -812,22 +993,31 @@ async function waitForDraggedCodeBlockPaint(
   let sample: DraggedCodeBlockPaintSample | null = null;
 
   await expect.poll(async () => {
-    sample = await measureDraggedCodeBlockPaint(page, targetText);
+    sample = await measureDraggedCodeBlockPaint(page, targetText, true);
     if (!sample) return 'missing';
     return sample.codeSelected &&
-      sample.pendingActive &&
+      sample.previewSurfaceActive &&
+      !sample.dragPreviewPresent &&
+      sample.committedPreviewPresent &&
+      !sample.dragPreviewActive &&
       sample.largeActive &&
-      sample.selectedCount >= 128 &&
-      sample.expectedCodeLineColor !== '' &&
+      sample.selectedCount === 0 &&
+      sample.previewSelectionCount > 0 &&
+      sample.previewFillColor === sample.selectionColor &&
+      sample.previewZIndex === '0' &&
+      sample.editorZIndex === '1' &&
+      sample.codeBackgroundColor === 'rgba(0, 0, 0, 0)' &&
+      sample.innerBackgroundColor === 'rgba(0, 0, 0, 0)' &&
       sample.expectedLanguageColor !== '' &&
       sample.expectedTokenColor !== '' &&
-      hasSelectedCodeBlockBorder(sample) &&
       sample.languageColor === sample.expectedLanguageColor &&
       sample.languageTextFillColor === sample.expectedLanguageColor &&
-      sample.codeLineColor === sample.expectedCodeLineColor &&
-      sample.codeLineTextFillColor === sample.expectedCodeLineColor &&
       sample.tokenColor === sample.expectedTokenColor &&
-      sample.tokenTextFillColor === sample.expectedTokenColor
+      sample.tokenTextFillColor === sample.expectedTokenColor &&
+      hasSelectedCodeBlockBorder(sample) &&
+      sample.expectedCodeLineColor !== '' &&
+      sample.codeLineColor === sample.expectedCodeLineColor &&
+      sample.codeLineTextFillColor === sample.expectedCodeLineColor
       ? 'ready'
       : JSON.stringify(sample);
   }, { timeout: 30_000 }).toBe('ready');
@@ -835,23 +1025,101 @@ async function waitForDraggedCodeBlockPaint(
   return sample!;
 }
 
+async function measureDragPreviewGeometry(
+  page: import('@playwright/test').Page,
+  targetText: string,
+  pathIndex?: number,
+): Promise<DragPreviewGeometrySample | null> {
+  return page.evaluate(({ targetText, requestedPathIndex }) => {
+    const target = Array.from(document.querySelectorAll<HTMLElement>('.code-block-container'))
+      .find((element) => element.textContent?.includes(targetText)) ?? null;
+    const path = document.querySelector<SVGPathElement>(
+      '[data-editor-block-selection-preview="true"] path',
+    );
+    const pathData = path?.getAttribute('d') ?? '';
+    if (!target || !path || !pathData) return null;
+
+    const matrix = path.getScreenCTM();
+    const toScreenPoint = (x: number, y: number) => {
+      if (!matrix) return { x, y };
+      const point = new DOMPoint(x, y).matrixTransform(matrix);
+      return { x: point.x, y: point.y };
+    };
+    const previewRects = pathData.split('Z').flatMap((subpath, index) => {
+      const move = /^M([-\d.]+) ([-\d.]+)/.exec(subpath);
+      const topEdge = /H([-\d.]+)A([-\d.]+) /.exec(subpath);
+      const firstVertical = /V([-\d.]+)/.exec(subpath);
+      if (!move || !topEdge || !firstVertical) return [];
+      const radius = Number.parseFloat(topEdge[2] ?? '');
+      const topLeft = toScreenPoint(
+        Number.parseFloat(move[1] ?? '') - radius,
+        Number.parseFloat(move[2] ?? ''),
+      );
+      const bottomRight = toScreenPoint(
+        Number.parseFloat(topEdge[1] ?? '') + radius,
+        Number.parseFloat(firstVertical[1] ?? '') + radius,
+      );
+      return [{
+        index,
+        top: Math.min(topLeft.y, bottomRight.y),
+        bottom: Math.max(topLeft.y, bottomRight.y),
+      }];
+    });
+    if (previewRects.length === 0) return null;
+
+    const targetRect = target.getBoundingClientRect();
+    const matchedRect = requestedPathIndex === undefined
+      ? previewRects.reduce((best, candidate) => {
+        const bestDistance = Math.abs(best.top - targetRect.top) + Math.abs(best.bottom - targetRect.bottom);
+        const candidateDistance = Math.abs(candidate.top - targetRect.top)
+          + Math.abs(candidate.bottom - targetRect.bottom);
+        return candidateDistance < bestDistance ? candidate : best;
+      })
+      : previewRects.find((rect) => rect.index === requestedPathIndex) ?? null;
+    if (!matchedRect) return null;
+
+    return {
+      pathIndex: matchedRect.index,
+      previewBottom: Math.round(matchedRect.bottom * 10) / 10,
+      previewHeight: Math.round((matchedRect.bottom - matchedRect.top) * 10) / 10,
+      previewTop: Math.round(matchedRect.top * 10) / 10,
+      targetBottom: Math.round(targetRect.bottom * 10) / 10,
+      targetHeight: Math.round(targetRect.height * 10) / 10,
+      targetTop: Math.round(targetRect.top * 10) / 10,
+    };
+  }, { targetText, requestedPathIndex: pathIndex });
+}
+
 async function measureDraggedCodeBlockPaint(
   page: import('@playwright/test').Page,
   targetText: string,
+  settle = false,
 ): Promise<DraggedCodeBlockPaintSample | null> {
-  return page.evaluate(async ({ editorSelector, targetText }) => {
+  return page.evaluate(async ({ editorSelector, targetText, settle }) => {
     const editor = document.querySelector<HTMLElement>(editorSelector);
     if (!editor) return null;
 
     const target = Array.from(editor.querySelectorAll<HTMLElement>('.code-block-container'))
       .find((element) => element.textContent?.includes(targetText)) ?? null;
-    if (target) {
+    if (settle && target) {
       target.scrollIntoView({ block: 'center', inline: 'nearest' });
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
 
-    const selected = target?.classList.contains('editor-block-selected') ? target : null;
+    const dragPreview = document.querySelector<SVGSVGElement>('[data-editor-block-selection-preview="true"]');
+    const committedPreview = document.querySelector<SVGSVGElement>('[data-editor-block-selection-committed-preview="true"]');
+    const committedPreviewActive = Boolean(
+      committedPreview?.dataset.selectionCount !== '0'
+      && committedPreview?.firstElementChild?.hasAttribute('d')
+    );
+    const preview = dragPreview ?? committedPreview;
+    const previewPath = preview?.firstElementChild;
+    const previewSurface = target?.closest<HTMLElement>('.editor-block-selection-preview-surface')
+      ?? Array.from(editor.querySelectorAll<HTMLElement>('.editor-block-selection-preview-surface'))
+        .find((element) => element.textContent?.includes(targetText))
+      ?? null;
+    const selected = previewSurface ? target : null;
     if (!selected) {
       return {
         activeActive: editor.classList.contains('editor-block-selection-active'),
@@ -868,6 +1136,10 @@ async function measureDraggedCodeBlockPaint(
         codeLineColor: null,
         codeLineTextFillColor: null,
         codeSelected: false,
+        committedPreviewPresent: committedPreviewActive,
+        dragPreviewActive: editor.classList.contains('editor-block-selection-drag-preview-active'),
+        dragPreviewPresent: Boolean(dragPreview),
+        editorZIndex: getComputedStyle(editor).zIndex,
         expectedBorderColor: '',
         expectedCodeLineColor: '',
         expectedLanguageColor: '',
@@ -876,7 +1148,10 @@ async function measureDraggedCodeBlockPaint(
         languageColor: null,
         languageTextFillColor: null,
         largeActive: editor.classList.contains('editor-block-selection-large'),
-        pendingActive: editor.classList.contains('editor-block-selection-pending'),
+        previewFillColor: previewPath ? getComputedStyle(previewPath).fill : null,
+        previewSelectionCount: Number(preview?.dataset.selectionCount ?? '0'),
+        previewSurfaceActive: false,
+        previewZIndex: preview ? getComputedStyle(preview).zIndex : null,
         selectedCount: editor.querySelectorAll('.editor-block-selected').length,
         selectionColor: '',
         text: '',
@@ -901,7 +1176,7 @@ async function measureDraggedCodeBlockPaint(
     const probe = document.createElement('span');
     probe.style.position = 'absolute';
     probe.style.pointerEvents = 'none';
-    probe.style.backgroundColor = 'var(--vlaina-block-selection-color)';
+    probe.style.backgroundColor = 'var(--vlaina-block-selection-color-default)';
     probe.style.borderColor = 'var(--vlaina-color-white)';
     selected.appendChild(probe);
     const probeStyle = getComputedStyle(probe);
@@ -933,6 +1208,10 @@ async function measureDraggedCodeBlockPaint(
       codeLineColor: codeLineStyle?.color ?? null,
       codeLineTextFillColor: codeLineStyle?.getPropertyValue('-webkit-text-fill-color') || null,
       codeSelected: true,
+      committedPreviewPresent: committedPreviewActive,
+      dragPreviewActive: editor.classList.contains('editor-block-selection-drag-preview-active'),
+      dragPreviewPresent: Boolean(dragPreview),
+      editorZIndex: getComputedStyle(editor).zIndex,
       expectedBorderColor,
       expectedCodeLineColor,
       expectedLanguageColor,
@@ -941,7 +1220,10 @@ async function measureDraggedCodeBlockPaint(
       languageColor: languageStyle?.color ?? null,
       languageTextFillColor: languageStyle?.getPropertyValue('-webkit-text-fill-color') || null,
       largeActive: editor.classList.contains('editor-block-selection-large'),
-      pendingActive: editor.classList.contains('editor-block-selection-pending'),
+      previewFillColor: previewPath ? getComputedStyle(previewPath).fill : null,
+      previewSelectionCount: Number(preview?.dataset.selectionCount ?? '0'),
+      previewSurfaceActive: Boolean(previewSurface),
+      previewZIndex: preview ? getComputedStyle(preview).zIndex : null,
       selectedCount: editor.querySelectorAll('.editor-block-selected').length,
       selectionColor,
       text: selected.textContent?.trim().slice(0, 120) ?? '',
@@ -950,7 +1232,7 @@ async function measureDraggedCodeBlockPaint(
       tokenText: token?.textContent?.slice(0, 80) ?? null,
       tokenTextFillColor: tokenStyle?.getPropertyValue('-webkit-text-fill-color') || null,
     };
-  }, { editorSelector: EDITOR_SELECTOR, targetText });
+  }, { editorSelector: EDITOR_SELECTOR, targetText, settle });
 }
 
 function expectSelectedCodeBlockColors(sample: DraggedCodeBlockPaintSample, label: string): void {
@@ -997,8 +1279,12 @@ async function measureRenderedCodeBlockBorderPixels(
     const editor = document.querySelector<HTMLElement>(editorSelector);
     if (!editor) return null;
 
-    const target = Array.from(editor.querySelectorAll<HTMLElement>('.code-block-container.editor-block-selected'))
-      .find((element) => element.textContent?.includes(targetText)) ?? null;
+    const target = Array.from(editor.querySelectorAll<HTMLElement>('.code-block-container'))
+      .find((element) => element.textContent?.includes(targetText) && (
+        element.classList.contains('editor-block-selected')
+        || element.classList.contains('editor-block-selection-preview-surface')
+        || Boolean(element.closest('.editor-block-selection-preview-surface'))
+      )) ?? null;
     if (!target) return null;
 
     target.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -1143,28 +1429,59 @@ async function measureRenderedCodeBlockBorderPixels(
 async function measureRenderedSelectionPixels(
   page: import('@playwright/test').Page,
   input: {
+    allowCommittedPreviewTarget?: boolean;
     selector: string;
-    targetText: string;
+    targetText?: string;
   },
 ): Promise<RenderedSelectionPixelReport> {
-  const geometry = await page.evaluate(async ({ editorSelector, selector, targetText }) => {
+  const geometry = await page.evaluate(async ({
+    allowCommittedPreviewTarget,
+    editorSelector,
+    selector,
+    targetText,
+  }) => {
     const editor = document.querySelector<HTMLElement>(editorSelector);
     if (!editor) return null;
 
+    const committedPreview = Array.from(editor.parentElement?.querySelectorAll<SVGSVGElement>(
+      ':scope > [data-editor-block-selection-committed-preview="true"]',
+    ) ?? []).find((preview) => (
+      Number(preview.dataset.selectionCount ?? '0') > 0
+      && preview.firstElementChild?.hasAttribute('d')
+    )) ?? null;
+    const canUseCommittedPreviewTarget = Boolean(allowCommittedPreviewTarget && committedPreview);
+    const matchingPreviewSurface = Array.from(editor.querySelectorAll<HTMLElement>(
+      '.editor-block-selection-preview-surface',
+    )).find((element) => (
+      targetText === undefined || element.textContent?.includes(targetText)
+    )) ?? null;
     const target = Array.from(editor.querySelectorAll<HTMLElement>(selector))
-      .find((element) => element.textContent?.includes(targetText) && (
+      .find((element) => (targetText === undefined || element.textContent?.includes(targetText)) && (
         element.classList.contains('editor-block-selected') ||
-        Boolean(element.closest('.editor-block-selected'))
+        Boolean(element.closest('.editor-block-selected')) ||
+        element.classList.contains('editor-block-selection-preview-surface') ||
+        Boolean(element.closest('.editor-block-selection-preview-surface')) ||
+        matchingPreviewSurface !== null ||
+        canUseCommittedPreviewTarget
       )) ?? null;
     if (!target) return null;
 
-    target.scrollIntoView({ block: 'center', inline: 'nearest' });
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (!canUseCommittedPreviewTarget) {
+      target.scrollIntoView({ block: 'center', inline: 'nearest' });
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
 
     const selectionRoot = target.classList.contains('editor-block-selected')
       ? target
-      : target.closest<HTMLElement>('.editor-block-selected');
+      : target.closest<HTMLElement>('.editor-block-selected')
+        ?? (target.classList.contains('editor-block-selection-preview-surface')
+          ? target
+          : target.closest<HTMLElement>('.editor-block-selection-preview-surface'))
+        ?? matchingPreviewSurface
+        ?? (canUseCommittedPreviewTarget ? target : null);
     if (!selectionRoot) return null;
 
     const targetRect = target.getBoundingClientRect();
@@ -1173,16 +1490,16 @@ async function measureRenderedSelectionPixels(
     const bleedEnd = Number.parseFloat(selectionStyle.getPropertyValue('--vlaina-block-selection-bleed-x-end')) || 0;
     const bleedY = Number.parseFloat(selectionStyle.getPropertyValue('--vlaina-block-selection-bleed-y')) || 0;
 
-    const probe = document.createElement('span');
-    probe.style.position = 'absolute';
-    probe.style.pointerEvents = 'none';
-    probe.style.backgroundColor = 'var(--vlaina-block-selection-color)';
-    selectionRoot.appendChild(probe);
-    const selectionColor = getComputedStyle(probe).backgroundColor;
-    probe.remove();
+    const selectionColor = getComputedStyle(selectionRoot)
+      .getPropertyValue('--vlaina-block-selection-color')
+      .trim();
 
     const centerX = targetRect.left + targetRect.width / 2;
-    const centerY = targetRect.top + targetRect.height / 2;
+    const visibleTop = Math.max(targetRect.top, 0);
+    const visibleBottom = Math.min(targetRect.bottom, window.innerHeight);
+    const centerY = targetRect.top < 0
+      ? visibleTop + (visibleBottom - visibleTop) * 0.75
+      : targetRect.top + targetRect.height / 2;
     const innerInsetX = Math.max(8, Math.min(32, targetRect.width / 5));
     const tightInnerInsetX = Math.max(4, Math.min(8, targetRect.width / 20));
     const dragBoxRect = document.querySelector<HTMLElement>('[data-editor-drag-box="true"]')?.getBoundingClientRect() ?? null;
@@ -1210,11 +1527,20 @@ async function measureRenderedSelectionPixels(
       if (leftInsideDragBox !== rightInsideDragBox) return leftInsideDragBox ? 1 : -1;
       return 0;
     });
-    const innerSurfacePoints = sortedInnerSurfaceCandidateXs.map((x) => ({
-      slot: 'innerSurface' as const,
-      x,
-      y: centerY,
-    }));
+    const innerSurfaceCandidateYs = targetRect.top < 0
+      ? [
+        visibleTop + (visibleBottom - visibleTop) * 0.25,
+        visibleTop + (visibleBottom - visibleTop) * 0.5,
+        visibleTop + (visibleBottom - visibleTop) * 0.85,
+      ]
+      : [centerY];
+    const innerSurfacePoints = sortedInnerSurfaceCandidateXs.flatMap((x) => (
+      innerSurfaceCandidateYs.map((y) => ({
+        slot: 'innerSurface' as const,
+        x,
+        y,
+      }))
+    ));
     const bleedXStart = Math.max(2, Math.min(24, bleedStart / 2 || 2));
     const bleedXEnd = Math.max(2, Math.min(24, bleedEnd / 2 || 2));
     const bleedInsetY = Math.max(2, Math.min(8, bleedY / 2 || 2));
@@ -1255,6 +1581,7 @@ async function measureRenderedSelectionPixels(
       largeActive: editor.classList.contains('editor-block-selection-large'),
       pendingActive: editor.classList.contains('editor-block-selection-pending'),
       points,
+      previewSelectionCount: Number(committedPreview?.dataset.selectionCount ?? '0'),
       rect: {
         bottom: Math.round(targetRect.bottom * 10) / 10,
         left: Math.round(targetRect.left * 10) / 10,
@@ -1263,24 +1590,32 @@ async function measureRenderedSelectionPixels(
       },
       selectedCount: editor.querySelectorAll('.editor-block-selected').length,
       selectionColor,
-      targetSelected: target.classList.contains('editor-block-selected'),
+      targetSelected: target.matches('.editor-block-selected, .editor-block-selection-preview-surface')
+        || Boolean(target.closest('.editor-block-selection-preview-surface'))
+        || matchingPreviewSurface !== null
+        || canUseCommittedPreviewTarget,
       text: target.textContent?.trim().slice(0, 120) ?? '',
     };
   }, { editorSelector: EDITOR_SELECTOR, ...input });
 
-  expect(geometry, `missing selected pixel target ${input.selector} containing "${input.targetText}"`).not.toBeNull();
+  expect(
+    geometry,
+    `missing selected pixel target ${input.selector}` +
+      (input.targetText ? ` containing "${input.targetText}"` : ''),
+  ).not.toBeNull();
 
   const screenshot = await page.screenshot({ clip: geometry!.clip });
   const dataUrl = `data:image/png;base64,${screenshot.toString('base64')}`;
   const samples = await page.evaluate(async ({ imageUrl, clip, points, selectionColor }) => {
     const colorMatch = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(selectionColor);
-    if (!colorMatch) {
+    const hexMatch = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(selectionColor);
+    if (!colorMatch && !hexMatch) {
       throw new Error(`Could not parse selection color: ${selectionColor}`);
     }
     const expected = {
-      red: Number.parseInt(colorMatch[1] ?? '0', 10),
-      green: Number.parseInt(colorMatch[2] ?? '0', 10),
-      blue: Number.parseInt(colorMatch[3] ?? '0', 10),
+      red: Number.parseInt(colorMatch?.[1] ?? hexMatch?.[1] ?? '0', colorMatch ? 10 : 16),
+      green: Number.parseInt(colorMatch?.[2] ?? hexMatch?.[2] ?? '0', colorMatch ? 10 : 16),
+      blue: Number.parseInt(colorMatch?.[3] ?? hexMatch?.[3] ?? '0', colorMatch ? 10 : 16),
     };
 
     const image = new Image();
@@ -1359,6 +1694,7 @@ async function measureRenderedSelectionPixels(
     insideSelectedParent: geometry!.insideSelectedParent,
     largeActive: geometry!.largeActive,
     pendingActive: geometry!.pendingActive,
+    previewSelectionCount: geometry!.previewSelectionCount,
     rect: geometry!.rect,
     samples,
     selectedCount: geometry!.selectedCount,
@@ -1420,78 +1756,6 @@ function expectCodeBlockBorderPixels(report: RenderedCodeBlockBorderPixelReport,
   }
 }
 
-async function measureSelectedRichBlockPaint(
-  page: import('@playwright/test').Page,
-  input: {
-    label?: string;
-    selector: string;
-    targetText?: string;
-    innerSelector?: string;
-  },
-): Promise<RichBlockPaintSample> {
-  const sample = await page.evaluate(async ({ editorSelector, selector, targetText, innerSelector }) => {
-    const editor = document.querySelector<HTMLElement>(editorSelector);
-    if (!editor) return null;
-    const selected = Array.from(editor.querySelectorAll<HTMLElement>(`${selector}.editor-block-selected`))
-      .find((element) => targetText === undefined || element.textContent?.includes(targetText)) ?? null;
-    if (!selected) return null;
-
-    selected.scrollIntoView({ block: 'center', inline: 'nearest' });
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-    const rect = selected.getBoundingClientRect();
-    const style = getComputedStyle(selected);
-    const afterStyle = getComputedStyle(selected, '::after');
-    const inner = innerSelector ? selected.querySelector<HTMLElement>(innerSelector) : null;
-    const wrapper = selected.querySelector<HTMLElement>('[data-image-selection-wrapper="true"]');
-    const selectionProbe = document.createElement('span');
-    selectionProbe.style.backgroundColor = 'var(--vlaina-block-selection-color)';
-    selected.appendChild(selectionProbe);
-    const selectionColor = getComputedStyle(selectionProbe).backgroundColor;
-    selectionProbe.remove();
-    const bleedStart = Number.parseFloat(style.getPropertyValue('--vlaina-block-selection-bleed-x-start')) || 0;
-    const afterLeft = Number.parseFloat(afterStyle.left);
-    const shadowPaintLeft = selected.matches("[data-type='html-block'].md-htmlblock-container") && style.boxShadow !== 'none'
-      ? rect.left - bleedStart
-      : null;
-    const wrapperRect = wrapper?.getBoundingClientRect() ?? null;
-    const afterPaintLeft = afterStyle.display !== 'none' && Number.isFinite(afterLeft)
-      ? rect.left + afterLeft
-      : rect.left;
-    const paintLeft = Math.min(afterPaintLeft, shadowPaintLeft ?? afterPaintLeft);
-    const expectedPaintLeft = rect.left - bleedStart;
-
-    return {
-      afterDisplay: afterStyle.display,
-      afterLeft: Number.isFinite(afterLeft) ? Math.round(afterLeft * 10) / 10 : null,
-      backgroundColor: style.backgroundColor,
-      bleedStart: Math.round(bleedStart * 10) / 10,
-      boxShadow: style.boxShadow,
-      className: selected.className,
-      expectedPaintLeft: Math.round(expectedPaintLeft * 10) / 10,
-      innerBackgroundColor: inner ? getComputedStyle(inner).backgroundColor : null,
-      largeActive: editor.classList.contains('editor-block-selection-large'),
-      leftGap: Math.round((paintLeft - expectedPaintLeft) * 10) / 10,
-      paintLeft: Math.round(paintLeft * 10) / 10,
-      rectLeft: Math.round(rect.left * 10) / 10,
-      selectedCount: editor.querySelectorAll('.editor-block-selected').length,
-      selectionColor,
-      shadowPaintLeft: shadowPaintLeft === null ? null : Math.round(shadowPaintLeft * 10) / 10,
-      text: selected.textContent?.trim().slice(0, 120) ?? '',
-      wrapperBackgroundColor: wrapper ? getComputedStyle(wrapper).backgroundColor : null,
-      wrapperPaintLeft: wrapperRect ? Math.round(wrapperRect.left * 10) / 10 : null,
-    };
-  }, { editorSelector: EDITOR_SELECTOR, ...input });
-
-  expect(
-    sample,
-    `${input.label ?? input.selector}: missing selected block for selector "${input.selector}"` +
-      (input.targetText ? ` containing "${input.targetText}"` : ''),
-  ).not.toBeNull();
-  return sample!;
-}
-
 async function selectLargeRangeForPaintCase(
   page: import('@playwright/test').Page,
   paintCase: LargeSelectionPaintCase,
@@ -1507,6 +1771,54 @@ async function selectLargeRangeForPaintCase(
   const targetIndex = await resolveSelectableIndexBySelector(page, paintCase.targetIndexSelector);
   expect(targetIndex, `${paintCase.label}: selectable index for ${paintCase.targetIndexSelector}`).toBeGreaterThanOrEqual(0);
   return selectLargeRangeAroundIndex(page, targetIndex);
+}
+
+async function scrollLargeSelectionPaintTargetIntoView(
+  page: import('@playwright/test').Page,
+  paintCase: LargeSelectionPaintCase,
+): Promise<void> {
+  await page.evaluate(async ({ editorSelector, selector, targetText }) => {
+    const editor = document.querySelector<HTMLElement>(editorSelector);
+    const target = Array.from(editor?.querySelectorAll<HTMLElement>(selector) ?? [])
+      .find((element) => targetText === undefined || element.textContent?.includes(targetText));
+    target?.scrollIntoView({ block: 'center', inline: 'nearest' });
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  }, { editorSelector: EDITOR_SELECTOR, ...paintCase });
+}
+
+async function waitForCommittedSelectionTargetPreview(
+  page: import('@playwright/test').Page,
+  paintCase: LargeSelectionPaintCase,
+  expectedCount: number,
+): Promise<void> {
+  await expect.poll(() => page.evaluate(({ editorSelector, expectedCount: requiredCount, selector, targetText }) => {
+    const editor = document.querySelector<HTMLElement>(editorSelector);
+    const preview = editor?.parentElement?.querySelector<SVGSVGElement>(
+      ':scope > [data-editor-block-selection-committed-preview="true"]',
+    );
+    const target = Array.from(editor?.querySelectorAll<HTMLElement>(selector) ?? [])
+      .find((element) => targetText === undefined || element.textContent?.includes(targetText));
+    const path = preview?.firstElementChild;
+    if (!preview || !(path instanceof SVGPathElement) || !target) return false;
+    if (Number(preview.dataset.selectionCount ?? '0') !== requiredCount) return false;
+
+    const targetRect = target.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    if (targetRect.width <= 0 || targetRect.height <= 0 || previewRect.width <= 0 || previewRect.height <= 0) {
+      return false;
+    }
+
+    return path.isPointInFill(new DOMPoint(
+      targetRect.left + targetRect.width / 2 - previewRect.left,
+      targetRect.top + targetRect.height / 2 - previewRect.top,
+    ));
+  }, {
+    editorSelector: EDITOR_SELECTOR,
+    expectedCount,
+    selector: paintCase.selector,
+    targetText: paintCase.targetText,
+  }), { timeout: 5_000 }).toBe(true);
 }
 
 async function resolveSelectableIndexBySelector(

@@ -13,6 +13,7 @@ import {
   LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS,
   getBlockSelectionDecorationClass,
   getBlockSelectionStructuralClass,
+  isBlockSelectionPreviewSurfaceRange,
   isNodeDecorationRange,
   isTextLikeDecorationRange,
   resolveParentMarkerDecorationRanges,
@@ -23,6 +24,7 @@ import {
   areBlockSelectionDisplayRangesVisuallyAdjacent,
   isPartialParagraphRange,
 } from './blockSelectionDecorationAdjacency';
+import { BLOCK_SELECTION_PREVIEW_SURFACE_CLASS } from './blockSelectionInteractionState';
 
 export { areBlockSelectionDisplayRangesVisuallyAdjacent } from './blockSelectionDecorationAdjacency';
 export { getBlockSelectionDecorationClass } from './blockSelectionDecorationClasses';
@@ -214,4 +216,28 @@ export function createBlockSelectionDecorations(doc: EditorState['doc'], blocks:
     ...decorations,
     ...parentMarkerDecorations.values(),
   ]);
+}
+
+/**
+ * Keep opaque rich block roots transparent while the large SVG selection is
+ * rendered behind the editor. Text-like blocks remain decoration-free so the
+ * large-selection path does not materialize one DOM decoration per block.
+ */
+export function createBlockSelectionPreviewSurfaceDecorations(
+  doc: EditorState['doc'],
+  blocks: readonly BlockRange[],
+): DecorationSet {
+  if (blocks.length === 0) return DecorationSet.empty;
+
+  const displayRanges = getDisplayBlockRangesForDecorations(doc, blocks);
+  const decorations = displayRanges.flatMap((range) => {
+    if (!isNodeDecorationRange(doc, range) || !isBlockSelectionPreviewSurfaceRange(doc, range)) {
+      return [];
+    }
+    return [Decoration.node(range.from, range.to, {
+      class: BLOCK_SELECTION_PREVIEW_SURFACE_CLASS,
+    })];
+  });
+
+  return decorations.length > 0 ? DecorationSet.create(doc, decorations) : DecorationSet.empty;
 }

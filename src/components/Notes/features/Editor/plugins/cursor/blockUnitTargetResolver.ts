@@ -131,6 +131,13 @@ function resolveRangeElement(view: EditorView, range: BlockRange): HTMLElement |
   return resolveBlockElementAtPos(view, range.from);
 }
 
+export function resolveSelectableBlockElement(
+  view: EditorView,
+  range: BlockRange,
+): HTMLElement | null {
+  return resolveRangeElement(view, range);
+}
+
 function collectDirectTopLevelBlockRangeKeysUncached(doc: EditorDoc): Set<string> {
   const keys = new Set<string>();
   doc.forEach((node, offset) => {

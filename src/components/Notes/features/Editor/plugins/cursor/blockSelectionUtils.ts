@@ -31,5 +31,6 @@ export {
 export {
   areBlockSelectionDisplayRangesVisuallyAdjacent,
   createBlockSelectionDecorations,
+  createBlockSelectionPreviewSurfaceDecorations,
   getBlockSelectionDecorationClass,
 } from './blockSelectionDecorations';

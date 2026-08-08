@@ -2157,35 +2157,31 @@ test.describe("notes block selection", () => {
         await page.mouse.move(edgeTarget!.x, edgeTarget!.y, { steps: 8 });
 
         await expect.poll(async () => page.evaluate(() => {
-          const selectedItems = Array.from(document.querySelectorAll<HTMLElement>('.milkdown .ProseMirror li.editor-block-selected'));
-          const indexes = selectedItems
-            .map((element) => /Live drag row (\d+)/.exec(element.textContent ?? '')?.[1] ?? null)
-            .filter((value): value is string => value !== null)
-            .map((value) => Number.parseInt(value, 10))
-            .filter(Number.isFinite);
-          return indexes.length > 0 ? Math.max(...indexes) : -1;
+          const preview = document.querySelector<SVGSVGElement>(
+            '[data-editor-block-selection-preview="true"], [data-editor-block-selection-committed-preview="true"]',
+          );
+          return Number(preview?.dataset.selectionCount ?? '0');
         }), { timeout: 30_000 }).toBeGreaterThanOrEqual(150);
 
         const metrics = await page.evaluate(() => {
           const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
           const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
-          const selectedItems = Array.from(document.querySelectorAll<HTMLElement>('.milkdown .ProseMirror li.editor-block-selected'));
-          const indexes = selectedItems
-            .map((element) => /Live drag row (\d+)/.exec(element.textContent ?? '')?.[1] ?? null)
-            .filter((value): value is string => value !== null)
-            .map((value) => Number.parseInt(value, 10))
-            .filter(Number.isFinite);
+          const preview = document.querySelector<SVGSVGElement>(
+            '[data-editor-block-selection-preview="true"], [data-editor-block-selection-committed-preview="true"]',
+          );
           return {
+            dragPreviewActive: editor?.classList.contains('editor-block-selection-drag-preview-active') ?? false,
             largeActive: editor?.classList.contains('editor-block-selection-large') ?? false,
-            maxIndex: indexes.length > 0 ? Math.max(...indexes) : -1,
+            previewCount: Number(preview?.dataset.selectionCount ?? '0'),
             scrollTop: Math.round(scrollRoot?.scrollTop ?? 0),
-            selectedCount: selectedItems.length,
+            selectedCount: editor?.querySelectorAll('.editor-block-selected').length ?? 0,
           };
         });
 
         expect(metrics.largeActive, JSON.stringify(metrics, null, 2)).toBe(true);
-        expect(metrics.selectedCount, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(128);
-        expect(metrics.maxIndex, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(150);
+        expect(metrics.dragPreviewActive, JSON.stringify(metrics, null, 2)).toBe(true);
+        expect(metrics.previewCount, JSON.stringify(metrics, null, 2)).toBeGreaterThanOrEqual(150);
+        expect(metrics.selectedCount, JSON.stringify(metrics, null, 2)).toBe(0);
         expect(metrics.scrollTop, JSON.stringify(metrics, null, 2)).toBeGreaterThan(300);
       } finally {
         if (mouseDown) {

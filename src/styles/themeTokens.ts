@@ -1034,6 +1034,7 @@ export const themeDomStyleTokens = {
   sizeZero: '0',
   sizeZeroPx: '0px',
   sizeFull: '100%',
+  zIndexBase: '0',
   zIndexBehind: -1,
   zIndexTextEditorPopup: '80',
   zIndexMax: '9999',

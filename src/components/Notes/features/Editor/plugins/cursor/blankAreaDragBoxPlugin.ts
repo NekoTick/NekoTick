@@ -7,7 +7,12 @@ import {
 import { DecorationSet, type EditorView } from '@milkdown/kit/prose/view';
 import type { Serializer } from '@milkdown/kit/transformer';
 import { dispatchTailBlankClickAction } from './endBlankClickPlugin';
-import { type BlockRange } from './blockSelectionUtils';
+import {
+  createBlockSelectionPreviewSurfaceDecorations,
+  getBlockRangesKey,
+  type BlockRange,
+} from './blockSelectionUtils';
+import { collectSelectableBlockRanges } from './blockUnitResolver';
 import { serializeSelectedBlocksToText } from './blockSelectionCommands';
 import { startBlankAreaSelectionSession } from './blankAreaSelectionSession';
 import { type BlockDragStartZone } from './blockDragSession';
@@ -21,9 +26,13 @@ import {
   syncBlockSelectionVisualState,
   type BlankAreaDragBoxState,
 } from './blockSelectionPluginState';
-import { isLargeBlockSelectionDocument } from './blockSelectionTypes';
+import {
+  BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD,
+  isLargeBlockSelectionDocument,
+} from './blockSelectionTypes';
 import { resolveBlankAreaDragStartZone } from './blankAreaDragTargets';
 import {
+  BLOCK_SELECTION_PREVIEW_COLOR,
   DRAG_BOX_COLOR,
   DRAG_SESSION_CURSOR,
   DRAG_THRESHOLD,
@@ -61,6 +70,26 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
   const documentInspectedMouseDownEvents = new WeakSet<MouseEvent>();
   let markdownSerializer: Serializer | null = null;
   let serializerResolved = false;
+  let dragPreviewSurfaceDoc: EditorState['doc'] | null = null;
+  let dragPreviewSurfaceRangesKey = '';
+  let dragPreviewSurfaceDecorations = DecorationSet.empty;
+
+  const updateDragPreviewSurfaceDecorations = (
+    view: EditorView,
+    ranges: readonly BlockRange[],
+  ) => {
+    const rangesKey = getBlockRangesKey(ranges);
+    if (dragPreviewSurfaceDoc === view.state.doc && dragPreviewSurfaceRangesKey === rangesKey) {
+      return;
+    }
+    dragPreviewSurfaceDoc = view.state.doc;
+    dragPreviewSurfaceRangesKey = rangesKey;
+    dragPreviewSurfaceDecorations = createBlockSelectionPreviewSurfaceDecorations(
+      view.state.doc,
+      ranges,
+    );
+    view.updateState(view.state);
+  };
 
   const resolveMarkdownSerializer = (): Serializer | null => {
     if (serializerResolved) return markdownSerializer;
@@ -117,10 +146,11 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
     if (!startZone) return null;
     clearTextSelectionForDragSession(view);
     clearSession();
-    const deferSelectionDecorations = isLargeBlockSelectionDocument(view.state.doc);
+    const selectableBlockCount = collectSelectableBlockRanges(view.state.doc).length;
+    const deferSelectionDecorations = isLargeBlockSelectionDocument(view.state.doc)
+      || selectableBlockCount >= BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD;
     const initialSelectedBlocks = getBlockSelectionPluginState(view.state).selectedBlocks;
     let deferredDragActivated = false;
-    let deferredSelectionBlocks = [...initialSelectedBlocks];
 
     const dispatchResolvedPlainClickAction = (
       action: BlankAreaPlainClickAction | null,
@@ -145,17 +175,18 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
       dragThreshold: DRAG_THRESHOLD,
       cursor: DRAG_SESSION_CURSOR,
       dragBoxColor: DRAG_BOX_COLOR,
+      selectionPreviewColor: BLOCK_SELECTION_PREVIEW_COLOR,
       useSelectionPreview: deferSelectionDecorations,
       scrollRootSelector: SCROLL_ROOT_SELECTOR,
       initialSelectedBlocks,
       onSelectionChange(blocks) {
-        if (deferSelectionDecorations) {
-          deferredSelectionBlocks = blocks;
-          return;
-        }
+        if (deferSelectionDecorations) return;
         dispatchBlockSelectionAction(view, blocks.length > 0
           ? { type: 'set-blocks', blocks }
           : CLEAR_BLOCKS_ACTION);
+      },
+      onPreviewSurfaceRangesChange(ranges) {
+        updateDragPreviewSurfaceDecorations(view, ranges);
       },
       onPendingPlainClick({ action, clientX, clientY }) {
         return dispatchResolvedPlainClickAction(action, clientX, clientY);
@@ -184,10 +215,10 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
         }
         setBlockSelectionVisualState(view, !deferSelectionDecorations);
       },
-      onSyncSelectionState() {
+      onSyncSelectionState(finalSelectionBlocks) {
         if (deferSelectionDecorations && deferredDragActivated) {
-          dispatchBlockSelectionAction(view, deferredSelectionBlocks.length > 0
-            ? { type: 'set-blocks', blocks: deferredSelectionBlocks }
+          dispatchBlockSelectionAction(view, finalSelectionBlocks.length > 0
+            ? { type: 'set-blocks', blocks: [...finalSelectionBlocks] }
             : CLEAR_BLOCKS_ACTION);
           syncBlockSelectionVisualState(view);
           return;
@@ -232,6 +263,11 @@ export const blankAreaDragBoxPlugin = $prose((ctx) => {
     props: createBlankAreaDragBoxPluginProps({
       clearInsideBlockTrailingPlainClickSession,
       documentInspectedMouseDownEvents,
+      getDragPreviewSurfaceDecorations(state) {
+        return dragPreviewSurfaceDoc === state.doc
+          ? dragPreviewSurfaceDecorations
+          : DecorationSet.empty;
+      },
       serializeSelectedBlocks,
       setInsideBlockTrailingPlainClickSession(stop) {
         stopInsideBlockTrailingPlainClickSession = stop;

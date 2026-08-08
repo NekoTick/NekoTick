@@ -30,6 +30,13 @@ const RICH_BLOCK_SELECTION_NODE_NAMES = new Set([
   'table',
   'video',
 ]);
+const PREVIEW_SURFACE_NODE_NAMES = new Set([
+  ...RICH_BLOCK_SELECTION_NODE_NAMES,
+  'callout',
+  'footnote_def',
+  'footnote_definition',
+  'heading',
+]);
 const NON_RICH_HTML_BLOCK_VALUES = new Set([
   '<!--vlaina-markdown-blank-line-->',
   '<!--vlaina-rendered-html-boundary-blank-line-->',
@@ -137,6 +144,43 @@ export function isNodeDecorationRange(doc: EditorState['doc'], range: BlockRange
   } catch {
     return false;
   }
+}
+
+export function isBlockSelectionPreviewSurfaceRange(
+  doc: EditorState['doc'],
+  range: BlockRange,
+): boolean {
+  const safeFrom = Math.max(0, Math.min(range.from, doc.content.size));
+  try {
+    const $from = doc.resolve(safeFrom);
+    const nodeAfter = $from.nodeAfter;
+    if (nodeAfter && nodeContainsPreviewSurface(nodeAfter)) return true;
+
+    for (let depth = $from.depth; depth > 0; depth -= 1) {
+      if (nodeContainsPreviewSurface($from.node(depth))) return true;
+    }
+  } catch {
+  }
+  return false;
+}
+
+function nodeContainsPreviewSurface(node: EditorState['doc']): boolean {
+  if (isPreviewSurfaceNode(node)) return true;
+
+  let hasPreviewSurfaceDescendant = false;
+  node.descendants((descendant) => {
+    if (isPreviewSurfaceNode(descendant)) {
+      hasPreviewSurfaceDescendant = true;
+      return false;
+    }
+    return true;
+  });
+  return hasPreviewSurfaceDescendant;
+}
+
+function isPreviewSurfaceNode(node: EditorState['doc']): boolean {
+  if (node.type.name === 'html_block') return isRichBlockSelectionNode(node);
+  return PREVIEW_SURFACE_NODE_NAMES.has(node.type.name);
 }
 
 export function resolveParentMarkerDecorationRanges(
