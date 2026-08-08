@@ -113,6 +113,14 @@ describe('ChatInputActions', () => {
     expect(screen.getByRole('button', { name: '@chat.mentionFileOrFolder' })).toBeInTheDocument();
   });
 
+  it('hides all web search controls when web search is unavailable', () => {
+    renderActions({ webSearchAvailable: false, webSearchEnabled: true });
+
+    expect(screen.queryByRole('button', { name: 'chat.disableWebSearch' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+    expect(screen.queryByRole('button', { name: 'chat.webSearch' })).not.toBeInTheDocument();
+  });
+
   it('restores composer focus after the upload action closes', async () => {
     const onRequestComposerFocus = vi.fn();
     renderActions({ onRequestComposerFocus });

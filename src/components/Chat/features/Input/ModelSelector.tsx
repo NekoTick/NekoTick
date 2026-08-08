@@ -69,6 +69,7 @@ export function ModelSelector({
       activeOptionId: enabled && focusedModelId ? `${optionIdPrefix}${encodeURIComponent(focusedModelId)}` : undefined,
       addFavoriteLabel: t('chat.addToFavorites'),
       enabled,
+      freeModelLabel: t('chat.freeModel'),
       listboxId,
       optionIdPrefix,
       priceTierLabel: (tier) => t('chat.priceTier', { tier }),
@@ -287,6 +288,7 @@ export function ModelSelector({
         styles={styles}
         isOpen={isOpen}
         selectModelLabel={t('chat.selectModel')}
+        freeModelLabel={t('chat.freeModel')}
         popupId={accessibility.enabled ? accessibility.listboxId : undefined}
         onToggle={toggleSelector}
       />

@@ -2,7 +2,6 @@ const {
   createAccountApi,
   createAiProviderApi,
   createComputerApi,
-  createWebSearchApi,
 } = require('./preloadRequestApis.cjs');
 
 function createDesktopApi(deps) {
@@ -223,7 +222,6 @@ function createDesktopApi(deps) {
     },
     aiProvider: createAiProviderApi(deps),
     computer: hostPlatform === 'linux' ? createComputerApi(deps) : undefined,
-    webSearch: createWebSearchApi(deps),
     dragDrop: {
       getPathForFile(file) {
         return webUtils.getPathForFile(file);

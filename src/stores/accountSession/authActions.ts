@@ -24,6 +24,7 @@ import {
   isCurrentAccountAuthAttempt,
   startAccountAuthAttempt,
 } from './authFlowState';
+import { clearWebSearchQuotaExhausted } from '@/stores/useWebSearchQuotaStore';
 
 type Set = StoreApi<AccountSessionState & AccountSessionActions>['setState'];
 type Get = StoreApi<AccountSessionState & AccountSessionActions>['getState'];
@@ -195,6 +196,7 @@ export function createSignOut(set: Set, _get: Get): () => Promise<void> {
       webAccountCommands.clearLocalSession();
     }
     applyDisconnectedAccount(set);
+    clearWebSearchQuotaExhausted();
   };
 }
 

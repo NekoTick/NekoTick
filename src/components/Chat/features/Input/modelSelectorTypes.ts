@@ -6,6 +6,7 @@ export interface ModelSelectorAccessibility {
   activeOptionId?: string
   addFavoriteLabel: string
   enabled: boolean
+  freeModelLabel: string
   listboxId: string
   optionIdPrefix: string
   priceTierLabel: (tier: string) => string

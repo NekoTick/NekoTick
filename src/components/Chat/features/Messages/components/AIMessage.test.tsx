@@ -205,6 +205,21 @@ describe("AIMessage", () => {
     expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", "Hello world");
   });
 
+  it("renders the answer steadily after thinking has completed", () => {
+    render(
+      <AIMessage
+        msg={createMessage("<think>finished reasoning</think>Visible answer")}
+        imageGallery={[]}
+        isLoading
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("markdown")).toHaveAttribute("data-streaming", "false");
+  });
+
   it("renders locally paired computer command status and sanitized output", () => {
     render(
       <AIMessage
@@ -686,12 +701,38 @@ describe("AIMessage", () => {
     expect(screen.getByText("Sources read")).toBeInTheDocument();
     expect(screen.queryByText("1 read")).not.toBeInTheDocument();
     expect(screen.queryByText("1 skipped")).not.toBeInTheDocument();
-    expect(screen.getByText("React Docs")).toBeInTheDocument();
+    const sourceLink = screen.getByRole("link", { name: /React Docs/ });
+    expect(sourceLink).toHaveClass("bg-[var(--vlaina-accent-light)]");
+    expect(sourceLink).toHaveClass("!text-[var(--vlaina-accent-hover)]");
     expect(screen.getByText("https://react.dev")).toBeInTheDocument();
+    expect(screen.queryByText("Skipped sources")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unable to read this page.")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://fail.example")).not.toBeInTheDocument();
+    expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", "Answer with source.");
+  });
+
+  it("shows skipped sources when no web search source could be read", () => {
+    const message = {
+      ...createMessage("No source answer."),
+      webSearchStatuses: [
+        { phase: 'complete' as const, urls: [], failedSources: [{ url: 'https://fail.example', message: 'Unable to read this page.' }], metrics: { successCount: 0, failureCount: 1, durationMs: 12 } },
+      ],
+    };
+
+    render(
+      <AIMessage
+        msg={message}
+        imageGallery={[]}
+        isLoading={false}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+
     expect(screen.getByText("Skipped sources")).toBeInTheDocument();
     expect(screen.getByText("Unable to read this page.")).toBeInTheDocument();
     expect(screen.getByText("https://fail.example")).toBeInTheDocument();
-    expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", "Answer with source.");
   });
 
   it("keeps source links from every web search step visible", () => {
@@ -759,8 +800,8 @@ describe("AIMessage", () => {
     expect(screen.queryByText("http://router/admin")).not.toBeInTheDocument();
     expect(screen.queryByText("Unsafe skipped")).not.toBeInTheDocument();
     expect(screen.queryByText("http://localhost/debug")).not.toBeInTheDocument();
-    expect(screen.getByText("Safe skipped")).toBeInTheDocument();
-    expect(screen.getByText("https://safe.example/fail")).toBeInTheDocument();
+    expect(screen.queryByText("Safe skipped")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://safe.example/fail")).not.toBeInTheDocument();
     expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", "Answer with filtered sources.");
   });
 

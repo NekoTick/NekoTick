@@ -1,5 +1,0 @@
-export {
-  INSTALLED_HARD_BLOCKED_SITES,
-  INSTALLED_LOW_PRIORITY_SITES,
-  INSTALLED_QUERY_SENSITIVE_BLOCKED_SITES,
-} from './sourceQuality/installedSourceQualityRules.mjs';

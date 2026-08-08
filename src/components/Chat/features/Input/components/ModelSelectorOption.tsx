@@ -22,6 +22,17 @@ export const monochromeModelIconClass = 'dark:invert dark:brightness-[1.08] dark
 
 const customModelIconClass = 'flex-shrink-0 text-[var(--vlaina-sidebar-chat-icon)]'
 
+export function FreeModelBadge({ label }: { label: string }) {
+  return (
+    <span
+      className="ml-2 inline-flex h-[var(--vlaina-size-16px)] flex-shrink-0 items-center whitespace-nowrap rounded-[var(--vlaina-radius-4px)] bg-[var(--vlaina-color-status-success-bg)] px-1.5 text-[var(--vlaina-font-10)] font-medium leading-none tracking-normal text-[var(--vlaina-color-status-success-fg)]"
+      data-model-free-badge="true"
+    >
+      {label}
+    </span>
+  )
+}
+
 export function CustomModelIcon({
   size,
   className,
@@ -105,7 +116,9 @@ export const ModelOption = memo(({
                 )}>
                     {displayName}
                 </span>
-                {model.priceTier && (
+                {model.isFree ? (
+                    <FreeModelBadge label={accessibility.freeModelLabel} />
+                ) : model.priceTier ? (
                     <span
                         className={cn(
                             "ml-2 inline-flex items-center rounded-md border px-1 py-[var(--vlaina-space-1px)] text-[var(--vlaina-font-7)] font-medium leading-none tracking-normal",
@@ -117,7 +130,7 @@ export const ModelOption = memo(({
                     >
                         {model.priceTier}
                     </span>
-                )}
+                ) : null}
             </span>
 
             <span className="ml-3 flex flex-shrink-0 items-center gap-1">

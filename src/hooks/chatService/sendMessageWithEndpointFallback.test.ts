@@ -181,6 +181,31 @@ describe('sendMessageWithEndpointFallback', () => {
     expect(onChunk).toHaveBeenCalledWith('partial');
   });
 
+  it('removes platform web search from custom channel requests', async () => {
+    const onWebSearchStatus = vi.fn();
+    const client = { sendMessage: vi.fn().mockResolvedValue('ok') };
+
+    await sendMessageWithEndpointFallback({
+      content: 'hi',
+      history: [],
+      model: buildModel(),
+      provider: buildProvider({ endpointType: 'openai', endpointTypeCheckedAt: 1 }),
+      onChunk: vi.fn(),
+      options: {
+        webSearchEnabled: true,
+        computerUseEnabled: true,
+        onWebSearchStatus,
+      },
+      client,
+    });
+
+    expect(client.sendMessage.mock.calls[0][6]).toMatchObject({
+      webSearchEnabled: false,
+      computerUseEnabled: true,
+    });
+    expect(client.sendMessage.mock.calls[0][6].onWebSearchStatus).toBeUndefined();
+  });
+
   it('does not call the provider when the request is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
@@ -271,6 +296,27 @@ describe('sendMessageWithEndpointFallback', () => {
     expect(client.sendMessage).toHaveBeenCalledTimes(1);
     expect(client.sendMessage.mock.calls[0][3]).toEqual(buildManagedProvider());
     expect(updateProvider).not.toHaveBeenCalled();
+  });
+
+  it('keeps platform web search enabled for managed requests', async () => {
+    const onWebSearchStatus = vi.fn();
+    const options = { webSearchEnabled: true, onWebSearchStatus };
+    const client = { sendMessage: vi.fn().mockResolvedValue('managed ok') };
+
+    await sendMessageWithEndpointFallback({
+      content: 'hi',
+      history: [],
+      model: buildModel({
+        id: 'vlaina-managed::claude-test',
+        providerId: 'vlaina-managed',
+      }),
+      provider: buildManagedProvider(),
+      onChunk: vi.fn(),
+      options,
+      client,
+    });
+
+    expect(client.sendMessage.mock.calls[0][6]).toBe(options);
   });
 
   it('does not replay managed failures', async () => {

@@ -14,6 +14,7 @@ const MANAGED_PUBLIC_ERROR_CODES = new Set([
   'unsupported_model_input',
   'unsupported_tool_calling',
   'invalid_request',
+  'web_search_monthly_quota_exceeded',
 ]);
 
 function createAbortError(): DOMException {
@@ -210,6 +211,8 @@ function messageForManagedErrorCode(errorCode: string): string {
       return 'UNSUPPORTED_TOOL_CALLING';
     case 'invalid_request':
       return 'INVALID_REQUEST';
+    case 'web_search_monthly_quota_exceeded':
+      return 'WEB_SEARCH_QUOTA_EXHAUSTED';
     default:
       return '';
   }

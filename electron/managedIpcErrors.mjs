@@ -12,6 +12,7 @@ const MANAGED_PUBLIC_ERROR_MESSAGES = new Map([
   ['unsupported_model_input', 'UNSUPPORTED_MODEL_INPUT'],
   ['unsupported_tool_calling', 'UNSUPPORTED_TOOL_CALLING'],
   ['invalid_request', 'INVALID_REQUEST'],
+  ['web_search_monthly_quota_exceeded', 'WEB_SEARCH_QUOTA_EXHAUSTED'],
 ]);
 const SAFE_MANAGED_JSON_ERROR_MESSAGES = new Set([
   ...MANAGED_PUBLIC_ERROR_MESSAGES.values(),

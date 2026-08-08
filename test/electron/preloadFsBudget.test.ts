@@ -39,6 +39,8 @@ interface PreloadApi {
     onCommandEvent(requestId: string, callback: (payload: unknown) => void | Promise<void>): () => void;
   };
   account: {
+    managedWebSearch(body: Record<string, unknown>, requestId?: string): Promise<unknown>;
+    cancelManagedWebSearch(requestId: string): Promise<unknown>;
     onManagedStreamError(requestId: string, callback: (payload: unknown) => void | Promise<void>): () => void;
   };
 }
@@ -120,6 +122,27 @@ async function loadPreloadApi(hostPlatform = 'linux'): Promise<{
 }
 
 describe('preload filesystem budgets', () => {
+  it('exposes managed web search only through the authenticated account bridge', async () => {
+    const { api, ipcRenderer } = await loadPreloadApi();
+    const body = { action: 'search', query: 'latest news' };
+
+    await api.account.managedWebSearch(body, 'managed-web-search-1');
+    await api.account.cancelManagedWebSearch('managed-web-search-1');
+
+    expect(ipcRenderer.invoke).toHaveBeenNthCalledWith(
+      1,
+      'desktop:managed:web-search',
+      'managed-web-search-1',
+      body,
+    );
+    expect(ipcRenderer.invoke).toHaveBeenNthCalledWith(
+      2,
+      'desktop:managed:web-search:cancel',
+      'managed-web-search-1',
+    );
+    expect(api).not.toHaveProperty('webSearch');
+  });
+
   it('forwards the fixed Git API through dedicated IPC channels', async () => {
     const { api, ipcRenderer } = await loadPreloadApi();
     const commitOptions = {

@@ -103,6 +103,17 @@ describe('managed ipc stream bridge', () => {
     });
   });
 
+  it('preserves the stable monthly web search quota error', () => {
+    expect(normalizeManagedErrorPayload({
+      error: 'Monthly web search quota exceeded',
+      errorCode: 'web_search_monthly_quota_exceeded',
+    }, 429)).toEqual({
+      message: 'WEB_SEARCH_QUOTA_EXHAUSTED',
+      statusCode: 429,
+      errorCode: 'web_search_monthly_quota_exceeded',
+    });
+  });
+
   it('does not expose unknown managed JSON upstream errors over IPC', async () => {
     const { handlers, options } = registerHarness();
     const upstreamError = Object.assign(new Error('fake-upstream-secret'), {
@@ -184,6 +195,7 @@ describe('managed ipc stream bridge', () => {
     await handlers.get('desktop:managed:get-budget')?.();
     await handlers.get('desktop:managed:client-diagnostic')?.({}, { kind: 'chat_json', model: 'gpt-5-pro' });
     await handlers.get('desktop:managed:chat-completion')?.({}, {});
+    await handlers.get('desktop:managed:web-search')?.({}, { action: 'search', query: 'latest news' });
     await handlers.get('desktop:managed:image-generation')?.({}, { model: 'gpt-image-2', prompt: 'draw' });
     await handlers.get('desktop:managed:image-edit')?.({}, {
       bodyBase64: Buffer.from('multipart-body').toString('base64'),
@@ -206,6 +218,11 @@ describe('managed ipc stream bridge', () => {
     expect(options.requestManagedJson).toHaveBeenCalledWith('/chat/completions', {
       method: 'POST',
       body: '{}',
+      signal: expect.any(AbortSignal),
+    });
+    expect(options.requestManagedJson).toHaveBeenCalledWith('/web-search', {
+      method: 'POST',
+      body: '{"action":"search","query":"latest news"}',
       signal: expect.any(AbortSignal),
     });
     expect(options.requestManagedJson).toHaveBeenCalledWith('/images/generations', {
@@ -362,6 +379,33 @@ describe('managed ipc stream bridge', () => {
 
     await Promise.resolve();
     await handlers.get('desktop:managed:image-generation:cancel')?.({}, 'managed-image-generation-1');
+
+    expect(capturedSignal?.aborted).toBe(true);
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('cancels managed web search requests by request id', async () => {
+    const { handlers, options } = registerHarness();
+    let capturedSignal: AbortSignal | undefined;
+    options.requestManagedJson.mockImplementationOnce((_path, init) => {
+      capturedSignal = init.signal as AbortSignal | undefined;
+      return new Promise((_resolve, reject) => {
+        capturedSignal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        }, { once: true });
+      });
+    });
+
+    const sender = createRendererSender();
+    const request = handlers.get('desktop:managed:web-search')?.(
+      { sender },
+      'managed-web-search-1',
+      { action: 'search', query: 'latest news' },
+    ) as Promise<unknown>;
+    request.catch(() => undefined);
+
+    await Promise.resolve();
+    await handlers.get('desktop:managed:web-search:cancel')?.({ sender }, 'managed-web-search-1');
 
     expect(capturedSignal?.aborted).toBe(true);
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });

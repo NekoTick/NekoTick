@@ -39,6 +39,7 @@ const managedStreamSenderAbortRegistry = createIpcSenderAbortRegistry(createAbor
 const MANAGED_STREAM_TIMEOUT_MS = 300_000;
 const MAX_ACTIVE_MANAGED_STREAMS = 16;
 const MAX_MANAGED_STREAM_RESPONSE_BYTES = 64 * 1024 * 1024;
+const MAX_MANAGED_WEB_SEARCH_BODY_BYTES = 64 * 1024;
 const SAFE_MANAGED_STREAM_ERROR_MESSAGES = new Set([
   'INVALID_REQUEST',
   'Invalid managed stream response chunk.',
@@ -161,6 +162,22 @@ export function registerManagedIpc({
 
   handleIpc('desktop:managed:chat-completion:cancel', async (event, requestId) => {
     return cancelManagedJsonRequest(requestId, 'managed chat completion request id', event.sender);
+  });
+
+  handleIpc('desktop:managed:web-search', async (event, requestIdOrBody, maybeBody) => {
+    const { requestId, payload: body } = parseOptionalManagedRequestId(
+      requestIdOrBody,
+      maybeBody,
+      'managed web search request id',
+    );
+    return await requestManagedJsonWithOptionalCancel(requestManagedJson, requestId, event.sender, '/web-search', {
+      method: 'POST',
+      body: stringifyManagedJsonPayload(body, MAX_MANAGED_WEB_SEARCH_BODY_BYTES),
+    });
+  });
+
+  handleIpc('desktop:managed:web-search:cancel', async (event, requestId) => {
+    return cancelManagedJsonRequest(requestId, 'managed web search request id', event.sender);
   });
 
   handleIpc('desktop:managed:image-generation', async (event, requestIdOrBody, maybeBody) => {

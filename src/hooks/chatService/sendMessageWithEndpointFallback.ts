@@ -47,6 +47,10 @@ export async function sendMessageWithEndpointFallback({
   updateProvider = aiActions.updateProvider,
 }: SendMessageWithEndpointFallbackOptions): Promise<string> {
   throwIfAborted(signal);
+  const isManagedProvider = isManagedProviderId(provider.id);
+  const requestOptions = !isManagedProvider && (options?.webSearchEnabled || options?.onWebSearchStatus)
+    ? { ...options, webSearchEnabled: false, onWebSearchStatus: undefined }
+    : options;
   if (import.meta.env.DEV) {
     const { maybeSendChatE2EMockMessage } = await import('@/lib/e2e/chatE2EMock');
     const e2eMockResult = await maybeSendChatE2EMockMessage({
@@ -56,7 +60,7 @@ export async function sendMessageWithEndpointFallback({
       provider,
       onChunk,
       signal,
-      options,
+      options: requestOptions,
     });
     if (e2eMockResult.handled) {
       return e2eMockResult.content;
@@ -66,10 +70,9 @@ export async function sendMessageWithEndpointFallback({
   const sendWithActiveClient: EndpointFallbackClient['sendMessage'] = (...args) => client.sendMessage(...args);
   const verifiedModelEndpointType = getVerifiedModelEndpointType(model);
   const verifiedProviderEndpointType = getVerifiedProviderEndpointType(provider);
-  const isManagedProvider = isManagedProviderId(provider.id);
   if (isManagedProvider) {
     return sendWithoutReplay(
-      (trackedOnChunk) => sendWithActiveClient(content, history, model, provider, trackedOnChunk, signal, options),
+      (trackedOnChunk) => sendWithActiveClient(content, history, model, provider, trackedOnChunk, signal, requestOptions),
       onChunk,
       signal,
     );
@@ -84,7 +87,7 @@ export async function sendMessageWithEndpointFallback({
       { ...provider, endpointType },
       trackedOnChunk,
       signal,
-      options,
+      requestOptions,
     ),
     onChunk,
     signal,
