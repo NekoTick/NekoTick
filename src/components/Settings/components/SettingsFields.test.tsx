@@ -28,6 +28,7 @@ function setScrollMetrics(
 describe('SettingsFields', () => {
   it('preserves textarea wheel handlers while leaving vertical scrolling to the browser', () => {
     const onWheel = vi.fn();
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
 
     render(
       <SettingsTextarea
@@ -40,10 +41,13 @@ describe('SettingsFields', () => {
     );
 
     const textarea = screen.getByRole('textbox', { name: 'System prompt' });
+    requestAnimationFrameSpy.mockClear();
+    textarea.style.overflowY = 'auto';
     setScrollMetrics(textarea, { clientHeight: 80, scrollHeight: 300, scrollTop: 20 });
     fireEvent.wheel(textarea, { deltaY: 60 });
 
     expect(onWheel).toHaveBeenCalledTimes(1);
     expect(textarea.scrollTop).toBe(20);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 });

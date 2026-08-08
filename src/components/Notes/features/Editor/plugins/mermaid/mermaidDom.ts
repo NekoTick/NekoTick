@@ -25,6 +25,17 @@ const mermaidElementCode = new WeakMap<HTMLElement, string>();
 let mermaidRenderKeyCounter = 0;
 const mermaidLazyObservers = new WeakMap<HTMLElement, IntersectionObserver>();
 const disposedMermaidElements = new WeakSet<HTMLElement>();
+type MermaidBackgroundPreload = {
+  anchor: HTMLElement;
+  cancelled: boolean;
+  codeSnapshot: string;
+  renderKey: string | undefined;
+  started: boolean;
+};
+const MAX_PENDING_MERMAID_BACKGROUND_PRELOADS = 40;
+const mermaidBackgroundPreloadQueue: MermaidBackgroundPreload[] = [];
+const mermaidBackgroundPreloads = new WeakMap<HTMLElement, MermaidBackgroundPreload>();
+let pendingMermaidBackgroundPreloadCount = 0;
 export const MAX_LEGACY_MERMAID_DATA_CODE_CHARS = 100_000;
 export {
   clearMermaidRenderCaches,
@@ -48,6 +59,10 @@ function setMermaidElementCode(element: HTMLElement, code: string) {
   return element.dataset.renderKey;
 }
 
+export function updateMermaidElementCode(element: HTMLElement, code: string) {
+  return setMermaidElementCode(element, normalizeMermaidEditorCodeInput(code));
+}
+
 export function getMermaidElementCode(element: HTMLElement) {
   const code = mermaidElementCode.get(element);
   if (code != null) return code;
@@ -68,6 +83,7 @@ export async function renderMermaidEditorLivePreview(args: {
   if (!anchor) {
     return false;
   }
+  cancelMermaidBackgroundPreload(anchor);
   disconnectLazyMermaidRender(anchor);
   releaseMermaidRenderConsumer(anchor);
 
@@ -128,8 +144,15 @@ function disconnectLazyMermaidRender(anchor: HTMLElement) {
   delete anchor.dataset.mermaidLazy;
 }
 
+export function cancelMermaidElementRender(anchor: HTMLElement) {
+  cancelMermaidBackgroundPreload(anchor);
+  disconnectLazyMermaidRender(anchor);
+  releaseMermaidRenderConsumer(anchor);
+}
+
 export function disposeMermaidElement(anchor: HTMLElement) {
   disposedMermaidElements.add(anchor);
+  cancelMermaidBackgroundPreload(anchor);
   disconnectLazyMermaidRender(anchor);
   releaseMermaidRenderConsumer(anchor);
 }
@@ -143,9 +166,12 @@ function renderMermaidElementAsync(
   codeSnapshot: string,
   renderKey: string | undefined,
   priority: MermaidRenderPriority = 'background',
+  releaseExisting = true,
 ) {
   const renderCodeSnapshot = getMermaidRenderCode(codeSnapshot);
-  releaseMermaidRenderConsumer(anchor);
+  if (releaseExisting) {
+    releaseMermaidRenderConsumer(anchor);
+  }
   return resolveMermaidMarkup(renderCodeSnapshot, undefined, priority, anchor).then(async (markup) => {
     await waitForMermaidInteractionIdle();
     if (
@@ -160,6 +186,49 @@ function renderMermaidElementAsync(
   });
 }
 
+function drainMermaidBackgroundPreloads() {
+  while (
+    pendingMermaidBackgroundPreloadCount < MAX_PENDING_MERMAID_BACKGROUND_PRELOADS &&
+    mermaidBackgroundPreloadQueue.length > 0
+  ) {
+    const preload = mermaidBackgroundPreloadQueue.shift();
+    if (!preload || preload.cancelled) continue;
+    preload.started = true;
+    pendingMermaidBackgroundPreloadCount += 1;
+    const finish = () => {
+      pendingMermaidBackgroundPreloadCount -= 1;
+      if (mermaidBackgroundPreloads.get(preload.anchor) === preload) {
+        mermaidBackgroundPreloads.delete(preload.anchor);
+      }
+      drainMermaidBackgroundPreloads();
+    };
+    void renderMermaidElementAsync(
+      preload.anchor,
+      preload.codeSnapshot,
+      preload.renderKey,
+    ).then(finish, finish);
+  }
+}
+
+function cancelMermaidBackgroundPreload(anchor: HTMLElement) {
+  const preload = mermaidBackgroundPreloads.get(anchor);
+  if (!preload) return;
+  preload.cancelled = true;
+  mermaidBackgroundPreloads.delete(anchor);
+  drainMermaidBackgroundPreloads();
+}
+
+function queueMermaidBackgroundPreload(
+  anchor: HTMLElement,
+  codeSnapshot: string,
+  renderKey: string | undefined,
+) {
+  const preload = { anchor, cancelled: false, codeSnapshot, renderKey, started: false };
+  mermaidBackgroundPreloads.set(anchor, preload);
+  mermaidBackgroundPreloadQueue.push(preload);
+  drainMermaidBackgroundPreloads();
+}
+
 function isMermaidElementVisible(anchor: HTMLElement) {
   const rect = anchor.getBoundingClientRect();
   return rect.bottom > 0
@@ -172,18 +241,36 @@ function installLazyMermaidRender(anchor: HTMLElement, codeSnapshot: string, ren
   anchor.dataset.mermaidLazy = 'true';
   setMermaidPendingMarkup(anchor);
 
-  const observer = new IntersectionObserver((entries) => {
-    if (!entries.some((entry) => entry.isIntersecting)) {
+  let isIntersecting = false;
+  let waitingForIdle = false;
+
+  const renderIfStillIntersecting = async () => {
+    if (!isIntersecting || waitingForIdle) return;
+    waitingForIdle = true;
+    await waitForMermaidInteractionIdle();
+    waitingForIdle = false;
+    if (!isIntersecting || disposedMermaidElements.has(anchor)) return;
+
+    disconnectLazyMermaidRender(anchor);
+    const preload = mermaidBackgroundPreloads.get(anchor);
+    const priority = isMermaidElementVisible(anchor) ? 'interactive' : 'background';
+    if (preload?.started) {
+      void renderMermaidElementAsync(anchor, codeSnapshot, renderKey, priority, false);
       return;
     }
-    disconnectLazyMermaidRender(anchor);
-    const priority = isMermaidElementVisible(anchor) ? 'interactive' : 'background';
+    cancelMermaidBackgroundPreload(anchor);
     renderMermaidElementAsync(
       anchor,
       codeSnapshot,
       renderKey,
       priority,
     );
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    const entry = entries.find((candidate) => candidate.target === anchor) ?? entries.at(-1);
+    isIntersecting = entry?.isIntersecting ?? false;
+    void renderIfStillIntersecting();
   }, {
     scrollMargin: themeLazyLoadTokens.mermaidPreloadMargin,
   });
@@ -191,7 +278,10 @@ function installLazyMermaidRender(anchor: HTMLElement, codeSnapshot: string, ren
   observer.observe(anchor);
 }
 
-export function createMermaidElement(code: string) {
+export function createMermaidElement(
+  code: string,
+  options: { preloadBackground?: boolean; render?: boolean } = {},
+) {
   const normalizedCode = normalizeMermaidEditorCodeInput(code);
   const renderCode = getMermaidRenderCode(normalizedCode);
   const wrapper = document.createElement('div');
@@ -205,6 +295,11 @@ export function createMermaidElement(code: string) {
       return wrapper;
     }
 
+    if (options.render === false) {
+      setMermaidPendingMarkup(wrapper);
+      return wrapper;
+    }
+
     const cachedMarkup = readCachedMermaidMarkup(renderCode);
     if (cachedMarkup != null) {
       wrapper.innerHTML = cachedMarkup;
@@ -215,6 +310,9 @@ export function createMermaidElement(code: string) {
     const renderKey = wrapper.dataset.renderKey;
     if (shouldLazyRenderMermaidElement()) {
       installLazyMermaidRender(wrapper, codeSnapshot, renderKey);
+      if (options.preloadBackground === true) {
+        queueMermaidBackgroundPreload(wrapper, codeSnapshot, renderKey);
+      }
     } else {
       renderMermaidElementAsync(wrapper, codeSnapshot, renderKey);
     }

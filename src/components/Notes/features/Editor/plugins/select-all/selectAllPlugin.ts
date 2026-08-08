@@ -2,6 +2,7 @@ import * as proseState from '@milkdown/kit/prose/state';
 import { Plugin } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { isLargeEditorSelection } from '../selection/textSelectionOverlayState';
 
 const AllSelection = (
   proseState as typeof proseState & {
@@ -34,7 +35,9 @@ export function handleEditorSelectAll(view: EditorView, event: KeyboardEvent): b
 
   event.preventDefault();
   view.dispatch(view.state.tr.setSelection(createAllSelection(view.state.doc) as never));
-  view.focus();
+  if (!isLargeEditorSelection(view.state)) {
+    view.focus();
+  }
   return true;
 }
 

@@ -28,6 +28,7 @@ import { TOOLBAR_ACTIONS } from './plugins/floating-toolbar/types';
 
 export function useMilkdownExternalContentSync(args: {
   activatedRevision: number;
+  canSyncContent: boolean;
   currentNoteContent: string;
   currentNoteDiskRevision: number;
   currentNotePath: string | undefined;
@@ -42,6 +43,7 @@ export function useMilkdownExternalContentSync(args: {
 }) {
   const {
     activatedRevision,
+    canSyncContent,
     currentNoteContent,
     currentNoteDiskRevision,
     currentNotePath,
@@ -53,6 +55,10 @@ export function useMilkdownExternalContentSync(args: {
   const historySessionRef = useRef<NoteEditorHistorySession | null>(null);
 
   useEffect(() => {
+    if (!canSyncContent) {
+      return;
+    }
+
     const lastAppliedNote = lastAppliedNoteRef.current;
     let restoreFrame = 0;
     let restoreTimeout = 0;
@@ -239,6 +245,6 @@ export function useMilkdownExternalContentSync(args: {
       cancelAnimationFrame(restoreFrame);
       window.clearTimeout(restoreTimeout);
     };
-  }, [activatedRevision, currentNoteContent, currentNoteDiskRevision, currentNotePath, get, reportEditorReady]);
+  }, [activatedRevision, canSyncContent, currentNoteContent, currentNoteDiskRevision, currentNotePath, get, reportEditorReady]);
 
 }

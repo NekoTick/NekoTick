@@ -31,15 +31,18 @@ function isPlainMultiClick(event: MouseEvent): boolean {
         !event.shiftKey;
 }
 
-function resolveTooltipEligibleLink(view: EditorView, event: MouseEvent): HTMLElement | null {
-    const target = event.target instanceof HTMLElement
+function isGeneratedTocLinkEvent(view: EditorView, event: MouseEvent): boolean {
+    const target = event.target instanceof Element
         ? event.target
         : event.target instanceof Node
             ? event.target.parentElement
             : null;
-
     const tocLink = target?.closest('.toc-link[data-heading-pos]');
-    if (tocLink instanceof HTMLElement) return null;
+    return tocLink instanceof HTMLElement && view.dom.contains(tocLink);
+}
+
+function resolveTooltipEligibleLink(view: EditorView, event: MouseEvent): HTMLElement | null {
+    if (isGeneratedTocLinkEvent(view, event)) return null;
 
     const link = resolveLinkTextRootFromMouseEvent(view, event);
     if (link?.matches(
@@ -159,6 +162,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
 
     const handleEditorMouseDown = (event: MouseEvent) => {
         if (!(event.target instanceof Node) || !view.dom.contains(event.target)) return;
+        if (isGeneratedTocLinkEvent(view, event)) return;
         const targetElement = event.target instanceof Element ? event.target : event.target.parentElement;
         const wikiLinkSource = targetElement?.closest('[data-wiki-link-source="true"]');
         if (wikiLinkSource?.querySelector('.wiki-link-expanded[data-wiki-link-expanded]')) {
@@ -203,6 +207,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
 
     const handleEditorClick = async (event: MouseEvent) => {
         if (!(event.target instanceof Node) || !view.dom.contains(event.target)) return;
+        if (isGeneratedTocLinkEvent(view, event)) return;
         const selectableLink = resolveLinkTextRootFromMouseEvent(view, event);
         const link = resolveTooltipEligibleLink(view, event);
         if (!selectableLink) return;

@@ -3,6 +3,10 @@ import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 
+export function isInitialCaretTextblock(node: ProseNode): boolean {
+  return node.isTextblock && node.type.name !== 'frontmatter';
+}
+
 export function createGapCursorSelectionAt(doc: ProseNode, pos: number): GapCursor | null {
   try {
     const $pos = doc.resolve(pos);
@@ -10,6 +14,11 @@ export function createGapCursorSelectionAt(doc: ProseNode, pos: number): GapCurs
   } catch {
     return null;
   }
+}
+
+function isInsideCodeMirror(node: Node): boolean {
+  const element = node instanceof globalThis.Element ? node : node.parentElement;
+  return Boolean(element?.closest('.cm-editor'));
 }
 
 export function syncEditorSelectionFromDOM(view: EditorView): boolean {
@@ -21,7 +30,9 @@ export function syncEditorSelectionFromDOM(view: EditorView): boolean {
     !anchorNode ||
     !focusNode ||
     !view.dom.contains(anchorNode) ||
-    !view.dom.contains(focusNode)
+    !view.dom.contains(focusNode) ||
+    isInsideCodeMirror(anchorNode) ||
+    isInsideCodeMirror(focusNode)
   ) {
     return false;
   }
@@ -66,7 +77,7 @@ export function createDocumentStartTextSelection(doc: ProseNode): Selection {
 
   doc.descendants((node, pos) => {
     if (textSelectionPos !== null) return false;
-    if (node.isTextblock) {
+    if (isInitialCaretTextblock(node)) {
       textSelectionPos = pos + 1;
       return false;
     }
@@ -93,7 +104,7 @@ export function createDocumentFirstLineEndTextSelection(doc: ProseNode): Selecti
 
   doc.descendants((node, pos) => {
     if (textSelectionPos !== null) return false;
-    if (!node.isTextblock) return true;
+    if (!isInitialCaretTextblock(node)) return true;
 
     let lineEndOffset = 0;
     let foundLineBreak = false;

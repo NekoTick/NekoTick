@@ -32,4 +32,15 @@ describe('WhiteboardElementNode', () => {
 
     expect(screen.getByLabelText('demo.png')).toHaveClass('pointer-events-none');
   });
+
+  it('keeps an unselected image border transparent', () => {
+    const { rerender } = render(
+      <WhiteboardElementNode element={image} selected={false} showSelectionBorder={false} tool="select" onPointerDown={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText('demo.png').style.borderColor).toBe('transparent');
+
+    rerender(<WhiteboardElementNode element={image} selected showSelectionBorder tool="select" onPointerDown={vi.fn()} />);
+    expect(screen.getByLabelText('demo.png').style.borderColor).toBe('var(--vlaina-color-whiteboard-selected)');
+  });
 });

@@ -229,24 +229,25 @@ async function insertImeText(page: Page, text: string): Promise<void> {
   }, { editorSelector: EDITOR_SELECTOR, text });
 }
 
-async function expectEditorFocusedAtFirstLineEnd(page: Page): Promise<void> {
-  await expect.poll(async () => page.evaluate((editorSelector) => {
+async function expectEditorFocusedAtFirstLineEnd(page: Page, firstLineText: string): Promise<void> {
+  await expect.poll(async () => page.evaluate(({ editorSelector, firstLineText }) => {
     const editor = document.querySelector<HTMLElement>(editorSelector);
-    const firstTextBlock = editor?.querySelector<HTMLElement>('h1, h2, h3, h4, h5, h6, p');
     const selection = (window as any).__vlainaE2E.getEditorSelectionSummary();
-    const expectedLineEnd = (firstTextBlock?.textContent?.length ?? 0) + 1;
+    const firstLineRange = (window as any).__vlainaE2E.getEditorTextRange(firstLineText);
     return {
       focused: Boolean(editor && (
         document.activeElement === editor ||
         editor.contains(document.activeElement)
       )),
-      atFirstLineEnd: selection?.from === expectedLineEnd,
+      atFirstLineEnd: selection?.from === firstLineRange?.to,
+      selectedNodes: editor?.querySelectorAll('.ProseMirror-selectednode').length ?? 0,
       selectionEmpty: selection?.empty ?? false,
       selectionFrom: selection?.from ?? null,
     };
-  }, EDITOR_SELECTOR), { timeout: 5_000 }).toMatchObject({
+  }, { editorSelector: EDITOR_SELECTOR, firstLineText }), { timeout: 5_000 }).toMatchObject({
     focused: true,
     atFirstLineEnd: true,
+    selectedNodes: 0,
     selectionEmpty: true,
   });
 }
@@ -416,13 +417,18 @@ test.describe('notes typing caret position', () => {
       await openMarkdownFixture(page, {
         filename: 'populated-autofocus-e2e.md',
         content: [
+          '---',
+          'title: Autofocus Metadata',
+          '---',
+          '',
           '# Populated Autofocus',
           '',
           'Opening this existing note should place the cursor in the editor without a click.',
         ].join('\n'),
       });
+      await expect(page.locator(`${EDITOR_SELECTOR} .frontmatter-block-container`)).toBeVisible();
       await expect(page.locator(EDITOR_SELECTOR)).toContainText('Opening this existing note');
-      await expectEditorFocusedAtFirstLineEnd(page);
+      await expectEditorFocusedAtFirstLineEnd(page, 'Populated Autofocus');
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

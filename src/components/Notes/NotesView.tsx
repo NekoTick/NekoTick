@@ -161,7 +161,7 @@ export function NotesView({
 
   const {
     canLoadMarkdownEditor,
-    firstPaintPreviewBlocks,
+    firstPaintPreviewMarkdown,
     isPrimaryContentReady,
     reportNotesPrimaryContentReady,
   } = useNotesPrimaryContentState({
@@ -291,7 +291,7 @@ export function NotesView({
         currentNoteMetadata={currentNoteMetadata}
         currentNotePath={currentNotePath}
         currentNoteStarred={currentNoteStarred}
-        firstPaintPreviewBlocks={firstPaintPreviewBlocks}
+        firstPaintPreviewMarkdown={firstPaintPreviewMarkdown}
         getDisplayName={getDisplayName}
         hasSplitPanes={hasSplitPanes}
         isPrimaryContentReady={isPrimaryContentReady}

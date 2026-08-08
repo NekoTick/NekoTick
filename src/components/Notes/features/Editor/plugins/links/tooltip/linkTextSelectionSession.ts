@@ -16,6 +16,7 @@ export const LINK_TEXT_POSITION_SELECTOR = [
     '.wiki-link[data-wiki-link-target]',
     '.wiki-link-expanded[data-wiki-link-expanded]',
 ].join(', ');
+const GENERATED_TOC_LINK_SELECTOR = '.toc-link[data-heading-pos]';
 const LINK_TEXT_SCAN_ROOT_SELECTOR = [
     'li',
     'p',
@@ -54,7 +55,8 @@ function resolveEventLinkTextRoot(view: EditorView, target: EventTarget | null):
             ? target.parentElement
             : null;
     const linkRoot = targetElement?.closest(LINK_TEXT_POSITION_SELECTOR);
-    return linkRoot instanceof HTMLElement && view.dom.contains(linkRoot) ? linkRoot : null;
+    if (!(linkRoot instanceof HTMLElement) || !view.dom.contains(linkRoot)) return null;
+    return linkRoot.matches(GENERATED_TOC_LINK_SELECTOR) ? null : linkRoot;
 }
 
 export function resolveLinkTextRootFromMouseEvent(view: EditorView, event: MouseEvent): HTMLElement | null {
@@ -74,6 +76,7 @@ export function resolveLinkTextRootFromMouseEvent(view: EditorView, event: Mouse
     for (let index = 0; index < links.length; index += 1) {
         const link = links[index];
         if (!link) continue;
+        if (link.matches(GENERATED_TOC_LINK_SELECTOR)) continue;
         if (!isPointInsideElementClientRects(link, event.clientX, event.clientY)) continue;
         const rect = link.getBoundingClientRect();
         const area = rect.width * rect.height;

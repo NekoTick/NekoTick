@@ -5,6 +5,7 @@ import { shouldUseLazyBlockVisibility } from './milkdownLargePlainMarkdown';
 export function useMilkdownAutoFocus(args: {
   active: boolean;
   activatedRevision: number;
+  canAnalyzeMarkdown: boolean;
   currentDraftName: string | undefined;
   currentNoteContent: string;
   currentNoteDiskRevision: number;
@@ -24,6 +25,7 @@ export function useMilkdownAutoFocus(args: {
   const {
     active,
     activatedRevision,
+    canAnalyzeMarkdown,
     currentDraftName,
     currentNoteContent,
     currentNoteDiskRevision,
@@ -37,18 +39,21 @@ export function useMilkdownAutoFocus(args: {
   } = args;
 
   const isEmptyContent = useMemo(() => {
+    if (!canAnalyzeMarkdown) {
+      return false;
+    }
     const content = currentNoteContent.trim();
     return content.length === 0 || /^#\s*$/.test(content);
-  }, [currentNoteContent]);
+  }, [canAnalyzeMarkdown, currentNoteContent]);
 
   const shouldKeepFocusOnEmptyDraftTitle = isDraftNote && isEmptyContent && !currentDraftName?.trim();
   const shouldFocusEmptyDraftBody =
     isDraftNote && !isNewlyCreated && isEmptyContent && !shouldKeepFocusOnEmptyDraftTitle;
-  if (
+  if (canAnalyzeMarkdown && (
     lazyBlockVisibilityRef.current?.path !== currentNotePath ||
     lazyBlockVisibilityRef.current?.diskRevision !== currentNoteDiskRevision ||
     lazyBlockVisibilityRef.current?.content !== currentNoteContent
-  ) {
+  )) {
     lazyBlockVisibilityRef.current = {
       content: currentNoteContent,
       diskRevision: currentNoteDiskRevision,
@@ -56,7 +61,9 @@ export function useMilkdownAutoFocus(args: {
       value: shouldUseLazyBlockVisibility(currentNoteContent),
     };
   }
-  const useLazyBlockVisibility = lazyBlockVisibilityRef.current.value;
+  const useLazyBlockVisibility = canAnalyzeMarkdown
+    ? lazyBlockVisibilityRef.current?.value ?? false
+    : false;
 
   const focusEditorBody = useCallback(() => {
     try {

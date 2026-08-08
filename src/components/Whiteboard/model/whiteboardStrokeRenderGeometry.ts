@@ -5,6 +5,7 @@ import {
   getStrokePointRadius,
   smoothWhiteboardStrokePoint,
 } from './whiteboardStrokeDynamics';
+import { getOpenStrokePath, getRoundStrokeCapPath, getStrokeTangent } from './whiteboardStrokePath';
 import { getWhiteboardStrokeNoise, getWhiteboardStrokeRenderPointIndex, getWhiteboardStrokeRenderSeed } from './whiteboardStrokeTexture';
 import { getWhiteboardStrokePathNeighbors } from './whiteboardStrokeRenderChunks';
 
@@ -46,7 +47,7 @@ export function getStrokeRenderGeometry(stroke: WhiteboardStroke): StrokeRenderG
   const segments = getStrokePointSegments(stroke.points);
   const hasPressureDetail = stroke.tool !== 'pen';
   const geometry = {
-    centerPath: segments.map(getOpenEdgePath).join(' '),
+    centerPath: segments.map(getOpenStrokePath).join(' '),
     grainPaths: getStrokeGrainPaths(stroke, segments),
     heavyPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(stroke, segment, themeWhiteboardTokens.pressureDetailHeavyThreshold)).join(' ') : '',
     mediumPressurePath: hasPressureDetail ? segments.map((segment) => getPressureDetailPath(stroke, segment, themeWhiteboardTokens.pressureDetailMediumThreshold)).join(' ') : '',
@@ -104,7 +105,7 @@ export function getCenterStrokePath(stroke: WhiteboardStroke): string {
   if (hasSameRenderGeometryInput(cached, stroke)) {
     return cached.geometry.centerPath;
   }
-  return getStrokePointSegments(stroke.points).map(getOpenEdgePath).join(' ');
+  return getStrokePointSegments(stroke.points).map(getOpenStrokePath).join(' ');
 }
 
 export function getStrokePointSegments(points: WhiteboardStrokePoint[]): WhiteboardStrokePoint[][] {
@@ -136,11 +137,9 @@ function getPressureSegmentPath(
   for (let index = 0; index < points.length; index += 1) {
     const point = points[index];
     const [previous, next] = getWhiteboardStrokePathNeighbors(stroke, segment, points, index);
-    const dx = next.x - previous.x;
-    const dy = next.y - previous.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const normalX = -dy / length;
-    const normalY = dx / length;
+    const tangent = getStrokeTangent(previous, point, next);
+    const normalX = -tangent.y;
+    const normalY = tangent.x;
     const radius = getStrokeRadius(stroke, point, normalX, normalY, index, points.length, widthScale);
     const renderIndex = getWhiteboardStrokeRenderPointIndex(stroke, index);
     const leftRadius = radius * (1 + getWhiteboardStrokeNoise(strokeSeed, renderIndex, 0) * edgeJitter);
@@ -150,7 +149,36 @@ function getPressureSegmentPath(
     right.push({ ...point, x: point.x - normalX * rightRadius, y: point.y - normalY * rightRadius });
   }
 
-  return `${getOpenEdgePath(left)} ${getOpenEdgePath([...right].reverse()).replace(/^M /, 'L ')} Z`;
+  return getClosedStrokePath(stroke, points, left, right, widthScale);
+}
+
+function getClosedStrokePath(
+  stroke: WhiteboardStroke,
+  points: WhiteboardStrokePoint[],
+  left: WhiteboardStrokePoint[],
+  right: WhiteboardStrokePoint[],
+  widthScale: number,
+): string {
+  const rightReversed = [...right].reverse();
+  const rightPath = getOpenStrokePath(rightReversed).replace(/^M \S+ \S+\s*/, '');
+  const end = points.at(-1)!;
+  const endTangent = getStrokeTangent(points.at(-2)!, end, end);
+  const endCapRadius = getStrokeRadius(
+    stroke, end, endTangent.x, endTangent.y, points.length - 1, points.length, widthScale,
+  );
+  const start = points[0];
+  const startTangent = getStrokeTangent(start, start, points[1]);
+  const startCapRadius = getStrokeRadius(
+    stroke, start, startTangent.x, startTangent.y, 0, points.length, widthScale,
+  );
+  const capScale = themeWhiteboardTokens.strokeRoundCapControlScale;
+  const endCap = stroke.renderTaperEnd === false || stroke.tool === 'marker'
+    ? `L ${right.at(-1)!.x} ${right.at(-1)!.y}`
+    : getRoundStrokeCapPath(left.at(-1)!, right.at(-1)!, endTangent, endCapRadius * capScale, 1);
+  const startCap = stroke.renderTaperStart === false || stroke.tool === 'marker'
+    ? `L ${left[0].x} ${left[0].y}`
+    : getRoundStrokeCapPath(right[0], left[0], startTangent, startCapRadius * capScale, -1);
+  return `${getOpenStrokePath(left)} ${endCap} ${rightPath} ${startCap} Z`;
 }
 
 function getStrokeRadius(
@@ -165,8 +193,8 @@ function getStrokeRadius(
   let radius = getStrokePointRadius(stroke.tool, point, stroke.size, normalX, normalY) * widthScale;
   if (stroke.tool === 'pen' || stroke.tool === 'pencil' || stroke.tool === 'colored-pencil' || stroke.tool === 'fountain') {
     const edgeDistance = Math.min(
-      stroke.renderTaperStart === false ? Infinity : index + 1,
-      stroke.renderTaperEnd === false ? Infinity : pointCount - index,
+      stroke.renderTaperStart === false ? Infinity : index,
+      stroke.renderTaperEnd === false ? Infinity : pointCount - index - 1,
     );
     const taperProgress = Math.min(1, edgeDistance / themeWhiteboardTokens.strokeTaperPointCount);
     radius *= themeWhiteboardTokens.strokeTaperMinScale + (1 - themeWhiteboardTokens.strokeTaperMinScale) * taperProgress;
@@ -174,18 +202,21 @@ function getStrokeRadius(
   return radius;
 }
 
-function getSmoothedStrokePoints(
+export function getSmoothedStrokePoints(
   points: WhiteboardStrokePoint[],
   tool: WhiteboardStroke['tool'],
 ): WhiteboardStrokePoint[] {
-  if (points.length < 4) return points;
+  if (points.length < 3) return points;
   const smoothing = themeWhiteboardTokens.strokeSmoothing[tool];
-  return points.map((point, index) => {
-    if (index === 0 || index === points.length - 1) return point;
-    const previous = points[index - 1];
-    const next = points[index + 1];
-    return smoothWhiteboardStrokePoint(point, previous, next, smoothing);
-  });
+  const passAmount = 1 - Math.pow(1 - smoothing, 1 / themeWhiteboardTokens.strokeSmoothingPasses);
+  let smoothed = points;
+  for (let pass = 0; pass < themeWhiteboardTokens.strokeSmoothingPasses; pass += 1) {
+    smoothed = smoothed.map((point, index) => {
+      if (index === 0 || index === points.length - 1) return point;
+      return smoothWhiteboardStrokePoint(point, smoothed[index - 1], smoothed[index + 1], passAmount);
+    });
+  }
+  return smoothed;
 }
 
 function getStrokeEdgeJitter(tool: WhiteboardStroke['tool']): number {
@@ -231,19 +262,17 @@ function getStrokeGrainLanePath(
   const points = getSmoothedStrokePoints(segment, stroke.tool);
   const strokeSeed = getWhiteboardStrokeRenderSeed(stroke);
   const lanePosition = laneCount === 1 ? 0 : laneIndex / (laneCount - 1) * 2 - 1;
-  return getOpenEdgePath(points.map((point, index) => {
+  return getOpenStrokePath(points.map((point, index) => {
     const [previous, next] = getWhiteboardStrokePathNeighbors(stroke, segment, points, index);
-    const dx = next.x - previous.x;
-    const dy = next.y - previous.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const halfWidth = getStrokePointRadius(stroke.tool, point, stroke.size, -dy, dx);
+    const tangent = getStrokeTangent(previous, point, next);
+    const halfWidth = getStrokePointRadius(stroke.tool, point, stroke.size, -tangent.y, tangent.x);
     const renderIndex = getWhiteboardStrokeRenderPointIndex(stroke, index + segmentIndex * 4096);
     const noise = getWhiteboardStrokeNoise(strokeSeed, renderIndex, laneIndex + 40);
     const offset = halfWidth * (lanePosition * spread + noise * wander);
     return {
       ...point,
-      x: point.x - dy / length * offset,
-      y: point.y + dx / length * offset,
+      x: point.x - tangent.y * offset,
+      y: point.y + tangent.x * offset,
     };
   }));
 }
@@ -260,20 +289,4 @@ function hasSameRenderGeometryInput(
     cached.taperEnd === (stroke.renderTaperEnd !== false) &&
     cached.taperStart === (stroke.renderTaperStart !== false) &&
     cached.tool === stroke.tool;
-}
-
-function getOpenEdgePath(points: WhiteboardStrokePoint[]): string {
-  if (points.length === 0) return '';
-  const [first] = points;
-  if (points.length === 1) return `M ${first.x} ${first.y}`;
-  if (points.length === 2) return `M ${first.x} ${first.y} L ${points[1].x} ${points[1].y}`;
-  const commands = [`M ${first.x} ${first.y}`];
-  for (let index = 1; index < points.length - 1; index += 1) {
-    const point = points[index];
-    const nextPoint = points[index + 1];
-    commands.push(`Q ${point.x} ${point.y} ${(point.x + nextPoint.x) / 2} ${(point.y + nextPoint.y) / 2}`);
-  }
-  const last = points[points.length - 1];
-  commands.push(`L ${last.x} ${last.y}`);
-  return commands.join(' ');
 }

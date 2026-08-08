@@ -80,4 +80,24 @@ describe('syncEditorSelectionFromDOM', () => {
     expect(dispatch).not.toHaveBeenCalled();
     dom.remove();
   });
+
+  it('does not import selections from embedded CodeMirror editors', () => {
+    const { dispatch, dom, view } = createView();
+    const codeMirror = document.createElement('div');
+    codeMirror.className = 'cm-editor';
+    const codeText = document.createTextNode('title: note');
+    codeMirror.appendChild(codeText);
+    dom.appendChild(codeMirror);
+    const selection = document.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(codeText);
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    expect(syncEditorSelectionFromDOM(view as never)).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+
+    selection.removeAllRanges();
+    dom.remove();
+  });
 });

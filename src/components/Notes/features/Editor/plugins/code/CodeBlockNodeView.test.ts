@@ -500,6 +500,25 @@ describe('CodeBlockNodeView', () => {
     nodeView.destroy();
   });
 
+  it('does not mirror a large outer selection into CodeMirror', () => {
+    const node = createMockNodeWithText('const a = 1;');
+    const view = createMockView();
+    const selection = createMockSelection(1, 100_001);
+    Object.setPrototypeOf(selection, TextSelection.prototype);
+    view.state.selection = selection as never;
+    const nodeView = new CodeBlockNodeView(node, view, () => 0);
+    const cm = getCodeMirror(nodeView);
+    const dispatchSpy = vi.spyOn(cm, 'dispatch');
+
+    syncProseMirrorSelection(nodeView);
+
+    expect(nodeView.dom.dataset.pmSelected).toBe('false');
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(cm.state.selection.main.empty).toBe(true);
+
+    nodeView.destroy();
+  });
+
   it('does not mark the whole code block selected while selecting text inside focused CodeMirror', () => {
     const node = createMockNodeWithText('const a = 1;');
     const view = createMockView();

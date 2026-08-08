@@ -7,7 +7,7 @@ import {
 import { DOMSerializer } from '@milkdown/kit/prose/model';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { mermaidPlugin } from './mermaidPlugin';
-import { getMermaidElementCode } from './mermaidDom';
+import { getMermaidElementCode, getPendingMermaidRenderCount } from './mermaidDom';
 
 vi.mock('./mermaidRenderer', () => ({
   generateMermaidId: () => 'mermaid-serialized-test',
@@ -30,6 +30,7 @@ describe('mermaid DOM serialization', () => {
     const mermaidNode = view.state.schema.nodes.mermaid.create({
       code: ['sequenceDiagram', 'Alice->Bob: secret token'].join('\n'),
     });
+    const pendingBefore = getPendingMermaidRenderCount();
     const fragment = DOMSerializer.fromSchema(view.state.schema).serializeFragment(
       view.state.schema.topNodeType.create(null, mermaidNode).content,
       { document }
@@ -49,6 +50,7 @@ describe('mermaid DOM serialization', () => {
     expect((element as HTMLElement).outerHTML).not.toContain('sequenceDiagram');
     expect((element as HTMLElement).outerHTML).not.toContain('secret token');
     expect((element as HTMLElement).outerHTML).not.toContain('data-code');
+    expect(getPendingMermaidRenderCount()).toBe(pendingBefore);
 
     await editor.destroy();
   });

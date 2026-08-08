@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MarkdownTab } from './MarkdownTab';
 
@@ -35,6 +35,14 @@ vi.mock('@/lib/i18n', () => ({
 }));
 
 describe('MarkdownTab', () => {
+  it('opens the Notes shortcuts dialog from the shortcut capsule', () => {
+    render(<MarkdownTab />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.markdown.shortcutHint' }));
+
+    expect(screen.getByRole('dialog', { name: 'shortcut.title' })).toBeInTheDocument();
+  });
+
   it('names each Markdown switch with its visible setting label', () => {
     render(<MarkdownTab />);
 

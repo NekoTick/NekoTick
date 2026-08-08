@@ -225,6 +225,34 @@ describe('useNativeCaretOverlay', () => {
     expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
     expect(textarea).not.toHaveAttribute('data-native-caret-overlay-active');
 
+    requestAnimationFrameSpy.mockClear();
+    act(() => {
+      textarea.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
+      textarea.dispatchEvent(new KeyboardEvent('keyup', { key: 'x', bubbles: true }));
+      document.dispatchEvent(new Event('selectionchange'));
+    });
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+
+    hook.unmount();
+  });
+
+  it('cancels a queued caret measurement when focus moves to an opted-out textarea', () => {
+    requestAnimationFrameSpy.mockImplementation(() => 7);
+    const input = document.createElement('input');
+    const textarea = document.createElement('textarea');
+    textarea.setAttribute('data-native-caret-overlay-disabled', 'true');
+    document.body.append(input, textarea);
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => input.focus());
+    cancelAnimationFrameSpy.mockClear();
+    act(() => textarea.focus());
+
+    expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(7);
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+
     hook.unmount();
   });
 });

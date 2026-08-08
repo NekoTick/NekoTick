@@ -16,7 +16,10 @@ import {
 export function captureCompositionStartSelection(view: EditorView): CompositionStartSelection | null {
   try {
     const { selection } = view.state;
-    if (selection.empty) return null;
+    if (
+      selection.empty ||
+      selection.to - selection.from > MAX_COMPOSITION_REPAIR_TEXT_LENGTH
+    ) return null;
 
     const selectedText = view.state.doc.textBetween(selection.from, selection.to, '\n');
     if (
@@ -77,7 +80,10 @@ export function getSelectedCompositionText(view: EditorView): string | null {
   try {
     const { state } = view;
     const { selection } = state;
-    if (selection.empty) return null;
+    if (
+      selection.empty ||
+      selection.to - selection.from > MAX_COMPOSITION_REPAIR_TEXT_LENGTH
+    ) return null;
 
     const selectedText = state.doc.textBetween(selection.from, selection.to, '\n');
     return selectedText.length > 0 ? selectedText : null;

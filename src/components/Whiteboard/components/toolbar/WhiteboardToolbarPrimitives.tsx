@@ -30,6 +30,8 @@ export function WhiteboardToolbarButton({
   large = false,
   compact = false,
   dock = false,
+  partiallyRevealed = false,
+  revealOnHover = false,
   onClick,
 }: {
   active?: boolean;
@@ -40,6 +42,8 @@ export function WhiteboardToolbarButton({
   large?: boolean;
   compact?: boolean;
   dock?: boolean;
+  partiallyRevealed?: boolean;
+  revealOnHover?: boolean;
   onClick: () => void;
 }) {
   const button = (
@@ -62,17 +66,46 @@ export function WhiteboardToolbarButton({
         active
           ? cn(
             imageSrc
-              ? '-translate-y-[var(--vlaina-size-20px)] scale-[var(--vlaina-scale-105)]'
+              ? cn(
+                partiallyRevealed
+                  ? '-translate-y-[var(--vlaina-size-12px)]'
+                  : '-translate-y-[var(--vlaina-size-20px)]',
+                'scale-[var(--vlaina-scale-105)]',
+              )
               : '-translate-y-[var(--vlaina-size-4px)]',
             'border-transparent bg-transparent text-[var(--vlaina-accent)]',
           )
           : cn(
             'hover:bg-transparent hover:text-[var(--vlaina-color-control-hover-fg)]',
             !dock && 'active:scale-[var(--vlaina-scale-95)]',
-          ),
+        ),
+        partiallyRevealed && 'items-end',
+        revealOnHover && 'group',
+        revealOnHover && !active && 'hover:-translate-y-[var(--vlaina-size-12px)]',
       )}
     >
-      {imageSrc ? (
+      {imageSrc && partiallyRevealed ? (
+        <span
+          aria-hidden="true"
+          data-whiteboard-instrument-reveal="true"
+          className={cn(
+            'pointer-events-none flex w-full shrink-0 items-start justify-center overflow-hidden transition-[height] duration-[var(--vlaina-duration-200)]',
+            active
+              ? 'h-[var(--vlaina-size-72px)]'
+              : cn(
+                'h-[var(--vlaina-size-48px)]',
+                revealOnHover && 'group-hover:h-[var(--vlaina-size-72px)]',
+              ),
+          )}
+        >
+          <img
+            alt=""
+            draggable={false}
+            src={imageSrc}
+            className="h-[var(--vlaina-size-96px)] w-auto shrink-0 select-none object-contain filter-none"
+          />
+        </span>
+      ) : imageSrc ? (
         <img
           alt=""
           aria-hidden="true"

@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { Suspense, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useNotesStore } from '@/stores/useNotesStore';
@@ -16,6 +16,7 @@ import {
   useMarkdownEditorScrollPersistence,
 } from './hooks/useMarkdownEditorScrollPersistence';
 import { useMarkdownEditorCoverState } from './hooks/useMarkdownEditorCoverState';
+import { useMarkdownEditorFocus } from './hooks/useMarkdownEditorFocus';
 import { useMarkdownEditorSourceMode } from './hooks/useMarkdownEditorSourceMode';
 import { useHeldPageScroll } from '@/hooks/useHeldPageScroll';
 import { useNoteEditorFind } from './find/useNoteEditorFind';
@@ -27,7 +28,6 @@ import {
 import { getNoteMetadataEntry } from '@/stores/notes/noteMetadataState';
 import { themeEditorLayoutTokens, themeRenderingTokens } from '@/styles/themeTokens';
 import { focusEditorFromNoteUpperBlankArea } from './utils/focusEditorFromNoteUpperBlankArea';
-import { focusNoteInitialPosition } from './utils/focusNoteInitialPosition';
 import 'katex/dist/katex.min.css';
 import './styles/index.css';
 
@@ -118,6 +118,7 @@ export function MarkdownEditor({
     openTabPathsKey,
     startAtTop: shouldStartWorkspaceRestoredNoteAtTop,
   });
+  const handleEditorClick = useMarkdownEditorFocus({ active, hasActiveNote });
   const editorFind = useNoteEditorFind(currentNotePath);
   useHeldPageScroll(scrollRootRef, {
     enabled: active,
@@ -150,12 +151,6 @@ export function MarkdownEditor({
     hasActiveNote,
     isEditorViewReady,
   });
-
-  const handleEditorClick = (event: React.MouseEvent) => {
-    if (hasActiveNote && event.target === event.currentTarget) {
-      focusNoteInitialPosition(event.currentTarget);
-    }
-  };
 
   return (
     <div

@@ -9,6 +9,8 @@ import { getStrokePointMaxWidth, interpolateWhiteboardStrokePoint } from './whit
 import { invalidateWhiteboardStrokeRenderChunks } from './whiteboardStrokeRenderChunks';
 import { invalidateWhiteboardStrokeRenderGeometry } from './whiteboardStrokeRenderGeometry';
 import { distanceBetweenSegments, distanceToSegment } from './whiteboardSegmentGeometry';
+import { getSmoothedStrokePoints } from './whiteboardStrokeRenderGeometry';
+import { getOpenStrokePathSamples } from './whiteboardStrokePath';
 
 export {
   getCenterStrokePath,
@@ -31,7 +33,14 @@ interface EraserBounds {
 export interface WhiteboardEraserStrokeSamples {
   pathOffsets: Float64Array;
   points: WhiteboardStrokePoint[];
+  ranges: WhiteboardEraserStrokeRange[];
+  sourcePoints: WhiteboardStrokePoint[];
   sourcePositions: Float64Array;
+}
+
+export interface WhiteboardEraserStrokeRange {
+  endIndex: number;
+  startIndex: number;
 }
 
 const eraserBoundsCache = new WeakMap<WhiteboardStroke, EraserBounds | null>();
@@ -137,44 +146,70 @@ export function getEraserStrokeSamples(stroke: WhiteboardStroke): WhiteboardEras
   if (cached) return cached;
   const points: WhiteboardStrokePoint[] = [];
   const pathOffsets: number[] = [];
+  const ranges: WhiteboardEraserStrokeRange[] = [];
+  const sourcePoints: WhiteboardStrokePoint[] = [];
   const sourcePositions: number[] = [];
-  let pathOffset = 0;
-  let previousIndex: number | null = null;
-
-  for (let index = 0; index < stroke.points.length; index += 1) {
-    const current = stroke.points[index];
-    if (previousIndex === null || current.breakBefore) {
-      pathOffset = 0;
-      points.push(current.breakBefore && points.length === 0
-        ? { ...current, breakBefore: undefined }
-        : current);
-      pathOffsets.push(pathOffset);
-      sourcePositions.push(index);
-      previousIndex = index;
-      continue;
-    }
-    const previous = stroke.points[previousIndex];
-    const segmentLength = distance(previous, current);
-    const steps = Math.max(1, Math.ceil(segmentLength / themeWhiteboardTokens.eraserSampleStepPx));
-    for (let step = 1; step <= steps; step += 1) {
-      const progress = step / steps;
-      pathOffset += segmentLength / steps;
-      points.push(step === steps
-        ? current
-        : interpolateWhiteboardStrokePoint(previous, current, progress));
-      pathOffsets.push(pathOffset);
-      sourcePositions.push(previousIndex + progress);
-    }
-    previousIndex = index;
+  let segmentStart = 0;
+  for (let index = 1; index <= stroke.points.length; index += 1) {
+    if (index < stroke.points.length && !stroke.points[index].breakBefore) continue;
+    appendEraserStrokeSegment(
+      stroke.points.slice(segmentStart, index),
+      stroke.tool,
+      segmentStart,
+      points,
+      sourcePoints,
+      pathOffsets,
+      sourcePositions,
+      ranges,
+    );
+    segmentStart = index;
   }
 
-  const sampled = {
+  const sampled: WhiteboardEraserStrokeSamples = {
     pathOffsets: Float64Array.from(pathOffsets),
     points,
+    ranges,
+    sourcePoints,
     sourcePositions: Float64Array.from(sourcePositions),
   };
   eraserSampleCache.set(stroke, sampled);
   return sampled;
+}
+
+function appendEraserStrokeSegment(
+  source: WhiteboardStrokePoint[],
+  tool: WhiteboardStroke['tool'],
+  sourceOffset: number,
+  points: WhiteboardStrokePoint[],
+  sourcePoints: WhiteboardStrokePoint[],
+  pathOffsets: number[],
+  sourcePositions: number[],
+  ranges: WhiteboardEraserStrokeRange[],
+): void {
+  if (source.length === 0) return;
+  const startIndex = points.length;
+  const rendered = getOpenStrokePathSamples(
+    getSmoothedStrokePoints(source, tool),
+    themeWhiteboardTokens.eraserSampleStepPx,
+  );
+  let pathOffset = 0;
+  let previousSourcePoint: WhiteboardStrokePoint | null = null;
+  for (const sample of rendered) {
+    const localStart = Math.floor(sample.sourcePosition);
+    const localEnd = Math.ceil(sample.sourcePosition);
+    const progress = sample.sourcePosition - localStart;
+    const sourcePoint = progress === 0
+      ? source[localStart]
+      : interpolateWhiteboardStrokePoint(source[localStart], source[localEnd], progress);
+    if (previousSourcePoint) pathOffset += distance(previousSourcePoint, sourcePoint);
+    const startsSegment = points.length === startIndex && startIndex > 0;
+    points.push(startsSegment ? { ...sample.point, breakBefore: true } : sample.point);
+    sourcePoints.push(startsSegment ? { ...sourcePoint, breakBefore: true } : sourcePoint);
+    pathOffsets.push(pathOffset);
+    sourcePositions.push(sourceOffset + sample.sourcePosition);
+    previousSourcePoint = sourcePoint;
+  }
+  ranges.push({ endIndex: points.length - 1, startIndex });
 }
 
 function distance(a: WhiteboardPoint, b: WhiteboardPoint): number {

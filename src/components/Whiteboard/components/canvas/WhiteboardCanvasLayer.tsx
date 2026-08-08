@@ -110,14 +110,14 @@ export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
           onSelectionResizePointerDown={props.onSelectionResizePointerDown}
         />
       </div>
-      <div data-whiteboard-layer="appended" className="pointer-events-none absolute inset-0 overflow-visible" style={transformStyle}>
-        {appendedStrokes.length > 0 ? <WhiteboardStrokeLayer strokes={appendedStrokes} /> : null}
-      </div>
       <div
         data-whiteboard-layer="interaction"
         className="pointer-events-none absolute inset-0 overflow-visible"
         style={transformStyle}
       >
+        <div data-whiteboard-layer="appended" className="pointer-events-none absolute inset-0 overflow-visible">
+          {appendedStrokes.length > 0 ? <WhiteboardStrokeLayer strokes={appendedStrokes} /> : null}
+        </div>
         <WhiteboardEraserTrail trail={props.eraserPreview.trail} zoom={props.viewport.zoom} />
         <WhiteboardDraftStrokeLayer stroke={props.draftStroke} />
         <WhiteboardBrushCursor

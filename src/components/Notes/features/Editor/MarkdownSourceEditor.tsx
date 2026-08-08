@@ -54,7 +54,7 @@ export function MarkdownSourceEditor({
   const isComposingRef = useRef(false);
   const contentCommitFrameRef = useRef<number | null>(null);
   const { debouncedSave: scheduleSave, flushSave: flushQueuedSave } = useEditorSave(saveNote);
-  const scheduleTextareaResize = useSourceTextareaResize(textareaRef);
+  const scheduleTextareaResize = useSourceTextareaResize(textareaRef, active);
   const handleSourceMouseDownCapture = useSourceEditorFocus({
     active,
     currentNotePath,

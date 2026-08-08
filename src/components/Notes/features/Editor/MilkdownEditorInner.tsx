@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { editorViewCtx } from '@milkdown/kit/core';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { Milkdown, MilkdownProvider } from '@milkdown/react';
@@ -6,11 +6,9 @@ import { useI18n } from '@/lib/i18n';
 import { useNotesStore } from '@/stores/useNotesStore';
 import { isDraftNotePath } from '@/stores/notes/draftNote';
 import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorMarkdownFlusher';
-import { normalizeAlternativeMathBlockFences } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { useEditorSave } from './hooks/useEditorSave';
 import { usePendingMarkdownAutosave } from './hooks/usePendingMarkdownAutosave';
 import { BodyLineNumberGutter } from './components/BodyLineNumberGutter';
-import { logE2EMilkdownTiming } from './milkdownE2ETiming';
 import type { ActiveMilkdownEditor } from './MilkdownEditorInnerTypes';
 import { useMilkdownAutoFocus } from './useMilkdownAutoFocus';
 import { useMilkdownEditorActivation } from './useMilkdownEditorActivation';
@@ -18,6 +16,7 @@ import { useMilkdownEditorFactory } from './useMilkdownEditorFactory';
 import { useMilkdownExternalContentSync } from './useMilkdownExternalContentSync';
 import { useMilkdownThemeRuntime } from './useMilkdownThemeRuntime';
 import { getMilkdownEditorClassName } from './milkdownEditorClassName';
+import { shouldShowLargeMarkdownFirstPaintPreview } from './LargeMarkdownFirstPaintPreview';
 import { focusCurrentEditorAtViewportPoint } from './utils/focusEditorAtPoint';
 import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
 import { HEADING_PLACEHOLDER_I18N_REFRESH_META } from './plugins/heading/headingPlugin';
@@ -115,6 +114,14 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     value: boolean;
   } | null>(null);
   const [activatedRevision, setActivatedRevision] = useState(0);
+  const currentNoteIdentity = currentNotePath ?? null;
+  const currentNoteNeedsFirstPaint = shouldShowLargeMarkdownFirstPaintPreview(currentNoteContent);
+  const [largeFirstPaintReadyPath, setLargeFirstPaintReadyPath] = useState<string | null>(() => (
+    currentNoteNeedsFirstPaint ? null : currentNoteIdentity
+  ));
+  const largeFirstPaintReady = !currentNoteNeedsFirstPaint
+    || largeFirstPaintReadyPath === currentNoteIdentity;
+  const [canCreateEditor, setCanCreateEditor] = useState(!currentNoteNeedsFirstPaint);
   const { debouncedSave, flushSave } = useEditorSave(saveNote);
   useEffect(() => {
     if (currentNotePath && currentNoteIsDirty && !currentNoteHasSaveError) debouncedSave();
@@ -141,16 +148,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     onLocalMarkdownCommitted: markLocalMarkdownCommitted,
   });
 
-  const initialContent = useMemo(() => {
-    const startedAt = performance.now();
-    const normalized = normalizeAlternativeMathBlockFences(currentNoteContentRef.current);
-    logE2EMilkdownTiming('initial-content', {
-      notePath: currentNotePath,
-      inputLength: currentNoteContentRef.current.length,
-      durationMs: Math.round(performance.now() - startedAt),
-    });
-    return normalized;
-  }, []);
+  const initialContent = currentNoteContentRef.current;
   const {
     importedMarkdownThemeId,
     importedMarkdownThemePlatform,
@@ -171,6 +169,30 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   useEffect(() => {
     currentNoteContentRef.current = currentNoteContent;
   }, [currentNoteContent]);
+
+  useEffect(() => {
+    if (largeFirstPaintReady) {
+      return;
+    }
+
+    let readyFrame = 0;
+    const previewFrame = window.requestAnimationFrame(() => {
+      readyFrame = window.requestAnimationFrame(() => {
+        setLargeFirstPaintReadyPath(currentNoteIdentity);
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(previewFrame);
+      window.cancelAnimationFrame(readyFrame);
+    };
+  }, [currentNoteIdentity, largeFirstPaintReady]);
+
+  useEffect(() => {
+    if (largeFirstPaintReady) {
+      setCanCreateEditor(true);
+    }
+  }, [largeFirstPaintReady]);
 
   useEffect(() => {
     const handleBlur = () => {
@@ -247,6 +269,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
 
   useMilkdownExternalContentSync({
     activatedRevision,
+    canSyncContent: largeFirstPaintReady,
     currentNoteContent,
     currentNoteDiskRevision,
     currentNotePath,
@@ -323,6 +346,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   const { useLazyBlockVisibility } = useMilkdownAutoFocus({
     active,
     activatedRevision,
+    canAnalyzeMarkdown: largeFirstPaintReady,
     currentDraftName,
     currentNoteContent,
     currentNoteDiskRevision,
@@ -392,14 +416,14 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
       data-markdown-theme-color-scheme-mode={markdownThemeRuntimeColorScheme.mode}
       data-theme={markdownThemeRuntimeColorScheme.colorScheme}
     >
-      {showBodyLineNumbers && (
+      {canCreateEditor && showBodyLineNumbers && (
         <BodyLineNumberGutter
           markdown={currentNoteContent}
           shellRef={editorShellRef}
           revision={activatedRevision}
         />
       )}
-      <Milkdown />
+      {canCreateEditor ? <Milkdown /> : null}
     </div>
   );
 });

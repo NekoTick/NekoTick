@@ -7,6 +7,7 @@ import {
 import {
   createDocumentFirstLineEndTextSelection,
   createDocumentStartTextSelection,
+  isInitialCaretTextblock,
 } from './editorSelection';
 
 const FIRST_VISUAL_LINE_TOLERANCE_PX = 4;
@@ -164,7 +165,7 @@ function resolveFirstTextblockLineBounds(view: EditorView): { contentStart: numb
 
   view.state.doc.descendants((node, pos) => {
     if (lineBounds !== null) return false;
-    if (node.isTextblock) {
+    if (isInitialCaretTextblock(node)) {
       if (!shouldUseTextblockAsFirstLineTarget(node)) {
         return true;
       }

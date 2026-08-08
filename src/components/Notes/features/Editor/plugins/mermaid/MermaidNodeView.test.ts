@@ -1,10 +1,37 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Node } from '@milkdown/kit/prose/model';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { MermaidNodeView, shouldRefreshMermaidElementCode } from './MermaidNodeView';
-import { createMermaidElement, getMermaidElementCode } from './mermaidDom';
+import {
+  clearMermaidRenderCaches,
+  createMermaidElement,
+  getMermaidElementCode,
+  getPendingMermaidRenderCount,
+} from './mermaidDom';
 
 describe('MermaidNodeView', () => {
+  it('defers the first render while the focused editor is still receiving input', () => {
+    vi.useFakeTimers();
+    const nodeView = new MermaidNodeView(
+      {
+        attrs: { code: 'graph TD\nA-->B' },
+        type: { name: 'mermaid' },
+      } as unknown as Node,
+      {
+        root: document,
+        hasFocus: () => true,
+      } as unknown as EditorView,
+      () => 0,
+    );
+
+    expect(nodeView.dom.querySelector('.mermaid-placeholder')).not.toBeNull();
+    vi.advanceTimersByTime(179);
+    expect(nodeView.dom.querySelector('.mermaid-placeholder')).not.toBeNull();
+
+    nodeView.destroy();
+    vi.useRealTimers();
+  });
+
   it('compares node updates against normalized Mermaid code', () => {
     const element = createMermaidElement('sequenceDiagram\nAlice->Bob: Hello');
 
@@ -61,6 +88,47 @@ describe('MermaidNodeView', () => {
     expect(nodeView.dom.classList.contains('md-focus')).toBe(false);
 
     nodeView.destroy();
+  });
+
+  it('does not preload offscreen diagrams in a lazy-layout editor', () => {
+    class TestIntersectionObserver {
+      constructor(_callback: IntersectionObserverCallback) {}
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      scrollMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    clearMermaidRenderCaches();
+    const editor = document.createElement('div');
+    editor.dataset.noteLazyBlockVisibility = 'true';
+    const proseMirror = document.createElement('div');
+    editor.append(proseMirror);
+    document.body.append(editor);
+
+    try {
+      const pendingBefore = getPendingMermaidRenderCount();
+      const nodeView = new MermaidNodeView(
+        {
+          attrs: { code: 'graph TD\nA-->B' },
+          type: { name: 'mermaid' },
+        } as unknown as Node,
+        { dom: proseMirror, root: document } as unknown as EditorView,
+        () => 0,
+      );
+
+      expect(nodeView.dom.dataset.mermaidLazy).toBe('true');
+      expect(getPendingMermaidRenderCount()).toBe(pendingBefore);
+      nodeView.destroy();
+    } finally {
+      clearMermaidRenderCaches();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('treats non-string node code as empty without coercion', () => {

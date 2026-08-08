@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
+const HAN_CHARACTERS_REGEX = /\p{Script=Han}/gu;
+
 interface AccountEmailCodeCardProps {
   isCompact?: boolean;
   disabled?: boolean;
@@ -121,7 +123,7 @@ export function AccountEmailCodeCard({
           autoComplete="email"
           spellCheck={false}
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value.replace(HAN_CHARACTERS_REGEX, ''))}
           placeholder={t('account.emailAddress')}
           disabled={disabled || isLoading}
           className={cn(

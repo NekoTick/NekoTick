@@ -1,5 +1,5 @@
 import type { Transaction, EditorState } from '@milkdown/kit/prose/state';
-import { TextSelection } from '@milkdown/kit/prose/state';
+import { AllSelection, TextSelection } from '@milkdown/kit/prose/state';
 import { DecorationSet } from '@milkdown/kit/prose/view';
 import {
   createBlockSelectionDecorations,
@@ -197,5 +197,5 @@ export function shouldClearBlockSelectionForTransaction(
 ): boolean {
   return pluginState.selectedBlocks.length > 0
     && Boolean(tr.selectionSet)
-    && tr.selection instanceof TextSelection;
+    && (tr.selection instanceof TextSelection || tr.selection instanceof AllSelection);
 }

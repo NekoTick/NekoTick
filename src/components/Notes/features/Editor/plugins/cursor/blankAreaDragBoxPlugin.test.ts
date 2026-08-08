@@ -1,4 +1,4 @@
-import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
+import { AllSelection, NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
 import { Editor, defaultValueCtx, editorViewCtx, remarkStringifyOptionsCtx, serializerCtx } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
@@ -480,6 +480,17 @@ async function createListGapSelectionEditor() {
 describe('shouldClearBlockSelectionForTransaction', () => {
   it('clears block selection when the editor moves to a text selection', () => {
     const selection = Object.create(TextSelection.prototype);
+
+    expect(
+      shouldClearBlockSelectionForTransaction(
+        { selection, selectionSet: true } as never,
+        { selectedBlocks: [{ from: 1, to: 5 }] }
+      )
+    ).toBe(true);
+  });
+
+  it('clears block selection when the editor selects the whole document', () => {
+    const selection = Object.create(AllSelection.prototype);
 
     expect(
       shouldClearBlockSelectionForTransaction(

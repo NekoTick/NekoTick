@@ -26,6 +26,23 @@
   -webkit-text-fill-color: inherit !important;
 }
 
+::highlight(editor-large-all-selection) {
+  background-color: var(--vlaina-markdown-color-selection);
+  color: var(--vlaina-color-white);
+}
+
+@supports not selector(::highlight(editor-large-all-selection)) {
+  .milkdown .ProseMirror.editor-large-all-selection {
+    background-color: var(--vlaina-markdown-color-selection);
+    color: var(--vlaina-color-white);
+  }
+}
+
+.milkdown .ProseMirror .editor-large-selection-visible {
+  background-color: var(--vlaina-markdown-color-selection);
+  color: var(--vlaina-color-white);
+}
+
 .milkdown .ProseMirror.toolbar-selection-hidden-preview::selection,
 .milkdown .ProseMirror.toolbar-selection-hidden-preview .editor-text-selection-overlay::selection,
 .milkdown .ProseMirror.toolbar-selection-hidden-preview .editor-text-selection-overlay *::selection {

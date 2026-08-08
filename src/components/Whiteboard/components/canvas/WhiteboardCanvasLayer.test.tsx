@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { appendWhiteboardItems } from '../../model/whiteboardCollection';
 import { createWhiteboardEraserSpatialIndex, EMPTY_WHITEBOARD_ERASER_PREVIEW } from '../../model/whiteboardEraser';
 import type { WhiteboardElement, WhiteboardStroke } from '../../model/whiteboardModel';
 import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
@@ -25,6 +26,48 @@ function createRenderData(
 }
 
 describe('WhiteboardCanvasLayer', () => {
+  it('keeps a newly committed stroke in the interaction compositor layer', () => {
+    const initialStroke = {
+      color: '#111111', id: 'stroke-1',
+      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 20, y: 20 }],
+      size: 1, tool: 'pen' as const,
+    };
+    const elements: WhiteboardElement[] = [];
+    const initialStrokes = [initialStroke];
+    const props = {
+      brushCursorColor: '#111111',
+      brushCursorPoint: null,
+      brushCursorSize: 1,
+      brushCursorTool: 'pen' as const,
+      draftStroke: null,
+      eraserPreview: EMPTY_WHITEBOARD_ERASER_PREVIEW,
+      movePreview: null,
+      selectionPath: null,
+      spacePressed: false,
+      tool: 'pen' as const,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      viewportSize: { x: 500, y: 500 },
+      onElementPointerDown: vi.fn(),
+      onSelectionMovePointerDown: vi.fn(),
+      onSelectionResizePointerDown: vi.fn(),
+    };
+    const { container, rerender } = render(
+      <WhiteboardCanvasLayer {...props} renderData={createRenderData(elements, initialStrokes)} />,
+    );
+    const appendedStroke = { ...initialStroke, id: 'stroke-2' };
+
+    rerender(
+      <WhiteboardCanvasLayer
+        {...props}
+        renderData={createRenderData(elements, appendWhiteboardItems(initialStrokes, [appendedStroke]))}
+      />,
+    );
+
+    const interactionLayer = container.querySelector('[data-whiteboard-layer="interaction"]');
+    const committedStroke = container.querySelector('[data-whiteboard-stroke="stroke-2"]');
+    expect(committedStroke?.closest('[data-whiteboard-layer="interaction"]')).toBe(interactionLayer);
+  });
+
   it('renders images below completed strokes', () => {
     const { container } = render(
       <WhiteboardCanvasLayer

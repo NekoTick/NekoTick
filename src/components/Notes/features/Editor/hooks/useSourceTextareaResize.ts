@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import { themeImageBlockStyleTokens } from '@/styles/themeTokens';
 
 export function useSourceTextareaResize(
   textareaRef: RefObject<HTMLTextAreaElement | null>,
+  active: boolean,
 ) {
   const frameRef = useRef<number | null>(null);
 
@@ -10,6 +11,7 @@ export function useSourceTextareaResize(
     frameRef.current = null;
     const textarea = textareaRef.current;
     if (!textarea) return;
+    if (textarea.getBoundingClientRect().width <= 0) return;
 
     textarea.style.height = themeImageBlockStyleTokens.heightAuto;
     textarea.style.height = `${Math.max(textarea.scrollHeight, textarea.clientHeight)}px`;
@@ -21,15 +23,23 @@ export function useSourceTextareaResize(
     }
   }, [resizeToContent]);
 
+  useLayoutEffect(() => {
+    if (!active) return;
+    if (frameRef.current !== null) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    resizeToContent();
+  }, [active, resizeToContent]);
+
   useEffect(() => {
-    scheduleResize();
     return () => {
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
       }
     };
-  }, [scheduleResize]);
+  }, []);
 
   return scheduleResize;
 }

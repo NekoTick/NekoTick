@@ -41,6 +41,7 @@ vi.mock('./UnifiedSidebarContainer', () => ({
     collapsed,
     peeking,
     onDragStateChange,
+    onLiveWidthChange,
     onPeekChange,
     onLayoutAnimationComplete,
     widthScopeRef,
@@ -49,6 +50,7 @@ vi.mock('./UnifiedSidebarContainer', () => ({
     collapsed: boolean;
     peeking?: boolean;
     onDragStateChange?: (dragging: boolean) => void;
+    onLiveWidthChange?: (width: number) => void;
     onPeekChange?: (peeking: boolean) => void;
     onLayoutAnimationComplete?: () => void;
     widthScopeRef?: Ref<HTMLDivElement>;
@@ -73,6 +75,11 @@ vi.mock('./UnifiedSidebarContainer', () => ({
         data-testid="sidebar-drag-start"
         onMouseDown={() => onDragStateChange?.(true)}
         onMouseUp={() => onDragStateChange?.(false)}
+      />
+      <button
+        type="button"
+        data-testid="sidebar-live-width-change"
+        onClick={() => onLiveWidthChange?.(360)}
       />
     </aside>
   ),
@@ -156,17 +163,21 @@ describe('AppShell', () => {
     expect(peekSidebar).not.toBeNull();
     expect(peekSidebar).toHaveAttribute('data-open', 'false');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'true');
+    expect(document.documentElement).toHaveAttribute('data-shell-sidebar-peek');
+    expect(document.documentElement).not.toHaveAttribute('data-shell-sidebar-peek-open');
     expect(hotzone!.style.width).toBe('48px');
     expect(peekSidebar!.style.getPropertyValue('--vlaina-shell-sidebar-width')).toBe('300px');
     fireEvent.mouseEnter(hotzone!);
 
     expect(peekSidebar).toHaveAttribute('data-open', 'true');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'false');
+    expect(document.documentElement).toHaveAttribute('data-shell-sidebar-peek-open');
 
     fireEvent.mouseLeave(peekSidebar!);
 
     expect(peekSidebar).toHaveAttribute('data-open', 'false');
     expect(peekSidebar).toHaveAttribute('aria-hidden', 'true');
+    expect(document.documentElement).not.toHaveAttribute('data-shell-sidebar-peek-open');
   });
 
   it('shows collapsed sidebar content from the titlebar toggle hover', () => {
@@ -331,5 +342,37 @@ describe('AppShell', () => {
     expect(mainContent.style.width).toBe('75%');
     expect(mainContent.style.minWidth).toBe('12px');
     expect(mocks.setLayoutPanelDragging).toHaveBeenLastCalledWith(false);
+  });
+
+  it('keeps the frozen main layout width aligned during live sidebar resizing', () => {
+    const { container, getByTestId } = render(
+      <AppShell
+        sidebarWidth={300}
+        sidebarCollapsed={false}
+        sidebarContent={<div>Sidebar</div>}
+        onSidebarWidthChange={() => {}}
+        onSidebarToggle={() => {}}
+      >
+        <div data-testid="main-content">Main</div>
+      </AppShell>,
+    );
+
+    const main = container.querySelector<HTMLElement>('main');
+    const mainContent = getByTestId('main-content');
+    let mainClientWidth = 640;
+    Object.defineProperty(main, 'clientWidth', {
+      configurable: true,
+      get: () => mainClientWidth,
+    });
+
+    fireEvent.mouseDown(getByTestId('sidebar-drag-start'));
+    expect(mainContent.style.width).toBe('640px');
+
+    mainClientWidth = 580;
+    fireEvent.click(getByTestId('sidebar-live-width-change'));
+    expect(mainContent.style.width).toBe('580px');
+    expect(mainContent.style.minWidth).toBe('580px');
+
+    fireEvent.mouseUp(getByTestId('sidebar-drag-start'));
   });
 });
