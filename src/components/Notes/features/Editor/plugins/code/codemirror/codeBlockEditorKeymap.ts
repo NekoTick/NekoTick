@@ -112,8 +112,26 @@ function maybeEscape(
 
   const node = getNode();
   const targetPos = pos + (direction < 0 ? 0 : node.nodeSize);
-  const nextSelection = TextSelection.near(view.state.doc.resolve(targetPos), direction);
-  view.dispatch(view.state.tr.setSelection(nextSelection).scrollIntoView());
+  const tr = view.state.tr;
+  const isDocumentBoundary = unit === 'line' && (
+    direction < 0
+      ? targetPos === 0
+      : targetPos === view.state.doc.content.size
+  );
+
+  if (isDocumentBoundary) {
+    const paragraph = view.state.schema.nodes.paragraph;
+    if (paragraph) {
+      tr.insert(targetPos, paragraph.create());
+      tr.setSelection(TextSelection.near(tr.doc.resolve(targetPos + 1), direction));
+      view.dispatch(tr.scrollIntoView());
+      view.focus();
+      return true;
+    }
+  }
+
+  const nextSelection = TextSelection.near(tr.doc.resolve(targetPos), direction);
+  view.dispatch(tr.setSelection(nextSelection).scrollIntoView());
   view.focus();
   return true;
 }
