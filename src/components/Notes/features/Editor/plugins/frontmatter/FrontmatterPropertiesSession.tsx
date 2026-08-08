@@ -85,7 +85,8 @@ export class FrontmatterPropertiesSession {
   }
 
   destroy() {
-    this.root.unmount();
+    const root = this.root;
+    (this.host.ownerDocument.defaultView ?? globalThis).setTimeout(() => root.unmount(), 0);
     this.host.remove();
   }
 }

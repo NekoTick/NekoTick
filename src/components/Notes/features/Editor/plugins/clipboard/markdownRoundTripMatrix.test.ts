@@ -409,6 +409,20 @@ describe('markdown syntax persistence matrix', () => {
       markdown: ['```JS', 'const value = 1;', '```'].join('\n'),
     },
     {
+      name: 'task marker text inside fenced code and raw HTML',
+      markdown: [
+        '```text',
+        '- [✓] literal',
+        '1. 【X】 literal',
+        '```',
+        '',
+        '<div>',
+        '- [✓] literal',
+        '1. 【X】 literal',
+        '</div>',
+      ].join('\n'),
+    },
+    {
       name: 'video image syntax',
       markdown: '![video](https://example.com/video.mp4 "Demo video")',
       expected: '![video](https://example.com/video.mp4 "Demo video")',
@@ -429,6 +443,10 @@ describe('markdown syntax persistence matrix', () => {
       name: 'html image single-quoted attrs and escaped quotes',
       markdown: '<img src=\'image one.png?a=1&amp;b=2\' alt=\'A &quot;quote&quot;\' width=\'50%\' align=\'left\' title=\'Title &#39;One&#39;\' />',
       expectedText: 'A "quote"',
+    },
+    {
+      name: 'html image with long backslash runs remains stable',
+      markdown: `<img src='image.png?a=1${'\\'.repeat(64)}&amp;b=2' alt='A ${'\\'.repeat(64)}&quot;quote${'\\'.repeat(64)}&quot;' />`,
     },
     {
       name: 'table of contents marker',

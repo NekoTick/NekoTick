@@ -175,6 +175,8 @@ export class SerializerState extends Stack<
 > {
   /// @internal
   #marks: readonly Mark[] = Mark.none
+  /// @internal
+  readonly #schemaTypes: readonly (NodeType | MarkType)[]
   /// Get the schema of state.
   readonly schema: Schema
 
@@ -196,14 +198,22 @@ export class SerializerState extends Stack<
   constructor(schema: Schema) {
     super()
     this.schema = schema
+    this.#schemaTypes = Object.values({
+      ...schema.nodes,
+      ...schema.marks,
+    })
   }
 
   /// @internal
   #matchTarget = (node: Node | Mark): NodeType | MarkType => {
-    const result = Object.values({
-      ...this.schema.nodes,
-      ...this.schema.marks,
-    }).find((x): x is NodeType | MarkType => {
+    const directType = node.type as NodeType | MarkType
+    if (typeof directType === 'object' && directType !== null) {
+      const directSpec = directType.spec as NodeSchema | MarkSchema
+      if (directSpec.toMarkdown?.match(node as Node & Mark)) return directType
+    }
+
+    const result = this.#schemaTypes.find((x): x is NodeType | MarkType => {
+      if (x === directType) return false
       const spec = x.spec as NodeSchema | MarkSchema
       return spec.toMarkdown.match(node as Node & Mark)
     })

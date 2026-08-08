@@ -218,7 +218,20 @@ function resolveBodyLineNumberAnchorLeft(shellRect: DOMRect, editorRect: DOMRect
   );
 }
 
-export function resolveBodyLineNumberLabelLayout(shell: HTMLElement, markdown: string): BodyLineNumberLabelLayout {
+export function resolveBodyLineNumberLabelLayout(
+  shell: HTMLElement,
+  markdown: string,
+): BodyLineNumberLabelLayout {
+  return resolveBodyLineNumberLabelLayoutFromLineNumbers(
+    shell,
+    getMarkdownBodyLineNumbers(markdown),
+  );
+}
+
+export function resolveBodyLineNumberLabelLayoutFromLineNumbers(
+  shell: HTMLElement,
+  bodyLineNumbers: readonly number[],
+): BodyLineNumberLabelLayout {
   const editorRoot = shell.querySelector<HTMLElement>('.ProseMirror');
   if (!editorRoot) {
     return {
@@ -227,7 +240,6 @@ export function resolveBodyLineNumberLabelLayout(shell: HTMLElement, markdown: s
     };
   }
 
-  const bodyLineNumbers = getMarkdownBodyLineNumbers(markdown);
   const targets = collectBodyLineNumberTargets(editorRoot);
   const selectedDescendantTargets = shouldCollectSelectedBlockDescendantTargets(editorRoot)
     ? collectSelectedBlockDescendantTargets(editorRoot)

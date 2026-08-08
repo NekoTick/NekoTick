@@ -22,27 +22,12 @@ function needsFullMarkdownInlineParsing(text: string): boolean {
 
 export function shouldUseLazyBlockVisibility(markdown: string): boolean {
   return markdown.length >= LARGE_MARKDOWN_LAZY_BLOCK_VISIBILITY_MIN_LENGTH
-    || createLargePlainMarkdownDocJSON(markdown) !== null
-    || hasMultipleMermaidBlocks(markdown)
-    || hasLargeScrollableMarkdownShape(markdown);
+    || hasMultipleMermaidBlocksOrLargeScrollableMarkdownShape(markdown);
 }
 
-function hasMultipleMermaidBlocks(markdown: string): boolean {
+function hasMultipleMermaidBlocksOrLargeScrollableMarkdownShape(markdown: string): boolean {
+  const shouldAnalyzeScrollableShape = markdown.length >= LAZY_BLOCK_VISIBILITY_MIN_LENGTH;
   let mermaidBlockCount = 0;
-  for (const line of markdown.split('\n')) {
-    if (/^(?:`{3,}|~{3,})mermaid(?:\s|$)/i.test(line.trim())) {
-      mermaidBlockCount += 1;
-      if (mermaidBlockCount >= LAZY_BLOCK_VISIBILITY_MIN_MERMAID_BLOCKS) return true;
-    }
-  }
-  return false;
-}
-
-function hasLargeScrollableMarkdownShape(markdown: string): boolean {
-  if (markdown.length < LAZY_BLOCK_VISIBILITY_MIN_LENGTH) {
-    return false;
-  }
-
   let nonEmptyLines = 0;
   let heavyBlockLines = 0;
   let blockLikeLines = 0;
@@ -52,17 +37,23 @@ function hasLargeScrollableMarkdownShape(markdown: string): boolean {
     const lineEnd = nextBreak === -1 ? markdown.length : nextBreak;
     const trimmedLine = markdown.slice(lineStart, lineEnd).trim();
     if (trimmedLine.length > 0) {
-      nonEmptyLines += 1;
-      if (
-        LAZY_BLOCK_VISIBILITY_HEAVY_LINE_PATTERN.test(trimmedLine)
-        || (trimmedLine.startsWith('|') && trimmedLine.endsWith('|'))
-      ) {
-        heavyBlockLines += 1;
+      if (/^(?:`{3,}|~{3,})mermaid(?:\s|$)/i.test(trimmedLine)) {
+        mermaidBlockCount += 1;
+        if (mermaidBlockCount >= LAZY_BLOCK_VISIBILITY_MIN_MERMAID_BLOCKS) return true;
       }
-      if (
-        /^(?:#{1,6}\s+|(?:[-+*]|\d+[.)])\s+|>\s*|\|.*\|$|`{3,}|~{3,}|<\/?[A-Za-z]|<!--|\[\^)/.test(trimmedLine)
-      ) {
-        blockLikeLines += 1;
+      if (shouldAnalyzeScrollableShape) {
+        nonEmptyLines += 1;
+        if (
+          LAZY_BLOCK_VISIBILITY_HEAVY_LINE_PATTERN.test(trimmedLine)
+          || (trimmedLine.startsWith('|') && trimmedLine.endsWith('|'))
+        ) {
+          heavyBlockLines += 1;
+        }
+        if (
+          /^(?:#{1,6}\s+|(?:[-+*]|\d+[.)])\s+|>\s*|\|.*\|$|`{3,}|~{3,}|<\/?[A-Za-z]|<!--|\[\^)/.test(trimmedLine)
+        ) {
+          blockLikeLines += 1;
+        }
       }
     }
 
@@ -70,6 +61,10 @@ function hasLargeScrollableMarkdownShape(markdown: string): boolean {
       break;
     }
     lineStart = nextBreak + 1;
+  }
+
+  if (!shouldAnalyzeScrollableShape) {
+    return false;
   }
 
   if (nonEmptyLines < LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES) {

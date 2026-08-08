@@ -1,6 +1,6 @@
 import type { Mark, Schema } from '@milkdown/prose/model'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   areSerializerMarkPropsEqual,
@@ -66,6 +66,49 @@ const schema = {
 } as unknown as Schema
 
 describe('serializer-state', () => {
+  it('uses the serializer attached to the node type without scanning unrelated types', () => {
+    const unrelatedMatch = vi.fn(() => false)
+    const nodeType = {
+      spec: {
+        toMarkdown: {
+          match: vi.fn(() => true),
+          runner: (state: SerializerState) => {
+            state.addNode('text', [], 'content')
+          },
+        },
+      },
+    }
+    const localSchema = {
+      nodes: {
+        unrelated: {
+          spec: {
+            toMarkdown: {
+              match: unrelatedMatch,
+              runner: vi.fn(),
+            },
+          },
+        },
+        node: nodeType,
+      },
+      marks: {},
+    } as unknown as Schema
+    const node = {
+      type: nodeType,
+      marks: [],
+    }
+
+    const state = new SerializerState(localSchema)
+    state.openNode('doc')
+    state.run(node as never)
+
+    expect(unrelatedMatch).not.toHaveBeenCalled()
+    expect(nodeType.spec.toMarkdown.match).toHaveBeenCalledOnce()
+    expect(state.top()).toMatchObject({
+      type: 'doc',
+      children: [{ type: 'text', value: 'content' }],
+    })
+  })
+
   it('node', () => {
     const state = new SerializerState(schema)
     state.openNode('doc')

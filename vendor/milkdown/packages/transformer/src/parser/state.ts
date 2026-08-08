@@ -25,16 +25,28 @@ import { Stack } from '../utility'
 import { mergePairedInlineHtml } from './html'
 import { ParserStackElement } from './stack-element'
 
-const TASK_LIST_MARKER_PATTERN =
-  /^(\s*(?:[-+*]|\d+[.)])\s+)(?:\[|【)(\s|x|X|✓)(?:\]|】)/gm
+const TASK_LIST_TEXT_MARKER_PATTERN =
+  /^(?:\[|【)(\s|x|X|✓)(?:\]|】)(?=[ \t\r\n])/
 const MAX_PARSER_REMARK_AST_DEPTH = 200
 const MAX_PARSER_REMARK_AST_NODES = 250_000
 
-function normalizeTaskListMarkers(markdown: string): string {
-  return markdown.replace(TASK_LIST_MARKER_PATTERN, (_, prefix: string, marker: string) => {
-    const normalizedMarker = marker === ' ' ? ' ' : 'x'
-    return `${prefix}[${normalizedMarker}]`
-  })
+function normalizeTaskListItem(node: MarkdownNode): void {
+  if (node.type !== 'listItem' || node.checked != null) return
+
+  const paragraph = getMarkdownNodeChildren(node)[0]
+  if (paragraph?.type !== 'paragraph') return
+
+  const children = getMarkdownNodeChildren(paragraph)
+  const firstChild = children[0]
+  if (firstChild?.type !== 'text' || typeof firstChild.value !== 'string') return
+
+  const match = firstChild.value.match(TASK_LIST_TEXT_MARKER_PATTERN)
+  if (!match) return
+
+  node.checked = match[1] !== ' '
+  const value = firstChild.value.slice(match[0].length).replace(/^[ \t\r\n]/, '')
+  if (value) firstChild.value = value
+  else children.shift()
 }
 
 function getMarkdownNodeChildren(node: MarkdownNode): MarkdownNode[] {
@@ -53,6 +65,8 @@ function assertRemarkAstWithinParserBudget(tree: MarkdownNode): void {
     if (visitedNodes > MAX_PARSER_REMARK_AST_NODES || depth > MAX_PARSER_REMARK_AST_DEPTH)
       throw new Error('Markdown document is too complex to parse safely.')
 
+    // Remark has already classified protected blocks, so only real list items are normalized.
+    normalizeTaskListItem(node)
     const children = getMarkdownNodeChildren(node)
     scheduledNodes += children.length
     if (scheduledNodes > MAX_PARSER_REMARK_AST_NODES)
@@ -72,6 +86,8 @@ export class ParserState extends Stack<Node, ParserStackElement> {
 
   /// @internal
   #marks: readonly Mark[] = Mark.none
+  /// @internal
+  readonly #schemaTypes: readonly (NodeType | MarkType)[]
 
   /// Create a parser from schema and remark instance.
   ///
@@ -91,6 +107,10 @@ export class ParserState extends Stack<Node, ParserStackElement> {
   constructor(schema: Schema) {
     super()
     this.schema = schema
+    this.#schemaTypes = Object.values({
+      ...schema.nodes,
+      ...schema.marks,
+    })
   }
 
   /// @internal
@@ -106,10 +126,7 @@ export class ParserState extends Stack<Node, ParserStackElement> {
 
   /// @internal
   #matchTarget = (node: MarkdownNode): NodeType | MarkType => {
-    const result = Object.values({
-      ...this.schema.nodes,
-      ...this.schema.marks,
-    }).find((x): x is NodeType | MarkType => {
+    const result = this.#schemaTypes.find((x): x is NodeType | MarkType => {
       const spec = x.spec as NodeSchema | MarkSchema
       return spec.parseMarkdown.match(node)
     })
@@ -254,14 +271,13 @@ export class ParserState extends Stack<Node, ParserStackElement> {
 
   /// Transform a markdown string into prosemirror state.
   run = (remark: RemarkParser, markdown: string) => {
-    const normalizedMarkdown = normalizeTaskListMarkers(markdown)
     const rawTree = remark.runSync(
-      remark.parse(normalizedMarkdown),
-      normalizedMarkdown
+      remark.parse(markdown),
+      markdown
     ) as MarkdownNode
     assertRemarkAstWithinParserBudget(rawTree)
 
-    const tree = mergePairedInlineHtml(rawTree, normalizedMarkdown)
+    const tree = mergePairedInlineHtml(rawTree, markdown)
     this.next(tree)
 
     return this

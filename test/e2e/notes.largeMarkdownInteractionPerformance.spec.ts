@@ -814,10 +814,12 @@ test.describe('large markdown interaction performance', () => {
         timeoutMs: 20_000,
       });
       const domMetrics = await collectEditorDomMetrics(page);
-      await expect(page.locator(`${EDITOR_SELECTOR} .mermaid-block svg`)).toHaveCount(
-        domMetrics.countsBySelector.mermaid,
-        { timeout: 30_000 },
-      );
+      const mermaidBlocks = page.locator(`${EDITOR_SELECTOR} .mermaid-block`);
+      for (let index = 0; index < domMetrics.countsBySelector.mermaid; index += 1) {
+        const mermaidBlock = mermaidBlocks.nth(index);
+        await mermaidBlock.scrollIntoViewIfNeeded();
+        await expect(mermaidBlock.locator('svg')).toHaveCount(1, { timeout: 30_000 });
+      }
       const mixedSelectAllMetrics = await measureSelectAll(page);
       await page.evaluate(() => (window as any).__vlainaE2E.setEditorSelectionRange(1, 1));
       await waitForEditorAnimationFrame(page);
