@@ -252,8 +252,8 @@ export function WhiteboardColorPicker({ color, onChange, onClose, onOpen, swatch
             <Icon name="whiteboard.pickColor" size="sm" />
           </button>
           <div className="flex gap-2">
-            <button type="button" onClick={closePicker} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-color-control-hover-bg)] px-4 text-[var(--vlaina-font-13)] font-medium">{t('common.cancel')}</button>
-            <button type="button" onClick={() => { onChange(resolvedHex); closePicker(); }} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-accent)] px-4 text-[var(--vlaina-font-13)] font-medium text-[var(--vlaina-color-inverse-text)]">{t('common.apply')}</button>
+            <button type="button" onClick={closePicker} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-color-control-hover-bg)] px-4 text-[length:var(--vlaina-font-13)] font-medium">{t('common.cancel')}</button>
+            <button type="button" onClick={() => { onChange(resolvedHex); closePicker(); }} className="h-9 rounded-[var(--vlaina-radius-8px)] bg-[var(--vlaina-color-control-hover-bg)] px-4 text-[length:var(--vlaina-font-13)] font-medium text-[color:var(--vlaina-color-accent)]">{t('common.apply')}</button>
           </div>
         </div>
         <input ref={nativeColorInputRef} type="color" value={resolvedHex} aria-label={t('whiteboard.pickColor')} onChange={(event) => chooseSwatch(event.target.value)} className="sr-only" />
@@ -307,8 +307,8 @@ function HueField({ label, hsv, onChange }: { label: string; hsv: HsvColor; onCh
 function ColorInput({ label, onBlur, onChange, type = 'text', value }: { label: string; onBlur?: () => void; onChange: (value: string) => void; type?: 'text' | 'number'; value: string }) {
   return (
     <label className="contents">
-      <span className="self-center text-[var(--vlaina-font-13)] text-[var(--vlaina-color-text-secondary)]">{label}</span>
-      <input type={type} min={type === 'number' ? 0 : undefined} max={type === 'number' ? 255 : undefined} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} className="h-9 min-w-0 rounded-[var(--vlaina-radius-8px)] border border-[var(--vlaina-color-subtle-border-strong)] bg-[var(--vlaina-color-control-hover-bg)] px-2 font-mono text-[var(--vlaina-font-13)] text-[var(--vlaina-color-text-primary)] outline-none focus:border-[var(--vlaina-color-whiteboard-selected)]" />
+      <span className="self-center text-[length:var(--vlaina-font-13)] text-[var(--vlaina-color-text-secondary)]">{label}</span>
+      <input type={type} min={type === 'number' ? 0 : undefined} max={type === 'number' ? 255 : undefined} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} className="h-9 min-w-0 rounded-[var(--vlaina-radius-8px)] border border-[var(--vlaina-color-subtle-border-strong)] bg-[var(--vlaina-color-control-hover-bg)] px-2 font-mono text-[length:var(--vlaina-font-13)] text-[var(--vlaina-color-text-primary)] outline-none focus:border-[var(--vlaina-color-whiteboard-selected)]" />
     </label>
   );
 }
