@@ -37,6 +37,7 @@ interface NoteToolbarMoreMenuProps {
   currentNoteMetadata: NoteMetadata;
   currentNotePath: string | null | undefined;
   moreButtonRef: RefObject<HTMLButtonElement | null>;
+  onBatchExportOpen: () => void;
   onExportSelect: (format: NoteExportFormat) => void;
   onOpenChange: (open: boolean) => void;
   onSourceModeSelect: () => void;
@@ -75,6 +76,7 @@ export function NoteToolbarMoreMenu({
   currentNoteMetadata,
   currentNotePath,
   moreButtonRef,
+  onBatchExportOpen,
   onExportSelect,
   onOpenChange,
   onSourceModeSelect,
@@ -233,6 +235,14 @@ export function NoteToolbarMoreMenu({
             >
               <Icon size="md" name="file.public" className="mr-2" />
               HTML
+            </NoteMenuButton>
+            <NoteMenuSeparator />
+            <NoteMenuButton
+              className={exportMenuItemClassName}
+              onSelect={onBatchExportOpen}
+            >
+              <Icon size="md" name="common.download" className="mr-2" />
+              {t('notes.batchExport')}
             </NoteMenuButton>
           </DropdownMenuSubContent>
         </DropdownMenuSub>

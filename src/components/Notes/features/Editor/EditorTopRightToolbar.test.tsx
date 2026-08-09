@@ -69,7 +69,6 @@ vi.mock('@/components/ui/dropdown-menu', () => ({
       {children}
     </button>
   ),
-  DropdownMenuSeparator: () => <hr />,
   DropdownMenuSub: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
   DropdownMenuSubContent: ({ children, className, ...props }: { children?: React.ReactNode; className?: string }) => (
     <div data-testid="note-export-menu-content" className={className} {...props}>{children}</div>
@@ -173,6 +172,16 @@ vi.mock('@/stores/uiSlice', () => ({
 
 vi.mock('@/stores/notes/pendingEditorMarkdownFlusher', () => ({
   flushCurrentPendingEditorMarkdown: mocks.flushCurrentPendingEditorMarkdown,
+}));
+
+vi.mock('../Export/BatchNoteExportDialog', () => ({
+  BatchNoteExportDialog: ({
+    currentNotePath,
+    open,
+  }: {
+    currentNotePath?: string | null;
+    open: boolean;
+  }) => open ? <div data-testid="batch-note-export-dialog" data-note-path={currentNotePath} /> : null,
 }));
 
 vi.mock('../Export', () => ({
@@ -302,7 +311,7 @@ describe('EditorTopRightToolbar', () => {
     expect(mocks.getBacklinks).toHaveBeenCalledTimes(1);
   });
 
-  it('marks toolbar chrome and menus as ignored by editor blank-area pointer handling', () => {
+  it('marks toolbar chrome and export menus as ignored by editor blank-area pointer handling', () => {
     const { container, getByRole, getByTestId } = render(
       <EditorTopRightToolbar
         editorFind={createEditorFindController()}
@@ -318,7 +327,6 @@ describe('EditorTopRightToolbar', () => {
 
     openMoreMenu(getByRole);
     openExportMenu(getByRole);
-
     expect(container.firstElementChild).toHaveAttribute('data-no-editor-drag-box', 'true');
     expect(container.firstElementChild).toHaveClass('translate-x-[var(--vlaina-window-resize-compensation-x)]');
     expect(getByTestId('note-menu-content')).toHaveAttribute('data-no-editor-drag-box', 'true');
@@ -386,13 +394,12 @@ describe('EditorTopRightToolbar', () => {
     expect(toggleStarred).toHaveBeenCalledWith('/other/docs/alpha.md');
   });
 
-  it('exports the current toolbar note path when the store note is stale', async () => {
+  it('keeps single-note formats in the export submenu', async () => {
     mocks.currentNote = {
       path: 'old.md',
       content: '# Old',
     };
     mocks.exportNote.mockResolvedValue({ canceled: false });
-
     const { getByRole } = render(
       <EditorTopRightToolbar
         editorFind={createEditorFindController()}
@@ -419,6 +426,29 @@ describe('EditorTopRightToolbar', () => {
         title: 'Current',
       });
     });
+    expect(mocks.flushCurrentPendingEditorMarkdown).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens batch export only from the export submenu batch action', () => {
+    const { getByRole, getByTestId, queryByTestId } = render(
+      <EditorTopRightToolbar
+        editorFind={createEditorFindController()}
+        currentNotePath="docs/current.md"
+        currentNoteTitle="Current"
+        getCurrentNoteContent={() => '# Current'}
+        notesPath="/notesRoot"
+        starred={false}
+        toggleStarred={vi.fn()}
+        currentNoteMetadata={undefined}
+      />,
+    );
+
+    openMoreMenu(getByRole);
+    openExportMenu(getByRole);
+    expect(queryByTestId('batch-note-export-dialog')).not.toBeInTheDocument();
+    fireEvent.click(getByRole('menuitem', { name: 'Batch export' }));
+
+    expect(getByTestId('batch-note-export-dialog')).toHaveAttribute('data-note-path', 'docs/current.md');
     expect(mocks.flushCurrentPendingEditorMarkdown).toHaveBeenCalledTimes(1);
   });
 
@@ -587,7 +617,6 @@ describe('EditorTopRightToolbar', () => {
 
     openMoreMenu(getByRole);
     openExportMenu(getByRole);
-
     expect(getByTestId('note-menu-content').className).toContain(MENU_PANEL_CLASS_NAME);
     expect(getByTestId('note-menu-content').className).toContain('sidebar-menu-surface');
     expect(getByTestId('note-export-menu-content')).toHaveAttribute('data-no-editor-drag-box', 'true');

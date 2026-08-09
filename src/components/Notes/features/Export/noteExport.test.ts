@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureNativeFileShare } from '@/lib/nativeFileShare';
-import { exportNote, MAX_NOTE_EXPORT_OUTPUT_BYTES } from './noteExport';
+import {
+  exportNote,
+  exportNoteToFilePath,
+  getNoteExportFileName,
+  MAX_NOTE_EXPORT_OUTPUT_BYTES,
+} from './noteExport';
 import { createDocxExportBytes } from './noteExportDocx';
 
 const mocks = vi.hoisted(() => ({
@@ -144,6 +149,29 @@ describe('exportNote', () => {
     expect(new TextDecoder().decode(request.data)).toBe('<html># Shared</html>');
     expect(mocks.saveDialog).not.toHaveBeenCalled();
     expect(mocks.writeDesktopBinaryFile).not.toHaveBeenCalled();
+  });
+
+  it('writes batch output directly to the chosen file path', async () => {
+    const result = await exportNoteToFilePath({
+      format: 'html',
+      markdown: '# Batch',
+      notePath: 'Batch.md',
+      notesPath: '/notesRoot',
+      title: 'Batch',
+    }, '/exports/Batch.html');
+
+    expect(result).toEqual({ canceled: false, filePath: '/exports/Batch.html' });
+    expect(mocks.saveDialog).not.toHaveBeenCalled();
+    expect(mocks.writeDesktopBinaryFile.mock.calls[0]?.[0]).toBe('/exports/Batch.html');
+    expect(mocks.addToast).not.toHaveBeenCalled();
+  });
+
+  it('builds a safe output filename for a batch export', () => {
+    expect(getNoteExportFileName({
+      format: 'docx',
+      notePath: 'Unsafe.md',
+      title: 'Unsafe:/ Name',
+    })).toBe('Unsafe Name.docx');
   });
 
   it('rejects oversized markdown before rendering export output', async () => {

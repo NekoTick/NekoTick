@@ -1,1 +1,1 @@
-export { exportNote, type NoteExportFormat } from './noteExport';
+export { exportNote, exportNoteToFilePath, getNoteExportFileName, type NoteExportFormat } from './noteExport';

@@ -10,6 +10,7 @@ import { EXPORT_DOCUMENT_CSS, EXPORT_WIDTH_PX } from './noteExportHtmlStyles';
 
 const MAX_EXPORT_IMAGE_DECODE_WAIT_COUNT = 200;
 const MAX_EXPORT_ANIMATION_FRAME_WAIT_MS = 50;
+export const MAX_EXPORT_MERMAID_RENDER_WAIT_MS = 5_000;
 export const MAX_EXPORT_IMAGE_DECODE_SCAN_ELEMENTS = 20_000;
 export const MAX_EXPORT_IMAGE_DECODE_CONCURRENCY = 8;
 export { NoteExportDocument } from './NoteExportDocument';
@@ -86,7 +87,15 @@ async function waitForExportRender(container: HTMLElement): Promise<void> {
   await waitForAnimationFrame();
   await waitForAnimationFrame();
 
+  const mermaidWaitStartedAt = Date.now();
   while (container.querySelector('.mermaid-placeholder')) {
+    if (Date.now() - mermaidWaitStartedAt >= MAX_EXPORT_MERMAID_RENDER_WAIT_MS) {
+      container.querySelectorAll('.mermaid-placeholder').forEach((placeholder) => {
+        placeholder.classList.remove('mermaid-placeholder');
+        placeholder.classList.add('mermaid-error');
+      });
+      break;
+    }
     await waitForAnimationFrame();
   }
 

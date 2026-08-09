@@ -6,6 +6,7 @@ import { renderMermaid } from '@/components/common/markdown/mermaidRenderer';
 import {
   MAX_EXPORT_IMAGE_DECODE_CONCURRENCY,
   MAX_EXPORT_IMAGE_DECODE_SCAN_ELEMENTS,
+  MAX_EXPORT_MERMAID_RENDER_WAIT_MS,
   collectExportDecodeWaitImages,
   renderNoteExportElement,
   renderNoteExportHtml,
@@ -206,6 +207,17 @@ describe('renderNoteExportHtml', () => {
     expect(html).not.toContain('trimmed-raw.png');
   });
 
+  it('drops unresolved internal image sources from exported documents', async () => {
+    const html = await renderNoteExportHtml(
+      '![missing](img:assets/missing.gif)\n\n![relative](assets/relative.png)',
+      'Missing Images',
+    );
+    const doc = parseExportHtml(html);
+
+    expect(doc.querySelector('img[src^="img:"]')).toBeNull();
+    expect(doc.querySelector('img[src="assets/relative.png"]')).not.toBeNull();
+  });
+
   it('caps image decode waits while keeping all exported images in the document', async () => {
     const originalDecode = HTMLImageElement.prototype.decode;
     let activeDecodes = 0;
@@ -358,6 +370,32 @@ describe('renderNoteExportHtml', () => {
 
     expect(doc.querySelector('.mermaid-placeholder')).toBeNull();
     expect(doc.querySelector('.mermaid-block svg')).not.toBeNull();
+  });
+
+  it('continues exporting when Mermaid rendering never settles', async () => {
+    let resolveRender = (_markup: string) => {};
+    vi.mocked(renderMermaid).mockImplementation(() => new Promise((resolve) => {
+      resolveRender = resolve;
+    }));
+    let now = 0;
+    const dateNow = vi.spyOn(Date, 'now').mockImplementation(() => {
+      now += MAX_EXPORT_MERMAID_RENDER_WAIT_MS + 1;
+      return now;
+    });
+
+    try {
+      const html = await renderNoteExportHtml(
+        '```mermaid\nflowchart TD\nA --> B\n```',
+        'Timed out',
+      );
+      const doc = parseExportHtml(html);
+
+      expect(doc.querySelector('.mermaid-placeholder')).toBeNull();
+      expect(doc.querySelector('.mermaid-error')).not.toBeNull();
+    } finally {
+      dateNow.mockRestore();
+      resolveRender('<svg><text>Late diagram</text></svg>');
+    }
   });
 
   it('exports Markdown videos as static safe links', async () => {

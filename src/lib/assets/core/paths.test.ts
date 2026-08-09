@@ -73,6 +73,13 @@ describe('asset path resolution', () => {
       .resolves.toBe('/notesRoot/assets/a.png');
   });
 
+  it('returns no path when none of the candidates exists', async () => {
+    hoisted.exists.mockResolvedValue(false);
+
+    await expect(resolveExistingNotesRootAssetPath('/notesRoot', 'assets/a.png', 'daily/note.md'))
+      .resolves.toBe('');
+  });
+
   it('does not add a fallback for explicit note-relative paths', async () => {
     await expect(resolveNotesRootAssetPathCandidates('/notesRoot', './assets/a.png', 'daily/note.md'))
       .resolves.toEqual(['/notesRoot/daily/assets/a.png']);

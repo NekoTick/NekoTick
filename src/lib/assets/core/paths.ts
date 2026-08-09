@@ -71,10 +71,6 @@ export async function resolveExistingNotesRootAssetPath(
   currentNotePath?: string,
 ): Promise<string> {
   const candidates = await resolveNotesRootAssetPathCandidates(notesRootPath, assetPath, currentNotePath);
-  if (candidates.length <= 1) {
-    return candidates[0] ?? '';
-  }
-
   const storage = getStorageAdapter();
   for (const candidate of candidates) {
     if (await storage.exists(candidate).catch(() => false)) {
@@ -82,7 +78,7 @@ export async function resolveExistingNotesRootAssetPath(
     }
   }
 
-  return candidates[0] ?? '';
+  return '';
 }
 
 export async function resolveNotesRootAssetPathCandidates(
