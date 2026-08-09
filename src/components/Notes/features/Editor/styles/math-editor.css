@@ -232,6 +232,9 @@
 .math-editor-card {
   width: var(--vlaina-width-math-editor);
   max-width: var(--vlaina-width-math-editor);
+  max-height: var(--vlaina-height-text-editor-popup-available);
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
   border-radius: var(--vlaina-radius-12px);
@@ -241,7 +244,10 @@
 }
 
 .math-editor-content {
+  min-height: 0;
+  flex: 1 1 auto;
   padding: var(--vlaina-space-16px);
+  overflow-y: auto;
 }
 
 .math-editor-textarea {
@@ -275,6 +281,7 @@
 }
 
 .math-editor-footer {
+  flex: 0 0 auto;
   display: flex;
   justify-content: flex-end;
   padding: var(--vlaina-space-0) var(--vlaina-space-16px) var(--vlaina-space-16px);

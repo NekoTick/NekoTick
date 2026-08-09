@@ -47,6 +47,7 @@ export function createTextEditorViewSession<
     preferStatePositionOnInitialRender,
     scrollPopupIntoViewOnInitialRender,
     constrainTextareaHeightToViewport = true,
+    configurePopup,
     previewInput,
     previewInputDebounceMs = themeUiFeedbackTokens.editorTextEditorLivePreviewDebounceMs,
     previewCancel,
@@ -150,6 +151,11 @@ export function createTextEditorViewSession<
     editorElement.style.setProperty('--vlaina-width-math-editor-mobile', popupWidth);
     editorElement.style.left = `${nextPosition.x}px`;
     editorElement.style.top = `${nextPosition.y}px`;
+    const popupViewportTop = Math.max(0, editorElement.getBoundingClientRect().top);
+    editorElement.style.setProperty(
+      '--vlaina-height-text-editor-popup-available',
+      `calc(100vh - ${popupViewportTop}px - var(--vlaina-space-12px))`,
+    );
 
     if (options?.deferResize) {
       textareaResizeController.schedule();
@@ -236,6 +242,7 @@ export function createTextEditorViewSession<
       onCompositionEnd() {
         isComposing = false;
       },
+      configurePopup,
     });
 
     refs.textareaElement = textarea;

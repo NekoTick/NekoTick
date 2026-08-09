@@ -1,0 +1,229 @@
+.math-formula-picker {
+  display: grid;
+  gap: var(--vlaina-space-8px);
+}
+
+.math-formula-picker-header,
+.math-formula-picker-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vlaina-space-8px);
+}
+
+.math-formula-picker-heading {
+  color: var(--vlaina-color-math-editor-text);
+  font-size: var(--vlaina-font-sm);
+  font-weight: var(--vlaina-font-weight-semibold);
+}
+
+.math-formula-picker-modes {
+  display: inline-flex;
+  padding: var(--vlaina-space-2px);
+  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  background: var(--vlaina-color-input-surface);
+}
+
+.math-formula-picker-mode,
+.math-formula-picker-tool {
+  min-height: var(--vlaina-size-28px);
+  padding-inline: var(--vlaina-space-8px);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  color: var(--vlaina-color-math-editor-text);
+  font-size: var(--vlaina-font-xs);
+}
+
+.math-formula-picker-mode[aria-selected='true'],
+.math-formula-picker-mode:hover,
+.math-formula-picker-tool:hover {
+  background: var(--vlaina-color-math-editor-secondary-bg-hover);
+}
+
+.math-formula-picker-mode[aria-selected='true'] {
+  color: var(--vlaina-accent);
+}
+
+.math-formula-picker-search-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.math-formula-picker-search-trigger,
+.math-formula-picker-search-field {
+  min-height: var(--vlaina-size-36px);
+  border: var(--vlaina-border-width-1) solid var(--vlaina-border);
+  border-radius: var(--vlaina-radius-pill);
+  background: var(--vlaina-color-input-surface);
+  color: var(--vlaina-color-text-soft);
+}
+
+.math-formula-picker-search-trigger {
+  width: var(--vlaina-size-36px);
+  display: inline-grid;
+  place-items: center;
+  padding: var(--vlaina-space-0);
+}
+
+.math-formula-picker-search-trigger:hover,
+.math-formula-picker-search-field:focus-within {
+  border-color: var(--vlaina-accent);
+  color: var(--vlaina-accent);
+}
+
+.math-formula-picker-search-field {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--vlaina-space-8px);
+  padding-inline: var(--vlaina-space-12px) var(--vlaina-space-4px);
+}
+
+.math-formula-picker-search-input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--vlaina-size-34px);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--vlaina-color-math-editor-text);
+  font-size: var(--vlaina-font-xs);
+}
+
+.math-formula-picker-search-input:focus {
+  border-color: var(--vlaina-accent);
+  box-shadow: var(--vlaina-shadow-math-editor-focus);
+}
+
+.math-formula-picker-search-close {
+  width: var(--vlaina-size-28px);
+  height: var(--vlaina-size-28px);
+  flex: 0 0 auto;
+  padding: var(--vlaina-space-0);
+  border-radius: var(--vlaina-radius-pill);
+  color: var(--vlaina-color-text-soft);
+  font-size: var(--vlaina-font-18);
+  line-height: var(--vlaina-leading-1);
+}
+
+.math-formula-picker-search-close:hover {
+  background: var(--vlaina-color-math-editor-secondary-bg-hover);
+  color: var(--vlaina-accent);
+}
+
+.math-formula-picker-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vlaina-space-6px);
+  max-width: 100%;
+  padding-bottom: var(--vlaina-space-2px);
+}
+
+.math-formula-picker-category {
+  flex: 1 1 max-content;
+  min-width: min(100%, max-content);
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--vlaina-space-2px);
+  padding: var(--vlaina-space-6px);
+  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  background: var(--vlaina-color-input-surface);
+  color: var(--vlaina-color-math-editor-text);
+}
+
+.math-formula-picker-category:hover,
+.math-formula-picker-category[data-active='true'] {
+  border-color: var(--vlaina-accent);
+  color: var(--vlaina-accent);
+}
+
+.math-formula-picker-category-formula {
+  max-width: 100%;
+  overflow: visible;
+  font-size: var(--vlaina-font-sm);
+}
+
+.math-formula-picker-category-name {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+  font-size: var(--vlaina-font-xs);
+  line-height: var(--vlaina-leading-12);
+}
+
+.math-formula-picker-results {
+  min-height: 0;
+  max-height: min(50vh, var(--vlaina-size-400px));
+  padding: var(--vlaina-space-8px);
+  overflow-y: auto;
+  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  background: var(--vlaina-color-input-surface);
+}
+
+.math-formula-picker-group + .math-formula-picker-group {
+  margin-top: var(--vlaina-space-12px);
+}
+
+.math-formula-picker-group-label {
+  margin: var(--vlaina-space-0) var(--vlaina-space-0) var(--vlaina-space-6px);
+  color: var(--vlaina-color-text-secondary);
+  font-size: var(--vlaina-font-xs);
+  font-weight: var(--vlaina-font-weight-medium);
+}
+
+.math-formula-picker-grid,
+.math-formula-picker-results[data-layout='grid'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--vlaina-space-6px);
+}
+
+.math-formula-picker-item {
+  flex: 1 1 max-content;
+  width: max-content;
+  min-width: min(100%, max-content);
+  max-width: 100%;
+  min-height: 0;
+  height: auto;
+  display: grid;
+  place-items: center;
+  padding: var(--vlaina-space-8px);
+  overflow-x: auto;
+  overflow-wrap: anywhere;
+  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  background: var(--vlaina-color-setting-field);
+  color: var(--vlaina-color-math-editor-text);
+}
+
+.math-formula-picker-item:hover {
+  border-color: var(--vlaina-accent);
+  background: var(--vlaina-color-math-editor-secondary-bg-hover);
+  color: var(--vlaina-accent);
+}
+
+.math-formula-picker-item .katex,
+.math-formula-picker-category-formula .katex {
+  font-size: var(--vlaina-font-sm);
+}
+
+.math-formula-picker-empty {
+  flex: 1 1 100%;
+  align-self: center;
+  margin: var(--vlaina-space-0);
+  color: var(--vlaina-color-text-secondary);
+  text-align: center;
+  font-size: var(--vlaina-font-xs);
+}
+
+.math-formula-picker-render-error {
+  color: var(--vlaina-color-text-secondary);
+  font-size: var(--vlaina-font-xs);
+}

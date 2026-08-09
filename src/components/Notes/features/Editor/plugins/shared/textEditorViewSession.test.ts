@@ -224,6 +224,8 @@ describe('createTextEditorViewSession', () => {
     expect(popup.style.getPropertyValue('--vlaina-math-editor-width')).toBe('640px');
     expect(popup.style.getPropertyValue('--vlaina-width-math-editor')).toBe('640px');
     expect(popup.style.getPropertyValue('--vlaina-width-math-editor-mobile')).toBe('640px');
+    expect(popup.style.getPropertyValue('--vlaina-height-text-editor-popup-available'))
+      .toBe('calc(100vh - 0px - var(--vlaina-space-12px))');
 
     session.destroy();
   });

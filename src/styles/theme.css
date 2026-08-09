@@ -446,6 +446,7 @@
   --vlaina-width-body-line-number: var(--vlaina-size-25rem);
   --vlaina-width-math-editor: min(var(--vlaina-math-editor-width, calc(100vw - var(--vlaina-size-48px))), calc(100vw - var(--vlaina-size-48px)));
   --vlaina-width-math-editor-mobile: min(var(--vlaina-math-editor-width, calc(100vw - var(--vlaina-size-24px))), calc(100vw - var(--vlaina-size-24px)));
+  --vlaina-height-text-editor-popup-available: var(--vlaina-height-settings-modal-max);
   --vlaina-width-footnote-tooltip-max: min(var(--vlaina-size-16rem), var(--vlaina-size-60vw));
   --vlaina-width-footnote-tooltip-half-max: min(var(--vlaina-size-8rem), 30vw);
   --vlaina-footnote-tooltip-inline-reserve: calc(var(--vlaina-width-footnote-tooltip-half-max) + var(--vlaina-space-065rem) + var(--vlaina-border-width-1) + var(--vlaina-space-8px));

@@ -25,6 +25,10 @@ export interface MountTextEditorPopupArgs {
   onSave: () => void;
   onCompositionStart?: () => void;
   onCompositionEnd?: () => void;
+  configurePopup?: (
+    elements: TextEditorPopupElements,
+    notifyInput: () => void,
+  ) => void;
 }
 
 const POPUP_VIEWPORT_MARGIN = 12;
@@ -120,6 +124,7 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditor
     onSave,
     onCompositionStart,
     onCompositionEnd,
+    configurePopup,
   } = args;
   const elements = createTextEditorPopupElements(placeholder);
   const { card, textarea, cancelButton, saveButton } = elements;
@@ -134,14 +139,15 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditor
     isComposing = false;
     onCompositionEnd?.();
   });
-  textarea.addEventListener('input', () => {
+  const notifyInput = () => {
     if (onResizeRequest) {
       onResizeRequest();
     } else {
       resizeTextEditorPopupTextareaToContent({ card, textarea });
     }
     onInput(textarea.value);
-  });
+  };
+  textarea.addEventListener('input', notifyInput);
   textarea.addEventListener('paste', preventImageClipboardTextPaste);
   textarea.addEventListener('drop', preventImageDataTransferTextDrop);
   textarea.addEventListener('keydown', (event) => {
@@ -166,6 +172,7 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditor
 
   cancelButton.addEventListener('click', onCancel);
   saveButton.addEventListener('click', onSave);
+  configurePopup?.(elements, notifyInput);
   container.replaceChildren(card);
   if (onResizeRequest) {
     onResizeRequest();

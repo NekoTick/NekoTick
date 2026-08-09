@@ -1,4 +1,5 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
+import type { TextEditorPopupElements } from './textEditorPopupDom';
 
 export interface TextEditorSessionState {
   isOpen: boolean;
@@ -52,6 +53,10 @@ export interface CreateTextEditorViewSessionArgs<
   preferStatePositionOnInitialRender?: (state: TState) => boolean;
   scrollPopupIntoViewOnInitialRender?: boolean;
   constrainTextareaHeightToViewport?: boolean;
+  configurePopup?: (
+    elements: TextEditorPopupElements,
+    notifyInput: () => void,
+  ) => void;
   previewInput: (args: TextEditorPreviewArgs<TState, TRefs>) => void;
   previewInputDebounceMs?: number;
   previewCancel: (args: TextEditorPreviewArgs<TState, TRefs>) => void;
