@@ -29,6 +29,7 @@ export const TEXT_BLOCK_SURFACE_SELECTOR = [
   'p',
   'li',
   'blockquote',
+  '.frontmatter-block-container',
   MARKDOWN_BLANK_LINE_SELECTOR,
   'h1',
   'h2',
@@ -40,6 +41,7 @@ export const TEXT_BLOCK_SURFACE_SELECTOR = [
 export const STRUCTURED_BLOCK_SELECTOR = [
   'table',
   'pre',
+  '.frontmatter-block-container',
   `[data-type]:not(:is(${MARKDOWN_BLANK_LINE_SELECTOR}))`,
   '[data-node-view-root]',
 ].join(', ');

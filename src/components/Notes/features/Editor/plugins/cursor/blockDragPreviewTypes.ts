@@ -64,6 +64,7 @@ export interface BlockDragPreviewHandle {
   element: HTMLElement;
   offsetX: number;
   offsetY: number;
+  move: (clientX: number, clientY: number) => void;
   destroy: () => void;
 }
 

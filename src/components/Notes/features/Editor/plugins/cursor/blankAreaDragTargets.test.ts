@@ -769,6 +769,46 @@ describe('blankAreaDragTargets', () => {
     }
   });
 
+  it('allows frontmatter side gutters to start blank-area selection', () => {
+    const { view, cleanup } = createView();
+    const frontmatter = document.createElement('div');
+    frontmatter.className = 'frontmatter-block-container';
+    const source = document.createElement('div');
+    source.textContent = 'title: note';
+    frontmatter.append(source);
+    view.dom.append(frontmatter);
+
+    try {
+      expect(resolveBlankAreaDragStartZone(
+        view,
+        createMouseDown(frontmatter, { clientX: 20, clientY: 50 }),
+      )).toBe('outside-editor');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('prefers block selection over native text gutters inside frontmatter', () => {
+    const { view, cleanup } = createView();
+    const frontmatter = document.createElement('div');
+    frontmatter.className = 'frontmatter-block-container';
+    frontmatter.textContent = 'title: note';
+    view.dom.append(frontmatter);
+    const getClientRects = vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue(
+      rectList(rect(40, 60, 100, 240)),
+    );
+
+    try {
+      expect(resolveBlankAreaDragStartZone(
+        view,
+        createMouseDown(frontmatter, { clientX: 250, clientY: 50 }),
+      )).toBe('outside-editor');
+    } finally {
+      getClientRects.mockRestore();
+      cleanup();
+    }
+  });
+
   it('lets empty full-width text blocks use native caret placement', () => {
     const { view, cleanup } = createView();
     const paragraph = document.createElement('p');

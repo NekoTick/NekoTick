@@ -82,8 +82,6 @@ export function installBlockControlsViewSessionDragHandlers(session: any): void 
     if (preview) {
       session.dragPreview = preview;
       setPendingCrossNoteBlockDragPreview(preview);
-      preview.element.style.left = `${Math.round(event.clientX - preview.offsetX)}px`;
-      preview.element.style.top = `${Math.round(event.clientY - preview.offsetY)}px`;
     }
     session.lastDragClientX = event.clientX;
     session.lastDragClientY = event.clientY;

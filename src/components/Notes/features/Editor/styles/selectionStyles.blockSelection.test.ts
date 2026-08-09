@@ -315,6 +315,7 @@ describe("editor block selection styles", () => {
     expect(largeRichSelectionFillRule).toContain('display: block !important;');
     expect(largeRichSelectionFillRule).toContain('background: var(--vlaina-block-selection-color);');
     expect(css).toContain('.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-selected-textlike > *:not(');
+    expect(css).toContain('.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-drag-source-textlike > *:not(');
   });
 
   it('uses explicit native selected text-like classes instead of repeated selector lists', () => {

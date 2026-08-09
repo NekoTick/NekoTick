@@ -261,7 +261,9 @@ export function resolveBlankAreaDragStartZone(view: EditorView, event: MouseEven
     const targetTextBlock = target.closest(TEXT_BLOCK_SURFACE_SELECTOR);
     if (targetTextBlock instanceof HTMLElement && view.dom.contains(targetTextBlock)) {
       const textLineHit = resolvePointerEventTargetTextLineHit(view, event);
-      if (isNativeTextSelectionHit(textLineHit)) {
+      const isFrontmatterGutterHit = targetTextBlock.matches('.frontmatter-block-container')
+        && textLineHit?.type === 'gutter';
+      if (isNativeTextSelectionHit(textLineHit) && !isFrontmatterGutterHit) {
         return null;
       }
       if (isNativeEditableEmptyTextBlockTarget(view, target)) {

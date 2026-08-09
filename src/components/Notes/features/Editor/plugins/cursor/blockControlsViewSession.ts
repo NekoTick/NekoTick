@@ -33,6 +33,11 @@ export class BlockControlsViewSession {
   lastDragClientY: number | null = null;
   pendingDragClientX: number | null = null;
   pendingDragClientY: number | null = null;
+  dropValidationDoc: EditorView['state']['doc'] | null = null;
+  dropValidationRanges: BlockRange[] | null = null;
+  dropValidationInsertPos: number | null = null;
+  dropValidationCrossNote = false;
+  dropValidationCanApply = false;
   pointerX: number | null = null;
   pointerY: number | null = null;
   dragSourceDoc: EditorView['state']['doc'] | null = null;

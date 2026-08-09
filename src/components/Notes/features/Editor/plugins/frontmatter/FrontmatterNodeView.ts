@@ -104,7 +104,6 @@ export class FrontmatterNodeView implements NodeView {
     }
 
     const blockRect = this.dom.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
     let gapBottom = blockRect.bottom;
     for (
       let sibling = this.dom.nextElementSibling;
@@ -121,13 +120,7 @@ export class FrontmatterNodeView implements NodeView {
       event.clientY >= blockRect.bottom
       && event.clientY < gapBottom
     );
-    const isInsideLeftGutter = (
-      event.clientX >= targetRect.left
-      && event.clientX < blockRect.left
-      && event.clientY >= blockRect.top
-      && event.clientY <= blockRect.bottom
-    );
-    if (!isInsideBottomGap && !isInsideLeftGutter) return;
+    if (!isInsideBottomGap) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();

@@ -40,6 +40,10 @@ describe("editor block drag interaction styles", () => {
       css,
       'body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected,'
     );
+    const dragSourceTextlikeContentRule = extractCssRule(
+      css,
+      '.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-drag-source-textlike > *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.heading-toggle-btn):not(.editor-collapse-btn):not(.ProseMirror-widget) {'
+    );
 
     expect(css).toContain('.milkdown .ProseMirror .editor-block-drag-source {');
     expect(css).toContain('body.editor-block-drag-active .milkdown .ProseMirror .editor-block-selected,');
@@ -63,6 +67,8 @@ describe("editor block drag interaction styles", () => {
     expect(css).not.toContain('var(--vlaina-editor-block-selection-fg)');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike.editor-block-drag-source-has-next,');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-drag-source-textlike.editor-block-drag-source-has-previous,');
+    expect(dragSourceTextlikeContentRule).toContain('position: relative;');
+    expect(dragSourceTextlikeContentRule).toContain('z-index: var(--vlaina-z-1);');
   });
 
   it('keeps block handle dragging on a grabbing cursor', () => {

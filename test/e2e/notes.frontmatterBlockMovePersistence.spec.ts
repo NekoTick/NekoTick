@@ -56,6 +56,17 @@ async function dragSelectedHandleBeforeParagraph(page: Page, targetText: string)
     document.body.classList.contains('editor-block-drag-active')
   ), { message: 'Expected frontmatter block drag to become active' }).toBe(true);
   await page.mouse.move(dropX, dropY, { steps: 8 });
+  const indicator = page.locator('.editor-block-drop-indicator.visible');
+  await expect(indicator).toBeVisible();
+  const dragLayerOrder = await page.evaluate(() => {
+    const dropIndicator = document.querySelector<HTMLElement>('.editor-block-drop-indicator.visible');
+    const dragPreview = document.querySelector<HTMLElement>('.editor-block-drag-preview');
+    return {
+      indicator: Number.parseInt(getComputedStyle(dropIndicator!).zIndex, 10),
+      preview: Number.parseInt(getComputedStyle(dragPreview!).zIndex, 10),
+    };
+  });
+  expect(dragLayerOrder.indicator).toBeGreaterThan(dragLayerOrder.preview);
   await page.mouse.up();
   await expect.poll(async () => page.evaluate(() =>
     document.body.classList.contains('editor-block-drag-active')

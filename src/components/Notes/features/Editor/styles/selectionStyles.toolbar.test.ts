@@ -69,6 +69,10 @@ describe("editor floating toolbar and preview styles", () => {
     expect(css).toContain('transition: none !important;');
     expect(css).toContain('.milkdown .frontmatter-block-container.ProseMirror-selectednode,');
     expect(css).toContain('.milkdown .frontmatter-block-container.editor-block-selected {');
+    expect(css).toContain('.milkdown .ProseMirror .frontmatter-block-container:is(');
+    expect(css).toContain('.editor-block-drag-source,');
+    expect(css).toContain(':is(.frontmatter-properties-host, .frontmatter-block-editor) {');
+    expect(css).toContain('z-index: var(--vlaina-z-1);');
     expect(css).not.toContain('--vlaina-block-selection-bleed-y:');
     expect(css).toContain('--vlaina-block-selection-bleed-x-start: var(--vlaina-block-selection-bleed-x-default);');
     expect(css).toContain('--vlaina-block-selection-bleed-x-end: var(--vlaina-block-selection-bleed-x-default);');

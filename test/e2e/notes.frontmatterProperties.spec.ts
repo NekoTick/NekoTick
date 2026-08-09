@@ -43,7 +43,6 @@ test.describe('notes frontmatter properties', () => {
       const modeButton = block.locator('.frontmatter-properties-mode');
       await expect(block.locator('.frontmatter-properties-view')).toBeVisible();
       await expect(modeButton).toHaveAttribute('aria-label', 'YAML source');
-
       const blockBox = await block.boundingBox();
       expect(blockBox).not.toBeNull();
       await page.mouse.move(blockBox!.x + 4, blockBox!.y + 4);

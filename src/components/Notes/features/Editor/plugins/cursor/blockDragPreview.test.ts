@@ -319,6 +319,15 @@ describe('createBlockDragPreview', () => {
     expect(preview?.offsetX).toBe(handleClientX - 120);
     expect(handleClientX - (preview?.offsetX ?? 0)).toBe(120);
     expect(preview?.offsetY).toBe(16);
+    expect(preview?.element.style.left).toBe('0px');
+    expect(preview?.element.style.top).toBe('0px');
+    expect(preview?.element.style.transform).toBe('translate3d(120px, 80px, 0)');
+
+    preview?.move(140, 120);
+
+    expect(preview?.element.style.left).toBe('0px');
+    expect(preview?.element.style.top).toBe('0px');
+    expect(preview?.element.style.transform).toBe('translate3d(172px, 104px, 0)');
 
     preview?.destroy();
     rectSpy.mockRestore();
