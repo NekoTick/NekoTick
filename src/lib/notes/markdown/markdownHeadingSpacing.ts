@@ -30,8 +30,14 @@ export function collapseSyntheticBlankLinesAroundEmptyPlaceholders(text: string)
       }
 
       if (hasPreviousContent) {
+        let removedSeparator = false;
         while (output.length > 0 && (output[output.length - 1] ?? '').trim() === '') {
           output.pop();
+          removedSeparator = true;
+        }
+        const previousContent = output[output.length - 1] ?? '';
+        if (removedSeparator && isMarkdownListItemLine(previousContent)) {
+          output.push('');
         }
       }
 
@@ -46,6 +52,10 @@ export function collapseSyntheticBlankLinesAroundEmptyPlaceholders(text: string)
 
     return output.join('\n');
   });
+}
+
+function isMarkdownListItemLine(line: string): boolean {
+  return /^(?: {0,3}(?:[-+*]|\d+[.)])\s+\S)/.test(line);
 }
 
 function getLastContentIndex(lines: readonly string[]): number {

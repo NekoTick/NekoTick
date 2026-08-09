@@ -22,7 +22,13 @@ import { dispatchBlockSelectionAction } from '../cursor/blockSelectionPluginStat
 import { mathPlugin } from '../math';
 import { tocPlugin } from '../toc';
 import { videoPlugin } from '../video';
-import { getCaretTargetFromPoint, getDomCaretTarget } from './textSelectionOverlayCaret';
+import {
+  getCaretTargetFromPoint,
+  getDomCaretTarget,
+  getTextNodeCaretTargetFromPoint,
+  MAX_TEXT_SELECTION_CARET_GRAPHEMES,
+} from './textSelectionOverlayCaret';
+import { handleTextSelectionOverlayAutoScroll } from './textSelectionOverlayPointerHandlers';
 import {
   cancelPointerClickCollapseReassertion,
   collapsePointerNativeSelectionAt,
@@ -102,6 +108,140 @@ function mockCaretRangeFromPoint(view: EditorView, textOffset: number) {
 }
 
 describe('textSelectionOverlayPlugin', () => {
+  it('keeps fallback caret targets on grapheme boundaries', async () => {
+    const view = await createEditor('A😀éB');
+    const textNode = document.createTreeWalker(view.dom, NodeFilter.SHOW_TEXT).nextNode() as Text | null;
+    expect(textNode).toBeInstanceOf(Text);
+    const originalElementFromPoint = document.elementFromPoint;
+    const measuredOffsets: Array<[number, number]> = [];
+    const getClientRects = vi.spyOn(Range.prototype, 'getClientRects').mockImplementation(function (this: Range) {
+      measuredOffsets.push([this.startOffset, this.endOffset]);
+      const key = `${this.startOffset}:${this.endOffset}`;
+      const horizontalBounds: Record<string, [number, number]> = {
+        '0:1': [0, 10],
+        '1:2': [10, 30],
+        '1:3': [10, 30],
+        '2:3': [10, 30],
+        '3:4': [30, 50],
+        '3:5': [30, 50],
+        '4:5': [30, 50],
+        '5:6': [50, 60],
+      };
+      const [left, right] = horizontalBounds[key] ?? [0, 60];
+      return [{
+        bottom: 20,
+        height: 20,
+        left,
+        right,
+        top: 0,
+        width: right - left,
+      }] as unknown as DOMRectList;
+    });
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => textNode!.parentElement,
+    });
+
+    try {
+      const target = getTextNodeCaretTargetFromPoint(view, new MouseEvent('mousedown', {
+        clientX: 26,
+        clientY: 10,
+      }));
+
+      expect(target?.offset).toBe(3);
+      expect(measuredOffsets).toContainEqual([1, 3]);
+      expect(measuredOffsets).not.toContainEqual([1, 2]);
+      expect(measuredOffsets).not.toContainEqual([2, 3]);
+    } finally {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+      getClientRects.mockRestore();
+    }
+  });
+
+  it('uses the browser caret before measuring fallback text ranges', async () => {
+    const view = await createEditor('hello');
+    const restoreCaretRangeFromPoint = mockCaretRangeFromPoint(view, 3);
+    const getClientRects = vi.spyOn(Range.prototype, 'getClientRects');
+
+    try {
+      const target = getCaretTargetFromPoint(view, new MouseEvent('mousedown', {
+        clientX: 10,
+        clientY: 10,
+      }));
+
+      expect(target?.offset).toBe(3);
+      expect(getClientRects).not.toHaveBeenCalled();
+    } finally {
+      getClientRects.mockRestore();
+      restoreCaretRangeFromPoint();
+    }
+  });
+
+  it('bounds fallback grapheme measurements for long text nodes', async () => {
+    const view = await createEditor('a'.repeat(MAX_TEXT_SELECTION_CARET_GRAPHEMES + 100));
+    const textNode = document.createTreeWalker(view.dom, NodeFilter.SHOW_TEXT).nextNode() as Text | null;
+    expect(textNode).toBeInstanceOf(Text);
+    const originalElementFromPoint = document.elementFromPoint;
+    const getClientRects = vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue([{
+      bottom: 20,
+      height: 20,
+      left: 0,
+      right: 100,
+      top: 0,
+      width: 100,
+    }] as unknown as DOMRectList);
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => textNode!.parentElement,
+    });
+
+    try {
+      getTextNodeCaretTargetFromPoint(view, new MouseEvent('mousedown', {
+        clientX: 50,
+        clientY: 10,
+      }));
+
+      expect(getClientRects.mock.calls.length).toBeLessThanOrEqual(
+        MAX_TEXT_SELECTION_CARET_GRAPHEMES + 1,
+      );
+    } finally {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+      getClientRects.mockRestore();
+    }
+  });
+
+  it('extends fallback text selection while auto-scrolling under a stationary pointer', async () => {
+    const view = await createEditor('hello world');
+    const restoreCaretRangeFromPoint = mockCaretRangeFromPoint(view, 8);
+    const anchor = 2;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor)));
+    const context = {
+      view,
+      session: {
+        lastPointerSelectionX: 32,
+        lastPointerSelectionY: 480,
+        pointerTextSelectionActive: true,
+        pointerTextSelectionAnchor: anchor,
+        pointerTextSelectionDoc: view.state.doc,
+      },
+    } as never;
+
+    try {
+      handleTextSelectionOverlayAutoScroll(context);
+
+      expect(view.state.selection.anchor).toBe(anchor);
+      expect(view.state.selection.head).toBe(9);
+    } finally {
+      restoreCaretRangeFromPoint();
+    }
+  });
+
   it('rejects structural browser caret positions as text-selection targets', async () => {
     const view = await createEditor('hello');
     const originalElementFromPoint = document.elementFromPoint;

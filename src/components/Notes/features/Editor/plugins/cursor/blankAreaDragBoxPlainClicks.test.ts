@@ -88,6 +88,38 @@ describe('resolveTextblockLineEndPlainClick', () => {
     }
   });
 
+  it('leaves the trailing text gutter available for native drag selection', () => {
+    const { editor, event, view } = createHarness();
+    view.state.doc.descendants = vi.fn();
+    const rangeRects = vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue({
+      0: {
+        bottom: 60,
+        height: 20,
+        left: 440,
+        right: 480,
+        top: 40,
+        width: 40,
+      },
+      item: (index: number) => index === 0 ? ({
+        bottom: 60,
+        height: 20,
+        left: 440,
+        right: 480,
+        top: 40,
+        width: 40,
+      } as DOMRect) : null,
+      length: 1,
+    } as DOMRectList);
+
+    try {
+      expect(resolveInsideBlockTrailingPlainClick(view, event)).toBeNull();
+      expect(view.posAtCoords).not.toHaveBeenCalled();
+    } finally {
+      rangeRects.mockRestore();
+      editor.remove();
+    }
+  });
+
   it('targets the current paragraph end before a following pasted list paragraph', () => {
     const { editor, event, view } = createHarness();
 

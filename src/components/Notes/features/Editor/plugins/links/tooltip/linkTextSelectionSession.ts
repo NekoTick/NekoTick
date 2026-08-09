@@ -190,6 +190,7 @@ function isPlainPrimaryMouseDown(event: MouseEvent): boolean {
 export function startLinkTextSelectionSession(
     view: EditorView,
     event: MouseEvent,
+    onDragSelectionStart: () => void,
     onDragSelectionComplete: () => void,
 ): boolean {
     if (!isPlainPrimaryMouseDown(event)) return false;
@@ -203,6 +204,7 @@ export function startLinkTextSelectionSession(
     const sessionDoc = view.state.doc;
 
     const ownerDocument = view.dom.ownerDocument;
+    const ownerWindow = ownerDocument.defaultView;
     const startX = event.clientX;
     const startY = event.clientY;
     let moved = false;
@@ -213,6 +215,7 @@ export function startLinkTextSelectionSession(
         stopped = true;
         ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
         ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
+        ownerWindow?.removeEventListener('blur', stop);
     };
 
     const extendSelection = (moveEvent: MouseEvent, suppressWikiLinkExpansion = isWikiLinkSelection) => {
@@ -228,16 +231,16 @@ export function startLinkTextSelectionSession(
             stop();
             return;
         }
-        if ((moveEvent.buttons & 1) === 0) {
-            stop();
-            return;
-        }
+        if ((moveEvent.buttons & 1) === 0) return;
 
         const hasDragged =
             Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > LINK_DRAG_SELECTION_THRESHOLD_PX;
         if (!moved && !hasDragged) return;
 
-        moved = true;
+        if (!moved) {
+            moved = true;
+            onDragSelectionStart();
+        }
         moveEvent.preventDefault();
         moveEvent.stopPropagation();
         moveEvent.stopImmediatePropagation();
@@ -273,5 +276,6 @@ export function startLinkTextSelectionSession(
     });
     ownerDocument.addEventListener('mousemove', handleMouseMove, true);
     ownerDocument.addEventListener('mouseup', handleMouseUp, true);
+    ownerWindow?.addEventListener('blur', stop);
     return true;
 }

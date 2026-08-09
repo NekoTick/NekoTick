@@ -277,7 +277,22 @@ describe('installLinkTooltipEvents', () => {
         });
 
         link.dispatchEvent(mouseDown);
+        document.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            buttons: 0,
+            clientX: 10,
+            clientY: 10,
+        }));
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         document.dispatchEvent(mouseMove);
+        document.dispatchEvent(new MouseEvent('mousemove', {
+            bubbles: true,
+            cancelable: true,
+            buttons: 0,
+            clientX: 100,
+            clientY: 10,
+        }));
         document.dispatchEvent(mouseUp);
         link.dispatchEvent(click);
         await flushAsyncHandlers();
@@ -944,6 +959,7 @@ describe('installLinkTooltipEvents', () => {
 
         link.dispatchEvent(mouseDown);
         document.dispatchEvent(mouseMove);
+        expect(handlers.hide).toHaveBeenCalledWith(true);
         document.dispatchEvent(mouseUp);
         link.dispatchEvent(click);
         await flushAsyncHandlers();

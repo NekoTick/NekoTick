@@ -9,6 +9,7 @@ import { createBlockRectResolver } from './blockRectResolver';
 import {
   isExternalTextLineGutterNativeSelectionTarget,
   isIgnoredBlankAreaDragBoxTarget,
+  isNativeTextSelectionHit,
   isPointInsideIgnoredBlankAreaDragBoxElement,
   isSameEditorBlankAreaInteractionTarget,
   resolvePointerEventTargetTextLineHit,
@@ -92,7 +93,7 @@ export function resolveInsideBlockTrailingPlainClick(view: EditorView, event: Mo
   const startedInsideEditor = event.target instanceof Node && view.dom.contains(event.target);
   if (event.target instanceof HTMLElement) {
     const textLineHit = resolvePointerEventTargetTextLineHit(view, event);
-    if (textLineHit?.type === 'content') {
+    if (isNativeTextSelectionHit(textLineHit)) {
       return null;
     }
   }

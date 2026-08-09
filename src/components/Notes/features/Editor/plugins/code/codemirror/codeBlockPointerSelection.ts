@@ -1,5 +1,9 @@
 import { EditorSelection } from '@codemirror/state';
 import { EditorView as CodeMirror, ViewPlugin } from '@codemirror/view';
+import {
+  iterateTextGraphemeRanges,
+  MAX_POINTER_TEXT_GRAPHEME_MEASUREMENTS,
+} from '../../shared/pointerTextPosition';
 
 function resolveCodeBlockTextNodeCaretPositionAtPointer(view: CodeMirror, event: MouseEvent): number | null {
   const ownerDocument = view.dom.ownerDocument;
@@ -9,6 +13,7 @@ function resolveCodeBlockTextNodeCaretPositionAtPointer(view: CodeMirror, event:
   const walker = ownerDocument.createTreeWalker(root, showText);
   const range = ownerDocument.createRange();
   let best: { distance: number; node: Text; offset: number } | null = null;
+  let measuredGraphemes = 0;
 
   try {
     while (walker.nextNode()) {
@@ -25,9 +30,11 @@ function resolveCodeBlockTextNodeCaretPositionAtPointer(view: CodeMirror, event:
       );
       if (!isOnClickedLine) continue;
 
-      for (let offset = 0; offset < textNode.data.length; offset += 1) {
-        range.setStart(textNode, offset);
-        range.setEnd(textNode, offset + 1);
+      for (const grapheme of iterateTextGraphemeRanges(textNode.data)) {
+        if (measuredGraphemes >= MAX_POINTER_TEXT_GRAPHEME_MEASUREMENTS) return null;
+        measuredGraphemes += 1;
+        range.setStart(textNode, grapheme.from);
+        range.setEnd(textNode, grapheme.to);
         for (const rect of Array.from(range.getClientRects())) {
           if (rect.width <= 0 || rect.height <= 0) continue;
 
@@ -50,7 +57,7 @@ function resolveCodeBlockTextNodeCaretPositionAtPointer(view: CodeMirror, event:
           best = {
             distance,
             node: textNode,
-            offset: event.clientX <= rect.left + rect.width / 2 ? offset : offset + 1,
+            offset: event.clientX <= rect.left + rect.width / 2 ? grapheme.from : grapheme.to,
           };
         }
       }
@@ -68,14 +75,14 @@ function resolveCodeBlockTextNodeCaretPositionAtPointer(view: CodeMirror, event:
 }
 
 function resolveCodeBlockCaretPositionAtPointer(view: CodeMirror, event: MouseEvent): number | null {
-  const textNodePosition = resolveCodeBlockTextNodeCaretPositionAtPointer(view, event);
-  if (textNodePosition !== null) {
-    return textNodePosition;
-  }
-
   const coordsPosition = view.posAtCoords({ x: event.clientX, y: event.clientY });
   if (coordsPosition !== null) {
     return coordsPosition;
+  }
+
+  const textNodePosition = resolveCodeBlockTextNodeCaretPositionAtPointer(view, event);
+  if (textNodePosition !== null) {
+    return textNodePosition;
   }
 
   const ownerDocument = view.dom.ownerDocument as Document & {

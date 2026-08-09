@@ -1,9 +1,18 @@
 const pendingBlockSelectionRoots = new WeakSet<HTMLElement>();
+const blockSelectionPointerDownEvents = new WeakSet<MouseEvent>();
 const previewElementsByRoot = new WeakMap<HTMLElement, readonly HTMLElement[]>();
 
 export const BLOCK_SELECTION_PREVIEW_CHANGE_EVENT = 'editor-block-selection-preview-change';
 export const BLOCK_SELECTION_INTERACTION_CHANGE_EVENT = 'editor-block-selection-interaction-change';
 export const BLOCK_SELECTION_PREVIEW_SURFACE_CLASS = 'editor-block-selection-preview-surface';
+
+export function markBlockSelectionPointerDown(event: MouseEvent): void {
+  blockSelectionPointerDownEvents.add(event);
+}
+
+export function didPointerDownStartWithBlockSelection(event: MouseEvent): boolean {
+  return blockSelectionPointerDownEvents.has(event);
+}
 
 export function setBlockSelectionInteractionPending(root: HTMLElement, pending: boolean): void {
   if (pendingBlockSelectionRoots.has(root) === pending) return;

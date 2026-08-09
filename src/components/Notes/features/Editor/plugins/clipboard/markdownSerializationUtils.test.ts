@@ -781,6 +781,18 @@ describe('normalizeSerializedMarkdownDocument', () => {
     ).toBe(['hi', '', '<p>Fresh middle HTML body</p>', '', '', '1'].join('\n'));
   });
 
+  it('preserves an explicit editor blank line after a list', () => {
+    expect(
+      normalizeSerializedMarkdownDocument([
+        '15. Keep',
+        '',
+        '\u200B',
+        '',
+        'Body',
+      ].join('\n'))
+    ).toBe(['15. Keep', '', '', 'Body'].join('\n'));
+  });
+
   it('strips editor rendered-boundary comments after multi-line html blocks', () => {
     expect(
       normalizeSerializedMarkdownDocument([
