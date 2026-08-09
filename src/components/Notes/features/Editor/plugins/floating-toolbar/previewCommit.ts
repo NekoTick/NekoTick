@@ -3,6 +3,7 @@ import type { EditorState } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { markEditorUserInput } from '../shared/userInputEvents';
 import { clearPreviewOverlay } from './previewAppliedRenderer';
+import { clearSelectionBlockPreview } from './previewSelectionBlock';
 import { previewStyleState } from './previewStyleState';
 
 function setCollapsedSelectionNear(tr: EditorState['tr'], pos: number): void {
@@ -59,6 +60,19 @@ function dispatchPreviewState(view: EditorView, previewState: EditorState): bool
 
 export function commitPreview(view: EditorView, key: string): boolean {
   const previewOverlay = previewStyleState.previewOverlay;
+  const selectionBlockPreview = previewStyleState.selectionBlockPreview;
+  if (
+    selectionBlockPreview &&
+    selectionBlockPreview.viewDom === view.dom &&
+    selectionBlockPreview.key === key &&
+    view.state.doc.eq(selectionBlockPreview.originalDoc)
+  ) {
+    const previewState = selectionBlockPreview.previewState;
+    clearSelectionBlockPreview();
+    if (previewState.doc.eq(view.state.doc)) return false;
+    return dispatchPreviewState(view, previewState);
+  }
+
   if (
     !previewOverlay ||
     previewOverlay.viewDom !== view.dom ||

@@ -22,8 +22,24 @@ import {
   refreshMatchingSelectionColorPreview,
   renderSelectionColorPreview,
 } from './previewSelectionColor';
+import {
+  clearSelectionFormatPreview,
+  refreshMatchingSelectionFormatPreview,
+  renderSelectionFormatPreview,
+} from './previewSelectionFormat';
+import {
+  clearSelectionAlignmentPreview,
+  refreshMatchingSelectionAlignmentPreview,
+  renderSelectionAlignmentPreview,
+} from './previewSelectionAlignment';
+import {
+  clearSelectionBlockPreview,
+  refreshMatchingSelectionBlockPreview,
+  renderSelectionBlockPreview,
+} from './previewSelectionBlock';
 
 export { hasActiveAppliedPreview } from './previewAppliedRenderer';
+export { hasActiveSelectionBlockPreview } from './previewSelectionBlock';
 
 export function hasFormatPreview(action: string): boolean {
   return action in FORMAT_MARKS || action === 'link';
@@ -49,12 +65,24 @@ export function hasBlockPreview(blockType: BlockType): boolean {
 function clearFormatPreviewState(): boolean {
   const didClearPreview = clearPreviewOverlay();
   const didClearSelectionColorPreview = clearSelectionColorPreview();
-  return didClearPreview || didClearSelectionColorPreview;
+  const didClearSelectionFormatPreview = clearSelectionFormatPreview();
+  const didClearSelectionAlignmentPreview = clearSelectionAlignmentPreview();
+  const didClearSelectionBlockPreview = clearSelectionBlockPreview();
+  return (
+    didClearPreview ||
+    didClearSelectionColorPreview ||
+    didClearSelectionFormatPreview ||
+    didClearSelectionAlignmentPreview ||
+    didClearSelectionBlockPreview
+  );
 }
 
 export function applyFormatPreview(view: EditorView, action: string, isActive: boolean = false): void {
   const key = `format:${action}:${isActive}`;
   if (hasMatchingPreview(view, key)) {
+    return;
+  }
+  if (refreshMatchingSelectionFormatPreview(view, key)) {
     return;
   }
 
@@ -66,9 +94,12 @@ export function applyFormatPreview(view: EditorView, action: string, isActive: b
       return;
     }
 
-    renderAppliedPreview(view, key, (previewView) => {
+    const didRenderAppliedPreview = renderAppliedPreview(view, key, (previewView) => {
       setLink(previewView, null);
     });
+    if (!didRenderAppliedPreview) {
+      renderSelectionFormatPreview(view, 'link', true, key);
+    }
     return;
   }
 
@@ -76,9 +107,12 @@ export function applyFormatPreview(view: EditorView, action: string, isActive: b
     return;
   }
 
-  renderAppliedPreview(view, key, (previewView) => {
+  const didRenderAppliedPreview = renderAppliedPreview(view, key, (previewView) => {
     toggleMark(previewView, markName);
   });
+  if (!didRenderAppliedPreview) {
+    renderSelectionFormatPreview(view, action, isActive, key);
+  }
 }
 
 export function applyTextColorPreview(view: EditorView, color: string | null): void {
@@ -136,11 +170,17 @@ export function applyAlignmentPreview(view: EditorView, alignment: TextAlignment
   if (hasMatchingPreview(view, key)) {
     return;
   }
+  if (refreshMatchingSelectionAlignmentPreview(view, key)) {
+    return;
+  }
 
   clearFormatPreviewState();
-  renderAppliedPreview(view, key, (previewView) => {
+  const didRenderAppliedPreview = renderAppliedPreview(view, key, (previewView) => {
     setTextAlignment(previewView, alignment);
   });
+  if (!didRenderAppliedPreview) {
+    renderSelectionAlignmentPreview(view, alignment, key);
+  }
 }
 
 export function applyBlockPreview(view: EditorView, blockType: BlockType): void {
@@ -148,11 +188,17 @@ export function applyBlockPreview(view: EditorView, blockType: BlockType): void 
   if (hasMatchingPreview(view, key)) {
     return;
   }
+  if (refreshMatchingSelectionBlockPreview(view, key)) {
+    return;
+  }
 
   clearFormatPreviewState();
-  renderAppliedPreview(view, key, (previewView) => {
+  const apply = (previewView: EditorView) => {
     convertBlockType(previewView, blockType);
-  });
+  };
+  if (!renderAppliedPreview(view, key, apply)) {
+    renderSelectionBlockPreview(view, key, apply);
+  }
 }
 
 export function commitFormatPreview(view: EditorView, action: string, isActive: boolean = false): boolean {

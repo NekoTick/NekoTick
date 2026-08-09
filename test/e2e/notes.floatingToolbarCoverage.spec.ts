@@ -454,8 +454,11 @@ async function clickColorSwatch(
 async function hoverColorSwatch(page: Page, type: 'text' | 'bg', swatchSelector: string, description: string) {
   const swatch = page.locator(`.color-picker [data-type="${type}"] ${swatchSelector}`).first();
   await expect(swatch, `Expected ${description}`).toBeVisible({ timeout: 5_000 });
-  await swatch.hover();
+  const box = await swatch.boundingBox();
+  expect(box, `Expected bounds for ${description}`).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
   await waitForEditorAnimationFrame(page);
+  return box!;
 }
 
 async function clickEditorBlankArea(page: Page) {
@@ -681,9 +684,17 @@ function createToolbarCoverageMarkdown() {
   ].join('\n');
 }
 
-function createLargeToolbarPreviewMarkdown(): { content: string; target: string } {
+function createLargeToolbarPreviewMarkdown(): { content: string; linkTarget: string; target: string } {
   const target = 'Large toolbar preview target sentinel';
-  const lines = ['# Large Toolbar Preview Coverage', '', `${target} should stay selectable in a long note.`, ''];
+  const linkTarget = 'Large toolbar unlink preview sentinel';
+  const lines = [
+    '# Large Toolbar Preview Coverage',
+    '',
+    `${target} should stay selectable in a long note.`,
+    '',
+    `[${linkTarget}](https://example.com/large-toolbar-preview) should preview unlinking.`,
+    '',
+  ];
 
   for (let index = 0; index < 900; index += 1) {
     lines.push(
@@ -697,7 +708,7 @@ function createLargeToolbarPreviewMarkdown(): { content: string; target: string 
     lines.push('');
   }
 
-  return { content: lines.join('\n'), target };
+  return { content: lines.join('\n'), linkTarget, target };
 }
 
 function createImageAnchoredToolbarScrollMarkdown(): { content: string; target: string } {
@@ -743,8 +754,11 @@ function createCatalogImagePreviewSpacingMarkdown(): { content: string; target: 
 async function collectPreviewFrameMetrics(page: Page, durationMs: number) {
   return page.evaluate(({ durationMs, previewSelector, editorSelector }) => new Promise<{
     frameCount: number;
+    formatPreview: string | null;
+    formatPreviewMode: string | null;
     maxFrameMs: number;
     previewOverlayCount: number;
+    selectedFontWeight: string | null;
     hiddenEditorCount: number;
   }>((resolve) => {
     let frameCount = 0;
@@ -759,10 +773,15 @@ async function collectPreviewFrameMetrics(page: Page, durationMs: number) {
       lastFrameAt = now;
 
       if (now - startedAt >= durationMs) {
+        const editor = document.querySelector<HTMLElement>(editorSelector);
+        const selectionOverlay = editor?.querySelector<HTMLElement>('.editor-text-selection-overlay') ?? null;
         resolve({
           frameCount,
+          formatPreview: editor?.getAttribute('data-toolbar-format-preview') ?? null,
+          formatPreviewMode: editor?.getAttribute('data-toolbar-format-preview-mode') ?? null,
           maxFrameMs: Math.round(maxFrameMs * 10) / 10,
           previewOverlayCount: document.querySelectorAll(previewSelector).length,
+          selectedFontWeight: selectionOverlay ? getComputedStyle(selectionOverlay).fontWeight : null,
           hiddenEditorCount: document.querySelectorAll(`${editorSelector}[data-toolbar-preview-hidden="true"]`).length,
         });
         return;
@@ -1651,7 +1670,7 @@ test.describe('notes floating toolbar coverage', () => {
   });
 
   test('keeps toolbar hover preview responsive in a large note', async () => {
-    const { content, target } = createLargeToolbarPreviewMarkdown();
+    const { content, linkTarget, target } = createLargeToolbarPreviewMarkdown();
     expect(content.length).toBeGreaterThan(LARGE_PREVIEW_DOC_MIN_LENGTH);
 
     const { app, userDataRoot } = await launchIsolatedElectron('notes-floating-toolbar-large-preview');
@@ -1668,6 +1687,11 @@ test.describe('notes floating toolbar coverage', () => {
       await selectEditorText(page, target);
       const boldButton = page.locator(`${TOOLBAR_SELECTOR} [data-action="bold"]`).first();
       await expect(boldButton).toBeVisible({ timeout: 5_000 });
+      const formatPreviewScrollLeft = await page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate(
+        (scrollRoot) => scrollRoot.scrollLeft
+      );
+      const formatPreviewEditorBox = await page.locator(LIVE_EDITOR_SELECTOR).boundingBox();
+      expect(formatPreviewEditorBox, 'Expected large-note editor bounds').not.toBeNull();
 
       const framesPromise = collectPreviewFrameMetrics(page, 900);
       const hoverStartedAt = Date.now();
@@ -1687,12 +1711,215 @@ test.describe('notes floating toolbar coverage', () => {
       expect(frameMetrics.maxFrameMs).toBeLessThan(350);
       expect(frameMetrics.previewOverlayCount).toBe(0);
       expect(frameMetrics.hiddenEditorCount).toBe(0);
+      expect(frameMetrics.formatPreview).toBe('bold');
+      expect(frameMetrics.formatPreviewMode).toBe('apply');
+      expect(Number.parseInt(frameMetrics.selectedFontWeight ?? '', 10)).toBeGreaterThanOrEqual(600);
+
+      for (const formatCase of [
+        { action: 'italic', property: 'fontStyle', expected: 'italic' },
+        { action: 'underline', property: 'textDecorationLine', expected: 'underline' },
+        { action: 'strike', property: 'textDecorationLine', expected: 'line-through' },
+        { action: 'code', property: 'fontFamily', expected: 'mono' },
+        { action: 'highlight', property: 'backgroundColor', expected: 'visible-color' },
+      ] as const) {
+        await page.locator(`${TOOLBAR_SELECTOR} [data-action="${formatCase.action}"]`).first().hover();
+        await expect.poll(() => page.evaluate(({ action, property, expected }) => {
+          const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
+          const overlay = editor?.querySelector<HTMLElement>('.editor-text-selection-overlay');
+          if (editor?.getAttribute('data-toolbar-format-preview') !== action || !overlay) {
+            return false;
+          }
+          const value = getComputedStyle(overlay)[property];
+          if (expected === 'mono') {
+            return /mono|consolas|menlo|courier/i.test(value);
+          }
+          if (expected === 'visible-color') {
+            return value !== 'rgba(0, 0, 0, 0)' && value !== 'transparent';
+          }
+          return value.includes(expected);
+        }, formatCase), {
+          message: `Expected visible ${formatCase.action} preview in a large note`,
+        }).toBe(true);
+      }
+      await hideToolbar(page);
+      await selectEditorText(page, linkTarget);
+      await page.locator(`${TOOLBAR_SELECTOR} [data-action="link"]`).first().hover();
+      await expect.poll(() => page.evaluate(() => {
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
+        const overlay = editor?.querySelector<HTMLElement>('.editor-text-selection-overlay');
+        if (
+          editor?.getAttribute('data-toolbar-format-preview') !== 'link' ||
+          editor.getAttribute('data-toolbar-format-preview-mode') !== 'remove' ||
+          !overlay
+        ) {
+          return false;
+        }
+        const overlayStyle = getComputedStyle(overlay);
+        return (
+          overlayStyle.color === getComputedStyle(editor).color &&
+          !overlayStyle.textDecorationLine.includes('underline')
+        );
+      }), {
+        message: 'Expected visible unlink preview in a large note',
+      }).toBe(true);
+      await hideToolbar(page);
+      await selectEditorText(page, target);
+      await expect.poll(() => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate(
+        (scrollRoot) => scrollRoot.scrollLeft
+      )).toBe(formatPreviewScrollLeft);
+
+      await clickToolbarActionAndWaitForVisible(
+        page,
+        'block',
+        '.block-dropdown [data-block-type="heading2"]',
+        'large-note heading preview item',
+        target,
+      );
+      for (const blockCase of [
+        { blockType: 'paragraph', selector: null },
+        { blockType: 'heading1', selector: 'h1' },
+        { blockType: 'heading2', selector: 'h2' },
+        { blockType: 'heading3', selector: 'h3' },
+        { blockType: 'heading4', selector: 'h4' },
+        { blockType: 'heading5', selector: 'h5' },
+        { blockType: 'heading6', selector: 'h6' },
+        { blockType: 'blockquote', selector: 'blockquote' },
+        { blockType: 'bulletList', selector: 'ul' },
+        { blockType: 'orderedList', selector: 'ol' },
+        { blockType: 'taskList', selector: 'li[data-item-type="task"]' },
+        { blockType: 'codeBlock', selector: '.code-block-container' },
+      ]) {
+        await page.locator(`.block-dropdown [data-block-type="${blockCase.blockType}"]`).first().hover();
+        await expect.poll(() => page.evaluate(({ editorSelector, previewSelector, targetText }) => {
+          const editor = document.querySelector<HTMLElement>(editorSelector);
+          const previewNodes = Array.from(
+            editor?.querySelectorAll<HTMLElement>('[data-toolbar-block-preview-node="true"]') ?? []
+          );
+          return {
+            hasAppliedOverlay: Boolean(document.querySelector('.toolbar-applied-preview-overlay')),
+            hasExpectedStructure: previewSelector === null
+              ? previewNodes.length === 0 && Array.from(editor?.querySelectorAll('p') ?? [])
+                .some((node) => node.textContent?.includes(targetText))
+              : previewNodes.some(
+                (node) => node.matches(previewSelector) || Boolean(node.querySelector(previewSelector))
+            ),
+            previewBlockType: editor?.getAttribute('data-toolbar-block-preview') ?? null,
+            previewContainsTarget: previewSelector === null
+              ? Array.from(editor?.querySelectorAll('p') ?? [])
+                .some((node) => node.textContent?.includes(targetText))
+              : previewNodes
+                .map((node) => node.textContent ?? '')
+                .join('')
+                .includes(targetText),
+          };
+        }, {
+          editorSelector: LIVE_EDITOR_SELECTOR,
+          previewSelector: blockCase.selector,
+          targetText: target,
+        }), {
+          message: `Expected visible ${blockCase.blockType} preview in a large note`,
+        }).toMatchObject({
+          hasAppliedOverlay: false,
+          hasExpectedStructure: true,
+          previewBlockType: blockCase.blockType,
+          previewContainsTarget: true,
+        });
+      }
+      await expect.poll(() => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate(
+        (scrollRoot) => scrollRoot.scrollLeft
+      )).toBe(formatPreviewScrollLeft);
+      await expect.poll(async () => (await page.locator(LIVE_EDITOR_SELECTOR).boundingBox())?.x ?? null, {
+        message: 'Expected block hover previews to preserve the editor position',
+      }).toBe(formatPreviewEditorBox!.x);
+      await hideToolbar(page);
+      await expect(page.locator(`${LIVE_EDITOR_SELECTOR} [data-toolbar-block-preview-node="true"]`)).toHaveCount(0);
+      await expect(page.locator(`${LIVE_EDITOR_SELECTOR}[data-toolbar-block-preview]`)).toHaveCount(0);
+      await expect(page.locator(`${LIVE_EDITOR_SELECTOR} p`, { hasText: target }).first()).toBeVisible({ timeout: 5_000 });
+      await selectEditorText(page, target);
+
+      await clickToolbarActionAndWaitForVisible(
+        page,
+        'alignment',
+        '.alignment-dropdown [data-alignment="center"]',
+        'large-note center alignment preview item',
+        target,
+      );
+      const getLargeAlignmentPreviewState = () => page.evaluate(({ editorSelector, targetText }) => {
+        const editor = document.querySelector<HTMLElement>(editorSelector);
+        const block = Array.from(
+          editor?.querySelectorAll<HTMLElement>('p, h1, h2, h3, h4, h5, h6') ?? []
+        ).find((candidate) => candidate.textContent?.includes(targetText)) ?? null;
+        return {
+          alignment: block ? getComputedStyle(block).textAlign : null,
+          blockAlignment: block?.getAttribute('data-text-align') ?? null,
+          hasAppliedOverlay: Boolean(document.querySelector('.toolbar-applied-preview-overlay')),
+          hiddenClass: editor?.classList.contains('toolbar-selection-hidden-preview') ?? false,
+          previewAlignment: editor?.getAttribute('data-toolbar-alignment-preview') ?? null,
+        };
+      }, { editorSelector: LIVE_EDITOR_SELECTOR, targetText: target });
+
+      await page.locator('.alignment-dropdown [data-alignment="center"]').first().hover();
+      await expect.poll(async () => (await getLargeAlignmentPreviewState()).alignment, {
+        message: 'Expected visible center alignment preview in a large note',
+      }).toBe('center');
+      expect(await getLargeAlignmentPreviewState()).toMatchObject({
+        alignment: 'center',
+        blockAlignment: 'center',
+        hasAppliedOverlay: false,
+        hiddenClass: true,
+        previewAlignment: 'center',
+      });
+
+      await page.locator('.alignment-dropdown [data-alignment="right"]').first().hover();
+      await expect.poll(async () => (await getLargeAlignmentPreviewState()).alignment, {
+        message: 'Expected visible right alignment preview in a large note',
+      }).toBe('right');
+      expect(await getLargeAlignmentPreviewState()).toMatchObject({
+        alignment: 'right',
+        blockAlignment: 'right',
+        hasAppliedOverlay: false,
+        hiddenClass: true,
+        previewAlignment: 'right',
+      });
+
+      await page.locator('.alignment-dropdown [data-alignment="left"]').first().hover();
+      await expect.poll(async () => {
+        const alignment = (await getLargeAlignmentPreviewState()).alignment;
+        return alignment === 'left' || alignment === 'start';
+      }, {
+        message: 'Expected visible left alignment preview in a large note',
+      }).toBe(true);
+      expect(await getLargeAlignmentPreviewState()).toMatchObject({
+        blockAlignment: null,
+        hasAppliedOverlay: false,
+        hiddenClass: true,
+        previewAlignment: 'left',
+      });
+      await expect.poll(() => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate(
+        (scrollRoot) => scrollRoot.scrollLeft
+      )).toBe(formatPreviewScrollLeft);
+      await expect.poll(async () => (await page.locator(LIVE_EDITOR_SELECTOR).boundingBox())?.x ?? null, {
+        message: 'Expected alignment hover preview to preserve the editor position',
+      }).toBe(formatPreviewEditorBox!.x);
+
+      await hideToolbar(page);
+      await expect.poll(async () => await getLargeAlignmentPreviewState(), {
+        message: 'Expected large-note alignment preview to restore the live paragraph',
+      }).toMatchObject({
+        blockAlignment: null,
+        hasAppliedOverlay: false,
+        hiddenClass: false,
+        previewAlignment: null,
+      });
+      expect(['left', 'start']).toContain((await getLargeAlignmentPreviewState()).alignment);
+
+      await selectEditorText(page, target);
 
       const largeBgSwatchSelector = '.color-picker-grid .color-picker-item[data-color="#fca9bd"]';
       await clickToolbarAction(page, 'color');
       const colorFramesPromise = collectPreviewFrameMetrics(page, 600);
       const bgHoverStartedAt = Date.now();
-      await hoverColorSwatch(
+      const largeBgSwatchBox = await hoverColorSwatch(
         page,
         'bg',
         largeBgSwatchSelector,
@@ -1737,12 +1964,15 @@ test.describe('notes floating toolbar coverage', () => {
         previewBgColor: 'rgb(252, 169, 189)',
       });
       expect(largeBgPreviewMetrics.height).not.toBeNull();
+      await expect.poll(async () => (await page.locator(LIVE_EDITOR_SELECTOR).boundingBox())?.x ?? null, {
+        message: 'Expected background hover preview to preserve the editor position',
+      }).toBe(formatPreviewEditorBox!.x);
 
-      await clickVisibleElement(
-        page,
-        `.color-picker [data-type="bg"] ${largeBgSwatchSelector}`,
-        'large-note background color swatch',
+      await page.mouse.click(
+        largeBgSwatchBox.x + largeBgSwatchBox.width / 2,
+        largeBgSwatchBox.y + largeBgSwatchBox.height / 2,
       );
+      await waitForEditorAnimationFrame(page);
       await expect(page.locator(`${LIVE_EDITOR_SELECTOR} mark[data-bg-color]`, { hasText: target }))
         .toBeVisible({ timeout: 5_000 });
       const largeAppliedBgMetrics = await page.evaluate(({ editorSelector, targetText }) => {

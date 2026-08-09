@@ -18,7 +18,10 @@ import { previewStyleState } from './previewStyleState';
 export function hasActiveAppliedPreview(view: EditorView): boolean {
   return Boolean(
     (previewStyleState.previewOverlay && previewStyleState.previewOverlay.viewDom === view.dom) ||
-    (previewStyleState.selectionColorPreview && previewStyleState.selectionColorPreview.viewDom === view.dom)
+    (previewStyleState.selectionColorPreview && previewStyleState.selectionColorPreview.viewDom === view.dom) ||
+    (previewStyleState.selectionFormatPreview && previewStyleState.selectionFormatPreview.viewDom === view.dom) ||
+    (previewStyleState.selectionAlignmentPreview && previewStyleState.selectionAlignmentPreview.viewDom === view.dom) ||
+    (previewStyleState.selectionBlockPreview && previewStyleState.selectionBlockPreview.viewDom === view.dom)
   );
 }
 

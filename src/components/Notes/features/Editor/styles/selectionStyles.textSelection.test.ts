@@ -132,6 +132,10 @@ describe("editor text selection and link styles", () => {
     expect(css).toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview],');
     expect(css).toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview] .editor-text-selection-overlay,');
     expect(css).toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview] .editor-text-selection-overlay * {');
+    expect(css).toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-format-preview] .editor-text-selection-overlay * {');
+    expect(css).toContain(".milkdown .ProseMirror[data-toolbar-format-preview='bold'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,");
+    expect(css).toContain(".milkdown .ProseMirror[data-toolbar-format-preview='link'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,");
+    expect(css).toContain('text-decoration-line: none !important;');
     expect(css).not.toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview] * {');
     expect(css).not.toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview="bg"] *::selection');
     expect(css).not.toContain('.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview="text"] *::selection');

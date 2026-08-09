@@ -57,7 +57,8 @@ export function renderAppliedPreviewDocument(
   sourceDom: HTMLElement | null,
   ownerDocument: Document,
   extraClassName?: string,
-  view?: EditorView
+  view?: EditorView,
+  options: { passiveCodeBlockNodeViews?: boolean } = {},
 ): HTMLElement {
   const previewDom = sourceDom
     ? sourceDom.cloneNode(false) as HTMLElement
@@ -80,7 +81,9 @@ export function renderAppliedPreviewDocument(
     // Serialized ProseMirror output is not enough for custom-rendered blocks.
     // Rehydrate preview-only code blocks with the same node view used by the
     // live editor so hover previews stay equivalent to the committed result.
-    renderCodeBlockNodeViewPreviews(previewDom, state, view);
+    renderCodeBlockNodeViewPreviews(previewDom, state, view, {
+      passive: options.passiveCodeBlockNodeViews,
+    });
   }
   preserveSourceImageBlockNodeViews(previewDom, sourceDom);
   preserveSourceFrontmatterNodeViews(previewDom, sourceDom);

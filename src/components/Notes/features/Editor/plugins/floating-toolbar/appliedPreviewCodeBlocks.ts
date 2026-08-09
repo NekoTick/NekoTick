@@ -62,7 +62,8 @@ export function getPreviewCodeBlockNodes(
 export function renderCodeBlockNodeViewPreviews(
   previewDom: HTMLElement,
   state: EditorState,
-  view: EditorView
+  view: EditorView,
+  options: { passive?: boolean } = {},
 ): void {
   const previewCodeBlocks = getSerializedCodeBlockElements(previewDom);
   if (!previewCodeBlocks || previewCodeBlocks.length === 0) {
@@ -82,7 +83,14 @@ export function renderCodeBlockNodeViewPreviews(
       return;
     }
 
-    const nodeView = new CodeBlockNodeView(entry.node, view, () => undefined);
+    const nodeView = new CodeBlockNodeView(
+      entry.node,
+      view,
+      () => undefined,
+      options.passive
+        ? { lazyCodeMirror: true, passiveLazyCodeMirror: false }
+        : {},
+    );
     nodeView.dom.setAttribute('aria-hidden', 'true');
     if (!makePreviewCloneNonInteractive(nodeView.dom)) {
       nodeView.destroy();

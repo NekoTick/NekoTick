@@ -153,6 +153,8 @@ export function handleTextSelectionOverlayMouseMove(
       cancelPointerClickCollapseReassertion(context);
       session.pointerClickCollapseTarget = null;
       session.pendingPointerClickCollapseTarget = null;
+      session.setPointerNativeSelection(true);
+      session.syncActiveClass();
       session.pointerSelectionAutoScroll.start();
     }
   }

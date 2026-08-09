@@ -1231,6 +1231,45 @@ describe('textSelectionOverlayPlugin', () => {
     }
   });
 
+  it('restores native selection when a drag starts after forcing selection overlays', async () => {
+    const view = await createEditor('hello world');
+    const originalElementFromPoint = document.elementFromPoint;
+    const restoreCaretRangeFromPoint = mockCaretRangeFromPoint(view, 3);
+    const textElement = view.dom.querySelector('p') ?? view.dom;
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => textElement,
+    });
+
+    try {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+      view.dispatch(showTextSelectionOverlayForTransaction(view.state.tr));
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
+
+      textElement.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        button: 0,
+        clientX: 32,
+        clientY: 12,
+      }));
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        buttons: 1,
+        clientX: 48,
+        clientY: 12,
+      }));
+
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(true);
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+      restoreCaretRangeFromPoint();
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    }
+  });
+
   it('uses the shared edge auto-scroll loop while pointer-selecting text', async () => {
     const scrollRoot = document.createElement('div');
     scrollRoot.scrollTop = 100;
