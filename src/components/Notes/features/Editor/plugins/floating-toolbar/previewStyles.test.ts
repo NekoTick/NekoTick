@@ -14,6 +14,12 @@ import {
   TEXT_SELECTION_OVERLAY_CLASS,
   textSelectionOverlayPlugin,
 } from '../selection/textSelectionOverlayPlugin';
+import {
+  MAX_APPLIED_PREVIEW_DOM_ELEMENTS,
+  TOOLBAR_ALIGNMENT_PREVIEW_ATTRIBUTE,
+  TOOLBAR_BLOCK_PREVIEW_ATTRIBUTE,
+  TOOLBAR_BLOCK_PREVIEW_NODE_ATTRIBUTE,
+} from './previewStyleConstants';
 import { colorMarksPlugin } from './colorMarks';
 import {
   applyAlignmentPreview,
@@ -246,6 +252,85 @@ function createOversizedPreviewViewWithSelection(): any {
   };
 }
 
+function createOversizedAlignmentPreviewView(options: {
+  listItem?: boolean;
+  originalAlign?: 'center' | 'right' | null;
+} = {}): any {
+  const host = document.createElement('div');
+  const dom = document.createElement('div');
+  dom.className = 'ProseMirror';
+  const block = document.createElement('p');
+  const selectionOverlay = document.createElement('span');
+  selectionOverlay.className = TEXT_SELECTION_OVERLAY_CLASS;
+  selectionOverlay.textContent = 'target';
+  block.append(selectionOverlay);
+  if (options.originalAlign) {
+    block.setAttribute('data-text-align', options.originalAlign);
+    block.style.textAlign = options.originalAlign;
+  }
+  const listItem = options.listItem ? document.createElement('li') : null;
+  if (listItem) {
+    listItem.className = options.originalAlign === 'center'
+      ? 'existing-list-class editor-list-item-align-center'
+      : options.originalAlign === 'right'
+        ? 'existing-list-class editor-list-item-align-right'
+        : 'existing-list-class';
+    listItem.append(block);
+    dom.append(listItem);
+  } else {
+    dom.append(block);
+  }
+  host.append(dom);
+  document.body.append(host);
+
+  const doc: any = {
+    content: { size: 1024 * 1024 + 1 },
+    eq: vi.fn((other) => other === doc),
+    nodesBetween: vi.fn((_from, _to, callback) => {
+      callback(
+        { type: { name: 'paragraph' } },
+        1,
+        options.listItem ? { type: { name: 'list_item' } } : undefined,
+      );
+    }),
+  };
+  const tr: any = { setMeta: vi.fn(() => tr) };
+  const domObserver = {
+    start: vi.fn(),
+    stop: vi.fn(),
+  };
+  const view: any = {
+    domObserver,
+    dom,
+    state: {
+      doc,
+      selection: { empty: false, from: 1, to: 7 },
+      tr,
+    },
+    nodeDOM: vi.fn(() => block),
+    dispatch: vi.fn(),
+  };
+
+  return { block, doc, dom, domObserver, host, listItem, tr, view };
+}
+
+function forceAppliedPreviewDomLimit(view: any): () => void {
+  const ballast = document.createElement('div');
+  const domObserver = view.domObserver as { start?: () => void; stop?: () => void } | undefined;
+  domObserver?.stop?.();
+  for (let index = 0; index <= MAX_APPLIED_PREVIEW_DOM_ELEMENTS; index += 1) {
+    ballast.append(document.createElement('span'));
+  }
+  view.dom.append(ballast);
+  domObserver?.start?.();
+
+  return () => {
+    domObserver?.stop?.();
+    ballast.remove();
+    domObserver?.start?.();
+  };
+}
+
 describe('previewStyles', () => {
   it('covers every toolbar format button and block dropdown item with the applied preview path', () => {
     expect(FORMAT_BUTTONS.map((button) => button.action).filter((action) => !hasFormatPreview(action))).toEqual([]);
@@ -290,6 +375,106 @@ describe('previewStyles', () => {
     expect(view.dom.style.display).toBe('');
     expect(view.state.doc).toBe(originalDoc);
 
+    await editor.destroy();
+    host.remove();
+  });
+
+  it('renders real local block previews when the editor DOM exceeds the cloning limit', async () => {
+    const cases: Array<{
+      blockType: typeof BLOCK_TYPES[number]['type'];
+      selector: string | null;
+    }> = [
+      { blockType: 'paragraph', selector: null },
+      { blockType: 'heading1', selector: 'h1' },
+      { blockType: 'heading2', selector: 'h2' },
+      { blockType: 'heading3', selector: 'h3' },
+      { blockType: 'heading4', selector: 'h4' },
+      { blockType: 'heading5', selector: 'h5' },
+      { blockType: 'heading6', selector: 'h6' },
+      { blockType: 'blockquote', selector: 'blockquote' },
+      { blockType: 'bulletList', selector: 'ul' },
+      { blockType: 'orderedList', selector: 'ol' },
+      { blockType: 'taskList', selector: 'li[data-item-type="task"]' },
+      { blockType: 'codeBlock', selector: '.code-block-container' },
+    ];
+
+    for (const testCase of cases) {
+      const { editor, host, view } = await createEditor('plain target text');
+      const originalDoc = view.state.doc;
+      selectText(view, 'target');
+      const removeBallast = forceAppliedPreviewDomLimit(view);
+
+      applyBlockPreview(view, testCase.blockType);
+
+      const previewNodeSelector = `[${TOOLBAR_BLOCK_PREVIEW_NODE_ATTRIBUTE}="true"]`;
+      const previewNodes = Array.from(view.dom.querySelectorAll<HTMLElement>(previewNodeSelector));
+      expect(host.querySelector('.toolbar-applied-preview-overlay')).toBeNull();
+      expect(view.dom.getAttribute(TOOLBAR_BLOCK_PREVIEW_ATTRIBUTE)).toBe(testCase.blockType);
+      if (testCase.selector === null) {
+        expect(previewNodes).toHaveLength(0);
+        expect(view.dom.querySelector('p')?.textContent).toContain('target');
+      } else {
+        expect(previewNodes.find(
+          (node) => node.matches(testCase.selector!) || node.querySelector(testCase.selector!),
+        )).toBeInstanceOf(HTMLElement);
+        expect(previewNodes.map((node) => node.textContent ?? '').join('')).toContain('target');
+      }
+      expect(view.state.doc).toBe(originalDoc);
+
+      clearFormatPreview(view);
+
+      expect(view.dom.hasAttribute(TOOLBAR_BLOCK_PREVIEW_ATTRIBUTE)).toBe(false);
+      expect(view.dom.querySelector(previewNodeSelector)).toBeNull();
+      expect(view.dom.querySelector('p')?.textContent).toContain('plain target text');
+      expect(view.state.doc).toBe(originalDoc);
+      removeBallast();
+      await editor.destroy();
+      host.remove();
+    }
+  });
+
+  it('commits a local large-editor block preview through the normal document transaction', async () => {
+    const { editor, host, view } = await createEditorWithHistory('plain target text');
+    selectText(view, 'target');
+    const removeBallast = forceAppliedPreviewDomLimit(view);
+
+    applyBlockPreview(view, 'heading2');
+    expect(view.dom.querySelector(`[${TOOLBAR_BLOCK_PREVIEW_NODE_ATTRIBUTE}="true"]`)).toBeInstanceOf(HTMLElement);
+
+    expect(commitBlockPreview(view, 'heading2')).toBe(true);
+    clearFormatPreview(view);
+
+    expect(view.dom.hasAttribute(TOOLBAR_BLOCK_PREVIEW_ATTRIBUTE)).toBe(false);
+    expect(view.dom.querySelector(`[${TOOLBAR_BLOCK_PREVIEW_NODE_ATTRIBUTE}="true"]`)).toBeNull();
+    expect(view.dom.querySelector('h2')?.textContent).toContain('plain target text');
+    expect(undo(view.state, view.dispatch)).toBe(true);
+    expect(view.dom.querySelector('p')?.textContent).toContain('plain target text');
+
+    removeBallast();
+    await editor.destroy();
+    host.remove();
+  });
+
+  it('previews converting a heading back to a paragraph in a large editor', async () => {
+    const { editor, host, view } = await createEditor('# heading target text');
+    const originalDoc = view.state.doc;
+    selectText(view, 'target');
+    const removeBallast = forceAppliedPreviewDomLimit(view);
+
+    applyBlockPreview(view, 'paragraph');
+
+    const previewNode = view.dom.querySelector<HTMLElement>(
+      `p[${TOOLBAR_BLOCK_PREVIEW_NODE_ATTRIBUTE}="true"]`,
+    );
+    expect(previewNode?.textContent).toContain('heading target text');
+    expect(view.dom.querySelector('h1')).toBeNull();
+    expect(view.state.doc).toBe(originalDoc);
+
+    clearFormatPreview(view);
+
+    expect(view.dom.querySelector('h1')?.textContent).toContain('heading target text');
+    expect(view.state.doc).toBe(originalDoc);
+    removeBallast();
     await editor.destroy();
     host.remove();
   });
@@ -448,6 +633,58 @@ describe('previewStyles', () => {
     expect(view.dom.style.getPropertyValue('--vlaina-toolbar-preview-bg-color')).toBe('#fca9bd');
 
     clearFormatPreview(view);
+  });
+
+  it('uses a lightweight center alignment preview for oversized documents', () => {
+    const { block, doc, dom, domObserver, host, view } = createOversizedAlignmentPreviewView();
+
+    applyAlignmentPreview(view, 'center');
+
+    expect(dom.parentElement?.querySelector('.toolbar-applied-preview-overlay')).toBeNull();
+    expect(dom.classList.contains('toolbar-selection-hidden-preview')).toBe(true);
+    expect(dom.getAttribute(TOOLBAR_ALIGNMENT_PREVIEW_ATTRIBUTE)).toBe('center');
+    expect(block.getAttribute('data-text-align')).toBe('center');
+    expect(block.style.textAlign).toBe('center');
+    expect(view.state.doc).toBe(doc);
+    expect(domObserver.stop).toHaveBeenCalledTimes(1);
+    expect(domObserver.start).toHaveBeenCalledTimes(1);
+
+    clearFormatPreview(view);
+
+    expect(dom.classList.contains('toolbar-selection-hidden-preview')).toBe(false);
+    expect(dom.hasAttribute(TOOLBAR_ALIGNMENT_PREVIEW_ATTRIBUTE)).toBe(false);
+    expect(block.hasAttribute('data-text-align')).toBe(false);
+    expect(block.hasAttribute('style')).toBe(false);
+    expect(block.style.textAlign).toBe('');
+    expect(view.state.doc).toBe(doc);
+    expect(domObserver.stop).toHaveBeenCalledTimes(2);
+    expect(domObserver.start).toHaveBeenCalledTimes(2);
+    host.remove();
+  });
+
+  it('switches oversized alignment previews and restores list item classes', () => {
+    const { block, dom, host, listItem, view } = createOversizedAlignmentPreviewView({
+      listItem: true,
+      originalAlign: 'center',
+    });
+    const originalBlockStyle = block.style.cssText;
+    const originalListClassName = listItem?.className;
+
+    applyAlignmentPreview(view, 'center');
+    expect(block.style.textAlign).toBe('center');
+    expect(listItem?.classList.contains('editor-list-item-align-center')).toBe(true);
+
+    applyAlignmentPreview(view, 'right');
+    expect(dom.getAttribute(TOOLBAR_ALIGNMENT_PREVIEW_ATTRIBUTE)).toBe('right');
+    expect(block.style.textAlign).toBe('right');
+    expect(listItem?.classList.contains('editor-list-item-align-center')).toBe(false);
+    expect(listItem?.classList.contains('editor-list-item-align-right')).toBe(true);
+
+    clearFormatPreview(view);
+
+    expect(block.style.cssText).toBe(originalBlockStyle);
+    expect(listItem?.className).toBe(originalListClassName);
+    host.remove();
   });
 
   it('masks only the selected range during lightweight text color previews over background marks', () => {
@@ -734,6 +971,59 @@ describe('previewStyles', () => {
 
     expect(view.dom.parentElement?.querySelector('.toolbar-applied-preview-overlay')).toBeNull();
     expect(view.dom.style.display).toBe('');
+  });
+
+  it('falls back to selection overlays for format previews in oversized documents', () => {
+    const { view } = createOversizedPreviewViewWithSelection();
+    const overlay = document.createElement('span');
+    overlay.className = 'editor-text-selection-overlay';
+    overlay.textContent = 'target';
+    view.dom.append(overlay);
+
+    applyFormatPreview(view, 'bold');
+
+    expect(view.dom.parentElement?.querySelector('.toolbar-applied-preview-overlay')).toBeNull();
+    expect(view.dom.classList.contains('toolbar-selection-hidden-preview')).toBe(true);
+    expect(view.dom.getAttribute('data-toolbar-format-preview')).toBe('bold');
+    expect(view.dom.getAttribute('data-toolbar-format-preview-mode')).toBe('apply');
+
+    clearFormatPreview(view);
+
+    expect(view.dom.classList.contains('toolbar-selection-hidden-preview')).toBe(false);
+    expect(view.dom.hasAttribute('data-toolbar-format-preview')).toBe(false);
+    expect(view.dom.hasAttribute('data-toolbar-format-preview-mode')).toBe(false);
+  });
+
+  it('previews removing active formats through the oversized-document fallback', () => {
+    const { view } = createOversizedPreviewViewWithSelection();
+    const overlay = document.createElement('span');
+    overlay.className = 'editor-text-selection-overlay';
+    overlay.textContent = 'target';
+    view.dom.append(overlay);
+
+    applyFormatPreview(view, 'italic', true);
+
+    expect(view.dom.getAttribute('data-toolbar-format-preview')).toBe('italic');
+    expect(view.dom.getAttribute('data-toolbar-format-preview-mode')).toBe('remove');
+
+    clearFormatPreview(view);
+  });
+
+  it('previews removing active links through the oversized-document fallback', () => {
+    const { view } = createOversizedPreviewViewWithSelection();
+    const overlay = document.createElement('span');
+    overlay.className = 'editor-text-selection-overlay';
+    overlay.textContent = 'target';
+    view.dom.append(overlay);
+
+    applyFormatPreview(view, 'link', true);
+
+    expect(view.dom.parentElement?.querySelector('.toolbar-applied-preview-overlay')).toBeNull();
+    expect(view.dom.classList.contains('toolbar-selection-hidden-preview')).toBe(true);
+    expect(view.dom.getAttribute('data-toolbar-format-preview')).toBe('link');
+    expect(view.dom.getAttribute('data-toolbar-format-preview-mode')).toBe('remove');
+
+    clearFormatPreview(view);
   });
 
   it('mirrors source list layout in applied preview documents', async () => {

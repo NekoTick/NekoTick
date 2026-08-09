@@ -64,6 +64,13 @@
   -webkit-user-select: none !important;
 }
 
+.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-format-preview],
+.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-format-preview] .editor-text-selection-overlay,
+.milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-format-preview] .editor-text-selection-overlay * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 .milkdown .ProseMirror.editor-text-selection-overlay-active .editor-atomic-selected,
 .milkdown .ProseMirror.editor-text-selection-overlay-active .editor-atomic-selected * {
   user-select: none;
@@ -106,6 +113,79 @@
 
 .milkdown .ProseMirror.toolbar-selection-hidden-preview .cm-selectionBackground {
   background: transparent !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='bold'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='bold'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay * {
+  font-weight: var(--vlaina-markdown-font-strong-weight) !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='bold'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='bold'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay * {
+  font-weight: var(--vlaina-font-weight-normal) !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='italic'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='italic'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay * {
+  font-style: italic !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='italic'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='italic'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay * {
+  font-style: normal !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='underline'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='underline'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay * {
+  text-decoration-line: underline !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='strike'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='strike'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay * {
+  text-decoration-line: line-through !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='underline'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='underline'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay *,
+.milkdown .ProseMirror[data-toolbar-format-preview='strike'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='strike'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay * {
+  text-decoration-line: none !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='code'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='code'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay * {
+  background-color: var(--vlaina-color-editor-inline-code-bg) !important;
+  border-radius: var(--vlaina-editor-inline-background-radius) !important;
+  font-family: var(--vlaina-markdown-font-code-family) !important;
+  font-weight: var(--vlaina-font-weight-normal) !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='code'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='code'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay * {
+  background-color: var(--vlaina-markdown-color-canvas, transparent) !important;
+  border-radius: var(--vlaina-radius-0) !important;
+  font-family: var(--vlaina-markdown-font-body-family) !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='highlight'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='highlight'][data-toolbar-format-preview-mode='apply'] .editor-text-selection-overlay * {
+  background-color: var(--vlaina-color-mark-highlight-bg) !important;
+  color: var(--vlaina-color-mark-highlight-fg) !important;
+  -webkit-text-fill-color: var(--vlaina-color-mark-highlight-fg) !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='highlight'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='highlight'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay * {
+  background-color: var(--vlaina-markdown-color-canvas, transparent) !important;
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.milkdown .ProseMirror[data-toolbar-format-preview='link'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay,
+.milkdown .ProseMirror[data-toolbar-format-preview='link'][data-toolbar-format-preview-mode='remove'] .editor-text-selection-overlay * {
+  color: var(--vlaina-markdown-color-text) !important;
+  -webkit-text-fill-color: var(--vlaina-markdown-color-text) !important;
+  text-decoration-line: none !important;
 }
 
 .milkdown .ProseMirror.toolbar-selection-hidden-preview[data-toolbar-color-preview="text"]::selection,

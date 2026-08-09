@@ -1,4 +1,5 @@
 import type { EditorState } from '@milkdown/kit/prose/state';
+import type { EditorView } from '@milkdown/kit/prose/view';
 
 export type SelectionColorPreviewSignature = {
   empty: boolean;
@@ -39,8 +40,43 @@ export const previewStyleState: {
     }>;
     viewDom: HTMLElement;
   } | null;
+  selectionFormatPreview: {
+    key: string;
+    originalDoc: EditorState['doc'];
+    selection: SelectionColorPreviewSignature;
+    viewDom: HTMLElement;
+  } | null;
+  selectionAlignmentPreview: {
+    key: string;
+    originalDoc: EditorState['doc'];
+    selection: SelectionColorPreviewSignature;
+    styleMutations: Array<{
+      block: HTMLElement;
+      blockDataTextAlign: string | null;
+      blockStyle: string | null;
+      listItem: HTMLElement | null;
+      listItemClassName: string | null;
+    }>;
+    view: EditorView;
+    viewDom: HTMLElement;
+  } | null;
+  selectionBlockPreview: {
+    key: string;
+    originalDoc: EditorState['doc'];
+    previewNodes: HTMLElement[];
+    previewRoot: HTMLElement | null;
+    previewState: EditorState;
+    restoreBefore: ChildNode | null;
+    selection: SelectionColorPreviewSignature;
+    sourceNodes: HTMLElement[];
+    view: EditorView;
+    viewDom: HTMLElement;
+  } | null;
 } = {
   previewOverlay: null,
   previewScrollGuards: new WeakMap<HTMLElement, PreviewScrollGuard>(),
   selectionColorPreview: null,
+  selectionFormatPreview: null,
+  selectionAlignmentPreview: null,
+  selectionBlockPreview: null,
 };

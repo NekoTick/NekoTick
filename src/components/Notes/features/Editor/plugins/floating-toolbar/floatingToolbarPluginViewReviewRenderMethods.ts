@@ -10,7 +10,10 @@ import {
   resolveToolbarViewportPosition,
 } from './floatingToolbarLayout';
 import type { FloatingToolbarPluginViewContext } from './floatingToolbarPluginViewTypes';
-import { hasActiveAppliedPreview } from './previewStyles';
+import {
+  hasActiveAppliedPreview,
+  hasActiveSelectionBlockPreview,
+} from './previewStyles';
 import {
   calculateBottomPositionForRange,
   calculatePositionForRange,
@@ -135,6 +138,9 @@ export function installFloatingToolbarPluginViewReviewRenderMethods(ctx: Floatin
     const pluginState = ctx.toolbarKey.getState(ctx.editorView.state);
     const hasReviewPanels = Boolean(pluginState && (pluginState.aiReviews.length > 0 || pluginState.aiReview));
     const isReviewModeActive = pluginState?.subMenu === 'aiReview' && Boolean(pluginState.aiReview);
+    if (hasActiveSelectionBlockPreview(ctx.editorView)) {
+      return;
+    }
     ctx.ensureToolbarParent(isReviewModeActive);
     let { selection } = ctx.editorView.state;
     const shouldKeepToolbarDuringPreview = hasActiveAppliedPreview(ctx.editorView);

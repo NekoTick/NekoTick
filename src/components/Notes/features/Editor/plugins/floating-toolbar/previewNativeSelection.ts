@@ -21,6 +21,9 @@ export function clearNativeSelectionForPreviewFrames(viewDom: HTMLElement): void
       viewDom.isConnected &&
       (
         previewStyleState.selectionColorPreview?.viewDom === viewDom ||
+        previewStyleState.selectionFormatPreview?.viewDom === viewDom ||
+        previewStyleState.selectionAlignmentPreview?.viewDom === viewDom ||
+        previewStyleState.selectionBlockPreview?.viewDom === viewDom ||
         previewStyleState.previewOverlay?.viewDom === viewDom
       )
     ) {
