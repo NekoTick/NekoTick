@@ -34,6 +34,7 @@ import {
   handleDocumentBlockSelectionPaste,
   shouldHandleDocumentBlockSelectionEvent,
 } from './blankAreaDragBoxDocumentSelection';
+import { markBlockSelectionPointerDown } from './blockSelectionInteractionState';
 
 interface CreateBlankAreaDragBoxPluginViewOptions {
   clearInsideBlockTrailingPlainClickSession: () => void;
@@ -137,6 +138,7 @@ export function createBlankAreaDragBoxPluginView(
       }
 
       if (hasSelectedBlocks(view.state)) {
+        markBlockSelectionPointerDown(event);
         clearBlockSelection(view);
       }
       options.tryStartUnclaimedBlankPlainClickSession(view, event);

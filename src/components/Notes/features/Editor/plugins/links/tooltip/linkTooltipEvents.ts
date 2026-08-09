@@ -198,6 +198,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         if (startLinkTextSelectionSession(view, event, () => {
             clearShowTimer();
             hide(true);
+        }, () => {
             suppressNextEditorClick();
         })) {
             if (isWikiLink) suppressNextEditorClick();

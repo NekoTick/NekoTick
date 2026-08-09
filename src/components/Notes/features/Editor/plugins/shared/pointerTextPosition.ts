@@ -5,6 +5,20 @@ export interface TextOffsetResolution {
   distance: number;
 }
 
+export const MAX_POINTER_TEXT_GRAPHEME_MEASUREMENTS = 2048;
+
+let pointerGraphemeSegmenter: Intl.Segmenter | null = null;
+
+export function* iterateTextGraphemeRanges(text: string): Generator<{ from: number; to: number }> {
+  pointerGraphemeSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  for (const segment of pointerGraphemeSegmenter.segment(text)) {
+    yield {
+      from: segment.index,
+      to: segment.index + segment.segment.length,
+    };
+  }
+}
+
 export function clampDocPosition(view: EditorView, pos: number): number {
   return Math.max(0, Math.min(pos, view.state.doc.content.size));
 }
@@ -35,11 +49,14 @@ export function resolveTextOffsetAtPoint(
   let lastRightOnLine: number | null = null;
   let caretOffset: number | null = null;
 
-  for (let offset = 0; offset < text.length; offset += 1) {
+  let measuredGraphemes = 0;
+  for (const grapheme of iterateTextGraphemeRanges(text)) {
+    if (measuredGraphemes >= MAX_POINTER_TEXT_GRAPHEME_MEASUREMENTS) break;
+    measuredGraphemes += 1;
     const range = doc.createRange();
     try {
-      range.setStart(node, offset);
-      range.setEnd(node, offset + 1);
+      range.setStart(node, grapheme.from);
+      range.setEnd(node, grapheme.to);
       const rects = range.getClientRects();
 
       for (let index = 0; index < rects.length; index += 1) {
@@ -51,7 +68,7 @@ export function resolveTextOffsetAtPoint(
         lastRightOnLine = rect.right;
 
         if (caretOffset === null || clientX > rect.left + rect.width / 2) {
-          caretOffset = clientX <= rect.left + rect.width / 2 ? offset : offset + 1;
+          caretOffset = clientX <= rect.left + rect.width / 2 ? grapheme.from : grapheme.to;
         }
       }
     } finally {
@@ -164,9 +181,6 @@ export function resolveEditorTextPositionAtPointer(
   clientY: number,
   scanRoot: HTMLElement | null = null,
 ): number | null {
-  const scannedPos = resolveTextPositionInRootAtPointer(view, scanRoot, clientX, clientY);
-  if (scannedPos !== null) return scannedPos;
-
   if (typeof view.posAtDOM === 'function') {
     const doc = view.dom.ownerDocument as Document & {
       caretRangeFromPoint?: (x: number, y: number) => Range | null;
@@ -189,6 +203,9 @@ export function resolveEditorTextPositionAtPointer(
       }
     }
   }
+
+  const scannedPos = resolveTextPositionInRootAtPointer(view, scanRoot, clientX, clientY);
+  if (scannedPos !== null) return scannedPos;
 
   const coordsPos = typeof view.posAtCoords === 'function'
     ? view.posAtCoords({ left: clientX, top: clientY })?.pos ?? null

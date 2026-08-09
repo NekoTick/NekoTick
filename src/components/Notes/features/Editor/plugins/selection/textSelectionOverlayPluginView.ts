@@ -10,6 +10,7 @@ import {
 import { handleTextSelectionOverlayKeyDown } from './textSelectionOverlayKeyboard';
 import {
   handleTextSelectionOverlayClick,
+  handleTextSelectionOverlayAutoScroll,
   handleTextSelectionOverlayMouseDown,
   handleTextSelectionOverlayMouseMove,
   handleTextSelectionOverlayMouseUp,
@@ -29,6 +30,7 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
     keyClearFrame: null,
     keyboardSelectionPendingCleanupTimeout: null,
     lastClassSignature: '',
+    lastPointerSelectionX: null,
     lastPointerSelectionY: null,
     pendingPointerClickCollapseTarget: null,
     pointerClickCollapseFrame: null,
@@ -36,6 +38,9 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
     pointerClickCollapseTimeout: null,
     pointerDownPoint: null,
     pointerMovedSinceDown: false,
+    pointerTextSelectionActive: false,
+    pointerTextSelectionAnchor: null,
+    pointerTextSelectionDoc: null,
     pointerNativeReleaseFrame: null,
     pointerSelectionAutoScroll: createVerticalEdgeAutoScroll({
       scrollRoot,
@@ -44,6 +49,7 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
           ? session.lastPointerSelectionY
           : null
       ),
+      onScroll: () => handleTextSelectionOverlayAutoScroll(context),
     }),
     preserveNativeSelectionForKeyboard: false,
     isPointerSelectionActive: false,

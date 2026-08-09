@@ -271,7 +271,7 @@ describe('deleteSelectedBlocks', () => {
     const reopenedView = reopened.ctx.get(editorViewCtx);
     expect(reopenedView.state.doc.child(0).type.name).toBe('ordered_list');
     expect(reopenedView.state.doc.child(1).type.name).toBe('html_block');
-    expect(reopenedView.state.doc.child(2).type.name).toBe('html_block');
+    expect(reopenedView.state.doc.child(2).type.name).toBe('paragraph');
     expect(reopenedView.state.doc.lastChild?.textContent).toContain('我xs');
 
     await reopened.destroy();

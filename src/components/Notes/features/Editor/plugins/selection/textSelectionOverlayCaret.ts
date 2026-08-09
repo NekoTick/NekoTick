@@ -1,5 +1,15 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { PointerCaretTarget } from './textSelectionOverlayViewTypes';
+import { iterateTextGraphemeRanges } from '../shared/pointerTextPosition';
+
+export const MAX_TEXT_SELECTION_CARET_GRAPHEMES = 2048;
+const MAX_TEXT_SELECTION_CARET_TEXT_NODES = 64;
+const MAX_TEXT_SELECTION_CARET_RECTS = 4096;
+
+interface PointerCoordinates {
+  clientX: number;
+  clientY: number;
+}
 
 function isInlineCaretTarget(view: EditorView, target: PointerCaretTarget): boolean {
   try {
@@ -68,12 +78,15 @@ export function syncNativeSelectionToCaretTarget(
   }
 }
 
-function getTextNodeCaretTargetFromPoint(
+export function getTextNodeCaretTargetFromPoint(
   view: EditorView,
-  event: MouseEvent
+  event: PointerCoordinates
 ): PointerCaretTarget | null {
   const ownerDocument = view.dom.ownerDocument;
-  const hitElement = ownerDocument.elementFromPoint(event.clientX, event.clientY);
+  const nativeTarget = getNativeCaretTargetFromPoint(view, event);
+  if (nativeTarget?.node instanceof Text) return nativeTarget;
+
+  const hitElement = ownerDocument.elementFromPoint?.(event.clientX, event.clientY) ?? null;
   const root = hitElement && view.dom.contains(hitElement) ? hitElement : view.dom;
   const walker = ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const range = ownerDocument.createRange();
@@ -83,14 +96,21 @@ function getTextNodeCaretTargetFromPoint(
     node: Text;
     offset: number;
   } | null = null;
+  let measuredGraphemes = 0;
+  let measuredRects = 0;
+  let measuredTextNodes = 0;
 
   try {
     while (walker.nextNode()) {
+      measuredTextNodes += 1;
+      if (measuredTextNodes > MAX_TEXT_SELECTION_CARET_TEXT_NODES) return null;
       const textNode = walker.currentNode as Text;
       if (!textNode.data) continue;
 
       range.selectNodeContents(textNode);
       const textNodeRects = Array.from(range.getClientRects());
+      measuredRects += textNodeRects.length;
+      if (measuredRects > MAX_TEXT_SELECTION_CARET_RECTS) return null;
       const isOnClickedLine = textNodeRects.some((rect) =>
         rect.width > 0 &&
         rect.height > 0 &&
@@ -99,10 +119,15 @@ function getTextNodeCaretTargetFromPoint(
       );
       if (!isOnClickedLine) continue;
 
-      for (let offset = 0; offset < textNode.data.length; offset += 1) {
-        range.setStart(textNode, offset);
-        range.setEnd(textNode, offset + 1);
-        for (const rect of Array.from(range.getClientRects())) {
+      for (const grapheme of iterateTextGraphemeRanges(textNode.data)) {
+        if (measuredGraphemes >= MAX_TEXT_SELECTION_CARET_GRAPHEMES) return null;
+        measuredGraphemes += 1;
+        range.setStart(textNode, grapheme.from);
+        range.setEnd(textNode, grapheme.to);
+        const graphemeRects = Array.from(range.getClientRects());
+        measuredRects += graphemeRects.length;
+        if (measuredRects > MAX_TEXT_SELECTION_CARET_RECTS) return null;
+        for (const rect of graphemeRects) {
           if (rect.width <= 0 || rect.height <= 0) continue;
           const verticalDistance = event.clientY < rect.top
             ? rect.top - event.clientY
@@ -124,7 +149,7 @@ function getTextNodeCaretTargetFromPoint(
             distance,
             horizontalDistance,
             node: textNode,
-            offset: event.clientX <= rect.left + rect.width / 2 ? offset : offset + 1,
+            offset: event.clientX <= rect.left + rect.width / 2 ? grapheme.from : grapheme.to,
           };
         }
       }
@@ -147,38 +172,47 @@ function getTextNodeCaretTargetFromPoint(
   }
 }
 
-export function getCaretTargetFromPoint(
+function getNativeCaretTargetFromPoint(
   view: EditorView,
-  event: MouseEvent
+  event: PointerCoordinates,
 ): PointerCaretTarget | null {
   const ownerDocument = view.dom.ownerDocument as Document & {
     caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
     caretRangeFromPoint?: (x: number, y: number) => Range | null;
   };
+  const caretPosition = ownerDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
+  const caretRange = caretPosition
+    ? null
+    : ownerDocument.caretRangeFromPoint?.(event.clientX, event.clientY) ?? null;
+  const node = caretPosition?.offsetNode ?? caretRange?.startContainer ?? null;
+  const offset = caretPosition?.offset ?? caretRange?.startOffset ?? null;
+
+  try {
+    if (!node || offset === null || !view.dom.contains(node)) return null;
+    const target = {
+      doc: view.state.doc,
+      node,
+      offset,
+      pos: view.posAtDOM(node, offset),
+    };
+    return isInlineCaretTarget(view, target) ? target : null;
+  } catch {
+    return null;
+  } finally {
+    caretRange?.detach();
+  }
+}
+
+export function getCaretTargetFromPoint(
+  view: EditorView,
+  event: PointerCoordinates
+): PointerCaretTarget | null {
+  const nativeTarget = getNativeCaretTargetFromPoint(view, event);
+  if (nativeTarget !== null) return nativeTarget;
+
   const textNodeTarget = getTextNodeCaretTargetFromPoint(view, event);
   if (textNodeTarget !== null && isInlineCaretTarget(view, textNodeTarget)) {
     return textNodeTarget;
   }
-
-  const caretPosition = ownerDocument.caretPositionFromPoint?.(event.clientX, event.clientY);
-  const caretRange = caretPosition
-    ? null
-    : ownerDocument.caretRangeFromPoint?.(event.clientX, event.clientY);
-  const node = caretPosition?.offsetNode ?? caretRange?.startContainer ?? null;
-  const offset = caretPosition?.offset ?? caretRange?.startOffset ?? null;
-
-  if (node && offset !== null && view.dom.contains(node)) {
-    try {
-      const target = {
-        doc: view.state.doc,
-        node,
-        offset,
-        pos: view.posAtDOM(node, offset),
-      };
-      return isInlineCaretTarget(view, target) ? target : null;
-    } catch {
-    }
-  }
-
   return null;
 }

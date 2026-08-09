@@ -214,7 +214,7 @@ function isNativeEditableEmptyTextBlockTarget(view: EditorView, target: HTMLElem
   return textBlock.matches('p, li, blockquote, h1, h2, h3, h4, h5, h6');
 }
 
-function isNativeTextSelectionHit(hit: TextLinePointerHit | null): boolean {
+export function isNativeTextSelectionHit(hit: TextLinePointerHit | null): boolean {
   return hit?.type === 'content'
     || hit?.type === 'measurement-limit'
     || (hit?.type === 'gutter' && hit.edge === 'trailing');
