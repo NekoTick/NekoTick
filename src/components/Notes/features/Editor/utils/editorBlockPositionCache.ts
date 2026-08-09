@@ -1,5 +1,8 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
-import type { SelectableBlockTarget } from '../plugins/cursor/blockUnitResolver';
+import {
+  resolveSelectableBlockElement,
+  type SelectableBlockTarget,
+} from '../plugins/cursor/blockUnitResolver';
 import { MAX_BLOCK_POSITION_SNAPSHOT_BLOCKS } from './editorBlockPositionConstants';
 import { createCurrentEditorBlockPositionControllerWithState } from './editorBlockPositionController';
 import { createSnapshot } from './editorBlockPositionSnapshotFactory';
@@ -88,11 +91,25 @@ export function getCachedEditorBlockTargets(
   return getCachedEditorBlockTargetsFromSnapshot(currentSnapshot, view, ranges);
 }
 
+function resolveInteractionTargetElements(
+  view: EditorView,
+  targets: readonly SelectableBlockTarget[],
+  forceCurrentElements = false,
+): SelectableBlockTarget[] {
+  return targets.map((target) => {
+    if (!forceCurrentElements && view.dom.contains(target.element)) return target;
+    const element = resolveSelectableBlockElement(view, target.range);
+    return element ? { ...target, element } : target;
+  });
+}
+
 export function getInteractionCachedEditorBlockTargets(
   view: EditorView,
   ranges?: readonly { from: number; to: number }[],
 ): SelectableBlockTarget[] | null {
-  return getCachedEditorBlockTargetsFromSnapshot(currentSnapshot, view, ranges, false);
+  const targets = getCachedEditorBlockTargetsFromSnapshot(currentSnapshot, view, ranges, false);
+  if (!targets) return null;
+  return resolveInteractionTargetElements(view, targets, ranges !== undefined);
 }
 
 export function getFreshCachedEditorBlockTargets(
@@ -122,7 +139,14 @@ export function getInteractionCachedEditorBlockTargetNearY(
   clientY: number,
   predicate?: (block: EditorBlockPositionEntry) => boolean,
 ): SelectableBlockTarget | null {
-  return getCachedEditorBlockTargetNearYFromSnapshot(currentSnapshot, view, clientY, predicate, false);
+  const target = getCachedEditorBlockTargetNearYFromSnapshot(
+    currentSnapshot,
+    view,
+    clientY,
+    predicate,
+    false,
+  );
+  return target ? resolveInteractionTargetElements(view, [target])[0] ?? null : null;
 }
 
 export function getCachedEditorBlockTargetsNearY(
@@ -146,7 +170,7 @@ export function getInteractionCachedEditorBlockTargetsNearY(
   isNearRect: (rect: Pick<DOMRect, 'top' | 'bottom' | 'height'>, clientY: number) => boolean,
   predicate?: (block: EditorBlockPositionEntry) => boolean,
 ): SelectableBlockTarget[] | null {
-  return getCachedEditorBlockTargetsNearYFromSnapshot(
+  const targets = getCachedEditorBlockTargetsNearYFromSnapshot(
     currentSnapshot,
     view,
     clientY,
@@ -154,6 +178,7 @@ export function getInteractionCachedEditorBlockTargetsNearY(
     predicate,
     false,
   );
+  return targets ? resolveInteractionTargetElements(view, targets) : null;
 }
 
 export function getInteractionCachedEditorGeometry(

@@ -1,5 +1,6 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { SelectableBlockTarget } from '../plugins/cursor/blockUnitResolver';
+import { resolveTargetRect } from '../plugins/cursor/blockUnitDomRects';
 import { SNAPSHOT_GEOMETRY_TOLERANCE_PX } from './editorBlockPositionConstants';
 import {
   resolveDocumentBottom,
@@ -12,6 +13,8 @@ import type {
   EditorBlockPositionEntry,
   EditorBlockPositionSnapshot,
 } from './editorBlockPositionTypes';
+
+const COLLAPSED_BLOCK_SELECTOR = '.heading-collapsed-content, .editor-collapsed-content';
 
 export function isSnapshotForView(
   snapshot: EditorBlockPositionSnapshot,
@@ -59,19 +62,26 @@ function getSampledSnapshotBlocks(
 
 function isSnapshotBlockGeometryFresh(
   block: EditorBlockPositionEntry,
+  view: EditorView,
   scrollRootRect: DOMRect | null,
   scrollLeft: number,
   scrollTop: number,
   validateRect: boolean,
 ): boolean {
-  if (!block.element.isConnected) {
+  if (
+    !block.element.isConnected
+    || block.element.closest(COLLAPSED_BLOCK_SELECTOR)
+  ) {
     return false;
   }
   if (!validateRect) {
     return true;
   }
 
-  const rect = block.element.getBoundingClientRect();
+  const rect = resolveTargetRect(block.element, {
+    from: block.from,
+    to: block.to,
+  }, view);
   if (rect.width <= 0 || rect.height <= 0) {
     return false;
   }
@@ -127,6 +137,7 @@ export function isSnapshotGeometryFresh(
     return getSampledSnapshotBlocks(snapshot.blocks).every((block) => (
       isSnapshotBlockGeometryFresh(
         block,
+        snapshot.view,
         scrollRootRect,
         snapshotView.scrollLeft,
         snapshotView.scrollTop,

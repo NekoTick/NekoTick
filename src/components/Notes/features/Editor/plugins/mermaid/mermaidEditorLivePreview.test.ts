@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import { useUIStore } from '@/stores/uiSlice';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 
 vi.mock('./mermaidRenderer', () => ({
   generateMermaidId: () => 'mermaid-test',
@@ -80,7 +81,7 @@ describe('mermaidEditorLivePreview', () => {
     expect(getMermaidElementCode(element)).toBe('sequenceDiagram\nAlice->Bob: Hello');
   });
 
-  it('preloads initial Mermaid elements before they approach the viewport', async () => {
+  it('waits to render initial Mermaid elements until they approach the viewport', async () => {
     let observerCallback: IntersectionObserverCallback = () => undefined;
     let observerRootMargin = '';
     let observerScrollMargin = '';
@@ -112,9 +113,8 @@ describe('mermaidEditorLivePreview', () => {
 
     const element = createMermaidElement('sequenceDiagram\nAlice->Bob: Lazy render unique');
 
-    await waitFor(() => {
-      expect(renderMermaid).toHaveBeenCalledTimes(1);
-    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(renderMermaid).not.toHaveBeenCalled();
     expect(element.dataset.mermaidLazy).toBe('true');
     expect(element.querySelector('.mermaid-placeholder')).not.toBeNull();
     expect(observerRootMargin).toBe('0px');
@@ -122,8 +122,10 @@ describe('mermaidEditorLivePreview', () => {
 
     observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
 
-    expect(renderMermaid).toHaveBeenCalledTimes(1);
-    expect(disconnect).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
+      expect(disconnect).toHaveBeenCalled();
+    });
     expect(element.dataset.mermaidLazy).toBeUndefined();
     finishRender('<svg data-rendered="preloaded"></svg>');
     await waitFor(() => {
@@ -155,9 +157,12 @@ describe('mermaidEditorLivePreview', () => {
     });
   });
 
-  it('bounds whole-document Mermaid preloads and eventually renders every diagram', async () => {
+  it('keeps whole-document Mermaid work idle until diagrams approach the viewport', async () => {
+    const observerCallbacks: IntersectionObserverCallback[] = [];
     class TestIntersectionObserver {
-      constructor(_callback: IntersectionObserverCallback) {}
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallbacks.push(callback);
+      }
 
       observe = vi.fn();
       disconnect = vi.fn();
@@ -182,17 +187,24 @@ describe('mermaidEditorLivePreview', () => {
     );
 
     try {
-      await waitFor(() => {
-        expect(getPendingMermaidRenderCount()).toBeGreaterThan(2);
-      });
-      expect(getPendingMermaidRenderCount()).toBeLessThan(elementCount);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(getPendingMermaidRenderCount()).toBe(0);
+      expect(renderMermaid).not.toHaveBeenCalled();
       expect(elements.some((element) => element.querySelector('.mermaid-error'))).toBe(false);
 
+      observerCallbacks[0]?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+      await waitFor(() => {
+        expect(renderMermaid).toHaveBeenCalledTimes(1);
+      });
       releaseRenders();
       await waitFor(() => {
-        expect(elements.every((element) => element.querySelector('svg'))).toBe(true);
-      }, { timeout: 10_000 });
-      expect(renderMermaid).toHaveBeenCalledTimes(elementCount);
+        expect(elements[0]?.querySelector('svg')).not.toBeNull();
+      });
+      expect(elements.slice(1).every((element) => element.querySelector('.mermaid-placeholder'))).toBe(true);
+      expect(renderMermaid).toHaveBeenCalledTimes(1);
       expect(getPendingMermaidRenderCount()).toBe(0);
     } finally {
       releaseRenders();
@@ -226,9 +238,54 @@ describe('mermaidEditorLivePreview', () => {
 
     expect(renderMermaid).not.toHaveBeenCalled();
     delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
 
     await waitFor(() => {
       expect(renderMermaid).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not render an offscreen diagram passed during active scrolling', async () => {
+    let observerCallback: IntersectionObserverCallback = () => undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.noteScrollRoot = 'true';
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(scrollRoot);
+    vi.mocked(renderMermaid).mockClear();
+
+    const code = 'sequenceDiagram\nAlice->Bob: skipped while scrolling';
+    const renderCount = () => vi.mocked(renderMermaid).mock.calls
+      .filter(([renderCode]) => renderCode === code).length;
+    const element = createMermaidElement(
+      code,
+      { preloadBackground: false },
+    );
+    observerCallback([{ target: element, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    observerCallback([{ target: element, isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(renderCount()).toBe(0);
+    expect(element.dataset.mermaidLazy).toBe('true');
+
+    observerCallback([{ target: element, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    await waitFor(() => {
+      expect(renderCount()).toBe(1);
     });
   });
 

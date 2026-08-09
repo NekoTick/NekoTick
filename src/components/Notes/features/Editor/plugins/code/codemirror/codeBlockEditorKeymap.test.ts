@@ -32,6 +32,7 @@ vi.mock('../../cursor/blockSelectionPluginState', () => ({
   getBlockSelectionPluginState: blockSelectionMocks.getBlockSelectionPluginState,
 }));
 
+import { TextSelection } from '@milkdown/kit/prose/state';
 import {
   copyCodeMirrorSelection,
   cutCodeMirrorSelection,
@@ -143,6 +144,66 @@ describe('createCodeBlockEditorKeymap', () => {
     expect(keys).not.toContain('Shift-Ctrl-ArrowUp');
     expect(keys).not.toContain('Shift-Ctrl-ArrowDown');
   });
+
+  it.each([
+    { key: 'ArrowUp', direction: -1, nodePos: 0, insertPos: 0 },
+    { key: 'ArrowDown', direction: 1, nodePos: 0, insertPos: 6 },
+  ] as const)(
+    'inserts an editable paragraph when $key leaves a single code block at the document boundary',
+    ({ key, direction, nodePos, insertPos }) => {
+      const transaction: any = {
+        doc: {
+          resolve: vi.fn((pos: number) => ({ pos })),
+        },
+        insert: vi.fn(() => transaction),
+        setSelection: vi.fn(() => transaction),
+        scrollIntoView: vi.fn(() => transaction),
+      };
+      const paragraph = { type: 'paragraph' };
+      const view = {
+        state: {
+          doc: {
+            content: { size: 6 },
+          },
+          schema: {
+            nodes: {
+              paragraph: { create: vi.fn(() => paragraph) },
+            },
+          },
+          tr: transaction,
+        },
+        dispatch: vi.fn(),
+        focus: vi.fn(),
+      };
+      const cm = {
+        state: {
+          doc: {
+            length: 4,
+            lineAt: vi.fn(() => ({ from: 0, to: 4 })),
+          },
+          selection: {
+            main: { from: 2, to: 2, head: 2, empty: true },
+          },
+        },
+      };
+      const keymaps = createCodeBlockEditorKeymap({
+        getCodeMirror: () => cm as never,
+        view: view as never,
+        getNode: () => ({ nodeSize: 6 }) as never,
+        getPos: () => nodePos,
+      });
+
+      const arrow = keymaps.find((binding) => binding.key === key);
+
+      expect(arrow?.run?.({} as never)).toBe(true);
+      expect(transaction.insert).toHaveBeenCalledWith(insertPos, paragraph);
+      expect(transaction.doc.resolve).toHaveBeenCalledWith(insertPos + 1);
+      expect(TextSelection.near).toHaveBeenCalledWith({ pos: insertPos + 1 }, direction);
+      expect(transaction.setSelection).toHaveBeenCalledWith('text-selection');
+      expect(view.dispatch).toHaveBeenCalledWith(transaction);
+      expect(view.focus).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('selects all content inside CodeMirror on Mod-a', () => {
     const dispatch = vi.fn();

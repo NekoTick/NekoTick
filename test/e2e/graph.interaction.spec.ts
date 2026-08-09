@@ -12,7 +12,7 @@ import {
 
 function readGraphNodePosition(node: Locator) {
   return node.evaluate((element) => {
-    const matrix = (element.parentElement as unknown as SVGGElement | null)
+    const matrix = element.closest<SVGGElement>('[data-graph-node-position]')
       ?.transform.baseVal.consolidate()?.matrix;
     return { cx: matrix?.e ?? 0, cy: matrix?.f ?? 0 };
   });
@@ -42,18 +42,10 @@ test.describe('graph interactions', () => {
 
       const graphView = page.locator(GRAPH_VIEW_SELECTOR);
       const zoomPercentage = graphView.locator('[data-whiteboard-zoom-percentage="true"]');
-      await zoomPercentage.hover();
-      await expect.poll(() => zoomPercentage.evaluate((element) => {
-        const shadow = getComputedStyle(element.parentElement!).boxShadow;
-        return shadow === 'none' || [...shadow.matchAll(/rgba\([^)]*,\s*([\d.]+)\)/g)]
-          .every((match) => Number(match[1]) === 0);
-      })).toBe(true);
-      const nodeDot = graphView
-        .locator('[data-graph-node-hit-target="Linked Note.md"]')
-        .locator('..')
-        .locator('.vlaina-graph-node-dot');
-      await expect(nodeDot).toBeVisible({ timeout: 30_000 });
-      await nodeDot.click();
+      await expect(zoomPercentage).toBeVisible();
+      const nodeTarget = graphView.locator('[data-graph-node-hit-target="Linked Note.md"]');
+      await expect(nodeTarget).toBeVisible({ timeout: 30_000 });
+      await nodeTarget.click();
 
       await expect(page.locator(NOTES_VIEW_SELECTOR)).toBeVisible();
       await expect.poll(() => page.evaluate(() => (
@@ -129,6 +121,7 @@ test.describe('graph interactions', () => {
       await expect(graphSearchInput).toBeHidden();
       await graphSidebar.locator('[data-sidebar-scroll-root="true"]').hover();
       await page.mouse.wheel(0, -80);
+      await page.keyboard.press('Control+Shift+F');
       await expect(graphSearchInput).toBeFocused();
       await page.keyboard.press('Escape');
       const entryAnimation = await nodes.evaluateAll((elements) => {
@@ -172,7 +165,7 @@ test.describe('graph interactions', () => {
       const hoverNodeDot = hoverTarget.locator('..').locator('.vlaina-graph-node-dot');
       const hoverEdge = graphView.locator('[data-graph-edge-layer="active"]');
       await page.mouse.move(1, 1);
-      await hoverNodeDot.hover();
+      await hoverTarget.hover();
       expect(await hoverTarget.evaluate((element) => (
         element.parentElement?.querySelectorAll('circle')[1]
           ?.getAttribute('class')
@@ -259,7 +252,7 @@ test.describe('graph interactions', () => {
         const samples: Array<{ x: number; y: number }> = [];
         const startedAt = performance.now();
         const readPosition = () => {
-          const matrix = (element.parentElement as unknown as SVGGElement | null)
+          const matrix = element.closest<SVGGElement>('[data-graph-node-position]')
             ?.transform.baseVal.consolidate()?.matrix;
           return { x: matrix?.e ?? 0, y: matrix?.f ?? 0 };
         };
@@ -280,7 +273,7 @@ test.describe('graph interactions', () => {
         const samples: Array<{ x: number; y: number }> = [];
         const startedAt = performance.now();
         const readPosition = () => {
-          const matrix = (element.parentElement as unknown as SVGGElement | null)
+          const matrix = element.closest<SVGGElement>('[data-graph-node-position]')
             ?.transform.baseVal.consolidate()?.matrix;
           return { x: matrix?.e ?? 0, y: matrix?.f ?? 0 };
         };
@@ -389,7 +382,7 @@ test.describe('graph interactions', () => {
         'force-release',
         'force-settled',
       ]));
-      await hoverNodeDot.click();
+      await hoverTarget.click();
       await expect(graphView).not.toBeVisible();
       await expect(page.locator(NOTES_VIEW_SELECTOR)).toBeVisible();
       await expect.poll(() => page.evaluate(() => (

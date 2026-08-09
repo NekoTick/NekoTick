@@ -171,3 +171,104 @@ body.editor-block-drag-active .milkdown .ProseMirror :is(
     calc(-1 * var(--vlaina-math-hover-bleed-x-start)) 0 0 0 var(--vlaina-math-hover-color) !important;
   border-radius: var(--vlaina-radius-0);
 }
+
+/* SVG selection previews sit behind content, so selected block surfaces must let the fill through. */
+.milkdown .ProseMirror .editor-block-selection-preview-surface {
+  --vlaina-block-selection-color: var(--vlaina-block-selection-color-default);
+  --vlaina-block-selection-bleed-y: var(--vlaina-block-selection-bleed-y-default);
+  --vlaina-block-selection-bleed-x-start: var(--vlaina-block-selection-bleed-x-default);
+  --vlaina-block-selection-bleed-x-end: var(--vlaina-block-selection-bleed-x-default);
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.milkdown .ProseMirror :is(
+  .code-block-container.editor-block-selection-preview-surface,
+  .editor-block-selection-preview-surface .code-block-container
+) {
+  --vlaina-code-block-selected-border-outline: var(--vlaina-code-block-selected-border-width, var(--vlaina-border-width-2)) solid var(--vlaina-color-white);
+  --vlaina-code-block-selected-border-outline-offset: calc(-1 * var(--vlaina-code-block-selected-border-width, var(--vlaina-border-width-2)));
+  border-color: var(--vlaina-color-white) !important;
+  outline: var(--vlaina-code-block-selected-border-outline) !important;
+  outline-offset: var(--vlaina-code-block-selected-border-outline-offset) !important;
+}
+
+.milkdown .ProseMirror :is(
+  .editor-block-selection-preview-surface:is(
+    [data-type='math-block'].math-block-wrapper,
+    [data-type='html-block'].md-htmlblock-container:not(.md-htmlblock-literal-text),
+    .toc-block,
+    .mermaid-block
+  ),
+  .editor-block-selection-preview-surface :is(
+    [data-type='math-block'].math-block-wrapper,
+    [data-type='html-block'].md-htmlblock-container:not(.md-htmlblock-literal-text),
+    .toc-block,
+    .mermaid-block
+  )
+) {
+  --vlaina-atomic-rich-selected-border-outline: var(--vlaina-code-block-selected-border-width, var(--vlaina-border-width-2)) solid var(--vlaina-color-white);
+  --vlaina-atomic-rich-selected-border-outline-offset: calc(-1 * var(--vlaina-code-block-selected-border-width, var(--vlaina-border-width-2)));
+  outline: var(--vlaina-atomic-rich-selected-border-outline);
+  outline-offset: var(--vlaina-atomic-rich-selected-border-outline-offset);
+}
+
+.milkdown .ProseMirror :is(
+  .frontmatter-block-container.editor-block-selection-preview-surface,
+  .editor-block-selection-preview-surface .frontmatter-block-container
+) {
+  border-color: var(--vlaina-color-white);
+}
+
+.milkdown .ProseMirror .editor-block-selection-preview-surface :is(
+  .code-block-container,
+  .frontmatter-block-container,
+  .callout,
+  .footnote-def,
+  .toc-block,
+  [data-type='html-block'],
+  [data-type='math-block'],
+  .mermaid-block,
+  .milkdown-table-block,
+  table
+) {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.milkdown .ProseMirror :is(
+  .code-block-container.editor-block-selection-preview-surface,
+  .editor-block-selection-preview-surface .code-block-container
+) :is(
+  .code-block-chrome-header,
+  .code-block-editable,
+  .code-block-lazy-preview,
+  .code-block-lazy-line-numbers,
+  .cm-editor,
+  .cm-scroller,
+  .cm-content,
+  .cm-line,
+  .cm-activeLine,
+  .cm-activeLineGutter,
+  .cm-gutters,
+  .cm-gutter,
+  .cm-gutterElement,
+  .cm-lineNumbers,
+  .cm-gutter-filler
+) {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.milkdown .ProseMirror :is(
+  .milkdown-table-block.editor-block-selection-preview-surface,
+  table.editor-block-selection-preview-surface,
+  .editor-block-selection-preview-surface .milkdown-table-block,
+  .editor-block-selection-preview-surface table
+) :is(.table-content-host, .table-scroll-track, table, th, td) {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}

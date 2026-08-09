@@ -82,4 +82,26 @@ describe('applyGraphPositions', () => {
 
     expect(edge).toHaveAttribute('d', 'M40,50.1L120,130.1');
   });
+
+  it('refreshes an empty position cache after graph nodes mount', () => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const positions = {
+      'Alpha.md': { x: 20, y: 30 },
+      'Beta.md': { x: 120, y: 130 },
+    };
+    applyGraphPositions(svg, positions);
+
+    const edge = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const alpha = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const beta = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    alpha.dataset.graphNodePosition = 'Alpha.md';
+    beta.dataset.graphNodePosition = 'Beta.md';
+    svg.append(edge, alpha, beta);
+    registerGraphEdgeLayer(edge, 'active', [{ sourceId: 'Alpha.md', targetId: 'Beta.md' }]);
+    applyGraphPositions(svg, positions, 'active');
+
+    expect(alpha).toHaveAttribute('transform', 'translate(20 30)');
+    expect(beta).toHaveAttribute('transform', 'translate(120 130)');
+    expect(edge).toHaveAttribute('d', 'M20,30L120,130');
+  });
 });

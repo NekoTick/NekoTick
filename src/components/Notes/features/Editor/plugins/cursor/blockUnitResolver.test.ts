@@ -344,6 +344,40 @@ describe('collectSelectableBlockTargets', () => {
     expect(nodeDOM).not.toHaveBeenCalled();
     expect(paragraphElement.getBoundingClientRect).toHaveBeenCalledTimes(1);
   });
+
+  it('does not measure collapsed top-level blocks', () => {
+    const collapsedParagraph = createNode('paragraph', 5);
+    const visibleParagraph = createNode('paragraph', 5);
+    const doc = createDoc([collapsedParagraph, visibleParagraph]);
+    const editor = document.createElement('div');
+    const collapsedElement = document.createElement('p');
+    const visibleElement = document.createElement('p');
+    const collapsedText = document.createTextNode('Collapsed');
+    const visibleText = document.createTextNode('Visible');
+    collapsedElement.className = 'heading-collapsed-content';
+    collapsedElement.append(collapsedText);
+    visibleElement.append(visibleText);
+    editor.append(collapsedElement, visibleElement);
+    collapsedElement.getBoundingClientRect = vi.fn(() => {
+      throw new Error('Collapsed blocks should not be measured');
+    });
+    visibleElement.getBoundingClientRect = vi.fn(() => mockRect(10));
+    const view = {
+      dom: editor,
+      state: { doc },
+      domAtPos: vi.fn((pos: number) => ({
+        node: pos < 5 ? collapsedText : visibleText,
+        offset: 0,
+      })),
+      nodeDOM: vi.fn(),
+    };
+
+    const targets = collectSelectableBlockTargets(view as any);
+
+    expect(targets.map((target) => target.element)).toEqual([visibleElement]);
+    expect(collapsedElement.getBoundingClientRect).not.toHaveBeenCalled();
+    expect(visibleElement.getBoundingClientRect).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('collectMovableBlockTargetRanges', () => {

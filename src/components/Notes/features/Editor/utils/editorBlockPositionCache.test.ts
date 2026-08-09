@@ -11,6 +11,7 @@ import {
   getFreshCachedEditorBlockTargets,
   getCurrentEditorBlockPositionSnapshot,
   getInteractionCachedEditorBlockTargets,
+  getInteractionCachedEditorBlockTargetNearY,
   getInteractionCachedEditorBlockTargetsNearY,
   isEditorHiddenByToolbarPreview,
   MAX_BLOCK_POSITION_SNAPSHOT_BLOCKS,
@@ -689,7 +690,127 @@ describe('editorBlockPositionCache', () => {
     }
   });
 
-  it('trusts an interaction snapshot without forcing live geometry validation', () => {
+  it.each([
+    'heading-collapsed-content',
+    'editor-collapsed-content',
+  ])('does not return cached targets after a block gains %s', (collapsedClass) => {
+    const scrollRoot = document.createElement('div');
+    scrollRoot.setAttribute('data-note-scroll-root', 'true');
+    scrollRoot.scrollTop = 20;
+    scrollRoot.getBoundingClientRect = () => rect(0, 200, 640);
+    const dom = document.createElement('div');
+    const block = document.createElement('p');
+    dom.appendChild(block);
+    scrollRoot.appendChild(dom);
+    document.body.appendChild(scrollRoot);
+
+    const doc = { content: { size: 4 } };
+    const view = {
+      dom,
+      state: { doc },
+    };
+
+    setCurrentEditorBlockPositionSnapshot(withBlockIndex({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      scrollRoot,
+      scrollLeft: 0,
+      scrollTop: 20,
+      geometryValidationScrollLeft: 0,
+      geometryValidationScrollTop: 20,
+      blocks: [{
+        from: 0,
+        to: 4,
+        element: block,
+        rect: rect(10, 30),
+        documentTop: 30,
+        documentBottom: 50,
+        tagName: 'P',
+        headingLevel: null,
+        headingId: null,
+        headingText: null,
+      }],
+      headings: [],
+    }));
+
+    try {
+      block.classList.add(collapsedClass);
+      block.getBoundingClientRect = () => {
+        throw new Error('Collapsed cached blocks should not be measured');
+      };
+      scrollRoot.scrollTop = 80;
+
+      expect(getCachedEditorBlockTargets(view as any)).toBeNull();
+      expect(getCachedEditorBlockTargetByPos(view as any, 0)).toBeNull();
+    } finally {
+      clearCurrentEditorBlockPositionSnapshot();
+      scrollRoot.remove();
+    }
+  });
+
+  it('validates cached list-item headers against their selectable row geometry', () => {
+    const dom = document.createElement('div');
+    const item = document.createElement('li');
+    const header = document.createElement('p');
+    item.appendChild(header);
+    dom.appendChild(item);
+    document.body.appendChild(dom);
+    item.getBoundingClientRect = () => rect(40, 140);
+    header.getBoundingClientRect = () => rect(40, 64);
+
+    const listNode = {
+      type: { name: 'bullet_list' },
+      nodeSize: 10,
+    };
+    const doc = {
+      content: { size: 10 },
+      forEach(callback: (node: typeof listNode, offset: number) => void) {
+        callback(listNode, 0);
+      },
+    };
+    const view = {
+      dom,
+      state: { doc },
+      nodeDOM: () => header,
+    };
+    const block = {
+      from: 1,
+      to: 5,
+      element: item,
+      rect: rect(40, 64),
+      documentTop: 40,
+      documentBottom: 64,
+      tagName: 'LI',
+      headingLevel: null,
+      headingId: null,
+      headingText: null,
+    };
+
+    setCurrentEditorBlockPositionSnapshot(withBlockIndex({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      scrollRoot: null,
+      scrollLeft: 0,
+      scrollTop: 0,
+      geometryValidationScrollLeft: 0,
+      geometryValidationScrollTop: 0,
+      blocks: [block],
+      headings: [],
+    }));
+
+    try {
+      expect(getCachedEditorBlockTargets(view as any)).toHaveLength(1);
+    } finally {
+      clearCurrentEditorBlockPositionSnapshot();
+      dom.remove();
+    }
+  });
+
+  it('preserves interaction snapshot geometry while resolving ranged targets from the live DOM', () => {
     const scrollRoot = document.createElement('div');
     scrollRoot.setAttribute('data-note-scroll-root', 'true');
     scrollRoot.scrollTop = 40;
@@ -700,7 +821,11 @@ describe('editorBlockPositionCache', () => {
     scrollRoot.append(dom);
     document.body.append(scrollRoot);
     const doc = { content: { size: 8 } };
-    const view = { dom, state: { doc } };
+    const view = {
+      dom,
+      nodeDOM: (pos: number) => pos >= 4 ? secondBlock : block,
+      state: { doc },
+    };
     const liveBlockRect = vi.fn(() => rect(300, 324));
     const liveScrollRootRect = vi.fn(() => rect(20, 620, 640));
     block.getBoundingClientRect = liveBlockRect;
@@ -753,15 +878,77 @@ describe('editorBlockPositionCache', () => {
       );
 
       expect(targets?.[0]?.range).toEqual({ from: 0, to: 4 });
-      expect(getInteractionCachedEditorBlockTargets(
+      const rangedTargets = getInteractionCachedEditorBlockTargets(
         view as any,
         [{ from: 4, to: 8 }],
-      )?.map((target) => target.range)).toEqual([{ from: 4, to: 8 }]);
+      );
+      expect(rangedTargets?.map((target) => target.range)).toEqual([{ from: 4, to: 8 }]);
+      expect(rangedTargets?.[0]?.element).toBe(secondBlock);
       expect(liveBlockRect).not.toHaveBeenCalled();
       expect(liveScrollRootRect).not.toHaveBeenCalled();
     } finally {
       clearCurrentEditorBlockPositionSnapshot();
       scrollRoot.remove();
+    }
+  });
+
+  it('resolves the current block element when an interaction snapshot element was replaced', () => {
+    const dom = document.createElement('div');
+    const staleBlock = document.createElement('p');
+    const currentBlock = document.createElement('p');
+    dom.appendChild(currentBlock);
+    document.body.appendChild(dom);
+    const paragraph = {
+      childCount: 0,
+      nodeSize: 4,
+      type: { name: 'paragraph' },
+    };
+    const doc = {
+      childCount: 1,
+      content: { size: 4 },
+      forEach(callback: (node: typeof paragraph, offset: number) => void) {
+        callback(paragraph, 0);
+      },
+    };
+    const currentBlockRect = vi.fn(() => rect(20, 44));
+    currentBlock.getBoundingClientRect = currentBlockRect;
+    const view = {
+      dom,
+      domAtPos: () => ({ node: currentBlock }),
+      nodeDOM: () => currentBlock,
+      state: { doc },
+    };
+
+    setCurrentEditorBlockPositionSnapshot(withBlockIndex({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      scrollRoot: null,
+      scrollLeft: 0,
+      scrollTop: 0,
+      blocks: [{
+        from: 0,
+        to: 4,
+        element: staleBlock,
+        rect: rect(20, 44),
+        documentTop: 20,
+        documentBottom: 44,
+        tagName: 'P',
+        headingLevel: null,
+        headingId: null,
+        headingText: null,
+      }],
+      headings: [],
+    }));
+
+    try {
+      expect(getInteractionCachedEditorBlockTargets(view as any)?.[0]?.element).toBe(currentBlock);
+      expect(getInteractionCachedEditorBlockTargetNearY(view as any, 30)?.element).toBe(currentBlock);
+      expect(currentBlockRect).not.toHaveBeenCalled();
+    } finally {
+      clearCurrentEditorBlockPositionSnapshot();
+      dom.remove();
     }
   });
 

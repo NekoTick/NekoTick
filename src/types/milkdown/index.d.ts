@@ -427,6 +427,7 @@ declare module '@milkdown/kit/core' {
   export const editorStateOptionsCtx: MilkdownCtxToken<(prev: AnyRecord) => AnyRecord>;
   export const editorStateTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const editorViewCtx: MilkdownCtxToken<import('@milkdown/kit/prose/view').EditorView>;
+  export const virtualizeEditorViewCtx: MilkdownCtxToken<boolean>;
   export const editorViewOptionsCtx: MilkdownCtxToken<AnyRecord>;
   export const editorViewTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const inputRulesCtx: MilkdownCtxToken<import('@milkdown/kit/prose/inputrules').InputRule[]>;
@@ -565,6 +566,7 @@ declare module '@milkdown/core' {
   export const editorStateOptionsCtx: MilkdownCtxToken<(prev: AnyRecord) => AnyRecord>;
   export const editorStateTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const editorViewCtx: MilkdownCtxToken<import('@milkdown/prose/view').EditorView>;
+  export const virtualizeEditorViewCtx: MilkdownCtxToken<boolean>;
   export const editorViewOptionsCtx: MilkdownCtxToken<AnyRecord>;
   export const editorViewTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const inputRulesCtx: MilkdownCtxToken<import('@milkdown/prose/inputrules').InputRule[]>;

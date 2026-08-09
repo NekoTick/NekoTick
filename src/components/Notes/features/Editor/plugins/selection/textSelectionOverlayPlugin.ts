@@ -5,6 +5,7 @@ import { createTextSelectionDecorationState } from './textSelectionOverlayDecora
 import { createTextSelectionOverlayPluginView } from './textSelectionOverlayPluginView';
 import {
   POINTER_NATIVE_SELECTION_META,
+  isLargeEditorSelection,
   isTextSelectionOverlayEligible,
   textSelectionOverlayPluginKey,
 } from './textSelectionOverlayState';
@@ -22,6 +23,8 @@ export {
 export {
   MAX_TEXT_SELECTION_OVERLAY_DECORATIONS,
   MAX_TEXT_SELECTION_OVERLAY_SCAN_NODES,
+  LARGE_SELECTION_MIN_RANGE_SIZE,
+  LARGE_SELECTION_MIN_SELECTED_NODES,
   TEXT_SELECTION_OVERLAY_CLASS,
   getNativeSelectionMetrics,
   showTextSelectionOverlayForTransaction,
@@ -46,9 +49,11 @@ export const textSelectionOverlayPlugin = $prose(() => {
           blockSelectionAction.blocks.length > 0;
         const overlayEligible = !isSettingBlockSelection && isTextSelectionOverlayEligible(newState);
         let usePointerNativeSelection = pointerNativeMeta ?? (
-          newState.selection instanceof TextSelection
-            ? tr.docChanged && newState.selection.empty ? false : previous.usePointerNativeSelection
-            : false
+          isLargeEditorSelection(newState)
+            ? true
+            : newState.selection instanceof TextSelection
+              ? tr.docChanged && newState.selection.empty ? false : previous.usePointerNativeSelection
+              : false
         );
         if (isSettingBlockSelection) {
           usePointerNativeSelection = false;

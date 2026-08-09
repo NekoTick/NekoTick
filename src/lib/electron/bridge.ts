@@ -284,47 +284,6 @@ export interface ElectronAIProviderHttpApi {
   onRequestError(requestId: string, callback: (payload: { message: string }) => void): () => void;
 }
 
-export interface ElectronWebSearchApi {
-  search(query: string, options?: {
-    category?: string;
-    timeRange?: string;
-    limit?: number;
-  }, requestId?: string): Promise<{
-    query: string;
-    results: Array<{
-      title: string;
-      url: string;
-      snippet: string;
-      publishedAt: string | null;
-      source: string | null;
-      thumbnail: string | null;
-    }>;
-  }>;
-  read(url: string, options?: { contentLimit?: number; retries?: number }, requestId?: string): Promise<{
-    title: string;
-    summary: string;
-    siteName: string;
-    finalUrl: string;
-    content: string;
-    charCount: number;
-  }>;
-  readBatch(urls: string[], options?: { contentLimit?: number; retries?: number }, requestId?: string): Promise<Array<{
-    url: string;
-    ok: boolean;
-    page?: {
-      title: string;
-      summary: string;
-      siteName: string;
-      finalUrl: string;
-      content: string;
-      charCount: number;
-    };
-    error?: string;
-    code?: string;
-  }>>;
-  cancelRequest(requestId: string): Promise<boolean>;
-}
-
 export interface ElectronComputerCommandResult {
   status: 'completed' | 'failed' | 'denied' | 'cancelled' | 'timed_out';
   command: string;
@@ -503,6 +462,8 @@ export interface ElectronAccountApi {
   reportManagedClientDiagnostic(body: Record<string, unknown>): Promise<Record<string, unknown>>;
   managedChatCompletion(body: object, requestId?: string): Promise<Record<string, unknown>>;
   cancelManagedChatCompletion(requestId: string): Promise<void>;
+  managedWebSearch(body: object, requestId?: string): Promise<Record<string, unknown>>;
+  cancelManagedWebSearch(requestId: string): Promise<void>;
   managedImageGeneration(body: object, requestId?: string): Promise<Record<string, unknown>>;
   cancelManagedImageGeneration(requestId: string): Promise<void>;
   managedImageEdit(payload: { bodyBase64: string; headers: Record<string, string> }, requestId?: string): Promise<Record<string, unknown>>;
@@ -542,7 +503,6 @@ export interface DesktopApi {
   export: ElectronExportApi;
   aiProvider: ElectronAIProviderHttpApi;
   computer?: ElectronComputerApi;
-  webSearch?: ElectronWebSearchApi;
   dragDrop: ElectronDragDropApi;
   dialog: ElectronDialogApi;
   fs: ElectronFsApi;

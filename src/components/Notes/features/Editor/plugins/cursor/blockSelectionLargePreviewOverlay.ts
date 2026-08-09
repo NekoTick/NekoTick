@@ -1,7 +1,6 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import {
   getInteractionCachedEditorBlockTargets,
-  getInteractionCachedEditorGeometry,
   subscribeCurrentEditorBlockPositionSnapshot,
 } from '../../utils/editorBlockPositionCache';
 import { getBlockRangesKey } from './blockSelectionRanges';
@@ -12,6 +11,7 @@ import {
   resolveBlockSelectionPreviewMetrics,
   resolveBlockSelectionPreviewRects,
 } from './blockSelectionPreviewGeometry';
+import { resolveTargetRect } from './blockUnitDomRects';
 
 const LARGE_SELECTION_PREVIEW_LAYER_CLASS = 'editor-block-selection-large-preview-layer';
 const LARGE_SELECTION_PREVIEW_ACTIVE_CLASS = 'editor-block-selection-large-preview-active';
@@ -70,21 +70,32 @@ export function createLargeBlockSelectionPreviewOverlay(view: EditorView) {
 
     const targets = getInteractionCachedEditorBlockTargets(updatedView, selectedBlocks);
     if (!targets) {
+      if (
+        lastDoc === updatedView.state.doc
+        && lastSelectionKey === selectionKey
+        && path.hasAttribute('d')
+      ) {
+        return;
+      }
       clear();
       return;
     }
 
     const hostRect = host.getBoundingClientRect();
-    const editorRect = getInteractionCachedEditorGeometry(updatedView)?.editorRect
-      ?? updatedView.dom.getBoundingClientRect();
-    const previewBlocks = targets.map((target) => ({
-      from: target.range.from,
-      to: target.range.to,
-      left: editorRect.left - hostRect.left,
-      top: target.rect.top - hostRect.top,
-      right: editorRect.right - hostRect.left,
-      bottom: target.rect.bottom - hostRect.top,
-    }));
+    const editorRect = updatedView.dom.getBoundingClientRect();
+    const previewBlocks = targets.map((target) => {
+      const rect = target.element.isConnected
+        ? resolveTargetRect(target.element, target.range, updatedView)
+        : target.rect;
+      return {
+        from: target.range.from,
+        to: target.range.to,
+        left: editorRect.left - hostRect.left,
+        top: rect.top - hostRect.top,
+        right: editorRect.right - hostRect.left,
+        bottom: rect.bottom - hostRect.top,
+      };
+    });
     const previewRects = resolveBlockSelectionPreviewRects(
       updatedView.state.doc,
       previewBlocks,

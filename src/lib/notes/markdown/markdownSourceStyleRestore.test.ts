@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { restoreAutolinkStyleFromReference } from './markdownAutolinkStyle';
 import { restoreBlockquoteMarkerSpacingFromReference } from './markdownBlockquoteMarkerSpacing';
+import { restoreUnrequestedMarkdownEscapesFromReference } from './markdownEscapeStyle';
 import { restoreFenceMarkerStyleFromReference } from './markdownFenceMarkerStyle';
 import { restoreHardBreakStyleFromReference } from './markdownHardBreakStyle';
 import { restoreSetextHeadingStyleFromReference } from './markdownHeadingMarkerStyle';
@@ -426,5 +427,21 @@ describe('hard break source style restoration', () => {
     ].join('\n');
 
     expect(restoreHardBreakStyleFromReference(serialized, reference)).toBe(reference);
+  });
+});
+
+describe('markdown escape source style restoration', () => {
+  it('restores a source line when serialization doubles backslashes before HTML entities', () => {
+    const reference = String.raw`<img src='image.png?a=1\\&amp;b=2' alt='A \\&quot;quote\\&quot;' />`;
+    const serialized = String.raw`<img src='image.png?a=1\\\\\&amp;b=2' alt='A \\\\\&quot;quote\\\\\&quot;' />`;
+
+    expect(restoreUnrequestedMarkdownEscapesFromReference(serialized, reference)).toBe(reference);
+  });
+
+  it('does not restore doubled backslashes when other source text changed', () => {
+    const reference = String.raw`before\\after`;
+    const serialized = String.raw`changed\\\\after`;
+
+    expect(restoreUnrequestedMarkdownEscapesFromReference(serialized, reference)).toBe(serialized);
   });
 });

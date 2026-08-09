@@ -25,7 +25,6 @@ import { registerDesktopUpdateIpc } from './desktopUpdateIpc.mjs';
 import { registerDesktopSecretsIpc } from './desktopSecretsIpc.mjs';
 import { createProxyConfiguration } from './proxyConfiguration.mjs';
 import { createTrustedIpc } from './trustedIpc.mjs';
-import { createWebSearchServices, registerWebSearchIpc } from './webSearch/ipc.mjs';
 import { normalizeMarkdownOpenPath } from './markdownOpenPath.mjs';
 import { getWindowsAppUserModelId } from './microsoftStoreIdentity.mjs';
 import { configureLinuxSafeStorageBackend } from './linuxSafeStorage.mjs';
@@ -218,11 +217,6 @@ registerDesktopIpc({
   resolveTargetWindow,
   requireNonEmptyString,
   requireStringArray,
-});
-
-registerWebSearchIpc({
-  handleIpc,
-  services: createWebSearchServices({ searchFetchImpl: fetchWithElectronSession }),
 });
 
 registerDesktopSecretsIpc({

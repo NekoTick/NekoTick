@@ -280,6 +280,27 @@ describe('ModelSelector', () => {
     expect(mocks.refreshManagedProviderInBackground).toHaveBeenCalledWith({ force: true });
   });
 
+  it('labels free models in the trigger and model list', async () => {
+    useUnifiedStore.setState((state) => ({
+      data: {
+        ...state.data,
+        ai: {
+          ...state.data.ai!,
+          models: state.data.ai!.models.map((model) => ({ ...model, isFree: true })),
+        },
+      },
+    }));
+
+    render(<ModelSelector />);
+    expect(document.querySelectorAll('[data-model-free-badge="true"]')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /Model Alpha/ }));
+    await waitFor(() => {
+      expect(document.querySelectorAll('[data-model-free-badge="true"]')).toHaveLength(2);
+    });
+    expect(screen.getAllByText('Free')).toHaveLength(2);
+  });
+
   it('exposes an owned combobox and listbox relationship in Chat', async () => {
     render(<ModelSelector />);
     const trigger = screen.getByRole('button', { name: /Model Alpha/ });

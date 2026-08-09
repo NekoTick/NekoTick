@@ -119,6 +119,9 @@ it.each([
 it.each([
   ['- [X] done', '- [x] done\n'],
   ['- [✓] done', '- [x] done\n'],
+  ['- 【 】 todo', '- [ ] todo\n'],
+  ['1. 【X】 done', '1. [x] done\n'],
+  ['- 【x】\tdone', '- [x] done\n'],
 ])('should parse %s and serialize back as standard markdown', async (input, expected) => {
   const editor = createEditorWithContent(input)
 
@@ -126,6 +129,27 @@ it.each([
 
   const markdown = editor.action(getMarkdown())
   expect(markdown).toBe(expected)
+})
+
+it.each([
+  [
+    'fenced code',
+    ['```text', '- [✓] literal', '1. 【X】 literal', '```'].join('\n'),
+  ],
+  [
+    'raw HTML',
+    ['<div>', '- [✓] literal', '1. 【X】 literal', '</div>'].join('\n'),
+  ],
+])('should preserve task marker text inside %s', async (_name, input) => {
+  const editor = createEditorWithContent(input)
+
+  await editor.create()
+
+  const markdown = editor.action(getMarkdown())
+  expect(markdown).toContain('- [✓] literal')
+  expect(markdown).toContain('1. 【X】 literal')
+
+  await editor.destroy()
 })
 
 it('should create an unchecked empty task item when pressing enter at task text start', async () => {

@@ -314,7 +314,7 @@ export function useTableBlockLayout({
     window.addEventListener('resize', syncEdgeCreateZones)
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
-        syncEdgeCreateZones()
+        queueLayoutSync()
       })
 
       if (tableWrapperRef.value) resizeObserver.observe(tableWrapperRef.value)

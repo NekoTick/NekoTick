@@ -7,6 +7,7 @@ import { parseErrorTag, stripFirstErrorTag } from '@/lib/ai/errorTag';
 import { isManagedModelId } from '@/lib/ai/managedService';
 import { stripWebSearchStatusMarkup } from '@/lib/ai/webSearch/statusMarkup';
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
+import { extractThinkingSections } from '@/components/Chat/features/Layout/chatAssistantMarkdownParsing';
 import { WebSearchStatusBlock } from '@/components/Chat/features/WebSearch/WebSearchStatusBlock';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import { extractComputerCommandStatuses } from '@/lib/ai/computerUse/transcript';
@@ -101,13 +102,17 @@ export function AIMessage({
       contentWithoutError: visibleContent,
     };
   }, [contentMayContainControlMarkup, msg.content, msg.webSearchStatuses]);
-  const isStreamingContentVisible = isLoading && contentWithoutError.trim().length > 0;
   const contentWithoutThinking = useMemo(
     () => contentMayContainControlMarkup
       ? stripThinkingContent(contentWithoutError)
       : contentWithoutError.trim(),
     [contentMayContainControlMarkup, contentWithoutError],
   );
+  const thinkingSections = contentMayContainControlMarkup
+    ? extractThinkingSections(contentWithoutError)
+    : null;
+  const hasCompletedThinking = Boolean(thinkingSections?.body) && thinkingSections?.isComplete === true;
+  const isStreamingContentVisible = isLoading && contentWithoutError.trim().length > 0 && !hasCompletedThinking;
   const computerCommandStatuses = useMemo(() => extractComputerCommandStatuses(
     msg.apiTranscript ?? msg.versions?.[msg.currentVersionIndex]?.apiTranscript,
     isLoading,

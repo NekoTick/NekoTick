@@ -144,7 +144,7 @@ export function createBlockSelectionLineFillOverlay(view: EditorView): LineFillO
 
     for (const range of input.hardBreakRanges) {
       const paragraph = resolveParagraphElement(updatedView, range);
-      if (!paragraph) continue;
+      if (!paragraph || paragraph.closest('.heading-collapsed-content, .editor-collapsed-content')) continue;
       let paragraphRect = paragraphRects.get(paragraph);
       if (!paragraphRect) {
         paragraphRect = paragraph.getBoundingClientRect();

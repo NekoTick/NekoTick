@@ -20,9 +20,11 @@ import {
   resolveBlockSelectionPreviewMetrics,
   resolveBlockSelectionPreviewRects,
 } from './blockSelectionPreviewGeometry';
+import { isBlockSelectionPreviewSurfaceRange } from './blockSelectionDecorationClasses';
 
 interface BlankAreaSelectionRectResolver {
   getSelectionBlockRects: () => readonly BlockRect[];
+  getLiveSelectionBlockRects: (ranges: readonly BlockRange[]) => readonly BlockRect[];
   invalidate: () => void;
 }
 
@@ -53,8 +55,12 @@ export function createBlankAreaSelectionResolver(args: {
   let cachedDocSpaceBlockRects: readonly BlockRect[] | null = null;
   let cachedDocSpaceBlockIndex: BlockRectYIndex | null = null;
   let cachedDocSpaceBlocksByRange: Map<string, BlockRect> | null = null;
+  let selectedPreviewDocSpaceBlocks: BlockRect[] = [];
   let selectedPreviewDocSpaceRects: RectBounds[] = [];
   let selectedPreviewRanges: BlockRange[] = [];
+  let selectedPreviewSurfaceRanges: BlockRange[] = [];
+  let selectedPreviewSurfaceRangesKey = '';
+  let resolvedSelectionBlocks: BlockRange[] = [...args.initialSelectedBlocks];
   let selectedPreviewPath = '';
   const previewMetrics = resolveBlockSelectionPreviewMetrics(args.view.dom);
 
@@ -96,8 +102,11 @@ export function createBlankAreaSelectionResolver(args: {
     cachedDocSpaceBlockRects = null;
     cachedDocSpaceBlockIndex = null;
     cachedDocSpaceBlocksByRange = null;
+    selectedPreviewDocSpaceBlocks = [];
     selectedPreviewDocSpaceRects = [];
     selectedPreviewRanges = [];
+    selectedPreviewSurfaceRanges = [];
+    selectedPreviewSurfaceRangesKey = '';
     selectedPreviewPath = '';
     cachedSelectionResolutionKey = '';
     cachedSelectionResolutionBlocks = [];
@@ -162,6 +171,13 @@ export function createBlankAreaSelectionResolver(args: {
       from: block.from,
       to: block.to,
     }));
+    const selectionChanged = nextKey !== selectedBlocksKey;
+    if (selectedPreviewSurfaceRangesKey !== nextKey) {
+      selectedPreviewSurfaceRanges = selectedPreviewRanges.filter((range) =>
+        isBlockSelectionPreviewSurfaceRange(args.view.state.doc, range));
+      selectedPreviewSurfaceRangesKey = nextKey;
+    }
+    selectedPreviewDocSpaceBlocks = previewBlocks;
     selectedPreviewDocSpaceRects = resolveBlockSelectionPreviewRects(
       args.view.state.doc,
       previewBlocks,
@@ -171,7 +187,8 @@ export function createBlankAreaSelectionResolver(args: {
       selectedPreviewDocSpaceRects,
       previewMetrics.radiusPx,
     );
-    if (nextKey === selectedBlocksKey) return;
+    resolvedSelectionBlocks = expandedBlocks;
+    if (!selectionChanged) return;
 
     selectedBlocksKey = nextKey;
     args.onSelectionChange(expandedBlocks);
@@ -194,12 +211,95 @@ export function createBlankAreaSelectionResolver(args: {
   const getSelectionPreviewDocumentRects = (): readonly RectBounds[] => selectedPreviewDocSpaceRects;
   const getSelectionPreviewPath = (): string => selectedPreviewPath;
   const getSelectionPreviewRanges = (): BlockRange[] => selectedPreviewRanges;
+  const getSelectionPreviewSurfaceRanges = (): BlockRange[] => selectedPreviewSurfaceRanges;
+  const getSelectionBlocks = (): readonly BlockRange[] => resolvedSelectionBlocks;
+  const refreshSelectionPreviewGeometry = (
+    changedRanges: readonly BlockRange[] = selectedPreviewRanges,
+  ): boolean => {
+    if (selectedPreviewRanges.length === 0 || !cachedDocSpaceBlockRects) return false;
+
+    const currentScrollLeft = args.getScrollLeft();
+    const currentScrollTop = args.getScrollTop();
+    const liveDocSpaceBlocks = convertBlockRectsToDocumentSpace(
+      args.rectResolver.getLiveSelectionBlockRects(changedRanges),
+      currentScrollLeft,
+      currentScrollTop,
+    );
+    if (liveDocSpaceBlocks.length !== changedRanges.length) return false;
+
+    const nextCachedBlocks = [...cachedDocSpaceBlockRects];
+    const blockIndexByRange = new Map(nextCachedBlocks.map((block, index) => [
+      `${block.from}:${block.to}`,
+      index,
+    ]));
+    const replacements = liveDocSpaceBlocks
+      .map((block) => ({
+        block,
+        index: blockIndexByRange.get(`${block.from}:${block.to}`) ?? -1,
+      }))
+      .filter((replacement) => replacement.index >= 0)
+      .sort((left, right) => left.index - right.index);
+    if (replacements.length !== changedRanges.length) return false;
+    const hasGeometryChange = replacements.some((replacement) => {
+      const previousBlock = nextCachedBlocks[replacement.index];
+      return !previousBlock
+        || previousBlock.left !== replacement.block.left
+        || previousBlock.top !== replacement.block.top
+        || previousBlock.right !== replacement.block.right
+        || previousBlock.bottom !== replacement.block.bottom;
+    });
+    if (!hasGeometryChange) return false;
+
+    for (const replacement of replacements) {
+      const previousBlock = nextCachedBlocks[replacement.index];
+      if (!previousBlock) return false;
+      const followingShift = replacement.block.bottom - previousBlock.bottom;
+      nextCachedBlocks[replacement.index] = replacement.block;
+      if (followingShift === 0) continue;
+      for (let index = replacement.index + 1; index < nextCachedBlocks.length; index += 1) {
+        const followingBlock = nextCachedBlocks[index];
+        if (!followingBlock || followingBlock.top < previousBlock.bottom - 1) continue;
+        nextCachedBlocks[index] = {
+          ...followingBlock,
+          top: followingBlock.top + followingShift,
+          bottom: followingBlock.bottom + followingShift,
+        };
+      }
+    }
+
+    const nextBlocksByRange = new Map(nextCachedBlocks.map((block) => [
+      `${block.from}:${block.to}`,
+      block,
+    ]));
+    const nextSelectedBlocks = selectedPreviewRanges
+      .map((range) => nextBlocksByRange.get(`${range.from}:${range.to}`))
+      .filter((block): block is BlockRect => Boolean(block));
+    if (nextSelectedBlocks.length !== selectedPreviewRanges.length) return false;
+
+    cachedDocSpaceBlockRects = nextCachedBlocks;
+    cachedDocSpaceBlockIndex = createBlockRectYIndex(nextCachedBlocks);
+    cachedDocSpaceBlocksByRange = nextBlocksByRange;
+    selectedPreviewDocSpaceBlocks = nextSelectedBlocks;
+    selectedPreviewDocSpaceRects = resolveBlockSelectionPreviewRects(
+      args.view.state.doc,
+      selectedPreviewDocSpaceBlocks,
+      previewMetrics,
+    );
+    selectedPreviewPath = createRoundedBlockSelectionPreviewPath(
+      selectedPreviewDocSpaceRects,
+      previewMetrics.radiusPx,
+    );
+    return true;
+  };
 
   return {
     applyDragRectSelectionIfNeeded,
+    getSelectionBlocks,
     getSelectionPreviewRanges,
+    getSelectionPreviewSurfaceRanges,
     getSelectionPreviewDocumentRects,
     getSelectionPreviewPath,
+    refreshSelectionPreviewGeometry,
     invalidateGeometryCache,
   };
 }

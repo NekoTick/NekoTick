@@ -99,7 +99,7 @@ export function WhiteboardSidebar() {
                   aria-current={selected ? 'page' : undefined}
                   data-whiteboard-board-row="true"
                   className={[
-                    'group/whiteboard-board flex min-h-[var(--vlaina-size-36px)] w-full items-center rounded-[var(--vlaina-ui-radius-compact)] px-1.5 text-left text-[length:var(--vlaina-font-sm)] font-medium leading-none',
+                    'group/whiteboard-board flex min-h-[var(--vlaina-size-36px)] w-full items-center rounded-[var(--vlaina-ui-radius-compact)] px-1.5 text-left text-[length:var(--vlaina-font-sm)] font-medium leading-none [contain-intrinsic-size:auto_var(--vlaina-size-36px)] [content-visibility:auto]',
                     selected ? getSidebarSelectedRowSurfaceClass('notes') : getSidebarIdleRowSurfaceClass('notes'),
                   ].join(' ')}
                 >

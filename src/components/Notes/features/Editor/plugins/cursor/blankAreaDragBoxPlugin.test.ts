@@ -1,4 +1,4 @@
-import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
+import { AllSelection, NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
 import { Editor, defaultValueCtx, editorViewCtx, remarkStringifyOptionsCtx, serializerCtx } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
@@ -489,6 +489,17 @@ describe('shouldClearBlockSelectionForTransaction', () => {
     ).toBe(true);
   });
 
+  it('clears block selection when the editor selects the whole document', () => {
+    const selection = Object.create(AllSelection.prototype);
+
+    expect(
+      shouldClearBlockSelectionForTransaction(
+        { selection, selectionSet: true } as never,
+        { selectedBlocks: [{ from: 1, to: 5 }] }
+      )
+    ).toBe(true);
+  });
+
   it('does not clear block selection for node selections or unrelated transactions', () => {
     const nodeSelection = Object.create(NodeSelection.prototype);
     const pluginState = { selectedBlocks: [{ from: 1, to: 5 }] };
@@ -517,6 +528,31 @@ describe('shouldClearBlockSelectionForTransaction', () => {
 });
 
 describe('deferred block selection decorations', () => {
+  it('defers rich preview surfaces to the drag-preview decoration layer', async () => {
+    const { editor, view } = await createBlockSelectionEditor([
+      'Before',
+      '```js\nconst selected = true;\n```',
+      'After',
+    ].join('\n\n'));
+
+    try {
+      const codeBlock = collectSelectableBlockRanges(view.state.doc)
+        .find((range) => view.state.doc.resolve(range.from).nodeAfter?.type.name === 'code_block');
+      expect(codeBlock).toBeDefined();
+      dispatchBlockSelectionAction(view, {
+        type: 'set-blocks',
+        blocks: [codeBlock!],
+        deferDecorations: true,
+      });
+
+      const decorations = getBlockSelectionPluginState(view.state).decorations.find();
+      expect(decorations).toHaveLength(0);
+      expect(view.dom.querySelector('.editor-block-selected')).toBeNull();
+    } finally {
+      await editor.destroy();
+    }
+  });
+
   it('switches committed selections to the preview at the measured performance boundary', async () => {
     const markdown = Array.from(
       { length: BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD },
@@ -534,6 +570,36 @@ describe('deferred block selection decorations', () => {
 
       dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks });
       expect(getBlockSelectionPluginState(view.state).decorations.find()).toHaveLength(0);
+    } finally {
+      await editor.destroy();
+    }
+  });
+
+  it('keeps only rich preview-surface decorations on deferred and committed large selections', async () => {
+    const markdown = [
+      ...Array.from(
+        { length: BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD - 1 },
+        (_, index) => `Block ${index}`,
+      ),
+      '```js\nconst selected = true;\n```',
+    ].join('\n\n');
+    const { editor, view } = await createBlockSelectionEditor(markdown);
+
+    try {
+      const blocks = collectSelectableBlockRanges(view.state.doc);
+      dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks, deferDecorations: true });
+
+      const deferredDecorations = getBlockSelectionPluginState(view.state).decorations.find();
+      expect(deferredDecorations).toHaveLength(0);
+
+      dispatchBlockSelectionAction(view, { type: 'set-blocks', blocks });
+
+      const decorations = getBlockSelectionPluginState(view.state).decorations.find();
+      expect(decorations).toHaveLength(1);
+      expect(String((decorations[0]?.type as any)?.attrs?.class ?? ''))
+        .toBe('editor-block-selection-preview-surface');
+      expect(view.dom.querySelectorAll('.editor-block-selection-preview-surface')).toHaveLength(1);
+      expect(view.dom.querySelector('.editor-block-selected')).toBeNull();
     } finally {
       await editor.destroy();
     }
@@ -580,6 +646,40 @@ describe('blankAreaDragBoxPlugin document routing', () => {
     expect(view.dom.classList.contains('editor-block-selection-enabled')).toBe(true);
     await editor.destroy();
     expect(view.dom.classList.contains('editor-block-selection-enabled')).toBe(false);
+  });
+
+  it('uses the deferred preview for documents with many selectable blocks', async () => {
+    const markdown = Array.from(
+      { length: BLOCK_SELECTION_PREVIEW_RENDERING_THRESHOLD },
+      (_value, index) => `Block ${index}`,
+    ).join('\n\n');
+    const { editor, view } = await createBlockSelectionEditor(markdown);
+
+    try {
+      attachNoteScrollRoot(view);
+      vi.spyOn(document, 'createRange').mockImplementation(() => ({
+        selectNodeContents: vi.fn(),
+        getClientRects: vi.fn().mockReturnValue([domRect(100, 40, 200, 60)]),
+        detach: vi.fn(),
+      }) as any);
+
+      view.dom.dispatchEvent(createMouseEvent('mousedown', {
+        clientX: 320,
+        clientY: 50,
+      }));
+      document.dispatchEvent(createMouseEvent('mousemove', {
+        clientX: 280,
+        clientY: 90,
+        buttons: 1,
+      }));
+
+      expect(document.querySelector('[data-editor-block-selection-preview="true"]'))
+        .toBeInstanceOf(SVGSVGElement);
+      document.dispatchEvent(createMouseEvent('mouseup'));
+    } finally {
+      vi.restoreAllMocks();
+      await editor.destroy();
+    }
   });
 
   it('claims inside-editor blank-area drags before view capture listeners can turn them into native text selection', async () => {

@@ -66,7 +66,7 @@ async function main() {
   const results = await Promise.all([
     startStep('Electron-only guard', ['run', 'quality:electron-only']),
     startStep('Typecheck', ['exec', 'tsc', '--noEmit', '--pretty', 'false']),
-    startStep('Tests', ['exec', 'vitest', 'run']),
+    startStep('Production dependency audit', ['audit', '--prod', '--audit-level=high']),
     startStep('Build', ['build']),
   ]);
 

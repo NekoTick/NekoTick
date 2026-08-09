@@ -51,6 +51,7 @@ describe('startBlockDragSession', () => {
     });
 
     expect(view.dom.classList.contains('editor-block-selection-pending')).toBe(false);
+    expect(view.dom).toHaveAttribute('data-editor-block-selection-pending', 'true');
     expect(isBlockSelectionInteractionPending(view.dom)).toBe(true);
     expect(cursorRoot.style.cursor).toBe('');
     expect(document.body.style.cursor).toBe('');
@@ -63,6 +64,7 @@ describe('startBlockDragSession', () => {
     expect(onPlainClick).toHaveBeenCalledWith('outside-editor');
     expect(onTeardown).toHaveBeenCalledTimes(1);
     expect(view.dom.classList.contains('editor-block-selection-pending')).toBe(false);
+    expect(view.dom).not.toHaveAttribute('data-editor-block-selection-pending');
     expect(isBlockSelectionInteractionPending(view.dom)).toBe(false);
     expect(cursorRoot.style.cursor).toBe('');
     expect(document.body.style.userSelect).toBe('');
@@ -155,6 +157,48 @@ describe('startBlockDragSession', () => {
     expect(document.querySelector('.editor-block-selection-interaction-shield')).toBeNull();
     expect(document.body.classList.contains('editor-block-dragging-cursor')).toBe(false);
     expect(document.body.style.userSelect).toBe('');
+  });
+
+  it('keeps an activated drag alive through hover moves without a button bit', () => {
+    const { view } = setupViewDom();
+    const onTeardown = vi.fn();
+    startBlockDragSession({
+      view,
+      event: new MouseEvent('mousedown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 10,
+        clientY: 20,
+      }),
+      startZone: 'outside-editor',
+      dragThreshold: 1,
+      cursor: 'crosshair',
+      onActivate: vi.fn(),
+      onDragMove: vi.fn(),
+      onPlainClick: vi.fn(),
+      onTeardown,
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      buttons: 1,
+      clientX: 30,
+      clientY: 40,
+    }));
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      buttons: 0,
+      clientX: 30,
+      clientY: 40,
+    }));
+
+    expect(onTeardown).not.toHaveBeenCalled();
+    expect(isBlockSelectionInteractionPending(view.dom)).toBe(true);
+
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    expect(onTeardown).toHaveBeenCalledTimes(1);
   });
 
   it('coalesces follow-up moves per frame and flushes the latest move on mouse up', () => {
@@ -272,12 +316,14 @@ describe('startBlockDragSession', () => {
     }));
 
     expect(view.dom.classList.contains('editor-block-selection-pending')).toBe(false);
+    expect(view.dom).toHaveAttribute('data-editor-block-selection-pending', 'true');
     expect(document.querySelector('.editor-block-selection-interaction-shield')).not.toBeNull();
     expect(isBlockSelectionInteractionPending(view.dom)).toBe(true);
     expect(view.dom.style.cursor).toBe('');
 
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     expect(document.querySelector('.editor-block-selection-interaction-shield')).toBeNull();
+    expect(view.dom).not.toHaveAttribute('data-editor-block-selection-pending');
     expect(isBlockSelectionInteractionPending(view.dom)).toBe(false);
   });
 

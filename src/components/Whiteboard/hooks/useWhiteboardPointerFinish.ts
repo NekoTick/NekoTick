@@ -4,6 +4,7 @@ import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '../mo
 import {
   getItemsInLasso,
   getLassoBounds,
+  findElementAtPoint,
   getResizedSelectionBounds,
   resizeSelectionElements,
   resizeSelectionStrokes,
@@ -64,7 +65,7 @@ export function useWhiteboardPointerFinish({
 }: WhiteboardPointerFinishOptions) {
   return useCallback((event?: PointerEvent<HTMLDivElement>) => {
     if (event?.type !== 'pointercancel' && dragState?.kind === 'draw') {
-      applyFinalDrawSample?.(event);
+      if (event) applyFinalDrawSample?.(event);
     }
     if (event) deletePointer(event.pointerId);
     finishEraserGesture(event?.type === 'pointercancel');
@@ -87,7 +88,10 @@ export function useWhiteboardPointerFinish({
         spatialIndex.allStrokes === strokes ? candidates?.strokes ?? strokes : strokes,
         path,
       );
-      setSelectedElementIds(selection.elementIds);
+      const clickedElement = lassoBounds && lassoBounds.width < 3 && lassoBounds.height < 3
+        ? findElementAtPoint(candidates?.elements ?? elements, finalPoint ?? path[0])
+        : null;
+      setSelectedElementIds(clickedElement ? [clickedElement.id] : selection.elementIds);
       setSelectedStrokeIds(selection.strokeIds);
     }
     if (event?.type !== 'pointercancel' && dragState?.kind === 'resize-selection') {

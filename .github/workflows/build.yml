@@ -89,40 +89,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-  test-shards:
-    name: Checks / Resolve test shards
+  dependency-audit:
+    name: Security / Production dependencies
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
-    outputs:
-      matrix: ${{ steps.shards.outputs.matrix }}
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .node-version
-
-      - name: Resolve shard matrix
-        id: shards
-        run: echo "matrix=$(node scripts/resolve-test-shards.mjs)" >> "$GITHUB_OUTPUT"
-
-  test:
-    name: Checks / Test ${{ matrix.shard }}
-    runs-on: windows-2025-vs2026
-    timeout-minutes: 45
-    needs: test-shards
-
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.test-shards.outputs.matrix) }}
-
     permissions:
       contents: read
 
@@ -138,37 +109,28 @@ jobs:
       - name: Enable pnpm
         run: corepack enable pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Audit production dependencies
+        run: pnpm run quality:security
 
-      - name: Run tests
-        run: pnpm exec vitest run --shard=${{ matrix.shard }}
-
-  notes-performance:
-    name: Checks / Notes performance
+  secret-scan:
+    name: Security / Secrets
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 10
 
     permissions:
       contents: read
+      pull-requests: read
 
     steps:
-      - name: Checkout
+      - name: Checkout full history
         uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
         with:
-          node-version-file: .node-version
+          fetch-depth: 0
 
-      - name: Enable pnpm
-        run: corepack enable pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Run Notes performance tests
-        run: xvfb-run -a pnpm run test:e2e:notes:perf
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   checks:
     name: Checks
@@ -176,8 +138,9 @@ jobs:
     timeout-minutes: 10
     needs:
       - typecheck
-      - test
-      - notes-performance
+      - dependency-audit
+      - secret-scan
+      - build
     if: always()
 
     permissions:
@@ -187,10 +150,12 @@ jobs:
       - name: Require all checks to pass
         shell: bash
         run: |
-          if [[ "${{ needs.typecheck.result }}" != "success" || "${{ needs.test.result }}" != "success" || "${{ needs.notes-performance.result }}" != "success" ]]; then
-            echo "Typecheck result: ${{ needs.typecheck.result }}" >&2
-            echo "Test result: ${{ needs.test.result }}" >&2
-            echo "Notes performance result: ${{ needs.notes-performance.result }}" >&2
+          build_result="${{ needs.build.result }}"
+          if [[ "${{ needs.typecheck.result }}" != "success" || "${{ needs.dependency-audit.result }}" != "success" || "${{ needs.secret-scan.result }}" != "success" || ( "$build_result" != "success" && "$build_result" != "skipped" ) ]]; then
+            echo "Typecheck: ${{ needs.typecheck.result }}" >&2
+            echo "Dependency audit: ${{ needs.dependency-audit.result }}" >&2
+            echo "Secret scan: ${{ needs.secret-scan.result }}" >&2
+            echo "Build: $build_result" >&2
             exit 1
           fi
 

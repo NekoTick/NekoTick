@@ -25,6 +25,7 @@ import {
 import {
   isBlockSelectionInteractionPending,
 } from '../cursor/blockSelectionInteractionState';
+import { isLargeEditorSelection } from '../selection/textSelectionOverlayState';
 type CodeBlockNodeViewOptions = {
   lazyCodeMirror?: boolean;
   passiveLazyCodeMirror?: boolean;
@@ -263,7 +264,11 @@ export class CodeBlockNodeView implements NodeView {
     const selectionFrom = Math.max(this.view.state.selection.from, contentFrom);
     const selectionTo = Math.min(this.view.state.selection.to, contentTo);
     const hasSelection = selectionTo > selectionFrom;
-    const shouldMirrorOuterSelection = hasSelection && !this.cm?.hasFocus;
+    const shouldMirrorOuterSelection = (
+      hasSelection
+      && !this.cm?.hasFocus
+      && !isLargeEditorSelection(this.view.state)
+    );
 
     this.dom.dataset.pmSelected = shouldMirrorOuterSelection ? 'true' : 'false';
 

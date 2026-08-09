@@ -1,8 +1,4 @@
-import {
-  buildChatSidebarSearchEntries,
-  getNavigableChatSidebarSessions,
-  queryChatSidebarSessions,
-} from '@/components/Chat/features/Sidebar/chatSidebarSearch';
+import { queryChatSidebarSessions } from '@/components/Chat/features/Sidebar/chatSidebarSearch';
 import { rankGraphNodes } from '@/components/Graph/model/graphFilters';
 import type { NoteGraphNode } from '@/components/Graph/model/noteGraph';
 import type {
@@ -12,6 +8,7 @@ import type {
 import type { WhiteboardIndexEntry } from '@/components/Whiteboard/model/whiteboardRepository';
 import type { ChatSession } from '@/lib/ai/types';
 import type { AppViewMode } from '@/stores/uiSlice';
+import type { GlobalSearchSources } from './globalSearchSources';
 
 export type GlobalSearchKind = 'notes' | 'graph' | 'whiteboard' | 'chat';
 
@@ -81,35 +78,26 @@ export function createDefaultNoteSearchResults(
 
 export function buildGlobalSearchGroups({
   appViewMode,
-  boards,
   chatTitleFallback,
-  graphNodes,
   noteResults,
   query,
-  sessions,
+  sources,
 }: {
   appViewMode: AppViewMode;
-  boards: WhiteboardIndexEntry[];
   chatTitleFallback: string;
-  graphNodes: NoteGraphNode[];
   noteResults: NotesSidebarSearchResult[];
   query: string;
-  sessions: ChatSession[];
+  sources: GlobalSearchSources;
 }): GlobalSearchGroup[] {
   const trimmedQuery = getBoundedQuery(query);
   const chatSessions = trimmedQuery
-    ? queryChatSidebarSessions(buildChatSidebarSearchEntries(getNavigableChatSidebarSessions(sessions)), trimmedQuery)
-    : getNavigableChatSidebarSessions(sessions);
-  const whiteboards = [...boards]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    ? queryChatSidebarSessions(sources.chatEntries, trimmedQuery)
+    : sources.chatSessions;
+  const whiteboards = sources.whiteboards
     .filter((board) => !trimmedQuery || board.title.toLocaleLowerCase().includes(trimmedQuery));
   const matchingGraphNodes = trimmedQuery
-    ? rankGraphNodes(graphNodes, trimmedQuery)
-    : [...graphNodes].sort((left, right) => (
-      right.degree - left.degree
-      || left.label.localeCompare(right.label)
-      || left.id.localeCompare(right.id)
-    ));
+    ? rankGraphNodes(sources.graphNodes, trimmedQuery)
+    : sources.defaultGraphNodes;
   const resultsByKind: Record<GlobalSearchKind, GlobalSearchResult[]> = {
     notes: noteResults.slice(0, MAX_RESULTS_PER_GROUP).map((note) => ({
       id: `notes:${note.id}`,

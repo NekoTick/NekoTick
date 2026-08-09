@@ -10,9 +10,10 @@ export const managedQuotaNoticeSurfaceClass =
 
 interface ManagedQuotaNoticeProps {
   className?: string;
+  messageKey?: 'chat.freeRepliesExhausted' | 'chat.webSearchQuotaExhausted';
 }
 
-export function ManagedQuotaNotice({ className }: ManagedQuotaNoticeProps) {
+export function ManagedQuotaNotice({ className, messageKey = 'chat.freeRepliesExhausted' }: ManagedQuotaNoticeProps) {
   const { t } = useI18n();
 
   const handleUpgradeClick = useCallback(() => {
@@ -24,7 +25,7 @@ export function ManagedQuotaNotice({ className }: ManagedQuotaNoticeProps) {
       data-managed-quota-banner="true"
       className={cn(managedQuotaNoticeSurfaceClass, className)}
     >
-      <span>{t('chat.freeRepliesExhausted')}</span>
+      <span>{t(messageKey)}</span>
       <button
         type="button"
         onClick={handleUpgradeClick}
@@ -37,10 +38,10 @@ export function ManagedQuotaNotice({ className }: ManagedQuotaNoticeProps) {
   );
 }
 
-export function ManagedQuotaNoticeFrame({ className }: ManagedQuotaNoticeProps) {
+export function ManagedQuotaNoticeFrame({ className, messageKey }: ManagedQuotaNoticeProps) {
   return (
     <div className={cn(managedQuotaNoticeFrameClass, className)}>
-      <ManagedQuotaNotice />
+      <ManagedQuotaNotice messageKey={messageKey} />
     </div>
   );
 }

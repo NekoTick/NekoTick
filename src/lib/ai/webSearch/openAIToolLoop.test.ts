@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runOpenAIWebSearchJsonToolLoop, runOpenAIWebSearchToolLoop } from './openAIToolLoop';
+import { withSourceLinks } from './openAIToolLoopShared';
 import type { WebSearchClient } from './client';
 import type { WebSearchStatus } from './types';
 
@@ -100,7 +101,19 @@ describe('structured web search loop', () => {
     ]);
     expect(final).toContain('Answer based on the page.');
     expect(final).toContain(SEARCH_RESULT.url);
+    expect(final).toContain(`[example.com](${SEARCH_RESULT.url})`);
     expect(final).not.toContain('web-search-status');
+  });
+
+  it('formats known raw source URLs without wrapping existing markdown links', () => {
+    expect(withSourceLinks(`See ${SEARCH_RESULT.url}.`, [SEARCH_RESULT.url]))
+      .toBe(`See [example.com](${SEARCH_RESULT.url}).`);
+    expect(withSourceLinks(`See [Example](${SEARCH_RESULT.url}).`, [SEARCH_RESULT.url]))
+      .toBe(`See [Example](${SEARCH_RESULT.url}).`);
+    expect(withSourceLinks(`[${SEARCH_RESULT.url}](${SEARCH_RESULT.url})`, [SEARCH_RESULT.url]))
+      .toBe(`[example.com](${SEARCH_RESULT.url})`);
+    expect(withSourceLinks(`<${SEARCH_RESULT.url}>`, [SEARCH_RESULT.url]))
+      .toBe(`[example.com](${SEARCH_RESULT.url})`);
   });
 
   it('blocks page reads that were not returned by the current search', async () => {

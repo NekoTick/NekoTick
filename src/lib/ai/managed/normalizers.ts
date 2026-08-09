@@ -57,6 +57,7 @@ export function normalizeManagedModelsPayload(payload: ManagedModelsPayload): AI
       name: normalizeModelName(value, id),
       group: normalizeModelGroup(value, id),
       ...normalizeModelPrice(value),
+      isFree: value.is_free === true,
       isDefault: value.is_default === true,
       providerId: MANAGED_PROVIDER_ID,
       enabled: true,

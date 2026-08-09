@@ -5,6 +5,7 @@ import { setBlockSelectionInteractionPending } from './blockSelectionInteraction
 export type BlockDragStartZone = 'outside-editor' | 'below-last-block' | 'external-sidebar-blank';
 
 const BLOCK_SELECTION_PENDING_CLASS = 'editor-block-selection-pending';
+const BLOCK_SELECTION_PENDING_ATTRIBUTE = 'data-editor-block-selection-pending';
 const BLOCK_SELECTION_LARGE_CLASS = 'editor-block-selection-large';
 
 interface StartBlockDragSessionOptions {
@@ -128,6 +129,7 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
       dragMoveRafId = 0;
     }
     pendingDragMove = null;
+    view.dom.removeAttribute(BLOCK_SELECTION_PENDING_ATTRIBUTE);
     if (shouldApplyPendingDomClass) {
       cursorRoot.style.cursor = previousCursorRootCursor;
     }
@@ -149,7 +151,10 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
 
   const handleMouseMove = (moveEvent: MouseEvent) => {
     if ((moveEvent.buttons & 1) === 0) {
-      teardown();
+      // Browsers can emit hover moves with no pressed-button bit while an
+      // active drag is being auto-scrolled. The real mouseup/blur tears down
+      // the session; do not discard the preview on this transient event.
+      if (!activated) teardown();
       return;
     }
 
@@ -200,6 +205,7 @@ export function startBlockDragSession(options: StartBlockDragSessionOptions): Bl
   };
 
   setBlockSelectionInteractionPending(view.dom, true);
+  view.dom.setAttribute(BLOCK_SELECTION_PENDING_ATTRIBUTE, 'true');
   ownerDocument.addEventListener('mousemove', handleMouseMove, true);
   ownerDocument.addEventListener('mouseup', handleMouseUp, true);
   ownerWindow.addEventListener('blur', handleWindowBlur);

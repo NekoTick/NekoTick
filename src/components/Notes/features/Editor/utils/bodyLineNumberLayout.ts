@@ -151,6 +151,10 @@ function getVisibleRect(element: HTMLElement): DOMRect | null {
   return rect;
 }
 
+function isCollapsedBodyLineNumberTarget(target: HTMLElement): boolean {
+  return target.closest('.heading-collapsed-content, .editor-collapsed-content') !== null;
+}
+
 function resolveFirstTableLineRect(target: HTMLElement): DOMRect | null {
   const doc = target.ownerDocument;
   const walker = doc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT);
@@ -218,7 +222,20 @@ function resolveBodyLineNumberAnchorLeft(shellRect: DOMRect, editorRect: DOMRect
   );
 }
 
-export function resolveBodyLineNumberLabelLayout(shell: HTMLElement, markdown: string): BodyLineNumberLabelLayout {
+export function resolveBodyLineNumberLabelLayout(
+  shell: HTMLElement,
+  markdown: string,
+): BodyLineNumberLabelLayout {
+  return resolveBodyLineNumberLabelLayoutFromLineNumbers(
+    shell,
+    getMarkdownBodyLineNumbers(markdown),
+  );
+}
+
+export function resolveBodyLineNumberLabelLayoutFromLineNumbers(
+  shell: HTMLElement,
+  bodyLineNumbers: readonly number[],
+): BodyLineNumberLabelLayout {
   const editorRoot = shell.querySelector<HTMLElement>('.ProseMirror');
   if (!editorRoot) {
     return {
@@ -227,7 +244,6 @@ export function resolveBodyLineNumberLabelLayout(shell: HTMLElement, markdown: s
     };
   }
 
-  const bodyLineNumbers = getMarkdownBodyLineNumbers(markdown);
   const targets = collectBodyLineNumberTargets(editorRoot);
   const selectedDescendantTargets = shouldCollectSelectedBlockDescendantTargets(editorRoot)
     ? collectSelectedBlockDescendantTargets(editorRoot)
@@ -241,7 +257,7 @@ export function resolveBodyLineNumberLabelLayout(shell: HTMLElement, markdown: s
 
   for (let index = 0; index < labelCount; index += 1) {
     const target = targets[index];
-    if (!target) {
+    if (!target || isCollapsedBodyLineNumberTarget(target)) {
       continue;
     }
 

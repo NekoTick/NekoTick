@@ -148,9 +148,50 @@ function canRestoreAuthoredEscape(reference: string, slashIndex: number): boolea
   return true;
 }
 
+function matchesSerializerDoubledBackslashes(serialized: string, reference: string): boolean {
+  if (serialized.length <= reference.length || !reference.includes('\\')) return false;
+
+  let serializedIndex = 0;
+  let referenceIndex = 0;
+  let foundDoubledBackslash = false;
+  while (serializedIndex < serialized.length && referenceIndex < reference.length) {
+    if (
+      reference[referenceIndex] === '\\'
+      && serialized[serializedIndex] === '\\'
+      && serialized[serializedIndex + 1] === '\\'
+    ) {
+      foundDoubledBackslash = true;
+      serializedIndex += 2;
+      referenceIndex += 1;
+      continue;
+    }
+    if (
+      foundDoubledBackslash
+      && reference[referenceIndex] === '&'
+      && reference[referenceIndex - 1] === '\\'
+      && serialized[serializedIndex] === '\\'
+      && serialized[serializedIndex + 1] === '&'
+    ) {
+      serializedIndex += 2;
+      referenceIndex += 1;
+      continue;
+    }
+    if (serialized[serializedIndex] !== reference[referenceIndex]) return false;
+    serializedIndex += 1;
+    referenceIndex += 1;
+  }
+
+  return foundDoubledBackslash
+    && serializedIndex === serialized.length
+    && referenceIndex === reference.length;
+}
+
 function restoreLineEscapes(serialized: string, reference: string): string | null {
   if (isStandaloneEscapedOpenBracket(serialized, reference)) {
     return serialized;
+  }
+  if (matchesSerializerDoubledBackslashes(serialized, reference)) {
+    return reference;
   }
 
   let serializedIndex = 0;

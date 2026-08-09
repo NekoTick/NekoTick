@@ -11,6 +11,7 @@ import {
 } from '../../utils/editorBlockPositionCache';
 import {
   collectSelectableBlockTargets,
+  resolveSelectableBlockElement,
   resolveSelectableBlockTargetByPos,
   type SelectableBlockTarget,
 } from './blockUnitResolver';
@@ -26,6 +27,7 @@ export interface BlockRectResolver {
   getTopLevelBlockRects: () => BlockRect[];
   getPlainClickBlockRects: (clientX: number, clientY: number) => BlockRect[];
   getSelectionBlockRects: () => BlockRect[];
+  getLiveSelectionBlockRects: (ranges: readonly { from: number; to: number }[]) => BlockRect[];
   getSelectionBlockElements: (ranges: readonly { from: number; to: number }[]) => HTMLElement[];
   invalidate: () => void;
 }
@@ -236,10 +238,20 @@ export function createBlockRectResolver({
       cachedSelectionRects = mapTargetsToSelectionBlockRects(targets, getEditorRect());
       return cachedSelectionRects;
     },
+    getLiveSelectionBlockRects(ranges) {
+      return mapTargetsToSelectionBlockRects(
+        collectSelectableBlockTargets(view, ranges),
+        view.dom.getBoundingClientRect(),
+      );
+    },
     getSelectionBlockElements(ranges) {
-      if (cachedSelectionDoc !== view.state.doc) return [];
       return ranges
-        .map((range) => cachedSelectionElementsByRange.get(`${range.from}:${range.to}`))
+        .map((range) => {
+          const cached = cachedSelectionElementsByRange.get(`${range.from}:${range.to}`);
+          return cached && view.dom.contains(cached)
+            ? cached
+            : resolveSelectableBlockElement(view, range);
+        })
         .filter((element): element is HTMLElement => Boolean(element));
     },
     invalidate() {

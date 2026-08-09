@@ -59,27 +59,30 @@ export function createSyncE2EEditorActions(): EditorBridgeActions {
     getNoteSelectableBlocks: () => {
       const view = getCurrentEditorView();
       if (!view) return [];
-      return getSelectableBlockTargetsForE2E(view).map((target) => ({
-        text: target.element.textContent?.trim() ?? '',
-        rangeText: getSelectableBlockRangeTextForE2E(view, target.range),
-        tagName: target.element.tagName,
-        className: target.element.className,
-        dataset: Object.fromEntries(
-          Object.entries(target.element.dataset)
-            .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-        ),
-        rect: (() => {
-          const rect = target.rect;
-          return {
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height,
-          };
-        })(),
-        from: target.range.from,
-        to: target.range.to,
-      }));
+      return getSelectableBlockTargetsForE2E(view).map((target) => {
+        const rangeText = getSelectableBlockRangeTextForE2E(view, target.range);
+        return {
+          text: target.element.textContent?.trim() || rangeText,
+          rangeText,
+          tagName: target.element.tagName,
+          className: target.element.className,
+          dataset: Object.fromEntries(
+            Object.entries(target.element.dataset)
+              .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+          ),
+          rect: (() => {
+            const rect = target.rect;
+            return {
+              left: rect.left,
+              top: rect.top,
+              width: rect.width,
+              height: rect.height,
+            };
+          })(),
+          from: target.range.from,
+          to: target.range.to,
+        };
+      });
     },
     getEditorPositionAtPoint: (clientX, clientY) => {
       const view = getCurrentEditorView();
@@ -189,7 +192,10 @@ export function createSyncE2EEditorActions(): EditorBridgeActions {
       if (!view) return 0;
       const targets = getSelectableBlockTargetsForE2E(view);
       const ranges = texts.flatMap((text) => {
-        const target = targets.find((candidate) => candidate.element.textContent?.includes(text));
+        const target = targets.find((candidate) => (
+          getSelectableBlockRangeTextForE2E(view, candidate.range).includes(text)
+          || candidate.element.textContent?.includes(text)
+        ));
         return target ? [target.range] : [];
       });
       dispatchBlockSelectionAction(view, ranges.length > 0

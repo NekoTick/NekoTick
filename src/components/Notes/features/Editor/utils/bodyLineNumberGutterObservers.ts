@@ -47,7 +47,6 @@ export function observeBodyLineNumberGutterLayout({
   const observedResizeTargets = new Set<Element>();
 
   const resizeObserver = new ResizeObserver(() => {
-    syncObservedResizeTargets();
     onRefresh();
   });
 

@@ -61,4 +61,26 @@ describe('Mermaid render scheduler', () => {
     await expect(task.promise).resolves.toBe('rendered');
     expect(render).toHaveBeenCalledTimes(1);
   });
+
+  it('pauses queued background work while a block selection is dragging', async () => {
+    const editor = document.createElement('div');
+    editor.setAttribute('data-editor-block-selection-pending', 'true');
+    document.body.appendChild(editor);
+    const render = vi.fn(async () => 'rendered');
+    const task = scheduleMermaidRenderTask({
+      cancelledValue: '',
+      group: 'editor',
+      priority: 'background',
+      render,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(render).not.toHaveBeenCalled();
+
+    editor.removeAttribute('data-editor-block-selection-pending');
+    window.dispatchEvent(new MouseEvent('mouseup'));
+    await expect(task.promise).resolves.toBe('rendered');
+    expect(render).toHaveBeenCalledTimes(1);
+    editor.remove();
+  });
 });

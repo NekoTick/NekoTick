@@ -10,8 +10,5 @@ export function getWebSearchAvailability(ai: UnifiedData['ai']): boolean | undef
 
   const provider = ai.providers.find((item) => item.id === model.providerId);
   if (!provider) return undefined;
-  const endpointType = model.endpointType && model.endpointTypeCheckedAt
-    ? model.endpointType
-    : provider.endpointType;
-  return isManagedProviderId(provider.id) || endpointType !== 'anthropic';
+  return isManagedProviderId(provider.id);
 }

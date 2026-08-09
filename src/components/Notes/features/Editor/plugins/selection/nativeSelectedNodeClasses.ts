@@ -1,4 +1,4 @@
-import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
+import { NodeSelection, Plugin, PluginKey } from '@milkdown/kit/prose/state';
 import type { EditorState } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
@@ -148,12 +148,19 @@ export function syncNativeSelectedNodeClasses(
   };
 }
 
-function shouldSyncNativeSelectedNodeClasses(prevState: EditorState | null | undefined, nextState: EditorState): boolean {
+export function shouldSyncNativeSelectedNodeClasses(
+  prevState: EditorState | null | undefined,
+  nextState: EditorState,
+): boolean {
   if (!prevState) {
     return true;
   }
 
-  return !prevState.doc.eq(nextState.doc) || !prevState.selection.eq(nextState.selection);
+  return (
+    !prevState.doc.eq(nextState.doc)
+    || prevState.selection instanceof NodeSelection
+    || nextState.selection instanceof NodeSelection
+  );
 }
 
 export const nativeSelectedNodeClassesPlugin = $prose(() => {

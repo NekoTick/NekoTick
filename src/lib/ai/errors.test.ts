@@ -536,6 +536,20 @@ describe('parseManagedError', () => {
     });
   });
 
+  it('preserves the stable monthly web search quota error', async () => {
+    const error = await parseManagedError(new Response(JSON.stringify({
+      success: false,
+      error: 'Monthly web search quota exceeded',
+      errorCode: 'web_search_monthly_quota_exceeded',
+    }), { status: 429 }));
+
+    expect(error).toMatchObject({
+      message: 'WEB_SEARCH_QUOTA_EXHAUSTED',
+      statusCode: 429,
+      errorCode: 'web_search_monthly_quota_exceeded',
+    });
+  });
+
   it('does not map overlong managed public error codes', async () => {
     const error = await parseManagedError(new Response(JSON.stringify({
       success: false,

@@ -60,11 +60,10 @@ export function MobileMainView({ activeView, onCreateNote }: MobileMainViewProps
               {active && storageLoaded && !currentNotePath ? (
                 <div className="mobile-notes-empty" data-mobile-notes-empty="true">
                   <span className="mobile-notes-empty__icon" aria-hidden="true">
-                    <Icon name="file.text" size="xl" />
+                    <Icon name="editor.checkSquare" size="xl" />
                   </span>
                   <strong>{t('app.viewNotes')}</strong>
                   <button type="button" onClick={onCreateNote}>
-                    <Icon name="common.add" size="md" />
                     <span>{t('sidebar.newNote')}</span>
                   </button>
                 </div>

@@ -124,7 +124,8 @@ describe('ModuleShortcutsDialog', () => {
     expect(screen.getByText('No results')).toBeInTheDocument();
   });
 
-  it('leaves wheel scrolling on the shortcuts list to the browser', () => {
+  it('leaves wheel scrolling on the shortcuts list entirely to the browser', () => {
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
     render(
       <ModuleShortcutsDialog
         module="chat"
@@ -138,9 +139,12 @@ describe('ModuleShortcutsDialog', () => {
     const scrollRoot = document.querySelector('[data-module-shortcuts-scroll-root="true"]') as HTMLElement | null;
     expect(scrollRoot).not.toBeNull();
 
+    requestAnimationFrameSpy.mockClear();
+    scrollRoot!.style.overflowY = 'auto';
     setScrollMetrics(scrollRoot!, { clientHeight: 180, scrollHeight: 600, scrollTop: 30 });
     fireEvent.wheel(scrollRoot!, { deltaY: 120 });
 
     expect(scrollRoot!.scrollTop).toBe(30);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,7 @@ import {
   MAX_BLOCK_SELECTION_LINE_FILL_RANGES,
 } from './blockSelectionLineFillOverlay';
 import { resolveLineFillEdges } from './blockSelectionLineFillMetrics';
+import { collectSelectedImageBlockElements } from './blockSelectionLineFillRender';
 import { LARGE_BLOCK_SELECTION_RENDERING_THRESHOLD } from './blockSelectionUtils';
 
 async function createEditor(markdown: string) {
@@ -265,6 +266,49 @@ describe('blockSelectionLineFillOverlay', () => {
     } finally {
       await editor.destroy();
     }
+  });
+
+  it('does not measure selected hard-break paragraphs hidden by heading collapse', async () => {
+    const editor = await createEditor('alpha\\\nbravo');
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      selectWholeDocument(view);
+      const paragraph = view.dom.querySelector('p');
+      expect(paragraph).not.toBeNull();
+      const originalClosest = paragraph?.closest.bind(paragraph);
+      if (paragraph && originalClosest) {
+        vi.spyOn(paragraph, 'closest').mockImplementation((selector) => (
+          selector === '.heading-collapsed-content, .editor-collapsed-content'
+            ? paragraph
+            : originalClosest(selector)
+        ));
+      }
+      const paragraphRect = paragraph
+        ? vi.spyOn(paragraph, 'getBoundingClientRect').mockImplementation(() => {
+            throw new Error('Collapsed hard-break paragraphs should not be measured');
+          })
+        : null;
+
+      const overlay = createBlockSelectionLineFillOverlay(view);
+
+      expect(paragraphRect).not.toHaveBeenCalled();
+      overlay.destroy();
+    } finally {
+      await editor.destroy();
+    }
+  });
+
+  it('excludes selected image blocks hidden by list collapse', () => {
+    const editorDom = document.createElement('div');
+    const collapsedList = document.createElement('ul');
+    const image = document.createElement('div');
+    collapsedList.className = 'editor-collapsed-content';
+    image.className = 'image-block-container editor-block-selected';
+    collapsedList.appendChild(image);
+    editorDom.appendChild(collapsedList);
+
+    expect(collectSelectedImageBlockElements({ dom: editorDom } as EditorView)).toEqual([]);
   });
 
   it('adds line fills for selected image blocks with collapsed node-view rects', () => {

@@ -18,17 +18,20 @@ const mocks = vi.hoisted(() => ({
       cancelCommand: ReturnType<typeof vi.fn>;
       onCommandEvent: ReturnType<typeof vi.fn>;
     };
-    webSearch?: {
-      search: ReturnType<typeof vi.fn>;
-      read: ReturnType<typeof vi.fn>;
-      readBatch: ReturnType<typeof vi.fn>;
-      cancelRequest: ReturnType<typeof vi.fn>;
-    };
+  },
+  webSearchClient: {
+    webSearch: vi.fn(),
+    readWebPage: vi.fn(),
+    readWebPages: vi.fn(),
   },
 }));
 
 vi.mock('@/lib/electron/bridge', () => ({
   getElectronBridge: () => mocks.bridge,
+}));
+
+vi.mock('@/lib/ai/webSearch/client', () => ({
+  createWebSearchClient: () => mocks.webSearchClient,
 }));
 
 function buildProvider(overrides: Partial<Provider> = {}): Provider {
@@ -73,6 +76,9 @@ describe('OpenAICompatibleClient endpoint detection', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mocks.bridge = undefined;
+    mocks.webSearchClient.webSearch.mockReset();
+    mocks.webSearchClient.readWebPage.mockReset();
+    mocks.webSearchClient.readWebPages.mockReset();
   });
 
   it('falls back to Anthropic model listing and returns the detected endpoint type', async () => {
@@ -1993,7 +1999,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(chunks).toEqual([]);
   });
 
-  it('does not inject local web search tools for non-xAI Grok-compatible providers', async () => {
+  it('does not inject app-managed web search tools for non-xAI Grok-compatible providers', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       streamResponse('data: {"choices":[{"delta":{"content":"provider-native answer"}}]}\n\ndata: [DONE]\n\n'),
     );
@@ -2021,36 +2027,6 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       streamResponse('data: {"choices":[{"delta":{"content":"claude direct answer"}}]}\n\ndata: [DONE]\n\n'),
     );
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => ({
-          query: 'search something current',
-          results: [{
-            title: 'Current source',
-            url: 'https://example.com/source',
-            snippet: 'Useful source.',
-            publishedAt: null,
-            source: null,
-            thumbnail: null,
-          }],
-        })),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
-          url: 'https://example.com/source',
-          ok: true,
-          page: {
-            title: 'Current source',
-            summary: '',
-            siteName: 'example.com',
-            finalUrl: 'https://example.com/source',
-            content: 'Readable source content.',
-            charCount: 24,
-          },
-        }]),
-        cancelRequest: vi.fn(),
-      },
-    };
-
     const result = await new OpenAICompatibleClient().sendMessage(
       'hi',
       [],
@@ -2062,8 +2038,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     );
 
     expect(result).toBe('claude direct answer');
-    expect(mocks.bridge.webSearch?.search).not.toHaveBeenCalled();
-    expect(mocks.bridge.webSearch?.readBatch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.webSearch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.readWebPages).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/chat/completions');
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.model).toBe('anthropic/claude-sonnet-4.5');
@@ -2458,35 +2434,29 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       .fn()
       .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"claude web answer"}}]}\n\ndata: [DONE]\n\n'));
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => ({
-          query: 'Claude latest news',
-          results: [{
-            title: 'Claude source',
-            url: 'https://example.com/claude',
-            snippet: 'Useful source.',
-            publishedAt: null,
-            source: null,
-            thumbnail: null,
-          }],
-        })),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
-          url: 'https://example.com/claude',
-          ok: true,
-          page: {
-            title: 'Claude source',
-            summary: '',
-            siteName: 'example.com',
-            finalUrl: 'https://example.com/claude',
-            content: 'Readable source content.',
-            charCount: 24,
-          },
-        }]),
-        cancelRequest: vi.fn(),
+    mocks.webSearchClient.webSearch.mockResolvedValue({
+      query: 'Claude latest news',
+      results: [{
+        title: 'Claude source',
+        url: 'https://example.com/claude',
+        snippet: 'Useful source.',
+        publishedAt: null,
+        source: null,
+        thumbnail: null,
+      }],
+    });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://example.com/claude',
+      ok: true,
+      page: {
+        title: 'Claude source',
+        summary: '',
+        siteName: 'example.com',
+        finalUrl: 'https://example.com/claude',
+        content: 'Readable source content.',
+        charCount: 24,
       },
-    };
+    }]);
 
     const result = await new OpenAICompatibleClient().sendMessage(
       'search Claude latest news',
@@ -2500,8 +2470,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('claude web answer');
     expect(result).toContain('https://example.com/claude');
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('Claude latest news', { limit: 5 }, undefined);
-    expect(mocks.bridge.webSearch?.readBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('Claude latest news', { limit: 5 });
+    expect(mocks.webSearchClient.readWebPages).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(firstBody.tools).toBeUndefined();
@@ -2513,35 +2483,29 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       .fn()
       .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"kimi web answer"}}]}\n\ndata: [DONE]\n\n'));
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => ({
-          query: 'catime',
-          results: [{
-            title: 'Catime',
-            url: 'https://cati.me/',
-            snippet: 'Catime source.',
-            publishedAt: null,
-            source: null,
-            thumbnail: null,
-          }],
-        })),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
-          url: 'https://cati.me/',
-          ok: true,
-          page: {
-            title: 'Catime',
-            summary: '',
-            siteName: 'cati.me',
-            finalUrl: 'https://cati.me/',
-            content: 'Readable catime content.',
-            charCount: 24,
-          },
-        }]),
-        cancelRequest: vi.fn(),
+    mocks.webSearchClient.webSearch.mockResolvedValue({
+      query: 'catime',
+      results: [{
+        title: 'Catime',
+        url: 'https://cati.me/',
+        snippet: 'Catime source.',
+        publishedAt: null,
+        source: null,
+        thumbnail: null,
+      }],
+    });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://cati.me/',
+      ok: true,
+      page: {
+        title: 'Catime',
+        summary: '',
+        siteName: 'cati.me',
+        finalUrl: 'https://cati.me/',
+        content: 'Readable catime content.',
+        charCount: 24,
       },
-    };
+    }]);
 
     const result = await new OpenAICompatibleClient().sendMessage(
       '搜一下catime',
@@ -2555,14 +2519,14 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('kimi web answer');
     expect(result).toContain('https://cati.me/');
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('catime', { limit: 5 }, undefined);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('catime', { limit: 5 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(firstBody.tools).toBeUndefined();
     expect(firstBody.messages.at(-1).content).toContain('Readable catime content.');
   });
 
-  it('detects prefixed and mixed-case custom Grok model ids without injecting local tools', async () => {
+  it('detects prefixed and mixed-case custom Grok model ids without injecting app-managed tools', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       streamResponse('data: {"choices":[{"delta":{"content":"custom grok answer"}}]}\n\ndata: [DONE]\n\n'),
     );
@@ -2623,7 +2587,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('does not inject local web search tools for managed Grok models', async () => {
+  it('does not inject app-managed web search tools for managed Grok models', async () => {
     const encoder = new TextEncoder();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -2699,15 +2663,6 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       streamResponse('data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n\n'),
     );
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(),
-        read: vi.fn(),
-        readBatch: vi.fn(),
-        cancelRequest: vi.fn(),
-      },
-    };
-
     const result = await new OpenAICompatibleClient().sendMessage(
       'hi',
       [],
@@ -2719,8 +2674,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     );
 
     expect(result).toBe('hello');
-    expect(mocks.bridge.webSearch?.search).not.toHaveBeenCalled();
-    expect(mocks.bridge.webSearch?.readBatch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.webSearch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.readWebPages).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.tools).toBeUndefined();
@@ -2732,15 +2687,6 @@ describe('OpenAICompatibleClient endpoint detection', () => {
   it('answers managed web search capability questions without asking the model', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(),
-        read: vi.fn(),
-        readBatch: vi.fn(),
-        cancelRequest: vi.fn(),
-      },
-    };
-
     const result = await new OpenAICompatibleClient().sendMessage(
       '你可以联网搜索不',
       [],
@@ -2753,23 +2699,16 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('当前聊天已开启联网搜索');
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(mocks.bridge.webSearch?.search).not.toHaveBeenCalled();
-    expect(mocks.bridge.webSearch?.readBatch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.webSearch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.readWebPages).not.toHaveBeenCalled();
   });
 
-  it('finishes managed DeepSeek searches locally when no web results are available', async () => {
+  it('finishes managed DeepSeek searches without a model request when no web results are available', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const chunks: string[] = [];
     const statuses: unknown[] = [];
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async (query: string) => ({ query, results: [] })),
-        read: vi.fn(),
-        readBatch: vi.fn(),
-        cancelRequest: vi.fn(),
-      },
-    };
+    mocks.webSearchClient.webSearch.mockImplementation(async (query: string) => ({ query, results: [] }));
 
     const result = await new OpenAICompatibleClient().sendMessage(
       '搜一下今天北京的天气',
@@ -2803,8 +2742,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
         message: 'No relevant results were found.',
       },
     ]);
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('今天北京的天气', { limit: 5 }, undefined);
-    expect(mocks.bridge.webSearch?.readBatch).not.toHaveBeenCalled();
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('今天北京的天气', { limit: 5 });
+    expect(mocks.webSearchClient.readWebPages).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -2813,16 +2752,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     vi.stubGlobal('fetch', fetchMock);
     const chunks: string[] = [];
     const statuses: unknown[] = [];
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => {
-          throw new Error('Search backend unavailable.');
-        }),
-        read: vi.fn(),
-        readBatch: vi.fn(),
-        cancelRequest: vi.fn(),
-      },
-    };
+    mocks.webSearchClient.webSearch.mockRejectedValue(new Error('Search backend unavailable.'));
 
     const result = await new OpenAICompatibleClient().sendMessage(
       '搜一下今天北京的天气',
@@ -2880,35 +2810,29 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       streamResponse('data: {"choices":[{"delta":{"content":"今日金价回答"}}]}\n\ndata: [DONE]\n\n'),
     );
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => ({
-          query: '今天的金价',
-          results: [{
-            title: 'Gold price source',
-            url: 'https://example.com/gold',
-            snippet: 'Current gold price.',
-            publishedAt: null,
-            source: null,
-            thumbnail: null,
-          }],
-        })),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
-          url: 'https://example.com/gold',
-          ok: true,
-          page: {
-            title: 'Gold price source',
-            summary: '',
-            siteName: 'example.com',
-            finalUrl: 'https://example.com/gold',
-            content: 'Readable gold price content.',
-            charCount: 28,
-          },
-        }]),
-        cancelRequest: vi.fn(),
+    mocks.webSearchClient.webSearch.mockResolvedValue({
+      query: '今天的金价',
+      results: [{
+        title: 'Gold price source',
+        url: 'https://example.com/gold',
+        snippet: 'Current gold price.',
+        publishedAt: null,
+        source: null,
+        thumbnail: null,
+      }],
+    });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://example.com/gold',
+      ok: true,
+      page: {
+        title: 'Gold price source',
+        summary: '',
+        siteName: 'example.com',
+        finalUrl: 'https://example.com/gold',
+        content: 'Readable gold price content.',
+        charCount: 28,
       },
-    };
+    }]);
 
     const result = await new OpenAICompatibleClient().sendMessage(
       '搜一下今天的金价',
@@ -2922,8 +2846,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('今日金价回答');
     expect(result).toContain('https://example.com/gold');
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('今天的金价', { limit: 5 }, undefined);
-    expect(mocks.bridge.webSearch?.readBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('今天的金价', { limit: 5 });
+    expect(mocks.webSearchClient.readWebPages).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.tools).toBeUndefined();
@@ -2969,35 +2893,29 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       .fn()
       .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"managed claude web answer"}}]}\n\ndata: [DONE]\n\n'));
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => ({
-          query: '搜索 Claude 最新消息',
-          results: [{
-            title: 'Claude source',
-            url: 'https://example.com/claude',
-            snippet: 'Claude news.',
-            publishedAt: null,
-            source: null,
-            thumbnail: null,
-          }],
-        })),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
-          url: 'https://example.com/claude',
-          ok: true,
-          page: {
-            title: 'Claude source',
-            summary: '',
-            siteName: 'example.com',
-            finalUrl: 'https://example.com/claude',
-            content: 'Readable Claude source content.',
-            charCount: 31,
-          },
-        }]),
-        cancelRequest: vi.fn(),
+    mocks.webSearchClient.webSearch.mockResolvedValue({
+      query: '搜索 Claude 最新消息',
+      results: [{
+        title: 'Claude source',
+        url: 'https://example.com/claude',
+        snippet: 'Claude news.',
+        publishedAt: null,
+        source: null,
+        thumbnail: null,
+      }],
+    });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://example.com/claude',
+      ok: true,
+      page: {
+        title: 'Claude source',
+        summary: '',
+        siteName: 'example.com',
+        finalUrl: 'https://example.com/claude',
+        content: 'Readable Claude source content.',
+        charCount: 31,
       },
-    };
+    }]);
 
     const result = await new OpenAICompatibleClient().sendMessage(
       '搜索 Claude 最新消息',
@@ -3011,9 +2929,9 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('managed claude web answer');
     expect(result).toContain('https://example.com/claude');
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledTimes(1);
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('Claude 最新消息', { limit: 5 }, undefined);
-    expect(mocks.bridge.webSearch?.readBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledTimes(1);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('Claude 最新消息', { limit: 5 });
+    expect(mocks.webSearchClient.readWebPages).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(firstBody.tools).toBeUndefined();
@@ -3027,35 +2945,29 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       .fn()
       .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"managed kimi web answer"}}]}\n\ndata: [DONE]\n\n'));
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi.fn(async () => ({
-          query: 'catime',
-          results: [{
-            title: 'Catime',
-            url: 'https://cati.me/',
-            snippet: 'Catime source.',
-            publishedAt: null,
-            source: null,
-            thumbnail: null,
-          }],
-        })),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
-          url: 'https://cati.me/',
-          ok: true,
-          page: {
-            title: 'Catime',
-            summary: '',
-            siteName: 'cati.me',
-            finalUrl: 'https://cati.me/',
-            content: 'Readable catime content.',
-            charCount: 24,
-          },
-        }]),
-        cancelRequest: vi.fn(),
+    mocks.webSearchClient.webSearch.mockResolvedValue({
+      query: 'catime',
+      results: [{
+        title: 'Catime',
+        url: 'https://cati.me/',
+        snippet: 'Catime source.',
+        publishedAt: null,
+        source: null,
+        thumbnail: null,
+      }],
+    });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://cati.me/',
+      ok: true,
+      page: {
+        title: 'Catime',
+        summary: '',
+        siteName: 'cati.me',
+        finalUrl: 'https://cati.me/',
+        content: 'Readable catime content.',
+        charCount: 24,
       },
-    };
+    }]);
 
     const result = await new OpenAICompatibleClient().sendMessage(
       '搜一下catime',
@@ -3069,7 +2981,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('managed kimi web answer');
     expect(result).toContain('https://cati.me/');
-    expect(mocks.bridge.webSearch?.search).toHaveBeenCalledWith('catime', { limit: 5 }, undefined);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('catime', { limit: 5 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(firstBody.tools).toBeUndefined();
@@ -3083,38 +2995,31 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"<web_search_request>{\\"query\\":\\"Sample app 2026\\",\\"reason\\":\\"current info\\"}</web_search_request>"}}]}\n\ndata: [DONE]\n\n'))
       .mockResolvedValueOnce(streamResponse('data: {"choices":[{"delta":{"content":"sample answer"}}]}\n\ndata: [DONE]\n\n'));
     vi.stubGlobal('fetch', fetchMock);
-    mocks.bridge = {
-      webSearch: {
-        search: vi
-          .fn()
-          .mockResolvedValueOnce({ query: 'Sample app 2026', results: [] })
-          .mockResolvedValueOnce({
-            query: 'sample app info',
-            results: [{
-              title: 'sample app',
-              url: 'https://example.com',
-              snippet: 'sample app home.',
-              publishedAt: null,
-              source: null,
-              thumbnail: null,
-            }],
-          }),
-        read: vi.fn(),
-        readBatch: vi.fn(async () => [{
+    mocks.webSearchClient.webSearch
+      .mockResolvedValueOnce({ query: 'Sample app 2026', results: [] })
+      .mockResolvedValueOnce({
+        query: 'sample app info',
+        results: [{
+          title: 'sample app',
           url: 'https://example.com',
-          ok: true,
-          page: {
-            title: 'sample app',
-            summary: '',
-            siteName: 'example.com',
-            finalUrl: 'https://example.com',
-            content: 'Readable sample app content.',
-            charCount: 24,
-          },
-        }]),
-        cancelRequest: vi.fn(),
+          snippet: 'sample app home.',
+          publishedAt: null,
+          source: null,
+          thumbnail: null,
+        }],
+      });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://example.com',
+      ok: true,
+      page: {
+        title: 'sample app',
+        summary: '',
+        siteName: 'example.com',
+        finalUrl: 'https://example.com',
+        content: 'Readable sample app content.',
+        charCount: 24,
       },
-    };
+    }]);
 
     const result = await new OpenAICompatibleClient().sendMessage(
       'sample app info',
@@ -3128,8 +3033,8 @@ describe('OpenAICompatibleClient endpoint detection', () => {
 
     expect(result).toContain('sample answer');
     expect(result).toContain('https://example.com');
-    expect(mocks.bridge.webSearch?.search).toHaveBeenNthCalledWith(1, 'Sample app 2026', { limit: 5 }, undefined);
-    expect(mocks.bridge.webSearch?.search).toHaveBeenNthCalledWith(2, 'sample app info', { limit: 5 }, undefined);
+    expect(mocks.webSearchClient.webSearch).toHaveBeenNthCalledWith(1, 'Sample app 2026', { limit: 5 });
+    expect(mocks.webSearchClient.webSearch).toHaveBeenNthCalledWith(2, 'sample app info', { limit: 5 });
     const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
     expect(secondBody.messages.at(-1).content).toContain('Readable sample app content.');
   });

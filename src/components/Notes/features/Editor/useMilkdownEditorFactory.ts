@@ -6,6 +6,7 @@ import {
   defaultValueCtx,
   prosePluginsCtx,
   remarkStringifyOptionsCtx,
+  virtualizeEditorViewCtx,
 } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
@@ -17,8 +18,14 @@ import { customPlugins } from './config/plugins';
 import { notesRemarkGfmOptions, notesRemarkStringifyOptions } from './config/stringifyOptions';
 import { createDeferredMarkdownUpdatePlugin } from './utils/deferredMarkdownUpdatePlugin';
 import { normalizeLeadingFrontmatterMarkdown } from './plugins/frontmatter/frontmatterMarkdown';
-import { preserveMarkdownBlankLinesForEditor } from '@/lib/notes/markdown/markdownSerializationUtils';
-import { createLargePlainMarkdownDocJSON } from './milkdownLargePlainMarkdown';
+import {
+  normalizeAlternativeMathBlockFences,
+  preserveMarkdownBlankLinesForEditor,
+} from '@/lib/notes/markdown/markdownSerializationUtils';
+import {
+  createLargePlainMarkdownDocJSON,
+  shouldUseVirtualizedEditorView,
+} from './milkdownLargePlainMarkdown';
 import { logE2EMilkdownTiming } from './milkdownE2ETiming';
 import type { ActiveMilkdownEditor, MilkdownDefaultValue } from './MilkdownEditorInnerTypes';
 import type { MilkdownContext } from './hooks/pendingMarkdownAutosaveTypes';
@@ -68,7 +75,13 @@ export function useMilkdownEditorFactory(args: {
     const editor = Editor.make()
       .config((ctx) => {
         const configStartedAt = performance.now();
-        const normalizedFrontmatter = normalizeLeadingFrontmatterMarkdown(initialContent);
+        const normalizedMath = normalizeAlternativeMathBlockFences(initialContent);
+        logE2EMilkdownTiming('initial-content', {
+          notePath: currentNotePath,
+          inputLength: initialContent.length,
+          durationMs: Math.round(performance.now() - configStartedAt),
+        });
+        const normalizedFrontmatter = normalizeLeadingFrontmatterMarkdown(normalizedMath);
         const blankLineStartedAt = performance.now();
         const defaultMarkdown = preserveMarkdownBlankLinesForEditor(
           normalizedFrontmatter
@@ -96,6 +109,7 @@ export function useMilkdownEditorFactory(args: {
 
         ctx.set(rootCtx, root);
         ctx.set(defaultValueCtx, defaultValue as never);
+        ctx.set(virtualizeEditorViewCtx, shouldUseVirtualizedEditorView(defaultMarkdown));
         ctx.update(remarkStringifyOptionsCtx, (prev) => ({
           ...prev,
           ...notesRemarkStringifyOptions,
@@ -103,7 +117,7 @@ export function useMilkdownEditorFactory(args: {
         ctx.set(remarkGFMPlugin.options.key, notesRemarkGfmOptions);
 
         milkdownContextRef.current = ctx;
-        markdownListenerRef.current = configureMarkdownListenerRef.current(ctx, initialContent);
+        markdownListenerRef.current = configureMarkdownListenerRef.current(ctx, normalizedMath);
         ctx.update(prosePluginsCtx, (plugins) => plugins.concat(
           createDeferredMarkdownUpdatePlugin(ctx, (markdown) => {
             markdownListenerRef.current?.(markdown);

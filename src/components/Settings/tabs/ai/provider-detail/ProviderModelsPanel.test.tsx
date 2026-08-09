@@ -380,6 +380,7 @@ describe('ProviderModelsPanel', () => {
   });
 
   it('leaves wheel scrolling on quick add suggestions to the browser', () => {
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
     render(
       <ProviderModelsPanel
         {...buildProps({
@@ -394,10 +395,13 @@ describe('ProviderModelsPanel', () => {
     const scrollRoot = document.querySelector('[data-settings-scroll-root="ai-model-suggestions"]') as HTMLElement | null;
     expect(scrollRoot).not.toBeNull();
 
+    requestAnimationFrameSpy.mockClear();
+    scrollRoot!.style.overflowY = 'auto';
     setScrollMetrics(scrollRoot!, { clientHeight: 100, scrollHeight: 360, scrollTop: 0 });
     fireEvent.wheel(scrollRoot!, { deltaY: 90 });
 
     expect(scrollRoot!.scrollTop).toBe(0);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 
   it('adds all visible available models from the available header', () => {
@@ -450,5 +454,33 @@ describe('ProviderModelsPanel', () => {
 
     expect(onDeleteModel).toHaveBeenCalledWith('model-beta');
     expect(onDeleteModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not repeat model sorting for unrelated state changes', () => {
+    const props = buildProps({
+      providerModels: [buildModel('model-beta', 'beta'), buildModel('model-alpha', 'alpha')],
+      filteredProviderModels: [buildModel('model-beta', 'beta'), buildModel('model-alpha', 'alpha')],
+      sortedFetchedModels: ['alpha', 'gamma', 'beta'],
+      filteredFetchedModels: ['alpha', 'gamma', 'beta'],
+    });
+    const localeCompare = vi.spyOn(String.prototype, 'localeCompare');
+    const view = render(<ProviderModelsPanel {...props} />);
+    localeCompare.mockClear();
+
+    view.rerender(<ProviderModelsPanel {...props} benchmarkAllQueued />);
+
+    expect(localeCompare).not.toHaveBeenCalled();
+    localeCompare.mockRestore();
+  });
+
+  it('keeps every model row keyboard-reachable while skipping offscreen rendering work', () => {
+    render(<ProviderModelsPanel {...buildProps()} />);
+
+    const rows = document.querySelectorAll('[data-virtual-model-row="true"]');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => {
+      expect(row.className).toContain('[content-visibility:auto]');
+      expect(row.querySelector('[role="button"]')).toHaveAttribute('tabindex', '0');
+    });
   });
 });

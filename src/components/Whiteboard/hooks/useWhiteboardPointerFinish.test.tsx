@@ -133,6 +133,23 @@ describe('useWhiteboardPointerFinish', () => {
     expect(setSelectedElementIds).toHaveBeenCalledWith(['image']);
   });
 
+  it('selects an image on a click after starting a lasso gesture', () => {
+    const element = { height: 100, id: 'image', text: '', type: 'image' as const, width: 100, x: 0, y: 0 };
+    const setSelectedElementIds = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: { kind: 'lasso', points: [{ x: 40, y: 40 }] }, elements: [element],
+      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 40, y: 40 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds, setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
+      spatialIndex: createWhiteboardEraserSpatialIndex([element], []), strokeIdRef: { current: 1 }, strokes: [],
+    }));
+
+    act(() => result.current({ clientX: 40, clientY: 40, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    expect(setSelectedElementIds).toHaveBeenCalledWith(['image']);
+  });
+
   it('limits lasso hit testing to nearby spatial candidates', () => {
     const nearby = {
       color: '#111111', id: 'nearby',

@@ -5,6 +5,10 @@ import {
   subscribeEditorFindSnapshot,
 } from './editorFindBridge';
 import { EMPTY_DECORATIONS, type EditorFindPluginState } from './editorFindState';
+import {
+  EDITOR_FIND_ACTIVE_CLASS,
+  syncEditorFindActiveClass,
+} from './editorFindPlugin';
 
 function createState(overrides: Partial<EditorFindPluginState> = {}): EditorFindPluginState {
   return {
@@ -52,5 +56,16 @@ describe('editorFindBridge', () => {
     expect(listener).toHaveBeenCalledTimes(1);
     expect(getEditorFindSnapshot()).toBe(snapshot);
     unsubscribe();
+  });
+
+  it('marks the editor root while a find query is active', () => {
+    const dom = document.createElement('div');
+    const view = { dom } as never;
+
+    syncEditorFindActiveClass(view, createState({ query: 'needle' }));
+    expect(dom.classList.contains(EDITOR_FIND_ACTIVE_CLASS)).toBe(true);
+
+    syncEditorFindActiveClass(view, createState());
+    expect(dom.classList.contains(EDITOR_FIND_ACTIVE_CLASS)).toBe(false);
   });
 });

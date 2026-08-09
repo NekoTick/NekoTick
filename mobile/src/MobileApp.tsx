@@ -21,7 +21,6 @@ import {
   type MobilePlatformHooks,
   type MobileViewMode,
 } from './app/mobilePlatform';
-import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileMoreSheet } from './components/MobileMoreSheet';
 import { MobileSidebarSheet } from './components/MobileSidebarSheet';
 import { MobileTopBar } from './components/MobileTopBar';
@@ -159,17 +158,19 @@ export function MobileApp({ platform }: MobileAppProps) {
       <div className="mobile-app" data-active-view={activeView}>
         <MobileTopBar
           activeView={activeView}
-          onCreateNote={createNote}
           onOpenSidebar={() => setSidebarOpen(true)}
-          onOpenMore={() => setMoreOpen(true)}
+          onViewChange={changeView}
         />
         <MobileMainView activeView={activeView} onCreateNote={createNote} />
-        <MobileBottomNav activeView={activeView} onViewChange={changeView} />
 
         <MobileSidebarSheet
           activeView={activeView}
           open={sidebarOpen}
           onClose={closeSidebar}
+          onOpenMore={() => {
+            closeSidebar();
+            setMoreOpen(true);
+          }}
         />
         <MobileMoreSheet
           open={moreOpen}

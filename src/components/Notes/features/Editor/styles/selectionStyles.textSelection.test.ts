@@ -55,6 +55,9 @@ describe("editor text selection and link styles", () => {
     expect(css).toContain('.milkdown .ProseMirror.editor-keyboard-selection-pending::selection,');
     expect(css).toContain('.milkdown .ProseMirror.editor-keyboard-selection-pending *::selection {');
     expect(css).toContain('editor-pointer-native-selection');
+    expect(css).toContain('::highlight(editor-large-all-selection) {');
+    expect(css).toContain('.milkdown .ProseMirror.editor-large-all-selection {');
+    expect(css).toContain('.milkdown .ProseMirror .editor-large-selection-visible {');
     expect(source).toContain("const KEYBOARD_SELECTION_PENDING_CLASS = 'editor-keyboard-selection-pending'");
     expect(source).toContain('view.dom.classList.add(KEYBOARD_SELECTION_PENDING_CLASS)');
     expect(css).toContain([
@@ -78,8 +81,7 @@ describe("editor text selection and link styles", () => {
     expect(css).not.toContain('vlaina-ai-review-selection');
     expect(css).not.toContain('vlaina-link-selection-visible');
     expect(source).toContain("export const TEXT_SELECTION_OVERLAY_CLASS = 'editor-text-selection-overlay'");
-    expect(source).toContain("const EDITOR_ONLY_TEXT_SELECTION_PLACEHOLDERS = new Set(['\\u200B', '\\u200C', '\\u2800']);");
-    expect(source).toContain('EDITOR_ONLY_TEXT_SELECTION_PLACEHOLDERS.has(char)');
+    expect(source).toContain('const TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS');
     expect(source).toContain('export function addTextSelectionOverlayDecorations(');
     expect(source).toContain('Decoration.inline(rangeFrom, rangeTo, {');
     expect(source).toContain('ATOMIC_TEXT_SELECTION_OVERLAY_NODE_NAMES.has(node.type.name)');

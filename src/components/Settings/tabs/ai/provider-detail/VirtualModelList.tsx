@@ -22,7 +22,11 @@ export function VirtualModelList<T>({
   return (
     <div>
       {items.map((item) => (
-        <div key={getKey(item)} className="pb-2">
+        <div
+          key={getKey(item)}
+          data-virtual-model-row="true"
+          className="pb-2 [contain-intrinsic-size:auto_var(--vlaina-size-56px)] [content-visibility:auto]"
+        >
           {renderItem(item)}
         </div>
       ))}

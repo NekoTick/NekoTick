@@ -19,11 +19,6 @@ interface ChatMessageOutlineRailProps {
   onSelect: (messageId: string) => void;
 }
 
-interface ChatMessageOutlineItem {
-  id: string;
-  label: string;
-}
-
 const outlineTextByMessage = new WeakMap<ChatMessage, string>();
 
 export function getChatMessageOutlineLabel(

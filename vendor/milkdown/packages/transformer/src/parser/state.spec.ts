@@ -96,6 +96,28 @@ function createDeepTree(depth: number): MarkdownNode {
 }
 
 describe('parser-state', () => {
+  it('reuses the schema type list for every Markdown AST node', () => {
+    let nodesReadCount = 0
+    const localSchema = {
+      get nodes() {
+        nodesReadCount += 1
+        return schema.nodes
+      },
+      marks: {},
+      text: schema.text,
+    } as unknown as Schema
+    const state = new ParserState(localSchema)
+    state.openNode(docNodeType)
+
+    state.next([
+      { type: 'paragraphNode', value: 'one' },
+      { type: 'paragraphNode', value: 'two' },
+      { type: 'paragraphNode', value: 'three' },
+    ])
+
+    expect(nodesReadCount).toBe(1)
+  })
+
   it('node', () => {
     const state = new ParserState(schema)
     state.openNode(docNodeType)

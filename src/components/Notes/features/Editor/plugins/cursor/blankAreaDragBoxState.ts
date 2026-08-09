@@ -1,8 +1,9 @@
 import type { Transaction, EditorState } from '@milkdown/kit/prose/state';
-import { TextSelection } from '@milkdown/kit/prose/state';
+import { AllSelection, TextSelection } from '@milkdown/kit/prose/state';
 import { DecorationSet } from '@milkdown/kit/prose/view';
 import {
   createBlockSelectionDecorations,
+  createBlockSelectionPreviewSurfaceDecorations,
   mapBlockRangesThroughTransaction,
   normalizeBlockRanges,
   type BlockRange,
@@ -125,8 +126,13 @@ export function applyBlankAreaDragBoxStateTransaction(
   }
   if (action?.type === 'set-blocks') {
     const selectedBlocks = normalizeBlockRanges(action.blocks);
-    const decorations = action.deferDecorations || shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+    const decorations = action.deferDecorations
       ? DecorationSet.empty
+      : shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+      ? createBlockSelectionPreviewSurfaceDecorations(
+        tr.doc,
+        selectedBlocks,
+      )
       : createBlockSelectionDecorations(tr.doc, selectedBlocks);
     return createBlankAreaDragBoxState(
       tr.doc,
@@ -171,8 +177,10 @@ export function applyBlankAreaDragBoxStateTransaction(
       editableMarkdownBlankLineDecorations,
     );
   }
-  const decorations = pluginState.decorationsDeferred || shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+  const decorations = pluginState.decorationsDeferred
     ? DecorationSet.empty
+    : shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+    ? createBlockSelectionPreviewSurfaceDecorations(tr.doc, selectedBlocks)
     : createBlockSelectionDecorations(tr.doc, selectedBlocks);
   return createBlankAreaDragBoxState(
     tr.doc,
@@ -189,5 +197,5 @@ export function shouldClearBlockSelectionForTransaction(
 ): boolean {
   return pluginState.selectedBlocks.length > 0
     && Boolean(tr.selectionSet)
-    && tr.selection instanceof TextSelection;
+    && (tr.selection instanceof TextSelection || tr.selection instanceof AllSelection);
 }

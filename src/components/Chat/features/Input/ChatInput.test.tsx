@@ -13,6 +13,7 @@ import {
   resetComputerCommandApprovalsForTests,
 } from '@/lib/ai/computerUse/approvalState';
 import type { DesktopApi } from '@/lib/electron/bridge';
+import { useWebSearchQuotaStore } from '@/stores/useWebSearchQuotaStore';
 
 vi.mock('@/lib/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
@@ -94,6 +95,7 @@ describe('ChatInput', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetComputerCommandApprovalsForTests();
+    useWebSearchQuotaStore.setState({ exhausted: false });
     getDroppedExternalPathsMock.mockReturnValue([]);
     setCurrentNotesRootPath(null);
     useNotesRootStore.setState({ currentNotesRoot: null });
@@ -204,7 +206,7 @@ describe('ChatInput', () => {
     setWebSearchEnabled.mockRestore();
   });
 
-  it('disables web search for a verified model-level Anthropic endpoint', () => {
+  it('hides and disables web search for custom channels', () => {
     useUnifiedStore.setState((state) => ({
       loaded: true,
       data: {
@@ -227,7 +229,7 @@ describe('ChatInput', () => {
             apiModelId: 'custom-model',
             name: 'Custom model',
             providerId: 'custom-provider',
-            endpointType: 'anthropic',
+            endpointType: 'openai',
             endpointTypeCheckedAt: 1,
             enabled: true,
             createdAt: 1,
@@ -242,6 +244,8 @@ describe('ChatInput', () => {
     renderChatInput();
 
     expect(setWebSearchEnabled).toHaveBeenCalledWith(false);
+    fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
+    expect(screen.queryByRole('button', { name: 'chat.webSearch' })).not.toBeInTheDocument();
     setWebSearchEnabled.mockRestore();
   });
 
@@ -390,6 +394,22 @@ describe('ChatInput', () => {
     expect(frame).toHaveClass('rounded-[var(--vlaina-radius-26px)]');
     expect(banner).toHaveClass('min-h-[var(--vlaina-size-32px)]');
     expect(banner).not.toHaveClass('absolute');
+  });
+
+  it('shows web search exhaustion without blocking ordinary messages', async () => {
+    const onSend = vi.fn();
+    act(() => useWebSearchQuotaStore.setState({ exhausted: true }));
+    renderChatInput({ onSend });
+
+    expect(screen.getByText('chat.webSearchQuotaExhausted')).toBeInTheDocument();
+    const textarea = screen.getByPlaceholderText('chat.composerPlaceholder');
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'continue without search' } });
+      fireEvent.click(screen.getByRole('button', { name: 'common.send' }));
+      await Promise.resolve();
+    });
+
+    expect(onSend).toHaveBeenCalledWith('continue without search', [], []);
   });
 
   it('anchors computer command approval above the composer without changing its flow height', () => {

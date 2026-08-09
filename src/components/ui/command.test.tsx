@@ -43,6 +43,7 @@ describe('CommandList', () => {
 
   it('preserves consumer wheel handlers while leaving vertical scrolling to the browser', () => {
     const onWheel = vi.fn();
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame');
 
     render(
       <Command>
@@ -56,10 +57,13 @@ describe('CommandList', () => {
     const scrollRoot = document.querySelector('[data-slot="command-list"]') as HTMLElement | null;
     expect(scrollRoot).not.toBeNull();
 
+    requestAnimationFrameSpy.mockClear();
+    scrollRoot!.style.overflowY = 'auto';
     setScrollMetrics(scrollRoot!, { clientHeight: 120, scrollHeight: 420, scrollTop: 10 });
     fireEvent.wheel(scrollRoot!, { deltaY: 70 });
 
     expect(onWheel).toHaveBeenCalledTimes(1);
     expect(scrollRoot!.scrollTop).toBe(10);
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
   });
 });

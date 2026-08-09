@@ -2,6 +2,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 
 export const DRAG_THRESHOLD = 4;
 export const DRAG_BOX_COLOR = 'var(--vlaina-color-editor-block-selection-drag-box)';
+export const BLOCK_SELECTION_PREVIEW_COLOR = 'var(--vlaina-block-selection-color-default)';
 export const DRAG_SESSION_CURSOR = 'crosshair';
 export const SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
 

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
-  resolveBodyLineNumberLabelLayout,
+  resolveBodyLineNumberLabelLayoutFromLineNumbers,
   syncBodyLineNumberLabelSelection,
   type BodyLineNumberLabel,
   type BodyLineNumberLabelLayout,
@@ -11,6 +11,7 @@ import {
 } from '../utils/bodyLineNumberWindow';
 import { observeBodyLineNumberGutterLayout } from '../utils/bodyLineNumberGutterObservers';
 import { createBodyLineNumberRefreshScheduler } from '../utils/bodyLineNumberRefreshScheduler';
+import { getMarkdownBodyLineNumbers } from '../utils/bodyLineNumbers';
 import {
   BLOCK_SELECTION_PREVIEW_CHANGE_EVENT,
   getBlockSelectionPreviewElements,
@@ -54,6 +55,7 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
   const [renderedLabels, setRenderedLabels] = useState<RenderedBodyLineNumber[]>([]);
   const gutterRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<BodyLineNumberLabelLayout>(EMPTY_BODY_LINE_NUMBER_LABEL_LAYOUT);
+  const parsedMarkdownRef = useRef<{ markdown: string; lineNumbers: number[] } | null>(null);
   const renderedWindowRef = useRef<BodyLineNumberWindow | null>(null);
   const markdownRef = useRef(markdown);
   const refreshRef = useRef<(() => void) | null>(null);
@@ -245,7 +247,17 @@ export function BodyLineNumberGutter({ markdown, revision, shellRef }: BodyLineN
         pendingDeferredSelectionSyncElements = [];
         needsRefreshAfterDeferredBlockInteraction = false;
         clearDeferredBlockInteractionRefresh();
-        const nextLayout = resolveBodyLineNumberLabelLayout(resolvedShell, markdownRef.current);
+        const currentMarkdown = markdownRef.current;
+        if (parsedMarkdownRef.current?.markdown !== currentMarkdown) {
+          parsedMarkdownRef.current = {
+            markdown: currentMarkdown,
+            lineNumbers: getMarkdownBodyLineNumbers(currentMarkdown),
+          };
+        }
+        const nextLayout = resolveBodyLineNumberLabelLayoutFromLineNumbers(
+          resolvedShell,
+          parsedMarkdownRef.current.lineNumbers,
+        );
         layoutRefreshScheduler.markCompleted();
         layoutRef.current = nextLayout;
         syncRenderedLabels(nextLayout, true);

@@ -37,6 +37,7 @@ interface WhiteboardToolbarProps {
 export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: WhiteboardToolbarProps) {
   const { t } = useI18n();
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const toolPanelRef = useRef<HTMLDivElement>(null);
   const dock = useWhiteboardDockMagnification({
     activationResponseMs: themeWhiteboardTokens.toolbarDockActivationResponseMs,
     enabled: props.active,
@@ -45,6 +46,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
     radiusPx: themeWhiteboardTokens.toolbarDockMagnificationRadiusPx,
   });
   const [openPanel, setOpenPanel] = useState<WhiteboardToolPanelName | null>(null);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [lastDrawingTool, setLastDrawingTool] = useState<WhiteboardDrawingTool>('pen');
   const [lastEraserTool, setLastEraserTool] = useState<WhiteboardTool>('select');
   const visualTool = props.spacePressed ? 'hand' : props.tool;
@@ -59,7 +61,19 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
     if (isDrawingTool(props.tool)) setLastDrawingTool(props.tool);
     if (WHITEBOARD_ERASER_TOOLS.some((item) => item.id === props.tool)) setLastEraserTool(props.tool);
     setOpenPanel((current) => current && getPanelForTool(props.tool) !== current ? null : current);
-  }, [props.tool]);
+    if (!drawingActive) setColorPickerOpen(false);
+  }, [drawingActive, props.tool]);
+
+  useEffect(() => {
+    if (!openPanel) return undefined;
+    const closePanelOutsideToolbar = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (dock.ref.current?.contains(event.target) || toolPanelRef.current?.contains(event.target)) return;
+      setOpenPanel(null);
+    };
+    window.addEventListener('pointerdown', closePanelOutsideToolbar, true);
+    return () => window.removeEventListener('pointerdown', closePanelOutsideToolbar, true);
+  }, [dock.ref, openPanel]);
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,7 +125,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
         <div className="app-no-drag pointer-events-auto relative flex max-w-full min-w-0 items-center">
           {openPanel && !props.spacePressed ? (
             <div className="pointer-events-none absolute bottom-full left-1/2 z-[var(--vlaina-z-50)] flex w-max max-w-[var(--vlaina-whiteboard-panel-max-width)] -translate-x-1/2 pb-2">
-              <div className="pointer-events-auto w-max max-w-full">
+              <div ref={toolPanelRef} className="pointer-events-auto w-max max-w-full">
                 <WhiteboardToolPanel
                   panel={openPanel}
                   tool={props.tool}
@@ -124,9 +138,9 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
             ref={dock.ref}
             data-whiteboard-main-toolbar="true"
             onPointerCancel={dock.onPointerCancel}
-            onPointerEnter={dock.onPointerEnter}
+            onPointerEnter={(event) => { if (!colorPickerOpen) dock.onPointerEnter(event); }}
             onPointerLeave={dock.onPointerLeave}
-            onPointerMove={dock.onPointerMove}
+            onPointerMove={(event) => { if (!colorPickerOpen) dock.onPointerMove(event); }}
             className={cn(
               'flex h-[var(--vlaina-size-72px)] max-w-[var(--vlaina-whiteboard-toolbar-max-width)] min-w-0 items-center gap-1 overflow-x-auto px-2 sm:overflow-visible',
               whiteboardMainToolbarSurfaceClassName,
@@ -141,8 +155,18 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
               <WhiteboardToolbarButton dock large partiallyRevealed active={drawingActive} icon={drawingConfig.icon} imageSrc={drawingConfig.imageSrc} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
               <WhiteboardToolbarButton dock large icon="whiteboard.image" label={t('whiteboard.addImage')} onClick={handleImageSelect} />
             </WhiteboardToolbarGroup>
-            <ToolbarDivider />
-            <ColorChoices colors={props.brushColors} tool={drawingTool} onChange={handleBrushColorChange} onOpen={() => setOpenPanel(null)} />
+            {drawingActive ? (
+              <>
+                <ToolbarDivider />
+                <ColorChoices
+                  colors={props.brushColors}
+                  tool={drawingTool}
+                  onChange={handleBrushColorChange}
+                  onOpen={() => { setOpenPanel(null); setColorPickerOpen(true); dock.onPointerLeave(); }}
+                  onClose={() => setColorPickerOpen(false)}
+                />
+              </>
+            ) : null}
             <ToolbarDivider />
             <SizeChoices sizes={props.brushSizes} tool={sizeTool} onChange={handleBrushSizeSelect} />
           </div>
@@ -160,41 +184,22 @@ function getPanelForTool(tool: WhiteboardTool): WhiteboardToolPanelName | null {
   return null;
 }
 
-function ColorChoices({ colors, tool, onChange, onOpen }: {
+function ColorChoices({ colors, tool, onChange, onClose, onOpen }: {
   colors: WhiteboardBrushColors;
   tool: WhiteboardDrawingTool;
   onChange: (tool: WhiteboardDrawingTool, color: string) => void;
+  onClose: () => void;
   onOpen: () => void;
 }) {
-  const selectedColor = colors[tool].toLowerCase();
   return (
     <WhiteboardToolbarGroup>
-      {themeWhiteboardTokens.brushColorSwatches.map((color) => (
-        <WhiteboardDockSlot key={color} size="small">
-          <button
-            type="button"
-            aria-label={color}
-            aria-pressed={selectedColor === color.toLowerCase()}
-            data-whiteboard-dock-visual="true"
-            onClick={() => onChange(tool, color)}
-            className="flex size-[var(--vlaina-size-32px)] shrink-0 items-center justify-center rounded-[var(--vlaina-radius-circle)] shadow-none hover:shadow-none"
-          >
-            <span
-              aria-hidden="true"
-              className="relative size-[var(--vlaina-size-32px)] rounded-[var(--vlaina-radius-circle)] border border-[var(--vlaina-color-subtle-border-strong)]"
-              style={{ backgroundColor: color }}
-            >
-              {selectedColor === color.toLowerCase() ? (
-                <span
-                  data-whiteboard-color-selection-ring="true"
-                  className="pointer-events-none absolute inset-[var(--vlaina-whiteboard-color-selection-ring-offset)] rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-whiteboard-selected)] shadow-[var(--vlaina-shadow-selection-soft)]"
-                />
-              ) : null}
-            </span>
-          </button>
-        </WhiteboardDockSlot>
-      ))}
-      <WhiteboardColorPicker color={colors[tool]} onChange={(color) => onChange(tool, color)} onOpen={onOpen} />
+      <WhiteboardColorPicker
+        color={colors[tool]}
+        swatches={themeWhiteboardTokens.colorPickerSwatches}
+        onChange={(color) => onChange(tool, color)}
+        onClose={onClose}
+        onOpen={onOpen}
+      />
     </WhiteboardToolbarGroup>
   );
 }

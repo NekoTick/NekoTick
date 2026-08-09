@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '@/lib/ai/types';
 import {
@@ -476,5 +476,83 @@ describe('useStableChatMessageDerivatives', () => {
     view.unmount();
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('updates the streaming tail without batching the full message history', () => {
+    vi.useFakeTimers();
+    const messages = Array.from(
+      { length: 100 },
+      (_, index) => createMessage(`a${index}`, 'assistant', `plain response ${index}`),
+    );
+    const view = renderHook(
+      ({ currentMessages, isStreaming }) => (
+        useStableChatMessageDerivatives(currentMessages, isStreaming)
+      ),
+      { initialProps: { currentMessages: messages, isStreaming: false } },
+    );
+    act(() => vi.runAllTimers());
+    expect(vi.getTimerCount()).toBe(0);
+
+    const lastMessage = messages.at(-1)!;
+    const streamedMessages = [
+      ...messages.slice(0, -1),
+      {
+        ...lastMessage,
+        content: '![image](https://example.com/streamed.png)',
+        versions: [{
+          content: '![image](https://example.com/streamed.png)',
+          createdAt: lastMessage.timestamp,
+          kind: 'original' as const,
+          subsequentMessages: [],
+        }],
+      },
+    ];
+    view.rerender({ currentMessages: streamedMessages, isStreaming: true });
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(view.result.current.imageGallery).toEqual([{
+      id: 'a99:0',
+      src: 'https://example.com/streamed.png',
+    }]);
+  });
+
+  it('revalidates the full history after streaming completes', () => {
+    vi.useFakeTimers();
+    const messages = Array.from(
+      { length: 100 },
+      (_, index) => createMessage(
+        `${index === 10 ? 'u' : 'a'}${index}`,
+        index === 10 ? 'user' : 'assistant',
+        index === 10 ? 'old prompt' : `plain response ${index}`,
+      ),
+    );
+    const view = renderHook(
+      ({ currentMessages, isStreaming }) => (
+        useStableChatMessageDerivatives(currentMessages, isStreaming)
+      ),
+      { initialProps: { currentMessages: messages, isStreaming: false } },
+    );
+    act(() => vi.runAllTimers());
+    expect(view.result.current.sentUserMessages).toEqual(['old prompt']);
+
+    const updatedUser = {
+      ...messages[10]!,
+      content: 'edited prompt',
+      versions: [{
+        content: 'edited prompt',
+        createdAt: messages[10]!.timestamp,
+        kind: 'original' as const,
+        subsequentMessages: [],
+      }],
+    };
+    const streamedMessages = [...messages];
+    streamedMessages[10] = updatedUser;
+    streamedMessages[99] = { ...streamedMessages[99]! };
+    view.rerender({ currentMessages: streamedMessages, isStreaming: true });
+    expect(view.result.current.sentUserMessages).toEqual(['old prompt']);
+
+    view.rerender({ currentMessages: streamedMessages, isStreaming: false });
+    act(() => vi.runAllTimers());
+    expect(view.result.current.sentUserMessages).toEqual(['edited prompt']);
   });
 });

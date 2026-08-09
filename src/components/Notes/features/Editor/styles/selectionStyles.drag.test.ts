@@ -96,6 +96,12 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('.milkdown .editor-block-selection-line-fill-host {');
     expect(css).toContain('.milkdown .editor-block-selection-line-fill-layer {');
     expect(css).toContain('.milkdown .editor-block-selection-line-fill {');
+    expect(css).toContain('.milkdown .ProseMirror.editor-block-selection-large-preview-active,');
+    expect(css).toContain('.milkdown .ProseMirror.editor-block-selection-drag-preview-active {');
+    expect(css).toContain('z-index: var(--vlaina-z-1);');
+    expect(css).toContain('.milkdown .ProseMirror .editor-block-selection-preview-surface {');
+    expect(css).toContain('.code-block-container.editor-block-selection-preview-surface,');
+    expect(css).toContain('.milkdown-table-block.editor-block-selection-preview-surface,');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selection-line-marker {');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selected-inline-line {');
     expect(css).toContain('.milkdown .ProseMirror .editor-block-selected-inline-line::after,');
@@ -121,7 +127,8 @@ describe("editor block drag interaction styles", () => {
     const css = readStyleFile('extended.css');
     const blockSelectionCss = readBlockSelectionStyle();
 
-    expect(css).toContain(".milkdown-editor[data-note-lazy-block-visibility='true'] .milkdown .video-block {");
+    expect(css).toContain(".milkdown-editor[data-note-lazy-block-visibility='true'][data-markdown-compat-layer='native']");
+    expect(css).toContain('.milkdown .ProseMirror:not(.editor-find-active) .video-block {');
     expect(css).toContain('contain-intrinsic-size: var(--vlaina-height-video-intrinsic);');
     expect(css).toContain('.milkdown .video-block::after {');
     expect(blockSelectionCss).toContain('.milkdown .ProseMirror .video-block.ProseMirror-selectednode::after,');
@@ -152,21 +159,31 @@ describe("editor block drag interaction styles", () => {
     expect(css).toContain('pointer-events: none;');
   });
 
-  it('applies lazy block visibility to expensive top-level markdown blocks in large notes', () => {
+  it('limits lazy block visibility to safe native-theme blocks', () => {
     const css = readStyleFile('core.css');
     const lazyRule = extractCssRule(
       css,
-      ".milkdown-editor[data-note-lazy-block-visibility='true'] .ProseMirror > :is("
+      ".milkdown-editor[data-note-lazy-block-visibility='true'][data-markdown-compat-layer='native']"
     );
 
+    expect(lazyRule).toContain('.ProseMirror:not(.editor-find-active) > :is(');
+    expect(lazyRule).toContain('  p,');
+    expect(lazyRule).toContain('  pre,');
     expect(lazyRule).toContain('.code-block-container,');
     expect(lazyRule).toContain('.frontmatter-block-container,');
     expect(lazyRule).toContain('.image-block-container,');
-    expect(lazyRule).toContain("[data-type='callout'],");
-    expect(lazyRule).toContain("[data-type='html-block'],");
     expect(lazyRule).toContain("[data-type='math-block'],");
     expect(lazyRule).toContain("[data-type='toc']");
     expect(lazyRule).toContain(':not(.editor-eager-layout-paragraph)');
+    expect(lazyRule).toContain(":not(.image-block-container[src*='#shadow'])");
+    expect(lazyRule).not.toMatch(/\bh[1-6],/);
+    expect(lazyRule).not.toContain('  blockquote,');
+    expect(lazyRule).not.toContain('  ul,');
+    expect(lazyRule).not.toContain('  ol,');
+    expect(lazyRule).not.toContain('  table,');
+    expect(lazyRule).not.toContain("[data-type='callout'],");
+    expect(lazyRule).not.toContain("[data-type='html-block'],");
+    expect(lazyRule).not.toContain(':has(');
     expect(lazyRule).toContain('content-visibility: auto;');
     expect(lazyRule).toContain('contain-intrinsic-size: auto var(--vlaina-height-block-intrinsic);');
   });

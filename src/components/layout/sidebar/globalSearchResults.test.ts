@@ -1,9 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   NotesSidebarSearchEntry,
   NotesSidebarSearchResult,
 } from '@/components/Notes/features/Sidebar/notesSidebarSearchResults';
-import { buildGlobalSearchGroups, createDefaultNoteSearchResults } from './globalSearchResults';
+import {
+  buildGlobalSearchGroups,
+  createDefaultNoteSearchResults,
+} from './globalSearchResults';
+import {
+  prepareGlobalChatSearch,
+  sortDefaultGlobalGraphNodes,
+  sortGlobalWhiteboards,
+} from './globalSearchSources';
 
 const note: NotesSidebarSearchResult = {
   id: 'note.md::name',
@@ -35,6 +43,34 @@ const graphNode = {
   label: 'Project graph',
 };
 
+function buildGroups({
+  appViewMode,
+  boards,
+  chatTitleFallback,
+  graphNodes,
+  noteResults,
+  query,
+  sessions,
+}: Omit<Parameters<typeof buildGlobalSearchGroups>[0], 'sources'> & {
+  boards: typeof board[];
+  graphNodes: typeof graphNode[];
+  sessions: typeof session[];
+}) {
+  const chatSearch = prepareGlobalChatSearch(sessions);
+  return buildGlobalSearchGroups({
+    appViewMode,
+    chatTitleFallback,
+    noteResults,
+    query,
+    sources: {
+      ...chatSearch,
+      defaultGraphNodes: sortDefaultGlobalGraphNodes(graphNodes),
+      graphNodes,
+      whiteboards: sortGlobalWhiteboards(boards),
+    },
+  });
+}
+
 describe('globalSearchResults', () => {
   it.each([
     ['chat', ['chat', 'notes', 'graph', 'whiteboard']],
@@ -42,7 +78,7 @@ describe('globalSearchResults', () => {
     ['notes', ['notes', 'graph', 'whiteboard', 'chat']],
     ['whiteboard', ['whiteboard', 'notes', 'graph', 'chat']],
   ] as const)('puts the current %s module first while returning all matching modules', (appViewMode, expectedOrder) => {
-    const groups = buildGlobalSearchGroups({
+    const groups = buildGroups({
       appViewMode,
       boards: [board],
       chatTitleFallback: 'New chat',
@@ -61,7 +97,7 @@ describe('globalSearchResults', () => {
   });
 
   it('returns matching files as graph results', () => {
-    const groups = buildGlobalSearchGroups({
+    const groups = buildGroups({
       appViewMode: 'graph',
       boards: [],
       chatTitleFallback: 'New chat',
@@ -84,7 +120,7 @@ describe('globalSearchResults', () => {
   });
 
   it('omits timestamps from chat and whiteboard results', () => {
-    const groups = buildGlobalSearchGroups({
+    const groups = buildGroups({
       appViewMode: 'chat',
       boards: [board],
       chatTitleFallback: 'New chat',
@@ -101,7 +137,7 @@ describe('globalSearchResults', () => {
   });
 
   it('omits note directories while preserving content match snippets', () => {
-    const groups = buildGlobalSearchGroups({
+    const groups = buildGroups({
       appViewMode: 'notes',
       boards: [],
       chatTitleFallback: 'New chat',
@@ -159,7 +195,7 @@ describe('globalSearchResults', () => {
   });
 
   it('caps large result sets per module', () => {
-    const groups = buildGlobalSearchGroups({
+    const groups = buildGroups({
       appViewMode: 'notes',
       boards: Array.from({ length: 100 }, (_, index) => ({
         ...board,
@@ -190,5 +226,28 @@ describe('globalSearchResults', () => {
     expect(groups.map((group) => group.results)).toHaveLength(4);
     expect(groups.every((group) => group.results.length === 60)).toBe(true);
     expect(groups.flatMap((group) => group.results)).toHaveLength(240);
+  });
+
+  it('does not repeat source sorting while building blank-query groups', () => {
+    const chatSearch = prepareGlobalChatSearch([session]);
+    const graphNodes = [graphNode];
+    const sources = {
+      ...chatSearch,
+      defaultGraphNodes: sortDefaultGlobalGraphNodes(graphNodes),
+      graphNodes,
+      whiteboards: sortGlobalWhiteboards([board]),
+    };
+    const localeCompare = vi.spyOn(String.prototype, 'localeCompare');
+
+    buildGlobalSearchGroups({
+      appViewMode: 'notes',
+      chatTitleFallback: 'New chat',
+      noteResults: [note],
+      query: '',
+      sources,
+    });
+
+    expect(localeCompare).not.toHaveBeenCalled();
+    localeCompare.mockRestore();
   });
 });

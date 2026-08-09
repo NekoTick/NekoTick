@@ -8,7 +8,10 @@ export const isClickBelowLastBlock = (
     editorDom: HTMLElement,
     clientY: number,
 ): boolean => {
-    const lastElement = editorDom.lastElementChild as HTMLElement | null;
+    let lastElement = editorDom.lastElementChild as HTMLElement | null;
+    while (lastElement?.matches('.heading-collapsed-content, .editor-collapsed-content')) {
+        lastElement = lastElement.previousElementSibling as HTMLElement | null;
+    }
     if (!lastElement) return false;
     const lastRect = lastElement.getBoundingClientRect();
     return clientY > lastRect.bottom;

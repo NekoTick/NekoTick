@@ -1,5 +1,5 @@
 import type { EditorState } from '@milkdown/kit/prose/state';
-import type { EditorView } from '@milkdown/kit/prose/view';
+import { DecorationSet, type EditorView } from '@milkdown/kit/prose/view';
 import type { BlockRange } from './blockSelectionUtils';
 import type { BlockDragStartZone } from './blockDragSession';
 import {
@@ -32,6 +32,7 @@ import { deleteSelectedBlocks } from './blankAreaDragBoxDocumentSelection';
 interface CreateBlankAreaDragBoxPluginPropsOptions {
   clearInsideBlockTrailingPlainClickSession: () => void;
   documentInspectedMouseDownEvents: WeakSet<MouseEvent>;
+  getDragPreviewSurfaceDecorations: (state: EditorState) => DecorationSet;
   serializeSelectedBlocks: (state: EditorState, selectedBlocks: readonly BlockRange[]) => string;
   setInsideBlockTrailingPlainClickSession: (stop: () => void) => void;
   tryStartSession: (view: EditorView, event: MouseEvent) => BlockDragStartZone | null;
@@ -41,7 +42,14 @@ interface CreateBlankAreaDragBoxPluginPropsOptions {
 export function createBlankAreaDragBoxPluginProps(options: CreateBlankAreaDragBoxPluginPropsOptions) {
   return {
     decorations(state: EditorState) {
-      return getBlockSelectionPluginState(state).interactionDecorations;
+      const interactionDecorations = getBlockSelectionPluginState(state).interactionDecorations;
+      const previewDecorations = options.getDragPreviewSurfaceDecorations(state);
+      if (previewDecorations === DecorationSet.empty) return interactionDecorations;
+      if (interactionDecorations === DecorationSet.empty) return previewDecorations;
+      return DecorationSet.create(state.doc, [
+        ...interactionDecorations.find(),
+        ...previewDecorations.find(),
+      ]);
     },
     handleKeyDown(view: EditorView, event: KeyboardEvent) {
       if (event.isComposing) {

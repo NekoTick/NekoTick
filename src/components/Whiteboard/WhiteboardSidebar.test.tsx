@@ -71,6 +71,9 @@ describe('WhiteboardSidebar', () => {
     render(<WhiteboardSidebar />);
 
     await waitFor(() => expect(store.loadForNotesRoot).toHaveBeenCalledWith('/notesRoot'));
+    const row = document.querySelector('[data-whiteboard-board-row="true"]');
+    expect(row).toHaveClass('[content-visibility:auto]');
+    expect(screen.getByRole('button', { name: 'Ideas' }).tabIndex).toBe(0);
   });
 
   it('renames a board from the inline editor', async () => {

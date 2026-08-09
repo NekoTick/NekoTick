@@ -800,6 +800,7 @@ export async function collectEditorDomMetrics(page: Page) {
   return page.evaluate(() => {
     const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror[contenteditable="true"]');
     const scrollRoot = editor?.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+    const editorModelTextLength = (window as any).__vlainaE2E.getEditorSelectionSummary()?.docTextLength ?? 0;
     const blockElements = Array.from(editor?.querySelectorAll<HTMLElement>(
       'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,table,div[data-type="callout"],div[data-type="toc"],.frontmatter-block-container,div[data-type="math-block"],div[data-type="mermaid"],div[data-type="video"],div.image-block-container,[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]'
     ) ?? []);
@@ -837,9 +838,10 @@ export async function collectEditorDomMetrics(page: Page) {
     };
 
     return {
-      editorTextLength: editor?.textContent?.length ?? 0,
+      editorTextLength: Math.max(editor?.textContent?.length ?? 0, editorModelTextLength),
       editorChildCount: editor?.children.length ?? 0,
       renderedBlockCount: blockElements.length,
+      virtualizedPlaceholderCount: editor?.querySelectorAll('.editor-virtual-block-placeholder').length ?? 0,
       selectableBlockCount: (window as any).__vlainaE2E.getNoteSelectableBlocks().length,
       scrollHeight: scrollRoot?.scrollHeight ?? 0,
       clientHeight: scrollRoot?.clientHeight ?? 0,

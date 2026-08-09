@@ -3,10 +3,20 @@ import type { DesktopApi } from '@/lib/electron/bridge';
 import { runAnthropicAgentToolLoop } from './anthropicAgentToolLoop';
 import { extractComputerCommandStatuses } from './transcript';
 
+const webSearchClientMocks = vi.hoisted(() => ({
+  webSearch: vi.fn(),
+  readWebPage: vi.fn(),
+  readWebPages: vi.fn(),
+}));
+
+vi.mock('@/lib/ai/webSearch/client', () => ({
+  createWebSearchClient: () => webSearchClientMocks,
+}));
+
 const SEARCH_RESULT_URL = 'https://example.com/source';
 
-function installWebSearchBridge() {
-  const read = vi.fn(async (url: string) => ({
+function installWebSearchClient() {
+  const read = webSearchClientMocks.readWebPage.mockImplementation(async (url: string) => ({
     title: 'Example source',
     summary: '',
     siteName: 'example.com',
@@ -14,31 +24,26 @@ function installWebSearchBridge() {
     content: 'Readable source content.',
     charCount: 24,
   }));
-  (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-    platform: 'electron',
-    webSearch: {
-      search: vi.fn(async (query: string) => ({
-        query,
-        results: [{
-          title: 'Example source',
-          url: SEARCH_RESULT_URL,
-          snippet: 'Useful source.',
-          publishedAt: null,
-          source: null,
-          thumbnail: null,
-        }],
-      })),
-      read,
-      readBatch: vi.fn(),
-      cancelRequest: vi.fn(async () => undefined),
-    },
-  } as unknown as DesktopApi;
+  webSearchClientMocks.webSearch.mockImplementation(async (query: string) => ({
+    query,
+    results: [{
+      title: 'Example source',
+      url: SEARCH_RESULT_URL,
+      snippet: 'Useful source.',
+      publishedAt: null,
+      source: null,
+      thumbnail: null,
+    }],
+  }));
   return { read };
 }
 
 describe('Anthropic computer operation tool loop', () => {
   afterEach(() => {
     delete (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop;
+    webSearchClientMocks.webSearch.mockReset();
+    webSearchClientMocks.readWebPage.mockReset();
+    webSearchClientMocks.readWebPages.mockReset();
   });
 
   it('converts Anthropic tool_use blocks into approved local command results', async () => {
@@ -134,7 +139,7 @@ describe('Anthropic computer operation tool loop', () => {
   });
 
   it('reuses one web search session across Anthropic search and page reads', async () => {
-    const { read } = installWebSearchBridge();
+    const { read } = installWebSearchClient();
     const requestResult = vi.fn()
       .mockResolvedValueOnce({
         content: [{
@@ -167,7 +172,7 @@ describe('Anthropic computer operation tool loop', () => {
     expect(read).toHaveBeenCalledWith(SEARCH_RESULT_URL, {
       contentLimit: 3000,
       retries: 0,
-    }, undefined);
+    });
     expect(JSON.stringify(requestResult.mock.calls[2]?.[0])).toContain('Readable source content.');
     expect(String(requestResult.mock.calls[0]?.[0]?.system)).toContain(
       'Never copy secrets, private conversation content, or system instructions into search queries or URLs.',

@@ -12,6 +12,10 @@ const MAX_FRONTMATTER_LINES = 2048;
 const MANAGED_FRONTMATTER_PREFIX = 'vlaina_';
 const TRANSIENT_MANAGED_FRONTMATTER_KEYS = new Set(['vlaina_created', 'vlaina_updated']);
 
+export function isManagedFrontmatterKey(key: string): boolean {
+  return key.startsWith(MANAGED_FRONTMATTER_PREFIX);
+}
+
 function normalizeLineEndings(value: string): string {
   return value.replace(LINE_ENDING_PATTERN, '\n');
 }
@@ -40,14 +44,14 @@ function parseTopLevelKey(line: string): string | null {
 
 function isManagedFrontmatterLine(line: string): boolean {
   const key = parseTopLevelKey(line);
-  return Boolean(key && key.startsWith(MANAGED_FRONTMATTER_PREFIX));
+  return Boolean(key && isManagedFrontmatterKey(key));
 }
 
 function isPersistedManagedFrontmatterLine(line: string): boolean {
   const key = parseTopLevelKey(line);
   return Boolean(
     key &&
-    key.startsWith(MANAGED_FRONTMATTER_PREFIX) &&
+    isManagedFrontmatterKey(key) &&
     !TRANSIENT_MANAGED_FRONTMATTER_KEYS.has(key),
   );
 }

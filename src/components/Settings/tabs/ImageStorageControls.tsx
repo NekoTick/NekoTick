@@ -61,7 +61,7 @@ export function StorageFolderNameEditor({
                 onChange={(event) => {
                     const nextValue = event.target.value.slice(0, MAX_IMAGE_SUBFOLDER_NAME_CHARS);
                     setDraftFolderName(nextValue);
-                    if (!isComposingRef.current) {
+                    if (!isComposingRef.current && nextValue.trim().length > 0) {
                         setFolderName(nextValue);
                     }
                 }}
@@ -72,7 +72,9 @@ export function StorageFolderNameEditor({
                     isComposingRef.current = false;
                     const nextValue = event.currentTarget.value.slice(0, MAX_IMAGE_SUBFOLDER_NAME_CHARS);
                     setDraftFolderName(nextValue);
-                    setFolderName(nextValue);
+                    if (nextValue.trim().length > 0) {
+                        setFolderName(nextValue);
+                    }
                 }}
                 onMouseDown={(event) => {
                     preserveFocusSelectionRef.current = document.activeElement !== event.currentTarget;

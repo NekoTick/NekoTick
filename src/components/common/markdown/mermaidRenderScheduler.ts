@@ -31,6 +31,8 @@ function isInteractionActive() {
     '[data-overlay-scrollbar-interacting="true"]',
     '[data-editor-pointer-selecting="true"]',
     '[data-layout-panel-dragging="true"]',
+    '.editor-block-selection-pending',
+    '[data-editor-block-selection-pending="true"]',
   ].join(', ')));
 }
 

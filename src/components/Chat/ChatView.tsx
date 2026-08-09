@@ -77,7 +77,10 @@ export function ChatView({
   const pendingComposerInsert = useUIStore((state) => state.pendingNotesChatComposerInsert);
   const consumePendingComposerInsert = useUIStore((state) => state.consumePendingNotesChatComposerInsert);
 
-  const { imageGallery, sentUserMessages } = useStableChatMessageDerivatives(messages);
+  const { imageGallery, sentUserMessages } = useStableChatMessageDerivatives(
+    messages,
+    isSessionActive,
+  );
   const { isSelectedManagedQuotaExhausted, selectedModel } = useChatViewModelSelection({
     managedBudget,
     models,

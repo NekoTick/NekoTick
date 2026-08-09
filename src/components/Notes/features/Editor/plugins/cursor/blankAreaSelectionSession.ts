@@ -6,7 +6,9 @@ import {
   areRectBoundsEqual,
   createBlockSelectionPreviewLayer,
   createDragBox,
+  DRAG_SELECTION_PREVIEW_ACTIVE_CLASS,
   hasMeaningfulResizeDelta,
+  hasMeaningfulWidthResizeDelta,
   updateDragBox,
   updateBlockSelectionPreviewLayer,
 } from './blankAreaSelectionDragBox';
@@ -25,7 +27,10 @@ import {
   type RectBounds,
 } from './blockSelectionUtils';
 import { createVerticalEdgeAutoScroll } from './edgeAutoScroll';
-import { getInteractionCachedEditorGeometry } from '../../utils/editorBlockPositionCache';
+import {
+  getInteractionCachedEditorBlockTargets,
+  getInteractionCachedEditorGeometry,
+} from '../../utils/editorBlockPositionCache';
 import { setBlockSelectionPreviewElements } from './blockSelectionInteractionState';
 
 export {
@@ -44,10 +49,12 @@ export function startBlankAreaSelectionSession(
     dragThreshold,
     cursor,
     dragBoxColor,
+    selectionPreviewColor = dragBoxColor,
     useSelectionPreview = false,
     scrollRootSelector,
     initialSelectedBlocks,
     onSelectionChange,
+    onPreviewSurfaceRangesChange,
     onPendingPlainClick,
     onPlainClick,
     onActivateSelectionState,
@@ -78,14 +85,48 @@ export function startBlankAreaSelectionSession(
   let lastPointerY = event.clientY;
   let dragBoxTopBoundary = 0;
   let dragBoxRafId = 0;
+  let geometryRefreshRafId = 0;
+  let pendingGeometryRefresh: {
+    invalidateGeometry: boolean;
+    changedPreviewSurfaceRanges: Map<string, { from: number; to: number }>;
+  } | null = null;
   let resizeObserver: ResizeObserver | null = null;
   const observedResizeSizes = new WeakMap<Element, { width: number; height: number }>();
+  const observedPreviewSurfaceElements = new Set<HTMLElement>();
+  const previewSurfaceRangesByElement = new Map<HTMLElement, readonly { from: number; to: number }[]>();
   let lastHandledScrollLeft = Number.NaN;
   let lastHandledScrollTop = Number.NaN;
   let pendingAutoScrollTop: number | null = null;
   let refreshAutoScrollBounds = () => {};
   let getAutoScrollBounds = (): RectBounds | null => null;
   let syncAutoScrollTop = (_scrollTop: number) => {};
+
+  const syncPreviewSurfaceResizeTargets = (
+    elements: readonly HTMLElement[],
+    ranges: readonly { from: number; to: number }[],
+  ) => {
+    if (!resizeObserver) return;
+    const nextElements = new Set(elements);
+    observedPreviewSurfaceElements.forEach((element) => {
+      if (nextElements.has(element)) return;
+      resizeObserver?.unobserve(element);
+      observedPreviewSurfaceElements.delete(element);
+      previewSurfaceRangesByElement.delete(element);
+    });
+    previewSurfaceRangesByElement.clear();
+    elements.forEach((element, index) => {
+      const range = ranges[index];
+      if (range) {
+        const previousRanges = previewSurfaceRangesByElement.get(element) ?? [];
+        previewSurfaceRangesByElement.set(element, previousRanges.some((candidate) => (
+          candidate.from === range.from && candidate.to === range.to
+        )) ? previousRanges : [...previousRanges, range]);
+      }
+      if (observedPreviewSurfaceElements.has(element)) return;
+      observedPreviewSurfaceElements.add(element);
+      resizeObserver?.observe(element);
+    });
+  };
 
   const selectionResolver = createBlankAreaSelectionResolver({
     view,
@@ -103,9 +144,54 @@ export function startBlankAreaSelectionSession(
     onSelectionChange,
   });
 
+  const scheduleGeometryRefresh = (
+    invalidateGeometry: boolean,
+    changedPreviewSurfaceRanges: ReadonlyMap<string, { from: number; to: number }> = new Map(),
+  ) => {
+    const pending = pendingGeometryRefresh ?? {
+      invalidateGeometry: false,
+      changedPreviewSurfaceRanges: new Map<string, { from: number; to: number }>(),
+    };
+    pending.invalidateGeometry ||= invalidateGeometry;
+    changedPreviewSurfaceRanges.forEach((range, key) => {
+      pending.changedPreviewSurfaceRanges.set(key, range);
+    });
+    pendingGeometryRefresh = pending;
+    if (geometryRefreshRafId !== 0) return;
+
+    geometryRefreshRafId = window.requestAnimationFrame(() => {
+      geometryRefreshRafId = 0;
+      const nextRefresh = pendingGeometryRefresh;
+      pendingGeometryRefresh = null;
+      if (!nextRefresh) return;
+
+      if (nextRefresh.invalidateGeometry) {
+        refreshAutoScrollBounds();
+        selectionResolver.invalidateGeometryCache();
+        dragBoxTopBoundary = getAutoScrollBounds()?.top ?? 0;
+        if (!lastViewportDragRect) return;
+        selectionResolver.applyDragRectSelectionIfNeeded(lastViewportDragRect);
+        renderSelectionPreview();
+        return;
+      }
+
+      if (
+        lastViewportDragRect
+        && selectionResolver.refreshSelectionPreviewGeometry(
+          nextRefresh.changedPreviewSurfaceRanges.size > 0
+            ? [...nextRefresh.changedPreviewSurfaceRanges.values()]
+            : undefined,
+        )
+      ) {
+        renderSelectionPreview();
+      }
+    });
+  };
+
   if (
     startZone === 'outside-editor' &&
     initialSelectedBlocks.length === 0 &&
+    !useSelectionPreview &&
     onPendingPlainClick
   ) {
     const blockRects = rectResolver.getPlainClickBlockRects(event.clientX, event.clientY);
@@ -127,6 +213,8 @@ export function startBlankAreaSelectionSession(
 
   const handleGeometryResize: ResizeObserverCallback = (entries) => {
     let hasMeaningfulResize = entries.length === 0;
+    let shouldRefreshPreviewGeometry = false;
+    const changedPreviewSurfaceRanges = new Map<string, { from: number; to: number }>();
     for (const entry of entries) {
       const nextSize = {
         width: entry.contentRect.width,
@@ -134,18 +222,40 @@ export function startBlankAreaSelectionSession(
       };
       const previousSize = observedResizeSizes.get(entry.target);
       observedResizeSizes.set(entry.target, nextSize);
-      if (previousSize && hasMeaningfulResizeDelta(previousSize, nextSize)) {
+      if (useSelectionPreview && entry.target === view.dom) {
+        if (hasMeaningfulWidthResizeDelta(previousSize, nextSize)) {
+          hasMeaningfulResize = true;
+        } else if (previousSize && hasMeaningfulResizeDelta(previousSize, nextSize)) {
+          shouldRefreshPreviewGeometry = true;
+        }
+      } else if (
+        useSelectionPreview
+        && entry.target instanceof HTMLElement
+        && observedPreviewSurfaceElements.has(entry.target)
+      ) {
+        // A first notification can already contain the post-layout size when
+        // a rich block changes immediately after it is observed.
+        if (!previousSize || hasMeaningfulResizeDelta(previousSize, nextSize)) {
+          shouldRefreshPreviewGeometry = true;
+          previewSurfaceRangesByElement.get(entry.target)?.forEach((range) => {
+            changedPreviewSurfaceRanges.set(`${range.from}:${range.to}`, range);
+          });
+        }
+      } else if (previousSize && hasMeaningfulResizeDelta(previousSize, nextSize)) {
         hasMeaningfulResize = true;
       }
     }
-    if (!hasMeaningfulResize) return;
+    if (!hasMeaningfulResize) {
+      if (
+        shouldRefreshPreviewGeometry
+        && lastViewportDragRect
+      ) {
+        scheduleGeometryRefresh(false, changedPreviewSurfaceRanges);
+      }
+      return;
+    }
 
-    refreshAutoScrollBounds();
-    selectionResolver.invalidateGeometryCache();
-    dragBoxTopBoundary = getAutoScrollBounds()?.top ?? 0;
-    if (!lastViewportDragRect) return;
-    selectionResolver.applyDragRectSelectionIfNeeded(lastViewportDragRect);
-    renderSelectionPreview();
+    scheduleGeometryRefresh(true);
   };
 
   const scheduleDragBoxUpdate = (viewportRect: RectBounds) => {
@@ -165,6 +275,33 @@ export function startBlankAreaSelectionSession(
 
   const renderSelectionPreview = () => {
     if (!selectionPreviewLayer) return;
+    const previewRanges = selectionResolver.getSelectionPreviewRanges();
+    const previewSurfaceRanges = selectionResolver.getSelectionPreviewSurfaceRanges();
+    onPreviewSurfaceRangesChange?.(previewSurfaceRanges);
+    let previewElements = rectResolver.getSelectionBlockElements(previewRanges);
+    if (previewElements.length !== previewRanges.length) {
+      const currentPreviewTargets = getInteractionCachedEditorBlockTargets(view, previewRanges);
+      if (currentPreviewTargets) {
+        previewElements = currentPreviewTargets.map((target) => target.element);
+      }
+    }
+    const previewElementsByRange = new Map(
+      previewRanges.map((range, index) => [
+        `${range.from}:${range.to}`,
+        previewElements[index],
+      ] as const),
+    );
+    const previewSurfaceElementRanges = [] as typeof previewSurfaceRanges;
+    const previewSurfaceElements = previewSurfaceRanges
+      .map((range) => {
+        const element = rectResolver.getSelectionBlockElements([range])[0]
+          ?? previewElementsByRange.get(`${range.from}:${range.to}`);
+        if (!element) return null;
+        previewSurfaceElementRanges.push(range);
+        return element;
+      })
+      .filter((element): element is HTMLElement => Boolean(element));
+    syncPreviewSurfaceResizeTargets(previewSurfaceElements, previewSurfaceElementRanges);
     updateBlockSelectionPreviewLayer(
       selectionPreviewLayer,
       selectionResolver.getSelectionPreviewDocumentRects(),
@@ -175,7 +312,7 @@ export function startBlankAreaSelectionSession(
     );
     setBlockSelectionPreviewElements(
       view.dom,
-      rectResolver.getSelectionBlockElements(selectionResolver.getSelectionPreviewRanges()),
+      previewElements,
     );
   };
 
@@ -258,8 +395,8 @@ export function startBlankAreaSelectionSession(
       dragBox = createDragBox(doc, dragBoxColor, !useSelectionPreview);
       doc.body.appendChild(dragBox);
       if (useSelectionPreview) {
-        selectionPreviewLayer = createBlockSelectionPreviewLayer(doc, dragBoxColor);
-        doc.body.appendChild(selectionPreviewLayer);
+        selectionPreviewLayer = createBlockSelectionPreviewLayer(doc, selectionPreviewColor);
+        (view.dom.parentElement ?? doc.body).appendChild(selectionPreviewLayer);
       }
       dragBoxTopBoundary = getAutoScrollBounds()?.top ?? 0;
       if (!useSelectionPreview) {
@@ -272,6 +409,7 @@ export function startBlankAreaSelectionSession(
         blurActiveEditableElement(doc);
       }
       onActivateSelectionState();
+      view.dom.classList.add(DRAG_SELECTION_PREVIEW_ACTIVE_CLASS);
     },
     onPointerMove(pointer) {
       lastPointerX = pointer.clientX;
@@ -318,27 +456,37 @@ export function startBlankAreaSelectionSession(
     },
     onTeardown() {
       handleScrollWhileDragging();
+      const finalSelectionBlocks = selectionResolver.getSelectionBlocks();
       if (dragBox) {
         dragBox.remove();
         dragBox = null;
       }
       selectionPreviewLayer?.remove();
       selectionPreviewLayer = null;
+      view.dom.classList.remove(DRAG_SELECTION_PREVIEW_ACTIVE_CLASS);
       if (dragBoxRafId !== 0) {
         window.cancelAnimationFrame(dragBoxRafId);
         dragBoxRafId = 0;
       }
+      if (geometryRefreshRafId !== 0) {
+        window.cancelAnimationFrame(geometryRefreshRafId);
+        geometryRefreshRafId = 0;
+      }
+      pendingGeometryRefresh = null;
       pendingDragBoxRect = null;
       renderedDragBoxRect = null;
       resizeObserver?.disconnect();
       resizeObserver = null;
+      observedPreviewSurfaceElements.clear();
+      previewSurfaceRangesByElement.clear();
       scrollRoot?.removeEventListener('scroll', handleNativeScrollWhileDragging);
       autoScroll.stop();
       selectionResolver.invalidateGeometryCache();
-      onSyncSelectionState();
       if (useSelectionPreview) {
+        onPreviewSurfaceRangesChange?.([]);
         setBlockSelectionPreviewElements(view.dom, null);
       }
+      onSyncSelectionState(finalSelectionBlocks);
     },
   });
 
