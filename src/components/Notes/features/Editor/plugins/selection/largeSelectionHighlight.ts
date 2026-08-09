@@ -173,7 +173,7 @@ export function installLargeSelectionHighlight(view: EditorView): {
 
     docView = nextDocView;
     originalSetSelection = nextDocView.setSelection;
-    fastSetSelection = function (anchor, head, targetView, force) {
+    fastSetSelection = function (this: ProseMirrorDocView, anchor, head, targetView, force) {
       if (
         isLargeEditorAllSelection(targetView.state)
         || (isLargeEditorTextSelection(targetView.state) && highlightSpec?.type === 'boundary')

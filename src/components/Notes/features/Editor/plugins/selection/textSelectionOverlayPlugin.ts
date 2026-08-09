@@ -4,7 +4,6 @@ import { $prose } from '@milkdown/kit/utils';
 import { createTextSelectionDecorationState } from './textSelectionOverlayDecorations';
 import { createTextSelectionOverlayPluginView } from './textSelectionOverlayPluginView';
 import {
-  LARGE_SELECTION_MIN_RANGE_SIZE,
   POINTER_NATIVE_SELECTION_META,
   isLargeEditorSelection,
   isTextSelectionOverlayEligible,

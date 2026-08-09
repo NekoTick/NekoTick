@@ -65,7 +65,7 @@ export function useWhiteboardPointerFinish({
 }: WhiteboardPointerFinishOptions) {
   return useCallback((event?: PointerEvent<HTMLDivElement>) => {
     if (event?.type !== 'pointercancel' && dragState?.kind === 'draw') {
-      applyFinalDrawSample?.(event);
+      if (event) applyFinalDrawSample?.(event);
     }
     if (event) deletePointer(event.pointerId);
     finishEraserGesture(event?.type === 'pointercancel');

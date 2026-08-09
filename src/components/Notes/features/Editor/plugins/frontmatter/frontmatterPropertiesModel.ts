@@ -5,7 +5,6 @@ import {
   parseDocument,
   type Document,
   type Scalar,
-  YAMLMap,
 } from 'yaml';
 import { isManagedFrontmatterKey } from './frontmatterMarkdown';
 
@@ -31,7 +30,7 @@ function parseMapping(rawText: string): Document | null {
     if (document.errors.length > 0) {
       return null;
     }
-    if (document.contents == null) document.contents = new YAMLMap();
+    if (document.contents == null) return null;
     if (!isMap(document.contents)) return null;
     return document;
   } catch {
