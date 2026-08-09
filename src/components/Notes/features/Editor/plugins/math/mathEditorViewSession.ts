@@ -7,6 +7,7 @@ import {
   type MathEditorSessionRefs,
 } from './mathEditorSessionActions';
 import { mathEditorPluginKey } from './mathEditorPluginKey';
+import { configureMathFormulaPicker } from './mathFormulaPicker';
 import { renderMathEditorLivePreview } from './mathEditorLivePreview';
 import {
   getMathAnchorViewportPosition,
@@ -50,6 +51,7 @@ export function createMathEditorViewSession(args: {
     getAnchorViewportPosition: getMathAnchorViewportPosition,
     preferStatePositionOnInitialRender: (state) => state.openSource === 'new-empty-block',
     previewInputDebounceMs: 0,
+    configurePopup: configureMathFormulaPicker,
     previewInput({ state, value, resolveAnchor, scheduleResize }) {
       renderMathEditorLivePreview({
         anchor: resolveAnchor(),

@@ -19,6 +19,7 @@
 @import './code-block.css';
 @import './frontmatter.css';
 @import './math-editor.css';
+@import './math-formula-picker.css';
 @import './theme-compatibility.css';
 @import './block-selection-atomic-rich.css';
 @import './slash-menu.css';

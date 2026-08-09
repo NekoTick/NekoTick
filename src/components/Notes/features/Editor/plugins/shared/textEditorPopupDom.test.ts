@@ -194,6 +194,32 @@ describe('textEditorPopupDom', () => {
     expect(textarea.style.height).toBe('');
   });
 
+  it('lets a specialized editor extend the shared popup and notify input changes', () => {
+    const container = document.createElement('div');
+    const onInput = vi.fn();
+
+    const { textarea } = mountTextEditorPopup({
+      container,
+      value: 'draft',
+      onInput,
+      onCancel: vi.fn(),
+      onSave: vi.fn(),
+      configurePopup(elements, notifyInput) {
+        const button = document.createElement('button');
+        button.addEventListener('click', () => {
+          elements.textarea.value = 'configured';
+          notifyInput();
+        });
+        elements.content.prepend(button);
+      },
+    });
+
+    container.querySelector('button')!.click();
+
+    expect(textarea.value).toBe('configured');
+    expect(onInput).toHaveBeenCalledWith('configured');
+  });
+
   it('blocks image clipboard companion text in Mermaid, math, and HTML text popups', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
