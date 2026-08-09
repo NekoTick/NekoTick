@@ -21,6 +21,21 @@ describe('isClickBelowLastBlock', () => {
 
         expect(isClickBelowLastBlock(editor, 100)).toBe(false);
     });
+
+    it('uses the last visible block when collapsed heading content reaches the document tail', () => {
+        const editor = document.createElement('div');
+        const visible = document.createElement('h1');
+        const collapsed = document.createElement('p');
+        visible.getBoundingClientRect = () => ({ bottom: 120 } as DOMRect);
+        collapsed.className = 'heading-collapsed-content';
+        collapsed.getBoundingClientRect = () => {
+            throw new Error('Collapsed tail blocks should not be measured');
+        };
+        editor.append(visible, collapsed);
+
+        expect(isClickBelowLastBlock(editor, 100)).toBe(false);
+        expect(isClickBelowLastBlock(editor, 130)).toBe(true);
+    });
 });
 
 describe('resolveTailBlankClickAction', () => {

@@ -37,7 +37,10 @@ export function moveSelectionAfterNode(
 }
 
 export function isClickInBottomBlankSpace(root: HTMLElement, clientY: number): boolean {
-  const lastRenderedBlock = root.lastElementChild as HTMLElement | null;
+  let lastRenderedBlock = root.lastElementChild as HTMLElement | null;
+  while (lastRenderedBlock?.matches('.heading-collapsed-content, .editor-collapsed-content')) {
+    lastRenderedBlock = lastRenderedBlock.previousElementSibling as HTMLElement | null;
+  }
   if (!lastRenderedBlock) return false;
   const lastRect = lastRenderedBlock.getBoundingClientRect();
   return clientY > lastRect.bottom;

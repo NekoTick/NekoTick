@@ -27,6 +27,10 @@ const rangesByDocument = new WeakMap<Document, Map<HTMLElement, readonly Range[]
 const highlightByDocument = new WeakMap<Document, EditorHighlight>();
 const visibleElementsByEditor = new WeakMap<HTMLElement, readonly HTMLElement[]>();
 
+function isCollapsedSelectionBlock(element: HTMLElement): boolean {
+  return element.matches('.heading-collapsed-content, .editor-collapsed-content');
+}
+
 export interface VisibleLargeSelectionHighlight {
   elements: readonly HTMLElement[];
   ranges: readonly Range[];
@@ -61,14 +65,14 @@ function getSelectionWindowChildren(view: EditorView): HTMLElement[] {
   const visible: HTMLElement[] = [];
   for (let index = centerIndex; index >= 0; index -= 1) {
     const child = children.item(index);
-    if (!(child instanceof HTMLElement)) continue;
+    if (!(child instanceof HTMLElement) || isCollapsedSelectionBlock(child)) continue;
     const rect = child.getBoundingClientRect();
     if (rect.bottom <= viewportTop) break;
     if (rect.top < viewportBottom && rect.bottom > viewportTop) visible.unshift(child);
   }
   for (let index = centerIndex + 1; index < children.length; index += 1) {
     const child = children.item(index);
-    if (!(child instanceof HTMLElement)) continue;
+    if (!(child instanceof HTMLElement) || isCollapsedSelectionBlock(child)) continue;
     const rect = child.getBoundingClientRect();
     if (rect.top >= viewportBottom) break;
     if (rect.bottom > viewportTop && rect.top < viewportBottom) visible.push(child);
@@ -78,7 +82,7 @@ function getSelectionWindowChildren(view: EditorView): HTMLElement[] {
     const last = Math.min(children.length - 1, centerIndex + 2);
     for (let index = first; index <= last; index += 1) {
       const child = children.item(index);
-      if (child instanceof HTMLElement) visible.push(child);
+      if (child instanceof HTMLElement && !isCollapsedSelectionBlock(child)) visible.push(child);
     }
   }
   return visible;

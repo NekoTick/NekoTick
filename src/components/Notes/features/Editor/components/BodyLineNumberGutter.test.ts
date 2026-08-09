@@ -499,6 +499,35 @@ describe('BodyLineNumberGutter', () => {
     ]);
   });
 
+  it('skips collapsed blocks without shifting following source line numbers', () => {
+    const shell = document.createElement('div');
+    const editorRoot = document.createElement('div');
+    const heading = document.createElement('h1');
+    const collapsedParagraph = document.createElement('p');
+    const visibleParagraph = document.createElement('p');
+
+    editorRoot.className = 'ProseMirror';
+    collapsedParagraph.className = 'heading-collapsed-content';
+    shell.appendChild(editorRoot);
+    editorRoot.append(heading, collapsedParagraph, visibleParagraph);
+
+    setRect(shell, { left: 10, top: 20 });
+    setRect(editorRoot, { left: 106, top: 20 });
+    setRect(heading, { left: 106, top: 40, height: 32 });
+    collapsedParagraph.getBoundingClientRect = vi.fn(() => {
+      throw new Error('Collapsed blocks should not be measured');
+    });
+    setRect(visibleParagraph, { left: 106, top: 80, height: 24 });
+
+    const labels = resolveBodyLineNumberLabels(shell, '# Title\n\nHidden\n\nVisible');
+
+    expect(labels).toEqual([
+      { lineNumber: 1, left: 38, top: 36 },
+      { lineNumber: 3, left: 38, top: 72 },
+    ]);
+    expect(collapsedParagraph.getBoundingClientRect).not.toHaveBeenCalled();
+  });
+
   it('anchors media blocks to the visual block center instead of internal control text', () => {
     const shell = document.createElement('div');
     const editorRoot = document.createElement('div');

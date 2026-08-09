@@ -151,6 +151,10 @@ function getVisibleRect(element: HTMLElement): DOMRect | null {
   return rect;
 }
 
+function isCollapsedBodyLineNumberTarget(target: HTMLElement): boolean {
+  return target.closest('.heading-collapsed-content, .editor-collapsed-content') !== null;
+}
+
 function resolveFirstTableLineRect(target: HTMLElement): DOMRect | null {
   const doc = target.ownerDocument;
   const walker = doc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT);
@@ -253,7 +257,7 @@ export function resolveBodyLineNumberLabelLayoutFromLineNumbers(
 
   for (let index = 0; index < labelCount; index += 1) {
     const target = targets[index];
-    if (!target) {
+    if (!target || isCollapsedBodyLineNumberTarget(target)) {
       continue;
     }
 

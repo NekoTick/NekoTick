@@ -154,4 +154,19 @@ describe('isClickInBottomBlankSpace', () => {
     const root = document.createElement('div');
     expect(isClickInBottomBlankSpace(root, 999)).toBe(false);
   });
+
+  it('uses the last visible block when collapsed heading content reaches the document tail', () => {
+    const root = document.createElement('div');
+    const visible = document.createElement('h2');
+    const collapsed = document.createElement('ul');
+    visible.getBoundingClientRect = () => ({ bottom: 100 } as DOMRect);
+    collapsed.className = 'heading-collapsed-content';
+    collapsed.getBoundingClientRect = () => {
+      throw new Error('Collapsed tail blocks should not be measured');
+    };
+    root.append(visible, collapsed);
+
+    expect(isClickInBottomBlankSpace(root, 90)).toBe(false);
+    expect(isClickInBottomBlankSpace(root, 110)).toBe(true);
+  });
 });

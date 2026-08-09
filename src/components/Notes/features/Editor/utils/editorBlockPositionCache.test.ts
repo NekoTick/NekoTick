@@ -690,6 +690,66 @@ describe('editorBlockPositionCache', () => {
     }
   });
 
+  it.each([
+    'heading-collapsed-content',
+    'editor-collapsed-content',
+  ])('does not return cached targets after a block gains %s', (collapsedClass) => {
+    const scrollRoot = document.createElement('div');
+    scrollRoot.setAttribute('data-note-scroll-root', 'true');
+    scrollRoot.scrollTop = 20;
+    scrollRoot.getBoundingClientRect = () => rect(0, 200, 640);
+    const dom = document.createElement('div');
+    const block = document.createElement('p');
+    dom.appendChild(block);
+    scrollRoot.appendChild(dom);
+    document.body.appendChild(scrollRoot);
+
+    const doc = { content: { size: 4 } };
+    const view = {
+      dom,
+      state: { doc },
+    };
+
+    setCurrentEditorBlockPositionSnapshot(withBlockIndex({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      scrollRoot,
+      scrollLeft: 0,
+      scrollTop: 20,
+      geometryValidationScrollLeft: 0,
+      geometryValidationScrollTop: 20,
+      blocks: [{
+        from: 0,
+        to: 4,
+        element: block,
+        rect: rect(10, 30),
+        documentTop: 30,
+        documentBottom: 50,
+        tagName: 'P',
+        headingLevel: null,
+        headingId: null,
+        headingText: null,
+      }],
+      headings: [],
+    }));
+
+    try {
+      block.classList.add(collapsedClass);
+      block.getBoundingClientRect = () => {
+        throw new Error('Collapsed cached blocks should not be measured');
+      };
+      scrollRoot.scrollTop = 80;
+
+      expect(getCachedEditorBlockTargets(view as any)).toBeNull();
+      expect(getCachedEditorBlockTargetByPos(view as any, 0)).toBeNull();
+    } finally {
+      clearCurrentEditorBlockPositionSnapshot();
+      scrollRoot.remove();
+    }
+  });
+
   it('validates cached list-item headers against their selectable row geometry', () => {
     const dom = document.createElement('div');
     const item = document.createElement('li');

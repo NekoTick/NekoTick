@@ -14,6 +14,8 @@ import type {
   EditorBlockPositionSnapshot,
 } from './editorBlockPositionTypes';
 
+const COLLAPSED_BLOCK_SELECTOR = '.heading-collapsed-content, .editor-collapsed-content';
+
 export function isSnapshotForView(
   snapshot: EditorBlockPositionSnapshot,
   view: EditorView,
@@ -66,7 +68,10 @@ function isSnapshotBlockGeometryFresh(
   scrollTop: number,
   validateRect: boolean,
 ): boolean {
-  if (!block.element.isConnected) {
+  if (
+    !block.element.isConnected
+    || block.element.closest(COLLAPSED_BLOCK_SELECTOR)
+  ) {
     return false;
   }
   if (!validateRect) {

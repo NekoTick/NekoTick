@@ -25,7 +25,12 @@ export interface SelectableBlockTarget {
   rect: DOMRect;
 }
 
+const COLLAPSED_BLOCK_SELECTOR = '.heading-collapsed-content, .editor-collapsed-content';
 const directTopLevelBlockRangeKeysCache = new WeakMap<EditorDoc, Set<string>>();
+
+function isCollapsedBlockElement(element: HTMLElement): boolean {
+  return element.closest(COLLAPSED_BLOCK_SELECTOR) !== null;
+}
 
 function resolveListItemElement(view: EditorView, from: number, to: number): HTMLElement | null {
   const docSize = view.state.doc.content.size;
@@ -196,7 +201,7 @@ function resolveDirectTopLevelTarget(view: EditorView, range: BlockRange): Selec
   }
 
   const element = resolveKnownTopLevelBlockElement(view, range.from);
-  if (!element) return null;
+  if (!element || isCollapsedBlockElement(element)) return null;
 
   const rect = element.getBoundingClientRect();
   if (rect.width <= 0 || rect.height <= 0) return null;
@@ -212,7 +217,7 @@ export function resolveSelectableBlockTargetByPos(view: EditorView, blockPos: nu
   if (directTarget) return directTarget;
 
   const element = resolveRangeElement(view, range);
-  if (!element) return null;
+  if (!element || isCollapsedBlockElement(element)) return null;
 
   let subElement: HTMLElement | undefined;
   if (element.tagName === 'LI') {
@@ -248,7 +253,7 @@ export function collectSelectableBlockTargets(
     }
 
     const element = resolveRangeElement(view, range);
-    if (!element) continue;
+    if (!element || isCollapsedBlockElement(element)) continue;
 
     let subElement: HTMLElement | undefined;
     if (element.tagName === 'LI') {

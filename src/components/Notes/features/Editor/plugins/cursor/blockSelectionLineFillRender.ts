@@ -42,7 +42,8 @@ function resolveImageFillAnchor(view: EditorView, image: HTMLElement): HTMLEleme
 }
 
 export function collectSelectedImageBlockElements(view: EditorView): HTMLElement[] {
-  return Array.from(view.dom.querySelectorAll<HTMLElement>(SELECTED_IMAGE_BLOCK_SELECTOR));
+  return Array.from(view.dom.querySelectorAll<HTMLElement>(SELECTED_IMAGE_BLOCK_SELECTOR))
+    .filter((image) => !image.closest('.heading-collapsed-content, .editor-collapsed-content'));
 }
 
 export function appendSelectedImageBlockLineFills(
