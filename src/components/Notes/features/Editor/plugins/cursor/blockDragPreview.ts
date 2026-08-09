@@ -183,6 +183,17 @@ export function createBlockDragPreview({
     throw error;
   }
 
+  const roundedOffsetX = Math.round(offsetX);
+  const roundedOffsetY = Math.round(offsetY);
+  preview.style.left = themeOffscreenTokens.blockDragPreviewOrigin;
+  preview.style.top = themeOffscreenTokens.blockDragPreviewOrigin;
+  const move = (nextClientX: number, nextClientY: number) => {
+    const x = Math.round(nextClientX - roundedOffsetX);
+    const y = Math.round(nextClientY - roundedOffsetY);
+    preview.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  };
+  move(clientX, clientY);
+
   const destroy = () => {
     sourceClassElements.forEach((element) => element.classList.remove(SOURCE_CLASS));
     sourceParentMarkerElements.forEach((element) => element.classList.remove(SOURCE_PARENT_MARKER_CLASS));
@@ -191,8 +202,9 @@ export function createBlockDragPreview({
 
   return {
     element: preview,
-    offsetX: Math.round(offsetX),
-    offsetY: Math.round(offsetY),
+    offsetX: roundedOffsetX,
+    offsetY: roundedOffsetY,
+    move,
     destroy,
   };
 }

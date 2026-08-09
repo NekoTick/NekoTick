@@ -88,16 +88,22 @@ class BlockControlsViewSessionPointer {
       this.hideDropIndicator();
       return false;
     }
-    let canDrop = true;
-    if (this.isCrossNoteDrag()) {
-      if (
-        this.dragSourceMarkdownAfterDelete === null
-        || !canInsertCrossNoteDraggedMarkdown(this.view, this.draggedMarkdown, target.insertPos)
-      ) {
-        canDrop = false;
-      }
-    } else if (!canApplyBlockMove(this.view, this.draggedRanges, target.insertPos)) {
-      canDrop = false;
+    const isCrossNote = this.isCrossNoteDrag();
+    const canReuseValidation = this.dropValidationDoc === this.view.state.doc
+      && this.dropValidationRanges === this.draggedRanges
+      && this.dropValidationInsertPos === target.insertPos
+      && this.dropValidationCrossNote === isCrossNote;
+    let canDrop = this.dropValidationCanApply;
+    if (!canReuseValidation) {
+      canDrop = isCrossNote
+        ? this.dragSourceMarkdownAfterDelete !== null
+          && canInsertCrossNoteDraggedMarkdown(this.view, this.draggedMarkdown, target.insertPos)
+        : canApplyBlockMove(this.view, this.draggedRanges, target.insertPos);
+      this.dropValidationDoc = this.view.state.doc;
+      this.dropValidationRanges = this.draggedRanges;
+      this.dropValidationInsertPos = target.insertPos;
+      this.dropValidationCrossNote = isCrossNote;
+      this.dropValidationCanApply = canDrop;
     }
     this.pendingDrop = canDrop ? target : null;
     this.dropIndicator.style.left = `${Math.round(target.lineLeft)}px`;
@@ -116,8 +122,7 @@ class BlockControlsViewSessionPointer {
       this.updateDropTargetByPointer(clientX, clientY);
     }
     if (this.dragPreview) {
-      this.dragPreview.element.style.left = `${Math.round(clientX - this.dragPreview.offsetX)}px`;
-      this.dragPreview.element.style.top = `${Math.round(clientY - this.dragPreview.offsetY)}px`;
+      this.dragPreview.move(clientX, clientY);
     }
   }
 

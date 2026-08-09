@@ -798,6 +798,7 @@ export const themeOffscreenTokens = {
   clipboardTop: '0',
   blockDragPreviewLeft: '-10000px',
   blockDragPreviewTop: '-10000px',
+  blockDragPreviewOrigin: '0px',
 } as const;
 
 export const themeCaretOverlayTokens = {

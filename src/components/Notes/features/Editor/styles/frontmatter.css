@@ -387,6 +387,15 @@
   display: none !important;
 }
 
+.milkdown .ProseMirror .frontmatter-block-container:is(
+  .editor-block-selected,
+  .editor-block-drag-source,
+  .ProseMirror-selectednode
+) :is(.frontmatter-properties-host, .frontmatter-block-editor) {
+  position: relative;
+  z-index: var(--vlaina-z-1);
+}
+
 .milkdown .frontmatter-block-container .cm-content {
   position: relative;
   min-height: var(--vlaina-min-height-frontmatter-content);

@@ -107,6 +107,11 @@ class BlockControlsViewSessionLifecycle {
     this.lastDragClientY = null;
     this.pendingDragClientX = null;
     this.pendingDragClientY = null;
+    this.dropValidationDoc = null;
+    this.dropValidationRanges = null;
+    this.dropValidationInsertPos = null;
+    this.dropValidationCrossNote = false;
+    this.dropValidationCanApply = false;
     this.dragSourceDoc = null;
     this.dragSourceNotePath = null;
     this.draggedMarkdown = null;

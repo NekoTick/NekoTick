@@ -712,6 +712,50 @@ describe('BlockControlsViewSession', () => {
     }
   });
 
+  it('reuses local drop validation while the pointer stays on the same boundary', async () => {
+    const view = createView();
+    const session = new BlockControlsViewSession(view);
+    vi.mocked(resolveDropTarget).mockReturnValue({
+      insertPos: 5,
+      lineLeft: 80,
+      lineY: 100,
+      lineWidth: 280,
+    });
+
+    try {
+      document
+        .querySelector<HTMLElement>('.editor-block-control-handle')
+        ?.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: 20, clientY: 20, bubbles: true }));
+      expect(canApplyBlockMove).toHaveBeenCalledTimes(1);
+
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 40,
+        clientY: 110,
+        buttons: 1,
+        bubbles: true,
+      }));
+      await nextFrame();
+      expect(canApplyBlockMove).toHaveBeenCalledTimes(1);
+
+      vi.mocked(resolveDropTarget).mockReturnValue({
+        insertPos: 9,
+        lineLeft: 80,
+        lineY: 140,
+        lineWidth: 280,
+      });
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: 40,
+        clientY: 140,
+        buttons: 1,
+        bubbles: true,
+      }));
+      await nextFrame();
+      expect(canApplyBlockMove).toHaveBeenCalledTimes(2);
+    } finally {
+      session.destroy();
+    }
+  });
+
   it('opens a hovered note tab while dragging selected blocks', async () => {
     vi.useFakeTimers();
     const openNote = setOpenTabNotesState();

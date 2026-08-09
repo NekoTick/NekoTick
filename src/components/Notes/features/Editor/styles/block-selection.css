@@ -230,3 +230,8 @@ body.editor-block-drag-active .milkdown .ProseMirror .editor-native-selected-tex
   position: relative;
   z-index: var(--vlaina-z-1);
 }
+
+.milkdown .ProseMirror:not(.editor-block-selection-large) .editor-block-drag-source-textlike > *:not(.code-block-container):not(.code-block-container *):not(.mermaid-block):not(.mermaid-block *):not(.heading-toggle-btn):not(.editor-collapse-btn):not(.ProseMirror-widget) {
+  position: relative;
+  z-index: var(--vlaina-z-1);
+}
