@@ -176,6 +176,17 @@ body.editor-block-drag-active .editor-block-drag-preview-layer * {
   contain-intrinsic-size: auto var(--vlaina-height-block-intrinsic);
 }
 
+.milkdown .ProseMirror .editor-virtual-block-placeholder {
+  block-size: max(
+    var(--vlaina-height-block-intrinsic),
+    calc(var(--vlaina-editor-virtual-block-lines, 1) * var(--vlaina-markdown-line-height-body))
+  );
+  min-block-size: var(--vlaina-height-block-intrinsic);
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
 .milkdown-editor.markdown-body-line-numbers .body-line-number-gutter {
   position: absolute;
   inset: 0;

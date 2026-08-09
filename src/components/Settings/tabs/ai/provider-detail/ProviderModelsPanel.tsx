@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { AIModel } from '@/lib/ai/types';
 import { Icon } from '@/components/ui/icons';
 import { buildScopedModelId } from '@/lib/ai/utils';
@@ -61,31 +62,41 @@ export function ProviderModelsPanel(props: ProviderModelsPanelProps) {
   const selectedModelsSource = hasActiveQuery
     ? props.filteredProviderModels
     : props.providerModels;
-  const selectedModels = [...selectedModelsSource].sort((left, right) => {
-    const healthCompare = compareHealthStatus(
-      props.healthStatus[left.id],
-      props.healthStatus[right.id]
-    );
-    if (healthCompare !== 0) {
-      return healthCompare;
-    }
-    return left.apiModelId.localeCompare(right.apiModelId);
-  });
-  const discoveredModels = hasActiveQuery
-    ? props.filteredFetchedModels
-    : props.sortedFetchedModels;
-  const availableModels = discoveredModels
-    .filter((modelId) => !props.providerModelIdSet.has(modelId.toLowerCase()))
-    .sort((left, right) => {
+  const selectedModels = useMemo(
+    () => [...selectedModelsSource].sort((left, right) => {
       const healthCompare = compareHealthStatus(
-        props.healthStatus[buildScopedModelId(props.providerId, left)],
-        props.healthStatus[buildScopedModelId(props.providerId, right)]
+        props.healthStatus[left.id],
+        props.healthStatus[right.id]
       );
       if (healthCompare !== 0) {
         return healthCompare;
       }
-      return left.localeCompare(right);
-    });
+      return left.apiModelId.localeCompare(right.apiModelId);
+    }),
+    [props.healthStatus, selectedModelsSource],
+  );
+  const discoveredModels = hasActiveQuery
+    ? props.filteredFetchedModels
+    : props.sortedFetchedModels;
+  const availableModels = useMemo(
+    () => discoveredModels
+      .filter((modelId) => !props.providerModelIdSet.has(modelId.toLowerCase()))
+      .sort((left, right) => {
+        const healthCompare = compareHealthStatus(
+          props.healthStatus[buildScopedModelId(props.providerId, left)],
+          props.healthStatus[buildScopedModelId(props.providerId, right)]
+        );
+        if (healthCompare !== 0) {
+          return healthCompare;
+        }
+        return left.localeCompare(right);
+      }),
+    [discoveredModels, props.healthStatus, props.providerId, props.providerModelIdSet],
+  );
+  const queuedBenchmarkModelIds = useMemo(
+    () => new Set(props.queuedBenchmarkModelIds),
+    [props.queuedBenchmarkModelIds],
+  );
   const handleRemoveVisibleSelectedModels = () => {
     if (selectedModels.length === 0) return;
     if (hasActiveQuery) {
@@ -102,7 +113,7 @@ export function ProviderModelsPanel(props: ProviderModelsPanelProps) {
     const health = props.healthStatus[modelId];
     const isLoading = health?.status === 'loading' ||
       props.benchmarkAllQueued ||
-      props.queuedBenchmarkModelIds.includes(modelId);
+      queuedBenchmarkModelIds.has(modelId);
     return (
       <button
         type="button"

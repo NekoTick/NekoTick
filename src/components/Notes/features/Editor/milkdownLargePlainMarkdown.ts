@@ -3,6 +3,7 @@ import type { ProseMirrorJSONNode } from './MilkdownEditorInnerTypes';
 
 const LARGE_PLAIN_MARKDOWN_FAST_PARSE_MIN_LENGTH = 1_000_000;
 const LARGE_MARKDOWN_LAZY_BLOCK_VISIBILITY_MIN_LENGTH = 1_000_000;
+const LARGE_MARKDOWN_VIRTUALIZED_VIEW_MIN_LENGTH = 250_000;
 const LAZY_BLOCK_VISIBILITY_MIN_LENGTH = 60_000;
 const LAZY_BLOCK_VISIBILITY_MIN_NON_EMPTY_LINES = 500;
 const LAZY_BLOCK_VISIBILITY_MIN_BLOCK_LIKE_LINES = 900;
@@ -23,6 +24,10 @@ function needsFullMarkdownInlineParsing(text: string): boolean {
 export function shouldUseLazyBlockVisibility(markdown: string): boolean {
   return markdown.length >= LARGE_MARKDOWN_LAZY_BLOCK_VISIBILITY_MIN_LENGTH
     || hasMultipleMermaidBlocksOrLargeScrollableMarkdownShape(markdown);
+}
+
+export function shouldUseVirtualizedEditorView(markdown: string): boolean {
+  return markdown.length >= LARGE_MARKDOWN_VIRTUALIZED_VIEW_MIN_LENGTH;
 }
 
 function hasMultipleMermaidBlocksOrLargeScrollableMarkdownShape(markdown: string): boolean {

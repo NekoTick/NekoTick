@@ -204,6 +204,10 @@ describe('GlobalSearchDialog', () => {
     expect(screen.getByRole('option', { name: /Starred/i })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /recent/i })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Alpha board/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('option').every((option) => (
+      option.classList.contains('[content-visibility:auto]')
+      && option.tabIndex === 0
+    ))).toBe(true);
     expect(screen.getAllByText('graph.network').every((icon) => (
       icon.classList.contains('text-[var(--vlaina-accent)]')
     ))).toBe(true);

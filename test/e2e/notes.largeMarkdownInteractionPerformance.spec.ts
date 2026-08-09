@@ -188,6 +188,11 @@ async function scrollTextIntoView(page: Page, text: string): Promise<void> {
   await waitForEditorAnimationFrame(page);
 }
 
+async function expectEditorModelText(page: Page, text: string): Promise<void> {
+  await expect.poll(() => page.evaluate((expectedText) =>
+    (window as any).__vlainaE2E.getEditorTextRange(expectedText), text)).not.toBeNull();
+}
+
 async function getTextDragPoints(page: Page, text: string): Promise<{
   start: { x: number; y: number };
   end: { x: number; y: number };
@@ -672,7 +677,7 @@ test.describe('large markdown interaction performance', () => {
         filename: 'large-markdown-interaction-performance.md',
         content,
       });
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Final large markdown interaction performance sentinel');
+      await expectEditorModelText(page, 'Final large markdown interaction performance sentinel');
 
       const selectionMetrics = await measurePointerNativeSelectionTransaction(page, targetText);
       const modifiedEndSelectionMetrics = await measureModifiedEndSelection(page);
@@ -731,7 +736,7 @@ test.describe('large markdown interaction performance', () => {
         filename: 'large-single-paragraph-performance.md',
         content,
       });
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Final large single paragraph selection sentinel');
+      await expectEditorModelText(page, 'Final large single paragraph selection sentinel');
 
       const selectAllMetrics = await measureSelectAll(page);
       const scrolledSelectionMetrics = await measureSelectionAfterScroll(page);
@@ -808,7 +813,7 @@ test.describe('large markdown interaction performance', () => {
         filename: 'large-mixed-markdown-performance.md',
         content,
       });
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Final very large mixed syntax performance sentinel');
+      await expectEditorModelText(page, 'Final very large mixed syntax performance sentinel');
 
       const stableSelectableBlockCount = await waitForStableSelectableBlockCount(page, {
         timeoutMs: 20_000,
@@ -820,6 +825,17 @@ test.describe('large markdown interaction performance', () => {
         await mermaidBlock.scrollIntoViewIfNeeded();
         await expect(mermaidBlock.locator('svg')).toHaveCount(1, { timeout: 30_000 });
       }
+      const mermaidPlaceholderFound = await page.evaluate((editorSelector) => {
+        const editor = document.querySelector<HTMLElement>(editorSelector);
+        const placeholder = Array.from(editor?.querySelectorAll<HTMLElement>('.editor-virtual-block-placeholder') ?? [])
+          .find((candidate) => candidate.dataset.editorVirtualNodeType === 'mermaid');
+        placeholder?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        return Boolean(placeholder);
+      }, EDITOR_SELECTOR);
+      expect(mermaidPlaceholderFound).toBe(true);
+      await waitForEditorAnimationFrame(page);
+      await expect(page.locator(`${EDITOR_SELECTOR} div[data-type="mermaid"]`)).toHaveCount(1);
+      const mermaidMaterialized = await page.locator(`${EDITOR_SELECTOR} div[data-type="mermaid"]`).count();
       const mixedSelectAllMetrics = await measureSelectAll(page);
       await page.evaluate(() => (window as any).__vlainaE2E.setEditorSelectionRange(1, 1));
       await waitForEditorAnimationFrame(page);
@@ -854,12 +870,14 @@ test.describe('large markdown interaction performance', () => {
       expect(content.length).toBeGreaterThan(1_000_000);
       expect(opened.storeOpenMs).toBeLessThan(45_000);
       expect(domMetrics.countsBySelector.sourceFallback).toBe(0);
-      expect(domMetrics.countsBySelector.headings).toBeGreaterThan(200);
-      expect(domMetrics.countsBySelector.taskItems).toBeGreaterThan(400);
-      expect(domMetrics.countsBySelector.tables).toBeGreaterThan(40);
-      expect(domMetrics.countsBySelector.codeBlocks).toBeGreaterThan(30);
-      expect(domMetrics.countsBySelector.mathBlocks).toBeGreaterThan(15);
-      expect(domMetrics.countsBySelector.mermaid).toBeGreaterThanOrEqual(3);
+      expect(domMetrics.virtualizedPlaceholderCount).toBeGreaterThan(1_000);
+      expect(domMetrics.countsBySelector.headings).toBeGreaterThan(0);
+      expect(domMetrics.countsBySelector.taskItems).toBeGreaterThan(0);
+      expect(domMetrics.countsBySelector.tables).toBeGreaterThan(0);
+      expect(domMetrics.countsBySelector.codeBlocks).toBeGreaterThan(0);
+      expect(domMetrics.countsBySelector.mathBlocks).toBeGreaterThan(0);
+      expect(mermaidPlaceholderFound).toBe(true);
+      expect(mermaidMaterialized).toBeGreaterThan(0);
       expect(domMetrics.selectableBlockCount).toBe(stableSelectableBlockCount);
       expect(blockScanMetrics.blockCount).toBe(stableSelectableBlockCount);
       expect(blockScanMetrics.p95Ms).toBeLessThan(120);

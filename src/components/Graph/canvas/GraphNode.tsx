@@ -154,7 +154,7 @@ export const GraphNode = memo(function GraphNode(props: GraphNodeProps) {
             opacity: props.dimmed ? themeGraphTokens.dimmedNodeOpacity : 1,
           } as CSSProperties}
           className={cn(
-            'vlaina-graph-node-dot',
+            'pointer-events-none vlaina-graph-node-dot',
             props.selected || props.hovered
               ? 'fill-[var(--vlaina-color-graph-node-active)] stroke-[var(--vlaina-color-graph-node-ring-active)]'
               : props.related

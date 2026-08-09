@@ -52,7 +52,8 @@ function getGraphPositionElements(svg: SVGSVGElement): GraphPositionElements {
   const cached = elementsBySvg.get(svg);
   if (
     cached
-    && (cached.nodes.length === 0 || cached.nodes[0]!.element.ownerSVGElement === svg)
+    && cached.nodes.length > 0
+    && cached.nodes[0]!.element.ownerSVGElement === svg
   ) {
     return cached;
   }

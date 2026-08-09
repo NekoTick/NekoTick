@@ -27,7 +27,11 @@ import {
   subscribeEditorFocusIntent,
 } from './utils/editorFocusIntent';
 
-export { createLargePlainMarkdownDocJSON, shouldUseLazyBlockVisibility } from './milkdownLargePlainMarkdown';
+export {
+  createLargePlainMarkdownDocJSON,
+  shouldUseLazyBlockVisibility,
+  shouldUseVirtualizedEditorView,
+} from './milkdownLargePlainMarkdown';
 export {
   isEditorMarkdownEquivalentToNoteContent,
   isSameVisibleNoteContentIgnoringManagedFrontmatter,

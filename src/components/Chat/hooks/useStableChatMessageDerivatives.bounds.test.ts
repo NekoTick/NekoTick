@@ -2,6 +2,12 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '@/lib/ai/types';
 import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/components/Chat/common/messageClipboard';
+import {
+  buildChatDerivativeAggregate,
+  createEmptyChatDerivativeAggregate,
+  getCachedMessageDerivatives,
+  updateChatDerivativeAggregateTail,
+} from './chatMessageDerivatives';
 import { useStableChatMessageDerivatives } from './useStableChatMessageDerivatives';
 
 function createMessage(id: string, role: ChatMessage['role'], content: string): ChatMessage {
@@ -18,6 +24,33 @@ function createMessage(id: string, role: ChatMessage['role'], content: string): 
 }
 
 describe('useStableChatMessageDerivatives aggregate bounds', () => {
+  it('reuses the aggregate when streamed assistant text adds no derivatives', () => {
+    const user = createMessage('u1', 'user', 'prompt');
+    const assistant = createMessage('a1', 'assistant', 'plain response');
+    const cache = new Map();
+    getCachedMessageDerivatives(cache, user);
+    getCachedMessageDerivatives(cache, assistant);
+    const aggregate = buildChatDerivativeAggregate(
+      [user, assistant],
+      cache,
+      createEmptyChatDerivativeAggregate(),
+    );
+    const streamedAssistant = {
+      ...assistant,
+      content: 'plain response extended',
+    };
+
+    const nextAggregate = updateChatDerivativeAggregateTail(
+      [assistant],
+      [streamedAssistant],
+      cache,
+      aggregate,
+    );
+
+    expect(nextAggregate).toBe(aggregate);
+    expect(cache.get(assistant.id)?.message).toBe(streamedAssistant);
+  });
+
   it('bounds the aggregate assistant image gallery across messages', async () => {
     const messages = Array.from(
       { length: MAX_CHAT_MESSAGE_IMAGE_SOURCES + 2 },

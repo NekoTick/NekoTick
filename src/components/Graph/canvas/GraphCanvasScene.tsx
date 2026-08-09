@@ -126,16 +126,23 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
     ].filter((id): id is string => Boolean(id)))],
     [activePath, props.currentPath, props.nodes, props.selectedPath, props.showAllLabels],
   );
-  const labelCandidates = useMemo(() => highlightedPath
-    ? props.nodes.filter((node) => (
-      labelPriorityIds.includes(node.id) || connectedToHighlighted.has(node.id)
-    ))
-    : props.nodes, [
-    connectedToHighlighted,
-    highlightedPath,
-    labelPriorityIds,
-    props.nodes,
-  ]);
+  const labelPriorityIdSet = useMemo(
+    () => new Set(labelPriorityIds),
+    [labelPriorityIds],
+  );
+  const labelCandidates = useMemo(
+    () => highlightedPath
+      ? props.nodes.filter((node) => (
+        labelPriorityIdSet.has(node.id) || connectedToHighlighted.has(node.id)
+      ))
+      : props.nodes,
+    [
+      connectedToHighlighted,
+      highlightedPath,
+      labelPriorityIdSet,
+      props.nodes,
+    ],
+  );
   const labelPlacements = useMemo(
     () => props.labelsReady
       ? layoutGraphLabels(

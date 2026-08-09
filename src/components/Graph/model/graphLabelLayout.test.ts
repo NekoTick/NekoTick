@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { PositionedGraphNode } from './graphLayout';
 import { layoutGraphLabels } from './graphLabelLayout';
 import {
   getGraphLabelBounds,
   getGraphLabelWidth,
   getGraphNodeBounds,
+  GraphLabelBoundsIndex,
 } from './graphLabelGeometry';
 
 function node(id: string, x: number, y: number, degree = 1): PositionedGraphNode {
@@ -315,5 +316,28 @@ describe('layoutGraphLabels', () => {
       expect(bounds.top).toBeGreaterThanOrEqual(0);
       expect(bounds.bottom).toBeLessThanOrEqual(viewportSize.y);
     }
+  });
+
+  it('skips offscreen label candidates and obstacles before sorting and indexing', () => {
+    const visible = node('Visible', 100, 100);
+    const distant = Array.from(
+      { length: 1000 },
+      (_, index) => node(`Distant ${index}`, 10_000 + index * 100, 10_000, 1000 - index),
+    );
+    const insert = vi.spyOn(GraphLabelBoundsIndex.prototype, 'insert');
+    const localeCompare = vi.spyOn(String.prototype, 'localeCompare');
+
+    const placements = layoutGraphLabels(
+      [visible, ...distant],
+      { x: 0, y: 0, zoom: 1 },
+      [],
+      { x: 300, y: 200 },
+    );
+
+    expect(placements.has(visible.id)).toBe(true);
+    expect(insert.mock.calls.length).toBeLessThan(10);
+    expect(localeCompare).not.toHaveBeenCalled();
+    insert.mockRestore();
+    localeCompare.mockRestore();
   });
 });

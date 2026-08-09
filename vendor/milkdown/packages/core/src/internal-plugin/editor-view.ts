@@ -16,6 +16,11 @@ import {
 import { EditorStateReady } from './editor-state'
 import { InitReady } from './init'
 import { pasteRulesCtx, PasteRulesReady } from './paste-rule'
+import {
+  createVirtualizedEditorViewPlugin,
+  createVirtualizedNodeViews,
+  destroyVirtualizedViewController,
+} from './virtualized-editor-view'
 
 type EditorOptions = Omit<DirectEditorProps, 'state'>
 
@@ -52,6 +57,9 @@ export const rootAttrsCtx = createSlice(
   'rootAttrs'
 )
 
+/// Whether large documents should progressively materialize top-level block DOM.
+export const virtualizeEditorViewCtx = createSlice(false, 'virtualizeEditorView')
+
 function createViewContainer(root: Node, ctx: Ctx) {
   const container = document.createElement('div')
   container.className = 'milkdown'
@@ -84,6 +92,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
     .inject(editorViewOptionsCtx, {})
     .inject(rootDOMCtx, null as unknown as HTMLElement)
     .inject(rootAttrsCtx, {})
+    .inject(virtualizeEditorViewCtx, false)
     .inject(editorViewTimerCtx, [EditorStateReady, PasteRulesReady])
     .record(EditorViewReady)
 
@@ -93,6 +102,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
     const root = ctx.get(rootCtx) || document.body
     const el = typeof root === 'string' ? document.querySelector(root) : root
 
+    const virtualize = ctx.get(virtualizeEditorViewCtx)
     ctx.update(prosePluginsCtx, (xs) => [
       new Plugin({
         key,
@@ -102,8 +112,8 @@ export const editorView: MilkdownPlugin = (ctx) => {
           const handleDOM = () => {
             if (container && el) {
               const editor = editorView.dom
-              el.replaceChild(container, editor)
-              container.appendChild(editor)
+              if (editor.parentNode === el) el.replaceChild(container, editor)
+              if (editor.parentNode !== container) container.appendChild(editor)
             }
           }
           handleDOM()
@@ -117,6 +127,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
           }
         },
       }),
+      createVirtualizedEditorViewPlugin(virtualize),
       ...xs,
     ])
 
@@ -124,9 +135,17 @@ export const editorView: MilkdownPlugin = (ctx) => {
 
     const state = ctx.get(editorStateCtx)
     const options = ctx.get(editorViewOptionsCtx)
-    const nodeViews = Object.fromEntries(ctx.get(nodeViewCtx))
+    const baseNodeViews = Object.fromEntries(ctx.get(nodeViewCtx))
     const markViews = Object.fromEntries(ctx.get(markViewCtx))
-    const view = new EditorView(el as Node, {
+    const nodeViews = virtualize
+      ? createVirtualizedNodeViews(
+          state,
+          options.nodeViews ?? baseNodeViews,
+          el
+        )
+      : baseNodeViews
+    const appliedOptions = virtualize ? { ...options, nodeViews } : options
+    const view = new EditorView(null, {
       state,
       nodeViews,
       markViews,
@@ -141,13 +160,14 @@ export const editorView: MilkdownPlugin = (ctx) => {
 
         return slice
       },
-      ...options,
+      ...appliedOptions,
     })
     prepareViewDom(view.dom)
     ctx.set(editorViewCtx, view)
     ctx.done(EditorViewReady)
 
     return () => {
+      destroyVirtualizedViewController(view)
       view?.destroy()
       ctx
         .remove(rootCtx)
@@ -155,6 +175,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
         .remove(editorViewOptionsCtx)
         .remove(rootDOMCtx)
         .remove(rootAttrsCtx)
+        .remove(virtualizeEditorViewCtx)
         .remove(editorViewTimerCtx)
         .clearTimer(EditorViewReady)
     }

@@ -85,7 +85,7 @@ test.describe('graph drag release stability', () => {
           const dots = [...element.querySelectorAll<SVGCircleElement>('.vlaina-graph-node-dot')];
           const baseEdge = element.querySelector<SVGPathElement>('[data-graph-edge-layer="base"]');
           const activeEdge = element.querySelector<SVGPathElement>('[data-graph-edge-layer="active"]');
-          const scene = element.querySelector<SVGGElement>('svg[role="img"] > g');
+          const scene = element.querySelector<SVGGElement>('svg[role="group"] > g');
           frames.push({
             activeEdgeOpacity: Number(activeEdge?.getAttribute('opacity') ?? 0),
             activeView: element.getAttribute('data-graph-active'),
@@ -103,7 +103,8 @@ test.describe('graph drag release stability', () => {
       expect(samples.every((sample) => sample.activeView === 'true')).toBe(true);
       expect(samples.every((sample) => sample.nodeCount === noteCount)).toBe(true);
       expect(samples.every((sample) => sample.activeEdgeOpacity === 0)).toBe(true);
-      expect(samples.every((sample) => sample.baseEdgeOpacity >= 0.8)).toBe(true);
+      expect(samples.every((sample) => sample.baseEdgeOpacity > 0)).toBe(true);
+      expect(new Set(samples.map((sample) => sample.baseEdgeOpacity)).size).toBe(1);
       expect(samples.every((sample) => sample.dimmedNodeCount === 0)).toBe(true);
       expect(new Set(samples.map((sample) => sample.sceneTransform)).size).toBe(1);
       expect(await page.evaluate(() => (window as any).__graphDragReleaseAudit.entryAnimationStarts)).toBe(0);
@@ -149,7 +150,7 @@ test.describe('graph drag release stability', () => {
       const firstHoverEndpointGap = await graphView.evaluate((element) => {
         const nodePositions = [...element.querySelectorAll<SVGCircleElement>('[data-graph-node-hit-target]')]
           .map((node) => {
-            const matrix = (node.parentElement as unknown as SVGGElement | null)
+            const matrix = node.closest<SVGGElement>('[data-graph-node-position]')
               ?.transform.baseVal.consolidate()?.matrix;
             return { x: matrix?.e ?? 0, y: matrix?.f ?? 0 };
           });
@@ -171,7 +172,7 @@ test.describe('graph drag release stability', () => {
       await page.mouse.move(startX + 90, startY + 55, { steps: 10 });
       await page.mouse.up();
 
-      const scene = graphView.locator('svg[role="img"] > g');
+      const scene = graphView.locator('svg[role="group"] > g');
       const transformAtRelease = await scene.getAttribute('transform');
       const samples: Array<string | null> = [];
       for (let index = 0; index < 12; index += 1) {
@@ -216,7 +217,7 @@ test.describe('graph drag release stability', () => {
       await page.waitForTimeout(1_500);
       const positionsBeforeLocal = await allNodes.evaluateAll((elements) => Object.fromEntries(
         elements.map((element) => {
-          const matrix = (element.parentElement as unknown as SVGGElement | null)
+          const matrix = element.closest<SVGGElement>('[data-graph-node-position]')
             ?.transform.baseVal.consolidate()?.matrix;
           return [element.getAttribute('data-graph-node-hit-target'), {
             x: matrix?.e ?? 0,
@@ -233,7 +234,7 @@ test.describe('graph drag release stability', () => {
             const positions = Object.fromEntries(
               [...element.querySelectorAll<SVGCircleElement>('[data-graph-node-hit-target]')]
                 .map((node) => {
-                  const matrix = (node.parentElement as unknown as SVGGElement | null)
+                  const matrix = node.closest<SVGGElement>('[data-graph-node-position]')
                     ?.transform.baseVal.consolidate()?.matrix;
                   return [node.dataset.graphNodeHitTarget ?? '', {
                     x: matrix?.e ?? 0,
@@ -279,7 +280,7 @@ test.describe('graph drag release stability', () => {
         const nodePositions = [...element.closest('svg')!
           .querySelectorAll<SVGCircleElement>('[data-graph-node-hit-target]')]
           .map((node) => {
-            const matrix = (node.parentElement as unknown as SVGGElement | null)
+            const matrix = node.closest<SVGGElement>('[data-graph-node-position]')
               ?.transform.baseVal.consolidate()?.matrix;
             return { x: matrix?.e ?? 0, y: matrix?.f ?? 0 };
           });
@@ -304,7 +305,7 @@ test.describe('graph drag release stability', () => {
       await expect(graphView.locator('[data-graph-edge-layer="base"]')).toHaveAttribute('stroke-opacity', '0');
       await expect(graphView.locator('[data-graph-edge-layer="active"]')).toHaveAttribute('opacity', '1');
       const endpointGap = await target.evaluate((element) => {
-        const nodeMatrix = (element.parentElement as unknown as SVGGElement | null)
+        const nodeMatrix = element.closest<SVGGElement>('[data-graph-node-position]')
           ?.transform.baseVal.consolidate()?.matrix;
         const path = element.closest('svg')
           ?.querySelector<SVGPathElement>('[data-graph-edge-layer="active"]')

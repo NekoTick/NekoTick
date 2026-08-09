@@ -117,6 +117,21 @@ describe('ImagesTab dropdown styling', () => {
     expect(mocks.uiState.setImageSubfolderName).not.toHaveBeenCalledWith('nihon');
   });
 
+  it('allows an empty draft until the folder input loses focus', () => {
+    render(<ImagesTab />);
+    const input = screen.getByLabelText('Subfolder name');
+
+    fireEvent.change(input, { target: { value: '' } });
+
+    expect(input).toHaveValue('');
+    expect(mocks.uiState.setImageSubfolderName).not.toHaveBeenCalled();
+
+    fireEvent.blur(input);
+
+    expect(input).toHaveValue('assets');
+    expect(mocks.uiState.setImageSubfolderName).toHaveBeenCalledWith('assets');
+  });
+
   it('keeps an overlong folder edit at the persisted character limit', () => {
     render(<ImagesTab />);
     const input = screen.getByLabelText('Subfolder name');

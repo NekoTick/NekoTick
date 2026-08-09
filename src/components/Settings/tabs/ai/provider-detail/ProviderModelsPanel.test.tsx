@@ -455,4 +455,32 @@ describe('ProviderModelsPanel', () => {
     expect(onDeleteModel).toHaveBeenCalledWith('model-beta');
     expect(onDeleteModel).toHaveBeenCalledTimes(1);
   });
+
+  it('does not repeat model sorting for unrelated state changes', () => {
+    const props = buildProps({
+      providerModels: [buildModel('model-beta', 'beta'), buildModel('model-alpha', 'alpha')],
+      filteredProviderModels: [buildModel('model-beta', 'beta'), buildModel('model-alpha', 'alpha')],
+      sortedFetchedModels: ['alpha', 'gamma', 'beta'],
+      filteredFetchedModels: ['alpha', 'gamma', 'beta'],
+    });
+    const localeCompare = vi.spyOn(String.prototype, 'localeCompare');
+    const view = render(<ProviderModelsPanel {...props} />);
+    localeCompare.mockClear();
+
+    view.rerender(<ProviderModelsPanel {...props} benchmarkAllQueued />);
+
+    expect(localeCompare).not.toHaveBeenCalled();
+    localeCompare.mockRestore();
+  });
+
+  it('keeps every model row keyboard-reachable while skipping offscreen rendering work', () => {
+    render(<ProviderModelsPanel {...buildProps()} />);
+
+    const rows = document.querySelectorAll('[data-virtual-model-row="true"]');
+    expect(rows).toHaveLength(2);
+    rows.forEach((row) => {
+      expect(row.className).toContain('[content-visibility:auto]');
+      expect(row.querySelector('[role="button"]')).toHaveAttribute('tabindex', '0');
+    });
+  });
 });
