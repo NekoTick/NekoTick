@@ -165,9 +165,11 @@ export function useLocalImage(
                             }
                         }
 
-                        if (existingPaths.length > 0) {
-                            pathsToTry = existingPaths;
+                        if (existingPaths.length === 0) {
+                            throw new Error(`Failed to resolve image: ${rawSrc}`);
                         }
+
+                        pathsToTry = existingPaths;
                     }
 
                     let lastError: unknown = null;

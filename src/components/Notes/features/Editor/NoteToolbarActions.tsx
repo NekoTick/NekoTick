@@ -11,15 +11,16 @@ import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorM
 import { useI18n } from '@/lib/i18n';
 import { normalizeUserFacingErrorMessage } from '@/lib/i18n/userFacingErrors';
 import { canStarNotePath } from '@/stores/notes/notePathState';
-import type { NoteExportFormat } from '../Export/noteExportTypes';
 import {
   themeDomStyleTokens,
   themeStyleResetTokens,
   themeUiFeedbackTokens,
 } from '@/styles/themeTokens';
+import type { NoteExportFormat } from '../Export/noteExportTypes';
 import { NoteToolbarMoreMenu } from './NoteToolbarMoreMenu';
 import { preloadEmbeddedChatViewModule } from '../../notesViewLazyComponents';
 import { noteToolbarIconButtonClassName } from './noteToolbarStyles';
+import { BatchNoteExportDialog } from '../Export/BatchNoteExportDialog';
 
 export interface NoteToolbarActionsProps {
   currentNotePath: string | null | undefined;
@@ -90,6 +91,7 @@ export function NoteToolbarActions({
   const sourceModeShortcutKeys = getShortcutKeys('toggleNoteSourceMode') ?? ['Ctrl', '/'];
   const moreButtonRef = useRef<HTMLButtonElement | null>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const addToast = useToastStore((state) => state.addToast);
   const chatPanelCollapsed = useUIStore((state) => state.notesChatPanelCollapsed);
   const chatFloatingOpen = useUIStore((state) => state.notesChatFloatingOpen);
@@ -129,6 +131,12 @@ export function NoteToolbarActions({
     setMoreMenuOpen(false);
     void exportCurrentNote(format);
   }, [exportCurrentNote]);
+
+  const handleBatchExportOpen = useCallback(() => {
+    flushCurrentPendingEditorMarkdown();
+    setMoreMenuOpen(false);
+    setExportDialogOpen(true);
+  }, []);
 
   if (!showStarButton && !showChatButton && !showMore) {
     return null;
@@ -206,6 +214,7 @@ export function NoteToolbarActions({
           currentNoteMetadata={currentNoteMetadata}
           currentNotePath={currentNotePath}
           moreButtonRef={moreButtonRef}
+          onBatchExportOpen={handleBatchExportOpen}
           onExportSelect={handleExportSelect}
           onOpenChange={setMoreMenuOpen}
           onSourceModeSelect={handleSourceModeSelect}
@@ -215,6 +224,14 @@ export function NoteToolbarActions({
           sourceModeShortcutKeys={sourceModeShortcutKeys}
         />
       ) : null}
+      <BatchNoteExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        currentNotePath={currentNotePath}
+        currentNoteTitle={currentNoteTitle}
+        getCurrentNoteContent={getCurrentNoteContent}
+        notesPath={notesPath}
+      />
     </div>
   );
 }

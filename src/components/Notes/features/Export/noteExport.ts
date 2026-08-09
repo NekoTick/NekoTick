@@ -61,9 +61,13 @@ function ensureExtension(filePath: string, extension: string): string {
   return filePath.toLowerCase().endsWith(`.${extension}`) ? filePath : `${filePath}.${extension}`;
 }
 
-function getExportTitle(request: NoteExportRequest): string {
+function getExportTitle(request: Pick<NoteExportRequest, 'notePath' | 'title'>): string {
   const title = request.title.trim();
   return title || getNoteTitleFromPath(request.notePath);
+}
+
+export function getNoteExportFileName(request: Pick<NoteExportRequest, 'format' | 'notePath' | 'title'>): string {
+  return `${sanitizeFileName(getExportTitle(request))}.${EXPORT_EXTENSIONS[request.format]}`;
 }
 
 function dataUrlToBytes(dataUrl: string): Uint8Array {
@@ -189,7 +193,11 @@ async function createPdfBytes(html: string): Promise<Uint8Array> {
   return bridge.export.htmlToPdf(html, { pageSize: 'A4' });
 }
 
-export async function exportNote(request: NoteExportRequest): Promise<NoteExportResult> {
+async function createNoteExportOutput(request: NoteExportRequest): Promise<{
+  bytes: Uint8Array;
+  mimeType: string;
+  title: string;
+}> {
   const title = getExportTitle(request);
   const rawMarkdown = stripManagedFrontmatter(request.markdown);
   if (rawMarkdown.length > MAX_EXPORT_MARKDOWN_CHARS) {
@@ -201,27 +209,42 @@ export async function exportNote(request: NoteExportRequest): Promise<NoteExport
     request.notesPath,
     request.notePath,
   );
-
   const html = request.format === 'html' || request.format === 'pdf'
     ? await renderNoteExportHtml(markdown, title)
     : null;
 
-  const result =
-    request.format === 'docx'
-      ? await saveExportBytes(
-          request.format,
-          title,
-          await createDocxExportBytes(markdown, title),
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        )
-      : request.format === 'html'
-        ? await saveExportBytes(request.format, title, htmlToBytes(html ?? ''), 'text/html;charset=utf-8')
-        : request.format === 'pdf'
-          ? await saveExportBytes(request.format, title, await createPdfBytes(html ?? ''), 'application/pdf')
-          : await saveExportBytes(request.format, title, await createPngBytes(markdown, title), 'image/png');
+  if (request.format === 'docx') {
+    return {
+      bytes: await createDocxExportBytes(markdown, title),
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      title,
+    };
+  }
+  if (request.format === 'html') {
+    return { bytes: htmlToBytes(html ?? ''), mimeType: 'text/html;charset=utf-8', title };
+  }
+  if (request.format === 'pdf') {
+    return { bytes: await createPdfBytes(html ?? ''), mimeType: 'application/pdf', title };
+  }
+  return { bytes: await createPngBytes(markdown, title), mimeType: 'image/png', title };
+}
+
+export async function exportNoteToFilePath(
+  request: NoteExportRequest,
+  filePath: string,
+): Promise<NoteExportResult> {
+  const output = await createNoteExportOutput(request);
+  assertExportOutputBytes(output.bytes.byteLength);
+  await writeDesktopBinaryFile(filePath, output.bytes);
+  return { canceled: false, filePath };
+}
+
+export async function exportNote(request: NoteExportRequest): Promise<NoteExportResult> {
+  const output = await createNoteExportOutput(request);
+  const result = await saveExportBytes(request.format, output.title, output.bytes, output.mimeType);
 
   if (!result.canceled) {
-    useToastStore.getState().addToast(translateExportMessage(title), 'success');
+    useToastStore.getState().addToast(translateExportMessage(output.title), 'success');
   }
 
   return result;

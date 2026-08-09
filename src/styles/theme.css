@@ -438,6 +438,7 @@
   --vlaina-width-note-find-bar: min(var(--vlaina-size-400px), calc(100vw - var(--vlaina-size-2rem)));
   --vlaina-width-global-search: min(var(--vlaina-size-900px), calc(100vw - var(--vlaina-size-32px)));
   --vlaina-width-global-search-results: var(--vlaina-size-320px);
+  --vlaina-width-batch-export: min(calc(var(--vlaina-size-900px) + var(--vlaina-size-240px)), calc(100vw - var(--vlaina-size-32px)));
   --vlaina-height-global-search: min(640px, calc(100vh - var(--vlaina-size-64px)));
   --vlaina-markdown-size-video-max-width: min(100%, var(--vlaina-size-720px));
   --vlaina-width-editor-embed: min(100%, var(--vlaina-size-560px));

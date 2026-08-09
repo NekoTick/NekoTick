@@ -718,6 +718,19 @@ describe('resolveExportMarkdownAssetSources', () => {
     expect(mocks.readBinaryFile).not.toHaveBeenCalled();
   });
 
+  it('keeps exporting when a local image disappears before it is read', async () => {
+    mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
+    mocks.readBinaryFile.mockRejectedValue(new Error('ENOENT'));
+
+    const markdown = await resolveExportMarkdownAssetSources(
+      '![demo](img:demo.png)',
+      '/notesRoot',
+      'docs/demo.md',
+    );
+
+    expect(markdown).toBe('![demo](img:demo.png)');
+  });
+
   it('inlines local note images with bounded reads when stat has no size', async () => {
     mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
     mocks.stat.mockResolvedValue({ isFile: true, isDirectory: false });

@@ -137,7 +137,12 @@ function renderExportImage(props: any) {
   }
 
   const safeSrc = sanitizeNoteMediaSrc(rawSrc);
-  const localSrc = getNoteInternalImageAssetPath(safeSrc) ?? safeSrc;
+  const internalAssetPath = getNoteInternalImageAssetPath(safeSrc);
+  if (internalAssetPath) {
+    return null;
+  }
+
+  const localSrc = safeSrc;
   if (
     !safeSrc
     || /^blob:/i.test(safeSrc)

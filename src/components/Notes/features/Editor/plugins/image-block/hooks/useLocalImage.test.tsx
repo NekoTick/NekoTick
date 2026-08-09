@@ -102,6 +102,23 @@ describe('useLocalImage', () => {
     expect(hoisted.loadImageAsBlob).toHaveBeenCalledWith('/notesRoot/assets/demo.png');
   });
 
+  it('does not read a guessed image path when no local candidate exists', async () => {
+    hoisted.exists.mockResolvedValue(false);
+
+    const { result } = renderHook(() =>
+      useLocalImage('img:assets/missing.gif', '/notesRoot', 'daily/demo.md')
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.resolvedSrc).toBe('');
+    expect(result.current.error?.message).toBe('Failed to resolve image: img:assets/missing.gif');
+    expect(hoisted.exists).toHaveBeenCalledTimes(2);
+    expect(hoisted.loadImageAsBlob).not.toHaveBeenCalled();
+  });
+
   it('loads local image files without treating query params as part of the filename', async () => {
     hoisted.loadImageAsBlob.mockResolvedValueOnce('blob:local-image');
 
