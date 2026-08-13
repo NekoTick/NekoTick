@@ -416,6 +416,52 @@ test.describe('notes title keyboard navigation', () => {
     }
   });
 
+  test('keeps the title selection when a drag ends in the adjacent header space', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-title-drag-selection');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      const body = 'First body line must not receive focus';
+      await openMarkdownFixture(page, {
+        filename: 'title-drag-selection.md',
+        content: body,
+      });
+
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText(body);
+      const titleInput = page.locator('[data-note-title-input="true"]');
+      const box = await titleInput.boundingBox();
+      expect(box).not.toBeNull();
+
+      await page.mouse.move(box!.x + 4, box!.y + box!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box!.x + box!.width + 24, box!.y + box!.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      const state = await page.evaluate(() => {
+        const titleInput = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          '[data-note-title-input="true"]',
+        );
+        return {
+          activeIsTitle: document.activeElement === titleInput,
+          selectionStart: titleInput?.selectionStart ?? null,
+          selectionEnd: titleInput?.selectionEnd ?? null,
+          editorSelection: (window as any).__vlainaE2E.getEditorSelectionSummary(),
+          content: String((window as any).__vlainaE2E.getNotesState().currentNote?.content ?? ''),
+        };
+      });
+
+      expect(state.activeIsTitle, JSON.stringify(state, null, 2)).toBe(true);
+      expect(state.selectionEnd).toBeGreaterThan(state.selectionStart ?? 0);
+      expect(state.content).toBe(body);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('moves from the note title to the first body line end with ArrowDown without changing markdown', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-title-arrow-down-navigation');
 

@@ -9,6 +9,7 @@ const UPPER_AREA_INTERACTIVE_SELECTOR = [
   'a[href]',
   '[contenteditable="true"]',
   '[data-no-auto-close="true"]',
+  '[data-no-editor-drag-box="true"]',
   '[data-note-cover-add-overlay="true"]',
 ].join(',');
 
