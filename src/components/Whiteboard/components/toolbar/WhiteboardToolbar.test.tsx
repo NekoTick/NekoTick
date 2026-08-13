@@ -78,12 +78,12 @@ describe('WhiteboardToolbar', () => {
     }
   });
 
-  it('groups lasso and both erasers in one panel', () => {
+  it('groups lasso and the object eraser without the stroke eraser', () => {
     renderToolbar();
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
 
     expect(screen.getByRole('button', { name: 'whiteboard.tool.eraser' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'whiteboard.tool.strokeEraser' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'whiteboard.tool.strokeEraser' })).not.toBeInTheDocument();
   });
 
   it('shows colored pencil fourth and keeps crayon sixth in the brush panel', () => {
@@ -211,8 +211,6 @@ describe('WhiteboardToolbar', () => {
     expect(within(panel).getByRole('button', { name: 'whiteboard.tool.select' }).querySelector('img'))
       .toHaveAttribute('src', expect.stringContaining('select.png'));
     expect(within(panel).getByRole('button', { name: 'whiteboard.tool.eraser' }).querySelector('img'))
-      .toHaveAttribute('src', expect.stringContaining('eraser.png'));
-    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.strokeEraser' }).querySelector('img'))
       .toHaveAttribute('src', expect.stringContaining('eraser.png'));
   });
 
