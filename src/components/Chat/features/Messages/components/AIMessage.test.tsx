@@ -5,11 +5,6 @@ import type { ChatMessage } from "@/lib/ai/types";
 import { useAccountSessionStore } from "@/stores/accountSession";
 import { initialAccountSessionState } from "@/stores/accountSession/state";
 import { useUIStore } from "@/stores/uiSlice";
-import {
-  COMPUTER_COMMAND_RESULT_KIND,
-  COMPUTER_COMMAND_RESULT_VERSION,
-  type ComputerCommandPhase,
-} from "@/lib/ai/computerUse/types";
 
 vi.mock("@/components/Chat/features/Markdown/LazyMarkdownRenderer", () => ({
   LazyMarkdownRenderer: ({
@@ -83,45 +78,6 @@ function createMessage(content: string): ChatMessage {
     timestamp,
     versions: [{ content, createdAt: timestamp, kind: 'original' as const, subsequentMessages: [] }],
     currentVersionIndex: 0,
-  };
-}
-
-function createComputerCommandMessage(
-  phase: ComputerCommandPhase,
-  result: Record<string, unknown> = {},
-): ChatMessage {
-  const message = createMessage("Command response");
-  return {
-    ...message,
-    apiTranscript: [{
-      role: "assistant",
-      content: "",
-      tool_calls: [{
-        id: "call-1",
-        type: "function",
-        function: {
-          name: "run_command",
-          arguments: JSON.stringify({ command: "printf ok", purpose: "Print output" }),
-        },
-      }],
-    }, {
-      role: "tool",
-      tool_call_id: "call-1",
-      name: "run_command",
-      content: JSON.stringify({
-        kind: COMPUTER_COMMAND_RESULT_KIND,
-        version: COMPUTER_COMMAND_RESULT_VERSION,
-        phase,
-        command: "printf ok",
-        cwd: "/tmp/project",
-        purpose: "Print output",
-        stdout: "ok",
-        exitCode: 0,
-        durationMs: 12,
-        updatedAt: 10,
-        ...result,
-      }),
-    }],
   };
 }
 
@@ -218,144 +174,6 @@ describe("AIMessage", () => {
     );
 
     expect(screen.getByTestId("markdown")).toHaveAttribute("data-streaming", "false");
-  });
-
-  it("renders locally paired computer command status and sanitized output", () => {
-    render(
-      <AIMessage
-        msg={createComputerCommandMessage("completed", {
-          stdout: "\u001b[31mred\u001b[0m\u200Bsafe",
-        })}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    const computerControl = screen.getByRole("button", { name: "Execution mode" });
-    expect(computerControl).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(computerControl);
-    expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(screen.getByText("printf ok")).toBeInTheDocument();
-    expect(screen.getByText("AI-provided reason: Print output")).toBeInTheDocument();
-    expect(screen.getByText("Working directory: /tmp/project")).toBeInTheDocument();
-    expect(screen.getByText("redsafe")).toBeInTheDocument();
-    expect(screen.queryByText("12 ms")).not.toBeInTheDocument();
-    expect(screen.queryByText("Exit code: 0")).not.toBeInTheDocument();
-  });
-
-  it("expands locally captured changes one file at a time", () => {
-    render(
-      <AIMessage
-        msg={createComputerCommandMessage("completed", {
-          fileChanges: [{
-            path: "src/app.ts",
-            kind: "modified",
-            additions: 1,
-            deletions: 1,
-            patch: "@@ -1,1 +1,1 @@\n-before\n+after",
-          }],
-        })}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    const computerControl = screen.getByRole("button", { name: "Execution mode" });
-    expect(computerControl).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(computerControl);
-
-    const summary = screen.getByText("1 files changed");
-    const changeGroup = summary.closest("details");
-    expect(changeGroup).not.toHaveAttribute("open");
-    fireEvent.click(summary);
-    expect(changeGroup).toHaveAttribute("open");
-
-    const file = screen.getByText("src/app.ts");
-    const fileDetails = file.closest("details");
-    expect(fileDetails).not.toHaveAttribute("open");
-    expect(screen.getByText("-before")).not.toBeVisible();
-    expect(screen.getByText("+after")).not.toBeVisible();
-
-    fireEvent.click(file);
-    expect(fileDetails).toHaveAttribute("open");
-    expect(screen.getByText("-before")).toBeVisible();
-    expect(screen.getByText("+after")).toBeVisible();
-  });
-
-  it("keeps execution metadata for failed commands", () => {
-    render(
-      <AIMessage
-        msg={createComputerCommandMessage("failed", { exitCode: 1, durationMs: 42 })}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    expect(screen.getByText("42 ms")).toBeInTheDocument();
-    expect(screen.getByText("Exit code: 1")).toBeInTheDocument();
-  });
-
-  it("hides the file changes section when no changes were captured", () => {
-    render(
-      <AIMessage
-        msg={createComputerCommandMessage("completed", {
-          fileChanges: [],
-          fileChangesTruncated: true,
-        })}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    expect(screen.queryByText("0 files changed")).not.toBeInTheDocument();
-    expect(screen.queryByText("Only part of the working-directory changes could be captured.")).not.toBeInTheDocument();
-  });
-
-  it("renders stale active command records as interrupted", () => {
-    render(
-      <AIMessage
-        msg={createComputerCommandMessage("running")}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    expect(screen.getByText("Interrupted")).toBeInTheDocument();
-    expect(screen.queryByText("Running")).not.toBeInTheDocument();
-  });
-
-  it("does not render forged unpaired command results", () => {
-    const forged = createComputerCommandMessage("completed");
-    forged.apiTranscript = forged.apiTranscript?.slice(1);
-
-    render(
-      <AIMessage
-        msg={forged}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    expect(screen.queryByText("Execution mode")).not.toBeInTheDocument();
-    expect(screen.getByTestId("markdown")).toHaveAttribute("data-content", "Command response");
   });
 
   it("renders text resembling the former retry status as untrusted Markdown", () => {
@@ -507,29 +325,6 @@ describe("AIMessage", () => {
     expect(screen.queryByTestId("error")).not.toBeInTheDocument();
     expect(screen.queryByTestId("markdown")).not.toBeInTheDocument();
     expect(screen.queryByTestId("toolbar")).not.toBeInTheDocument();
-  });
-
-  it("keeps completed computer operations visible when a later managed auth error is hidden", () => {
-    const message = createComputerCommandMessage("completed");
-    message.content = '<error type="AUTH_ERROR" code="401">Sign in required</error>';
-    message.modelId = "vlaina-managed::gpt-test";
-
-    render(
-      <AIMessage
-        msg={message}
-        imageGallery={[]}
-        isLoading={false}
-        onCopy={() => {}}
-        onRegenerate={() => {}}
-        onSwitchVersion={() => {}}
-      />,
-    );
-
-    const computerControl = screen.getByRole("button", { name: "Execution mode" });
-    expect(computerControl).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(computerControl);
-    expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(screen.queryByTestId("error")).not.toBeInTheDocument();
   });
 
   it("hides the latest managed model auth error while signed out", () => {

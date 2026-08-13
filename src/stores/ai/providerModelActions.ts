@@ -2,7 +2,6 @@ import type { AIModel, ProviderBenchmarkRecord } from '@/lib/ai/types'
 import { buildScopedModelId, generateModelGroup, generateModelName } from '@/lib/ai/utils'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { useAIUIStore } from './chatState'
-import { areModelExecutionContextsEqual } from './providerStoreUtils'
 import {
   MAX_AI_MODEL_FIELD_CHARS,
   MAX_AI_PROVIDER_FETCHED_MODELS,
@@ -54,12 +53,11 @@ export const modelActions = {
       return;
     }
 
-    const updates: { models: AIModel[]; selectedModelId?: string; computerUseEnabled?: boolean } = {
+    const updates: { models: AIModel[]; selectedModelId?: string } = {
       models: [...ai.models, newModel],
     };
     if (!ai.selectedModelId) {
       updates.selectedModelId = newModel.id;
-      updates.computerUseEnabled = false;
     }
     state.updateAIData(updates);
   },
@@ -94,12 +92,11 @@ export const modelActions = {
       return
     }
 
-    const updates: { models: AIModel[]; selectedModelId?: string; computerUseEnabled?: boolean } = {
+    const updates: { models: AIModel[]; selectedModelId?: string } = {
       models: [...ai.models, ...newModels],
     };
     if (!ai.selectedModelId && newModels.length > 0) {
       updates.selectedModelId = newModels[0].id;
-      updates.computerUseEnabled = false;
     }
     state.updateAIData(updates);
   },
@@ -117,9 +114,6 @@ export const modelActions = {
 
     state.updateAIData({
       models: ai.models.map((m) => m.id === id ? nextModel : m),
-      ...(ai.selectedModelId === id && !areModelExecutionContextsEqual(model, nextModel)
-        ? { computerUseEnabled: false }
-        : {}),
     })
   },
 
@@ -145,7 +139,6 @@ export const modelActions = {
       models: ai.models.filter((m) => m.id !== id),
       benchmarkResults: nextBenchmarkResults,
       selectedModelId: deletingSelectedModel ? null : ai.selectedModelId,
-      ...(deletingSelectedModel ? { computerUseEnabled: false } : {}),
     })
   },
 
@@ -208,10 +201,6 @@ export const modelActions = {
     const currentSessionId = useAIUIStore.getState().currentSessionId
     const updates: Parameters<typeof state.updateAIData>[0] = { selectedModelId: modelId }
 
-    if (ai.selectedModelId !== modelId) {
-      updates.computerUseEnabled = false
-    }
-
     if (modelId && currentSessionId) {
       const session = ai.sessions.find((item) => item.id === currentSessionId)
       if (session && session.modelId !== modelId) {
@@ -236,7 +225,4 @@ export const modelActions = {
     useUnifiedStore.getState().updateAIData({ webSearchEnabled: enabled });
   },
 
-  setComputerUseEnabled: (enabled: boolean) => {
-    useUnifiedStore.getState().updateAIData({ computerUseEnabled: enabled });
-  },
 };

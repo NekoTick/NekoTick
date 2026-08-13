@@ -4,31 +4,8 @@ import { normalizeApiTranscriptMessagesForProviderReplay } from './apiTranscript
 import { stripThinkingContent } from './stripThinkingContent';
 import { sanitizeRequestTextImageReferences } from './requestContextImageSanitizer';
 import { normalizeChatRequestContextSnapshot } from './requestContextSnapshot';
-import {
-  COMPUTER_COMMAND_RESULT_KIND,
-  COMPUTER_COMMAND_RESULT_VERSION,
-} from './computerUse/types';
 
 const ERROR_TAG_GLOBAL_REGEX = /<error(?: type="([^"]*)")?(?: code="([^"]*)")?>([\s\S]*?)<\/error>/gi;
-
-function stripLocalComputerFileChanges(content: string): string {
-  try {
-    const parsed = JSON.parse(content);
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      Array.isArray(parsed) ||
-      parsed.kind !== COMPUTER_COMMAND_RESULT_KIND ||
-      parsed.version !== COMPUTER_COMMAND_RESULT_VERSION
-    ) return content;
-    const result = { ...parsed };
-    delete result.fileChanges;
-    delete result.fileChangesTruncated;
-    return JSON.stringify(result);
-  } catch {
-    return content;
-  }
-}
 
 function getHistoryContentText(value: unknown): string {
   if (typeof value === 'string') {
@@ -91,11 +68,7 @@ function sanitizeApiTranscriptTextReferences(
 
   return transcript.map((message) => ({
     ...message,
-    content: sanitizeApiTranscriptContent(
-      message.role === 'tool' && typeof message.content === 'string'
-        ? stripLocalComputerFileChanges(message.content)
-        : message.content,
-    ),
+    content: sanitizeApiTranscriptContent(message.content),
     ...(typeof message.reasoning_content === 'string'
       ? { reasoning_content: sanitizeRequestTextImageReferences(message.reasoning_content) }
       : {}),

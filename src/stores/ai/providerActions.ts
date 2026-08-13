@@ -43,22 +43,6 @@ function shouldDeleteIncompleteCustomProvider(provider: Provider): boolean {
   );
 }
 
-function providerExecutionContextChanged(current: Provider, next: Provider): boolean {
-  const currentEndpointType = current.endpointType && current.endpointTypeCheckedAt
-    ? current.endpointType
-    : 'openai';
-  const nextEndpointType = next.endpointType && next.endpointTypeCheckedAt
-    ? next.endpointType
-    : 'openai';
-  return current.id !== next.id ||
-    current.name !== next.name ||
-    current.type !== next.type ||
-    currentEndpointType !== nextEndpointType ||
-    current.apiHost !== next.apiHost ||
-    current.apiKey !== next.apiKey ||
-    current.enabled !== next.enabled;
-}
-
 export const actions = {
   addProvider: (provider: Omit<Provider, 'id' | 'createdAt' | 'updatedAt'>) => {
     const id = generateId('provider-')
@@ -108,7 +92,6 @@ export const actions = {
         ? { ...nextProvider, endpointType: undefined, endpointTypeCheckedAt: undefined }
         : nextProvider;
     });
-    const nextProvider = nextProviders.find((item) => item.id === id);
     const nextModels = connectionChanged
       ? ai.models.map((model) => model.providerId === id
         ? { ...model, endpointType: undefined, endpointTypeCheckedAt: undefined }
@@ -124,14 +107,7 @@ export const actions = {
     const dataUpdates: Parameters<typeof state.updateAIData>[0] = {
       providers: nextProviders,
       selectedModelId: nextSelectedModelId,
-      ...(nextSelectedModelId !== ai.selectedModelId ? { computerUseEnabled: false } : {}),
     };
-    const selectedModelUsesProvider = ai.models.find(
-      (model) => model.id === ai.selectedModelId,
-    )?.providerId === id;
-    if (selectedModelUsesProvider && nextProvider && providerExecutionContextChanged(provider, nextProvider)) {
-      dataUpdates.computerUseEnabled = false;
-    }
     if (connectionChanged) {
       backgroundBenchmarkRunner.stop(id);
       const nextBenchmarkResults = { ...(ai.benchmarkResults || {}) };
@@ -204,7 +180,6 @@ export const actions = {
       fetchedModels: nextFetchedModels,
       deletedProviderIds: Array.from(new Set([...(ai.deletedProviderIds || []), id])),
       selectedModelId: nextSelectedModelId,
-      ...(nextSelectedModelId !== ai.selectedModelId ? { computerUseEnabled: false } : {}),
     })
   },
 
@@ -249,7 +224,6 @@ export const actions = {
       fetchedModels: nextFetchedModels,
       deletedProviderIds: Array.from(new Set([...(ai.deletedProviderIds || []), ...providerIdsToDelete])),
       selectedModelId: nextSelectedModelId,
-      ...(nextSelectedModelId !== ai.selectedModelId ? { computerUseEnabled: false } : {}),
     });
     providerIdsToDelete.forEach((providerId) => {
       locallyCreatedProviderIds.delete(providerId);

@@ -5,7 +5,6 @@ import { deleteStoredAttachmentFile } from '@/lib/storage/attachmentStorage'
 import { useUnifiedStore } from '../unified/useUnifiedStore'
 import { useAIUIStore } from './chatState'
 import { createSessionActions } from './sessionActions'
-import { requestManager } from '@/lib/ai/requestManager'
 
 vi.mock('@/lib/storage/chatStorage', () => ({
   cancelSessionJsonSave: vi.fn(),
@@ -131,7 +130,6 @@ describe('session actions conversation branching', () => {
           customSystemPrompt: '',
           includeTimeContext: true,
           webSearchEnabled: false,
-          computerUseEnabled: true,
         },
       },
       undoStack: [],
@@ -151,31 +149,6 @@ describe('session actions conversation branching', () => {
     await createSessionActions().switchSession('session-2')
 
     expect(useUnifiedStore.getState().data.ai?.selectedModelId).toBe('model-a')
-    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false)
-  })
-
-  it('revokes computer access when switching between chats that use the same model', async () => {
-    seedChat([])
-    useUnifiedStore.setState((state) => ({
-      data: {
-        ...state.data,
-        ai: {
-          ...state.data.ai!,
-          sessions: [
-            ...state.data.ai!.sessions,
-            { id: 'session-2', title: 'Second chat', modelId: 'model-1', createdAt: 2, updatedAt: 2 },
-          ],
-          messages: { ...state.data.ai!.messages, 'session-2': [] },
-          computerUseEnabled: true,
-        },
-      },
-    }))
-    const controller = requestManager.start('session-1', { computerUse: true })
-
-    await createSessionActions().switchSession('session-2')
-
-    expect(useUnifiedStore.getState().data.ai?.computerUseEnabled).toBe(false)
-    expect(controller.signal.aborted).toBe(true)
   })
 
   it('forks a standalone chat through the selected assistant reply', () => {
@@ -201,7 +174,6 @@ describe('session actions conversation branching', () => {
     }
     const later = createMessage('user-2', 'user', 'Later prompt')
     seedChat([user, assistant, later])
-    useUnifiedStore.getState().updateAIData({ computerUseEnabled: true })
 
     const forkedSessionId = createSessionActions().forkSessionFromMessage('session-1', 'assistant-1')
 
@@ -210,7 +182,6 @@ describe('session actions conversation branching', () => {
     const forkedSession = ai.sessions.find((session) => session.id === forkedSessionId)
     expect(forkedSession?.title).toBe('Original chat 1')
     expect(useAIUIStore.getState().currentSessionId).toBe(forkedSessionId)
-    expect(ai.computerUseEnabled).toBe(false)
 
     const forkedMessages = ai.messages[forkedSessionId!]
     expect(forkedMessages).toHaveLength(2)

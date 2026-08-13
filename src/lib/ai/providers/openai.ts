@@ -13,16 +13,13 @@ import {
   runOpenAIWebSearchTextProtocolTextRequest,
   runOpenAIWebSearchToolLoop,
 } from '@/lib/ai/webSearch/openAIToolLoop'
-import { translate } from '@/lib/i18n'
 import type { AIClient } from '../client'
-import { AIErrorType, type AIModel, type ChatMessage, type ChatMessageContent, type ChatSendOptions, type Provider } from '../types'
-import { createAIError } from '../errors'
+import { type AIModel, type ChatMessage, type ChatMessageContent, type ChatSendOptions, type Provider } from '../types'
 import { buildOpenAIBaseUrl, resolveApiModelId } from '../utils'
 import { sendAnthropicMessage } from './anthropic'
 import { detectProviderEndpointModels, type ModelFetchResult } from './modelDetection'
 import { getFirstImageInput } from './openaiImages'
 import { sendManagedImageEdit, sendManagedImageGeneration, sendManagedMessage } from './openaiManaged'
-import { runManagedComputerUseMessage, runOpenAIComputerUseMessage } from './openaiComputerUse'
 import { requestOpenAIChatCompletionOnce, sendImageEdit, sendImageGeneration, streamResponse } from './openaiRequests'
 import {
   buildOpenAIChatRequest,
@@ -77,13 +74,6 @@ export class OpenAICompatibleClient implements AIClient {
     const imagePrompt = isImageModel ? sanitizeCurrentRequestTextContent(extractTextPrompt(message)) : ''
     const editImageUrl = isImageModel ? getFirstImageInput(message) : null
 
-    if (isImageModel && options?.computerUseEnabled) {
-      throw createAIError(
-        AIErrorType.INVALID_REQUEST,
-        translate('chat.computerUse.unavailableForModel'),
-      )
-    }
-
     if (!isImageModel && options?.webSearchEnabled) {
       const localWebSearchIntent = classifyWebSearchIntent(extractTextPrompt(message))
       if (localWebSearchIntent.action === 'answer-capability') {
@@ -97,14 +87,6 @@ export class OpenAICompatibleClient implements AIClient {
       }
       if (isImageModel) {
         return sendManagedImageGeneration({ model: resolveApiModelId(model), prompt: imagePrompt, n: 1 }, onChunk, signal)
-      }
-      if (options?.computerUseEnabled) {
-        return runManagedComputerUseMessage({
-          body,
-          onChunk,
-          options,
-          signal,
-        })
       }
       if (options?.webSearchEnabled && !isGrokModel(provider, model)) {
         return this.sendManagedWebSearchMessage(body, onChunk, signal, options, provider, model)
@@ -127,7 +109,7 @@ export class OpenAICompatibleClient implements AIClient {
     }
 
     if (provider.endpointType === 'anthropic') {
-      if (options?.webSearchEnabled && !options.computerUseEnabled) throw createUnsupportedWebSearchError()
+      if (options?.webSearchEnabled) throw createUnsupportedWebSearchError()
       return sendAnthropicMessage({
         message,
         history: safeHistory,
@@ -142,17 +124,6 @@ export class OpenAICompatibleClient implements AIClient {
     }
 
     const url = `${baseUrl}/chat/completions`
-    if (options?.computerUseEnabled) {
-      return runOpenAIComputerUseMessage({
-        body,
-        headers,
-        onChunk,
-        options,
-        timeoutMs: this.timeout,
-        signal,
-        url,
-      })
-    }
     if (options?.webSearchEnabled) {
       return this.sendOpenAIWebSearchMessage({ provider, model, baseUrl, url, headers, body, onChunk, signal, options })
     }

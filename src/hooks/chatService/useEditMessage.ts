@@ -39,8 +39,6 @@ interface UseEditMessageOptions {
   customSystemPrompt: string;
   includeTimeContext: boolean;
   webSearchEnabled: boolean;
-  computerUseEnabled: boolean;
-  computerUseCwd: string;
   isAccountConnected: boolean;
   setSessionLoading: (sessionId: string, loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -61,8 +59,6 @@ export function useEditMessage({
   customSystemPrompt,
   includeTimeContext,
   webSearchEnabled,
-  computerUseEnabled,
-  computerUseCwd,
   isAccountConnected,
   setSessionLoading,
   setError,
@@ -95,7 +91,7 @@ export function useEditMessage({
       }
 
       const requestStartedAt = Date.now();
-      const requestController = requestManager.start(sessionId, { computerUse: computerUseEnabled });
+      const requestController = requestManager.start(sessionId);
       const ensureRequestActive = () => {
         if (isChatRequestCancelled(sessionId, requestController)) {
           throw new DOMException('Aborted', 'AbortError');
@@ -139,7 +135,6 @@ export function useEditMessage({
           modelId: selectedModel.id,
           providerId: provider.id,
           webSearchEnabled,
-          computerUseEnabled,
         });
         const state = useUnifiedStore.getState();
         const sessionMessages = state.data.ai?.messages[sessionId] || [];
@@ -183,21 +178,6 @@ export function useEditMessage({
               signal,
               options: {
                 webSearchEnabled,
-                computerUseEnabled,
-                computerUseCwd: computerUseCwd || undefined,
-                computerUseApprovalContext: {
-                  sessionId,
-                  messageId: assistantMessageId,
-                },
-                onComputerCommandStatus: (status) => {
-                  if (!isActiveRequest()) return;
-                  addChatDebugLog('computer-use', `status:${status.phase}`, {
-                    sessionId,
-                    messageId: assistantMessageId,
-                    commandLength: status.command.length,
-                    exitCode: status.exitCode,
-                  }, status.phase === 'failed' || status.phase === 'timed_out' ? 'warn' : 'info');
-                },
                 onWebSearchStatus: (status) => {
                   if (!isActiveRequest()) {
                     return;
@@ -306,8 +286,6 @@ export function useEditMessage({
       customSystemPrompt,
       includeTimeContext,
       webSearchEnabled,
-      computerUseEnabled,
-      computerUseCwd,
       setError,
       setSessionLoading,
       maybeGenerateAutoTitle,

@@ -148,8 +148,7 @@ describe('sendMessageWithEndpointFallback', () => {
 
   it('forwards streaming chunks and request options without creating another attempt', async () => {
     const onChunk = vi.fn();
-    const onComputerCommandStatus = vi.fn();
-    const options = { computerUseEnabled: true, onComputerCommandStatus };
+    const options = { webSearchEnabled: false };
     const client = {
       sendMessage: vi.fn(async (
         _content,
@@ -193,7 +192,6 @@ describe('sendMessageWithEndpointFallback', () => {
       onChunk: vi.fn(),
       options: {
         webSearchEnabled: true,
-        computerUseEnabled: true,
         onWebSearchStatus,
       },
       client,
@@ -201,7 +199,6 @@ describe('sendMessageWithEndpointFallback', () => {
 
     expect(client.sendMessage.mock.calls[0][6]).toMatchObject({
       webSearchEnabled: false,
-      computerUseEnabled: true,
     });
     expect(client.sendMessage.mock.calls[0][6].onWebSearchStatus).toBeUndefined();
   });

@@ -8,11 +8,6 @@ import { setCurrentNotesRootPath, useNotesStore } from '@/stores/notes/useNotesS
 import { useNotesRootStore } from '@/stores/useNotesRootStore';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { actions as aiActions } from '@/stores/useAIStore';
-import {
-  publishComputerCommandApproval,
-  resetComputerCommandApprovalsForTests,
-} from '@/lib/ai/computerUse/approvalState';
-import type { DesktopApi } from '@/lib/electron/bridge';
 import { useWebSearchQuotaStore } from '@/stores/useWebSearchQuotaStore';
 
 vi.mock('@/lib/i18n', () => ({
@@ -65,36 +60,9 @@ function renderChatInput(overrides: Partial<ChatInputProps> = {}) {
   };
 }
 
-function openComputerUseEnableDialog(): HTMLTextAreaElement {
-  (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-    platform: 'electron',
-    computer: {},
-  } as DesktopApi;
-  renderChatInput();
-  const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
-  vi.spyOn(textarea, 'getClientRects').mockReturnValue([
-    { width: 1, height: 1 },
-  ] as unknown as DOMRectList);
-  textarea.focus();
-  fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
-  fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse' }));
-  return textarea;
-}
-
-async function expectComposerFocusAfterDialogCloses(textarea: HTMLTextAreaElement) {
-  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-  await act(async () => {
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-  });
-  expect(textarea).toHaveFocus();
-}
-
 describe('ChatInput', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetComputerCommandApprovalsForTests();
     useWebSearchQuotaStore.setState({ exhausted: false });
     getDroppedExternalPathsMock.mockReturnValue([]);
     setCurrentNotesRootPath(null);
@@ -113,7 +81,6 @@ describe('ChatInput', () => {
           models: [],
           selectedModelId: null,
           webSearchEnabled: false,
-          computerUseEnabled: false,
         },
       },
     }));
@@ -121,71 +88,6 @@ describe('ChatInput', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    delete (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop;
-  });
-
-  it('restores composer focus after cancelling computer control enablement', async () => {
-    const textarea = openComputerUseEnableDialog();
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
-
-    await expectComposerFocusAfterDialogCloses(textarea);
-  });
-
-  it('restores composer focus after confirming computer control enablement', async () => {
-    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
-    const textarea = openComputerUseEnableDialog();
-
-    fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse.enableConfirm' }));
-
-    expect(setComputerUseEnabled).toHaveBeenCalledWith(true);
-    await expectComposerFocusAfterDialogCloses(textarea);
-  });
-
-  it('stops the active request when execution mode is disabled', () => {
-    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-      platform: 'electron',
-      computer: {},
-    } as DesktopApi;
-    useUnifiedStore.setState((state) => ({
-      data: {
-        ...state.data,
-        ai: {
-          ...state.data.ai!,
-          computerUseEnabled: true,
-        },
-      },
-    }));
-    const onStop = vi.fn();
-    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
-    renderChatInput({ isLoading: true, onStop });
-
-    fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse.disable' }));
-
-    expect(setComputerUseEnabled).toHaveBeenCalledWith(false);
-    expect(onStop).toHaveBeenCalledTimes(1);
-  });
-
-  it('revokes execution mode when the desktop command capability is unavailable', () => {
-    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-      platform: 'electron',
-    } as DesktopApi;
-    useUnifiedStore.setState((state) => ({
-      data: {
-        ...state.data,
-        ai: {
-          ...state.data.ai!,
-          computerUseEnabled: true,
-        },
-      },
-    }));
-    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
-
-    renderChatInput();
-
-    expect(setComputerUseEnabled).toHaveBeenCalledWith(false);
-    fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
-    expect(screen.queryByRole('button', { name: 'chat.computerUse' })).not.toBeInTheDocument();
   });
 
   it('does not clear persisted web search while the selected model is unresolved', () => {
@@ -249,11 +151,7 @@ describe('ChatInput', () => {
     setWebSearchEnabled.mockRestore();
   });
 
-  it('disables tools for standalone image generation models', () => {
-    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-      platform: 'electron',
-      computer: {},
-    } as DesktopApi;
+  it('disables web search for standalone image generation models', () => {
     useUnifiedStore.setState((state) => ({
       loaded: true,
       data: {
@@ -281,21 +179,16 @@ describe('ChatInput', () => {
           }],
           selectedModelId: 'image-model',
           webSearchEnabled: true,
-          computerUseEnabled: true,
         },
       },
     }));
     const setWebSearchEnabled = vi.spyOn(aiActions, 'setWebSearchEnabled').mockImplementation(() => {});
-    const setComputerUseEnabled = vi.spyOn(aiActions, 'setComputerUseEnabled').mockImplementation(() => {});
 
     renderChatInput();
 
     expect(setWebSearchEnabled).toHaveBeenCalledWith(false);
-    expect(setComputerUseEnabled).toHaveBeenCalledWith(false);
     fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
-    expect(screen.queryByRole('button', { name: 'chat.computerUse' })).not.toBeInTheDocument();
     setWebSearchEnabled.mockRestore();
-    setComputerUseEnabled.mockRestore();
   });
 
   it('keeps the composer editable and lets submit retry quota refresh while managed quota is shown', async () => {
@@ -412,138 +305,18 @@ describe('ChatInput', () => {
     expect(onSend).toHaveBeenCalledWith('continue without search', [], []);
   });
 
-  it('anchors computer command approval above the composer without changing its flow height', () => {
-    publishComputerCommandApproval('approval-1', {
-      sessionId: 'session-1',
-      messageId: 'assistant-1',
-      commandId: 'command-1',
-      command: 'uname -a',
-      cwd: '/tmp/project',
-      workspaceRoot: '/tmp/project',
-      purpose: 'Inspect the system',
-      timeoutSeconds: 600,
-    });
-    const { container } = renderChatInput();
-
-    const approval = container.querySelector<HTMLElement>('[data-computer-command-approval="true"]');
-    const approvalFrame = container.querySelector<HTMLElement>('[data-computer-command-approval-frame="true"]');
-    const composer = container.querySelector<HTMLElement>('[data-chat-input="true"]');
-    expect(approval).not.toBeNull();
-    expect(approvalFrame).not.toBeNull();
-    expect(composer).not.toBeNull();
-    if (!approval || !approvalFrame || !composer) {
-      throw new Error('Expected approval frame, approval controls, and composer elements.');
-    }
-    expect(approvalFrame).toContainElement(approval);
-    expect(approvalFrame.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(approvalFrame).toHaveClass('absolute');
-    expect(approvalFrame).toHaveClass('bottom-[var(--vlaina-offset-computer-command-approval)]');
-    expect(approvalFrame).toHaveClass('bg-[var(--vlaina-color-accent-soft)]');
-    expect(composer).toHaveClass('!shadow-none');
-    expect(screen.getByRole('button', { name: 'chat.computerUse.runOnce' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'chat.computerUse.alwaysRun' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument();
-    for (const button of screen.getAllByRole('button').filter((item) => [
-      'chat.computerUse.runOnce',
-      'chat.computerUse.alwaysRun',
-      'common.cancel',
-    ].includes(item.textContent || ''))) {
-      expect(button).toHaveClass('!rounded-[var(--vlaina-radius-pill)]');
-    }
-  });
-
-  it('restores composer focus after approving a computer command', async () => {
-    const respondToApproval = vi.fn(async () => true);
-    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-      platform: 'electron',
-      computer: { respondToApproval },
-    } as unknown as DesktopApi;
-    publishComputerCommandApproval('approval-1', {
-      sessionId: 'session-1',
-      messageId: 'assistant-1',
-      commandId: 'command-1',
-      command: 'uname -a',
-      cwd: '/tmp/project',
-      workspaceRoot: '/tmp/project',
-      purpose: 'Inspect the system',
-      timeoutSeconds: 600,
-    });
-    renderChatInput();
-
-    const textarea = screen.getByPlaceholderText('chat.composerPlaceholder') as HTMLTextAreaElement;
-    vi.spyOn(textarea, 'getClientRects').mockReturnValue([
-      { width: 1, height: 1 },
-    ] as unknown as DOMRectList);
-    textarea.blur();
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse.runOnce' }));
-    });
-
-    expect(respondToApproval).toHaveBeenCalledWith('approval-1', 'run_once');
-    await waitFor(() => expect(textarea).toHaveFocus());
-  });
-
-  it('keeps the approval overlay outside the quota frame clipping boundary', () => {
-    publishComputerCommandApproval('approval-1', {
-      sessionId: 'session-1',
-      messageId: 'assistant-1',
-      commandId: 'command-1',
-      command: 'uname -a',
-      cwd: '/tmp/project',
-      workspaceRoot: '/tmp/project',
-      purpose: 'Inspect the system',
-      timeoutSeconds: 600,
-    });
-    const { container } = renderChatInput({ isManagedQuotaExhausted: true });
-
-    const approvalFrame = container.querySelector<HTMLElement>('[data-computer-command-approval-frame="true"]');
-    const composer = container.querySelector<HTMLElement>('[data-chat-input="true"]');
-    if (!approvalFrame || !composer?.parentElement) {
-      throw new Error('Expected approval and quota frames.');
-    }
-
-    const quotaFrame = composer.parentElement;
-    expect(quotaFrame).toHaveClass('overflow-hidden');
-    expect(quotaFrame).not.toContainElement(approvalFrame);
-    expect(approvalFrame.parentElement).toContainElement(quotaFrame);
-  });
-
-  it('does not show pending approval controls in an inactive chat input', () => {
-    publishComputerCommandApproval('approval-1', {
-      sessionId: 'session-1',
-      messageId: 'assistant-1',
-      commandId: 'command-1',
-      command: 'uname -a',
-      cwd: '/tmp/project',
-      workspaceRoot: '/tmp/project',
-      purpose: 'Inspect the system',
-      timeoutSeconds: 600,
-    });
-    const { container } = renderChatInput({ active: false });
-
-    expect(container.querySelector('[data-computer-command-approval-frame="true"]')).toBeNull();
-  });
-
   it('suspends input portals when the chat becomes inactive', async () => {
-    (window as Window & { vlainaDesktop?: DesktopApi }).vlainaDesktop = {
-      platform: 'electron',
-      computer: {},
-    } as DesktopApi;
     const { props, rerender } = renderChatInput();
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.openActions' }));
-    fireEvent.click(screen.getByRole('button', { name: 'chat.computerUse' }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('chat.uploadFile')).toBeInTheDocument();
 
     rerender(<ChatInput {...props} active={false} />);
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByText('chat.uploadFile')).not.toBeInTheDocument();
 
     rerender(<ChatInput {...props} active />);
 
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByText('chat.uploadFile')).not.toBeInTheDocument();
   });
 

@@ -206,7 +206,6 @@ export const useAIStore = () => {
     customSystemPrompt: aiData?.customSystemPrompt || '',
     includeTimeContext: aiData?.includeTimeContext !== false,
     webSearchEnabled: aiData?.webSearchEnabled === true,
-    computerUseEnabled: aiData?.computerUseEnabled === true,
     
     ...uiState,
     ...actions,

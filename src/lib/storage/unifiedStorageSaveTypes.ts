@@ -74,7 +74,6 @@ export interface AISessionsFileData {
   customSystemPrompt: string;
   includeTimeContext: boolean;
   webSearchEnabled: boolean;
-  computerUseEnabled: boolean;
   providerIds: string[];
   deletedSessionIds: string[];
   deletedProviderIds: string[];
