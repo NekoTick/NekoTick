@@ -185,25 +185,6 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
     expect(mocks.strokeLayer).toHaveBeenCalledTimes(1);
   });
 
-  it('renders partial eraser replacements in place of the source stroke', () => {
-    const replacement = {
-      ...stroke,
-      id: 'stroke-1-part-2',
-      points: stroke.points.slice(1),
-    };
-    const { rerender } = render(<WhiteboardCanvasLayer {...baseProps} />);
-
-    rerender(
-      <WhiteboardCanvasLayer
-        {...baseProps}
-        strokeEraserPreview={{ replacements: new Map([[stroke.id, [replacement]]]) }}
-        tool="stroke-eraser"
-      />,
-    );
-
-    expect(mocks.strokeLayer.mock.calls.at(-1)?.[0].strokes).toEqual([replacement]);
-  });
-
   it('renders only resized preview items while document arrays stay unchanged', () => {
     const bounds = { height: 100, width: 100, x: 0, y: 0 };
     const nextBounds = { height: 150, width: 200, x: 10, y: 20 };

@@ -52,6 +52,32 @@ describe('useWhiteboardEraserGesture', () => {
     expect(options.setStrokes).toHaveBeenCalledOnce();
   });
 
+  it('restores strokes removed from the end of a retraced erase path', () => {
+    const options = createOptions();
+    options.elements = [];
+    options.strokes = [20, 50, 80].map((y, index) => ({
+      color: '#111111',
+      id: `stroke-${index + 1}`,
+      points: [{ pressure: 0.5, x: -20, y }, { pressure: 0.5, x: 20, y }],
+      size: 1,
+      tool: 'pen' as const,
+    }));
+    options.spatialIndex = createWhiteboardEraserSpatialIndex(options.elements, options.strokes);
+    const { result } = renderHook(() => useWhiteboardEraserGesture(options));
+
+    act(() => {
+      result.current.begin([{ point: { x: 0, y: 0 }, size: 1 }]);
+      result.current.update([
+        { point: { x: 0, y: 100 }, size: 1 },
+        { point: { x: 0, y: 65 }, size: 1 },
+      ]);
+      result.current.finish();
+    });
+
+    const applyDeletion = options.setStrokes.mock.calls[0][0];
+    expect(applyDeletion(options.strokes)).toEqual([options.strokes[2]]);
+  });
+
   it('does not delete when the gesture is cancelled', () => {
     const options = createOptions();
     const { result } = renderHook(() => useWhiteboardEraserGesture(options));

@@ -16,7 +16,6 @@ import {
   type WhiteboardSelectionRect,
 } from '../../model/whiteboardSelection';
 import type { WhiteboardMovePreview, WhiteboardResizePreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardStrokeEraserPreview } from '../../model/whiteboardStrokeEraser';
 import { WhiteboardSelectionRenderData, type WhiteboardRenderData } from '../../model/whiteboardRenderData';
 import {
   getWhiteboardResizePreviewItems,
@@ -41,7 +40,6 @@ interface WhiteboardContentLayerProps {
   resizePreview: WhiteboardResizePreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
-  strokeEraserPreview: WhiteboardStrokeEraserPreview | null;
   tool: WhiteboardTool;
   visibleRect: WhiteboardSelectionRect | null;
   onElementPointerDown: (event: PointerEvent<HTMLDivElement>, element: WhiteboardElement) => void;
@@ -57,7 +55,6 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
   resizePreview,
   selectionPath,
   spacePressed,
-  strokeEraserPreview,
   tool,
   visibleRect,
   onElementPointerDown,
@@ -143,16 +140,12 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
     movingCandidates?.elements ?? null,
     (element) => movingElementIdSet.has(element.id) && isMovedVisible(getElementBounds(element), movePreview, visibleRect),
   ), [elements, movePreview, movingCandidates, movingElementIdSet, spatialIndex.allElements, visibleRect]);
-  const visibleStaticStrokes = useMemo(() => getVisibleItems(
+  const staticStrokes = useMemo(() => getVisibleItems(
     strokes,
     spatialIndex.allStrokes,
     visibleCandidates?.strokes ?? null,
     (stroke) => !movingStrokeIdSet.has(stroke.id) && !resizingStrokeIds?.has(stroke.id) && isStrokeVisible(stroke, visibleRect),
   ), [movingStrokeIdSet, resizingStrokeIds, spatialIndex.allStrokes, strokes, visibleCandidates, visibleRect]);
-  const staticStrokes = useMemo(
-    () => applyStrokeReplacements(visibleStaticStrokes, strokeEraserPreview?.replacements),
-    [strokeEraserPreview, visibleStaticStrokes],
-  );
   const nextMovingStrokes = useMemo(() => getVisibleItems(
     strokes,
     spatialIndex.allStrokes,
@@ -220,24 +213,6 @@ function getVisibleItems<T>(
 ): T[] {
   if (indexedItems !== items || !candidates || candidates === items) return items.filter(isVisibleItem);
   return candidates.filter(isVisibleItem);
-}
-
-function applyStrokeReplacements(
-  strokes: WhiteboardStroke[],
-  replacements: ReadonlyMap<string, WhiteboardStroke[]> | undefined,
-): WhiteboardStroke[] {
-  if (!replacements || replacements.size === 0) return strokes;
-  let changed = false;
-  const rendered: WhiteboardStroke[] = [];
-  for (const stroke of strokes) {
-    const replacement = replacements.get(stroke.id);
-    if (!replacement) rendered.push(stroke);
-    else {
-      changed = true;
-      rendered.push(...replacement);
-    }
-  }
-  return changed ? rendered : strokes;
 }
 
 function isStrokeVisible(stroke: WhiteboardStroke, visibleRect: WhiteboardSelectionRect | null): boolean {

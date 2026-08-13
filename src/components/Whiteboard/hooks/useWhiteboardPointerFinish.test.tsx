@@ -7,11 +7,10 @@ import { useWhiteboardPointerFinish } from './useWhiteboardPointerFinish';
 describe('useWhiteboardPointerFinish', () => {
   it('cancels an erase gesture when the active pointer is cancelled', () => {
     const finishEraserGesture = vi.fn();
-    const finishStrokeEraserGesture = vi.fn();
     const pushHistory = vi.fn();
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(), dragState: { kind: 'draw' }, elements: [],
-      finishEraserGesture, finishStrokeEraserGesture, flushResizeDrags: vi.fn(),
+      finishEraserGesture, flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => null), pushHistory,
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
       spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef: { current: 1 }, strokes: [],
@@ -19,7 +18,6 @@ describe('useWhiteboardPointerFinish', () => {
 
     act(() => result.current({ pointerId: 7, type: 'pointercancel' } as PointerEvent<HTMLDivElement>));
     expect(finishEraserGesture).toHaveBeenCalledWith(true);
-    expect(finishStrokeEraserGesture).toHaveBeenCalledWith(true);
     expect(pushHistory).not.toHaveBeenCalled();
   });
 
@@ -28,7 +26,7 @@ describe('useWhiteboardPointerFinish', () => {
     const setStrokes = vi.fn();
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: 7 as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(), dragState: { kind: 'draw' }, elements: [],
-      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => ({
         color: '#111111', id: 'draft', points: [{ pressure: 0.5, x: 0, y: 0 }], size: 1, tool: 'pen' as const,
       })), pushHistory,
@@ -52,7 +50,7 @@ describe('useWhiteboardPointerFinish', () => {
     const strokeIdRef = { current: 1 };
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: 7 as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(), dragState: { kind: 'draw' }, elements: [],
-      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => draft), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef, strokes: [],
@@ -77,7 +75,7 @@ describe('useWhiteboardPointerFinish', () => {
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: null as number | null }, applyFinalDrawSample,
       clearDraftStroke: vi.fn(), deletePointer: vi.fn(), dragState: { kind: 'draw' }, elements: [],
-      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 20, y: 10 })), getDraftStroke: vi.fn(() => draft), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef: { current: 1 }, strokes: [],
@@ -100,7 +98,7 @@ describe('useWhiteboardPointerFinish', () => {
         originalElementsById: new Map([['image', element]]), originalStrokesById: new Map(),
         startPoint: { x: 0, y: 0 }, strokeIds: [],
       },
-      elements: [element], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [element], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 999, y: 999 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
       spatialIndex: createWhiteboardEraserSpatialIndex([element], []), strokeIdRef: { current: 1 }, strokes: [],
@@ -118,7 +116,7 @@ describe('useWhiteboardPointerFinish', () => {
       activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
       dragState: { kind: 'lasso', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }] },
       elements: [{ height: 10, id: 'image', text: '', type: 'image', width: 10, x: 10, y: 80 }],
-      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 0, y: 100 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds, setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
       spatialIndex: createWhiteboardEraserSpatialIndex(
@@ -139,7 +137,7 @@ describe('useWhiteboardPointerFinish', () => {
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
       dragState: { kind: 'lasso', points: [{ x: 40, y: 40 }] }, elements: [element],
-      finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 40, y: 40 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds, setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
       spatialIndex: createWhiteboardEraserSpatialIndex([element], []), strokeIdRef: { current: 1 }, strokes: [],
@@ -167,7 +165,7 @@ describe('useWhiteboardPointerFinish', () => {
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
       dragState: { kind: 'lasso', points: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }] },
-      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 0, y: 100 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds, setStrokes: vi.fn(),
       spatialIndex: createWhiteboardEraserSpatialIndex([], strokes), strokeIdRef: { current: 1 }, strokes,
@@ -200,7 +198,7 @@ describe('useWhiteboardPointerFinish', () => {
         currentPoint: { x: 0, y: 0 }, kind: 'move-strokes',
         originalStrokesById: new Map([[middle.id, middle]]), startPoint: { x: 0, y: 0 }, strokeIds: [middle.id],
       },
-      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 15, y: 5 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex: createWhiteboardEraserSpatialIndex([], strokes), strokeIdRef: { current: 1 }, strokes,
@@ -232,7 +230,7 @@ describe('useWhiteboardPointerFinish', () => {
         currentPoint: { x: 0, y: 0 }, kind: 'move-strokes', originalStrokesById: selected,
         startPoint: { x: 0, y: 0 }, strokeIds: [strokes[500].id],
       },
-      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 15, y: 5 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex, strokeIdRef: { current: 1 }, strokes,
@@ -261,7 +259,7 @@ describe('useWhiteboardPointerFinish', () => {
     const setStrokes = vi.fn();
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: null as number | null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
-      dragState, elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      dragState, elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 15, y: 5 })), getDraftStroke: vi.fn(() => null), prepareMoveCommit,
       pushHistory: vi.fn(), setDragState, setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(),
       setStrokes, spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokeIdRef: { current: 1 }, strokes: [stroke],
@@ -290,7 +288,7 @@ describe('useWhiteboardPointerFinish', () => {
         originalStrokesById: new Map([[stroke.id, stroke]]), preserveAspectRatio: false,
         startPoint: { x: 100, y: 100 },
       },
-      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 150, y: 160 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokeIdRef: { current: 1 }, strokes: [stroke],
@@ -315,7 +313,7 @@ describe('useWhiteboardPointerFinish', () => {
         handle: 'se', kind: 'resize-selection', originalElementsById: new Map([[element.id, element]]),
         originalStrokesById: new Map(), preserveAspectRatio: false, startPoint: { x: 100, y: 100 },
       },
-      elements: [element], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [element], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 150, y: 160 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
       setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex: createWhiteboardEraserSpatialIndex([element], []), strokeIdRef: { current: 1 }, strokes: [],
@@ -345,7 +343,7 @@ describe('useWhiteboardPointerFinish', () => {
         originalStrokesById: new Map([[stroke.id, stroke]]), preserveAspectRatio: false,
         startPoint: { x: 100, y: 100 },
       },
-      elements: [], finishEraserGesture: vi.fn(), finishStrokeEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 150, y: 160 })), getDraftStroke: vi.fn(() => null), pushHistory,
       setDragState: vi.fn(), setElements, setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes,
       spatialIndex: createWhiteboardEraserSpatialIndex([], [stroke]), strokeIdRef: { current: 1 }, strokes: [stroke],

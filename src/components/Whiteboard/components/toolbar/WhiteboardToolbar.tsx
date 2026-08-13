@@ -55,7 +55,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
   const drawingConfig = WHITEBOARD_DRAWING_TOOLS.find((item) => item.id === (drawingActive ? props.tool : lastDrawingTool))!;
   const eraserConfig = WHITEBOARD_ERASER_TOOLS.find((item) => item.id === (eraserActive ? props.tool : lastEraserTool))!;
   const drawingTool = drawingConfig.id as WhiteboardDrawingTool;
-  const sizeTool: WhiteboardBrushTool = props.tool === 'stroke-eraser' ? props.tool : drawingTool;
+  const sizeTool: WhiteboardBrushTool = drawingTool;
 
   useEffect(() => {
     if (isDrawingTool(props.tool)) setLastDrawingTool(props.tool);

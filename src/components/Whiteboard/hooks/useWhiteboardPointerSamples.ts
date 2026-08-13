@@ -3,25 +3,19 @@ import { getCoalescedPointerEvents } from '../model/whiteboardInteractions';
 import { createResponsiveStrokePoints, type WhiteboardStrokeInputState } from '../model/whiteboardStrokeInput';
 import type { WhiteboardEraserSample } from '../model/whiteboardEraser';
 import type {
-  WhiteboardBrushSizes,
   WhiteboardDrawingTool,
   WhiteboardPoint,
-  WhiteboardTool,
   WhiteboardViewport,
 } from '../model/whiteboardModel';
 
 interface WhiteboardPointerSamplesOptions {
-  brushSizes: WhiteboardBrushSizes;
   getBoardPointFromRect: (clientX: number, clientY: number, rect: DOMRectReadOnly) => WhiteboardPoint;
-  tool: WhiteboardTool;
   viewport: WhiteboardViewport;
   viewportRef: RefObject<HTMLDivElement | null>;
 }
 
 export function useWhiteboardPointerSamples({
-  brushSizes,
   getBoardPointFromRect,
-  tool,
   viewport,
   viewportRef,
 }: WhiteboardPointerSamplesOptions) {
@@ -47,9 +41,9 @@ export function useWhiteboardPointerSamples({
     if (!viewportRect) return [];
     return getCoalescedPointerEvents(event).map((coalescedEvent) => ({
       point: getBoardPointFromRect(coalescedEvent.clientX, coalescedEvent.clientY, viewportRect),
-      size: tool === 'stroke-eraser' ? brushSizes['stroke-eraser'] : 1 / viewport.zoom,
+      size: 1 / viewport.zoom,
     }));
-  }, [brushSizes, getBoardPointFromRect, tool, viewport.zoom, viewportRef]);
+  }, [getBoardPointFromRect, viewport.zoom, viewportRef]);
 
   const resetStrokeInput = useCallback(() => {
     strokeInputStateRef.current = null;

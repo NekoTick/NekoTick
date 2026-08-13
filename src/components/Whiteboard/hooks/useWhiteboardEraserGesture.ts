@@ -5,6 +5,7 @@ import {
   createWhiteboardEraserSpatialIndexAsync,
   getWhiteboardEraserCandidates,
   getWhiteboardEraserTargets,
+  updateWhiteboardEraserTrail,
   type WhiteboardEraserSpatialIndex,
   type WhiteboardEraserPreview,
   type WhiteboardEraserSample,
@@ -45,29 +46,45 @@ export function useWhiteboardEraserGesture({
   const pendingSamplesRef = useRef<WhiteboardEraserSample[]>([]);
   const spatialIndexRef = useRef(spatialIndex);
   const targetsRef = useRef<MutableEraserTargets>(createMutableTargets());
+  const effectiveTrailRef = useRef<WhiteboardEraserSample[]>([]);
   const trailRef = useRef<WhiteboardEraserSample[]>([]);
 
   const applyPendingSamples = useCallback(() => {
     const pending = pendingSamplesRef.current;
     pendingSamplesRef.current = [];
     if (pending.length === 0) return;
+    const previousTrail = effectiveTrailRef.current;
+    const trailUpdate = updateWhiteboardEraserTrail(previousTrail, pending);
+    effectiveTrailRef.current = trailUpdate.samples;
     const sweepSamples = lastSampleRef.current ? [lastSampleRef.current, ...pending] : pending;
     lastSampleRef.current = pending.at(-1) ?? lastSampleRef.current;
-    const candidates = getWhiteboardEraserCandidates(spatialIndexRef.current, sweepSamples);
+    const targetSamples = trailUpdate.backtracked ? trailUpdate.samples : sweepSamples;
+    const candidates = getWhiteboardEraserCandidates(spatialIndexRef.current, targetSamples);
     const hits = getWhiteboardEraserTargets(
-      candidates.elements.filter((element) => !targetsRef.current.elementIds.has(element.id)),
-      candidates.strokes.filter((stroke) => !targetsRef.current.strokeIds.has(stroke.id)),
-      sweepSamples,
+      trailUpdate.backtracked
+        ? candidates.elements
+        : candidates.elements.filter((element) => !targetsRef.current.elementIds.has(element.id)),
+      trailUpdate.backtracked
+        ? candidates.strokes
+        : candidates.strokes.filter((stroke) => !targetsRef.current.strokeIds.has(stroke.id)),
+      targetSamples,
     );
-    hits.elementIds.forEach((id) => targetsRef.current.elementIds.add(id));
-    hits.strokeIds.forEach((id) => targetsRef.current.strokeIds.add(id));
+    if (trailUpdate.backtracked) {
+      targetsRef.current = {
+        elementIds: new Set(hits.elementIds),
+        strokeIds: new Set(hits.strokeIds),
+      };
+    } else {
+      hits.elementIds.forEach((id) => targetsRef.current.elementIds.add(id));
+      hits.strokeIds.forEach((id) => targetsRef.current.strokeIds.add(id));
+    }
     const latestSample = pending.at(-1);
     if (latestSample) trailRef.current = [...trailRef.current, latestSample];
-    setPreview((current) => ({
-      elementIds: hits.elementIds.length > 0 ? [...targetsRef.current.elementIds] : current.elementIds,
-      strokeIds: hits.strokeIds.length > 0 ? [...targetsRef.current.strokeIds] : current.strokeIds,
+    setPreview({
+      elementIds: [...targetsRef.current.elementIds],
+      strokeIds: [...targetsRef.current.strokeIds],
       trail: trailRef.current,
-    }));
+    });
   }, []);
 
   const publishPendingSamples = useCallback(() => {
@@ -107,6 +124,7 @@ export function useWhiteboardEraserGesture({
     lastSampleRef.current = null;
     pendingSamplesRef.current = [];
     targetsRef.current = createMutableTargets();
+    effectiveTrailRef.current = [];
     trailRef.current = [];
     setPreview(EMPTY_WHITEBOARD_ERASER_PREVIEW);
   }, []);

@@ -22,7 +22,6 @@ interface WhiteboardPointerFinishOptions {
   dragState: WhiteboardDragState | null;
   elements: WhiteboardElement[];
   finishEraserGesture: (cancelled?: boolean) => void;
-  finishStrokeEraserGesture: (cancelled?: boolean) => void;
   flushResizeDrags: () => void;
   getBoardPoint: (clientX: number, clientY: number) => WhiteboardPoint;
   getDraftStroke: () => WhiteboardStroke | null;
@@ -47,7 +46,6 @@ export function useWhiteboardPointerFinish({
   dragState,
   elements,
   finishEraserGesture,
-  finishStrokeEraserGesture,
   flushResizeDrags,
   getBoardPoint,
   getDraftStroke,
@@ -69,7 +67,6 @@ export function useWhiteboardPointerFinish({
     }
     if (event) deletePointer(event.pointerId);
     finishEraserGesture(event?.type === 'pointercancel');
-    finishStrokeEraserGesture(event?.type === 'pointercancel');
     flushResizeDrags();
     if (event?.pointerId === activePenPointerRef.current) activePenPointerRef.current = null;
     const currentDraft = getDraftStroke();
@@ -160,7 +157,7 @@ export function useWhiteboardPointerFinish({
     setDragState(null);
   }, [
     activePenPointerRef, applyFinalDrawSample, clearDraftStroke, deletePointer, dragState,
-    elements, finishEraserGesture, finishStrokeEraserGesture, flushResizeDrags, getBoardPoint,
+    elements, finishEraserGesture, flushResizeDrags, getBoardPoint,
     getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory, setDragState, setElements, setSelectedElementIds,
     setSelectedStrokeIds, setStrokes, strokeIdRef, strokes,
     spatialIndex,

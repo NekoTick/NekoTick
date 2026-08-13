@@ -309,41 +309,4 @@ describe('WhiteboardCanvasLayer', () => {
     expect(handles.every((handle) => handle.style.cursor === '')).toBe(true);
   });
 
-  it('uses linear culling for a live stroke-eraser preview instead of a stale index', () => {
-    const committedStroke = {
-      color: '#111111', id: 'stroke-1',
-      points: [{ pressure: 0.5, x: 10_000, y: 10_000 }, { pressure: 0.5, x: 10_020, y: 10_020 }],
-      size: 1, tool: 'pen' as const,
-    };
-    const previewStroke = {
-      ...committedStroke,
-      points: [{ pressure: 0.5, x: 20, y: 20 }, { pressure: 0.5, x: 40, y: 40 }],
-    };
-    const { container } = render(
-      <WhiteboardCanvasLayer
-        brushCursorColor="transparent"
-        brushCursorPoint={null}
-        brushCursorSize={1}
-        brushCursorTool={null}
-        draftStroke={null}
-        eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW}
-        movePreview={null}
-        renderData={createRenderData(
-          [],
-          [previewStroke],
-          { spatialIndex: createWhiteboardEraserSpatialIndex([], [committedStroke]) },
-        )}
-        selectionPath={null}
-        spacePressed={false}
-        tool="stroke-eraser"
-        viewport={{ x: 0, y: 0, zoom: 1 }}
-        viewportSize={{ x: 500, y: 500 }}
-        onElementPointerDown={vi.fn()}
-        onSelectionMovePointerDown={vi.fn()}
-        onSelectionResizePointerDown={vi.fn()}
-      />,
-    );
-
-    expect(container.querySelector('[data-whiteboard-stroke="stroke-1"]')).not.toBeNull();
-  });
 });

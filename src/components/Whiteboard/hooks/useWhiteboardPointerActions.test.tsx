@@ -62,17 +62,16 @@ describe('useWhiteboardPointerActions drawing performance', () => {
     expect(getBoundingClientRect).toHaveBeenCalledOnce();
   });
 
-  it.each(['eraser', 'stroke-eraser'] as const)('routes the final %s position through its erase gesture', (tool) => {
+  it('routes the final eraser position through its erase gesture', () => {
     const getBoundingClientRect = vi.fn(() => ({ left: 10, top: 20 } as DOMRect));
     const options = createOptions(getBoundingClientRect);
     options.dragState = { kind: 'draw' };
-    options.tool = tool;
+    options.tool = 'eraser';
     const { result } = renderHook(() => useWhiteboardPointerActions(options));
 
     act(() => result.current.handlePointerMove(createPointerEvent('mouse', 50, 60)));
 
-    const update = tool === 'eraser' ? options.eraserActions.update : options.strokeEraserActions.update;
-    expect(update).toHaveBeenCalledWith([{ point: { x: 40, y: 40 }, size: 1 }]);
+    expect(options.eraserActions.update).toHaveBeenCalledWith([{ point: { x: 40, y: 40 }, size: 1 }]);
   });
 });
 
@@ -97,7 +96,6 @@ function createOptions(getBoundingClientRect: () => DOMRect): PointerActionOptio
     setSelectedStrokeIds: vi.fn(),
     spacePressedRef: { current: false },
     startStrokeSelection: vi.fn(),
-    strokeEraserActions: { begin: vi.fn(), update: vi.fn() },
     strokeIdRef: { current: 1 },
     tool: 'pen',
     updatePointer: vi.fn(() => null),

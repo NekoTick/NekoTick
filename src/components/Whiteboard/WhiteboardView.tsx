@@ -44,7 +44,6 @@ export function WhiteboardView({
         resizePreview={board.resizePreview}
         selectionPath={board.selectionPath}
         spacePressed={board.spacePressed}
-        strokeEraserPreview={board.strokeEraserPreview}
         tool={board.tool}
         viewport={board.viewport}
         viewportRef={board.viewportRef}

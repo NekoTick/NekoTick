@@ -22,7 +22,6 @@ import {
 } from '../../model/whiteboardSelection';
 import { getWhiteboardCullingWindow, type WhiteboardCullingWindow } from '../../model/whiteboardViewport';
 import type { WhiteboardMovePreview, WhiteboardResizePreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardStrokeEraserPreview } from '../../model/whiteboardStrokeEraser';
 import { getWhiteboardAppendStart } from '../../model/whiteboardCollection';
 import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
 import {
@@ -43,7 +42,6 @@ interface WhiteboardCanvasLayerProps {
   resizePreview?: WhiteboardResizePreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
-  strokeEraserPreview?: WhiteboardStrokeEraserPreview | null;
   tool: WhiteboardTool;
   viewport: WhiteboardViewport;
   viewportSize: WhiteboardPoint;
@@ -102,7 +100,6 @@ export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
           resizePreview={props.resizePreview ?? null}
           selectionPath={props.selectionPath}
           spacePressed={props.spacePressed}
-          strokeEraserPreview={props.strokeEraserPreview ?? null}
           tool={props.tool}
           visibleRect={visibleRect}
           onElementPointerDown={props.onElementPointerDown}

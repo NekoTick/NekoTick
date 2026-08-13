@@ -17,7 +17,6 @@ import type { WhiteboardLassoPath } from '../../model/whiteboardSelection';
 import type { WhiteboardResizeHandle } from '../../model/whiteboardSelection';
 import type { WhiteboardEraserPreview } from '../../model/whiteboardEraser';
 import type { WhiteboardMovePreview, WhiteboardResizePreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardStrokeEraserPreview } from '../../model/whiteboardStrokeEraser';
 import type { WhiteboardRenderData } from '../../model/whiteboardRenderData';
 
 interface WhiteboardSurfaceProps {
@@ -34,7 +33,6 @@ interface WhiteboardSurfaceProps {
   resizePreview?: WhiteboardResizePreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
-  strokeEraserPreview?: WhiteboardStrokeEraserPreview | null;
   tool: WhiteboardTool;
   viewport: WhiteboardViewport;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -64,7 +62,6 @@ export function WhiteboardSurface({
   resizePreview = null,
   selectionPath,
   spacePressed,
-  strokeEraserPreview = null,
   tool,
   viewport,
   viewportRef,
@@ -89,9 +86,9 @@ export function WhiteboardSurface({
     isPanning && 'cursor-grabbing',
     !isPanning && movingSelection && 'cursor-grabbing',
     !isPanning && !movingSelection && (tool === 'hand' || spacePressed) && 'cursor-grab',
-    !isPanning && !movingSelection && !spacePressed && (drawing || tool === 'stroke-eraser') && 'cursor-none',
+    !isPanning && !movingSelection && !spacePressed && drawing && 'cursor-none',
     !isPanning && !movingSelection && usesCrosshair && 'cursor-crosshair',
-    !isPanning && !movingSelection && !drawing && !usesCrosshair && tool !== 'hand' && !spacePressed && tool !== 'stroke-eraser' && 'cursor-default',
+    !isPanning && !movingSelection && !drawing && !usesCrosshair && tool !== 'hand' && !spacePressed && 'cursor-default',
   );
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!hasImageFile(event.dataTransfer)) return;
@@ -156,7 +153,6 @@ export function WhiteboardSurface({
         renderData={renderData}
         selectionPath={selectionPath}
         spacePressed={spacePressed}
-        strokeEraserPreview={strokeEraserPreview}
         tool={tool}
         viewport={viewport}
         viewportSize={viewportSize}

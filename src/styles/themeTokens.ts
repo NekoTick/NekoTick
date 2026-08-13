@@ -443,7 +443,6 @@ export const themeWhiteboardTokens = {
   strokeLineCap: 'round',
   strokeLineJoin: 'round',
   eraserRadiusPx: 7,
-  strokeEraserRadiusPx: 10,
   minBrushSize: 0.35,
   brushWheelStep: 0.12,
   brushWheelButtonDelta: 1,

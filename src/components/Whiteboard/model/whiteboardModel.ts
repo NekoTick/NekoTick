@@ -20,12 +20,11 @@ export type WhiteboardTool =
   | 'fountain'
   | 'watercolor'
   | 'crayon'
-  | 'eraser'
-  | 'stroke-eraser';
+  | 'eraser';
 export type WhiteboardElementType = 'image';
 export type WhiteboardPaperStyle = 'blank' | 'dots' | 'grid' | 'ruled';
 export type WhiteboardDrawingTool = Extract<WhiteboardTool, 'pen' | 'pencil' | 'marker' | 'colored-pencil' | 'fountain' | 'watercolor' | 'crayon'>;
-export type WhiteboardBrushTool = WhiteboardDrawingTool | 'stroke-eraser';
+export type WhiteboardBrushTool = WhiteboardDrawingTool;
 export type WhiteboardBrushColors = Record<WhiteboardDrawingTool, string>;
 export type WhiteboardBrushSizes = Record<WhiteboardBrushTool, number>;
 
@@ -164,7 +163,6 @@ export const WHITEBOARD_DEFAULT_BRUSH_SIZES: WhiteboardBrushSizes = {
   fountain: 1,
   watercolor: 1,
   crayon: 1,
-  'stroke-eraser': 1,
 };
 export const WHITEBOARD_DEFAULT_BRUSH_COLORS: WhiteboardBrushColors = {
   pen: themeWhiteboardTokens.brushColorSwatches[6],
@@ -230,7 +228,7 @@ export function isDrawingTool(tool: WhiteboardTool): tool is WhiteboardDrawingTo
 }
 
 export function isBrushTool(tool: WhiteboardTool): tool is WhiteboardBrushTool {
-  return isDrawingTool(tool) || tool === 'stroke-eraser';
+  return isDrawingTool(tool);
 }
 
 export function getStrokeWidth(tool: WhiteboardDrawingTool, pressure: number, size = 1): number {
@@ -238,17 +236,8 @@ export function getStrokeWidth(tool: WhiteboardDrawingTool, pressure: number, si
   return (brush.baseWidth + brush.pressureWidth * normalizePressure(pressure)) * size;
 }
 
-export function getBrushPreviewRadius(tool: WhiteboardBrushTool, size: number): number {
-  if (tool === 'stroke-eraser') return getStrokeEraserRadius(size);
-  return getStrokeWidth(tool, 1, size) / 2;
-}
-
 export function getEraserRadius(size: number): number {
   return themeWhiteboardTokens.eraserRadiusPx * size;
-}
-
-export function getStrokeEraserRadius(size: number): number {
-  return themeWhiteboardTokens.strokeEraserRadiusPx * size;
 }
 
 export function resizeBrushSize(size: number, deltaY: number): number {
