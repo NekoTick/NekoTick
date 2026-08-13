@@ -5,13 +5,6 @@ export const MAX_API_TRANSCRIPT_MESSAGES = 64;
 export const MAX_API_TRANSCRIPT_STRING_CHARS = 20000;
 const MAX_API_TRANSCRIPT_CONTENT_PARTS = 64;
 const MAX_API_TRANSCRIPT_TOOL_CALLS = 32;
-const COMPUTER_COMMAND_RESULT_KIND = 'vlaina-computer-command';
-const SAFE_UNPARSEABLE_COMPUTER_COMMAND_RESULT = JSON.stringify({
-  kind: COMPUTER_COMMAND_RESULT_KIND,
-  version: 1,
-  phase: 'failed',
-  stderr: 'The local command result could not be safely replayed.',
-});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -256,32 +249,6 @@ export function normalizeApiTranscriptMessages(value: unknown): ApiTranscriptMes
   return paired.length > 0 ? paired : undefined;
 }
 
-function stripLocalComputerFileChanges(message: unknown): unknown {
-  if (!isRecord(message) || message.role !== 'tool' || typeof message.content !== 'string') {
-    return message;
-  }
-
-  try {
-    const parsed = JSON.parse(message.content) as unknown;
-    if (
-      !isRecord(parsed) ||
-      (parsed.kind !== COMPUTER_COMMAND_RESULT_KIND && message.name !== 'run_command')
-    ) {
-      return message;
-    }
-    if (!('fileChanges' in parsed) && !('fileChangesTruncated' in parsed)) {
-      return message;
-    }
-
-    const { fileChanges: _fileChanges, fileChangesTruncated: _fileChangesTruncated, ...safeResult } = parsed;
-    return { ...message, content: JSON.stringify(safeResult) };
-  } catch {
-    return message.name === 'run_command' || message.content.includes(COMPUTER_COMMAND_RESULT_KIND)
-      ? { ...message, content: SAFE_UNPARSEABLE_COMPUTER_COMMAND_RESULT }
-      : message;
-  }
-}
-
 export function normalizeApiTranscriptMessagesForProviderReplay(
   value: unknown,
 ): ApiTranscriptMessage[] | undefined {
@@ -289,7 +256,5 @@ export function normalizeApiTranscriptMessagesForProviderReplay(
     return undefined;
   }
 
-  return normalizeApiTranscriptMessages(
-    value.slice(-MAX_API_TRANSCRIPT_MESSAGES).map(stripLocalComputerFileChanges),
-  );
+  return normalizeApiTranscriptMessages(value);
 }

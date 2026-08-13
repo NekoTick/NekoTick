@@ -718,7 +718,6 @@
   --vlaina-height-git-popover: min(var(--vlaina-size-600px), calc(100vh - var(--vlaina-size-64px)));
   --vlaina-offset-dropdown-below-input: calc(100% + var(--vlaina-size-8px));
   --vlaina-offset-account-menu-anchor-x: calc(100% - var(--vlaina-size-10px));
-  --vlaina-offset-computer-command-approval: calc(100% - var(--vlaina-space-12px));
   --radius: 0.5rem;
   --vlaina-radius-0: 0;
   --vlaina-radius-1px: 1px;

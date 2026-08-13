@@ -284,56 +284,6 @@ export interface ElectronAIProviderHttpApi {
   onRequestError(requestId: string, callback: (payload: { message: string }) => void): () => void;
 }
 
-export interface ElectronComputerCommandResult {
-  status: 'completed' | 'failed' | 'denied' | 'cancelled' | 'timed_out';
-  command: string;
-  cwd: string;
-  exitCode?: number | null;
-  signal?: string | null;
-  stdout?: string;
-  stderr?: string;
-  truncated?: boolean;
-  durationMs?: number;
-  fileChanges?: Array<{
-    path: string;
-    kind: 'added' | 'modified' | 'deleted';
-    additions: number;
-    deletions: number;
-    patch: string;
-    truncated?: boolean;
-  }>;
-  fileChangesTruncated?: boolean;
-}
-
-export interface ElectronComputerApi {
-  startCommand(requestId: string, request: {
-    command: string;
-    cwd?: string;
-    workspaceRoot: string;
-    purpose?: string;
-    timeoutSeconds?: number;
-    locale?: string;
-  }): Promise<ElectronComputerCommandResult>;
-  cancelCommand(requestId: string): Promise<boolean>;
-  respondToApproval(
-    requestId: string,
-    decision: 'run_once' | 'cancel',
-  ): Promise<boolean>;
-  onCommandEvent(
-    requestId: string,
-    callback: (event: {
-      type: 'approval_requested' | 'started' | 'output';
-      stream?: 'stdout' | 'stderr';
-      text?: string;
-      command?: string;
-      cwd?: string;
-      workspaceRoot?: string;
-      purpose?: string;
-      timeoutSeconds?: number;
-    }) => void,
-  ): () => void;
-}
-
 export interface ElectronDragDropApi {
   getPathForFile(file: File): string;
   authorizePath(filePath: string): Promise<{
@@ -502,7 +452,6 @@ export interface DesktopApi {
   update?: ElectronUpdateApi;
   export: ElectronExportApi;
   aiProvider: ElectronAIProviderHttpApi;
-  computer?: ElectronComputerApi;
   dragDrop: ElectronDragDropApi;
   dialog: ElectronDialogApi;
   fs: ElectronFsApi;
@@ -521,8 +470,4 @@ export function getElectronBridge(): DesktopApi | null {
 
 export function isElectronRuntime(): boolean {
   return getElectronBridge()?.platform === 'electron';
-}
-
-export function isComputerUseRuntimeAvailable(): boolean {
-  return Boolean(getElectronBridge()?.computer);
 }

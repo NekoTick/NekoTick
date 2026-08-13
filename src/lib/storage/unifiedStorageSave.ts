@@ -174,7 +174,6 @@ async function performSplitSaveInternal(
       customSystemPrompt: ai.customSystemPrompt || '',
       includeTimeContext: ai.includeTimeContext !== false,
       webSearchEnabled: ai.webSearchEnabled === true,
-      computerUseEnabled: false,
       providerIds: mergedProviderIds,
       deletedSessionIds: mergedSessions.deletedSessionIds,
       deletedProviderIds,

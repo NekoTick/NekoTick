@@ -293,42 +293,7 @@ describe('useChatService session context isolation', () => {
       'session two visible answer',
     ]);
     const assistantMessage = (useUnifiedStore.getState().data.ai?.messages['session-2'] || []).at(-1);
-    expect(request?.options?.computerUseApprovalContext).toEqual({
-      sessionId: 'session-2',
-      messageId: assistantMessage?.id,
-    });
     expect(JSON.stringify(request?.history)).not.toContain('session one private');
-  });
-
-  it('scopes edited-message computer-use approvals to the new assistant reply', async () => {
-    const { result } = renderHook(() => useChatService());
-
-    await act(async () => {
-      await result.current.editMessage('s2-user', 'edited prompt');
-    });
-    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
-
-    const request = vi.mocked(sendMessageWithEndpointFallback).mock.calls[0]?.[0];
-    const assistantMessage = (useUnifiedStore.getState().data.ai?.messages['session-2'] || []).at(-1);
-    expect(request?.options?.computerUseApprovalContext).toEqual({
-      sessionId: 'session-2',
-      messageId: assistantMessage?.id,
-    });
-  });
-
-  it('scopes regenerated-message computer-use approvals to the regenerated reply', async () => {
-    const { result } = renderHook(() => useChatService());
-
-    await act(async () => {
-      await result.current.regenerate('s2-assistant');
-    });
-    await waitFor(() => expect(sendMessageWithEndpointFallback).toHaveBeenCalledTimes(1));
-
-    const request = vi.mocked(sendMessageWithEndpointFallback).mock.calls[0]?.[0];
-    expect(request?.options?.computerUseApprovalContext).toEqual({
-      sessionId: 'session-2',
-      messageId: 's2-assistant',
-    });
   });
 
   it('hydrates rich history context when editing a later user message', async () => {

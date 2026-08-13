@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { useFileTreePointerDragState } from '@/components/Notes/features/FileTree/hooks/fileTreePointerDragState';
 import { actions as aiActions } from '@/stores/useAIStore';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
@@ -19,9 +19,6 @@ import { useChatInputFocus } from './hooks/useChatInputFocus';
 import { useChatInputRecall } from './hooks/useChatInputRecall';
 import { useNoteMentions } from './hooks/useNoteMentions';
 import { getWebSearchAvailability } from './webSearchAvailability';
-import { isComputerUseRuntimeAvailable } from '@/lib/electron/bridge';
-import { isStandaloneImageGenerationModel } from '@/lib/ai/modelCapabilities';
-import { ComputerUseEnableDialog } from '@/components/Chat/features/ComputerUse/ComputerUseEnableDialog';
 
 export const ChatInput = memo(function ChatInput({
   active = true,
@@ -39,37 +36,15 @@ export const ChatInput = memo(function ChatInput({
   acceptNotesBlockDrop = false,
 }: ChatInputProps) {
   const lastSubmittedMessageRef = useRef('');
-  const [showComputerUseEnableDialog, setShowComputerUseEnableDialog] = useState(false);
   const isFileTreeDragActive = useFileTreePointerDragState((state) => state.activeSourcePath !== null);
   const getDisplayName = useNotesStore((state) => state.getDisplayName);
   const webSearchEnabled = useUnifiedStore((state) => state.data.ai?.webSearchEnabled === true);
   const webSearchAvailable = useUnifiedStore((state) => getWebSearchAvailability(state.data.ai));
-  const computerUseEnabled = useUnifiedStore((state) => state.data.ai?.computerUseEnabled === true);
-  const computerUseModelAvailable = useUnifiedStore((state) => {
-    const ai = state.data.ai;
-    const model = ai?.models.find((item) => item.id === ai.selectedModelId);
-    return model ? !isStandaloneImageGenerationModel(model) : undefined;
-  });
-  const computerUseRuntimeAvailable = isComputerUseRuntimeAvailable();
-  const computerUseAvailable = computerUseRuntimeAvailable && computerUseModelAvailable !== false;
-  useEffect(() => {
-    if (!active) {
-      setShowComputerUseEnableDialog(false);
-    }
-  }, [active]);
   useEffect(() => {
     if (webSearchEnabled && webSearchAvailable === false) {
       aiActions.setWebSearchEnabled(false);
     }
   }, [webSearchAvailable, webSearchEnabled]);
-  useEffect(() => {
-    if (
-      computerUseEnabled
-      && (!computerUseRuntimeAvailable || computerUseModelAvailable === false)
-    ) {
-      aiActions.setComputerUseEnabled(false);
-    }
-  }, [computerUseEnabled, computerUseModelAvailable, computerUseRuntimeAvailable]);
   const isQuotaSendBlocked = hasSelectedModel && isManagedQuotaExhausted;
   const {
     attachments,
@@ -291,16 +266,7 @@ export const ChatInput = memo(function ChatInput({
   const handleToggleWebSearch = useCallback(() => {
     aiActions.setWebSearchEnabled(!webSearchEnabled);
   }, [webSearchEnabled]);
-  const handleRequestEnableComputerUse = useCallback(() => {
-    setShowComputerUseEnableDialog(true);
-  }, []);
-  const handleDisableComputerUse = useCallback(() => {
-    aiActions.setComputerUseEnabled(false);
-    if (isLoading) onStop();
-  }, [isLoading, onStop]);
-
   return (
-    <>
       <ChatInputComposerFrame
       active={active}
       activeCandidatePath={activeCandidatePath}
@@ -345,27 +311,11 @@ export const ChatInput = memo(function ChatInput({
       onSend={handleSendAction}
       onTextareaScroll={(e) => setTextareaScrollTop(e.currentTarget.scrollTop)}
       onToggleWebSearch={handleToggleWebSearch}
-      computerUseAvailable={computerUseAvailable}
-      computerUseEnabled={computerUseAvailable && computerUseEnabled}
-      onRequestEnableComputerUse={handleRequestEnableComputerUse}
-      onDisableComputerUse={handleDisableComputerUse}
       showMentionPicker={showMentionPicker}
-      showComputerCommandApproval={active}
-      sessionId={sessionId}
       textareaRef={textareaRef}
       textareaScrollTop={textareaScrollTop}
       webSearchEnabled={webSearchEnabled}
       webSearchAvailable={webSearchAvailable}
       />
-      <ComputerUseEnableDialog
-        isOpen={active && showComputerUseEnableDialog}
-        onClose={() => setShowComputerUseEnableDialog(false)}
-        onConfirm={() => {
-          aiActions.setComputerUseEnabled(true);
-          setShowComputerUseEnableDialog(false);
-        }}
-        onRequestComposerFocus={scheduleComposerFocus}
-      />
-    </>
   );
 });

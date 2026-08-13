@@ -10,8 +10,6 @@ import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
 import { extractThinkingSections } from '@/components/Chat/features/Layout/chatAssistantMarkdownParsing';
 import { WebSearchStatusBlock } from '@/components/Chat/features/WebSearch/WebSearchStatusBlock';
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
-import { extractComputerCommandStatuses } from '@/lib/ai/computerUse/transcript';
-import { ComputerCommandStatusBlock } from '@/components/Chat/features/ComputerUse/ComputerCommandStatusBlock';
 
 interface ChatImageGalleryItem {
   id: string;
@@ -113,10 +111,6 @@ export function AIMessage({
     : null;
   const hasCompletedThinking = Boolean(thinkingSections?.body) && thinkingSections?.isComplete === true;
   const isStreamingContentVisible = isLoading && contentWithoutError.trim().length > 0 && !hasCompletedThinking;
-  const computerCommandStatuses = useMemo(() => extractComputerCommandStatuses(
-    msg.apiTranscript ?? msg.versions?.[msg.currentVersionIndex]?.apiTranscript,
-    isLoading,
-  ), [isLoading, msg.apiTranscript, msg.currentVersionIndex, msg.versions]);
   const isEmptyCompletedResponse = !isLoading && contentWithoutThinking.length === 0;
   const visibleContent = contentWithoutError || ' ';
   const isManagedAuthErrorMessage = errorType === 'AUTH_ERROR'
@@ -161,7 +155,7 @@ export function AIMessage({
   if (
     shouldHideManagedAuthError &&
     contentWithoutThinking.length === 0 &&
-    computerCommandStatuses.length === 0
+    contentWithoutThinking.length === 0
   ) {
     return null;
   }
@@ -172,10 +166,6 @@ export function AIMessage({
             <WebSearchStatusBlock
                 statuses={webSearchStatuses}
                 isWaitingForAnswer={isLoading && contentWithoutThinking.length === 0}
-            />
-            <ComputerCommandStatusBlock
-                isLoading={isLoading}
-                statuses={computerCommandStatuses}
             />
             <LazyMarkdownRenderer
                 content={visibleContent}

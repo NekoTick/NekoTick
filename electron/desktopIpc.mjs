@@ -3,7 +3,6 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { registerDesktopAiProviderIpc } from './desktopAiProviderIpc.mjs';
-import { registerDesktopCommandIpc } from './desktopCommandIpc.mjs';
 import { getBase64DecodedByteLength } from './desktopAiProviderRequest.mjs';
 import { registerDesktopDialogIpc } from './desktopDialogIpc.mjs';
 import { openPathInFileManager, revealItemInFolder } from './desktopFileManager.mjs';
@@ -107,18 +106,6 @@ export function registerDesktopIpc({
   });
 
   registerDesktopAiProviderIpc({ fetchImpl, handleIpc });
-
-  registerDesktopCommandIpc({
-    app: activeApp,
-    handleIpc,
-    requireSafeIpcRequestId: (value, label) => {
-      const normalized = requireNonEmptyString(value, label);
-      if (!/^[A-Za-z0-9._:-]{1,160}$/.test(normalized)) {
-        throw new Error(`${label} must contain only safe channel characters.`);
-      }
-      return normalized;
-    },
-  });
 
   handleIpc('desktop:drag-drop:authorize-path', async (_event, filePath) => {
     const resolvedPath = await assertSafeFsAccessPath(filePath);

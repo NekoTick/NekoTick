@@ -46,7 +46,6 @@ const sessionsFile = JSON.stringify({
     customSystemPrompt: '',
     includeTimeContext: true,
     webSearchEnabled: false,
-    computerUseEnabled: false,
     providerIds: ['provider-1'],
     deletedSessionIds: [],
     deletedProviderIds: [],

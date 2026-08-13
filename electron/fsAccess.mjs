@@ -1,8 +1,6 @@
 import {
   isProtectedAppDataPath,
   isProtectedCodexConfigPath,
-  isProtectedDesktopCommandWorkspacePath,
-  isProtectedDesktopCommandWorkspaceRealPath,
   isProtectedFsAccessPath,
   isProtectedGitMetadataPath,
   isUserDataFsAccessPath,
@@ -29,8 +27,6 @@ export {
   isAuthorizedFsWatchPathKey,
   isProtectedAppDataPath,
   isProtectedCodexConfigPath,
-  isProtectedDesktopCommandWorkspacePath,
-  isProtectedDesktopCommandWorkspaceRealPath,
   isProtectedGitMetadataPath,
   MAX_AUTHORIZED_FS_PATH_CHARS,
   MAX_AUTHORIZED_FS_PATH_ENTRIES,
