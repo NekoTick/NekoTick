@@ -1,8 +1,19 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { ChatSidebarRow } from './ChatSidebarPrimitives';
+import { ChatSidebarHoverEmptyHint, ChatSidebarRow } from './ChatSidebarPrimitives';
 
 describe('ChatSidebarPrimitives', () => {
+  it('centers the empty hint within its sidebar positioning container', () => {
+    render(<ChatSidebarHoverEmptyHint title="No conversations" />);
+
+    expect(screen.getByText('No conversations').parentElement).toHaveClass(
+      'absolute',
+      'inset-0',
+      'items-center',
+      'justify-center',
+    );
+  });
+
   it('keeps inactive action fades transparent while the row is hovered', () => {
     render(
       <ChatSidebarRow

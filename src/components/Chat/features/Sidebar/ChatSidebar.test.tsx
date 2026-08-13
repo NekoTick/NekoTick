@@ -261,6 +261,14 @@ describe('ChatSidebar', () => {
     expect(hoisted.topActionsProps.at(-1)?.showAppViewModeSwitch).toBe(false);
   });
 
+  it('gives the empty-state positioning container the full scroll-area height', () => {
+    hoisted.sessions = [];
+
+    render(<ChatSidebar embedded />);
+
+    expect(screen.getByTestId('empty-hint').parentElement).toHaveClass('relative', 'h-full');
+  });
+
   it('uses arrow key selection when submitting chat search results', async () => {
     hoisted.chatSidebarSearchOpen = true;
     hoisted.sessions = [
