@@ -334,7 +334,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
   it('keeps the static stroke list stable while a selection moves', () => {
     const staticStroke = { ...stroke, id: 'stroke-static' };
     const strokes = [stroke, staticStroke];
-    const movePreview = { dx: 4, dy: 6 };
+    const movePreview = { dx: 4, dy: 6, elementIds: [], strokeIds: [stroke.id] };
     const selectedStrokeIds = [stroke.id];
     const renderData = createRenderData([], strokes, { selectedStrokeIds });
     const { rerender } = render(
@@ -362,7 +362,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
   });
 
   it('keeps a fully moving visible stroke set in the primary layer', () => {
-    const movePreview = { dx: 4, dy: 6 };
+    const movePreview = { dx: 4, dy: 6, elementIds: [], strokeIds: [stroke.id] };
     const { rerender } = render(
       <WhiteboardCanvasLayer
         {...baseProps}
@@ -399,7 +399,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
       x: index * 60, y: 0,
     }));
     const selectedElementIds = ['image-999'];
-    const movePreview = { dx: 4, dy: 6 };
+    const movePreview = { dx: 4, dy: 6, elementIds: selectedElementIds, strokeIds: [] };
     const renderData = createRenderData(elements, emptyStrokes, { selectedElementIds });
     const { rerender } = render(
       <WhiteboardCanvasLayer

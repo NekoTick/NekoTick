@@ -121,6 +121,12 @@ This repository also uses package-manager dependencies listed in
 Those packages retain their own licenses and notices as distributed with their
 package metadata and license files.
 
+The Board AutoDraw feature specifically uses `lucide-react` outline geometry
+(ISC, Copyright (c) 2026 Lucide Icons and Contributors) for its local object
+catalog and `points-on-path` (MIT, Copyright (c) 2020 Preet) for local SVG
+outline sampling. It does not use or redistribute Google AutoDraw's recognition
+service, model, or drawing assets.
+
 Before publishing installers or source archives, verify that the generated
 artifact includes the required license files/notices for bundled dependencies.
 

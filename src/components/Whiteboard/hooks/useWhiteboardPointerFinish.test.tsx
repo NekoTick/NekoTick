@@ -5,7 +5,7 @@ import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 import { useWhiteboardPointerFinish } from './useWhiteboardPointerFinish';
 
 describe('useWhiteboardPointerFinish', () => {
-  it('converts auto shape input without switching away from the tool', () => {
+  it('applies a recognized auto shape on pointer up and selects it', () => {
     const points = [
       ...Array.from({ length: 18 }, (_, index) => ({ pressure: 0.5, x: index * 10, y: 0 })),
       ...Array.from({ length: 12 }, (_, index) => ({ pressure: 0.5, x: 180, y: index * 10 })),
@@ -15,11 +15,45 @@ describe('useWhiteboardPointerFinish', () => {
     ];
     const draft = { color: '#111111', id: 'shape-1', points, size: 1, tool: 'pen' as const };
     const setStrokes = vi.fn();
+    const setSelectedStrokeIds = vi.fn();
+    const setTool = vi.fn();
+    const onAutoDrawStrokeCommit = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: { kind: 'draw-autoshape' }, elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => draft), pushHistory: vi.fn(),
+      onAutoDrawStrokeCommit,
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds, setStrokes, setTool,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef: { current: 1 }, strokes: [], viewportZoom: 1,
+    }));
+
+    act(() => result.current({ pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    const update = setStrokes.mock.calls[0][0] as (current: typeof draft[]) => typeof draft[];
+    expect(update([])[0]).toMatchObject({ autoShape: 'rectangle', id: 'shape-1', tool: 'line' });
+    expect(onAutoDrawStrokeCommit).not.toHaveBeenCalled();
+    expect(setSelectedStrokeIds).toHaveBeenCalledWith(['shape-1']);
+    expect(setTool).toHaveBeenCalledWith('select');
+  });
+
+  it('keeps unrecognized auto shape input available for object suggestions', () => {
+    const draft = {
+      color: '#111111', id: 'object-sketch',
+      points: Array.from({ length: 20 }, (_, index) => ({
+        pressure: 0.5,
+        x: index * 10,
+        y: Math.sin(index / 2) * 40,
+      })),
+      size: 1, tool: 'pen' as const,
+    };
+    const onAutoDrawStrokeCommit = vi.fn();
+    const setStrokes = vi.fn();
     const setTool = vi.fn();
     const { result } = renderHook(() => useWhiteboardPointerFinish({
       activePenPointerRef: { current: null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
       dragState: { kind: 'draw-autoshape' }, elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
       getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => draft), pushHistory: vi.fn(),
+      onAutoDrawStrokeCommit,
       setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes, setTool,
       spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef: { current: 1 }, strokes: [], viewportZoom: 1,
     }));
@@ -27,7 +61,8 @@ describe('useWhiteboardPointerFinish', () => {
     act(() => result.current({ pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
 
     const update = setStrokes.mock.calls[0][0] as (current: typeof draft[]) => typeof draft[];
-    expect(update([])[0]).toMatchObject({ autoShape: 'rectangle', tool: 'line' });
+    expect(update([])[0]).toMatchObject({ id: 'object-sketch', tool: 'pen' });
+    expect(onAutoDrawStrokeCommit).toHaveBeenCalledWith(expect.objectContaining({ id: 'object-sketch', tool: 'pen' }));
     expect(setTool).not.toHaveBeenCalled();
   });
 

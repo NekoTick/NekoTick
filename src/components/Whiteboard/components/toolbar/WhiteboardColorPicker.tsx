@@ -11,6 +11,7 @@ import { WhiteboardDockSlot, whiteboardFloatingPanelClassName } from './Whiteboa
 interface WhiteboardColorPickerProps {
   color: string;
   onChange: (color: string) => void;
+  onPreviewChange?: (color: string) => void;
   onOpen?: () => void;
   onClose?: () => void;
   swatches: readonly string[];
@@ -20,7 +21,7 @@ type EyeDropperWindow = Window & {
   EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> };
 };
 
-export function WhiteboardColorPicker({ color, onChange, onClose, onOpen, swatches }: WhiteboardColorPickerProps) {
+export function WhiteboardColorPicker({ color, onChange, onPreviewChange, onClose, onOpen, swatches }: WhiteboardColorPickerProps) {
   const { t } = useI18n();
   const initialRgb = hexToRgb(color) ?? { r: 39, g: 39, b: 42 };
   const [open, setOpen] = useState(false);
@@ -30,8 +31,21 @@ export function WhiteboardColorPicker({ color, onChange, onClose, onOpen, swatch
   const nativeColorInputRef = useRef<HTMLInputElement>(null);
   const colorPickingCleanupRef = useRef<(() => void) | null>(null);
   const colorPickingRequestRef = useRef(0);
+  const previewStartedRef = useRef(false);
   const rgb = hsvToRgb(hsv);
   const resolvedHex = rgbToHex(rgb);
+
+  useEffect(() => {
+    if (!open) {
+      previewStartedRef.current = false;
+      return;
+    }
+    if (!previewStartedRef.current) {
+      previewStartedRef.current = true;
+      return;
+    }
+    onPreviewChange?.(resolvedHex);
+  }, [onPreviewChange, open, resolvedHex]);
 
   const resetDraft = () => {
     const nextRgb = hexToRgb(color) ?? initialRgb;

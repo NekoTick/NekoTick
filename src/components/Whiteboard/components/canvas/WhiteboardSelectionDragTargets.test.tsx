@@ -45,7 +45,7 @@ describe('WhiteboardSelectionDragTargets performance boundaries', () => {
     const { container, rerender } = render(
       <svg>
         <WhiteboardSelectionDragTargets
-          movePreview={{ dx: 4, dy: 6 }}
+          movePreview={{ dx: 4, dy: 6, elementIds: [], strokeIds: strokes.map((stroke) => stroke.id) }}
           onPointerDown={onPointerDown}
           strokes={strokes}
         />
@@ -56,7 +56,7 @@ describe('WhiteboardSelectionDragTargets performance boundaries', () => {
     rerender(
       <svg>
         <WhiteboardSelectionDragTargets
-          movePreview={{ dx: 12, dy: 6 }}
+          movePreview={{ dx: 12, dy: 6, elementIds: [], strokeIds: strokes.map((stroke) => stroke.id) }}
           onPointerDown={onPointerDown}
           strokes={strokes}
         />

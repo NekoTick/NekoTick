@@ -164,6 +164,24 @@ describe('whiteboard export appearance', () => {
     expect(svg).toContain(`stroke-width="${themeWhiteboardTokens.autoShapeStrokeWidthPx}"`);
   });
 
+  it('exports AutoDraw icons as editable vector outlines', async () => {
+    const root = document.createElement('div');
+    root.style.setProperty('--vlaina-bg-primary', '#ffffff');
+    const blob = await createWhiteboardExportBlob({
+      elements: [{
+        autoDrawIcon: 'house', color: '#1e96eb', height: 120, id: 'house',
+        rotation: Math.PI / 2, text: 'House', type: 'icon', width: 140, x: 10, y: 20,
+      }],
+      paper: 'blank', root, strokes: [],
+    }, 'svg');
+    const svg = await blob?.text();
+
+    expect(svg).toContain('data-whiteboard-autodraw-icon="house"');
+    expect(svg).toContain(`stroke-width="${themeWhiteboardTokens.autoShapeStrokeWidthPx * themeWhiteboardTokens.autoDrawIconViewBoxSizePx / Math.sqrt(140 * 120)}"`);
+    expect(svg).toContain('rotate(90)');
+    expect(svg).toContain('stroke="#1e96eb"');
+  });
+
   it('exports strokes above images like the live canvas', async () => {
     const root = document.createElement('div');
     root.style.setProperty('--vlaina-bg-primary', '#ffffff');

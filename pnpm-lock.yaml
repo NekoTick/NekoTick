@@ -240,6 +240,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      points-on-path:
+        specifier: ^0.2.1
+        version: 0.2.1
       postcss:
         specifier: 8.5.26
         version: 8.5.26

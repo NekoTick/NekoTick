@@ -78,36 +78,42 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
 }: WhiteboardContentLayerProps) {
   const { elements, selectedElementIds, selectedStrokeIds, spatialIndex, strokes } = renderData;
   const renderSelection = tool === 'select';
-  const preparedSelectionGeometry = renderData.selectionGeometry;
+  const previewSelectedElementIds = movePreview?.elementIds ?? selectedElementIds;
+  const previewSelectedStrokeIds = movePreview?.strokeIds ?? selectedStrokeIds;
+  const preparedSelectionGeometry = movePreview
+    && (!haveSameIds(previewSelectedElementIds, selectedElementIds)
+      || !haveSameIds(previewSelectedStrokeIds, selectedStrokeIds))
+    ? null
+    : renderData.selectionGeometry;
   const selectedElementIdSet = useMemo(
-    () => createIdLookup(selectedElementIds, elements, spatialIndex.elementOrder),
-    [elements, selectedElementIds, spatialIndex.elementOrder],
+    () => createIdLookup(previewSelectedElementIds, elements, spatialIndex.elementOrder),
+    [elements, previewSelectedElementIds, spatialIndex.elementOrder],
   );
   const elementIndex = useMemo(() => (
     !renderSelection
       ? null
       : spatialIndex.allElements === elements
       ? spatialIndex.elementOrder
-      : selectedElementIds.length > 0 ? createItemIndex(elements) : null
-  ), [elements, renderSelection, selectedElementIds.length, spatialIndex]);
+      : previewSelectedElementIds.length > 0 ? createItemIndex(elements) : null
+  ), [elements, previewSelectedElementIds.length, renderSelection, spatialIndex]);
   const strokeIndex = useMemo(() => (
     !renderSelection
       ? null
       : spatialIndex.allStrokes === strokes
       ? spatialIndex.strokeOrder
-      : selectedStrokeIds.length > 0 ? createItemIndex(strokes) : null
-  ), [renderSelection, selectedStrokeIds.length, spatialIndex, strokes]);
+      : previewSelectedStrokeIds.length > 0 ? createItemIndex(strokes) : null
+  ), [previewSelectedStrokeIds.length, renderSelection, spatialIndex, strokes]);
   const selectedElements = useMemo(
     () => renderSelection && !preparedSelectionGeometry && elementIndex
-      ? getWhiteboardIndexedItems(elements, elementIndex, selectedElementIds)
+      ? getWhiteboardIndexedItems(elements, elementIndex, previewSelectedElementIds)
       : [],
-    [elements, elementIndex, preparedSelectionGeometry, renderSelection, selectedElementIds],
+    [elements, elementIndex, preparedSelectionGeometry, previewSelectedElementIds, renderSelection],
   );
   const selectedStrokes = useMemo(
     () => renderSelection && !preparedSelectionGeometry && strokeIndex
-      ? getWhiteboardIndexedItems(strokes, strokeIndex, selectedStrokeIds)
+      ? getWhiteboardIndexedItems(strokes, strokeIndex, previewSelectedStrokeIds)
       : [],
-    [preparedSelectionGeometry, renderSelection, selectedStrokeIds, strokes, strokeIndex],
+    [preparedSelectionGeometry, previewSelectedStrokeIds, renderSelection, strokes, strokeIndex],
   );
   const selectionRenderData = useMemo(
     () => new WhiteboardSelectionRenderData(
@@ -118,8 +124,8 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
     [preparedSelectionGeometry, renderSelection, selectedElements, selectedStrokes],
   );
   const erasingElementIdSet = useMemo(() => new Set(erasingElementIds), [erasingElementIds]);
-  const movingElementIds = movePreview ? selectedElementIds : EMPTY_IDS;
-  const movingStrokeIds = movePreview ? selectedStrokeIds : EMPTY_IDS;
+  const movingElementIds = movePreview?.elementIds ?? EMPTY_IDS;
+  const movingStrokeIds = movePreview?.strokeIds ?? EMPTY_IDS;
   const movingElementIdSet = useMemo(
     () => createIdLookup(movingElementIds, elements, spatialIndex.elementOrder),
     [elements, movingElementIds, spatialIndex.elementOrder],
@@ -311,6 +317,10 @@ function useStableItemArray<T>(items: T[]): T[] {
 
 function createItemIndex<T extends { id: string }>(items: T[]): Map<string, number> {
   return new Map(items.map((item, order) => [item.id, order]));
+}
+
+function haveSameIds(first: string[], second: string[]): boolean {
+  return first.length === second.length && first.every((id, index) => id === second[index]);
 }
 
 function createIdLookup<T extends { id: string }>(

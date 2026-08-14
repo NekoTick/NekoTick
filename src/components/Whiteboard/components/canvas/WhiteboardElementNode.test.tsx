@@ -15,6 +15,23 @@ const image = {
 };
 
 describe('WhiteboardElementNode', () => {
+  it('renders a transformed AutoDraw icon as vector content', () => {
+    const { container } = render(<WhiteboardElementNode
+      element={{
+        autoDrawIcon: 'house', color: '#1e96eb', flipX: true, height: 120,
+        id: 'house', text: 'House', type: 'icon', width: 140, x: 10, y: 20,
+      }}
+      selected={false}
+      showSelectionBorder={false}
+      tool="select"
+      onPointerDown={vi.fn()}
+    />);
+
+    expect(container.querySelector('[data-whiteboard-autodraw-icon="house"]')).not.toBeNull();
+    expect(container.querySelector('[data-whiteboard-autodraw-icon="house"] path')).not.toHaveAttribute('vector-effect');
+    expect(container.querySelector('[data-whiteboard-autodraw-icon="house"]')?.parentElement).toHaveStyle({ transform: 'scale(-1, 1)' });
+  });
+
   it('renders an imported image without a bottom-right resize control', () => {
     render(<WhiteboardElementNode element={image} selected showSelectionBorder tool="select" onPointerDown={vi.fn()} />);
     expect(screen.getByRole('img', { name: 'demo.png' })).toBeInTheDocument();

@@ -32,6 +32,7 @@ interface WhiteboardPointerFinishOptions {
   flushResizeDrags: () => void;
   getBoardPoint: (clientX: number, clientY: number) => WhiteboardPoint;
   getDraftStroke: () => WhiteboardStroke | null;
+  onAutoDrawStrokeCommit?: (stroke: WhiteboardStroke) => void;
   prepareMoveCommit?: (state: Extract<WhiteboardDragState, { kind: 'move-elements' | 'move-strokes' }>, point: WhiteboardPoint) => boolean;
   prepareResizeCommit?: (state: Extract<WhiteboardDragState, { kind: 'resize-selection' }>, bounds: ReturnType<typeof getResizedSelectionBounds>) => boolean;
   pushHistory: () => void;
@@ -60,6 +61,7 @@ export function useWhiteboardPointerFinish({
   flushResizeDrags,
   getBoardPoint,
   getDraftStroke,
+  onAutoDrawStrokeCommit,
   prepareMoveCommit,
   prepareResizeCommit,
   pushHistory,
@@ -103,6 +105,15 @@ export function useWhiteboardPointerFinish({
     if (event?.type !== 'pointercancel' && drawing && commitDraft && finalizedDraft) {
       pushHistory();
       setStrokes((current) => appendWhiteboardItems(current, [{ ...finalizedDraft }]));
+      if (dragState?.kind === 'draw-autoshape') {
+        if (finalizedDraft.tool === 'pen') {
+          onAutoDrawStrokeCommit?.(finalizedDraft);
+        } else {
+          setSelectedElementIds([]);
+          setSelectedStrokeIds([finalizedDraft.id]);
+          setTool?.('select');
+        }
+      }
       if (dragState?.kind === 'draw-linear') {
         setSelectedElementIds([]);
         setSelectedStrokeIds([finalizedDraft.id]);
@@ -232,7 +243,7 @@ export function useWhiteboardPointerFinish({
   }, [
     activePenPointerRef, applyFinalDrawSample, clearDraftStroke, deletePointer, dragState,
     cancelPendingLinearPoint, cancelPendingSelectionRotation, elements, finishEraserGesture, flushResizeDrags, getBoardPoint,
-    getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory, setDragState, setElements, setSelectedElementIds,
+    getDraftStroke, onAutoDrawStrokeCommit, prepareMoveCommit, prepareResizeCommit, pushHistory, setDragState, setElements, setSelectedElementIds,
     setSelectedStrokeIds, setStrokes, setTool, strokeIdRef, strokes,
     spatialIndex,
     viewportZoom,

@@ -94,6 +94,19 @@ describe('whiteboard document format', () => {
     expect(restored?.strokes).toEqual(strokes);
   });
 
+  it('round-trips a commercially licensed AutoDraw icon reference', () => {
+    const icon: WhiteboardSnapshot['elements'][number] = {
+      autoDrawIcon: 'house', color: '#1e96eb', height: 120, id: 'house',
+      text: 'House', type: 'icon', width: 140, x: 10, y: 20,
+    };
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      elements: [icon], strokes: [], viewport: WHITEBOARD_INITIAL_VIEWPORT,
+    }));
+
+    expect(restored?.elements).toEqual([icon]);
+  });
+
   it.each([
     'triangle', 'rectangle', 'diamond', 'parallelogram', 'trapezoid',
     'pentagon', 'hexagon', 'octagon', 'ellipse', 'star', 'cross',
