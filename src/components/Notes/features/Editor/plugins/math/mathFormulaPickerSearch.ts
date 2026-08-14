@@ -28,16 +28,13 @@ const SEARCH_ALIASES_BY_CATEGORY: Record<string, string> = {
 
 const COMPACT_SEARCH_CHARACTERS = /[\s\\{}_[\](),;:+\-]/g;
 
-function getSearchTerms(query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-  const simplifiedQuery = normalizedQuery.replace(/(?:公式|符号)/g, ' ').trim();
-  return (simplifiedQuery || normalizedQuery).split(/\s+/).filter(Boolean);
+interface MathFormulaSearchIndexEntry {
+  entry: (typeof mathFormulaItems)[number];
+  haystack: string;
+  compactHaystack: string;
 }
 
-function matchesSearch(
-  entry: (typeof mathFormulaItems)[number],
-  terms: string[],
-) {
+const mathFormulaSearchIndex: MathFormulaSearchIndexEntry[] = mathFormulaItems.map((entry) => {
   const haystack = [
     entry.latex,
     entry.preview ?? '',
@@ -47,15 +44,36 @@ function matchesSearch(
     entry.group.nameZh,
     SEARCH_ALIASES_BY_CATEGORY[entry.category.id] ?? '',
   ].join(' ').toLowerCase();
-  const compactHaystack = haystack.replace(COMPACT_SEARCH_CHARACTERS, '');
-  return terms.every((term) => (
-    haystack.includes(term) || compactHaystack.includes(term.replace(COMPACT_SEARCH_CHARACTERS, ''))
+  return {
+    entry,
+    haystack,
+    compactHaystack: haystack.replace(COMPACT_SEARCH_CHARACTERS, ''),
+  };
+});
+
+function getSearchTerms(query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const simplifiedQuery = normalizedQuery.replace(/(?:公式|符号)/g, ' ').trim();
+  return (simplifiedQuery || normalizedQuery).split(/\s+/).filter(Boolean).map((term) => ({
+    term,
+    compactTerm: term.replace(COMPACT_SEARCH_CHARACTERS, ''),
+  }));
+}
+
+function matchesSearch(
+  indexEntry: MathFormulaSearchIndexEntry,
+  terms: ReturnType<typeof getSearchTerms>,
+) {
+  return terms.every(({ term, compactTerm }) => (
+    indexEntry.haystack.includes(term) || indexEntry.compactHaystack.includes(compactTerm)
   ));
 }
 
 export function searchMathFormulaItems(query: string) {
   const terms = getSearchTerms(query);
   return terms.length
-    ? mathFormulaItems.filter((entry) => matchesSearch(entry, terms))
+    ? mathFormulaSearchIndex
+      .filter((indexEntry) => matchesSearch(indexEntry, terms))
+      .map((indexEntry) => indexEntry.entry)
     : [];
 }

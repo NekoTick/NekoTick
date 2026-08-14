@@ -34,6 +34,7 @@ export function createTextEditorViewSession<
     onOutsideCloseIntent,
     refs,
     popupClassName,
+    popupLayout = 'anchored',
     placeholder,
     getEditorState,
     getStateRenderKey,
@@ -47,6 +48,7 @@ export function createTextEditorViewSession<
     preferStatePositionOnInitialRender,
     scrollPopupIntoViewOnInitialRender,
     constrainTextareaHeightToViewport = true,
+    resizeTextareaToContent = true,
     configurePopup,
     previewInput,
     previewInputDebounceMs = themeUiFeedbackTokens.editorTextEditorLivePreviewDebounceMs,
@@ -54,12 +56,14 @@ export function createTextEditorViewSession<
     cancelSession,
     saveSession,
   } = args;
+  const isViewportCentered = popupLayout === 'viewport-centered';
   let editorElement: HTMLElement | null = null;
+  let popupCleanup: (() => void) | null = null;
   let renderedKey: string | null = null;
   let isComposing = false;
   const scrollRoot = getScrollRoot(editorView);
   const contentRoot = editorView.dom.closest('[data-note-content-root="true"]') as HTMLElement | null;
-  const positionRoot = contentRoot ?? scrollRoot;
+  const positionRoot = isViewportCentered ? null : contentRoot ?? scrollRoot;
   const outsideMouseDownSuppression = createTextEditorOutsideMouseDownSuppression();
   const previewScheduler = createTextEditorPreviewScheduler(previewInput, previewInputDebounceMs);
   const textareaResizeController = createTextEditorTextareaResizeController({
@@ -86,6 +90,8 @@ export function createTextEditorViewSession<
   };
 
   const clearEditorElements = () => {
+    popupCleanup?.();
+    popupCleanup = null;
     if (editorElement) {
       editorElement.remove();
     }
@@ -115,7 +121,11 @@ export function createTextEditorViewSession<
       return;
     }
 
-    if (editorElement && !editorElement.contains(event.target as Node)) {
+    const target = event.target as Node;
+    const isOutside = editorElement && (
+      !editorElement.contains(target) || (isViewportCentered && target === editorElement)
+    );
+    if (isOutside) {
       if (isComposing) {
         return;
       }
@@ -136,6 +146,12 @@ export function createTextEditorViewSession<
     useStatePosition?: boolean;
   }) => {
     if (!editorElement) {
+      return;
+    }
+
+    if (isViewportCentered) {
+      textareaResizeController.clear();
+      anchorResizeTracker.update();
       return;
     }
 
@@ -190,7 +206,7 @@ export function createTextEditorViewSession<
 
     editorElement = document.createElement('div');
     editorElement.className = popupClassName;
-    editorElement.style.position = positionRoot ? 'absolute' : 'fixed';
+    editorElement.style.position = isViewportCentered || !positionRoot ? 'fixed' : 'absolute';
     editorElement.style.zIndex = themeDomStyleTokens.zIndexTextEditorPopup;
     (positionRoot ?? document.body).appendChild(editorElement);
     return editorElement;
@@ -198,15 +214,19 @@ export function createTextEditorViewSession<
 
   const renderEditor = (state: TState) => {
     const container = ensureEditorElement();
+    popupCleanup?.();
+    popupCleanup = null;
     const value = getValue(state);
     setInitialValue(refs, value);
     setDraftValue(refs, value);
 
-    const { textarea } = mountTextEditorPopup({
+    const { textarea, cleanup } = mountTextEditorPopup({
       container,
       value,
       placeholder,
-      onResizeRequest: textareaResizeController.schedule,
+      onResizeRequest: resizeTextareaToContent
+        ? textareaResizeController.schedule
+        : () => undefined,
       onInput(nextValue) {
         markEditorUserInput(editorView);
         setDraftValue(refs, nextValue);
@@ -245,6 +265,7 @@ export function createTextEditorViewSession<
       configurePopup,
     });
 
+    popupCleanup = cleanup ?? null;
     refs.textareaElement = textarea;
     renderedKey = getStateRenderKey(state);
     outsideMouseDownSuppression.schedule();

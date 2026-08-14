@@ -38,8 +38,11 @@ type PopupMetrics = {
 };
 
 type RectMetrics = {
+  bottom: number;
+  height: number;
   left: number;
   right: number;
+  top: number;
   width: number;
 };
 
@@ -55,14 +58,34 @@ function expectPopupToMatchBody(metrics: PopupMetrics, label: string) {
     .toBeLessThanOrEqual(1);
 }
 
+function expectMathPopupToMatchSearchStyle(
+  viewport: { width: number; height: number },
+  metrics: PopupMetrics,
+) {
+  expect(metrics.card, 'math popup card metrics').not.toBeNull();
+
+  const card = metrics.card!;
+  expect(card.width).toBe(1080);
+  expect(card.height).toBe(760);
+  expect(card.left).toBe(Math.round((viewport.width - card.width) / 2));
+  expect(card.top).toBe(Math.round((viewport.height - card.height) / 2));
+  expect(metrics.popup?.left).toBe(0);
+  expect(metrics.popup?.right).toBe(viewport.width);
+  expect(metrics.popup?.top).toBe(0);
+  expect(metrics.popup?.bottom).toBe(viewport.height);
+}
+
 async function collectPopupMetrics(page: Page, popupSelector: string): Promise<PopupMetrics> {
   return page.evaluate(({ editorSelector, selector }) => {
     const toRect = (element: Element | null): RectMetrics | null => {
       if (!(element instanceof HTMLElement)) return null;
       const rect = element.getBoundingClientRect();
       return {
+        bottom: Math.round(rect.bottom),
+        height: Math.round(rect.height),
         left: Math.round(rect.left),
         right: Math.round(rect.right),
+        top: Math.round(rect.top),
         width: Math.round(rect.width),
       };
     };
@@ -73,8 +96,11 @@ async function collectPopupMetrics(page: Page, popupSelector: string): Promise<P
       const paddingLeft = Number.parseFloat(style.paddingLeft || '0') || 0;
       const paddingRight = Number.parseFloat(style.paddingRight || '0') || 0;
       return {
+        bottom: Math.round(rect.bottom),
+        height: Math.round(rect.height),
         left: Math.round(rect.left + paddingLeft),
         right: Math.round(rect.right - paddingRight),
+        top: Math.round(rect.top),
         width: Math.round(Math.max(0, rect.width - paddingLeft - paddingRight)),
       };
     };
@@ -125,8 +151,23 @@ async function openAndMeasurePopup(page: Page, blockSelector: string, popupSelec
   return collectPopupMetrics(page, popupSelector);
 }
 
+async function expectPreviewSubmenuReachable(page: Page, groupIndex: number, itemCount: number) {
+  const group = page.locator('.editor-preview-context-menu-group').nth(groupIndex);
+  await group.locator(':scope > .editor-preview-context-menu-parent').hover();
+  const submenu = group.locator(':scope > .editor-preview-context-submenu');
+  await expect(submenu).toBeVisible();
+  await expect(submenu.locator(':scope > .slash-menu-item')).toHaveCount(itemCount);
+
+  const isReachable = await submenu.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return hit instanceof Element && element.contains(hit);
+  });
+  expect(isReachable).toBe(true);
+}
+
 test.describe('notes math and Mermaid popup sizing', () => {
-  test('keeps text editor popups aligned to the readable note body under a Typora theme', async () => {
+  test('uses the search-style formula layout and keeps Mermaid aligned to the note body', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-text-editor-popup-sizing');
 
     try {
@@ -148,7 +189,49 @@ test.describe('notes math and Mermaid popup sizing', () => {
         '.math-editor-popup',
       );
       console.info('[notes-popup-sizing-math]', mathMetrics);
-      expectPopupToMatchBody(mathMetrics, 'math');
+      expectMathPopupToMatchSearchStyle({ width: 1280, height: 860 }, mathMetrics);
+      const mathBackdropFilter = await page.locator('.math-formula-editor-popup').evaluate(
+        (popup) => getComputedStyle(popup).backdropFilter,
+      );
+      expect(mathBackdropFilter).toBe('none');
+
+      const categoryContentIsClipped = await page.locator('.math-formula-picker-category').evaluateAll(
+        (categories) => categories.some((category) => {
+          const formula = category.querySelector<HTMLElement>('.math-formula-picker-category-formula');
+          const name = category.querySelector<HTMLElement>('.math-formula-picker-category-name');
+          return category.scrollWidth > category.clientWidth
+            || category.scrollHeight > category.clientHeight
+            || Boolean(formula && formula.scrollHeight > formula.clientHeight)
+            || Boolean(name && (name.scrollWidth > name.clientWidth || name.scrollHeight > name.clientHeight));
+        }),
+      );
+      expect(categoryContentIsClipped).toBe(false);
+
+      const categoryLayoutShifted = await page.locator('.math-formula-picker-category').first().evaluate(
+        async (category) => {
+          category.dispatchEvent(new MouseEvent('mouseenter'));
+          const results = document.querySelector('.math-formula-picker-results');
+          if (!(results instanceof HTMLElement)) return true;
+          const readItemRects = () => Array.from(
+            results.querySelectorAll('.math-formula-picker-item'),
+            (item) => {
+              const rect = item.getBoundingClientRect();
+              return [rect.x, rect.y, rect.width, rect.height];
+            },
+          );
+          const initialRects = readItemRects();
+          for (let frame = 0; frame < 6; frame += 1) {
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+            const currentRects = readItemRects();
+            if (currentRects.length !== initialRects.length) return true;
+            if (currentRects.some((rect, index) => rect.some(
+              (value, part) => Math.abs(value - initialRects[index][part]) > 0.5,
+            ))) return true;
+          }
+          return false;
+        },
+      );
+      expect(categoryLayoutShifted).toBe(false);
 
       await page.keyboard.press('Escape');
       await expect(page.locator('.math-editor-popup')).toHaveCount(0);
@@ -160,6 +243,19 @@ test.describe('notes math and Mermaid popup sizing', () => {
       );
       console.info('[notes-popup-sizing-mermaid]', mermaidMetrics);
       expectPopupToMatchBody(mermaidMetrics, 'mermaid');
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.mermaid-editor-popup')).toHaveCount(0);
+
+      const mathBlock = page.locator(`${EDITOR_SELECTOR} div[data-type="math-block"]`).first();
+      await mathBlock.click({ button: 'right' });
+      const contextMenu = page.locator('.editor-preview-context-menu');
+      await expect(contextMenu).toBeVisible();
+      await expect(contextMenu.locator(':scope > .editor-preview-context-menu-group')).toHaveCount(2);
+      expect(await contextMenu.evaluate((menu) => getComputedStyle(menu).contain)).toBe('none');
+      await expectPreviewSubmenuReachable(page, 0, 3);
+      await expectPreviewSubmenuReachable(page, 1, 2);
+      await page.keyboard.press('Escape');
+      await expect(contextMenu).toHaveCount(0);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

@@ -1,4 +1,4 @@
-import { translate } from '@/lib/i18n';
+import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import type { TextEditorPopupElements } from '../shared/textEditorPopupDom';
 import {
   mathFormulaCategories,
@@ -12,40 +12,17 @@ import {
 import {
   createMathFormulaPickerButton,
   createMathFormulaSearchIcon,
-  renderMathFormulaPickerFormula,
+  createMathFormulaSearchResults,
+  renderMathFormulaPickerCategories,
 } from './mathFormulaPickerDom';
+import {
+  insertMathFormulaSnippet,
+  jumpToMathFormulaPlaceholder,
+} from './mathFormulaPickerInput';
+import { createMathFormulaPickerRenderer } from './mathFormulaPickerRenderer';
 import { searchMathFormulaItems } from './mathFormulaPickerSearch';
 
-export function insertMathFormulaSnippet(textarea: HTMLTextAreaElement, snippet: string) {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const selected = textarea.value.slice(start, end);
-  const inserted = selected && snippet.includes('{}')
-    ? snippet.replace('{}', `{${selected}}`)
-    : snippet;
-
-  textarea.setRangeText(inserted, start, end, 'end');
-  const firstPlaceholder = inserted.indexOf('{}');
-  const cursor = firstPlaceholder >= 0
-    ? start + firstPlaceholder + 1
-    : start + inserted.length;
-  textarea.setSelectionRange(cursor, cursor);
-  textarea.focus();
-}
-
-function jumpToPlaceholder(textarea: HTMLTextAreaElement, backwards: boolean) {
-  const cursor = textarea.selectionStart;
-  const placeholders = Array.from(textarea.value.matchAll(/\{\s*\}/g), (match) => ({
-    start: match.index,
-    end: match.index + match[0].length,
-  }));
-  const target = backwards
-    ? placeholders.filter((placeholder) => placeholder.end < cursor).at(-1)
-    : placeholders.find((placeholder) => placeholder.start >= cursor);
-  if (!target) return false;
-  textarea.setSelectionRange(target.start + 1, target.end - 1);
-  return true;
-}
+export { insertMathFormulaSnippet } from './mathFormulaPickerInput';
 
 export function configureMathFormulaPicker(
   elements: TextEditorPopupElements,
@@ -53,37 +30,22 @@ export function configureMathFormulaPicker(
 ) {
   const { content, textarea } = elements;
   const copy = getMathFormulaPickerCopy();
-  let mode: MathFormulaCategory['kind'] = 'symbol';
-  let activeCategoryId = mathFormulaCategories.find((category) => category.kind === mode)?.id ?? '';
+  let activeCategoryId = mathFormulaCategories[0]?.id ?? '';
+  let hoverCloseTimer: ReturnType<typeof setTimeout> | undefined;
+  const formulaItemsByButton = new WeakMap<HTMLElement, MathFormulaItem>();
+  const categoryPanels = new Map<string, HTMLElement>();
+  let searchRenderFrame: number | undefined;
+  let categoryWarmupIdle: number | undefined;
 
   const workspace = document.createElement('section');
   workspace.className = 'math-formula-picker';
-  workspace.setAttribute('aria-label', translate('editor.slash.equation'));
+  workspace.setAttribute('aria-label', 'LaTeX');
 
-  const header = document.createElement('div');
-  header.className = 'math-formula-picker-header';
-  const heading = document.createElement('span');
-  heading.className = 'math-formula-picker-heading';
-  heading.textContent = translate('editor.slash.equation');
-  const modes = document.createElement('div');
-  modes.className = 'math-formula-picker-modes';
-  modes.setAttribute('role', 'tablist');
-  const symbolMode = createMathFormulaPickerButton('math-formula-picker-mode', copy.symbols);
-  const templateMode = createMathFormulaPickerButton('math-formula-picker-mode', copy.templates);
-  symbolMode.textContent = copy.symbols;
-  templateMode.textContent = copy.templates;
-  symbolMode.setAttribute('role', 'tab');
-  templateMode.setAttribute('role', 'tab');
-  modes.append(symbolMode, templateMode);
-  header.append(heading, modes);
-
-  const searchRow = document.createElement('div');
-  searchRow.className = 'math-formula-picker-search-row';
-  const searchTrigger = createMathFormulaPickerButton('math-formula-picker-search-trigger', copy.search);
-  searchTrigger.append(createMathFormulaSearchIcon());
   const searchField = document.createElement('div');
   searchField.className = 'math-formula-picker-search-field';
-  searchField.hidden = true;
+  const heading = document.createElement('span');
+  heading.className = 'math-formula-picker-heading';
+  heading.textContent = 'LaTeX';
   searchField.append(createMathFormulaSearchIcon());
   const search = document.createElement('input');
   search.className = 'math-formula-picker-search-input';
@@ -91,10 +53,14 @@ export function configureMathFormulaPicker(
   search.autocomplete = 'off';
   search.placeholder = copy.search;
   search.setAttribute('aria-label', copy.search);
-  const searchClose = createMathFormulaPickerButton('math-formula-picker-search-close', copy.closeSearch);
-  searchClose.textContent = '\u00d7';
-  searchField.append(search, searchClose);
-  searchRow.append(searchTrigger, searchField);
+  searchField.append(search);
+  const header = document.createElement('header');
+  header.className = 'math-formula-picker-header';
+  header.append(heading, searchField);
+
+  const shortcuts = document.createElement('section');
+  shortcuts.className = 'math-formula-picker-shortcuts';
+  shortcuts.setAttribute('aria-label', copy.categories);
 
   const categories = document.createElement('div');
   categories.className = 'math-formula-picker-categories';
@@ -102,6 +68,8 @@ export function configureMathFormulaPicker(
 
   const results = document.createElement('div');
   results.className = 'math-formula-picker-results';
+  results.hidden = true;
+  shortcuts.append(categories);
 
   const tools = document.createElement('div');
   tools.className = 'math-formula-picker-tools';
@@ -111,35 +79,96 @@ export function configureMathFormulaPicker(
   lineBreakButton.textContent = copy.insertLineBreak;
   tools.append(clearButton, lineBreakButton);
 
+  const editorGrid = document.createElement('div');
+  editorGrid.className = 'math-formula-picker-editor-grid';
+  const inputPane = document.createElement('section');
+  inputPane.className = 'math-formula-picker-pane';
+  const inputLabel = document.createElement('h2');
+  inputLabel.className = 'math-formula-picker-pane-label';
+  inputLabel.textContent = copy.input;
+  inputPane.append(inputLabel, textarea, tools);
+  const previewPane = document.createElement('section');
+  previewPane.className = 'math-formula-picker-pane math-formula-picker-preview-pane';
+  const previewLabel = document.createElement('h2');
+  previewLabel.className = 'math-formula-picker-pane-label';
+  previewLabel.textContent = copy.preview;
+  const preview = document.createElement('div');
+  preview.className = 'math-formula-picker-preview';
+  preview.setAttribute('aria-live', 'polite');
+  previewPane.append(previewLabel, preview);
+  editorGrid.append(inputPane, previewPane);
+
+  const formulaRenderer = createMathFormulaPickerRenderer({
+    results,
+    preview,
+    getPreviewLatex: () => textarea.value,
+  });
+
+  const cancelSearchRender = () => {
+    if (searchRenderFrame !== undefined) cancelAnimationFrame(searchRenderFrame);
+    searchRenderFrame = undefined;
+  };
+
+  const syncCategoryState = () => {
+    categories.querySelectorAll<HTMLButtonElement>('.math-formula-picker-category')
+      .forEach((button) => {
+        const isActive = !results.hidden && !search.value.trim()
+          && button.dataset.categoryId === activeCategoryId;
+        button.dataset.active = String(isActive);
+        button.setAttribute('aria-expanded', String(isActive));
+      });
+  };
+
+  const cancelHoverClose = () => {
+    clearTimeout(hoverCloseTimer);
+  };
+
+  const closeResults = () => {
+    cancelHoverClose();
+    cancelSearchRender();
+    formulaRenderer.reset();
+    results.hidden = true;
+    syncCategoryState();
+  };
+
+  const scheduleHoverClose = () => {
+    if (search.value.trim()) return;
+    cancelHoverClose();
+    hoverCloseTimer = setTimeout(
+      closeResults,
+      themeUiFeedbackTokens.mathFormulaPickerHoverCloseDelayMs,
+    );
+  };
+
   const insertFormula = (formula: MathFormulaItem) => {
     insertMathFormulaSnippet(textarea, formula.latex);
+    search.value = '';
+    closeResults();
+    formulaRenderer.schedulePreview();
     notifyInput();
   };
 
-  const renderItems = (formulaItems: MathFormulaItem[]) => {
-    results.dataset.layout = 'grid';
-    results.replaceChildren();
-    if (!formulaItems.length) {
-      const empty = document.createElement('p');
-      empty.className = 'math-formula-picker-empty';
-      empty.textContent = copy.noResults;
-      results.append(empty);
-      return;
-    }
-    formulaItems.forEach((formula) => {
-      const button = createMathFormulaPickerButton('math-formula-picker-item', formula.latex);
-      renderMathFormulaPickerFormula(button, formula.preview ?? formula.latex);
-      button.addEventListener('click', () => insertFormula(formula));
-      results.append(button);
-    });
+  results.addEventListener('click', (event) => {
+    const button = (event.target as Element).closest<HTMLElement>('.math-formula-picker-item');
+    const formula = button ? formulaItemsByButton.get(button) : undefined;
+    if (formula) insertFormula(formula);
+  });
+
+  const createFormulaButton = (formula: MathFormulaItem) => {
+    const button = createMathFormulaPickerButton('math-formula-picker-item', formula.latex);
+    button.textContent = formula.preview ?? formula.latex;
+    formulaItemsByButton.set(button, formula);
+    formulaRenderer.prepareButton(button, formula.preview ?? formula.latex);
+    return button;
   };
 
-  const renderActiveCategory = () => {
-    const active = mathFormulaCategories.find((category) => category.id === activeCategoryId);
-    if (!active) return;
-    results.dataset.layout = 'groups';
-    results.replaceChildren();
-    active.groups.forEach((formulaGroup) => {
+  const getCategoryPanel = (category: MathFormulaCategory) => {
+    let panel = categoryPanels.get(category.id);
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.className = 'math-formula-picker-category-panel';
+    const fragment = document.createDocumentFragment();
+    category.groups.forEach((formulaGroup) => {
       const section = document.createElement('section');
       section.className = 'math-formula-picker-group';
       const label = document.createElement('h3');
@@ -147,93 +176,124 @@ export function configureMathFormulaPicker(
       label.textContent = localizeMathFormulaName(formulaGroup);
       const grid = document.createElement('div');
       grid.className = 'math-formula-picker-grid';
-      formulaGroup.items.forEach((formula) => {
-        const button = createMathFormulaPickerButton('math-formula-picker-item', formula.latex);
-        renderMathFormulaPickerFormula(button, formula.preview ?? formula.latex);
-        button.addEventListener('click', () => insertFormula(formula));
-        grid.append(button);
-      });
+      formulaGroup.items.forEach((formula) => grid.append(createFormulaButton(formula)));
       section.append(label, grid);
-      results.append(section);
+      fragment.append(section);
     });
+    panel.append(fragment);
+    categoryPanels.set(category.id, panel);
+    return panel;
   };
 
-  const renderCategories = () => {
-    categories.replaceChildren();
-    mathFormulaCategories.filter((category) => category.kind === mode).forEach((category) => {
-      const button = createMathFormulaPickerButton('math-formula-picker-category', localizeMathFormulaName(category));
-      button.dataset.active = String(category.id === activeCategoryId);
-      const formula = document.createElement('span');
-      formula.className = 'math-formula-picker-category-formula';
-      renderMathFormulaPickerFormula(formula, category.label);
-      const name = document.createElement('span');
-      name.className = 'math-formula-picker-category-name';
-      name.textContent = localizeMathFormulaName(category);
-      button.append(formula, name);
-      button.addEventListener('click', () => {
-        activeCategoryId = category.id;
-        search.value = '';
-        renderCategories();
-        renderActiveCategory();
-      });
-      categories.append(button);
-    });
-    symbolMode.setAttribute('aria-selected', String(mode === 'symbol'));
-    templateMode.setAttribute('aria-selected', String(mode === 'template'));
+  const renderItems = (formulaItems: MathFormulaItem[]) => {
+    results.hidden = true;
+    formulaRenderer.reset();
+    categories.append(results);
+    results.dataset.layout = 'grid';
+    delete results.dataset.formulaKind;
+    delete results.dataset.categoryId;
+    results.replaceChildren();
+    if (!formulaItems.length) {
+      const empty = document.createElement('p');
+      empty.className = 'math-formula-picker-empty';
+      empty.textContent = copy.noResults;
+      results.append(empty);
+    } else {
+      results.append(createMathFormulaSearchResults(formulaItems, createFormulaButton));
+      formulaRenderer.observeUnrendered(results);
+    }
+    results.hidden = false;
+    syncCategoryState();
   };
 
-  const setMode = (nextMode: MathFormulaCategory['kind']) => {
-    mode = nextMode;
-    activeCategoryId = mathFormulaCategories.find((category) => category.kind === mode)?.id ?? '';
-    search.value = '';
-    renderCategories();
-    renderActiveCategory();
+  const renderActiveCategory = () => {
+    const active = mathFormulaCategories.find((category) => category.id === activeCategoryId);
+    if (!active) return;
+    if (!results.hidden && results.dataset.categoryId === active.id && !search.value.trim()) return;
+    results.hidden = true;
+    formulaRenderer.reset();
+    const activeButton = categories.querySelector<HTMLElement>(`[data-category-id="${active.id}"]`);
+    activeButton?.closest('.math-formula-picker-category-row')?.after(results);
+    results.dataset.layout = 'groups';
+    results.dataset.categoryId = active.id;
+    results.dataset.formulaKind = active.kind;
+    const panel = getCategoryPanel(active);
+    formulaRenderer.renderAllNow(panel);
+    results.replaceChildren(panel);
+    results.hidden = false;
+    syncCategoryState();
   };
 
-  symbolMode.addEventListener('click', () => setMode('symbol'));
-  templateMode.addEventListener('click', () => setMode('template'));
-  searchTrigger.addEventListener('click', () => {
-    searchField.hidden = false;
-    searchTrigger.hidden = true;
-    search.focus();
-  });
-  searchClose.addEventListener('click', () => {
-    search.value = '';
-    searchField.hidden = true;
-    searchTrigger.hidden = false;
-    renderActiveCategory();
-    searchTrigger.focus();
-  });
+  categories.addEventListener('mouseleave', scheduleHoverClose);
+  results.addEventListener('mouseenter', cancelHoverClose);
+  results.addEventListener('mouseleave', scheduleHoverClose);
+
   search.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     event.preventDefault();
     event.stopPropagation();
-    searchClose.click();
+    search.value = '';
+    closeResults();
+    textarea.focus();
   });
   search.addEventListener('input', () => {
     if (!search.value.trim()) {
-      renderActiveCategory();
+      cancelSearchRender();
+      closeResults();
       return;
     }
-    renderItems(searchMathFormulaItems(search.value));
+    if (searchRenderFrame !== undefined) return;
+    searchRenderFrame = requestAnimationFrame(() => {
+      searchRenderFrame = undefined;
+      const query = search.value.trim();
+      if (query) renderItems(searchMathFormulaItems(query));
+    });
   });
   clearButton.addEventListener('click', () => {
     textarea.value = '';
     textarea.focus();
+    formulaRenderer.schedulePreview();
     notifyInput();
   });
   lineBreakButton.addEventListener('click', () => insertFormula({ latex: '\\\\\n' }));
   textarea.addEventListener('keydown', (event) => {
     if (event.key !== 'Tab') return;
     event.preventDefault();
-    if (!jumpToPlaceholder(textarea, event.shiftKey)) {
+    if (!jumpToMathFormulaPlaceholder(textarea, event.shiftKey)) {
       insertMathFormulaSnippet(textarea, '  ');
+      formulaRenderer.schedulePreview();
       notifyInput();
     }
   });
+  textarea.addEventListener('focus', closeResults);
+  textarea.addEventListener('input', formulaRenderer.schedulePreview);
 
-  workspace.append(textarea, tools, header, searchRow, categories, results);
+  workspace.append(header, shortcuts, editorGrid);
   content.prepend(workspace);
-  renderCategories();
-  renderActiveCategory();
+  renderMathFormulaPickerCategories({
+    categories,
+    results,
+    onOpen(categoryId) {
+      cancelHoverClose();
+      cancelSearchRender();
+      activeCategoryId = categoryId;
+      search.value = '';
+      renderActiveCategory();
+    },
+  });
+  formulaRenderer.renderPreviewNow();
+  const warmupCategory = mathFormulaCategories[0];
+  if (warmupCategory && typeof window.requestIdleCallback === 'function') {
+    categoryWarmupIdle = window.requestIdleCallback(() => {
+      categoryWarmupIdle = undefined;
+      formulaRenderer.renderAllNow(getCategoryPanel(warmupCategory));
+    });
+  }
+
+  return () => {
+    cancelHoverClose();
+    cancelSearchRender();
+    if (categoryWarmupIdle !== undefined) window.cancelIdleCallback(categoryWarmupIdle);
+    formulaRenderer.destroy();
+  };
 }

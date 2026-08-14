@@ -1,12 +1,11 @@
 export interface MathFormulaPickerCopy {
   categories: string;
   clear: string;
-  closeSearch: string;
+  input: string;
   insertLineBreak: string;
   noResults: string;
+  preview: string;
   search: string;
-  symbols: string;
-  templates: string;
 }
 
 export function getMathFormulaPickerCopy(): MathFormulaPickerCopy {
@@ -15,22 +14,20 @@ export function getMathFormulaPickerCopy(): MathFormulaPickerCopy {
     ? {
         categories: '公式分类',
         clear: '清空',
-        closeSearch: '关闭搜索',
+        input: '输入',
         insertLineBreak: '换行',
         noResults: '没有匹配的公式',
+        preview: '渲染',
         search: '搜索符号、公式或 LaTeX 命令',
-        symbols: '符号',
-        templates: '公式模板',
       }
     : {
         categories: 'Formula categories',
         clear: 'Clear',
-        closeSearch: 'Close search',
+        input: 'Input',
         insertLineBreak: 'New line',
         noResults: 'No matching formulas',
+        preview: 'Preview',
         search: 'Search symbols, formulas, or LaTeX commands',
-        symbols: 'Symbols',
-        templates: 'Templates',
       };
 }
 
