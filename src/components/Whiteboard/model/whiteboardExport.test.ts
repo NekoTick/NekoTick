@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { configureNativeFileShare } from '@/lib/nativeFileShare';
+import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { createWhiteboardExportBlob, exportWhiteboard } from './whiteboardExport';
 
 describe('whiteboard export appearance', () => {
@@ -33,6 +34,58 @@ describe('whiteboard export appearance', () => {
     } finally {
       root.remove();
     }
+  });
+
+  it('exports flipped image orientation', async () => {
+    const root = document.createElement('div');
+    root.style.setProperty('--vlaina-bg-primary', '#ffffff');
+    const blob = await createWhiteboardExportBlob({
+      elements: [{
+        flipY: true, height: 80, id: 'image-1', imageSrc: 'data:image/png;base64,demo',
+        text: 'demo.png', type: 'image', width: 100, x: 0, y: 0,
+      }],
+      paper: 'blank',
+      root,
+      strokes: [],
+    }, 'svg');
+
+    expect(await blob?.text()).toContain('scale(1 -1)');
+  });
+
+  it('exports image rotation around its center', async () => {
+    const root = document.createElement('div');
+    root.style.setProperty('--vlaina-bg-primary', '#ffffff');
+    const blob = await createWhiteboardExportBlob({
+      elements: [{
+        height: 80, id: 'image-1', imageSrc: 'data:image/png;base64,demo', rotation: Math.PI / 2,
+        text: 'demo.png', type: 'image', width: 100, x: 0, y: 0,
+      }],
+      paper: 'blank',
+      root,
+      strokes: [],
+    }, 'svg');
+
+    expect(await blob?.text()).toContain('rotate(90)');
+  });
+
+  it('exports escaped multiline text with its transform', async () => {
+    const root = document.createElement('div');
+    root.style.setProperty('--vlaina-bg-primary', '#ffffff');
+    const blob = await createWhiteboardExportBlob({
+      elements: [{
+        color: '#1e96eb', flipY: true, fontSize: 24, height: 60, id: 'text-1', lineHeight: 1.25,
+        rotation: Math.PI / 2, text: '<First>\nSecond & third', type: 'text', width: 120, x: 10, y: 20,
+      }],
+      paper: 'blank', root, strokes: [],
+    }, 'svg');
+    const svg = await blob?.text();
+
+    expect(svg).toContain('data-whiteboard-text="true"');
+    expect(svg).toContain('&lt;First&gt;');
+    expect(svg).toContain('Second &amp; third');
+    expect(svg?.match(/<tspan /g)).toHaveLength(2);
+    expect(svg).toContain('rotate(90)');
+    expect(svg).toMatch(/scale\([^ ]+ -/);
   });
 
   it('preserves material-specific brush layers in exported SVG', async () => {
@@ -71,6 +124,44 @@ describe('whiteboard export appearance', () => {
     } finally {
       root.remove();
     }
+  });
+
+  it('exports line and arrow geometry', async () => {
+    const root = document.createElement('div');
+    root.style.setProperty('--vlaina-bg-primary', '#ffffff');
+    const blob = await createWhiteboardExportBlob({
+      elements: [], paper: 'blank', root,
+      strokes: [
+        { color: '#111111', id: 'line', points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }], size: 1, tool: 'line' },
+        { color: '#ef4444', id: 'arrow', points: [{ pressure: 0.5, x: 0, y: 30 }, { pressure: 0.5, x: 100, y: 30 }], size: 1, tool: 'arrow' },
+      ],
+    }, 'svg');
+    const svg = await blob?.text();
+
+    expect(svg).toContain('data-whiteboard-linear="line"');
+    expect(svg).toContain('data-whiteboard-linear="arrow"');
+    expect(svg).toMatch(/data-whiteboard-linear="arrow"[^]*\bC/);
+  });
+
+  it('exports recognized auto shape outlines', async () => {
+    const root = document.createElement('div');
+    root.style.setProperty('--vlaina-bg-primary', '#ffffff');
+    const blob = await createWhiteboardExportBlob({
+      elements: [], paper: 'blank', root,
+      strokes: [{
+        autoShape: 'diamond', color: '#111111', id: 'diamond',
+        points: [
+          { pressure: 0.5, x: 50, y: 0 }, { pressure: 0.5, x: 100, y: 50 },
+          { pressure: 0.5, x: 50, y: 100 }, { pressure: 0.5, x: 0, y: 50 }, { pressure: 0.5, x: 50, y: 0 },
+        ],
+        size: 1, tool: 'line',
+      }],
+    }, 'svg');
+
+    const svg = await blob?.text();
+    expect(svg).toContain('data-whiteboard-linear="line"');
+    expect(svg).toMatch(/data-whiteboard-linear="line"[^]*\bC/);
+    expect(svg).toContain(`stroke-width="${themeWhiteboardTokens.autoShapeStrokeWidthPx}"`);
   });
 
   it('exports strokes above images like the live canvas', async () => {

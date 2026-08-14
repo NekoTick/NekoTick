@@ -4,6 +4,7 @@ import { WhiteboardSelectionOverlay } from './WhiteboardSelectionOverlay';
 import { WhiteboardStrokeLayer } from './WhiteboardStrokeLayer';
 import type {
   WhiteboardElement,
+  WhiteboardPoint,
   WhiteboardStroke,
   WhiteboardTool,
 } from '../../model/whiteboardModel';
@@ -15,7 +16,7 @@ import {
   type WhiteboardResizeHandle,
   type WhiteboardSelectionRect,
 } from '../../model/whiteboardSelection';
-import type { WhiteboardMovePreview, WhiteboardResizePreview } from '../../model/whiteboardInteractions';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
 import { WhiteboardSelectionRenderData, type WhiteboardRenderData } from '../../model/whiteboardRenderData';
 import {
   getWhiteboardResizePreviewItems,
@@ -29,37 +30,51 @@ import {
 } from '../../model/whiteboardEraser';
 import { useWhiteboardStrokeLayerRenderCache } from './useWhiteboardStrokeLayerRenderCache';
 import { isWhiteboardFullSelection } from '../../model/whiteboardCollection';
+import {
+  getWhiteboardRotationPreviewItems,
+  getWhiteboardRotationPreviewTransform,
+} from '../../model/whiteboardRotationPreview';
 
 const EMPTY_IDS: string[] = [];
 
 interface WhiteboardContentLayerProps {
   erasingElementIds: string[];
   erasingStrokeIds: string[];
+  hiddenElementId?: string | null;
   movePreview: WhiteboardMovePreview | null;
   renderData: WhiteboardRenderData;
   resizePreview: WhiteboardResizePreview | null;
+  rotationPreview: WhiteboardRotationPreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
   tool: WhiteboardTool;
   visibleRect: WhiteboardSelectionRect | null;
   onElementPointerDown: (event: PointerEvent<HTMLDivElement>, element: WhiteboardElement) => void;
+  onLinearPointPointerDown: (event: PointerEvent<SVGCircleElement>, strokeId: string, pointIndex: number, midpoint: boolean) => void;
   onSelectionMovePointerDown: (event: PointerEvent<SVGElement>) => void;
   onSelectionResizePointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
+  onSelectionRotationPointerDown: (event: PointerEvent<SVGCircleElement>, center: WhiteboardPoint) => void;
+  zoom: number;
 }
 
 export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
   erasingElementIds,
   erasingStrokeIds,
+  hiddenElementId = null,
   movePreview,
   renderData,
   resizePreview,
+  rotationPreview,
   selectionPath,
   spacePressed,
   tool,
   visibleRect,
   onElementPointerDown,
+  onLinearPointPointerDown,
   onSelectionMovePointerDown,
   onSelectionResizePointerDown,
+  onSelectionRotationPointerDown,
+  zoom,
 }: WhiteboardContentLayerProps) {
   const { elements, selectedElementIds, selectedStrokeIds, spatialIndex, strokes } = renderData;
   const renderSelection = tool === 'select';
@@ -115,6 +130,8 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
   );
   const resizingElementIds = resizePreview?.originalElementsById;
   const resizingStrokeIds = resizePreview?.originalStrokesById;
+  const rotatingElementIds = rotationPreview?.originalElementsById;
+  const rotatingStrokeIds = rotationPreview?.originalStrokesById;
   const visibleCandidates = useMemo(
     () => visibleRect ? getWhiteboardBoundsCandidates(spatialIndex, visibleRect) : null,
     [spatialIndex, visibleRect],
@@ -132,8 +149,8 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
     elements,
     spatialIndex.allElements,
     visibleCandidates?.elements ?? null,
-    (element) => !movingElementIdSet.has(element.id) && !resizingElementIds?.has(element.id) && isVisible(getElementBounds(element), visibleRect),
-  ), [elements, movingElementIdSet, resizingElementIds, spatialIndex.allElements, visibleCandidates, visibleRect]);
+    (element) => element.id !== hiddenElementId && !movingElementIdSet.has(element.id) && !resizingElementIds?.has(element.id) && !rotatingElementIds?.has(element.id) && isVisible(getElementBounds(element), visibleRect),
+  ), [elements, hiddenElementId, movingElementIdSet, resizingElementIds, rotatingElementIds, spatialIndex.allElements, visibleCandidates, visibleRect]);
   const nextMovingElements = useMemo(() => getVisibleItems(
     elements,
     spatialIndex.allElements,
@@ -144,8 +161,8 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
     strokes,
     spatialIndex.allStrokes,
     visibleCandidates?.strokes ?? null,
-    (stroke) => !movingStrokeIdSet.has(stroke.id) && !resizingStrokeIds?.has(stroke.id) && isStrokeVisible(stroke, visibleRect),
-  ), [movingStrokeIdSet, resizingStrokeIds, spatialIndex.allStrokes, strokes, visibleCandidates, visibleRect]);
+    (stroke) => !movingStrokeIdSet.has(stroke.id) && !resizingStrokeIds?.has(stroke.id) && !rotatingStrokeIds?.has(stroke.id) && isStrokeVisible(stroke, visibleRect),
+  ), [movingStrokeIdSet, resizingStrokeIds, rotatingStrokeIds, spatialIndex.allStrokes, strokes, visibleCandidates, visibleRect]);
   const nextMovingStrokes = useMemo(() => getVisibleItems(
     strokes,
     spatialIndex.allStrokes,
@@ -165,10 +182,19 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
   );
   const resizedElements = useStableItemArray(resizedItems.elements);
   const resizedStrokes = useStableItemArray(resizedItems.strokes);
+  const rotatedItems = useMemo(
+    () => rotationPreview
+      ? getWhiteboardRotationPreviewItems(rotationPreview, spatialIndex, visibleRect)
+      : { elements: [], strokes: [] },
+    [rotationPreview, spatialIndex, visibleRect],
+  );
+  const rotatedElements = useStableItemArray(rotatedItems.elements);
+  const rotatedStrokes = useStableItemArray(rotatedItems.strokes);
   const resizeTransform = resizePreview && transformResizePreview
     ? getWhiteboardResizePreviewTransform(resizePreview)
     : undefined;
   const transform = movePreview ? `translate(${movePreview.dx}px, ${movePreview.dy}px)` : undefined;
+  const rotationTransform = rotationPreview ? getWhiteboardRotationPreviewTransform(rotationPreview) : undefined;
   const reusePrimaryElementLayerForResize = Boolean(resizeTransform && staticElements.length === 0 && resizedElements.length > 0);
   const reusePrimaryStrokeLayerForMove = Boolean(movePreview && staticStrokes.length === 0 && movingStrokes.length > 0);
   const reusePrimaryStrokeLayerForResize = Boolean(resizeTransform && staticStrokes.length === 0 && resizedStrokes.length > 0);
@@ -182,8 +208,7 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
   const primaryStrokeTransform = reusePrimaryStrokeLayerForResize
     ? resizeTransform
     : primaryStrokeRender.transform;
-  const selectedItemCount = selectedElementIds.length + selectedStrokeIds.length;
-  const elementProps = { erasingElementIdSet, onElementPointerDown, selectedElementIdSet, selectedItemCount, tool };
+  const elementProps = { erasingElementIdSet, onElementPointerDown, selectedElementIdSet, tool };
 
   return (
     <>
@@ -195,15 +220,49 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
       />
       <WhiteboardElementList {...elementProps} elements={movingElements} moving transform={transform} />
       {!reusePrimaryElementLayerForResize ? <WhiteboardElementList {...elementProps} elements={resizedElements} moving transform={resizeTransform} /> : null}
+      <WhiteboardElementList {...elementProps} elements={rotatedElements} moving transform={rotationTransform} />
       <WhiteboardStrokeLayer progressive cssTransform={primaryStrokeTransform} erasingStrokeIds={erasingStrokeIds} strokes={primaryStrokeRender.strokes} />
       {!reusePrimaryStrokeLayerForMove && movingStrokes.length > 0 ? <WhiteboardStrokeLayer cssTransform={transform} erasingStrokeIds={erasingStrokeIds} strokes={movingStrokes} /> : null}
       {!reusePrimaryStrokeLayerForResize && resizedStrokes.length > 0 ? <WhiteboardStrokeLayer cssTransform={transformResizePreview ? undefined : resizeTransform} erasingStrokeIds={erasingStrokeIds} strokes={resizedStrokes} /> : null}
+      {rotatedStrokes.length > 0 ? <WhiteboardStrokeLayer cssTransform={rotationTransform} erasingStrokeIds={erasingStrokeIds} strokes={rotatedStrokes} /> : null}
       {renderSelection ? (
-        <WhiteboardSelectionOverlay movePreview={movePreview} renderData={selectionRenderData} resizePreviewBounds={resizePreview?.nextBounds ?? null} selectionPath={selectionPath} spacePressed={spacePressed} onSelectionMovePointerDown={onSelectionMovePointerDown} onSelectionResizePointerDown={onSelectionResizePointerDown} />
+        <WhiteboardSelectionOverlay movePreview={movePreview} renderData={selectionRenderData} resizePreview={resizePreview} rotationPreview={rotationPreview} selectionPath={selectionPath} spacePressed={spacePressed} zoom={zoom} onLinearPointPointerDown={onLinearPointPointerDown} onSelectionMovePointerDown={onSelectionMovePointerDown} onSelectionResizePointerDown={onSelectionResizePointerDown} onSelectionRotationPointerDown={onSelectionRotationPointerDown} />
       ) : null}
     </>
   );
-});
+}, areWhiteboardContentLayerPropsEqual);
+
+function areWhiteboardContentLayerPropsEqual(
+  previous: WhiteboardContentLayerProps,
+  next: WhiteboardContentLayerProps,
+): boolean {
+  if (
+    previous.erasingElementIds !== next.erasingElementIds
+    || previous.erasingStrokeIds !== next.erasingStrokeIds
+    || previous.hiddenElementId !== next.hiddenElementId
+    || previous.movePreview !== next.movePreview
+    || previous.renderData !== next.renderData
+    || previous.resizePreview !== next.resizePreview
+    || previous.rotationPreview !== next.rotationPreview
+    || previous.selectionPath !== next.selectionPath
+    || previous.spacePressed !== next.spacePressed
+    || previous.tool !== next.tool
+    || previous.visibleRect !== next.visibleRect
+    || previous.onElementPointerDown !== next.onElementPointerDown
+    || previous.onLinearPointPointerDown !== next.onLinearPointPointerDown
+    || previous.onSelectionMovePointerDown !== next.onSelectionMovePointerDown
+    || previous.onSelectionResizePointerDown !== next.onSelectionResizePointerDown
+    || previous.onSelectionRotationPointerDown !== next.onSelectionRotationPointerDown
+  ) return false;
+  if (previous.zoom === next.zoom) return true;
+  return !hasSelectedLinearStroke(previous.renderData) && !hasSelectedLinearStroke(next.renderData);
+}
+
+function hasSelectedLinearStroke(renderData: WhiteboardRenderData): boolean {
+  if (renderData.selectedStrokeIds.length !== 1) return false;
+  const selected = renderData.strokes.find((stroke) => stroke.id === renderData.selectedStrokeIds[0]);
+  return selected?.tool === 'line' || selected?.tool === 'arrow';
+}
 
 function getVisibleItems<T>(
   items: T[],

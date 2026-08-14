@@ -22,12 +22,17 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
   tool,
   onPointerDown,
 }: WhiteboardElementNodeProps) {
+  const fontSize = element.fontSize ?? themeWhiteboardTokens.whiteboardTextFontSizePx;
+  const lineHeight = element.lineHeight ?? themeWhiteboardTokens.whiteboardTextLineHeight;
   return (
     <div
       data-whiteboard-element="true"
       aria-label={element.text}
       className={cn(
-        'absolute select-none overflow-hidden rounded-[var(--vlaina-radius-8px)] border bg-[var(--vlaina-color-whiteboard-element)] shadow-[var(--vlaina-shadow-whiteboard-element)]',
+        'absolute select-none',
+        element.type === 'image'
+          ? 'overflow-hidden rounded-[var(--vlaina-radius-8px)] border bg-[var(--vlaina-color-whiteboard-element)] shadow-[var(--vlaina-shadow-whiteboard-element)]'
+          : 'border border-transparent bg-transparent shadow-none',
         tool === 'select'
           ? selected
             ? moving ? 'cursor-grabbing' : 'cursor-grab'
@@ -42,12 +47,39 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
         height: element.height,
         left: element.x,
         opacity: erasing ? themeWhiteboardTokens.eraserTargetPreviewOpacity : undefined,
+        rotate: element.rotation ? `${element.rotation}rad` : undefined,
         top: element.y,
         width: element.width,
       }}
     >
       {element.imageSrc ? (
-        <img alt={element.text} draggable={false} src={element.imageSrc} className="size-full object-cover" />
+        <img
+          alt={element.text}
+          draggable={false}
+          src={element.imageSrc}
+          className="size-full object-cover"
+          style={element.flipX || element.flipY
+            ? { transform: `scale(${element.flipX ? -1 : 1}, ${element.flipY ? -1 : 1})` }
+            : undefined}
+        />
+      ) : element.type === 'text' ? (
+        <div
+          dir="auto"
+          data-whiteboard-text="true"
+          className="size-full whitespace-pre"
+          style={{
+            color: element.color,
+            fontFamily: themeWhiteboardTokens.whiteboardTextFontFamily,
+            fontSize,
+            lineHeight,
+            transform: element.flipX || element.flipY
+              ? `scale(${element.flipX ? -1 : 1}, ${element.flipY ? -1 : 1})`
+              : undefined,
+            transformOrigin: themeWhiteboardTokens.elementTransformOrigin,
+          }}
+        >
+          {element.text}
+        </div>
       ) : null}
     </div>
   );

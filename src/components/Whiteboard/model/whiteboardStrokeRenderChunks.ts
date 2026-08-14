@@ -1,4 +1,4 @@
-import type { WhiteboardStroke, WhiteboardStrokePoint } from './whiteboardModel';
+import { isLinearTool, type WhiteboardStroke, type WhiteboardStrokePoint } from './whiteboardModel';
 
 export const WHITEBOARD_STROKE_RENDER_CHUNK_POINTS = 256;
 
@@ -53,6 +53,7 @@ export function getWhiteboardStrokePathNeighbors(
 }
 
 export function getWhiteboardStrokeRenderChunks(stroke: WhiteboardStroke): WhiteboardStroke[] {
+  if (isLinearTool(stroke.tool)) return [stroke];
   const cached = strokeRenderChunkCache.get(stroke.points);
   const sameStyle = cached
     && cached.color === stroke.color

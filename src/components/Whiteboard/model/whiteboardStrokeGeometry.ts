@@ -1,6 +1,7 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   getEraserRadius,
+  isLinearTool,
   type WhiteboardPoint,
   type WhiteboardStroke,
   type WhiteboardStrokePoint,
@@ -11,6 +12,7 @@ import { invalidateWhiteboardStrokeRenderGeometry } from './whiteboardStrokeRend
 import { distanceBetweenSegments, distanceToSegment } from './whiteboardSegmentGeometry';
 import { getSmoothedStrokePoints } from './whiteboardStrokeRenderGeometry';
 import { getOpenStrokePathSamples } from './whiteboardStrokePath';
+import { getWhiteboardLinearSegments } from './whiteboardLinear';
 
 export {
   getCenterStrokePath,
@@ -89,6 +91,12 @@ export function doesEraserSweepTouchStroke(
 ): boolean {
   const radius = getEraserRadius(eraserSize);
   if (!canEraserSweepTouchStroke(stroke, start, end, radius)) return false;
+  if (isLinearTool(stroke.tool)) {
+    const width = getStrokePointMaxWidth(stroke.tool, stroke.points[0], stroke.size);
+    return getWhiteboardLinearSegments(stroke).some(([segmentStart, segmentEnd]) => (
+      distanceBetweenSegments(start, end, segmentStart, segmentEnd) <= radius + width / 2
+    ));
+  }
   const points = getEraserSampledStrokePoints(stroke);
   for (let index = 0; index < points.length; index += 1) {
     const current = points[index];

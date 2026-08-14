@@ -4,6 +4,22 @@ import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 import { useWhiteboardKeyboardShortcuts } from './useWhiteboardKeyboardShortcuts';
 
 describe('useWhiteboardKeyboardShortcuts', () => {
+  it('opens the only selected text with Enter', () => {
+    const editSelectedText = vi.fn(() => true);
+    const spatialIndex = createWhiteboardEraserSpatialIndex([], []);
+    renderHook(() => useWhiteboardKeyboardShortcuts({
+      active: true, editSelectedText, pushHistory: vi.fn(), resizeBrush: vi.fn(), selectAll: vi.fn(),
+      selectedBrushTool: null, selectedElementIds: ['text-1'], selectedStrokeIds: [],
+      setElements: vi.fn(), setStrokes: vi.fn(), setTool: vi.fn(), spatialIndex, viewportZoom: 1,
+    }));
+    const event = new KeyboardEvent('keydown', { cancelable: true, key: 'Enter' });
+
+    act(() => window.dispatchEvent(event));
+
+    expect(editSelectedText).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(true);
+  });
+
   it('nudges a small stroke selection through the spatial order', () => {
     const strokes = Array.from({ length: 1000 }, (_, index) => ({
       color: '#111111',

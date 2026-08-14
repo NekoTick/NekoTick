@@ -26,6 +26,145 @@ function createRenderData(
 }
 
 describe('WhiteboardCanvasLayer', () => {
+  it('shows two endpoints and one insertable midpoint for a selected line', () => {
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData([], [{
+          color: '#111111', id: 'line-1',
+          points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+          size: 1, tool: 'line',
+        }], { selectedStrokeIds: ['line-1'] })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onLinearPointPointerDown={vi.fn()}
+        onSelectionMovePointerDown={vi.fn()} onSelectionResizePointerDown={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll('[data-whiteboard-linear-handle="point"]')).toHaveLength(2);
+    expect(container.querySelectorAll('[data-whiteboard-linear-handle="midpoint"]')).toHaveLength(1);
+    expect(container.querySelector('[data-whiteboard-linear-handle="midpoint"]'))
+      .toHaveAttribute('fill', 'var(--vlaina-color-whiteboard-selected)');
+    expect(container.querySelector('[data-whiteboard-selection-move-target]')).not.toBeNull();
+    expect(container.querySelector('[data-whiteboard-selection-rotation-handle]')).toHaveClass('hover:fill-[var(--vlaina-color-whiteboard-selected)]');
+  });
+  it('shows the Excalidraw transform box and point handles for a multi-point arrow', () => {
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData([], [{
+          color: '#111111', id: 'arrow-1',
+          points: [
+            { pressure: 0.5, x: 0, y: 0 },
+            { pressure: 0.5, x: 50, y: 40 },
+            { pressure: 0.5, x: 100, y: 0 },
+          ],
+          size: 1, tool: 'arrow',
+        }], { selectedStrokeIds: ['arrow-1'] })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onLinearPointPointerDown={vi.fn()}
+        onSelectionRotationPointerDown={vi.fn()}
+        onSelectionMovePointerDown={vi.fn()} onSelectionResizePointerDown={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll('[data-whiteboard-linear-handle="point"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-whiteboard-linear-handle="midpoint"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-whiteboard-selection-resize-handle]')).toHaveLength(8);
+    expect(container.querySelector('[data-whiteboard-selection-rotation-handle]')).not.toBeNull();
+    expect(container.querySelector('[data-whiteboard-selection-move-target]')).not.toBeNull();
+    expect(container.querySelector('rect[stroke="var(--vlaina-color-whiteboard-selected)"][stroke-dasharray="6 5"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-whiteboard-linear-handle="point"][stroke="var(--vlaina-color-whiteboard-linear-handle-stroke)"]')).toHaveLength(3);
+  });
+  it('shows a shared rotation handle for a selected image', () => {
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData([{
+          height: 80, id: 'image-1', text: 'demo.png', type: 'image', width: 100, x: 20, y: 30,
+        }], [], { selectedElementIds: ['image-1'] })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onSelectionMovePointerDown={vi.fn()}
+        onSelectionResizePointerDown={vi.fn()} onSelectionRotationPointerDown={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector('[data-whiteboard-selection-rotation-handle]')).not.toBeNull();
+    expect(container.querySelector('rect[stroke-dasharray="6 5"]')).not.toBeNull();
+  });
+  it('shows only proportional resize handles for a selected text element', () => {
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData([{
+          color: '#111111', fontSize: 24, height: 30, id: 'text-1', lineHeight: 1.25,
+          text: 'Hello', type: 'text', width: 80, x: 20, y: 30,
+        }], [], { selectedElementIds: ['text-1'] })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onSelectionMovePointerDown={vi.fn()}
+        onSelectionResizePointerDown={vi.fn()} onSelectionRotationPointerDown={vi.fn()}
+      />,
+    );
+
+    const handles = Array.from(container.querySelectorAll('[data-whiteboard-selection-resize-handle]'));
+    expect(handles).toHaveLength(4);
+    expect(handles.map((handle) => handle.getAttribute('data-whiteboard-selection-resize-handle')))
+      .toEqual(['nw', 'ne', 'se', 'sw']);
+  });
+  it('keeps a mixed text selection proportional', () => {
+    const elements: WhiteboardElement[] = [
+      {
+        color: '#111111', fontSize: 24, height: 30, id: 'text-1', lineHeight: 1.25,
+        text: 'Hello', type: 'text', width: 80, x: 20, y: 30,
+      },
+      { height: 80, id: 'image-1', text: 'demo.png', type: 'image', width: 100, x: 140, y: 30 },
+    ];
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData(elements, [], { selectedElementIds: elements.map(({ id }) => id) })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onSelectionMovePointerDown={vi.fn()}
+        onSelectionResizePointerDown={vi.fn()} onSelectionRotationPointerDown={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll('[data-whiteboard-selection-resize-handle]')).toHaveLength(4);
+  });
+  it('uses the shared transform box without linear point handles for auto shapes', () => {
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData([], [{
+          autoShape: 'rectangle', color: '#111111', id: 'shape',
+          points: [
+            { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 },
+            { pressure: 0.5, x: 100, y: 80 }, { pressure: 0.5, x: 0, y: 80 }, { pressure: 0.5, x: 0, y: 0 },
+          ],
+          size: 1, tool: 'line',
+        }], { selectedStrokeIds: ['shape'] })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onLinearPointPointerDown={vi.fn()}
+        onSelectionMovePointerDown={vi.fn()} onSelectionResizePointerDown={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelectorAll('[data-whiteboard-linear-handle]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-whiteboard-selection-resize-handle]')).toHaveLength(8);
+    expect(container.querySelector('[data-whiteboard-selection-rotation-handle]')).not.toBeNull();
+  });
   it('keeps a newly committed stroke in the interaction compositor layer', () => {
     const initialStroke = {
       color: '#111111', id: 'stroke-1',
@@ -75,7 +214,6 @@ describe('WhiteboardCanvasLayer', () => {
         brushCursorPoint={null}
         brushCursorSize={1}
         brushCursorTool={null}
-        draftStroke={null}
         eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW}
         movePreview={null}
         renderData={createRenderData([{

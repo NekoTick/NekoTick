@@ -43,4 +43,39 @@ describe('WhiteboardElementNode', () => {
     rerender(<WhiteboardElementNode element={image} selected showSelectionBorder tool="select" onPointerDown={vi.fn()} />);
     expect(screen.getByLabelText('demo.png').style.borderColor).toBe('var(--vlaina-color-whiteboard-selected)');
   });
+
+  it('renders persisted image flips', () => {
+    render(
+      <WhiteboardElementNode element={{ ...image, flipX: true }} selected={false} showSelectionBorder={false} tool="select" onPointerDown={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('img', { name: 'demo.png' })).toHaveStyle({ transform: 'scale(-1, 1)' });
+  });
+
+  it('renders persisted image rotation', () => {
+    render(
+      <WhiteboardElementNode element={{ ...image, rotation: Math.PI / 2 }} selected={false} showSelectionBorder={false} tool="select" onPointerDown={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText('demo.png')).toHaveStyle({ rotate: `${Math.PI / 2}rad` });
+  });
+
+  it('renders text in the handwritten family without stretching it', () => {
+    render(<WhiteboardElementNode
+      element={{
+        color: '#1e96eb', flipX: true, fontSize: 24, height: 60, id: 'text-1', lineHeight: 1.25,
+        text: 'Hello', type: 'text', width: 80, x: 10, y: 20,
+      }}
+      selected={false} showSelectionBorder={false} tool="select" onPointerDown={vi.fn()}
+    />);
+
+    expect(screen.getByText('Hello')).toHaveAttribute('data-whiteboard-text', 'true');
+    expect(screen.getByText('Hello')).toHaveStyle({
+      fontFamily: themeWhiteboardTokens.whiteboardTextFontFamily,
+      fontSize: '24px',
+      transform: 'scale(-1, 1)',
+      transformOrigin: themeWhiteboardTokens.elementTransformOrigin,
+    });
+    expect(screen.getByLabelText('Hello')).toHaveStyle({ height: '60px', width: '80px' });
+  });
 });

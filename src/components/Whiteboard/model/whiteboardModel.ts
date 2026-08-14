@@ -20,13 +20,32 @@ export type WhiteboardTool =
   | 'fountain'
   | 'watercolor'
   | 'crayon'
+  | 'autoshape'
+  | 'line'
+  | 'arrow'
+  | 'text'
   | 'eraser';
-export type WhiteboardElementType = 'image';
+export type WhiteboardElementType = 'image' | 'text';
 export type WhiteboardPaperStyle = 'blank' | 'dots' | 'grid' | 'ruled';
 export type WhiteboardDrawingTool = Extract<WhiteboardTool, 'pen' | 'pencil' | 'marker' | 'colored-pencil' | 'fountain' | 'watercolor' | 'crayon'>;
+export type WhiteboardBrushPanelTool = WhiteboardDrawingTool;
+export type WhiteboardLinearTool = Extract<WhiteboardTool, 'line' | 'arrow'>;
+export type WhiteboardStrokeTool = WhiteboardDrawingTool | WhiteboardLinearTool;
 export type WhiteboardBrushTool = WhiteboardDrawingTool;
-export type WhiteboardBrushColors = Record<WhiteboardDrawingTool, string>;
-export type WhiteboardBrushSizes = Record<WhiteboardBrushTool, number>;
+export type WhiteboardAutoShape =
+  | 'triangle'
+  | 'rectangle'
+  | 'diamond'
+  | 'parallelogram'
+  | 'trapezoid'
+  | 'pentagon'
+  | 'hexagon'
+  | 'octagon'
+  | 'ellipse'
+  | 'star'
+  | 'cross';
+export type WhiteboardBrushColors = Record<WhiteboardStrokeTool, string>;
+export type WhiteboardBrushSizes = Record<WhiteboardStrokeTool, number>;
 
 export interface WhiteboardPoint {
   x: number;
@@ -49,6 +68,10 @@ export interface WhiteboardViewport {
 }
 
 export interface WhiteboardElement {
+  color?: string;
+  flipX?: boolean;
+  flipY?: boolean;
+  fontSize?: number;
   id: string;
   type: WhiteboardElementType;
   x: number;
@@ -57,10 +80,13 @@ export interface WhiteboardElement {
   height: number;
   imageAssetPath?: string;
   imageSrc?: string;
+  rotation?: number;
+  lineHeight?: number;
   text: string;
 }
 
 export interface WhiteboardStroke {
+  autoShape?: WhiteboardAutoShape;
   color: string;
   id: string;
   points: WhiteboardStrokePoint[];
@@ -71,11 +97,11 @@ export interface WhiteboardStroke {
   renderTaperStart?: boolean;
   renderTextureScale?: number;
   size: number;
-  tool: WhiteboardDrawingTool;
+  tool: WhiteboardStrokeTool;
 }
 
-interface WhiteboardToolConfig {
-  id: WhiteboardTool;
+interface WhiteboardToolConfig<T extends WhiteboardTool = WhiteboardTool> {
+  id: T;
   labelKey: MessageKey;
   icon: IconName;
   imageSrc: string;
@@ -94,7 +120,7 @@ export const WHITEBOARD_INITIAL_VIEWPORT: WhiteboardViewport = {
   zoom: themeWhiteboardTokens.defaultZoom,
 };
 
-export const WHITEBOARD_DRAWING_TOOLS: WhiteboardToolConfig[] = [
+export const WHITEBOARD_DRAWING_TOOLS: WhiteboardToolConfig<WhiteboardDrawingTool>[] = [
   { id: 'pen', labelKey: 'whiteboard.tool.pen', icon: 'whiteboard.pen', imageSrc: penImage },
   { id: 'pencil', labelKey: 'whiteboard.tool.pencil', icon: 'whiteboard.pencil', imageSrc: pencilImage },
   { id: 'marker', labelKey: 'whiteboard.tool.marker', icon: 'whiteboard.marker', imageSrc: markerImage },
@@ -163,6 +189,8 @@ export const WHITEBOARD_DEFAULT_BRUSH_SIZES: WhiteboardBrushSizes = {
   fountain: 1,
   watercolor: 1,
   crayon: 1,
+  line: 1,
+  arrow: 1,
 };
 export const WHITEBOARD_DEFAULT_BRUSH_COLORS: WhiteboardBrushColors = {
   pen: themeWhiteboardTokens.brushColorSwatches[6],
@@ -172,6 +200,8 @@ export const WHITEBOARD_DEFAULT_BRUSH_COLORS: WhiteboardBrushColors = {
   fountain: themeWhiteboardTokens.brushColorSwatches[6],
   watercolor: themeWhiteboardTokens.brushColorSwatches[6],
   crayon: themeWhiteboardTokens.brushColorSwatches[6],
+  line: themeWhiteboardTokens.brushColorSwatches[6],
+  arrow: themeWhiteboardTokens.brushColorSwatches[6],
 };
 
 export const WHITEBOARD_DEFAULT_PAPER_STYLE: WhiteboardPaperStyle = 'dots';
@@ -218,8 +248,8 @@ export function resizeWhiteboardElement(
 ): WhiteboardElement {
   return {
     ...element,
-    width: Math.max(themeWhiteboardTokens.minElementWidthPx, Math.round(width)),
-    height: Math.max(themeWhiteboardTokens.minElementHeightPx, Math.round(height)),
+    width: Math.max(themeWhiteboardTokens.minElementWidthPx, Math.round(Math.abs(width))),
+    height: Math.max(themeWhiteboardTokens.minElementHeightPx, Math.round(Math.abs(height))),
   };
 }
 
@@ -227,11 +257,24 @@ export function isDrawingTool(tool: WhiteboardTool): tool is WhiteboardDrawingTo
   return tool === 'pen' || tool === 'pencil' || tool === 'marker' || tool === 'colored-pencil' || tool === 'fountain' || tool === 'watercolor' || tool === 'crayon';
 }
 
+export function isBrushPanelTool(tool: WhiteboardTool): tool is WhiteboardBrushPanelTool {
+  return isDrawingTool(tool);
+}
+
 export function isBrushTool(tool: WhiteboardTool): tool is WhiteboardBrushTool {
   return isDrawingTool(tool);
 }
 
-export function getStrokeWidth(tool: WhiteboardDrawingTool, pressure: number, size = 1): number {
+export function isLinearTool(tool: WhiteboardTool): tool is WhiteboardLinearTool {
+  return tool === 'line' || tool === 'arrow';
+}
+
+export function isStrokeTool(tool: WhiteboardTool): tool is WhiteboardStrokeTool {
+  return isDrawingTool(tool) || isLinearTool(tool);
+}
+
+export function getStrokeWidth(tool: WhiteboardStrokeTool, pressure: number, size = 1): number {
+  if (isLinearTool(tool)) return themeWhiteboardTokens.linearStrokeWidthPx * size;
   const brush = WHITEBOARD_BRUSHES[tool];
   return (brush.baseWidth + brush.pressureWidth * normalizePressure(pressure)) * size;
 }

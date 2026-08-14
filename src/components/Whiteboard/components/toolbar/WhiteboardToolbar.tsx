@@ -5,13 +5,15 @@ import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   WHITEBOARD_DRAWING_TOOLS,
   WHITEBOARD_ERASER_TOOLS,
-  isDrawingTool,
+  isBrushPanelTool,
+  isLinearTool,
   type WhiteboardBrushColors,
   type WhiteboardBrushSizes,
-  type WhiteboardBrushTool,
-  type WhiteboardDrawingTool,
+  type WhiteboardBrushPanelTool,
+  type WhiteboardStrokeTool,
   type WhiteboardTool,
 } from '../../model/whiteboardModel';
+import { WHITEBOARD_LINEAR_TOOLS } from '../../model/whiteboardLinear';
 import { WhiteboardToolPanel, type WhiteboardToolPanelName } from './WhiteboardToolPanel';
 import { WhiteboardColorPicker } from './WhiteboardColorPicker';
 import {
@@ -28,8 +30,8 @@ interface WhiteboardToolbarProps {
   brushSizes: WhiteboardBrushSizes;
   spacePressed: boolean;
   tool: WhiteboardTool;
-  onBrushColorChange: (tool: WhiteboardDrawingTool, color: string) => void;
-  onBrushSizeSelect: (tool: WhiteboardBrushTool, size: number) => void;
+  onBrushColorChange: (tool: WhiteboardStrokeTool, color: string) => void;
+  onBrushSizeSelect: (tool: WhiteboardStrokeTool, size: number) => void;
   onImageAdd: (file: File) => void;
   onToolChange: (tool: WhiteboardTool) => void;
 }
@@ -47,22 +49,27 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
   });
   const [openPanel, setOpenPanel] = useState<WhiteboardToolPanelName | null>(null);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const [lastDrawingTool, setLastDrawingTool] = useState<WhiteboardDrawingTool>('pen');
+  const [lastDrawingTool, setLastDrawingTool] = useState<WhiteboardBrushPanelTool>('pen');
   const [lastEraserTool, setLastEraserTool] = useState<WhiteboardTool>('select');
   const visualTool = props.spacePressed ? 'hand' : props.tool;
-  const drawingActive = isDrawingTool(visualTool);
+  const drawingActive = isBrushPanelTool(visualTool);
+  const linearActive = isLinearTool(visualTool);
+  const autoShapeActive = visualTool === 'autoshape';
+  const textActive = visualTool === 'text';
   const eraserActive = WHITEBOARD_ERASER_TOOLS.some((item) => item.id === visualTool);
   const drawingConfig = WHITEBOARD_DRAWING_TOOLS.find((item) => item.id === (drawingActive ? props.tool : lastDrawingTool))!;
   const eraserConfig = WHITEBOARD_ERASER_TOOLS.find((item) => item.id === (eraserActive ? props.tool : lastEraserTool))!;
-  const drawingTool = drawingConfig.id as WhiteboardDrawingTool;
-  const sizeTool: WhiteboardBrushTool = drawingTool;
+  const drawingTool = drawingConfig.id;
+  const styleTool: WhiteboardStrokeTool = autoShapeActive || textActive
+    ? 'pen'
+    : linearActive ? visualTool : drawingTool;
 
   useEffect(() => {
-    if (isDrawingTool(props.tool)) setLastDrawingTool(props.tool);
+    if (isBrushPanelTool(props.tool)) setLastDrawingTool(props.tool);
     if (WHITEBOARD_ERASER_TOOLS.some((item) => item.id === props.tool)) setLastEraserTool(props.tool);
     setOpenPanel((current) => current && getPanelForTool(props.tool) !== current ? null : current);
-    if (!drawingActive) setColorPickerOpen(false);
-  }, [drawingActive, props.tool]);
+    if (!drawingActive && !linearActive && !autoShapeActive && !textActive) setColorPickerOpen(false);
+  }, [autoShapeActive, drawingActive, linearActive, props.tool, textActive]);
 
   useEffect(() => {
     if (!openPanel) return undefined;
@@ -108,11 +115,11 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
     setOpenPanel(null);
     props.onToolChange(tool);
   };
-  const handleBrushColorChange = (tool: WhiteboardDrawingTool, color: string) => {
+  const handleBrushColorChange = (tool: WhiteboardStrokeTool, color: string) => {
     setOpenPanel(null);
     props.onBrushColorChange(tool, color);
   };
-  const handleBrushSizeSelect = (tool: WhiteboardBrushTool, size: number) => {
+  const handleBrushSizeSelect = (tool: WhiteboardStrokeTool, size: number) => {
     setOpenPanel(null);
     props.onBrushSizeSelect(tool, size);
   };
@@ -153,14 +160,19 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
             <WhiteboardToolbarGroup>
               <span className="mx-0.5 h-[var(--vlaina-size-32px)] w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />
               <WhiteboardToolbarButton dock large partiallyRevealed active={drawingActive} icon={drawingConfig.icon} imageSrc={drawingConfig.imageSrc} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
+              {WHITEBOARD_LINEAR_TOOLS.map((linearTool) => (
+                <WhiteboardToolbarButton key={linearTool.id} dock large active={visualTool === linearTool.id} icon={linearTool.icon} label={t(linearTool.labelKey)} onClick={() => chooseStandaloneTool(linearTool.id)} />
+              ))}
+              <WhiteboardToolbarButton dock large active={autoShapeActive} icon="whiteboard.autoshape" label={t('whiteboard.tool.autoshape')} onClick={() => chooseStandaloneTool('autoshape')} />
+              <WhiteboardToolbarButton dock large active={textActive} icon="whiteboard.text" label={t('whiteboard.tool.text')} onClick={() => chooseStandaloneTool('text')} />
               <WhiteboardToolbarButton dock large icon="whiteboard.image" label={t('whiteboard.addImage')} onClick={handleImageSelect} />
             </WhiteboardToolbarGroup>
-            {drawingActive ? (
+            {drawingActive || linearActive || autoShapeActive || textActive ? (
               <>
                 <ToolbarDivider />
                 <ColorChoices
                   colors={props.brushColors}
-                  tool={drawingTool}
+                  tool={styleTool}
                   onChange={handleBrushColorChange}
                   onOpen={() => { setOpenPanel(null); setColorPickerOpen(true); dock.onPointerLeave(); }}
                   onClose={() => setColorPickerOpen(false)}
@@ -168,7 +180,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
               </>
             ) : null}
             <ToolbarDivider />
-            <SizeChoices sizes={props.brushSizes} tool={sizeTool} onChange={handleBrushSizeSelect} />
+            <SizeChoices sizes={props.brushSizes} tool={styleTool} onChange={handleBrushSizeSelect} />
           </div>
         </div>
       </div>
@@ -179,15 +191,15 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
 });
 
 function getPanelForTool(tool: WhiteboardTool): WhiteboardToolPanelName | null {
-  if (isDrawingTool(tool)) return 'brush';
+  if (isBrushPanelTool(tool)) return 'brush';
   if (WHITEBOARD_ERASER_TOOLS.some((item) => item.id === tool)) return 'eraser';
   return null;
 }
 
 function ColorChoices({ colors, tool, onChange, onClose, onOpen }: {
   colors: WhiteboardBrushColors;
-  tool: WhiteboardDrawingTool;
-  onChange: (tool: WhiteboardDrawingTool, color: string) => void;
+  tool: WhiteboardStrokeTool;
+  onChange: (tool: WhiteboardStrokeTool, color: string) => void;
   onClose: () => void;
   onOpen: () => void;
 }) {
@@ -206,8 +218,8 @@ function ColorChoices({ colors, tool, onChange, onClose, onOpen }: {
 
 function SizeChoices({ sizes, tool, onChange }: {
   sizes: WhiteboardBrushSizes;
-  tool: WhiteboardBrushTool;
-  onChange: (tool: WhiteboardBrushTool, size: number) => void;
+  tool: WhiteboardStrokeTool;
+  onChange: (tool: WhiteboardStrokeTool, size: number) => void;
 }) {
   const { t } = useI18n();
   return (

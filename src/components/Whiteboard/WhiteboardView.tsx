@@ -36,19 +36,24 @@ export function WhiteboardView({
         brushCursorSize={board.brushCursorSize}
         brushCursorTool={board.brushCursorTool}
         draftStroke={board.draftStroke}
+        draftStrokePreview={board.draftStrokePreview}
         eraserPreview={board.eraserPreview}
         isPanning={board.isPanning}
         movePreview={board.movePreview}
         paperStyle={board.paperStyle}
         renderData={board.renderData}
         resizePreview={board.resizePreview}
+        rotationPreview={board.rotationPreview}
         selectionPath={board.selectionPath}
         spacePressed={board.spacePressed}
         tool={board.tool}
+        textEditing={board.textEditing}
         viewport={board.viewport}
         viewportRef={board.viewportRef}
         onElementPointerDown={board.handleElementPointerDown}
         onImageDrop={board.importImage}
+        onLinearPointPointerDown={board.handleLinearPointPointerDown}
+        onDoubleClick={board.handleViewportDoubleClick}
         onPointerCancel={board.finishPointerAction}
         onPointerDown={board.handleViewportPointerDown}
         onPointerLeave={() => board.setBrushCursorPoint(null)}
@@ -56,6 +61,9 @@ export function WhiteboardView({
         onPointerUp={board.finishPointerAction}
         onSelectionMovePointerDown={board.handleSelectionMovePointerDown}
         onSelectionResizePointerDown={board.handleSelectionResizePointerDown}
+        onSelectionRotationPointerDown={board.handleSelectionRotationPointerDown}
+        onTextEditingChange={board.updateTextEditing}
+        onTextEditingCommit={board.commitTextEditing}
         onWheel={board.handleWheel}
       />
       <WhiteboardMoreMenu

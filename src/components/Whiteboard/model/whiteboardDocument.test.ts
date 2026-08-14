@@ -81,6 +81,36 @@ describe('whiteboard document format', () => {
     expect(restored?.strokes.map((stroke) => stroke.tool)).toEqual(['colored-pencil', 'fountain']);
   });
 
+  it('round-trips line and arrow path points', () => {
+    const strokes: WhiteboardSnapshot['strokes'] = [
+      { color: '#111111', id: 'line', points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 40, y: 20 }], size: 1, tool: 'line' },
+      { color: '#ef4444', id: 'arrow', points: [{ pressure: 0.5, x: 5, y: 5 }, { pressure: 0.5, x: 25, y: 15 }, { pressure: 0.5, x: 50, y: 5 }], size: 1.5, tool: 'arrow' },
+    ];
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      elements: [], strokes, viewport: WHITEBOARD_INITIAL_VIEWPORT,
+    }));
+
+    expect(restored?.strokes).toEqual(strokes);
+  });
+
+  it.each([
+    'triangle', 'rectangle', 'diamond', 'parallelogram', 'trapezoid',
+    'pentagon', 'hexagon', 'octagon', 'ellipse', 'star', 'cross',
+  ] as const)('round-trips recognized %s geometry', (autoShape) => {
+    const shape: WhiteboardSnapshot['strokes'][number] = {
+      autoShape, color: '#111111', id: 'shape',
+      points: [{ pressure: 0.5, x: 0, y: 50 }, { pressure: 0.5, x: 100, y: 0 }, { pressure: 0.5, x: 200, y: 50 }],
+      size: 1, tool: 'line',
+    };
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      elements: [], strokes: [shape], viewport: WHITEBOARD_INITIAL_VIEWPORT,
+    }));
+
+    expect(restored?.strokes[0]).toEqual(shape);
+  });
+
   it('round-trips stroke dynamics and fragment rendering metadata', () => {
     const stroke: WhiteboardSnapshot['strokes'][number] = {
       color: '#663399',
@@ -114,6 +144,42 @@ describe('whiteboard document format', () => {
     }));
     expect(document.content.elements[0]).toMatchObject({ imageAssetPath: 'assets/demo.png', type: 'image' });
     expect(document.content.elements[0]).not.toHaveProperty('imageSrc');
+  });
+
+  it('round-trips flipped image orientation', () => {
+    const flipped = { ...snapshot.elements[0], flipX: true, flipY: true };
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      ...snapshot,
+      elements: [flipped],
+    }))?.elements[0];
+
+    expect(restored).toEqual({ ...flipped, imageSrc: undefined });
+    expect(restored).not.toHaveProperty('imageSrc');
+  });
+
+  it('round-trips image rotation', () => {
+    const rotated = { ...snapshot.elements[0], rotation: Math.PI / 3 };
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      ...snapshot,
+      elements: [rotated],
+    }))?.elements[0];
+
+    expect(restored?.rotation).toBeCloseTo(Math.PI / 3);
+  });
+
+  it('round-trips text appearance and transforms', () => {
+    const text = {
+      color: '#1e96eb', flipX: true, fontSize: 24, height: 60, id: 'text-1', lineHeight: 1.25,
+      rotation: Math.PI / 4, text: 'First\nSecond', type: 'text' as const, width: 80, x: 10, y: 20,
+    };
+
+    const restored = deserializeWhiteboardSnapshot(serializeWhiteboardSnapshot({
+      elements: [text], strokes: [], viewport: WHITEBOARD_INITIAL_VIEWPORT,
+    }))?.elements[0];
+
+    expect(restored).toEqual(text);
   });
 
   it('does not trust a stored runtime image source', () => {

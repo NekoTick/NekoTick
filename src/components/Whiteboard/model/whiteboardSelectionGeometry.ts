@@ -1,9 +1,13 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   type WhiteboardElement,
+  type WhiteboardPoint,
   type WhiteboardStroke,
+  type WhiteboardStrokePoint,
 } from './whiteboardModel';
 import { getStrokePointMaxWidth } from './whiteboardStrokeDynamics';
+import { getWhiteboardLinearVisualPoints } from './whiteboardLinear';
+import { isLinearTool } from './whiteboardModel';
 
 export interface WhiteboardSelectionRect {
   height: number;
@@ -29,12 +33,13 @@ export function getStrokeBounds(stroke: WhiteboardStroke): WhiteboardSelectionRe
   let maxX = -Infinity;
   let maxY = -Infinity;
   let maxWidth = 0;
-  for (const point of stroke.points) {
+  const points = isLinearTool(stroke.tool) ? getWhiteboardLinearVisualPoints(stroke) : stroke.points;
+  for (const point of points) {
     minX = Math.min(minX, point.x);
     minY = Math.min(minY, point.y);
     maxX = Math.max(maxX, point.x);
     maxY = Math.max(maxY, point.y);
-    maxWidth = Math.max(maxWidth, getStrokePointMaxWidth(stroke.tool, point, stroke.size));
+    maxWidth = Math.max(maxWidth, getStrokePointMaxWidth(stroke.tool, 'pressure' in point ? point as WhiteboardStrokePoint : stroke.points[0], stroke.size));
   }
   const padding = maxWidth / 2 + themeWhiteboardTokens.strokeSelectionPaddingPx;
   const bounds = {
@@ -58,12 +63,40 @@ export function cacheTranslatedStrokeBounds(
 }
 
 export function getElementBounds(element: WhiteboardElement): WhiteboardSelectionRect {
-  return { height: element.height, width: element.width, x: element.x, y: element.y };
+  const corners = getElementCorners(element);
+  const minX = Math.min(...corners.map((point) => point.x));
+  const minY = Math.min(...corners.map((point) => point.y));
+  const maxX = Math.max(...corners.map((point) => point.x));
+  const maxY = Math.max(...corners.map((point) => point.y));
+  return { height: maxY - minY, width: maxX - minX, x: minX, y: minY };
+}
+
+export function getElementCorners(element: WhiteboardElement): WhiteboardPoint[] {
+  const corners = [
+    { x: element.x, y: element.y },
+    { x: element.x + element.width, y: element.y },
+    { x: element.x + element.width, y: element.y + element.height },
+    { x: element.x, y: element.y + element.height },
+  ];
+  if (!element.rotation) return corners;
+  const center = {
+    x: element.x + element.width / 2,
+    y: element.y + element.height / 2,
+  };
+  const cosine = Math.cos(element.rotation);
+  const sine = Math.sin(element.rotation);
+  return corners.map((point) => {
+    const x = point.x - center.x;
+    const y = point.y - center.y;
+    return {
+      x: center.x + x * cosine - y * sine,
+      y: center.y + x * sine + y * cosine,
+    };
+  });
 }
 
 export function getBoundsUnion(bounds: WhiteboardSelectionRect[]): WhiteboardSelectionRect | null {
   if (bounds.length === 0) return null;
-  const padding = themeWhiteboardTokens.strokeSelectionPaddingPx;
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -75,10 +108,10 @@ export function getBoundsUnion(bounds: WhiteboardSelectionRect[]): WhiteboardSel
     maxY = Math.max(maxY, rect.y + rect.height);
   }
   return {
-    height: maxY - minY + padding * 2,
-    width: maxX - minX + padding * 2,
-    x: minX - padding,
-    y: minY - padding,
+    height: maxY - minY,
+    width: maxX - minX,
+    x: minX,
+    y: minY,
   };
 }
 
@@ -110,14 +143,17 @@ export function getSelectionBounds(
 ): WhiteboardSelectionRect | null {
   const selectedElementIds = new Set(elementIds);
   const selectedStrokeIds = new Set(strokeIds);
-  return getBoundsUnion([
+  const selectedBounds = [
     ...elements.flatMap((element) => (selectedElementIds.has(element.id) ? [getElementBounds(element)] : [])),
     ...strokes.flatMap((stroke) => {
       if (!selectedStrokeIds.has(stroke.id)) return [];
       const bounds = getStrokeBounds(stroke);
       return bounds ? [bounds] : [];
     }),
-  ]);
+  ];
+  if (selectedBounds.length === 0) return null;
+  if (selectedBounds.length === 1) return selectedBounds[0];
+  return getBoundsUnion(selectedBounds);
 }
 
 interface SelectedOverlayAccumulator {
@@ -143,12 +179,11 @@ function createSelectedOverlayAccumulator(
     singleStroke: null,
   };
   if (current?.groupBounds) {
-    const padding = themeWhiteboardTokens.strokeSelectionPaddingPx;
     accumulator.count = 2;
-    accumulator.minX = current.groupBounds.x + padding;
-    accumulator.minY = current.groupBounds.y + padding;
-    accumulator.maxX = current.groupBounds.x + current.groupBounds.width - padding;
-    accumulator.maxY = current.groupBounds.y + current.groupBounds.height - padding;
+    accumulator.minX = current.groupBounds.x;
+    accumulator.minY = current.groupBounds.y;
+    accumulator.maxX = current.groupBounds.x + current.groupBounds.width;
+    accumulator.maxY = current.groupBounds.y + current.groupBounds.height;
   } else if (current?.singleBounds) {
     includeSelectedOverlayBounds(accumulator, current.singleBounds, current.singleBounds.id, current.singleStroke);
   }
@@ -196,13 +231,12 @@ function finishSelectedOverlayGeometry(
       singleStroke: accumulator.singleStroke,
     };
   }
-  const padding = themeWhiteboardTokens.strokeSelectionPaddingPx;
   return {
     groupBounds: {
-      height: accumulator.maxY - accumulator.minY + padding * 2,
-      width: accumulator.maxX - accumulator.minX + padding * 2,
-      x: accumulator.minX - padding,
-      y: accumulator.minY - padding,
+      height: accumulator.maxY - accumulator.minY,
+      width: accumulator.maxX - accumulator.minX,
+      x: accumulator.minX,
+      y: accumulator.minY,
     },
     singleBounds: null,
     singleStroke: null,

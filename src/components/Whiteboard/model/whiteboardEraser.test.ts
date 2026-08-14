@@ -22,6 +22,34 @@ describe('whiteboard object eraser', () => {
     expect(targets.strokeIds).toEqual(['stroke']);
   });
 
+  it('erases an arrow when the gesture only crosses its arrowhead', () => {
+    const targets = getWhiteboardEraserTargets(
+      [],
+      [{
+        color: '#111111', id: 'arrow',
+        points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+        size: 1, tool: 'arrow',
+      }],
+      [{ point: { x: 77, y: 8 }, size: 1 }],
+    );
+
+    expect(targets.strokeIds).toEqual(['arrow']);
+  });
+
+  it('erases a recognized shape only when the gesture crosses its outline', () => {
+    const shape = {
+      autoShape: 'rectangle' as const, color: '#111111', id: 'rectangle',
+      points: [
+        { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 },
+        { pressure: 0.5, x: 100, y: 80 }, { pressure: 0.5, x: 0, y: 80 }, { pressure: 0.5, x: 0, y: 0 },
+      ],
+      size: 1, tool: 'line' as const,
+    };
+
+    expect(getWhiteboardEraserTargets([], [shape], [{ point: { x: 50, y: 40 }, size: 1 }]).strokeIds).toEqual([]);
+    expect(getWhiteboardEraserTargets([], [shape], [{ point: { x: 50, y: 0 }, size: 1 }]).strokeIds).toEqual(['rectangle']);
+  });
+
   it('leaves distant content untouched', () => {
     const targets = getWhiteboardEraserTargets(
       [{ height: 40, id: 'image', text: '', type: 'image', width: 40, x: 200, y: 200 }],

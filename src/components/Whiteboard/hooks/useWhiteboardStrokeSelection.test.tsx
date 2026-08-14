@@ -14,18 +14,18 @@ describe('useWhiteboardStrokeSelection', () => {
     };
     const pushHistory = vi.fn();
     const setDragState = vi.fn();
-    const setSelectedElementId = vi.fn();
+    const setSelectedElementIds = vi.fn();
     const setSelectedStrokeIds = vi.fn();
     const { result } = renderHook(() => useWhiteboardStrokeSelection({
       elements: [element], pushHistory, selectedElementIds: [element.id], selectedStrokeIds: [stroke.id],
-      setDragState, setSelectedElementId, setSelectedStrokeIds,
+      setDragState, setSelectedElementIds, setSelectedStrokeIds,
       spatialIndex: createWhiteboardEraserSpatialIndex([element], [stroke]), strokes: [stroke], zoom: 1,
     }));
 
     act(() => result.current({ x: 70, y: 20 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
 
     expect(pushHistory).toHaveBeenCalledOnce();
-    expect(setSelectedElementId).not.toHaveBeenCalled();
+    expect(setSelectedElementIds).not.toHaveBeenCalled();
     expect(setSelectedStrokeIds).not.toHaveBeenCalled();
     expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
       elementIds: [element.id], kind: 'move-elements', strokeIds: [stroke.id],
@@ -40,16 +40,16 @@ describe('useWhiteboardStrokeSelection', () => {
       size: 1, tool: 'pen' as const,
     };
     const setDragState = vi.fn();
-    const setSelectedElementId = vi.fn();
+    const setSelectedElementIds = vi.fn();
     const { result } = renderHook(() => useWhiteboardStrokeSelection({
       elements: [element], pushHistory: vi.fn(), selectedElementIds: [element.id], selectedStrokeIds: [stroke.id],
-      setDragState, setSelectedElementId, setSelectedStrokeIds: vi.fn(),
+      setDragState, setSelectedElementIds, setSelectedStrokeIds: vi.fn(),
       spatialIndex: createWhiteboardEraserSpatialIndex([element], [stroke]), strokes: [stroke], zoom: 1,
     }));
 
     act(() => result.current({ x: 130, y: 10 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
 
-    expect(setSelectedElementId).not.toHaveBeenCalled();
+    expect(setSelectedElementIds).not.toHaveBeenCalled();
     expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
       elementIds: [element.id], kind: 'move-elements', strokeIds: [stroke.id],
     }));
@@ -70,7 +70,7 @@ describe('useWhiteboardStrokeSelection', () => {
     const setSelectedStrokeIds = vi.fn();
     const { result } = renderHook(() => useWhiteboardStrokeSelection({
       elements: [], pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [],
-      setDragState: vi.fn(), setSelectedElementId: vi.fn(), setSelectedStrokeIds,
+      setDragState: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds,
       spatialIndex: createWhiteboardEraserSpatialIndex([], strokes), strokes, zoom: 1,
     }));
 
@@ -89,7 +89,7 @@ describe('useWhiteboardStrokeSelection', () => {
     const elementScan = vi.spyOn(elements, 'flatMap');
     const { result } = renderHook(() => useWhiteboardStrokeSelection({
       elements, pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [],
-      setDragState: vi.fn(), setSelectedElementId: vi.fn(), setSelectedStrokeIds: vi.fn(),
+      setDragState: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(),
       spatialIndex, strokes, zoom: 1,
     }));
 

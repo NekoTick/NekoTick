@@ -1,5 +1,6 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { getStrokeWidth, type WhiteboardStroke, type WhiteboardStrokePoint } from './whiteboardModel';
+import { getStrokeWidth, isLinearTool, type WhiteboardDrawingTool, type WhiteboardStroke, type WhiteboardStrokePoint } from './whiteboardModel';
+import { getWhiteboardLinearRenderPath } from './whiteboardLinear';
 import {
   getStrokePointPigment,
   getStrokePointRadius,
@@ -45,6 +46,19 @@ export function getStrokeRenderGeometry(stroke: WhiteboardStroke): StrokeRenderG
     return cached.geometry;
   }
   const segments = getStrokePointSegments(stroke.points);
+  if (isLinearTool(stroke.tool)) {
+    const centerPath = getWhiteboardLinearRenderPath(stroke);
+    return {
+      centerPath,
+      grainPaths: [],
+      heavyPressurePath: '',
+      mediumPressurePath: '',
+      pressurePath: centerPath,
+      renderWidth: getStrokeWidth(stroke.tool, themeWhiteboardTokens.defaultPointerPressure, stroke.size),
+      watercolorOuterPath: '',
+      watercolorWashPath: '',
+    };
+  }
   const hasPressureDetail = stroke.tool !== 'pen';
   const geometry = {
     centerPath: segments.map(getOpenStrokePath).join(' '),
@@ -78,12 +92,13 @@ function getPressureDetailPath(
   points: WhiteboardStrokePoint[],
   threshold: number,
 ): string {
+  const tool = stroke.tool as WhiteboardDrawingTool;
   const commands: string[] = [];
   let drawing = false;
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
     const point = points[index];
-    if ((getStrokePointPigment(stroke.tool, previous) + getStrokePointPigment(stroke.tool, point)) / 2 < threshold) {
+    if ((getStrokePointPigment(tool, previous) + getStrokePointPigment(tool, point)) / 2 < threshold) {
       drawing = false;
       continue;
     }
@@ -101,6 +116,7 @@ export function getPressureStrokePath(stroke: WhiteboardStroke): string {
   return getStrokePointSegments(stroke.points).map((segment) => getPressureSegmentPath(stroke, segment)).join(' ');
 }
 export function getCenterStrokePath(stroke: WhiteboardStroke): string {
+  if (isLinearTool(stroke.tool)) return getWhiteboardLinearRenderPath(stroke);
   const cached = strokeRenderGeometryCache.get(stroke.points);
   if (hasSameRenderGeometryInput(cached, stroke)) {
     return cached.geometry.centerPath;
@@ -190,7 +206,7 @@ function getStrokeRadius(
   pointCount: number,
   widthScale: number,
 ): number {
-  let radius = getStrokePointRadius(stroke.tool, point, stroke.size, normalX, normalY) * widthScale;
+  let radius = getStrokePointRadius(stroke.tool as WhiteboardDrawingTool, point, stroke.size, normalX, normalY) * widthScale;
   if (stroke.tool === 'pen' || stroke.tool === 'pencil' || stroke.tool === 'colored-pencil' || stroke.tool === 'fountain') {
     const edgeDistance = Math.min(
       stroke.renderTaperStart === false ? Infinity : index,
@@ -206,7 +222,7 @@ export function getSmoothedStrokePoints(
   points: WhiteboardStrokePoint[],
   tool: WhiteboardStroke['tool'],
 ): WhiteboardStrokePoint[] {
-  if (points.length < 3) return points;
+  if (points.length < 3 || isLinearTool(tool)) return points;
   const smoothing = themeWhiteboardTokens.strokeSmoothing[tool];
   const passAmount = 1 - Math.pow(1 - smoothing, 1 / themeWhiteboardTokens.strokeSmoothingPasses);
   let smoothed = points;
@@ -265,7 +281,7 @@ function getStrokeGrainLanePath(
   return getOpenStrokePath(points.map((point, index) => {
     const [previous, next] = getWhiteboardStrokePathNeighbors(stroke, segment, points, index);
     const tangent = getStrokeTangent(previous, point, next);
-    const halfWidth = getStrokePointRadius(stroke.tool, point, stroke.size, -tangent.y, tangent.x);
+    const halfWidth = getStrokePointRadius(stroke.tool as WhiteboardDrawingTool, point, stroke.size, -tangent.y, tangent.x);
     const renderIndex = getWhiteboardStrokeRenderPointIndex(stroke, index + segmentIndex * 4096);
     const noise = getWhiteboardStrokeNoise(strokeSeed, renderIndex, laneIndex + 40);
     const offset = halfWidth * (lanePosition * spread + noise * wander);

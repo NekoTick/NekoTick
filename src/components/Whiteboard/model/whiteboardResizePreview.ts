@@ -5,6 +5,8 @@ import { shouldPrepareWhiteboardResizeItems } from './whiteboardPreparedResize';
 import {
   getElementBounds,
   getStrokeBounds,
+  getWhiteboardResizeScale,
+  normalizeWhiteboardSelectionRect,
   rectsOverlap,
   resizeSelectionElement,
   resizeSelectionStroke,
@@ -22,7 +24,7 @@ export function getWhiteboardResizePreviewItems(
   visibleRect: WhiteboardSelectionRect | null,
 ): WhiteboardResizePreviewItems {
   const candidates = visibleRect
-    ? getWhiteboardBoundsCandidates(spatialIndex, invertResizeRect(visibleRect, preview))
+    ? getWhiteboardBoundsCandidates(spatialIndex, normalizeWhiteboardSelectionRect(invertResizeRect(visibleRect, preview)))
     : {
         elements: [...preview.originalElementsById.values()],
         strokes: [...preview.originalStrokesById.values()],
@@ -50,7 +52,9 @@ export function getWhiteboardResizePreviewSourceItems(
   spatialIndex: WhiteboardEraserSpatialIndex,
   visibleRect: WhiteboardSelectionRect | null,
 ): WhiteboardResizePreviewItems {
-  const sourceRect = visibleRect ? invertResizeRect(visibleRect, preview) : null;
+  const sourceRect = visibleRect
+    ? normalizeWhiteboardSelectionRect(invertResizeRect(visibleRect, preview))
+    : null;
   const candidates = sourceRect
     ? getWhiteboardBoundsCandidates(spatialIndex, sourceRect)
     : {
@@ -71,8 +75,8 @@ export function getWhiteboardResizePreviewSourceItems(
 }
 
 export function getWhiteboardResizePreviewTransform(preview: WhiteboardResizePreview): string {
-  const scaleX = preview.nextBounds.width / Math.max(1, preview.startBounds.width);
-  const scaleY = preview.nextBounds.height / Math.max(1, preview.startBounds.height);
+  const scaleX = getWhiteboardResizeScale(preview.nextBounds.width, preview.startBounds.width);
+  const scaleY = getWhiteboardResizeScale(preview.nextBounds.height, preview.startBounds.height);
   return `translate(${preview.nextBounds.x}px, ${preview.nextBounds.y}px) scale(${scaleX}, ${scaleY}) translate(${-preview.startBounds.x}px, ${-preview.startBounds.y}px)`;
 }
 
@@ -84,8 +88,8 @@ function invertResizeRect(
   rect: WhiteboardSelectionRect,
   preview: WhiteboardResizePreview,
 ): WhiteboardSelectionRect {
-  const scaleX = preview.nextBounds.width / Math.max(1, preview.startBounds.width);
-  const scaleY = preview.nextBounds.height / Math.max(1, preview.startBounds.height);
+  const scaleX = getWhiteboardResizeScale(preview.nextBounds.width, preview.startBounds.width);
+  const scaleY = getWhiteboardResizeScale(preview.nextBounds.height, preview.startBounds.height);
   return {
     height: rect.height / scaleY,
     width: rect.width / scaleX,

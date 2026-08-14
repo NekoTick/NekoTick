@@ -34,6 +34,27 @@ function renderToolbar(overrides: Partial<ComponentProps<typeof WhiteboardToolba
 }
 
 describe('WhiteboardToolbar', () => {
+  it('exposes standalone line, arrow, auto shape, and text tools', () => {
+    const { container, onToolChange } = renderToolbar();
+
+    const labels = within(container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!)
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label'));
+    expect(labels.indexOf('whiteboard.tool.line')).toBeLessThan(labels.indexOf('whiteboard.tool.arrow'));
+    expect(labels.indexOf('whiteboard.tool.arrow')).toBeLessThan(labels.indexOf('whiteboard.tool.autoshape'));
+    expect(labels.indexOf('whiteboard.tool.autoshape')).toBeLessThan(labels.indexOf('whiteboard.tool.text'));
+    expect(labels.indexOf('whiteboard.tool.text')).toBeLessThan(labels.indexOf('whiteboard.addImage'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.line' }));
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.arrow' }));
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.autoshape' }));
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.text' }));
+
+    expect(onToolChange).toHaveBeenNthCalledWith(1, 'line');
+    expect(onToolChange).toHaveBeenNthCalledWith(2, 'arrow');
+    expect(onToolChange).toHaveBeenNthCalledWith(3, 'autoshape');
+    expect(onToolChange).toHaveBeenNthCalledWith(4, 'text');
+  });
   it('renders only while the whiteboard is active', () => {
     const props = {
       active: true,
@@ -86,7 +107,7 @@ describe('WhiteboardToolbar', () => {
     expect(screen.queryByRole('button', { name: 'whiteboard.tool.strokeEraser' })).not.toBeInTheDocument();
   });
 
-  it('shows colored pencil fourth and keeps crayon sixth in the brush panel', () => {
+  it('keeps auto shape outside the material brush panel', () => {
     const { container } = renderToolbar();
 
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
@@ -104,6 +125,8 @@ describe('WhiteboardToolbar', () => {
       'whiteboard.tool.crayon',
     ]);
     expect(screen.queryByRole('button', { name: 'whiteboard.tool.fountain' })).not.toBeInTheDocument();
+    expect(within(panel).queryByRole('button', { name: 'whiteboard.tool.autoshape' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'whiteboard.tool.autoshape' }).querySelector('[data-icon-name="whiteboard.autoshape"]')).not.toBeNull();
   });
 
   it('closes the brush panel when drawing starts without selecting another brush', () => {

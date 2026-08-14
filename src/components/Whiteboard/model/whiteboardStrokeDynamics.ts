@@ -1,7 +1,9 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   getStrokeWidth,
+  isLinearTool,
   type WhiteboardDrawingTool,
+  type WhiteboardStrokeTool,
   type WhiteboardStrokePoint,
 } from './whiteboardModel';
 
@@ -27,10 +29,11 @@ export function getStrokePointFootprint(
 }
 
 export function getStrokePointMaxWidth(
-  tool: WhiteboardDrawingTool,
+  tool: WhiteboardStrokeTool,
   point: WhiteboardStrokePoint,
   size: number,
 ): number {
+  if (isLinearTool(tool)) return getStrokeWidth(tool, point.pressure, size);
   const footprint = getStrokePointFootprint(tool, point, size);
   const visibleScale = tool === 'watercolor' ? themeWhiteboardTokens.watercolorWashWidthScale : 1;
   const radius = tool === 'marker'
@@ -135,11 +138,12 @@ export function smoothWhiteboardStrokePoint(
 }
 
 export function scaleWhiteboardStrokePointOrientation(
-  tool: WhiteboardDrawingTool,
+  tool: WhiteboardStrokeTool,
   point: WhiteboardStrokePoint,
   scaleX: number,
   scaleY: number,
 ): WhiteboardStrokePoint {
+  if (isLinearTool(tool)) return point;
   if (tool !== 'marker' && tool !== 'fountain') {
     return point.azimuth === undefined
       ? point

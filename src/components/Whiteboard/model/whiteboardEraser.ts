@@ -5,6 +5,7 @@ import {
   type WhiteboardElement,
   type WhiteboardStroke,
 } from './whiteboardModel';
+import { getElementCorners } from './whiteboardSelection';
 import type { WhiteboardEraserSample } from './whiteboardSpatialIndex';
 
 export {
@@ -137,40 +138,24 @@ function getBacktrackProjection(
 }
 
 function eraserSweepTouchesElement(element: WhiteboardElement, sweep: WhiteboardEraserSweep): boolean {
-  const topLeft = { x: element.x, y: element.y };
-  const topRight = { x: element.x + element.width, y: element.y };
-  const bottomRight = { x: element.x + element.width, y: element.y + element.height };
-  const bottomLeft = { x: element.x, y: element.y + element.height };
-  if (segmentIntersectsRect(sweep.start.point, sweep.end.point, {
-    maxX: bottomRight.x,
-    maxY: bottomRight.y,
-    minX: topLeft.x,
-    minY: topLeft.y,
-  })) return true;
-  return [[topLeft, topRight], [topRight, bottomRight], [bottomRight, bottomLeft], [bottomLeft, topLeft]]
+  const corners = getElementCorners(element);
+  if (pointInPolygon(sweep.start.point, corners) || pointInPolygon(sweep.end.point, corners)) return true;
+  return corners.map((point, index) => [point, corners[(index + 1) % corners.length]] as const)
     .some(([start, end]) => distanceBetweenSegments(sweep.start.point, sweep.end.point, start, end) <= sweep.radius);
 }
 
-function segmentIntersectsRect(
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-  rect: { maxX: number; maxY: number; minX: number; minY: number },
+function pointInPolygon(
+  point: { x: number; y: number },
+  polygon: Array<{ x: number; y: number }>,
 ): boolean {
-  let minProgress = 0;
-  let maxProgress = 1;
-  for (const [origin, delta, min, max] of [
-    [start.x, end.x - start.x, rect.minX, rect.maxX],
-    [start.y, end.y - start.y, rect.minY, rect.maxY],
-  ] as const) {
-    if (delta === 0) {
-      if (origin < min || origin > max) return false;
-      continue;
-    }
-    const first = (min - origin) / delta;
-    const second = (max - origin) / delta;
-    minProgress = Math.max(minProgress, Math.min(first, second));
-    maxProgress = Math.min(maxProgress, Math.max(first, second));
-    if (minProgress > maxProgress) return false;
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const crossesY = currentPoint.y > point.y !== previousPoint.y > point.y;
+    const xAtY = ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y))
+      / (previousPoint.y - currentPoint.y) + currentPoint.x;
+    if (crossesY && point.x < xAtY) inside = !inside;
   }
-  return true;
+  return inside;
 }
