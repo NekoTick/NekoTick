@@ -19,7 +19,9 @@
 @import './code-block.css';
 @import './frontmatter.css';
 @import './math-editor.css';
+@import './text-editor-workspace.css';
 @import './math-formula-picker.css';
+@import './mermaid-editor-workspace.css';
 @import './theme-compatibility.css';
 @import './block-selection-atomic-rich.css';
 @import './slash-menu.css';

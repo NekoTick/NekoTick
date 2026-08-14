@@ -1,5 +1,6 @@
 import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 import type { TextEditorPopupElements } from '../shared/textEditorPopupDom';
+import { createTextEditorWorkspace } from '../shared/textEditorWorkspaceDom';
 import {
   mathFormulaCategories,
   type MathFormulaCategory,
@@ -37,15 +38,22 @@ export function configureMathFormulaPicker(
   let searchRenderFrame: number | undefined;
   let categoryWarmupIdle: number | undefined;
 
-  const workspace = document.createElement('section');
-  workspace.className = 'math-formula-picker';
-  workspace.setAttribute('aria-label', 'LaTeX');
+  const {
+    workspace,
+    header,
+    inputPane,
+    preview,
+  } = createTextEditorWorkspace({
+    elements,
+    ariaLabel: 'LaTeX',
+    classPrefix: 'math-formula-picker',
+    heading: 'LaTeX',
+    inputLabel: copy.input,
+    previewLabel: copy.preview,
+  });
 
   const searchField = document.createElement('div');
   searchField.className = 'math-formula-picker-search-field';
-  const heading = document.createElement('span');
-  heading.className = 'math-formula-picker-heading';
-  heading.textContent = 'LaTeX';
   searchField.append(createMathFormulaSearchIcon());
   const search = document.createElement('input');
   search.className = 'math-formula-picker-search-input';
@@ -54,9 +62,7 @@ export function configureMathFormulaPicker(
   search.placeholder = copy.search;
   search.setAttribute('aria-label', copy.search);
   searchField.append(search);
-  const header = document.createElement('header');
-  header.className = 'math-formula-picker-header';
-  header.append(heading, searchField);
+  header.append(searchField);
 
   const shortcuts = document.createElement('section');
   shortcuts.className = 'math-formula-picker-shortcuts';
@@ -78,25 +84,7 @@ export function configureMathFormulaPicker(
   clearButton.textContent = copy.clear;
   lineBreakButton.textContent = copy.insertLineBreak;
   tools.append(clearButton, lineBreakButton);
-
-  const editorGrid = document.createElement('div');
-  editorGrid.className = 'math-formula-picker-editor-grid';
-  const inputPane = document.createElement('section');
-  inputPane.className = 'math-formula-picker-pane';
-  const inputLabel = document.createElement('h2');
-  inputLabel.className = 'math-formula-picker-pane-label';
-  inputLabel.textContent = copy.input;
-  inputPane.append(inputLabel, textarea, tools);
-  const previewPane = document.createElement('section');
-  previewPane.className = 'math-formula-picker-pane math-formula-picker-preview-pane';
-  const previewLabel = document.createElement('h2');
-  previewLabel.className = 'math-formula-picker-pane-label';
-  previewLabel.textContent = copy.preview;
-  const preview = document.createElement('div');
-  preview.className = 'math-formula-picker-preview';
-  preview.setAttribute('aria-live', 'polite');
-  previewPane.append(previewLabel, preview);
-  editorGrid.append(inputPane, previewPane);
+  inputPane.append(tools);
 
   const formulaRenderer = createMathFormulaPickerRenderer({
     results,
@@ -268,7 +256,7 @@ export function configureMathFormulaPicker(
   textarea.addEventListener('focus', closeResults);
   textarea.addEventListener('input', formulaRenderer.schedulePreview);
 
-  workspace.append(header, shortcuts, editorGrid);
+  header.after(shortcuts);
   content.prepend(workspace);
   renderMathFormulaPickerCategories({
     categories,

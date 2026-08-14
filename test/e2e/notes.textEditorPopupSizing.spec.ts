@@ -46,23 +46,12 @@ type RectMetrics = {
   width: number;
 };
 
-function expectPopupToMatchBody(metrics: PopupMetrics, label: string) {
-  expect(metrics.body, `${label} body metrics`).not.toBeNull();
-  expect(metrics.card, `${label} popup card metrics`).not.toBeNull();
-
-  const body = metrics.body!;
-  const card = metrics.card!;
-  expect(card.width, `${label} card should not exceed the readable note body: ${JSON.stringify(metrics)}`)
-    .toBeLessThanOrEqual(body.width + 1);
-  expect(Math.abs(card.left - body.left), `${label} card should align to the readable note body: ${JSON.stringify(metrics)}`)
-    .toBeLessThanOrEqual(1);
-}
-
-function expectMathPopupToMatchSearchStyle(
+function expectWorkspacePopupToMatchSearchStyle(
   viewport: { width: number; height: number },
   metrics: PopupMetrics,
+  label: string,
 ) {
-  expect(metrics.card, 'math popup card metrics').not.toBeNull();
+  expect(metrics.card, `${label} popup card metrics`).not.toBeNull();
 
   const card = metrics.card!;
   expect(card.width).toBe(1080);
@@ -167,7 +156,7 @@ async function expectPreviewSubmenuReachable(page: Page, groupIndex: number, ite
 }
 
 test.describe('notes math and Mermaid popup sizing', () => {
-  test('uses the search-style formula layout and keeps Mermaid aligned to the note body', async () => {
+  test('uses the search-style workspace for formula and Mermaid editors', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-text-editor-popup-sizing');
 
     try {
@@ -189,7 +178,7 @@ test.describe('notes math and Mermaid popup sizing', () => {
         '.math-editor-popup',
       );
       console.info('[notes-popup-sizing-math]', mathMetrics);
-      expectMathPopupToMatchSearchStyle({ width: 1280, height: 860 }, mathMetrics);
+      expectWorkspacePopupToMatchSearchStyle({ width: 1280, height: 860 }, mathMetrics, 'math');
       const mathBackdropFilter = await page.locator('.math-formula-editor-popup').evaluate(
         (popup) => getComputedStyle(popup).backdropFilter,
       );
@@ -242,7 +231,21 @@ test.describe('notes math and Mermaid popup sizing', () => {
         '.mermaid-editor-popup',
       );
       console.info('[notes-popup-sizing-mermaid]', mermaidMetrics);
-      expectPopupToMatchBody(mermaidMetrics, 'mermaid');
+      expectWorkspacePopupToMatchSearchStyle({ width: 1280, height: 860 }, mermaidMetrics, 'mermaid');
+      await expect(page.locator('.mermaid-editor-workspace-template')).toHaveCount(28);
+      await expect(page.locator('.mermaid-editor-workspace-shortcuts-label')).toHaveCount(0);
+      const templateListLayout = await page.locator('.mermaid-editor-workspace-template-list').evaluate(
+        (list) => ({
+          clientWidth: list.clientWidth,
+          rows: getComputedStyle(list).gridTemplateRows.split(' ').filter(Boolean),
+          scrollWidth: list.scrollWidth,
+        }),
+      );
+      expect(templateListLayout.rows).toHaveLength(3);
+      expect(templateListLayout.scrollWidth).toBeLessThanOrEqual(templateListLayout.clientWidth);
+      await expect(page.locator('.mermaid-editor-workspace-pane').first()).toContainText('Input');
+      await expect(page.locator('.mermaid-editor-workspace-preview .mermaid-block svg'))
+        .toBeVisible({ timeout: 10_000 });
       await page.keyboard.press('Escape');
       await expect(page.locator('.mermaid-editor-popup')).toHaveCount(0);
 

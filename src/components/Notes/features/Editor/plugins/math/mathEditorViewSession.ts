@@ -30,7 +30,7 @@ export function createMathEditorViewSession(args: {
     editorView,
     onOutsideCloseIntent,
     refs,
-    popupClassName: 'text-editor-popup math-editor-popup math-formula-editor-popup',
+    popupClassName: 'text-editor-popup math-editor-popup text-editor-workspace-popup math-formula-editor-popup',
     popupLayout: 'viewport-centered',
     placeholder: translate('editor.mathPlaceholder'),
     getEditorState: () =>
