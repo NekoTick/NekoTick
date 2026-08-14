@@ -1013,6 +1013,8 @@
   --vlaina-color-whiteboard-crayon: #ef4444;
   --vlaina-color-whiteboard-element: rgb(255 255 255 / 0.92);
   --vlaina-color-whiteboard-selected: var(--vlaina-color-accent);
+  --vlaina-color-whiteboard-linear-handle-fill: rgb(255 255 255 / 0.9);
+  --vlaina-color-whiteboard-linear-handle-stroke: var(--vlaina-color-whiteboard-selected);
   --vlaina-color-whiteboard-selection-fill: rgb(30 150 235 / 0.1);
   --vlaina-color-whiteboard-eraser-trail: var(--vlaina-color-whiteboard-selected);
   --vlaina-shadow-whiteboard-element: 0 14px 34px rgb(15 23 42 / 0.1), 0 1px 2px rgb(15 23 42 / 0.08);
@@ -1512,6 +1514,8 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-color-whiteboard-crayon: #f87171;
   --vlaina-color-whiteboard-element: rgb(21 21 23 / 0.94);
   --vlaina-color-whiteboard-selected: var(--vlaina-color-accent);
+  --vlaina-color-whiteboard-linear-handle-fill: rgb(255 255 255 / 0.9);
+  --vlaina-color-whiteboard-linear-handle-stroke: var(--vlaina-color-whiteboard-selected);
   --vlaina-color-whiteboard-selection-fill: rgb(93 190 255 / 0.14);
   --vlaina-color-whiteboard-eraser-trail: var(--vlaina-color-whiteboard-selected);
   --vlaina-shadow-whiteboard-element: 0 16px 34px rgb(0 0 0 / 0.26), 0 1px 2px rgb(0 0 0 / 0.24);

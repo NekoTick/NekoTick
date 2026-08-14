@@ -4,8 +4,14 @@ import {
   findStrokeAtPoint,
   getElementsInLasso,
   getItemsInLasso,
+  getResizedSelectionBounds,
   getStrokeBounds,
   getStrokesInLasso,
+  normalizeWhiteboardSelectionRect,
+  resizeSelectionElement,
+  resizeSelectionStroke,
+  rotateSelectionElement,
+  rotateSelectionStroke,
   translateStroke,
 } from './whiteboardSelection';
 
@@ -132,6 +138,17 @@ describe('whiteboard lasso selection', () => {
     expect(findStrokeAtPoint(strokes, { x: 40, y: 10 }, 1)?.id).toBe('hit');
   });
 
+  it('selects the visible arrowhead as part of the arrow', () => {
+    const arrow: WhiteboardStroke = {
+      color: '#111111', id: 'arrow',
+      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+      size: 1, tool: 'arrow',
+    };
+
+    expect(findStrokeAtPoint([arrow], { x: 77, y: 8 }, 1)?.id).toBe(arrow.id);
+    expect(getStrokeBounds(arrow)?.height).toBeGreaterThan(16);
+  });
+
   it('selects the visible edge of a wide chisel stroke', () => {
     const stroke: WhiteboardStroke = {
       color: '#ffaa00',
@@ -171,5 +188,96 @@ describe('whiteboard lasso selection', () => {
     });
     expect(translated.points[1]).toMatchObject({ breakBefore: true, x: 42, y: 48 });
     expect(iteratePoints).not.toHaveBeenCalled();
+  });
+});
+
+describe('whiteboard selection resize', () => {
+  it.each([
+    ['n', { x: 60, y: 110 }, { height: -10, width: 100, x: 10, y: 110 }],
+    ['e', { x: -30, y: 60 }, { height: 80, width: -40, x: 10, y: 20 }],
+    ['s', { x: 60, y: -30 }, { height: -50, width: 100, x: 10, y: 20 }],
+    ['w', { x: 150, y: 60 }, { height: 80, width: -40, x: 150, y: 20 }],
+  ] as const)('lets the %s edge cross its opposite edge', (handle, point, expected) => {
+    const resized = getResizedSelectionBounds(
+      { height: 80, width: 100, x: 10, y: 20 },
+      handle === 'n' ? { x: 60, y: 20 } : handle === 's' ? { x: 60, y: 100 } : handle === 'e' ? { x: 110, y: 60 } : { x: 10, y: 60 },
+      point,
+      handle,
+      false,
+    );
+
+    expect(resized).toEqual(expected);
+  });
+
+  it('normalizes a crossed edge for rendering', () => {
+    expect(normalizeWhiteboardSelectionRect({ height: -50, width: 100, x: 10, y: 20 }))
+      .toEqual({ height: 50, width: 100, x: 10, y: -30 });
+  });
+
+  it('mirrors stroke points when an edge crosses its opposite edge', () => {
+    const stroke: WhiteboardStroke = {
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 100 }],
+      size: 1, tool: 'line',
+    };
+
+    expect(resizeSelectionStroke(
+      stroke,
+      { height: 100, width: 100, x: 0, y: 0 },
+      { height: -50, width: 100, x: 0, y: 0 },
+    ).points).toEqual([
+      { pressure: 0.5, x: 0, y: 0 },
+      { pressure: 0.5, x: 100, y: -50 },
+    ]);
+  });
+
+  it('toggles image orientation when crossing an edge', () => {
+    const element: WhiteboardElement = {
+      height: 100, id: 'image', text: '', type: 'image', width: 100, x: 0, y: 0,
+    };
+    const flipped = resizeSelectionElement(
+      element,
+      { height: 100, width: 100, x: 0, y: 0 },
+      { height: -50, width: 100, x: 0, y: 0 },
+    );
+
+    expect(flipped).toMatchObject({ flipY: true, height: 50, width: 100, x: 0, y: -50 });
+    expect(resizeSelectionElement(
+      flipped,
+      { height: 50, width: 100, x: 0, y: -50 },
+      { height: -100, width: 100, x: 0, y: -50 },
+    )).not.toHaveProperty('flipY');
+  });
+
+  it('scales text bounds and font size by the same ratio', () => {
+    const text: WhiteboardElement = {
+      color: '#111111', fontSize: 24, height: 30, id: 'text', lineHeight: 1.25,
+      text: 'Hello', type: 'text', width: 80, x: 10, y: 20,
+    };
+
+    expect(resizeSelectionElement(
+      text,
+      { height: 30, width: 80, x: 10, y: 20 },
+      { height: 60, width: 160, x: 10, y: 20 },
+    )).toMatchObject({ fontSize: 48, height: 60, width: 160, x: 10, y: 20 });
+  });
+});
+
+describe('whiteboard selection rotation', () => {
+  it('rotates image centers and stroke points around one shared center', () => {
+    const element: WhiteboardElement = {
+      height: 20, id: 'image', text: '', type: 'image', width: 40, x: 80, y: 40,
+    };
+    const stroke: WhiteboardStroke = {
+      color: '#111111', id: 'stroke', points: [{ pressure: 0.5, x: 50, y: 0 }], size: 1, tool: 'pen',
+    };
+    const center = { x: 50, y: 50 };
+
+    expect(rotateSelectionElement(element, center, Math.PI / 2)).toMatchObject({
+      rotation: Math.PI / 2,
+      x: 30,
+      y: 90,
+    });
+    expect(rotateSelectionStroke(stroke, center, Math.PI / 2).points[0]).toMatchObject({ x: 100, y: 50 });
   });
 });

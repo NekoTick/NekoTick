@@ -28,6 +28,10 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      roughjs:
+        specifier: 4.6.6
+        version: 4.6.6
     devDependencies:
       '@codemirror/language':
         specifier: 6.12.3

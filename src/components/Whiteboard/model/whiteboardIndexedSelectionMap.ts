@@ -9,6 +9,22 @@ export function createWhiteboardIndexedSelectionMap<T extends { id: string }>(
   return new WhiteboardIndexedSelectionMap(items, ids, order, fullSelection);
 }
 
+export function getWhiteboardSelectedItemMap<T extends { id: string }>(
+  items: T[],
+  ids: string[],
+  order: WhiteboardItemOrder | null,
+  fullSelection: boolean,
+): ReadonlyMap<string, T> {
+  if (ids.length === 0) return new Map();
+  if (order) return createWhiteboardIndexedSelectionMap(items, ids, order, fullSelection);
+  const selectedIds = new Set(ids);
+  const selectedItems = new Map<string, T>();
+  for (const item of items) {
+    if (selectedIds.has(item.id)) selectedItems.set(item.id, item);
+  }
+  return selectedItems;
+}
+
 class WhiteboardIndexedSelectionMap<T extends { id: string }> implements ReadonlyMap<string, T> {
   readonly #ids: string[] | null;
   readonly #items: T[];

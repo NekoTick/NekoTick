@@ -2,6 +2,7 @@ import { act, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardDrawingTool, WhiteboardStroke } from '../../model/whiteboardModel';
+import { rotateSelectionStroke } from '../../model/whiteboardSelection';
 import { WhiteboardDraftStrokeLayer, WhiteboardStrokeLayer } from './WhiteboardStrokeLayer';
 
 function renderBrush(tool: WhiteboardDrawingTool) {
@@ -67,6 +68,41 @@ function getRenderedStrokeCount(node: ParentNode): number {
 describe('WhiteboardStrokeLayer brush rendering', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('renders straight linear paths and an open end arrowhead', () => {
+    const { container } = render(<WhiteboardStrokeLayer strokes={[
+      { color: '#111111', id: 'line', points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }], size: 1, tool: 'line' },
+      { color: '#ef4444', id: 'arrow', points: [{ pressure: 0.5, x: 0, y: 20 }, { pressure: 0.5, x: 100, y: 20 }], size: 1, tool: 'arrow' },
+    ]} />);
+
+    expect(container.querySelector('[data-whiteboard-linear="line"] path')?.getAttribute('d')).toMatch(/\bC/);
+    expect(container.querySelector('[data-whiteboard-linear="arrow"] > path')?.getAttribute('d')).toMatch(/\bC/);
+    expect(container.querySelector('[data-whiteboard-arrowhead="end"]')).toHaveAttribute('fill', 'none');
+  });
+
+  it('renders recognized closed shapes as Rough.js outlines', () => {
+    const shape: WhiteboardStroke = {
+      autoShape: 'ellipse', color: '#111111', id: 'ellipse',
+      points: [
+        { pressure: 0.5, x: 0, y: 50 }, { pressure: 0.5, x: 100, y: 0 },
+        { pressure: 0.5, x: 200, y: 50 }, { pressure: 0.5, x: 100, y: 100 },
+      ],
+      size: 1, tool: 'line',
+    };
+    const { container, rerender } = render(<WhiteboardStrokeLayer strokes={[shape]} />);
+
+    const path = container.querySelector('[data-whiteboard-linear="line"] path');
+    expect(container.querySelector('[data-whiteboard-autoshape="ellipse"]')).not.toBeNull();
+    expect(path?.getAttribute('d')).toMatch(/\bC/);
+    expect(path).toHaveAttribute('fill', 'none');
+    expect(path).toHaveAttribute('stroke-width', String(themeWhiteboardTokens.autoShapeStrokeWidthPx));
+    const originalPath = path?.getAttribute('d');
+
+    const rotated = rotateSelectionStroke(shape, { x: 100, y: 50 }, Math.PI / 4);
+    rerender(<WhiteboardStrokeLayer strokes={[rotated]} />);
+    expect(container.querySelector('[data-whiteboard-linear="line"] path')?.getAttribute('d')).not.toBe(originalPath);
+    expect(rotated.points[0]).toMatchObject({ x: expect.closeTo(29.29, 1), y: expect.closeTo(-20.71, 1) });
   });
 
   it('renders marker ink with a flat core and no round cap circles', () => {
@@ -144,6 +180,36 @@ describe('WhiteboardStrokeLayer brush rendering', () => {
 
     expect(container.querySelector(`[data-whiteboard-stroke="${stroke.id}"]`))
       .toHaveAttribute('opacity', String(themeWhiteboardTokens.eraserTargetPreviewOpacity));
+  });
+
+  it('keeps the raw stroke visible beneath a pending auto shape', () => {
+    const shape: WhiteboardStroke = {
+      autoShape: 'rectangle', color: '#334455', id: 'shape-preview',
+      points: [
+        { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 },
+        { pressure: 0.5, x: 100, y: 80 }, { pressure: 0.5, x: 0, y: 80 },
+        { pressure: 0.5, x: 0, y: 0 },
+      ],
+      size: 1, tool: 'line',
+    };
+    const rawStroke: WhiteboardStroke = {
+      ...shape,
+      autoShape: undefined,
+      points: shape.points.slice(0, 3),
+      tool: 'pen',
+    };
+    const { container, rerender } = render(<>
+      <WhiteboardDraftStrokeLayer stroke={rawStroke} />
+      <WhiteboardDraftStrokeLayer pending stroke={shape} />
+    </>);
+
+    expect(container.querySelector('[data-whiteboard-draft-stroke="raw"] [data-whiteboard-brush="pen"]')).not.toBeNull();
+    expect(container.querySelector('[data-whiteboard-autoshape-preview="pending"]'))
+      .toHaveAttribute('opacity', String(themeWhiteboardTokens.pendingAutoShapeOpacity));
+
+    rerender(<WhiteboardStrokeLayer strokes={[shape]} />);
+    expect(container.querySelector('[data-whiteboard-autoshape-preview]')).toBeNull();
+    expect(container.querySelector('[data-whiteboard-stroke="shape-preview"]')).not.toHaveAttribute('opacity');
   });
 
   it.each([

@@ -1,5 +1,6 @@
 import { memo, type ReactElement } from 'react';
-import { getStrokeWidth, WHITEBOARD_BRUSHES, type WhiteboardStroke } from '../../model/whiteboardModel';
+import { getStrokeWidth, isLinearTool, WHITEBOARD_BRUSHES, type WhiteboardDrawingTool, type WhiteboardStroke } from '../../model/whiteboardModel';
+import { getWhiteboardArrowheadPath, getWhiteboardLinearRenderPath, getWhiteboardLinearStrokeWidth } from '../../model/whiteboardLinear';
 import {
   getPressureStrokePath,
   getStrokeDabGeometry,
@@ -41,6 +42,17 @@ export function getWhiteboardStrokeNode(stroke: WhiteboardStroke, erasing: boole
 }
 
 const WhiteboardStrokeRenderNode = memo(function WhiteboardStrokeRenderNode({ stroke }: { stroke: WhiteboardStroke }) {
+  if (isLinearTool(stroke.tool)) {
+    const color = stroke.color;
+    const width = getWhiteboardLinearStrokeWidth(stroke);
+    const arrowhead = getWhiteboardArrowheadPath(stroke);
+    return (
+      <g data-whiteboard-autoshape={stroke.autoShape} data-whiteboard-linear={stroke.tool} shapeRendering="geometricPrecision">
+        <path d={getWhiteboardLinearRenderPath(stroke)} fill={themeWhiteboardTokens.strokeNoFill} stroke={color} strokeLinecap={themeWhiteboardTokens.strokeLineCap} strokeLinejoin={themeWhiteboardTokens.strokeLineJoin} strokeWidth={width} />
+        {arrowhead ? <path data-whiteboard-arrowhead="end" d={arrowhead} fill={themeWhiteboardTokens.strokeNoFill} stroke={color} strokeLinecap={themeWhiteboardTokens.strokeLineCap} strokeLinejoin={themeWhiteboardTokens.strokeLineJoin} strokeWidth={width} /> : null}
+      </g>
+    );
+  }
   const brush = WHITEBOARD_BRUSHES[stroke.tool];
   const color = stroke.color || brush.color;
   if (stroke.points.length === 1) {
@@ -155,7 +167,7 @@ function WhiteboardStrokeDab({
   stroke: WhiteboardStroke;
   width: number;
 }) {
-  const geometry = getStrokeDabGeometry(stroke.tool, width, point);
+  const geometry = getStrokeDabGeometry(stroke.tool as WhiteboardDrawingTool, width, point);
   const transform = geometry.angle ? `rotate(${geometry.angle} ${point.x} ${point.y})` : undefined;
   if (geometry.shape === 'rect') {
     return <rect data-whiteboard-brush-dab="marker" x={point.x - geometry.width / 2} y={point.y - geometry.height / 2} width={geometry.width} height={geometry.height} rx={themeWhiteboardTokens.strokeEdgeFeatherWidthPx} fill={color} opacity={opacity} transform={transform} />;

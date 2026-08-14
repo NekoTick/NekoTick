@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
-  getBrushPreviewRadius,
   type WhiteboardBrushTool,
   type WhiteboardPoint,
   type WhiteboardStroke,
@@ -19,19 +18,6 @@ const brushCursorLayerClassName = 'pointer-events-none absolute inset-0 hidden o
 
 export const WhiteboardBrushCursor = memo(function WhiteboardBrushCursor({ color, point, size, tool }: WhiteboardBrushCursorProps) {
   if (!point || !tool) return null;
-  if (tool === 'stroke-eraser') {
-    return (
-      <svg aria-hidden="true" className={brushCursorLayerClassName}>
-        <circle
-          data-whiteboard-brush-cursor="stroke-eraser"
-          cx={point.x}
-          cy={point.y}
-          r={getBrushPreviewRadius(tool, size)}
-          fill="var(--vlaina-color-whiteboard-selection-fill)"
-        />
-      </svg>
-    );
-  }
   const cursorStroke: WhiteboardStroke = {
     color,
     id: 'whiteboard-brush-cursor',

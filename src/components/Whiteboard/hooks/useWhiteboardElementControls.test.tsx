@@ -186,4 +186,28 @@ describe('useWhiteboardElementControls', () => {
     expect(setStrokes).not.toHaveBeenCalled();
     expect(setDragState).toHaveBeenCalledOnce();
   });
+
+  it('preserves the aspect ratio when resizing one text element', () => {
+    const text = {
+      color: '#111111', fontSize: 24, height: 30, id: 'text', lineHeight: 1.25,
+      text: 'Hello', type: 'text' as const, width: 80, x: 10, y: 20,
+    };
+    const setDragState = vi.fn();
+    const { result } = renderHook(() => useWhiteboardElementControls({
+      elements: [text], getBoardPoint: vi.fn(() => ({ x: 90, y: 50 })), pushHistory: vi.fn(),
+      selectedElementIds: [text.id], selectedStrokeIds: [], setDragState, setElements: vi.fn(),
+      setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
+      spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([text], []),
+      strokes: [], tool: 'select',
+    }));
+
+    act(() => result.current.handleSelectionResizePointerDown({
+      button: 0, clientX: 90, clientY: 50, currentTarget: { setPointerCapture: vi.fn() },
+      pointerId: 1, shiftKey: false, stopPropagation: vi.fn(),
+    } as unknown as PointerEvent<SVGRectElement>, 'se'));
+
+    expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'resize-selection', preserveAspectRatio: true,
+    }));
+  });
 });

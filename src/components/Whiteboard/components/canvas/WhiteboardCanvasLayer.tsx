@@ -4,6 +4,7 @@ import { WhiteboardBrushCursor } from './WhiteboardBrushCursor';
 import { WhiteboardContentLayer } from './WhiteboardContentLayer';
 import { WhiteboardEraserTrail } from './WhiteboardEraserTrail';
 import { WhiteboardDraftStrokeLayer, WhiteboardStrokeLayer } from './WhiteboardStrokeLayer';
+import { WhiteboardTextEditor } from './WhiteboardTextEditor';
 import {
   isDrawingTool,
   type WhiteboardBrushTool,
@@ -21,10 +22,10 @@ import {
   type WhiteboardSelectionRect,
 } from '../../model/whiteboardSelection';
 import { getWhiteboardCullingWindow, type WhiteboardCullingWindow } from '../../model/whiteboardViewport';
-import type { WhiteboardMovePreview, WhiteboardResizePreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardStrokeEraserPreview } from '../../model/whiteboardStrokeEraser';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
 import { getWhiteboardAppendStart } from '../../model/whiteboardCollection';
 import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
+import type { WhiteboardTextEditingState } from '../../hooks/useWhiteboardTextEditing';
 import {
   getWhiteboardBoundsCandidates,
   type WhiteboardEraserPreview,
@@ -37,19 +38,25 @@ interface WhiteboardCanvasLayerProps {
   brushCursorSize: number;
   brushCursorTool: WhiteboardBrushTool | null;
   draftStroke: WhiteboardStroke | null;
+  draftStrokePreview?: WhiteboardStroke | null;
   eraserPreview: WhiteboardEraserPreview;
   movePreview: WhiteboardMovePreview | null;
   renderData: WhiteboardRenderData;
   resizePreview?: WhiteboardResizePreview | null;
+  rotationPreview?: WhiteboardRotationPreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
-  strokeEraserPreview?: WhiteboardStrokeEraserPreview | null;
   tool: WhiteboardTool;
+  textEditing?: WhiteboardTextEditingState | null;
   viewport: WhiteboardViewport;
   viewportSize: WhiteboardPoint;
   onElementPointerDown: (event: PointerEvent<HTMLDivElement>, element: WhiteboardElement) => void;
+  onTextEditingChange?: (text: string) => void;
+  onTextEditingCommit?: () => void;
+  onLinearPointPointerDown?: (event: PointerEvent<SVGCircleElement>, strokeId: string, pointIndex: number, midpoint: boolean) => void;
   onSelectionMovePointerDown: (event: PointerEvent<SVGElement>) => void;
   onSelectionResizePointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
+  onSelectionRotationPointerDown?: (event: PointerEvent<SVGCircleElement>, center: WhiteboardPoint) => void;
 }
 
 export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
@@ -97,17 +104,21 @@ export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
         <WhiteboardContentLayer
           erasingElementIds={props.eraserPreview.elementIds}
           erasingStrokeIds={props.eraserPreview.strokeIds}
+          hiddenElementId={props.textEditing?.element.id ?? null}
           movePreview={props.movePreview}
           renderData={completedRenderData}
           resizePreview={props.resizePreview ?? null}
+          rotationPreview={props.rotationPreview ?? null}
           selectionPath={props.selectionPath}
           spacePressed={props.spacePressed}
-          strokeEraserPreview={props.strokeEraserPreview ?? null}
           tool={props.tool}
           visibleRect={visibleRect}
           onElementPointerDown={props.onElementPointerDown}
+          onLinearPointPointerDown={props.onLinearPointPointerDown ?? ignoreLinearPointPointerDown}
           onSelectionMovePointerDown={props.onSelectionMovePointerDown}
           onSelectionResizePointerDown={props.onSelectionResizePointerDown}
+          onSelectionRotationPointerDown={props.onSelectionRotationPointerDown ?? ignoreSelectionRotationPointerDown}
+          zoom={props.viewport.zoom}
         />
       </div>
       <div
@@ -120,6 +131,14 @@ export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
         </div>
         <WhiteboardEraserTrail trail={props.eraserPreview.trail} zoom={props.viewport.zoom} />
         <WhiteboardDraftStrokeLayer stroke={props.draftStroke} />
+        <WhiteboardDraftStrokeLayer pending stroke={props.draftStrokePreview ?? null} />
+        {props.textEditing ? (
+          <WhiteboardTextEditor
+            editing={props.textEditing}
+            onChange={props.onTextEditingChange ?? ignoreTextEditingChange}
+            onCommit={props.onTextEditingCommit ?? ignoreTextEditingCommit}
+          />
+        ) : null}
         <WhiteboardBrushCursor
           color={props.brushCursorColor}
           point={props.brushCursorPoint}
@@ -130,6 +149,11 @@ export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
     </>
   );
 }
+
+function ignoreLinearPointPointerDown() {}
+function ignoreSelectionRotationPointerDown() {}
+function ignoreTextEditingChange(_text: string) {}
+function ignoreTextEditingCommit() {}
 
 function getCompletedStrokeLayers(
   current: { all: WhiteboardStroke[]; appended: WhiteboardStroke[]; base: WhiteboardStroke[]; elements: WhiteboardElement[]; spatialIndex: WhiteboardEraserSpatialIndex } | null,

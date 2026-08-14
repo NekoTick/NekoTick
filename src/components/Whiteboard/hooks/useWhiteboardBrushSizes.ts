@@ -5,8 +5,7 @@ import {
   resizeBrushSize,
   type WhiteboardBrushColors,
   type WhiteboardBrushSizes,
-  type WhiteboardBrushTool,
-  type WhiteboardDrawingTool,
+  type WhiteboardStrokeTool,
 } from '../model/whiteboardModel';
 
 export function useWhiteboardBrushSizes() {
@@ -21,20 +20,22 @@ export function useWhiteboardBrushSizes() {
     fountain: sharedBrushColor,
     watercolor: sharedBrushColor,
     crayon: sharedBrushColor,
+    line: sharedBrushColor,
+    arrow: sharedBrushColor,
   }), [sharedBrushColor]);
 
-  const resizeBrush = useCallback((tool: WhiteboardBrushTool, deltaY: number) => {
+  const resizeBrush = useCallback((tool: WhiteboardStrokeTool, deltaY: number) => {
     setBrushSizes((current) => ({
       ...current,
       [tool]: resizeBrushSize(current[tool], deltaY),
     }));
   }, []);
 
-  const setBrushSize = useCallback((tool: WhiteboardBrushTool, size: number) => {
+  const setBrushSize = useCallback((tool: WhiteboardStrokeTool, size: number) => {
     setBrushSizes((current) => ({ ...current, [tool]: size }));
   }, []);
 
-  const setDrawingColor = useCallback((_tool: WhiteboardDrawingTool, color: string) => {
+  const setDrawingColor = useCallback((_tool: WhiteboardStrokeTool, color: string) => {
     setBrushColor(color);
   }, []);
 

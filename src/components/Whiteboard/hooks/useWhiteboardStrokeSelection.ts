@@ -2,7 +2,7 @@ import { useCallback, type Dispatch, type PointerEvent, type SetStateAction } fr
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardDragState } from '../model/whiteboardInteractions';
 import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '../model/whiteboardModel';
-import { findStrokeAtPoint, getSelectionBounds } from '../model/whiteboardSelection';
+import { findElementAtPoint, findStrokeAtPoint, getSelectionBounds } from '../model/whiteboardSelection';
 import { getWhiteboardBoundsCandidates, getWhiteboardIndexedItems, type WhiteboardEraserSpatialIndex, type WhiteboardItemOrder } from '../model/whiteboardEraser';
 
 interface WhiteboardStrokeSelectionOptions {
@@ -11,7 +11,7 @@ interface WhiteboardStrokeSelectionOptions {
   selectedElementIds: string[];
   selectedStrokeIds: string[];
   setDragState: Dispatch<SetStateAction<WhiteboardDragState | null>>;
-  setSelectedElementId: Dispatch<SetStateAction<string | null>>;
+  setSelectedElementIds: Dispatch<SetStateAction<string[]>>;
   setSelectedStrokeIds: Dispatch<SetStateAction<string[]>>;
   spatialIndex: WhiteboardEraserSpatialIndex;
   strokes: WhiteboardStroke[];
@@ -24,7 +24,7 @@ export function useWhiteboardStrokeSelection({
   selectedElementIds,
   selectedStrokeIds,
   setDragState,
-  setSelectedElementId,
+  setSelectedElementIds,
   setSelectedStrokeIds,
   spatialIndex,
   strokes,
@@ -64,17 +64,41 @@ export function useWhiteboardStrokeSelection({
       return;
     }
     const hitTolerance = themeWhiteboardTokens.strokeHitTolerancePx / zoom;
-    const candidates = spatialIndex.allStrokes === strokes
+    const candidates = spatialIndex.allStrokes === strokes || spatialIndex.allElements === elements
       ? getWhiteboardBoundsCandidates(spatialIndex, {
         height: hitTolerance * 2,
         width: hitTolerance * 2,
         x: point.x - hitTolerance,
         y: point.y - hitTolerance,
-      }).strokes
-      : strokes;
-    const hitStroke = findStrokeAtPoint(candidates, point, zoom);
+      })
+      : null;
+    const hitElement = findElementAtPoint(candidates?.elements ?? elements, point);
+    if (hitElement) {
+      const hitSelected = selectedElementIds.includes(hitElement.id);
+      const nextIds = hitSelected && event.shiftKey
+        ? selectedElementIds.filter((id) => id !== hitElement.id)
+        : Array.from(new Set(event.shiftKey || hitSelected ? [...selectedElementIds, hitElement.id] : [hitElement.id]));
+      const keepStrokeSelection = event.shiftKey || hitSelected;
+      setSelectedElementIds(nextIds);
+      if (!keepStrokeSelection) setSelectedStrokeIds([]);
+      if (event.shiftKey || nextIds.length === 0) return;
+      pushHistory();
+      setDragState({
+        kind: 'move-elements',
+        currentPoint: point,
+        elementIds: nextIds,
+        originalElementsById: new Map(getSelectedItems(
+          elements, nextIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null,
+        ).map((element) => [element.id, element])),
+        originalStrokesById: new Map(keepStrokeSelection ? originalStrokes.map((stroke) => [stroke.id, stroke]) : []),
+        startPoint: point,
+        strokeIds: keepStrokeSelection ? selectedStrokeIds : [],
+      });
+      return;
+    }
+    const hitStroke = findStrokeAtPoint(candidates?.strokes ?? strokes, point, zoom);
     if (!hitStroke) {
-      setSelectedElementId(null);
+      setSelectedElementIds([]);
       setSelectedStrokeIds([]);
       setDragState({ kind: 'lasso', points: [point] });
       return;
@@ -84,7 +108,7 @@ export function useWhiteboardStrokeSelection({
       ? selectedStrokeIds.filter((id) => id !== hitStroke.id)
       : Array.from(new Set(event.shiftKey || hitSelected ? [...selectedStrokeIds, hitStroke.id] : [hitStroke.id]));
     const keepElementSelection = event.shiftKey || hitSelected;
-    if (!keepElementSelection) setSelectedElementId(null);
+    if (!keepElementSelection) setSelectedElementIds([]);
     setSelectedStrokeIds(nextIds);
     if (event.shiftKey || nextIds.length === 0) return;
     pushHistory();
@@ -112,7 +136,7 @@ export function useWhiteboardStrokeSelection({
       startPoint: point,
       strokeIds: nextIds,
     });
-  }, [elements, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementId, setSelectedStrokeIds, spatialIndex, strokes, zoom]);
+  }, [elements, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementIds, setSelectedStrokeIds, spatialIndex, strokes, zoom]);
 }
 
 function getSelectedItems<T extends { id: string }>(

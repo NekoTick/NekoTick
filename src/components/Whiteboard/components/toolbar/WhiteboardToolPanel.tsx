@@ -46,7 +46,7 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
             key={item.id}
             active={props.tool === item.id}
             icon={item.icon}
-            imageSrc={item.imageSrc}
+            imageSrc={item.imageSrc || undefined}
             label={t(item.labelKey)}
             partiallyRevealed
             revealOnHover

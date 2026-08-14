@@ -5,8 +5,8 @@ import {
   getWhiteboardEraserCandidates,
   getWhiteboardEraserTargets,
   getWhiteboardIndexedItems,
-  getWhiteboardStrokeEraserCandidates,
   tryUpdateWhiteboardEraserSpatialIndex,
+  updateWhiteboardEraserTrail,
   updateWhiteboardEraserSpatialIndex,
 } from './whiteboardEraser';
 import { markWhiteboardSpliceUpdate, removeWhiteboardItems } from './whiteboardCollection';
@@ -20,6 +20,34 @@ describe('whiteboard object eraser', () => {
     );
     expect(targets.elementIds).toEqual(['image']);
     expect(targets.strokeIds).toEqual(['stroke']);
+  });
+
+  it('erases an arrow when the gesture only crosses its arrowhead', () => {
+    const targets = getWhiteboardEraserTargets(
+      [],
+      [{
+        color: '#111111', id: 'arrow',
+        points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 }],
+        size: 1, tool: 'arrow',
+      }],
+      [{ point: { x: 77, y: 8 }, size: 1 }],
+    );
+
+    expect(targets.strokeIds).toEqual(['arrow']);
+  });
+
+  it('erases a recognized shape only when the gesture crosses its outline', () => {
+    const shape = {
+      autoShape: 'rectangle' as const, color: '#111111', id: 'rectangle',
+      points: [
+        { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 },
+        { pressure: 0.5, x: 100, y: 80 }, { pressure: 0.5, x: 0, y: 80 }, { pressure: 0.5, x: 0, y: 0 },
+      ],
+      size: 1, tool: 'line' as const,
+    };
+
+    expect(getWhiteboardEraserTargets([], [shape], [{ point: { x: 50, y: 40 }, size: 1 }]).strokeIds).toEqual([]);
+    expect(getWhiteboardEraserTargets([], [shape], [{ point: { x: 50, y: 0 }, size: 1 }]).strokeIds).toEqual(['rectangle']);
   });
 
   it('leaves distant content untouched', () => {
@@ -41,6 +69,33 @@ describe('whiteboard object eraser', () => {
     expect(targets.elementIds).toEqual(['image']);
   });
 
+  it('truncates the active trail when the pointer retraces its final segment', () => {
+    const trail = updateWhiteboardEraserTrail(
+      [{ point: { x: 0, y: 0 }, size: 1 }, { point: { x: 0, y: 100 }, size: 1 }],
+      [{ point: { x: 0, y: 65 }, size: 1 }],
+    );
+
+    expect(trail.backtracked).toBe(true);
+    expect(trail.samples).toEqual([
+      { point: { x: 0, y: 0 }, size: 1 },
+      { point: { x: 0, y: 65 }, size: 1 },
+    ]);
+  });
+
+  it('keeps a new path when the pointer crosses an older segment without reversing', () => {
+    const samples = [
+      { point: { x: 0, y: 0 }, size: 1 },
+      { point: { x: 100, y: 0 }, size: 1 },
+      { point: { x: 100, y: 100 }, size: 1 },
+      { point: { x: 0, y: 100 }, size: 1 },
+    ];
+
+    const trail = updateWhiteboardEraserTrail(samples, [{ point: { x: 0, y: 0 }, size: 1 }]);
+
+    expect(trail.backtracked).toBe(false);
+    expect(trail.samples).toHaveLength(5);
+  });
+
   it('limits exact hit testing to nearby indexed content', () => {
     const nearby = { height: 40, id: 'nearby', text: '', type: 'image' as const, width: 40, x: 20, y: 20 };
     const distant = Array.from({ length: 1000 }, (_, index) => ({
@@ -52,24 +107,6 @@ describe('whiteboard object eraser', () => {
     const candidates = getWhiteboardEraserCandidates(index, [{ point: { x: 30, y: 30 }, size: 1 }]);
 
     expect(candidates.elements).toEqual([nearby]);
-  });
-
-  it('limits partial erasing to nearby indexed strokes', () => {
-    const nearby = {
-      color: '#111111', id: 'nearby',
-      points: [{ pressure: 0.5, x: 20, y: 20 }, { pressure: 0.5, x: 80, y: 20 }],
-      size: 1, tool: 'pen' as const,
-    };
-    const distant = Array.from({ length: 1000 }, (_, index) => ({
-      color: '#111111', id: `distant-${index}`,
-      points: [{ pressure: 0.5, x: 10_000 + index * 100, y: 10_000 }],
-      size: 1, tool: 'pen' as const,
-    }));
-    const index = createWhiteboardEraserSpatialIndex([], [nearby, ...distant]);
-
-    const candidates = getWhiteboardStrokeEraserCandidates(index, [{ point: { x: 40, y: 20 }, size: 1 }]);
-
-    expect(candidates).toEqual([nearby]);
   });
 
   it('keeps oversized content queryable without expanding it into every grid cell', () => {

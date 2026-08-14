@@ -1,6 +1,6 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
-  resizeWhiteboardElement,
+  isLinearTool,
   type WhiteboardElement,
   type WhiteboardPoint,
   type WhiteboardStroke,
@@ -8,23 +8,35 @@ import {
 import { markWhiteboardSparseUpdate } from './whiteboardCollection';
 import type { WhiteboardItemOrder } from './whiteboardSpatialIndex';
 import { scaleWhiteboardStrokePointOrientation } from './whiteboardStrokeDynamics';
-import {
-  cacheTranslatedStrokeBounds,
-  getElementBounds,
-  type WhiteboardSelectionRect,
-} from './whiteboardSelectionGeometry';
+import { getElementBounds, type WhiteboardSelectionRect } from './whiteboardSelectionGeometry';
 
 export {
   extendSelectedOverlayGeometry,
   getBoundsUnion,
   getElementBounds,
+  getElementCorners,
   getSelectedOverlayGeometry,
   getSelectionBounds,
   getStrokeBounds,
 } from './whiteboardSelectionGeometry';
 export type { WhiteboardSelectedOverlayGeometry, WhiteboardSelectionRect } from './whiteboardSelectionGeometry';
+export {
+  rotateSelectionElement,
+  rotateSelectionElements,
+  rotateSelectionStroke,
+  rotateSelectionStrokes,
+} from './whiteboardSelectionRotation';
+export {
+  translateElementsFromOriginals,
+  translateStroke,
+  translateStrokesFromOriginals,
+} from './whiteboardSelectionTranslation';
 
 export type WhiteboardResizeHandle = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw';
+
+export function getWhiteboardResizeScale(nextSize: number, startSize: number): number {
+  return nextSize / Math.max(themeWhiteboardTokens.selectionResizeMinSizePx, Math.abs(startSize));
+}
 
 export function getResizedSelectionBounds(
   bounds: WhiteboardSelectionRect,
@@ -47,7 +59,7 @@ export function getResizedSelectionBounds(
     next.height = bounds.height - dy;
   }
   const resized = preserveAspectRatio && handle.length === 2 ? preserveBoundsAspectRatio(bounds, next, handle) : next;
-  return clampResizeBounds(bounds, resized, handle);
+  return keepResizeBoundsNonZero(resized);
 }
 
 export function resizeSelectionElements(
@@ -88,12 +100,43 @@ export function resizeSelectionElement(
   startBounds: WhiteboardSelectionRect,
   nextBounds: WhiteboardSelectionRect,
 ): WhiteboardElement {
-  const scaled = scaleRect(getElementBounds(element), startBounds, nextBounds);
-  return resizeWhiteboardElement({
+  const elementBounds = getElementBounds(element);
+  const scaled = scaleRect(elementBounds, startBounds, nextBounds);
+  const normalized = normalizeWhiteboardSelectionRect(scaled);
+  const isText = element.type === 'text';
+  const scaleX = getWhiteboardResizeScale(nextBounds.width, startBounds.width);
+  const scaleY = getWhiteboardResizeScale(nextBounds.height, startBounds.height);
+  const scaledCenter = scalePoint({
+    x: element.x + element.width / 2,
+    y: element.y + element.height / 2,
+  }, startBounds, nextBounds);
+  const minSize = themeWhiteboardTokens.selectionResizeMinSizePx;
+  const textWidth = Math.max(minSize, element.width * Math.abs(scaleX));
+  const textHeight = Math.max(minSize, element.height * Math.abs(scaleY));
+  const resized: WhiteboardElement = {
     ...element,
-    x: Math.round(scaled.x),
-    y: Math.round(scaled.y),
-  }, scaled.width, scaled.height);
+    flipX: toggleFlip(element.flipX, scaleX < 0),
+    flipY: toggleFlip(element.flipY, scaleY < 0),
+    ...(element.rotation && (scaleX < 0) !== (scaleY < 0)
+      ? { rotation: -element.rotation }
+      : {}),
+    ...(isText ? {
+      fontSize: (element.fontSize ?? themeWhiteboardTokens.whiteboardTextFontSizePx)
+        * Math.abs(scaleX),
+      height: textHeight,
+      width: textWidth,
+      x: scaledCenter.x - textWidth / 2,
+      y: scaledCenter.y - textHeight / 2,
+    } : {
+      height: Math.max(1, Math.round(normalized.height)),
+      width: Math.max(1, Math.round(normalized.width)),
+      x: Math.round(normalized.x),
+      y: Math.round(normalized.y),
+    }),
+  };
+  if (!resized.flipX) delete resized.flipX;
+  if (!resized.flipY) delete resized.flipY;
+  return resized;
 }
 
 export function resizeSelectionStrokes(
@@ -134,13 +177,19 @@ export function resizeSelectionStroke(
   startBounds: WhiteboardSelectionRect,
   nextBounds: WhiteboardSelectionRect,
 ): WhiteboardStroke {
-  const scaleX = nextBounds.width / Math.max(1, startBounds.width);
-  const scaleY = nextBounds.height / Math.max(1, startBounds.height);
-  const widthScale = Math.sqrt(scaleX * scaleY);
+  const scaleX = getWhiteboardResizeScale(nextBounds.width, startBounds.width);
+  const scaleY = getWhiteboardResizeScale(nextBounds.height, startBounds.height);
+  const widthScale = Math.sqrt(Math.abs(scaleX * scaleY));
   const textureScale = (stroke.renderTextureScale ?? 1) * Math.pow(
     widthScale,
     1 - themeWhiteboardTokens.textureDashScaleExponent,
   );
+  if (isLinearTool(stroke.tool)) {
+    return {
+      ...stroke,
+      points: stroke.points.map((point) => scalePoint(point, startBounds, nextBounds)),
+    };
+  }
   return {
     ...stroke,
     points: stroke.points.map((point) => scalePoint(
@@ -156,89 +205,16 @@ export function resizeSelectionStroke(
   };
 }
 
-export function translateStroke(stroke: WhiteboardStroke, dx: number, dy: number): WhiteboardStroke {
-  const points = new Array<WhiteboardStroke['points'][number]>(stroke.points.length);
-  for (let index = 0; index < stroke.points.length; index += 1) {
-    const point = stroke.points[index];
-    points[index] = { ...point, x: point.x + dx, y: point.y + dy };
-  }
-  const translated: WhiteboardStroke = { ...stroke, points };
-  cacheTranslatedStrokeBounds(stroke, translated, dx, dy);
-  return translated;
-}
-
-export function translateStrokesFromOriginals(
-  strokes: WhiteboardStroke[],
-  originalStrokes: WhiteboardStroke[] | ReadonlyMap<string, WhiteboardStroke>,
-  dx: number,
-  dy: number,
-  order?: WhiteboardItemOrder | null,
-): WhiteboardStroke[] {
-  const originalById = toStrokeMap(originalStrokes);
-  if (!Array.isArray(originalStrokes) && order) {
-    const translated = strokes.slice();
-    const changedItems: WhiteboardStroke[] = [];
-    for (const original of originalById.values()) {
-      const index = order.get(original.id);
-      if (index === undefined) continue;
-      const stroke = strokes[index];
-      if (!stroke || stroke.id !== original.id) continue;
-      const next = translateStroke(original, dx, dy);
-      translated[index] = next;
-      changedItems.push(next);
-    }
-    return markWhiteboardSparseUpdate(strokes, translated, changedItems);
-  }
-  const translated = new Array<WhiteboardStroke>(strokes.length);
-  const changedItems: WhiteboardStroke[] = [];
-  for (let index = 0; index < strokes.length; index += 1) {
-    const stroke = strokes[index];
-    const original = originalById.get(stroke.id);
-    const next = original ? translateStroke(original, dx, dy) : stroke;
-    translated[index] = next;
-    if (original) changedItems.push(next);
-  }
-  return markWhiteboardSparseUpdate(strokes, translated, changedItems);
-}
-
-export function translateElementsFromOriginals(
-  elements: WhiteboardElement[],
-  originalElements: ReadonlyMap<string, WhiteboardElement>,
-  dx: number,
-  dy: number,
-  order?: WhiteboardItemOrder | null,
-): WhiteboardElement[] {
-  const translated = order ? elements.slice() : new Array<WhiteboardElement>(elements.length);
-  const changedItems: WhiteboardElement[] = [];
-  if (order) {
-    for (const original of originalElements.values()) {
-      const index = order.get(original.id);
-      if (index === undefined) continue;
-      const element = elements[index];
-      if (!element || element.id !== original.id) continue;
-      const next = { ...element, x: Math.round(original.x + dx), y: Math.round(original.y + dy) };
-      translated[index] = next;
-      changedItems.push(next);
-    }
-  } else {
-    for (let index = 0; index < elements.length; index += 1) {
-      const element = elements[index];
-      const original = originalElements.get(element.id);
-      const next = original
-        ? { ...element, x: Math.round(original.x + dx), y: Math.round(original.y + dy) }
-        : element;
-      translated[index] = next;
-      if (original) changedItems.push(next);
-    }
-  }
-  return markWhiteboardSparseUpdate(elements, translated, changedItems);
-}
-
 function preserveBoundsAspectRatio(start: WhiteboardSelectionRect, next: WhiteboardSelectionRect, handle: WhiteboardResizeHandle): WhiteboardSelectionRect {
-  const ratio = start.width / Math.max(1, start.height);
-  const widthChangedMore = Math.abs(next.width - start.width) >= Math.abs(next.height - start.height);
-  const width = widthChangedMore ? next.width : next.height * ratio;
-  const height = widthChangedMore ? next.width / ratio : next.height;
+  const minSize = themeWhiteboardTokens.selectionResizeMinSizePx;
+  const scale = Math.max(
+    Math.abs(getWhiteboardResizeScale(next.width, start.width)),
+    Math.abs(getWhiteboardResizeScale(next.height, start.height)),
+    minSize / Math.max(minSize, start.width),
+    minSize / Math.max(minSize, start.height),
+  );
+  const width = start.width * scale * Math.sign(next.width || 1);
+  const height = start.height * scale * Math.sign(next.height || 1);
   return {
     height,
     width,
@@ -247,21 +223,27 @@ function preserveBoundsAspectRatio(start: WhiteboardSelectionRect, next: Whitebo
   };
 }
 
-function clampResizeBounds(start: WhiteboardSelectionRect, next: WhiteboardSelectionRect, handle: WhiteboardResizeHandle): WhiteboardSelectionRect {
-  const minSize = themeWhiteboardTokens.selectionResizeMinSizePx;
-  const width = Math.max(minSize, next.width);
-  const height = Math.max(minSize, next.height);
+export function normalizeWhiteboardSelectionRect(rect: WhiteboardSelectionRect): WhiteboardSelectionRect {
   return {
-    height,
-    width,
-    x: handle.includes('w') ? start.x + start.width - width : next.x,
-    y: handle.includes('n') ? start.y + start.height - height : next.y,
+    height: Math.abs(rect.height),
+    width: Math.abs(rect.width),
+    x: rect.width < 0 ? rect.x + rect.width : rect.x,
+    y: rect.height < 0 ? rect.y + rect.height : rect.y,
+  };
+}
+
+function keepResizeBoundsNonZero(rect: WhiteboardSelectionRect): WhiteboardSelectionRect {
+  const minSize = themeWhiteboardTokens.selectionResizeMinSizePx;
+  return {
+    ...rect,
+    height: Math.sign(rect.height || 1) * Math.max(minSize, Math.abs(rect.height)),
+    width: Math.sign(rect.width || 1) * Math.max(minSize, Math.abs(rect.width)),
   };
 }
 
 function scaleRect(rect: WhiteboardSelectionRect, startBounds: WhiteboardSelectionRect, nextBounds: WhiteboardSelectionRect): WhiteboardSelectionRect {
-  const scaleX = nextBounds.width / Math.max(1, startBounds.width);
-  const scaleY = nextBounds.height / Math.max(1, startBounds.height);
+  const scaleX = getWhiteboardResizeScale(nextBounds.width, startBounds.width);
+  const scaleY = getWhiteboardResizeScale(nextBounds.height, startBounds.height);
   return {
     height: rect.height * scaleY,
     width: rect.width * scaleX,
@@ -271,13 +253,18 @@ function scaleRect(rect: WhiteboardSelectionRect, startBounds: WhiteboardSelecti
 }
 
 function scalePoint<T extends WhiteboardPoint>(point: T, startBounds: WhiteboardSelectionRect, nextBounds: WhiteboardSelectionRect): T {
-  const scaleX = nextBounds.width / Math.max(1, startBounds.width);
-  const scaleY = nextBounds.height / Math.max(1, startBounds.height);
+  const scaleX = getWhiteboardResizeScale(nextBounds.width, startBounds.width);
+  const scaleY = getWhiteboardResizeScale(nextBounds.height, startBounds.height);
   return {
     ...point,
     x: nextBounds.x + (point.x - startBounds.x) * scaleX,
     y: nextBounds.y + (point.y - startBounds.y) * scaleY,
   };
+}
+
+function toggleFlip(value: boolean | undefined, shouldFlip: boolean): boolean | undefined {
+  const flipped = Boolean(value) !== shouldFlip;
+  return flipped ? true : undefined;
 }
 
 const toElementMap = (elements: WhiteboardElement[] | ReadonlyMap<string, WhiteboardElement>) => Array.isArray(elements) ? new Map(elements.map((element) => [element.id, element])) : elements;

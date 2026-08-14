@@ -48,6 +48,30 @@ export type WhiteboardDragState =
   | {
     kind: 'draw';
   }
+  | {
+    kind: 'draw-autoshape';
+  }
+  | {
+    kind: 'draw-linear';
+    startPoint: WhiteboardPoint;
+  }
+  | {
+    kind: 'edit-linear-point';
+    midpoint: boolean;
+    originalStroke: WhiteboardStroke;
+    pointIndex: number;
+    started: boolean;
+    startPoint: WhiteboardPoint;
+    strokeId: string;
+  }
+  | {
+    center: WhiteboardPoint;
+    currentAngle: number;
+    kind: 'rotate-selection';
+    originalElementsById: ReadonlyMap<string, WhiteboardElement>;
+    originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
+    startAngle: number;
+  }
   ;
 
 export interface WhiteboardMovePreview {
@@ -60,6 +84,13 @@ export interface WhiteboardResizePreview {
   originalElementsById: ReadonlyMap<string, WhiteboardElement>;
   originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
   startBounds: WhiteboardSelectionRect;
+}
+
+export interface WhiteboardRotationPreview {
+  angle: number;
+  center: WhiteboardPoint;
+  originalElementsById: ReadonlyMap<string, WhiteboardElement>;
+  originalStrokesById: ReadonlyMap<string, WhiteboardStroke>;
 }
 
 export type WhiteboardMoveDragState = Extract<WhiteboardDragState, { kind: 'move-elements' | 'move-strokes' }>;
@@ -83,6 +114,16 @@ export function getWhiteboardResizePreview(state: WhiteboardDragState | null): W
     originalElementsById: state.originalElementsById,
     originalStrokesById: state.originalStrokesById,
     startBounds: state.bounds,
+  };
+}
+
+export function getWhiteboardRotationPreview(state: WhiteboardDragState | null): WhiteboardRotationPreview | null {
+  if (state?.kind !== 'rotate-selection') return null;
+  return {
+    angle: state.currentAngle,
+    center: state.center,
+    originalElementsById: state.originalElementsById,
+    originalStrokesById: state.originalStrokesById,
   };
 }
 

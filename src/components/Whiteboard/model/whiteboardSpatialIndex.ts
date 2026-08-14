@@ -1,6 +1,5 @@
 import {
   getEraserRadius,
-  getStrokeEraserRadius,
   type WhiteboardElement,
   type WhiteboardPoint,
   type WhiteboardStroke,
@@ -117,17 +116,6 @@ export function getWhiteboardEraserCandidates(
     elements: getCurrentWhiteboardItems(elements, index.allElements, index.elementOrder, Boolean(index.baseIndex)),
     strokes: getCurrentWhiteboardItems(strokes, index.allStrokes, index.strokeOrder, Boolean(index.baseIndex)),
   };
-}
-
-export function getWhiteboardStrokeEraserCandidates(
-  index: WhiteboardEraserSpatialIndex,
-  samples: WhiteboardEraserSample[],
-): WhiteboardStroke[] {
-  const cellKeys = getSweepCellKeys(getEraserSweeps(samples, getStrokeEraserRadius));
-  const strokes = new Set<WhiteboardStroke>();
-  collectWhiteboardGlobalItems(index, null, strokes);
-  for (const key of cellKeys) collectWhiteboardCellItems(index, key, null, strokes);
-  return getCurrentWhiteboardItems(strokes, index.allStrokes, index.strokeOrder, Boolean(index.baseIndex));
 }
 
 export function getWhiteboardBoundsCandidates(
@@ -283,15 +271,14 @@ function getAppendStart<T>(current: T[], next: T[]): number | null {
 
 function getEraserSweeps(
   samples: WhiteboardEraserSample[],
-  getRadius = getEraserRadius,
 ): Array<{ end: WhiteboardEraserSample; radius: number; start: WhiteboardEraserSample }> {
   if (samples.length === 0) return [];
   if (samples.length === 1) {
     const sample = samples[0];
-    return [{ end: sample, radius: getRadius(sample.size), start: sample }];
+    return [{ end: sample, radius: getEraserRadius(sample.size), start: sample }];
   }
   return samples.slice(1).map((end, index) => {
     const start = samples[index];
-    return { end, radius: getRadius(Math.max(start.size, end.size)), start };
+    return { end, radius: getEraserRadius(Math.max(start.size, end.size)), start };
   });
 }

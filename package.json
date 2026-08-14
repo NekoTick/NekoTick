@@ -154,5 +154,8 @@
     "wait-on": "^9.0.10",
     "yaml": "^2.9.0",
     "zustand": "^5.0.14"
+  },
+  "dependencies": {
+    "roughjs": "4.6.6"
   }
 }

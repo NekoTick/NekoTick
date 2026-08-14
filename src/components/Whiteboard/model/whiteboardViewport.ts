@@ -1,6 +1,6 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke, WhiteboardViewport } from './whiteboardModel';
-import { getStrokeBounds, type WhiteboardSelectionRect } from './whiteboardSelection';
+import { getElementBounds, getStrokeBounds, type WhiteboardSelectionRect } from './whiteboardSelection';
 import { WHITEBOARD_INITIAL_VIEWPORT, clampWhiteboardZoom } from './whiteboardModel';
 
 export interface WhiteboardCullingWindow {
@@ -86,7 +86,10 @@ function getContentBounds(elements: WhiteboardElement[], strokes: WhiteboardStro
     maxX = Math.max(maxX, x + width);
     maxY = Math.max(maxY, y + height);
   };
-  elements.forEach((element) => includeBounds(element.x, element.y, element.width, element.height));
+  elements.forEach((element) => {
+    const elementBounds = getElementBounds(element);
+    includeBounds(elementBounds.x, elementBounds.y, elementBounds.width, elementBounds.height);
+  });
   strokes.forEach((stroke) => {
     const bounds = getStrokeBounds(stroke);
     if (bounds) includeBounds(bounds.x, bounds.y, bounds.width, bounds.height);
