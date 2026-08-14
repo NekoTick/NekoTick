@@ -606,6 +606,44 @@ describe('isEditorMarkdownEquivalentToNoteContent', () => {
     ).toBe(false);
   });
 
+  it('treats supported inline marks around links as equivalent to Milkdown mark ordering', () => {
+    const source = [
+      '<span style="font-weight: 600; color : #123456">[Color](https://example.test/color)</span>',
+      '<mark style="background-color: #ecf6ff">[Background](docs/background.md)</mark>',
+      '<sub>[Subscript](docs/subscript.md)</sub>',
+      '~[Delimited](docs/delimited.md)~',
+    ].join(' ');
+    const serialized = [
+      '[<span style="color: #123456">Color</span>](https://example.test/color)',
+      '[<mark style="background-color: #ecf6ff">Background</mark>](docs/background.md)',
+      '[~Subscript~](docs/subscript.md)',
+      '[~Delimited~](docs/delimited.md)',
+    ].join(' ');
+
+    expect(isEditorMarkdownEquivalentToNoteContent(serialized, source)).toBe(true);
+  });
+
+  it('keeps different inline mark links and code literals non-equivalent', () => {
+    expect(
+      isEditorMarkdownEquivalentToNoteContent(
+        '[~Label~](docs/changed.md)',
+        '~[Label](docs/original.md)~',
+      )
+    ).toBe(false);
+    expect(
+      isEditorMarkdownEquivalentToNoteContent(
+        '[<span data-note="keep">Label</span>](docs/link.md)',
+        '<span data-note="keep">[Label](docs/link.md)</span>',
+      )
+    ).toBe(false);
+    expect(
+      isEditorMarkdownEquivalentToNoteContent(
+        '`[~Label~](docs/link.md)`',
+        '`~[Label](docs/link.md)~`',
+      )
+    ).toBe(false);
+  });
+
   it('treats managed-only frontmatter changes as equivalent to the visible editor markdown', () => {
     expect(
       isEditorMarkdownEquivalentToNoteContent(
