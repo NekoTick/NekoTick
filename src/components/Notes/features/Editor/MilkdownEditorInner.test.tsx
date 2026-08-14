@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
     serializedMarkdown: '# Small',
   };
   const pendingMarkdownAutosaveState = {
+    shouldSerialize: false,
     options: null as null | {
       onLocalMarkdownCommitted?: (content: string) => void;
     },
@@ -132,6 +133,7 @@ vi.mock('./hooks/usePendingMarkdownAutosave', () => ({
       configureMarkdownListener: () => () => {},
       createUserInputMarker: () => () => {},
       setEditorGetter: vi.fn(),
+      shouldSerializeEditorMarkdown: () => mocks.pendingMarkdownAutosaveState.shouldSerialize,
     };
   },
 }));
@@ -209,10 +211,19 @@ function createTextSchema(options: { blankLine?: boolean } = {}) {
 }
 
 function createMockActiveEditor() {
-  const dispatch = vi.fn();
+  let pendingSerializedMarkdown: string | null = null;
+  const dispatch = vi.fn(() => {
+    if (pendingSerializedMarkdown !== null) {
+      mocks.editorState.serializedMarkdown = pendingSerializedMarkdown;
+      pendingSerializedMarkdown = null;
+    }
+  });
   const transaction = withSetMeta({ step: 'replace' });
   const replace = vi.fn(() => transaction);
-  const parser = vi.fn((markdown: string) => ({ content: { type: 'parsed-doc-content', markdown } }));
+  const parser = vi.fn((markdown: string) => {
+    pendingSerializedMarkdown = markdown;
+    return { content: { type: 'parsed-doc-content', markdown } };
+  });
   const view = {
     dom: document.createElement('div'),
     dispatch,
@@ -249,6 +260,7 @@ beforeEach(() => {
   mocks.flushCurrentPendingEditorMarkdown.mockClear();
   mocks.flushSave.mockClear();
   mocks.focusCurrentEditorAtViewportPoint.mockClear();
+  mocks.pendingMarkdownAutosaveState.shouldSerialize = false;
   mocks.pendingMarkdownAutosaveState.options = null;
 });
 
@@ -860,6 +872,102 @@ describe('MilkdownEditorInner external content sync', () => {
     });
   });
 
+  it('replaces a stale empty editor document before reporting a non-empty note ready', async () => {
+    mocks.editorState.serializedMarkdown = '';
+    const editor = createMockActiveEditor();
+    const onEditorViewReady = vi.fn();
+
+    render(<MilkdownEditorInner onEditorViewReady={onEditorViewReady} />);
+
+    await waitFor(() => {
+      expect(editor.parser).toHaveBeenCalledWith('# Small');
+      expect(editor.replace).toHaveBeenCalledTimes(1);
+      expect(onEditorViewReady).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('replaces a stale non-empty editor document when there is no pending user input', async () => {
+    mocks.editorState.serializedMarkdown = '# Stale note';
+    const editor = createMockActiveEditor();
+    const onEditorViewReady = vi.fn();
+
+    render(<MilkdownEditorInner onEditorViewReady={onEditorViewReady} />);
+
+    await waitFor(() => {
+      expect(editor.parser).toHaveBeenCalledWith('# Small');
+      expect(editor.replace).toHaveBeenCalledTimes(1);
+      expect(onEditorViewReady).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('preserves a non-empty live document while user input is pending', () => {
+    mocks.editorState.serializedMarkdown = '# Pending local edit';
+    mocks.pendingMarkdownAutosaveState.shouldSerialize = true;
+    const editor = createMockActiveEditor();
+
+    render(<MilkdownEditorInner />);
+
+    expect(editor.parser).not.toHaveBeenCalled();
+    expect(editor.replace).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed note replacement once before reporting a sync failure', async () => {
+    const editor = createMockActiveEditor();
+    const onEditorContentSyncFailure = vi.fn();
+    const { rerender } = render(
+      <MilkdownEditorInner onEditorContentSyncFailure={onEditorContentSyncFailure} />,
+    );
+    editor.parser.mockImplementation(() => {
+      throw new Error('Unsupported markdown node');
+    });
+
+    mocks.notesState.currentNote = { path: 'small.md', content: '# Broken' };
+    rerender(
+      <MilkdownEditorInner
+        showBodyLineNumbers
+        onEditorContentSyncFailure={onEditorContentSyncFailure}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onEditorContentSyncFailure).toHaveBeenCalledTimes(1);
+    });
+    expect(editor.action).toHaveBeenCalledTimes(2);
+    expect(editor.parser).toHaveBeenCalledTimes(2);
+    expect(editor.replace).not.toHaveBeenCalled();
+  });
+
+  it('reports ready when a note replacement succeeds on its retry', async () => {
+    const editor = createMockActiveEditor();
+    const onEditorContentSyncFailure = vi.fn();
+    const onEditorViewReady = vi.fn();
+    const { rerender } = render(
+      <MilkdownEditorInner
+        onEditorContentSyncFailure={onEditorContentSyncFailure}
+        onEditorViewReady={onEditorViewReady}
+      />,
+    );
+    onEditorViewReady.mockClear();
+    editor.parser.mockImplementationOnce(() => {
+      throw new Error('Editor is still activating');
+    });
+
+    mocks.notesState.currentNote = { path: 'small.md', content: '# Recovered' };
+    rerender(
+      <MilkdownEditorInner
+        showBodyLineNumbers
+        onEditorContentSyncFailure={onEditorContentSyncFailure}
+        onEditorViewReady={onEditorViewReady}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(editor.parser).toHaveBeenCalledTimes(2);
+      expect(onEditorViewReady).toHaveBeenCalledTimes(1);
+    });
+    expect(onEditorContentSyncFailure).not.toHaveBeenCalled();
+  });
+
   it('does not replace the editor document when same-note updates only change managed frontmatter', () => {
     mocks.notesState.currentNote = { path: 'small.md', content: '# Body' };
     mocks.editorState.serializedMarkdown = '# Body';
@@ -927,12 +1035,13 @@ describe('MilkdownEditorInner external content sync', () => {
 
   it('does not replace a locally committed same-note document when autosave only advances the disk revision', () => {
     mocks.notesState.currentNote = { path: 'small.md', content: '# Small' };
-    mocks.editorState.serializedMarkdown = '# Locally edited';
+    mocks.editorState.serializedMarkdown = '# Small';
     const editor = createMockActiveEditor();
     const { rerender } = render(<MilkdownEditorInner />);
 
     expect(editor.replace).not.toHaveBeenCalled();
 
+    mocks.editorState.serializedMarkdown = '# Locally edited';
     mocks.pendingMarkdownAutosaveState.options?.onLocalMarkdownCommitted?.('# Locally edited');
     mocks.notesState.currentNote = { path: 'small.md', content: '# Locally edited' };
     mocks.notesState.currentNoteDiskRevision = 2;

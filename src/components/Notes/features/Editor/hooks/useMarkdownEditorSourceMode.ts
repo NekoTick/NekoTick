@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNotesStore } from '@/stores/useNotesStore';
 import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorMarkdown';
 import { themeEditorLayoutTokens } from '@/styles/themeTokens';
-import { getCurrentEditorView } from '../utils/editorViewRegistry';
 import { flushCurrentEditorSave } from '../utils/editorSaveRegistry';
 import { NOTE_SOURCE_MODE_TOGGLE_EVENT } from '../sourceMode/sourceModeEvents';
 
@@ -10,27 +9,34 @@ export function useMarkdownEditorSourceMode({
   currentNotePath,
   hasActiveNote,
   onEditorViewReady,
-  scrollRootRef,
 }: {
   currentNotePath: string | undefined;
   hasActiveNote: boolean;
   onEditorViewReady?: () => void;
-  scrollRootRef: RefObject<HTMLDivElement | null>;
 }) {
-  const [editorReadyTarget, setEditorReadyTarget] = useState<{
-    path: string | undefined;
-  } | null>(null);
-  const [editorInitTimedOutPath, setEditorInitTimedOutPath] = useState<string | null>(null);
+  const editorSession = useMemo(() => ({
+    active: hasActiveNote,
+    path: currentNotePath,
+  }), [currentNotePath, hasActiveNote]);
+  const [editorReadyTarget, setEditorReadyTarget] = useState<typeof editorSession | null>(null);
+  const [editorInitTimedOutTarget, setEditorInitTimedOutTarget] = useState<typeof editorSession | null>(null);
   const [isSourceMode, setIsSourceMode] = useState(false);
-  const isEditorViewReady = editorReadyTarget?.path === currentNotePath;
+  const isEditorViewReady = editorReadyTarget === editorSession;
 
   const handleEditorViewReady = useCallback(() => {
-    setEditorInitTimedOutPath(null);
-    setEditorReadyTarget({
-      path: currentNotePath,
-    });
+    setEditorInitTimedOutTarget(null);
+    setEditorReadyTarget(editorSession);
     onEditorViewReady?.();
-  }, [currentNotePath, onEditorViewReady]);
+  }, [editorSession, onEditorViewReady]);
+
+  const handleEditorContentSyncFailure = useCallback(() => {
+    if (!currentNotePath) {
+      return;
+    }
+
+    setEditorInitTimedOutTarget(editorSession);
+    onEditorViewReady?.();
+  }, [currentNotePath, editorSession, onEditorViewReady]);
 
   const getCurrentNoteContent = useCallback(() => {
     if (!currentNotePath) {
@@ -49,6 +55,7 @@ export function useMarkdownEditorSourceMode({
   const handleToggleSourceMode = useCallback(() => {
     flushCurrentPendingEditorMarkdown();
     void flushCurrentEditorSave();
+    setEditorInitTimedOutTarget(null);
     setIsSourceMode((nextSourceMode) => !nextSourceMode);
   }, []);
 
@@ -64,31 +71,19 @@ export function useMarkdownEditorSourceMode({
   }, [handleToggleSourceMode, hasActiveNote]);
 
   useEffect(() => {
-    setEditorInitTimedOutPath(null);
     if (isSourceMode || !hasActiveNote || !currentNotePath || isEditorViewReady) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      const hasLiveEditor =
-        Boolean(getCurrentEditorView()) ||
-        Boolean(scrollRootRef.current?.querySelector('.milkdown .ProseMirror'));
-      if (hasLiveEditor) {
-        setEditorReadyTarget({
-          path: currentNotePath,
-        });
-        onEditorViewReady?.();
-        return;
-      }
-
-      setEditorInitTimedOutPath(currentNotePath);
+      setEditorInitTimedOutTarget(editorSession);
       onEditorViewReady?.();
     }, themeEditorLayoutTokens.editorInitFallbackDelayMs);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [currentNotePath, hasActiveNote, isEditorViewReady, isSourceMode, onEditorViewReady, scrollRootRef]);
+  }, [currentNotePath, editorSession, hasActiveNote, isEditorViewReady, isSourceMode, onEditorViewReady]);
 
   useEffect(() => {
     if (isSourceMode && hasActiveNote) {
@@ -98,11 +93,12 @@ export function useMarkdownEditorSourceMode({
 
   return {
     getCurrentNoteContent,
+    handleEditorContentSyncFailure,
     handleEditorViewReady,
     handleToggleSourceMode,
     isEditorViewReady,
     isSourceMode,
     shouldUseSourceFallback:
-      !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutPath === currentNotePath,
+      !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutTarget === editorSession,
   };
 }
