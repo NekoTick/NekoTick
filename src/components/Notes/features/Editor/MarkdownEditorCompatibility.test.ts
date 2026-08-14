@@ -639,6 +639,28 @@ describe('MarkdownEditor compatibility', () => {
     await destroyEditor(editor);
   });
 
+  it('keeps fenced markdown inside frontmatter editable without consuming the note body', async () => {
+    const source = [
+      '---',
+      'title: Demo',
+      'body: |',
+      '  ```ts',
+      '  const value = 1;',
+      '  ```',
+      '---',
+      '# Heading',
+    ].join('\n');
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(view.dom.querySelector('.frontmatter-block-container.md-meta-block')).toBeInstanceOf(HTMLElement);
+    expect(view.dom.querySelector('h1')?.textContent).toBe('Heading');
+    expect(isEditorMarkdownEquivalentToNoteContent(serializer(view.state.doc), source)).toBe(true);
+
+    await destroyEditor(editor);
+  });
+
   it('adds Typora and Obsidian theme alias classes to the editor root', async () => {
     const editor = await createEditor('# Theme aliases');
 

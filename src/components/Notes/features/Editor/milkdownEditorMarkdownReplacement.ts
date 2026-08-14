@@ -5,7 +5,12 @@ import { Slice, type Node as ProseNode } from '@milkdown/kit/prose/model';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Parser } from '@milkdown/kit/transformer';
+import { extractCssColorDeclaration } from '@/components/common/markdown/colorMarkdown';
+import { MARKDOWN_LINK_SOURCE } from '@/lib/notes/markdown/markdownLinkParser';
+import { mapMarkdownOutsideProtectedSegments } from '@/lib/notes/markdown/markdownProtectedBlocks';
 import { stripManagedFrontmatter } from '@/stores/notes/frontmatter';
+import { collectInlineCodeRanges } from '@/lib/notes/tagMarkdownCodeRanges';
+import { MAX_EXCLUDED_RANGES } from '@/lib/notes/tagMarkdownRangeLimits';
 import { normalizeEditorStateMarkdownDocument } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION } from './plugins/cursor/blockSelectionPluginState';
 import {
@@ -106,6 +111,76 @@ function resetEditorPointerClickSequence(view: EditorView): void {
   }
 }
 
+const INLINE_COLOR_HTML_LINK_PATTERN = new RegExp(
+  `<(span|mark)\\b([^>\\r\\n]*)>(${MARKDOWN_LINK_SOURCE})<\\/\\1>`,
+  'gi',
+);
+const SIMPLE_INLINE_HTML_LINK_PATTERN = new RegExp(
+  `<(sup|sub|u|mark)>(${MARKDOWN_LINK_SOURCE})<\\/\\1>`,
+  'gi',
+);
+const DELIMITED_INLINE_LINK_PATTERNS = [
+  { delimiter: '==', pattern: new RegExp(`(?<![\\\\=])==${MARKDOWN_LINK_SOURCE}==(?![=])`, 'g') },
+  { delimiter: '++', pattern: new RegExp(`(?<![\\\\+])\\+\\+${MARKDOWN_LINK_SOURCE}\\+\\+(?![+])`, 'g') },
+  { delimiter: '^', pattern: new RegExp(`(?<![\\\\^])\\^${MARKDOWN_LINK_SOURCE}\\^(?![\\^])`, 'g') },
+  { delimiter: '~', pattern: new RegExp(`(?<![\\\\~])~${MARKDOWN_LINK_SOURCE}~(?![~])`, 'g') },
+] as const;
+const SIMPLE_HTML_MARK_DELIMITERS: Record<string, string> = {
+  mark: '==',
+  sub: '~',
+  sup: '^',
+  u: '++',
+};
+
+function mapMarkdownOutsideInlineCode(markdown: string, transform: (value: string) => string): string {
+  if (!markdown.includes('`')) return transform(markdown);
+
+  const ranges: Array<{ from: number; to: number }> = [];
+  collectInlineCodeRanges(markdown, ranges);
+  if (ranges.length >= MAX_EXCLUDED_RANGES) return markdown;
+  if (ranges.length === 0) return transform(markdown);
+
+  const output: string[] = [];
+  let cursor = 0;
+  for (const range of ranges) {
+    output.push(transform(markdown.slice(cursor, range.from)), markdown.slice(range.from, range.to));
+    cursor = range.to;
+  }
+  output.push(transform(markdown.slice(cursor)));
+  return output.join('');
+}
+
+function normalizeInlineMarkLinkOrder(markdown: string): string {
+  return mapMarkdownOutsideProtectedSegments(markdown, (segment) =>
+    mapMarkdownOutsideInlineCode(segment, (value) => {
+      let normalized = value.replace(
+        INLINE_COLOR_HTML_LINK_PATTERN,
+        (match, tag: string, attrs: string, _link: string, label: string, target: string) => {
+          const style = /\bstyle\s*=\s*(["'])(.*?)\1/i.exec(attrs)?.[2] ?? '';
+          const property = tag.toLowerCase() === 'span' ? 'color' : 'background-color';
+          const color = extractCssColorDeclaration(style, property);
+          if (!color) return match;
+          return `[<${tag.toLowerCase()} style="${property}: ${color}">${label}</${tag.toLowerCase()}>](${target})`;
+        },
+      );
+      normalized = normalized.replace(
+        SIMPLE_INLINE_HTML_LINK_PATTERN,
+        (_match, tag: string, _link: string, label: string, target: string) => {
+          const delimiter = SIMPLE_HTML_MARK_DELIMITERS[tag.toLowerCase()];
+          return `[${delimiter}${label}${delimiter}](${target})`;
+        },
+      );
+      for (const { delimiter, pattern } of DELIMITED_INLINE_LINK_PATTERNS) {
+        normalized = normalized.replace(
+          pattern,
+          (_match, label: string, target: string) => `[${delimiter}${label}${delimiter}](${target})`,
+        );
+      }
+      return normalized;
+    })
+  );
+}
+
 export function normalizeInitialEditorSelection(view: EditorView): boolean {
   const nextSelection = createDocumentFirstLineEndTextSelection(view.state.doc);
   if (
@@ -181,9 +256,11 @@ export function replaceEditorMarkdown(
 }
 
 function normalizeComparableEditorMarkdown(markdown: string): string {
-  return normalizeMarkdownParagraphSeparatorsForEditorComparison(
-    normalizeEditorStateMarkdownDocument(
-      normalizeMarkdownParagraphSeparatorsForEditorComparison(stripManagedFrontmatter(markdown))
+  return normalizeInlineMarkLinkOrder(
+    normalizeMarkdownParagraphSeparatorsForEditorComparison(
+      normalizeEditorStateMarkdownDocument(
+        normalizeMarkdownParagraphSeparatorsForEditorComparison(stripManagedFrontmatter(markdown))
+      )
     )
   );
 }

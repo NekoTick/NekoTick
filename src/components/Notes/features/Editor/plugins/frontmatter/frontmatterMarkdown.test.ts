@@ -20,6 +20,32 @@ describe('frontmatterMarkdown', () => {
     );
   });
 
+  it('uses a longer internal fence when frontmatter contains a markdown fence', () => {
+    const markdown = [
+      '---',
+      'title: Demo',
+      'body: |',
+      '  ```ts',
+      '  const value = 1;',
+      '  ```',
+      '---',
+      '# Heading',
+    ].join('\n');
+    const normalized = [
+      '````yaml-frontmatter vlaina-internal-frontmatter',
+      'title: Demo',
+      'body: |',
+      '  ```ts',
+      '  const value = 1;',
+      '  ```',
+      '````',
+      '# Heading',
+    ].join('\n');
+
+    expect(normalizeLeadingFrontmatterMarkdown(markdown)).toBe(normalized);
+    expect(serializeLeadingFrontmatterMarkdown(normalized)).toBe(markdown);
+  });
+
   it('normalizes leading yaml frontmatter after a UTF-8 BOM', () => {
     expect(normalizeLeadingFrontmatterMarkdown('\uFEFF---\ntitle: Demo\n---\n# Heading')).toBe(
       `${frontmatterFenceOpen()}\ntitle: Demo\n\`\`\`\n# Heading`,
