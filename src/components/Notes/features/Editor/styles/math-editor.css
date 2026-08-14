@@ -229,7 +229,7 @@
   z-index: var(--vlaina-z-80);
 }
 
-.math-formula-editor-popup {
+.text-editor-workspace-popup {
   inset: var(--vlaina-space-0);
   display: flex;
   align-items: center;
@@ -239,23 +239,23 @@
   background: var(--vlaina-color-drop-overlay);
 }
 
-.math-formula-editor-popup .math-editor-card {
-  width: var(--vlaina-width-math-formula-editor);
-  max-width: var(--vlaina-width-math-formula-editor);
-  height: var(--vlaina-height-math-formula-editor);
-  max-height: var(--vlaina-height-math-formula-editor);
+.text-editor-workspace-popup .math-editor-card {
+  width: var(--vlaina-width-text-editor-workspace);
+  max-width: var(--vlaina-width-text-editor-workspace);
+  height: var(--vlaina-height-text-editor-workspace);
+  max-height: var(--vlaina-height-text-editor-workspace);
   border-color: var(--vlaina-color-border-shell);
   border-radius: var(--vlaina-ui-radius-panel);
   background: var(--vlaina-color-floating-surface);
   box-shadow: var(--vlaina-shadow-lg);
 }
 
-.math-formula-editor-popup .math-editor-content {
+.text-editor-workspace-popup .math-editor-content {
   padding: var(--vlaina-space-0);
   overflow: hidden;
 }
 
-.math-formula-editor-popup .math-editor-footer {
+.text-editor-workspace-popup .math-editor-footer {
   min-height: var(--vlaina-size-48px);
   align-items: center;
   padding: var(--vlaina-space-0) var(--vlaina-space-16px);
@@ -375,8 +375,8 @@
     max-width: var(--vlaina-width-math-editor-mobile);
   }
 
-  .math-formula-editor-popup .math-editor-card {
-    width: var(--vlaina-width-math-formula-editor);
-    max-width: var(--vlaina-width-math-formula-editor);
+  .text-editor-workspace-popup .math-editor-card {
+    width: var(--vlaina-width-text-editor-workspace);
+    max-width: var(--vlaina-width-text-editor-workspace);
   }
 }

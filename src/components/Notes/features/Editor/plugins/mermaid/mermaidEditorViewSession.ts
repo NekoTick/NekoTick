@@ -12,6 +12,7 @@ import {
   resolveMermaidAnchorElement,
 } from './mermaidEditorOpenInteraction';
 import { mermaidEditorPluginKey } from './mermaidEditorPluginKey';
+import { configureMermaidEditorWorkspace } from './mermaidEditorWorkspace';
 import type { MermaidEditorState } from './types';
 
 export function createMermaidEditorViewSession(args: {
@@ -24,12 +25,14 @@ export function createMermaidEditorViewSession(args: {
     draftCode: '',
     initialCode: '',
   };
+  let renderDraftPreview: ((code: string) => void) | null = null;
 
   return createTextEditorViewSession<MermaidEditorState, MermaidEditorSessionRefs>({
     editorView,
     onOutsideCloseIntent,
     refs,
-    popupClassName: 'text-editor-popup math-editor-popup mermaid-editor-popup',
+    popupClassName: 'text-editor-popup math-editor-popup text-editor-workspace-popup mermaid-editor-popup',
+    popupLayout: 'viewport-centered',
     placeholder: translate('editor.mermaidPlaceholder'),
     getEditorState: () =>
       mermaidEditorPluginKey.getState(editorView.state) as MermaidEditorState | undefined,
@@ -49,12 +52,17 @@ export function createMermaidEditorViewSession(args: {
     resolveAnchorElement: (_state, nodeDom) => resolveMermaidAnchorElement(null, nodeDom),
     getAnchorViewportPosition: getMermaidAnchorViewportPosition,
     preferStatePositionOnInitialRender: (state) => state.openSource === 'new-empty-block',
-    previewInput({ value, resolveAnchor, scheduleResize }) {
-      void renderMermaidEditorLivePreview({
-        anchor: resolveAnchor(),
-        code: value,
-        onRendered: scheduleResize,
-      }).catch(() => undefined);
+    resizeTextareaToContent: false,
+    configurePopup(elements, notifyInput) {
+      const workspace = configureMermaidEditorWorkspace(elements, notifyInput);
+      renderDraftPreview = workspace.renderPreview;
+      return () => {
+        if (renderDraftPreview === workspace.renderPreview) renderDraftPreview = null;
+        workspace.cleanup();
+      };
+    },
+    previewInput({ value }) {
+      renderDraftPreview?.(value);
     },
     previewCancel({ value, resolveAnchor, scheduleResize }) {
       void renderMermaidEditorLivePreview({

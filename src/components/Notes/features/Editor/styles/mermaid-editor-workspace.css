@@ -1,0 +1,94 @@
+.mermaid-editor-workspace-shortcuts {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vlaina-space-8px);
+  padding: var(--vlaina-space-12px) var(--vlaina-space-16px);
+  border-bottom: var(--vlaina-border-width-1) solid var(--vlaina-color-border-shell);
+  background: var(--vlaina-color-floating-surface);
+}
+
+.mermaid-editor-workspace-template-list {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  grid-template-rows: repeat(3, var(--vlaina-size-56px));
+  gap: var(--vlaina-space-6px);
+  overflow: hidden;
+}
+
+.mermaid-editor-workspace-template {
+  min-width: 0;
+  min-height: var(--vlaina-size-56px);
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: var(--vlaina-space-2px);
+  padding: var(--vlaina-space-6px) var(--vlaina-space-8px);
+  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  background: var(--vlaina-color-input-surface);
+  color: var(--vlaina-color-math-editor-text);
+  text-align: left;
+}
+
+.mermaid-editor-workspace-template:hover,
+.mermaid-editor-workspace-template:focus-visible {
+  border-color: var(--vlaina-accent);
+  background: var(--vlaina-color-math-editor-secondary-bg-hover);
+  color: var(--vlaina-accent);
+  outline: none;
+}
+
+.mermaid-editor-workspace-template-name {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: var(--vlaina-font-xs);
+  font-weight: var(--vlaina-font-weight-semibold);
+  line-height: var(--vlaina-leading-20px);
+}
+
+.mermaid-editor-workspace-tools {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--vlaina-space-6px);
+}
+
+.mermaid-editor-workspace-tool {
+  min-height: var(--vlaina-size-28px);
+  padding-inline: var(--vlaina-space-8px);
+  border-radius: var(--vlaina-notes-ui-radius-compact);
+  color: var(--vlaina-color-math-editor-text);
+  font-size: var(--vlaina-font-xs);
+}
+
+.mermaid-editor-workspace-tool:hover {
+  background: var(--vlaina-color-math-editor-secondary-bg-hover);
+}
+
+.mermaid-editor-workspace-preview {
+  align-items: start;
+  justify-items: center;
+}
+
+.mermaid-editor-workspace-preview-content {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: var(--vlaina-space-0) !important;
+}
+
+@media (max-width: 960px) {
+  .mermaid-editor-workspace-shortcuts {
+    padding-inline: var(--vlaina-space-12px);
+  }
+
+  .mermaid-editor-workspace-template-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: var(--vlaina-size-56px);
+    max-height: var(--vlaina-size-240px);
+    overflow-y: auto;
+  }
+}
