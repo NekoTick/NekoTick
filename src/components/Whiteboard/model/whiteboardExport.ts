@@ -8,6 +8,7 @@ import {
 } from './whiteboardModel';
 import { getElementBounds, getStrokeBounds } from './whiteboardSelection';
 import { renderWhiteboardStrokeSvg } from './whiteboardStrokeExport';
+import { renderWhiteboardAutoDrawIconSvg } from './autodraw/whiteboardAutoDrawExport';
 
 export type WhiteboardExportFormat = 'jpeg' | 'png' | 'svg' | 'webp';
 const WHITEBOARD_EXPORT_IMAGE_LOAD_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 20 : 15_000;
@@ -129,6 +130,10 @@ function renderElement(element: WhiteboardElement, bounds: ExportBounds): string
     : '';
   if (element.imageSrc) {
     return `<image href="${escapeAttr(element.imageSrc)}" x="${x}" y="${y}" width="${element.width}" height="${element.height}" preserveAspectRatio="xMidYMid slice"${transform}/>`;
+  }
+  if (element.type === 'icon') {
+    const icon = renderWhiteboardAutoDrawIconSvg(element, x, y);
+    return transform ? `<g${transform}>${icon}</g>` : icon;
   }
   if (element.type === 'text') {
     const fontSize = element.fontSize ?? themeWhiteboardTokens.whiteboardTextFontSizePx;

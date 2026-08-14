@@ -36,7 +36,7 @@ export function recognizeWhiteboardShape(
   const maxDimension = Math.max(bounds[2] - bounds[0], bounds[3] - bounds[1]);
   if (points.length < 3 || maxDimension * zoom < MIN_SCREEN_SIZE) return { bounds, type: 'freedraw' };
   const resampled = resample(points, RESAMPLE_COUNT);
-  const pathLength = resampled.slice(1).reduce((sum, point, index) => sum + distance(resampled[index], point), 0);
+  const pathLength = getPathLength(resampled);
   const gapRatio = pathLength > 0 ? distance(resampled[0], resampled.at(-1)!) / pathLength : 0;
   const axes = getWhiteboardPrincipalAxes(resampled);
   const majorProjection = resampled.map((point) => (
@@ -79,8 +79,11 @@ export function finalizeWhiteboardAutoShape(stroke: WhiteboardStroke, zoom: numb
   };
 }
 
-export function getWhiteboardAutoShapePreview(stroke: WhiteboardStroke, zoom: number): WhiteboardAutoShapePreview {
-  const recognition = recognizeWhiteboardShape(stroke.points, zoom);
+export function getWhiteboardAutoShapePreview(
+  stroke: WhiteboardStroke,
+  zoom: number,
+  recognition = recognizeWhiteboardShape(stroke.points, zoom),
+): WhiteboardAutoShapePreview {
   if (recognition.type === 'freedraw' || recognition.type === 'line' || recognition.type === 'arrow') {
     return { pending: false, stroke };
   }
@@ -91,7 +94,7 @@ export function getWhiteboardAutoShapePreview(stroke: WhiteboardStroke, zoom: nu
 }
 
 function resample(points: readonly WhiteboardPoint[], count: number): WhiteboardPoint[] {
-  const totalLength = points.slice(1).reduce((sum, point, index) => sum + distance(points[index], point), 0);
+  const totalLength = getPathLength(points);
   const interval = totalLength / (count - 1);
   let accumulated = 0;
   const result = [points[0]];
@@ -121,8 +124,15 @@ function resample(points: readonly WhiteboardPoint[], count: number): Whiteboard
 function getShaftDeviationRatio(points: readonly WhiteboardPoint[]): number {
   const start = points[0];
   let tip = start;
-  for (const point of points) if (distance(start, point) > distance(start, tip)) tip = point;
-  const tipDistance = distance(start, tip);
+  let tipDistanceSquared = 0;
+  for (const point of points) {
+    const pointDistanceSquared = distanceSquared(start, point);
+    if (pointDistanceSquared > tipDistanceSquared) {
+      tip = point;
+      tipDistanceSquared = pointDistanceSquared;
+    }
+  }
+  const tipDistance = Math.sqrt(tipDistanceSquared);
   if (tipDistance === 0) return 0;
   let maximum = 0;
   for (const point of points) {
@@ -138,12 +148,30 @@ function getArrowEndpoint(points: readonly WhiteboardPoint[], bounds: readonly [
     { x: minX, y: minY }, { x: (minX + maxX) / 2, y: minY }, { x: maxX, y: minY }, { x: maxX, y: (minY + maxY) / 2 },
     { x: maxX, y: maxY }, { x: (minX + maxX) / 2, y: maxY }, { x: minX, y: maxY }, { x: minX, y: (minY + maxY) / 2 },
   ];
-  const ideal = perimeter.reduce((best, point) => distance(points[0], point) > distance(points[0], best) ? point : best);
-  return points.reduce((best, point) => distance(ideal, point) < distance(ideal, best) ? point : best);
+  const ideal = perimeter.reduce((best, point) => distanceSquared(points[0], point) > distanceSquared(points[0], best) ? point : best);
+  return points.reduce((best, point) => distanceSquared(ideal, point) < distanceSquared(ideal, best) ? point : best);
 }
 
 function getBounds(points: readonly WhiteboardPoint[]): readonly [number, number, number, number] {
-  return [Math.min(...points.map(({ x }) => x)), Math.min(...points.map(({ y }) => y)), Math.max(...points.map(({ x }) => x)), Math.max(...points.map(({ y }) => y))];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  return [minX, minY, maxX, maxY];
+}
+
+function getPathLength(points: readonly WhiteboardPoint[]): number {
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    length += distance(points[index - 1], points[index]);
+  }
+  return length;
 }
 
 function toStrokePoint(point: WhiteboardPoint) {
@@ -152,4 +180,10 @@ function toStrokePoint(point: WhiteboardPoint) {
 
 function distance(a: WhiteboardPoint, b: WhiteboardPoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function distanceSquared(a: WhiteboardPoint, b: WhiteboardPoint): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
 }

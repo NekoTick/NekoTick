@@ -2,7 +2,6 @@ import { useI18n } from '@/lib/i18n';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   WHITEBOARD_DRAWING_TOOLS,
-  WHITEBOARD_ERASER_TOOLS,
   type WhiteboardTool,
 } from '../../model/whiteboardModel';
 import {
@@ -11,7 +10,7 @@ import {
 } from './WhiteboardToolbarPrimitives';
 import { useWhiteboardDockMagnification } from './useWhiteboardDockMagnification';
 
-export type WhiteboardToolPanelName = 'brush' | 'eraser';
+export type WhiteboardToolPanelName = 'brush';
 
 interface WhiteboardToolPanelProps {
   panel: WhiteboardToolPanelName;
@@ -27,7 +26,7 @@ export function WhiteboardToolPanel(props: WhiteboardToolPanelProps) {
     pointerResponseMs: themeWhiteboardTokens.toolPanelDockPointerResponseMs,
     radiusPx: themeWhiteboardTokens.toolPanelDockMagnificationRadiusPx,
   });
-  const tools = props.panel === 'brush' ? WHITEBOARD_DRAWING_TOOLS : WHITEBOARD_ERASER_TOOLS;
+  const tools = WHITEBOARD_DRAWING_TOOLS;
 
   return (
     <div

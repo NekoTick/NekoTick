@@ -2,6 +2,7 @@ import { memo, type PointerEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardElement, WhiteboardTool } from '../../model/whiteboardModel';
+import { WhiteboardAutoDrawIcon } from '../autodraw/WhiteboardAutoDrawIcon';
 
 interface WhiteboardElementNodeProps {
   element: WhiteboardElement;
@@ -62,6 +63,23 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
             ? { transform: `scale(${element.flipX ? -1 : 1}, ${element.flipY ? -1 : 1})` }
             : undefined}
         />
+      ) : element.type === 'icon' && element.autoDrawIcon ? (
+        <div
+          className="size-full"
+          style={{
+            transform: element.flipX || element.flipY
+              ? `scale(${element.flipX ? -1 : 1}, ${element.flipY ? -1 : 1})`
+              : undefined,
+            transformOrigin: themeWhiteboardTokens.elementTransformOrigin,
+          }}
+        >
+          <WhiteboardAutoDrawIcon
+            color={element.color ?? themeWhiteboardTokens.whiteboardTextDefaultColor}
+            height={element.height}
+            icon={element.autoDrawIcon}
+            width={element.width}
+          />
+        </div>
       ) : element.type === 'text' ? (
         <div
           dir="auto"

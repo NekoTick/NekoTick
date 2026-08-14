@@ -58,7 +58,7 @@ describe('whiteboard linear elements', () => {
     const line = createWhiteboardLinearStroke('line-1', 'line', { x: 0, y: 0 }, { x: 100, y: 0 }, '#111111', 1);
 
     expect(getWhiteboardLinearStrokeWidth(line)).toBe(2);
-    expect(getWhiteboardLinearStrokeWidth({ ...line, autoShape: 'rectangle' })).toBe(2.5);
+    expect(getWhiteboardLinearStrokeWidth({ ...line, autoShape: 'rectangle' })).toBe(5);
   });
 
 });

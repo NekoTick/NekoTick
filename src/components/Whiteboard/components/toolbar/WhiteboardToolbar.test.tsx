@@ -21,11 +21,15 @@ function renderToolbar(overrides: Partial<ComponentProps<typeof WhiteboardToolba
         active
         brushColors={WHITEBOARD_DEFAULT_BRUSH_COLORS}
         brushSizes={WHITEBOARD_DEFAULT_BRUSH_SIZES}
+        selectionColor={null}
         spacePressed={false}
         tool="select"
         onBrushColorChange={onBrushColorChange}
         onBrushSizeSelect={onBrushSizeSelect}
         onImageAdd={vi.fn()}
+        onSelectionColorCancel={vi.fn()}
+        onSelectionColorChange={vi.fn()}
+        onSelectionColorPreviewChange={vi.fn()}
         onToolChange={onToolChange}
         {...overrides}
     />,
@@ -60,11 +64,15 @@ describe('WhiteboardToolbar', () => {
       active: true,
       brushColors: WHITEBOARD_DEFAULT_BRUSH_COLORS,
       brushSizes: WHITEBOARD_DEFAULT_BRUSH_SIZES,
+      selectionColor: null,
       spacePressed: false,
       tool: 'select' as const,
       onBrushColorChange: vi.fn(),
       onBrushSizeSelect: vi.fn(),
       onImageAdd: vi.fn(),
+      onSelectionColorCancel: vi.fn(),
+      onSelectionColorChange: vi.fn(),
+      onSelectionColorPreviewChange: vi.fn(),
       onToolChange: vi.fn(),
     };
     const { rerender } = render(<WhiteboardToolbar {...props} active={false} />);
@@ -81,11 +89,15 @@ describe('WhiteboardToolbar', () => {
       active: false,
       brushColors: WHITEBOARD_DEFAULT_BRUSH_COLORS,
       brushSizes: WHITEBOARD_DEFAULT_BRUSH_SIZES,
+      selectionColor: null,
       spacePressed: false,
       tool: 'select' as const,
       onBrushColorChange: vi.fn(),
       onBrushSizeSelect: vi.fn(),
       onImageAdd: vi.fn(),
+      onSelectionColorCancel: vi.fn(),
+      onSelectionColorChange: vi.fn(),
+      onSelectionColorPreviewChange: vi.fn(),
       onToolChange: vi.fn(),
     };
     const rendered = render(<WhiteboardToolbar {...props} />);
@@ -99,12 +111,12 @@ describe('WhiteboardToolbar', () => {
     }
   });
 
-  it('groups lasso and the object eraser without the stroke eraser', () => {
-    renderToolbar();
-    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
-
+  it('renders lasso and object eraser as standalone tools', () => {
+    const { onToolChange } = renderToolbar();
     expect(screen.getByRole('button', { name: 'whiteboard.tool.eraser' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'whiteboard.tool.strokeEraser' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.eraser' }));
+    expect(onToolChange).toHaveBeenCalledWith('eraser');
   });
 
   it('keeps auto shape outside the material brush panel', () => {
@@ -190,28 +202,31 @@ describe('WhiteboardToolbar', () => {
     expect(selectedPen.parentElement).toHaveClass('h-[var(--vlaina-size-100px)]');
   });
 
-  it('partially reveals eraser panel instruments with the same hover lift', () => {
+  it('keeps standalone lasso and eraser controls in the main toolbar', () => {
     const { container } = renderToolbar({ tool: 'select' });
+    const mainToolbar = container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!;
 
-    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
-    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
-    const selectedLasso = within(panel).getByRole('button', { name: 'whiteboard.tool.select' });
-    const eraser = within(panel).getByRole('button', { name: 'whiteboard.tool.eraser' });
-
-    expect(selectedLasso.querySelector('[data-whiteboard-instrument-reveal="true"]'))
-      .toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
-    expect(eraser.querySelector('[data-whiteboard-instrument-reveal="true"]')).toHaveClass(
-      'h-[var(--vlaina-size-48px)]',
-      'group-hover/instrument:h-[var(--vlaina-size-72px)]',
-      'overflow-hidden',
-    );
-    expect(selectedLasso).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
-    expect(eraser).toHaveClass('group-hover/instrument:-translate-y-[var(--vlaina-size-12px)]');
-    expect(eraser.parentElement).toHaveClass('group/instrument');
-    expect(panel).not.toHaveClass('bg-[var(--vlaina-color-whiteboard-tool-panel)]');
+    expect(within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.select' })).toBeInTheDocument();
+    expect(within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.eraser' })).toBeInTheDocument();
+    expect(container.querySelector('[data-whiteboard-tool-panel="true"]')).not.toBeInTheDocument();
   });
 
-  it('partially reveals the main toolbar brush and adjacent selection tool', () => {
+  it('keeps the eraser partially covered until it becomes active', () => {
+    const inactive = renderToolbar({ tool: 'select' });
+    const inactiveEraser = screen.getByRole('button', { name: 'whiteboard.tool.eraser' });
+    expect(inactiveEraser.querySelector('[data-whiteboard-instrument-reveal="true"]'))
+      .toHaveClass('h-[var(--vlaina-size-48px)]', 'overflow-hidden');
+    expect(inactiveEraser).not.toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
+    inactive.unmount();
+
+    renderToolbar({ tool: 'eraser' });
+    const activeEraser = screen.getByRole('button', { name: 'whiteboard.tool.eraser' });
+    expect(activeEraser.querySelector('[data-whiteboard-instrument-reveal="true"]'))
+      .toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
+    expect(activeEraser).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
+  });
+
+  it('keeps the selected brush panel separate from standalone selection', () => {
     const { container } = renderToolbar({ tool: 'pen' });
     const mainToolbar = container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!;
     const selectedPen = within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.pen' });
@@ -219,21 +234,18 @@ describe('WhiteboardToolbar', () => {
 
     expect(selectedPen.querySelector('[data-whiteboard-instrument-reveal="true"]'))
       .toHaveClass('h-[var(--vlaina-size-72px)]', 'overflow-hidden');
+    expect(selectedPen).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
     expect(selectionTool.querySelector('[data-whiteboard-instrument-reveal="true"]'))
       .toHaveClass('h-[var(--vlaina-size-48px)]', 'overflow-hidden');
-    expect(selectedPen).toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
-    expect(selectionTool).not.toHaveClass('-translate-y-[var(--vlaina-size-12px)]');
-    expect(selectionTool).not.toHaveClass('hover:-translate-y-[var(--vlaina-size-12px)]');
   });
 
-  it('uses the lasso and eraser images in the selection panel', () => {
+  it('uses the lasso and eraser images in the main toolbar', () => {
     const { container } = renderToolbar();
-    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.select' }));
-    const panel = container.querySelector<HTMLElement>('[data-whiteboard-tool-panel="true"]')!;
+    const mainToolbar = container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!;
 
-    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.select' }).querySelector('img'))
+    expect(within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.select' }).querySelector('img'))
       .toHaveAttribute('src', expect.stringContaining('select.png'));
-    expect(within(panel).getByRole('button', { name: 'whiteboard.tool.eraser' }).querySelector('img'))
+    expect(within(mainToolbar).getByRole('button', { name: 'whiteboard.tool.eraser' }).querySelector('img'))
       .toHaveAttribute('src', expect.stringContaining('eraser.png'));
   });
 
@@ -608,6 +620,41 @@ describe('WhiteboardToolbar', () => {
     );
     fireEvent.click(applyButton);
     expect(onBrushColorChange).toHaveBeenCalledWith('pen', '#43A555');
+  });
+
+  it('shows the selected content color in the bottom toolbar', () => {
+    const onSelectionColorChange = vi.fn();
+    const onSelectionColorPreviewChange = vi.fn();
+    const { container } = renderToolbar({
+      onSelectionColorChange,
+      onSelectionColorPreviewChange,
+      selectionColor: '#111111',
+    });
+
+    const selectionColor = container.querySelector('[data-whiteboard-selection-color-control="true"]');
+    expect(selectionColor).not.toBeNull();
+    fireEvent.click(selectionColor!.querySelector('[data-whiteboard-color-trigger="true"]')!);
+    fireEvent.click(screen.getByRole('button', { name: '#ff5b61' }));
+    expect(onSelectionColorChange).not.toHaveBeenCalled();
+    expect(onSelectionColorPreviewChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionColorPreviewChange).toHaveBeenLastCalledWith('#FF5B61');
+    fireEvent.click(screen.getByRole('button', { name: 'common.apply' }));
+    expect(onSelectionColorChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionColorChange).toHaveBeenCalledWith('#FF5B61');
+  });
+
+  it('restores the selected content color when the picker closes without applying', () => {
+    const onSelectionColorChange = vi.fn();
+    const onSelectionColorPreviewChange = vi.fn();
+    const onSelectionColorCancel = vi.fn();
+    const { container } = renderToolbar({ onSelectionColorCancel, onSelectionColorChange, onSelectionColorPreviewChange, selectionColor: '#111111' });
+
+    fireEvent.click(container.querySelector('[data-whiteboard-color-trigger="true"]')!);
+    fireEvent.click(screen.getByRole('button', { name: '#ff5b61' }));
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
+
+    expect(onSelectionColorPreviewChange).toHaveBeenLastCalledWith('#FF5B61');
+    expect(onSelectionColorCancel).toHaveBeenCalledOnce();
   });
 
   it('keeps common colors in the picker until confirmation', () => {

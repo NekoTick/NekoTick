@@ -9,6 +9,7 @@ import penImage from '../assets/brushes/pen.png';
 import pencilImage from '../assets/brushes/pencil.png';
 import selectImage from '../assets/brushes/select.png';
 import watercolorImage from '../assets/brushes/watercolor.png';
+import type { WhiteboardAutoDrawIcon } from './autodraw/whiteboardAutoDrawTypes';
 
 export type WhiteboardTool =
   | 'select'
@@ -25,7 +26,7 @@ export type WhiteboardTool =
   | 'arrow'
   | 'text'
   | 'eraser';
-export type WhiteboardElementType = 'image' | 'text';
+export type WhiteboardElementType = 'icon' | 'image' | 'text';
 export type WhiteboardPaperStyle = 'blank' | 'dots' | 'grid' | 'ruled';
 export type WhiteboardDrawingTool = Extract<WhiteboardTool, 'pen' | 'pencil' | 'marker' | 'colored-pencil' | 'fountain' | 'watercolor' | 'crayon'>;
 export type WhiteboardBrushPanelTool = WhiteboardDrawingTool;
@@ -68,6 +69,7 @@ export interface WhiteboardViewport {
 }
 
 export interface WhiteboardElement {
+  autoDrawIcon?: WhiteboardAutoDrawIcon;
   color?: string;
   flipX?: boolean;
   flipY?: boolean;

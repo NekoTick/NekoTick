@@ -1,4 +1,5 @@
 import { useI18n } from '@/lib/i18n';
+import { WhiteboardAutoDrawSuggestionStrip } from './components/autodraw';
 import { WhiteboardSurface } from './components/canvas';
 import { WhiteboardMoreMenu, WhiteboardToolbar, WhiteboardZoomControls } from './components/toolbar';
 import { useWhiteboardController } from './hooks/useWhiteboardController';
@@ -73,6 +74,12 @@ export function WhiteboardView({
         onPaperStyleChange={board.setPaperStyle}
       />
 
+      <WhiteboardAutoDrawSuggestionStrip
+        suggestions={board.autoDrawSuggestions}
+        onChoose={board.chooseAutoDrawSuggestion}
+        onDismiss={board.dismissAutoDrawSuggestions}
+      />
+
       <WhiteboardZoomControls
         active={active}
         viewport={board.viewport}
@@ -85,11 +92,15 @@ export function WhiteboardView({
         active={active}
         brushColors={board.brushColors}
         brushSizes={board.brushSizes}
+        selectionColor={board.selectedContentColor}
         spacePressed={board.spacePressed}
         tool={board.tool}
         onBrushColorChange={board.setBrushColor}
         onBrushSizeSelect={board.setBrushSize}
         onImageAdd={board.importImage}
+        onSelectionColorCancel={board.cancelSelectedContentColor}
+        onSelectionColorChange={board.setSelectedContentColor}
+        onSelectionColorPreviewChange={board.previewSelectedContentColor}
         onToolChange={board.setTool}
       />
     </section>

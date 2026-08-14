@@ -26,8 +26,10 @@ import { useWhiteboardSpatialIndex } from './useWhiteboardSpatialIndex';
 import { useWhiteboardTouchPointers } from './useWhiteboardTouchPointers';
 import { useWhiteboardTextEditing } from './useWhiteboardTextEditing';
 import { useWhiteboardViewportScheduler } from './useWhiteboardViewportScheduler';
+import { useWhiteboardAutoDraw } from './useWhiteboardAutoDraw';
+import { useWhiteboardSelectionColor } from './useWhiteboardSelectionColor';
 import { getNextWhiteboardIdSequence } from '../model/whiteboardIds';
-import { getWhiteboardAutoShapePreview } from '../model/whiteboardAutoShape';
+import { getWhiteboardAutoShapePreview, recognizeWhiteboardShape } from '../model/whiteboardAutoShape';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
 import { getWhiteboardResizePreview, getWhiteboardRotationPreview, type WhiteboardDragState } from '../model/whiteboardInteractions';
 import {
@@ -72,6 +74,19 @@ export function useWhiteboardController({
   const [dragState, setDragState] = useState<WhiteboardDragState | null>(null);
   const { brushCursorPoint, setBrushCursorPoint } = useWhiteboardBrushCursor();
   const { canRedo, canUndo, pushHistory, redo, undo } = useWhiteboardHistory({ active, elements, historyKey: activeBoardId, paper: paperStyle, setElements, setPaper: setPaperStyle, setStrokes, strokes });
+  const selectionColor = useWhiteboardSelectionColor({
+    elements, paper: paperStyle, pushHistory, selectedElementIds, selectedStrokeIds,
+    setElements, setStrokes, strokes,
+  });
+  const draftShapeRecognition = useMemo(() => (
+    tool === 'autoshape' && draftStroke
+      ? recognizeWhiteboardShape(draftStroke.points, viewport.zoom)
+      : null
+  ), [draftStroke, tool, viewport.zoom]);
+  const autoDraw = useWhiteboardAutoDraw({
+    draftRecognition: draftShapeRecognition,
+    draftStroke, pushHistory, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes, setTool, strokes, tool,
+  });
   const textEditing = useWhiteboardTextEditing({
     elements, pushHistory, setElements, setSelectedElementIds, setSelectedStrokeIds, setTool,
   });
@@ -178,20 +193,22 @@ export function useWhiteboardController({
     clearDraftStroke, deletePointer, dragState,
     elements, finishEraserGesture: eraser.finish,
     cancelPendingLinearPoint, cancelPendingSelectionRotation, flushResizeDrags, getBoardPoint, getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory,
+    onAutoDrawStrokeCommit: autoDraw.addStroke,
     setDragState, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes,
     setTool, spatialIndex, strokeIdRef, strokes, viewportZoom: viewport.zoom,
   });
   const draftStrokePreview = useMemo(() => (
     tool === 'autoshape' && draftStroke
-      ? getWhiteboardAutoShapePreview(draftStroke, viewport.zoom)
+      ? getWhiteboardAutoShapePreview(draftStroke, viewport.zoom, draftShapeRecognition ?? undefined)
       : null
-  ), [draftStroke, tool, viewport.zoom]);
+  ), [draftShapeRecognition, draftStroke, tool, viewport.zoom]);
   return {
     brushCursorColor: isDrawingTool(tool) ? brushColors[tool] : 'transparent',
     brushCursorPoint,
     brushCursorSize: isBrushTool(tool) ? brushSizes[tool] : 1,
     brushCursorTool: isBrushTool(tool) ? tool : null as WhiteboardBrushTool | null,
     brushColors, brushSizes, canRedo, canUndo,
+    autoDrawSuggestions: autoDraw.suggestions,
     clearBoard: boardActions.clearBoard,
     draftStroke, draftStrokePreview: draftStrokePreview?.pending ? draftStrokePreview.stroke : null,
     elements, eraserPreview: eraser.preview,
@@ -208,9 +225,14 @@ export function useWhiteboardController({
     resizePreview: getWhiteboardResizePreview(dragState),
     rotationPreview: getWhiteboardRotationPreview(dragState),
     selectedElementIds, selectedStrokeIds,
+    selectedContentColor: selectionColor.selectedContentColor,
     selectionPath: pointerActions.selectionPath,
     resizeBrush, setBrushColor, setBrushCursorPoint, setBrushSize,
     setPaperStyle: handlePaperStyleChange, setSelectedElementId: selectElement,
+    setSelectedContentColor: selectionColor.setSelectedContentColor,
+    previewSelectedContentColor: selectionColor.previewSelectedContentColor,
+    cancelSelectedContentColor: selectionColor.cancelSelectedContentColor,
+    chooseAutoDrawSuggestion: autoDraw.chooseSuggestion, dismissAutoDrawSuggestions: autoDraw.dismiss,
     setTool, spacePressed, spatialIndex, strokes, textEditing: textEditing.editing, tool,
     commitTextEditing: textEditing.commitTextEditing, updateTextEditing: textEditing.updateTextEditing,
     updateZoom: boardActions.updateZoom, viewport, viewportRef, finishPointerAction,

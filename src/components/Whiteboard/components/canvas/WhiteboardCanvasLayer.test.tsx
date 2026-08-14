@@ -4,6 +4,7 @@ import { appendWhiteboardItems } from '../../model/whiteboardCollection';
 import { createWhiteboardEraserSpatialIndex, EMPTY_WHITEBOARD_ERASER_PREVIEW } from '../../model/whiteboardEraser';
 import type { WhiteboardElement, WhiteboardStroke } from '../../model/whiteboardModel';
 import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
+import { getSelectedOverlayGeometry, type WhiteboardSelectedOverlayGeometry } from '../../model/whiteboardSelection';
 import { WhiteboardCanvasLayer } from './WhiteboardCanvasLayer';
 
 function createRenderData(
@@ -12,6 +13,7 @@ function createRenderData(
   options: {
     selectedElementIds?: string[];
     selectedStrokeIds?: string[];
+    selectionGeometry?: WhiteboardSelectedOverlayGeometry | null;
     spatialIndex?: ReturnType<typeof createWhiteboardEraserSpatialIndex>;
   } = {},
 ) {
@@ -19,7 +21,7 @@ function createRenderData(
     elements,
     options.spatialIndex ?? createWhiteboardEraserSpatialIndex(elements, strokes),
     strokes,
-    null,
+    options.selectionGeometry ?? null,
     options.selectedElementIds,
     options.selectedStrokeIds,
   );
@@ -395,7 +397,7 @@ describe('WhiteboardCanvasLayer', () => {
         brushCursorTool={null}
         draftStroke={null}
         eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW}
-        movePreview={{ dx: 10, dy: 5 }}
+        movePreview={{ dx: 10, dy: 5, elementIds: ['image-1'], strokeIds: [] }}
         renderData={createRenderData(
           [{ height: 80, id: 'image-1', text: 'one.png', type: 'image', width: 100, x: 0, y: 0 }],
           [],
@@ -413,6 +415,41 @@ describe('WhiteboardCanvasLayer', () => {
     );
 
     expect(container.querySelector('[data-whiteboard-element="true"]')).toHaveClass('cursor-grabbing');
+  });
+
+  it('moves only the drag target when the stored selection is from the previous element', () => {
+    const previous = { height: 80, id: 'previous', text: 'Previous', type: 'icon' as const, width: 80, x: 0, y: 0, autoDrawIcon: 'house' as const };
+    const current = { height: 80, id: 'current', text: 'Current', type: 'icon' as const, width: 80, x: 140, y: 0, autoDrawIcon: 'car' as const };
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent"
+        brushCursorPoint={null}
+        brushCursorSize={1}
+        brushCursorTool={null}
+        draftStroke={null}
+        eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW}
+        movePreview={{ dx: 10, dy: 5, elementIds: ['current'], strokeIds: [] }}
+        renderData={createRenderData([previous, current], [], {
+          selectedElementIds: ['previous'],
+          selectionGeometry: getSelectedOverlayGeometry([previous], []),
+        })}
+        selectionPath={null}
+        spacePressed={false}
+        tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }}
+        viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()}
+        onSelectionMovePointerDown={vi.fn()}
+        onSelectionResizePointerDown={vi.fn()}
+      />,
+    );
+
+    const previousNode = container.querySelector('[aria-label="Previous"]')!;
+    const currentNode = container.querySelector('[aria-label="Current"]')!;
+    expect(previousNode.parentElement).not.toHaveStyle({ transform: 'translate(10px, 5px)' });
+    expect(currentNode.parentElement).toHaveStyle({ transform: 'translate(10px, 5px)' });
+    expect(currentNode).toHaveClass('cursor-grabbing');
+    expect(container.querySelector('[data-whiteboard-selection-move-target="true"]')).toHaveAttribute('x', '150');
   });
 
   it('disables resize hit targets while space-panning over a selection', () => {

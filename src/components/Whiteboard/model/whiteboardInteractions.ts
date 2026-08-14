@@ -77,6 +77,8 @@ export type WhiteboardDragState =
 export interface WhiteboardMovePreview {
   dx: number;
   dy: number;
+  elementIds: string[];
+  strokeIds: string[];
 }
 
 export interface WhiteboardResizePreview {
@@ -104,6 +106,8 @@ export function getWhiteboardMovePreview(state: WhiteboardDragState | null): Whi
   return {
     dx: state.currentPoint.x - state.startPoint.x,
     dy: state.currentPoint.y - state.startPoint.y,
+    elementIds: state.kind === 'move-elements' ? state.elementIds : [],
+    strokeIds: state.strokeIds,
   };
 }
 

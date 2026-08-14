@@ -49,7 +49,7 @@ describe('WhiteboardSurface', () => {
 
     expect(surface).toHaveClass('cursor-crosshair');
 
-    rerender(<WhiteboardSurface {...props} movePreview={{ dx: 0, dy: 0 }} />);
+    rerender(<WhiteboardSurface {...props} movePreview={{ dx: 0, dy: 0, elementIds: [], strokeIds: [] }} />);
 
     expect(surface).toHaveClass('cursor-grabbing');
     expect(surface).not.toHaveClass('cursor-crosshair');

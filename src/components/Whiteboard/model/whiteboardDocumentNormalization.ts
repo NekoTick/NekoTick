@@ -13,6 +13,7 @@ import {
 } from './whiteboardModel';
 import type { WhiteboardSnapshot } from './whiteboardDocumentFormat';
 import { splitWhiteboardStrokeSegments } from './whiteboardStrokeSegments';
+import { isWhiteboardAutoDrawIcon } from './autodraw/whiteboardAutoDrawTypes';
 
 type JsonRecord = Record<string, unknown>;
 const paperStyles = new Set<WhiteboardPaperStyle>(['blank', 'dots', 'grid', 'ruled']);
@@ -74,7 +75,7 @@ export function readStoredWhiteboardElement(value: unknown): WhiteboardElement |
 }
 
 function readWhiteboardElement(value: unknown, runtimeValues: boolean): WhiteboardElement | null {
-  if (!isRecord(value) || (value.type !== 'image' && value.type !== 'text')) return null;
+  if (!isRecord(value) || (value.type !== 'icon' && value.type !== 'image' && value.type !== 'text')) return null;
   const id = readString(value.id, WHITEBOARD_ID_MAX_CHARS);
   const x = readFiniteNumber(value.x);
   const y = readFiniteNumber(value.y);
@@ -84,15 +85,17 @@ function readWhiteboardElement(value: unknown, runtimeValues: boolean): Whiteboa
   if (!id || x === null || y === null || width === null || height === null) return null;
   const element: WhiteboardElement = {
     height, id, text: typeof value.text === 'string' ? value.text : '', type: value.type, width, x, y,
+    ...(value.type === 'icon' && isWhiteboardAutoDrawIcon(value.autoDrawIcon) ? { autoDrawIcon: value.autoDrawIcon } : {}),
     ...(value.flipX === true ? { flipX: true } : {}),
     ...(value.flipY === true ? { flipY: true } : {}),
     ...(rotation !== null && rotation !== 0 ? { rotation } : {}),
-    ...(value.type === 'text' && readString(value.color, WHITEBOARD_COLOR_MAX_CHARS) ? { color: readString(value.color, WHITEBOARD_COLOR_MAX_CHARS)! } : {}),
+    ...((value.type === 'icon' || value.type === 'text') && readString(value.color, WHITEBOARD_COLOR_MAX_CHARS) ? { color: readString(value.color, WHITEBOARD_COLOR_MAX_CHARS)! } : {}),
     ...(value.type === 'text' && readPositiveNumber(value.fontSize) !== null ? { fontSize: readPositiveNumber(value.fontSize)! } : {}),
     ...(value.type === 'text' && readPositiveNumber(value.lineHeight) !== null ? { lineHeight: readPositiveNumber(value.lineHeight)! } : {}),
     ...(value.type === 'image' && isSafeImageAssetPath(value.imageAssetPath) ? { imageAssetPath: value.imageAssetPath } : {}),
     ...(value.type === 'image' && runtimeValues && typeof value.imageSrc === 'string' ? { imageSrc: value.imageSrc } : {}),
   };
+  if (value.type === 'icon' && !element.autoDrawIcon) return null;
   return value.type === 'image' ? resizeWhiteboardElement(element, width, height) : element;
 }
 
