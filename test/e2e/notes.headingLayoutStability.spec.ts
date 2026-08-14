@@ -108,7 +108,9 @@ test.describe('notes heading layout stability', () => {
       await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
       await page.keyboard.press('Home');
       await page.keyboard.press('Shift+End');
-      await expect(page.locator(`${headingSelector} .editor-text-selection-overlay`)).toBeAttached();
+      await expect(page.locator(
+        `${headingSelector} .editor-text-selection-overlay:not(.heading-markdown-marker)`,
+      )).toBeAttached();
       await waitForEditorAnimationFrame(page);
 
       expect(await getBlockGeometry(page, headingSelector)).toEqual(baseline);

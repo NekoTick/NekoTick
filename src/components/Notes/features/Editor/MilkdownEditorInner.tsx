@@ -19,7 +19,6 @@ import { getMilkdownEditorClassName } from './milkdownEditorClassName';
 import { shouldShowLargeMarkdownFirstPaintPreview } from './LargeMarkdownFirstPaintPreview';
 import { focusCurrentEditorAtViewportPoint } from './utils/focusEditorAtPoint';
 import { focusCurrentEmptyUntitledDraftTitle } from './utils/emptyUntitledDraftTitleFocus';
-import { HEADING_PLACEHOLDER_I18N_REFRESH_META } from './plugins/heading/headingPlugin';
 import { isBlockSelectionInteractionPending } from './plugins/cursor/blockSelectionInteractionState';
 import { syncEditorSelectionFromDOM } from './utils/editorSelection';
 import {
@@ -290,11 +289,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
       const view = editor.ctx.get(editorViewCtx) as EditorView;
       view.dom.setAttribute('aria-label', t('editor.markdownEditor'));
       view.dom.setAttribute('aria-multiline', 'true');
-      view.dispatch(
-        view.state.tr
-          .setMeta(HEADING_PLACEHOLDER_I18N_REFRESH_META, language)
-          .setMeta('addToHistory', false)
-      );
     } catch {
       return;
     }

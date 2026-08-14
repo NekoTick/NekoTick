@@ -35,6 +35,7 @@ import {
   schedulePointerClickCollapseReassertion,
 } from './textSelectionOverlayPointerClick';
 import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from './textSelectionOverlayState';
+import { headingPlugin } from '../heading/headingPlugin';
 
 const OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
@@ -509,6 +510,114 @@ describe('textSelectionOverlayPlugin', () => {
       expect(view.dom.classList.contains(OVERLAY_ACTIVE_CLASS)).toBe(true);
       expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(true);
     } finally {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    }
+  });
+
+  it('switches a full heading pointer selection to overlays for generated marker text', async () => {
+    const view = await createEditor('# Heading', [...headingPlugin]);
+    const originalElementFromPoint = document.elementFromPoint;
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => view.dom.querySelector('h1') ?? view.dom,
+    });
+
+    try {
+      view.dom.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      const heading = view.state.doc.firstChild!;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(
+        view.state.doc,
+        1,
+        1 + heading.content.size,
+      )));
+
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(true);
+      expect(view.dom.querySelector('.editor-text-selection-overlay-force')).not.toBeNull();
+
+      document.dispatchEvent(new MouseEvent('mouseup', { button: 0, bubbles: true }));
+
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
+      expect(getOverlayText(view)).toBe('# Heading');
+    } finally {
+      Object.defineProperty(document, 'elementFromPoint', {
+        configurable: true,
+        value: originalElementFromPoint,
+      });
+    }
+  });
+
+  it('owns pointer selection from mousedown inside an inactive heading', async () => {
+    const view = await createEditor(['# 1234567', '', 'Body'].join('\n'), [...headingPlugin]);
+    const heading = view.dom.querySelector('h1');
+    const walker = document.createTreeWalker(heading!, NodeFilter.SHOW_TEXT);
+    let textNode: Text | null = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node instanceof Text && !node.parentElement?.closest('.heading-markdown-marker')) {
+        textNode = node;
+        break;
+      }
+    }
+    const documentWithCaretRange = document as Document & {
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    };
+    const originalCaretRangeFromPoint = documentWithCaretRange.caretRangeFromPoint;
+    const originalElementFromPoint = document.elementFromPoint;
+
+    expect(heading).not.toBeNull();
+    expect(textNode).toBeInstanceOf(Text);
+    const bodyPos = (view.state.doc.firstChild?.nodeSize ?? 0) + 1;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, bodyPos)));
+    expect(view.dom.querySelector('.heading-markdown-marker')).toBeNull();
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: () => heading,
+    });
+    Object.defineProperty(document, 'caretRangeFromPoint', {
+      configurable: true,
+      value: (x: number) => {
+        const range = document.createRange();
+        range.setStart(textNode!, x < 60 ? 3 : 7);
+        range.collapse(true);
+        return range;
+      },
+    });
+
+    try {
+      const mouseDown = new MouseEvent('mousedown', {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+        clientX: 90,
+        clientY: 30,
+      });
+      heading!.dispatchEvent(mouseDown);
+
+      expect(mouseDown.defaultPrevented).toBe(true);
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
+
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        bubbles: true,
+        buttons: 1,
+        cancelable: true,
+        clientX: 40,
+        clientY: 30,
+      }));
+
+      expect(view.state.doc.textBetween(
+        view.state.selection.from,
+        view.state.selection.to,
+        '',
+      )).toBe('4567');
+      expect(view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS)).toBe(false);
+    } finally {
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+      Object.defineProperty(document, 'caretRangeFromPoint', {
+        configurable: true,
+        value: originalCaretRangeFromPoint,
+      });
       Object.defineProperty(document, 'elementFromPoint', {
         configurable: true,
         value: originalElementFromPoint,

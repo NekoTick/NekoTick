@@ -5,6 +5,7 @@ import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT } from '../shared/boundedProseNodeScan';
 
 export const TEXT_SELECTION_OVERLAY_CLASS = 'editor-text-selection-overlay';
+export const TEXT_SELECTION_OVERLAY_FORCE_CLASS = 'editor-text-selection-overlay-force';
 export const TEXT_SELECTION_OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 export const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
 export const LARGE_SELECTION_CLASS = 'editor-large-all-selection';

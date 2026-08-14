@@ -1,12 +1,19 @@
 import { $prose } from '@milkdown/kit/utils';
 import { Plugin, PluginKey } from '@milkdown/kit/prose/state';
-import { DecorationSet } from '@milkdown/kit/prose/view';
+import type { DecorationSet } from '@milkdown/kit/prose/view';
 import {
-    createHeadingPlaceholderDecorations,
-    transactionMayAffectHeadingPlaceholders,
-} from './headingPlaceholder';
+    combineHeadingMarkerDecorations,
+    createActiveHeadingMarkerDecorations,
+    createEmptyHeadingMarkerDecorations,
+    transactionMayAffectEmptyHeadingMarkers,
+} from './headingMarker';
+import { installHeadingMarkerPointerRetention } from './headingMarkerPointerRetention';
+import { replaceSelectedHeadingMarkerSelection } from './headingMarkerDeletion';
+import { getBlockSelectionPluginState } from '../cursor/blockSelectionPluginState';
 
-export const HEADING_PLACEHOLDER_I18N_REFRESH_META = 'headingPlaceholderI18nRefresh';
+interface HeadingMarkerPluginState {
+    emptyDecorations: DecorationSet;
+}
 
 const firstParagraphPlugin = $prose(() => {
     return new Plugin({
@@ -39,35 +46,56 @@ const firstParagraphPlugin = $prose(() => {
     });
 });
 
-const headingPlaceholderPlugin = $prose(() => {
-    return new Plugin({
-        key: new PluginKey('headingPlaceholder'),
+const headingMarkerPlugin = $prose(() => {
+    return new Plugin<HeadingMarkerPluginState>({
+        key: new PluginKey<HeadingMarkerPluginState>('headingMarker'),
         state: {
             init(_config, state) {
-                return createHeadingPlaceholderDecorations(state.doc);
+                const emptyDecorations = createEmptyHeadingMarkerDecorations(state.doc);
+                return { emptyDecorations };
             },
-            apply(tr, oldDecorations, oldState, newState) {
-                if (tr.getMeta(HEADING_PLACEHOLDER_I18N_REFRESH_META)) {
-                    return createHeadingPlaceholderDecorations(newState.doc);
-                }
-                if (tr.docChanged) {
-                    if (!transactionMayAffectHeadingPlaceholders(oldDecorations as DecorationSet, tr, oldState.doc, newState.doc)) {
-                        return (oldDecorations as DecorationSet).map(tr.mapping, tr.doc);
-                    }
-                    return createHeadingPlaceholderDecorations(newState.doc);
-                }
-                return (oldDecorations as DecorationSet).map(tr.mapping, tr.doc);
+            apply(tr, oldPluginState, oldState, newState) {
+                if (!tr.docChanged) return oldPluginState;
+
+                const emptyDecorations = transactionMayAffectEmptyHeadingMarkers(
+                        oldPluginState.emptyDecorations,
+                        tr,
+                        oldState.doc,
+                        newState.doc,
+                    )
+                    ? createEmptyHeadingMarkerDecorations(newState.doc)
+                    : oldPluginState.emptyDecorations.map(tr.mapping, tr.doc);
+                return { emptyDecorations };
             },
         },
         props: {
-            decorations(state) {
-                return this.getState(state);
+            handleTextInput(view, from, to, text) {
+                const { selection } = view.state;
+                if (from !== selection.from || to !== selection.to) return false;
+                return replaceSelectedHeadingMarkerSelection(view, text);
             },
+            decorations(state) {
+                const emptyDecorations = this.getState(state)?.emptyDecorations;
+                if (!emptyDecorations) return undefined;
+                const { selectedBlocks } = getBlockSelectionPluginState(state);
+                const activeDecorations = createActiveHeadingMarkerDecorations(
+                    state,
+                    selectedBlocks,
+                );
+                return combineHeadingMarkerDecorations(
+                    state.doc,
+                    emptyDecorations,
+                    activeDecorations,
+                );
+            },
+        },
+        view(view) {
+            return installHeadingMarkerPointerRetention(view);
         },
     });
 });
 
 export const headingPlugin = [
     firstParagraphPlugin,
-    headingPlaceholderPlugin,
+    headingMarkerPlugin,
 ];

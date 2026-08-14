@@ -8,6 +8,7 @@ import {
     resolveEditorTextPositionAtPointer,
 } from '../../shared/pointerTextPosition';
 import { WIKI_LINK_POINTER_SELECTION_META } from '../wiki-link/wikiLinkInteraction';
+import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../../selection/textSelectionOverlayState';
 
 const LINK_DRAG_SELECTION_THRESHOLD_PX = 4;
 export const LINK_TEXT_POSITION_SELECTOR = [
@@ -166,12 +167,9 @@ function dispatchEditorTextSelection(
         if (options.suppressWikiLinkExpansion) {
             tr = tr.setMeta(WIKI_LINK_POINTER_SELECTION_META, true);
         }
-        tr = tr
-            .setMeta('addToHistory', false)
-            .scrollIntoView();
+        tr = tr.setMeta('addToHistory', false);
         view.dispatch(tr);
-        view.dom.focus({ preventScroll: true });
-        view.focus();
+        if (!view.hasFocus()) view.dom.focus({ preventScroll: true });
         return true;
     } catch {
         return false;
@@ -207,21 +205,28 @@ export function startLinkTextSelectionSession(
     const ownerWindow = ownerDocument.defaultView;
     const startX = event.clientX;
     const startY = event.clientY;
+    let selectionHead = anchor;
     let moved = false;
     let stopped = false;
 
-    const stop = () => {
+    const clearPointerSelectionState = () => {
+        view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+    };
+    const stop = (clearPointerState = true) => {
         if (stopped) return;
         stopped = true;
         ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
         ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
-        ownerWindow?.removeEventListener('blur', stop);
+        ownerWindow?.removeEventListener('blur', handleWindowBlur);
+        if (clearPointerState) clearPointerSelectionState();
     };
+    const handleWindowBlur = () => stop();
 
     const extendSelection = (moveEvent: MouseEvent, suppressWikiLinkExpansion = isWikiLinkSelection) => {
         if (view.state.doc !== sessionDoc) return;
         const head = resolveLinkTextPositionAtPointer(view, moveEvent);
         if (head !== null) {
+            selectionHead = head;
             dispatchEditorTextSelection(view, anchor, head, { suppressWikiLinkExpansion });
         }
     };
@@ -248,14 +253,18 @@ export function startLinkTextSelectionSession(
     };
 
     const handleMouseUp = (upEvent: MouseEvent) => {
-        stop();
-        if (view.state.doc !== sessionDoc) return;
+        stop(false);
+        if (view.state.doc !== sessionDoc) {
+            clearPointerSelectionState();
+            return;
+        }
         upEvent.preventDefault();
         upEvent.stopPropagation();
         upEvent.stopImmediatePropagation();
 
         if (!moved) {
             dispatchEditorTextSelection(view, anchor, anchor, { hideFloatingToolbar: false });
+            clearPointerSelectionState();
             window.setTimeout(() => {
                 if (view.state.doc === sessionDoc) {
                     dispatchEditorTextSelection(view, anchor, anchor, { hideFloatingToolbar: false });
@@ -263,10 +272,14 @@ export function startLinkTextSelectionSession(
             }, 0);
             return;
         }
-        extendSelection(upEvent, false);
+        dispatchEditorTextSelection(view, anchor, selectionHead, {
+            suppressWikiLinkExpansion: false,
+        });
+        clearPointerSelectionState();
         onDragSelectionComplete();
     };
 
+    view.dom.setAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
@@ -276,6 +289,6 @@ export function startLinkTextSelectionSession(
     });
     ownerDocument.addEventListener('mousemove', handleMouseMove, true);
     ownerDocument.addEventListener('mouseup', handleMouseUp, true);
-    ownerWindow?.addEventListener('blur', stop);
+    ownerWindow?.addEventListener('blur', handleWindowBlur);
     return true;
 }
