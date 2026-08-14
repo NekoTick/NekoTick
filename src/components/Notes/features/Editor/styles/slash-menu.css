@@ -157,6 +157,7 @@
 
 .editor-preview-context-menu {
   overflow: visible;
+  contain: none;
 }
 
 .editor-preview-context-menu-group {

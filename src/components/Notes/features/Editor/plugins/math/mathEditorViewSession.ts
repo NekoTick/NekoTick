@@ -30,7 +30,8 @@ export function createMathEditorViewSession(args: {
     editorView,
     onOutsideCloseIntent,
     refs,
-    popupClassName: 'text-editor-popup math-editor-popup',
+    popupClassName: 'text-editor-popup math-editor-popup math-formula-editor-popup',
+    popupLayout: 'viewport-centered',
     placeholder: translate('editor.mathPlaceholder'),
     getEditorState: () =>
       mathEditorPluginKey.getState(editorView.state) as MathEditorState | undefined,
@@ -50,6 +51,7 @@ export function createMathEditorViewSession(args: {
     resolveAnchorElement: (_state, nodeDom) => resolveMathAnchorElement(null, nodeDom),
     getAnchorViewportPosition: getMathAnchorViewportPosition,
     preferStatePositionOnInitialRender: (state) => state.openSource === 'new-empty-block',
+    resizeTextareaToContent: false,
     previewInputDebounceMs: 0,
     configurePopup: configureMathFormulaPicker,
     previewInput({ state, value, resolveAnchor, scheduleResize }) {

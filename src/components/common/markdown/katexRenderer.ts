@@ -7,6 +7,7 @@ import { removeKatexSourceAnnotationsFromHtml } from './katexSourceSanitizer';
 export const MAX_LATEX_CHARS = 10000;
 const MAX_RENDER_CACHE_ENTRIES = 500;
 const successfulRenderCache = new Map<string, RenderResult>();
+type MathRenderOutput = 'htmlAndMathml' | 'html';
 
 function escapeHtmlText(value: string) {
   return value
@@ -38,12 +39,20 @@ export interface RenderResult {
   errorDetails: MathRenderErrorDetails | null;
 }
 
-function createRenderCacheKey(latex: string, displayMode: boolean) {
-  return `${displayMode ? 'block' : 'inline'}\u0000${latex}`;
+function createRenderCacheKey(
+  latex: string,
+  displayMode: boolean,
+  output: MathRenderOutput,
+) {
+  return `${displayMode ? 'block' : 'inline'}\u0000${output}\u0000${latex}`;
 }
 
-function readCachedRenderResult(latex: string, displayMode: boolean) {
-  const key = createRenderCacheKey(latex, displayMode);
+function readCachedRenderResult(
+  latex: string,
+  displayMode: boolean,
+  output: MathRenderOutput,
+) {
+  const key = createRenderCacheKey(latex, displayMode, output);
   const cached = successfulRenderCache.get(key);
   if (!cached) return null;
 
@@ -55,11 +64,12 @@ function readCachedRenderResult(latex: string, displayMode: boolean) {
 function cacheSuccessfulRenderResult(
   latex: string,
   displayMode: boolean,
+  output: MathRenderOutput,
   result: RenderResult,
 ) {
   if (result.error !== null) return result;
 
-  successfulRenderCache.set(createRenderCacheKey(latex, displayMode), result);
+  successfulRenderCache.set(createRenderCacheKey(latex, displayMode, output), result);
   while (successfulRenderCache.size > MAX_RENDER_CACHE_ENTRIES) {
     const oldestKey = successfulRenderCache.keys().next().value;
     if (typeof oldestKey !== 'string') break;
@@ -159,7 +169,11 @@ function oversizedRenderResult(): RenderResult {
   };
 }
 
-export function renderLatex(latex: string, displayMode: boolean): RenderResult {
+export function renderLatexUncached(
+  latex: string,
+  displayMode: boolean,
+  output: MathRenderOutput = 'htmlAndMathml',
+): RenderResult {
   if (!latex.trim()) {
     return {
       html: '<span class="math-empty" aria-hidden="true">\u200b</span>',
@@ -169,20 +183,18 @@ export function renderLatex(latex: string, displayMode: boolean): RenderResult {
   }
   if (latex.length > MAX_LATEX_CHARS) return oversizedRenderResult();
 
-  const cached = readCachedRenderResult(latex, displayMode);
-  if (cached) return cached;
-
   try {
     const html = removeKatexSourceAnnotationsFromHtml(katex.renderToString(latex, {
       ...createKatexRenderOptions(),
       displayMode,
+      output,
       throwOnError: true,
     }));
-    return cacheSuccessfulRenderResult(latex, displayMode, {
+    return {
       html,
       error: null,
       errorDetails: null,
-    });
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorDetails = parseMathRenderError(errorMessage, latex);
@@ -192,6 +204,22 @@ export function renderLatex(latex: string, displayMode: boolean): RenderResult {
       errorDetails,
     };
   }
+}
+
+export function renderLatex(
+  latex: string,
+  displayMode: boolean,
+  output: MathRenderOutput = 'htmlAndMathml',
+): RenderResult {
+  const cached = readCachedRenderResult(latex, displayMode, output);
+  if (cached) return cached;
+
+  return cacheSuccessfulRenderResult(
+    latex,
+    displayMode,
+    output,
+    renderLatexUncached(latex, displayMode, output),
+  );
 }
 
 export function isValidLatex(latex: string): boolean {

@@ -912,6 +912,7 @@ export const themeUiFeedbackTokens = {
   copyFeedbackDurationMs: 1200,
   copyFeedbackClosingMs: 160,
   hoverPeekOpenDelayMs: 75,
+  mathFormulaPickerHoverCloseDelayMs: 50,
   chatThinkingSelectionReleaseDelayMs: 250,
   chatThinkingSelectionSettleDelayMs: 120,
   editorDragHandleThrottleMs: 16,

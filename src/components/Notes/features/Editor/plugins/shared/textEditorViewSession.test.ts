@@ -17,6 +17,8 @@ interface TestRefs extends TextEditorSessionRefs {
 
 function createSessionHarness(args?: {
   lazyLayout?: boolean;
+  popupLayout?: 'anchored' | 'viewport-centered';
+  popupCleanup?: () => void;
   preferStatePositionOnInitialRender?: (state: TestState) => boolean;
   previewInputDebounceMs?: number;
   scrollPopupIntoViewOnInitialRender?: boolean;
@@ -53,6 +55,7 @@ function createSessionHarness(args?: {
     onOutsideCloseIntent: vi.fn(),
     refs,
     popupClassName: 'text-editor-popup-test',
+    popupLayout: args?.popupLayout,
     placeholder: 'Type',
     getEditorState: () => state,
     getStateRenderKey: (nextState) => String(nextState.nodePos),
@@ -72,6 +75,7 @@ function createSessionHarness(args?: {
     getAnchorViewportPosition,
     preferStatePositionOnInitialRender: args?.preferStatePositionOnInitialRender,
     scrollPopupIntoViewOnInitialRender: args?.scrollPopupIntoViewOnInitialRender,
+    configurePopup: args?.popupCleanup ? () => args.popupCleanup : undefined,
     previewInput,
     previewInputDebounceMs: args?.previewInputDebounceMs ?? 25,
     previewCancel,
@@ -226,6 +230,19 @@ describe('createTextEditorViewSession', () => {
     expect(popup.style.getPropertyValue('--vlaina-width-math-editor-mobile')).toBe('640px');
     expect(popup.style.getPropertyValue('--vlaina-height-text-editor-popup-available'))
       .toBe('calc(100vh - 0px - var(--vlaina-space-12px))');
+
+    session.destroy();
+  });
+
+  it('mounts viewport-centered popups as a fixed full-screen layer', () => {
+    const { session } = createSessionHarness({ popupLayout: 'viewport-centered' });
+
+    session.update();
+
+    const popup = document.querySelector<HTMLElement>('.text-editor-popup-test')!;
+    expect(popup.parentElement).toBe(document.body);
+    expect(popup.style.position).toBe('fixed');
+    expect(popup.style.getPropertyValue('--vlaina-width-math-editor')).toBe('');
 
     session.destroy();
   });
@@ -465,5 +482,18 @@ describe('createTextEditorViewSession', () => {
     expect(previewInput).not.toHaveBeenCalled();
 
     session.destroy();
+  });
+
+  it('cleans up specialized popup work when the session closes', () => {
+    const popupCleanup = vi.fn();
+    const { session, setState } = createSessionHarness({ popupCleanup });
+
+    session.update();
+    setState({ isOpen: false });
+    session.update();
+
+    expect(popupCleanup).toHaveBeenCalledTimes(1);
+    session.destroy();
+    expect(popupCleanup).toHaveBeenCalledTimes(1);
   });
 });
