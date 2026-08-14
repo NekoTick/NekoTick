@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { editorViewCtx, serializerCtx } from '@milkdown/kit/core';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import {
@@ -10,7 +10,6 @@ import { normalizeLeadingFrontmatterMarkdown } from './plugins/frontmatter/front
 import type { ActiveMilkdownEditor } from './MilkdownEditorInnerTypes';
 import {
   isEditorMarkdownEquivalentToNoteContent,
-  isSameVisibleNoteContentIgnoringManagedFrontmatter,
   replaceEditorMarkdown,
 } from './milkdownEditorMarkdownReplacement';
 import { logE2EMilkdownTiming } from './milkdownE2ETiming';
@@ -33,13 +32,14 @@ export function useMilkdownExternalContentSync(args: {
   currentNoteDiskRevision: number;
   currentNotePath: string | undefined;
   get: (() => unknown) | undefined;
-  hasLocalMarkdownCommitRef: React.MutableRefObject<boolean>;
   lastAppliedNoteRef: React.MutableRefObject<{
     path: string | undefined;
     diskRevision: number;
     content: string;
   }>;
+  reportEditorContentSyncFailure?: () => void;
   reportEditorReady: (editor: ActiveMilkdownEditor) => void;
+  shouldPreserveLiveEditorContent: () => boolean;
 }) {
   const {
     activatedRevision,
@@ -48,11 +48,18 @@ export function useMilkdownExternalContentSync(args: {
     currentNoteDiskRevision,
     currentNotePath,
     get,
-    hasLocalMarkdownCommitRef,
     lastAppliedNoteRef,
+    reportEditorContentSyncFailure,
     reportEditorReady,
+    shouldPreserveLiveEditorContent,
   } = args;
   const historySessionRef = useRef<NoteEditorHistorySession | null>(null);
+  const failedSyncTargetRef = useRef<{
+    content: string;
+    diskRevision: number;
+    path: string | undefined;
+  } | null>(null);
+  const [retryRevision, setRetryRevision] = useState(0);
 
   useEffect(() => {
     if (!canSyncContent) {
@@ -62,6 +69,30 @@ export function useMilkdownExternalContentSync(args: {
     const lastAppliedNote = lastAppliedNoteRef.current;
     let restoreFrame = 0;
     let restoreTimeout = 0;
+    let syncRetryFrame = 0;
+    const isCurrentSyncTarget = (target: typeof failedSyncTargetRef.current) => (
+      target?.path === currentNotePath &&
+      target.diskRevision === currentNoteDiskRevision &&
+      target.content === currentNoteContent
+    );
+    const clearSyncFailure = () => {
+      failedSyncTargetRef.current = null;
+    };
+    const handleSyncFailure = () => {
+      if (isCurrentSyncTarget(failedSyncTargetRef.current)) {
+        reportEditorContentSyncFailure?.();
+        return;
+      }
+
+      failedSyncTargetRef.current = {
+        path: currentNotePath,
+        diskRevision: currentNoteDiskRevision,
+        content: currentNoteContent,
+      };
+      syncRetryFrame = window.requestAnimationFrame(() => {
+        setRetryRevision((revision) => revision + 1);
+      });
+    };
 
     try {
       const editor = get?.() as ActiveMilkdownEditor | undefined;
@@ -74,13 +105,6 @@ export function useMilkdownExternalContentSync(args: {
       const historySession = historySessionRef.current
         ?? createNoteEditorHistorySession(view);
       historySessionRef.current = historySession;
-      if (
-        lastAppliedNote.path === currentNotePath &&
-        lastAppliedNote.diskRevision === currentNoteDiskRevision &&
-        lastAppliedNote.content === currentNoteContent
-      ) {
-        return;
-      }
 
       const isSameNotePath = lastAppliedNote.path === currentNotePath;
       if (!isSameNotePath) {
@@ -111,31 +135,10 @@ export function useMilkdownExternalContentSync(args: {
         }
       }
 
-      if (
-        isSameNotePath &&
-        hasLocalMarkdownCommitRef.current &&
-        lastAppliedNote.content === currentNoteContent
-      ) {
-        lastAppliedNoteRef.current = {
-          path: currentNotePath,
-          diskRevision: currentNoteDiskRevision,
-          content: currentNoteContent,
-        };
-        return;
-      }
-      if (
-        isSameNotePath &&
-        lastAppliedNote.content !== currentNoteContent &&
-        isSameVisibleNoteContentIgnoringManagedFrontmatter(lastAppliedNote.content, currentNoteContent)
-      ) {
-        lastAppliedNoteRef.current = {
-          path: currentNotePath,
-          diskRevision: currentNoteDiskRevision,
-          content: currentNoteContent,
-        };
-        return;
-      }
-      let shouldPreserveSameRevisionWithoutReplace = false;
+      const isLastAppliedTargetCurrent =
+        lastAppliedNote.path === currentNotePath &&
+        lastAppliedNote.diskRevision === currentNoteDiskRevision &&
+        lastAppliedNote.content === currentNoteContent;
       if (liveSerializer && isSameNotePath) {
         try {
           const serializedCurrentDoc = liveSerializer(view.state.doc);
@@ -145,23 +148,15 @@ export function useMilkdownExternalContentSync(args: {
               diskRevision: currentNoteDiskRevision,
               content: currentNoteContent,
             };
+            clearSyncFailure();
+            reportEditorReady(editor);
+            return;
+          }
+          if (isLastAppliedTargetCurrent && shouldPreserveLiveEditorContent()) {
             return;
           }
         } catch {
-          shouldPreserveSameRevisionWithoutReplace = true;
         }
-      }
-      if (
-        isSameNotePath &&
-        lastAppliedNote.diskRevision === currentNoteDiskRevision &&
-        (!liveSerializer || shouldPreserveSameRevisionWithoutReplace)
-      ) {
-        lastAppliedNoteRef.current = {
-          path: currentNotePath,
-          diskRevision: currentNoteDiskRevision,
-          content: currentNoteContent,
-        };
-        return;
       }
       const scrollRoot = view.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
       const scrollTop = isSameNotePath ? scrollRoot?.scrollTop ?? null : null;
@@ -218,6 +213,23 @@ export function useMilkdownExternalContentSync(args: {
         durationMs: Math.round(performance.now() - replaceStartedAt),
       });
       if (!replaced) {
+        handleSyncFailure();
+        return;
+      }
+
+      let hasExpectedContent = false;
+      if (liveSerializer) {
+        try {
+          hasExpectedContent = isEditorMarkdownEquivalentToNoteContent(
+            liveSerializer(view.state.doc),
+            currentNoteContent,
+          );
+        } catch {
+          hasExpectedContent = false;
+        }
+      }
+      if (!hasExpectedContent) {
+        handleSyncFailure();
         return;
       }
 
@@ -226,6 +238,7 @@ export function useMilkdownExternalContentSync(args: {
         diskRevision: currentNoteDiskRevision,
         content: currentNoteContent,
       };
+      clearSyncFailure();
       reportEditorReady(editor);
 
       if (scrollRoot && scrollTop !== null) {
@@ -239,12 +252,25 @@ export function useMilkdownExternalContentSync(args: {
         );
       }
     } catch {
+      handleSyncFailure();
     }
 
     return () => {
       cancelAnimationFrame(restoreFrame);
+      cancelAnimationFrame(syncRetryFrame);
       window.clearTimeout(restoreTimeout);
     };
-  }, [activatedRevision, canSyncContent, currentNoteContent, currentNoteDiskRevision, currentNotePath, get, reportEditorReady]);
+  }, [
+    activatedRevision,
+    canSyncContent,
+    currentNoteContent,
+    currentNoteDiskRevision,
+    currentNotePath,
+    get,
+    reportEditorContentSyncFailure,
+    reportEditorReady,
+    retryRevision,
+    shouldPreserveLiveEditorContent,
+  ]);
 
 }

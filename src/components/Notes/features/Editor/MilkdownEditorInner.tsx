@@ -39,7 +39,12 @@ export {
   replaceEditorMarkdown,
 } from './milkdownEditorMarkdownReplacement';
 
-interface MilkdownEditorInnerProps { active?: boolean; showBodyLineNumbers?: boolean; onEditorViewReady?: () => void; }
+interface MilkdownEditorInnerProps {
+  active?: boolean;
+  showBodyLineNumbers?: boolean;
+  onEditorContentSyncFailure?: () => void;
+  onEditorViewReady?: () => void;
+}
 
 const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
 const EDITOR_CONTENT_INTERACTIVE_SELECTOR = [
@@ -55,6 +60,7 @@ const EDITOR_CONTENT_INTERACTIVE_SELECTOR = [
 export function MilkdownEditorRuntime({
   active = true,
   showBodyLineNumbers = false,
+  onEditorContentSyncFailure,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   return (
@@ -62,6 +68,7 @@ export function MilkdownEditorRuntime({
       <MilkdownEditorInner
         active={active}
         showBodyLineNumbers={showBodyLineNumbers}
+        onEditorContentSyncFailure={onEditorContentSyncFailure}
         onEditorViewReady={onEditorViewReady}
       />
     </MilkdownProvider>
@@ -71,6 +78,7 @@ export function MilkdownEditorRuntime({
 export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   active = true,
   showBodyLineNumbers = false,
+  onEditorContentSyncFailure,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   const updateContent = useNotesStore(s => s.updateContent);
@@ -107,7 +115,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
 
   const hasAutoFocused = useRef(false);
   const hasScheduledAutoFocus = useRef(false);
-  const hasLocalMarkdownCommitRef = useRef(false);
   const activatedEditorRef = useRef<ActiveMilkdownEditor | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
   const activationCleanupRef = useRef<(() => void) | null>(null);
@@ -131,7 +138,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     if (currentNotePath && currentNoteIsDirty && !currentNoteHasSaveError) debouncedSave();
   }, [currentNoteHasSaveError, currentNoteIsDirty, currentNotePath, debouncedSave]);
   const markLocalMarkdownCommitted = useCallback((content: string) => {
-    hasLocalMarkdownCommitRef.current = true;
     lastAppliedNoteRef.current = {
       path: currentNotePath,
       diskRevision: currentNoteDiskRevision,
@@ -237,7 +243,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     currentNoteContent,
     currentNotePath,
     initialContent,
-    reportEditorReady,
     shouldSerializeEditorMarkdown,
   });
 
@@ -264,7 +269,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   useEffect(() => {
     hasAutoFocused.current = false;
     hasScheduledAutoFocus.current = false;
-    hasLocalMarkdownCommitRef.current = false;
   }, [currentNotePath]);
 
   useEffect(() => {
@@ -278,9 +282,10 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     currentNoteDiskRevision,
     currentNotePath,
     get,
-    hasLocalMarkdownCommitRef,
     lastAppliedNoteRef,
+    reportEditorContentSyncFailure: onEditorContentSyncFailure,
     reportEditorReady,
+    shouldPreserveLiveEditorContent: shouldSerializeEditorMarkdown,
   });
 
   useEffect(() => {
@@ -323,14 +328,6 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
       if (activatedEditorRef.current !== editor) {
         activateEditor(editor);
       }
-      if (
-        editor.status === 'Created' &&
-        lastAppliedNoteRef.current.path === currentNotePath &&
-        lastAppliedNoteRef.current.diskRevision === currentNoteDiskRevision &&
-        lastAppliedNoteRef.current.content === currentNoteContent
-      ) {
-        reportEditorReady(editor);
-      }
     } catch {
       cleanupActivatedEditor();
       return;
@@ -339,12 +336,9 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     activateEditor,
     active,
     cleanupActivatedEditor,
-    currentNoteContent,
-    currentNoteDiskRevision,
     currentNotePath,
     flushSave,
     get,
-    reportEditorReady,
   ]);
 
   const { useLazyBlockVisibility } = useMilkdownAutoFocus({
