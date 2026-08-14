@@ -26,6 +26,7 @@ describe('useWhiteboardEraserGesture', () => {
     const { result } = renderHook(() => useWhiteboardEraserGesture(options));
     act(() => {
       result.current.begin([{ point: { x: 20, y: 20 }, size: 1 }]);
+      result.current.update([{ point: { x: 30, y: 30 }, size: 1 }]);
       result.current.finish();
     });
     expect(options.pushHistory).toHaveBeenCalledTimes(1);
@@ -52,7 +53,7 @@ describe('useWhiteboardEraserGesture', () => {
     expect(options.setStrokes).toHaveBeenCalledOnce();
   });
 
-  it('restores strokes removed from the end of a retraced erase path', () => {
+  it('restores a stroke crossed again during the same erase gesture', () => {
     const options = createOptions();
     options.elements = [];
     options.strokes = [20, 50, 80].map((y, index) => ({
@@ -76,6 +77,31 @@ describe('useWhiteboardEraserGesture', () => {
 
     const applyDeletion = options.setStrokes.mock.calls[0][0];
     expect(applyDeletion(options.strokes)).toEqual([options.strokes[2]]);
+  });
+
+  it('selects a restored stroke again on the third crossing', () => {
+    const options = createOptions();
+    options.elements = [];
+    options.strokes = [{
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: -20, y: 50 }, { pressure: 0.5, x: 20, y: 50 }],
+      size: 1, tool: 'pen' as const,
+    }];
+    options.spatialIndex = createWhiteboardEraserSpatialIndex(options.elements, options.strokes);
+    const { result } = renderHook(() => useWhiteboardEraserGesture(options));
+
+    act(() => {
+      result.current.begin([{ point: { x: 0, y: 0 }, size: 1 }]);
+      result.current.update([
+        { point: { x: 0, y: 100 }, size: 1 },
+        { point: { x: 0, y: 0 }, size: 1 },
+        { point: { x: 0, y: 100 }, size: 1 },
+      ]);
+      result.current.finish();
+    });
+
+    const applyDeletion = options.setStrokes.mock.calls[0][0];
+    expect(applyDeletion(options.strokes)).toEqual([]);
   });
 
   it('does not delete when the gesture is cancelled', () => {

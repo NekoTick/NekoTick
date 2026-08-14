@@ -6,7 +6,6 @@ import {
   getWhiteboardEraserTargets,
   getWhiteboardIndexedItems,
   tryUpdateWhiteboardEraserSpatialIndex,
-  updateWhiteboardEraserTrail,
   updateWhiteboardEraserSpatialIndex,
 } from './whiteboardEraser';
 import { markWhiteboardSpliceUpdate, removeWhiteboardItems } from './whiteboardCollection';
@@ -67,33 +66,6 @@ describe('whiteboard object eraser', () => {
     );
 
     expect(targets.elementIds).toEqual(['image']);
-  });
-
-  it('truncates the active trail when the pointer retraces its final segment', () => {
-    const trail = updateWhiteboardEraserTrail(
-      [{ point: { x: 0, y: 0 }, size: 1 }, { point: { x: 0, y: 100 }, size: 1 }],
-      [{ point: { x: 0, y: 65 }, size: 1 }],
-    );
-
-    expect(trail.backtracked).toBe(true);
-    expect(trail.samples).toEqual([
-      { point: { x: 0, y: 0 }, size: 1 },
-      { point: { x: 0, y: 65 }, size: 1 },
-    ]);
-  });
-
-  it('keeps a new path when the pointer crosses an older segment without reversing', () => {
-    const samples = [
-      { point: { x: 0, y: 0 }, size: 1 },
-      { point: { x: 100, y: 0 }, size: 1 },
-      { point: { x: 100, y: 100 }, size: 1 },
-      { point: { x: 0, y: 100 }, size: 1 },
-    ];
-
-    const trail = updateWhiteboardEraserTrail(samples, [{ point: { x: 0, y: 0 }, size: 1 }]);
-
-    expect(trail.backtracked).toBe(false);
-    expect(trail.samples).toHaveLength(5);
   });
 
   it('limits exact hit testing to nearby indexed content', () => {
