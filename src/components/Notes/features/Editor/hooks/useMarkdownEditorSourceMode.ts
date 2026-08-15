@@ -22,6 +22,8 @@ export function useMarkdownEditorSourceMode({
   const [editorInitTimedOutTarget, setEditorInitTimedOutTarget] = useState<typeof editorSession | null>(null);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const isEditorViewReady = editorReadyTarget === editorSession;
+  const shouldUseSourceFallback =
+    !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutTarget === editorSession;
 
   const handleEditorViewReady = useCallback(() => {
     setEditorInitTimedOutTarget(null);
@@ -29,11 +31,12 @@ export function useMarkdownEditorSourceMode({
     onEditorViewReady?.();
   }, [editorSession, onEditorViewReady]);
 
-  const handleEditorContentSyncFailure = useCallback(() => {
+  const handleRenderedEditorFailure = useCallback(() => {
     if (!currentNotePath) {
       return;
     }
 
+    setEditorReadyTarget(null);
     setEditorInitTimedOutTarget(editorSession);
     onEditorViewReady?.();
   }, [currentNotePath, editorSession, onEditorViewReady]);
@@ -55,9 +58,13 @@ export function useMarkdownEditorSourceMode({
   const handleToggleSourceMode = useCallback(() => {
     flushCurrentPendingEditorMarkdown();
     void flushCurrentEditorSave();
+    setEditorReadyTarget(null);
     setEditorInitTimedOutTarget(null);
+    if (shouldUseSourceFallback) {
+      return;
+    }
     setIsSourceMode((nextSourceMode) => !nextSourceMode);
-  }, []);
+  }, [shouldUseSourceFallback]);
 
   useEffect(() => {
     if (!hasActiveNote) {
@@ -71,7 +78,7 @@ export function useMarkdownEditorSourceMode({
   }, [handleToggleSourceMode, hasActiveNote]);
 
   useEffect(() => {
-    if (isSourceMode || !hasActiveNote || !currentNotePath || isEditorViewReady) {
+    if (isSourceMode || shouldUseSourceFallback || !hasActiveNote || !currentNotePath || isEditorViewReady) {
       return;
     }
 
@@ -83,7 +90,15 @@ export function useMarkdownEditorSourceMode({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [currentNotePath, editorSession, hasActiveNote, isEditorViewReady, isSourceMode, onEditorViewReady]);
+  }, [
+    currentNotePath,
+    editorSession,
+    hasActiveNote,
+    isEditorViewReady,
+    isSourceMode,
+    onEditorViewReady,
+    shouldUseSourceFallback,
+  ]);
 
   useEffect(() => {
     if (isSourceMode && hasActiveNote) {
@@ -93,12 +108,12 @@ export function useMarkdownEditorSourceMode({
 
   return {
     getCurrentNoteContent,
-    handleEditorContentSyncFailure,
+    handleRenderedEditorFailure,
     handleEditorViewReady,
     handleToggleSourceMode,
     isEditorViewReady,
     isSourceMode,
-    shouldUseSourceFallback:
-      !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutTarget === editorSession,
+    isSourceSurface: isSourceMode || shouldUseSourceFallback,
+    shouldUseSourceFallback,
   };
 }

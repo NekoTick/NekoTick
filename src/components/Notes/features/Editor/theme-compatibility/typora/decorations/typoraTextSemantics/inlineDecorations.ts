@@ -88,17 +88,18 @@ export function addTyporaInlineDecorations(
   pos: number
 ) {
   const runs = getInlineTextRuns(node, pos);
+  const visibleRuns = runs.filter((run) => !run.isMarkdownSyntax);
   const textBlockKind = getTextBlockVlookKind(node, runs);
   if (textBlockKind === 'caption') {
-    const first = runs[0];
-    const last = runs[runs.length - 1];
+    const first = visibleRuns[0];
+    const last = visibleRuns[visibleRuns.length - 1];
     pushTyporaInlineClass(decorations, first.from, last.to, 'v-cap-1');
     return;
   }
 
   if (textBlockKind === 'tab-caption') {
-    const first = runs[0];
-    const last = runs[runs.length - 1];
+    const first = visibleRuns[0];
+    const last = visibleRuns[visibleRuns.length - 1];
     pushTyporaInlineClass(decorations, first.from, last.to, 'v-tab-caption-label');
     return;
   }
@@ -108,6 +109,7 @@ export function addTyporaInlineDecorations(
   }
 
   let emphasisRun: EmphasisRun | null = null;
+  let syntaxGapSincePreviousRun = false;
 
   const flush = () => {
     pushEmphasisRunDecorations(decorations, emphasisRun);
@@ -115,12 +117,18 @@ export function addTyporaInlineDecorations(
   };
 
   for (const run of runs) {
-    if (!run.hasEmphasis) {
-      flush();
+    if (run.isMarkdownSyntax) {
+      syntaxGapSincePreviousRun = true;
       continue;
     }
 
-    if (!emphasisRun || emphasisRun.to !== run.from) {
+    if (!run.hasEmphasis) {
+      flush();
+      syntaxGapSincePreviousRun = false;
+      continue;
+    }
+
+    if (!emphasisRun || (emphasisRun.to !== run.from && !syntaxGapSincePreviousRun)) {
       flush();
       emphasisRun = {
         from: run.from,
@@ -152,6 +160,8 @@ export function addTyporaInlineDecorations(
     if (run.hasVlookHighlight) {
       emphasisRun.highlightRanges.push({ from: run.from, to: run.to });
     }
+
+    syntaxGapSincePreviousRun = false;
   }
 
   flush();

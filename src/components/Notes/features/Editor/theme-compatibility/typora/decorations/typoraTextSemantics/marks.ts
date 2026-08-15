@@ -10,10 +10,10 @@ export function hasAnyMark(node: any, markNames: readonly string[]): boolean {
 }
 
 export function textNodeHasMark(node: any, markName: string): boolean {
-  if (node.isText) return hasMark(node, markName);
+  if (node.isText) return !hasMark(node, 'markdownSyntax') && hasMark(node, markName);
   let matched = false;
   node.descendants?.((child: any) => {
-    if (child.isText && hasMark(child, markName)) {
+    if (child.isText && !hasMark(child, 'markdownSyntax') && hasMark(child, markName)) {
       matched = true;
       return false;
     }
@@ -30,7 +30,7 @@ export function everyTextNodeHasMark(node: any, markName: string): boolean {
   let sawText = false;
   let allMatched = true;
   node.descendants?.((child: any) => {
-    if (!child.isText || child.text === '') return true;
+    if (!child.isText || child.text === '' || hasMark(child, 'markdownSyntax')) return true;
     sawText = true;
     if (!hasMark(child, markName)) {
       allMatched = false;
@@ -45,7 +45,7 @@ export function everyTextNodeHasAnyMark(node: any, markNames: readonly string[])
   let sawText = false;
   let allMatched = true;
   node.descendants?.((child: any) => {
-    if (!child.isText || child.text === '') return true;
+    if (!child.isText || child.text === '' || hasMark(child, 'markdownSyntax')) return true;
     sawText = true;
     if (!hasAnyMark(child, markNames)) {
       allMatched = false;

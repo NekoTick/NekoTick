@@ -624,11 +624,13 @@ test.describe('notes source mode layout', () => {
 
       await toggleSourceModeWithShortcut(page, 'rendered');
       await expect(page.locator(SOURCE_EDITOR_SELECTOR)).toHaveCount(0);
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Alpha edited from source with literal markdown markers', {
+      const renderedEditor = page.locator(EDITOR_SELECTOR);
+      await expect(renderedEditor).toContainText('Alpha edited from source', {
         timeout: 30_000,
       });
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Pasted Source Section');
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText(compositionText);
+      await expect(renderedEditor.locator('em', { hasText: 'literal markdown' })).toBeVisible();
+      await expect(renderedEditor).toContainText('Pasted Source Section');
+      await expect(renderedEditor).toContainText(compositionText);
 
       await toggleSourceModeFromMoreMenu(page, 'source');
       await expect(sourceEditor).toBeVisible({ timeout: 10_000 });
@@ -706,9 +708,10 @@ test.describe('notes source mode layout', () => {
 
       await toggleSourceModeFromMoreMenu(page, 'rendered');
       await expect(page.locator(SOURCE_MODE_ROOT_SELECTOR)).toHaveCount(0);
-      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Alpha edited from source with literal markdown markers', {
+      await expect(renderedEditor).toContainText('Alpha edited from source', {
         timeout: 30_000,
       });
+      await expect(renderedEditor.locator('em', { hasText: 'literal markdown' })).toBeVisible();
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }
