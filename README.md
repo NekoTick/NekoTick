@@ -11,11 +11,8 @@
 
 
 # vlaina
+<img width="1363" height="952" alt="image" src="https://github.com/user-attachments/assets/55bc930d-ee0e-4d9b-b227-da052969bc78" />
 
-<img width="922" height="638" src="https://github.com/user-attachments/assets/65e0e3cd-e224-4123-903b-b3c5b4273e05" />
-
-
-<img width="929" height="650"  src="https://github.com/user-attachments/assets/738de093-ab4d-4261-85cb-cd9aa07efffa" />
 
 # 📥 Download
 <a href="https://get.microsoft.com/installer/download/9nlx8nhxq49x?referrer=appbadge" target="_self" >
