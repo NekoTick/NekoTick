@@ -37,7 +37,6 @@ export function WhiteboardView({
         brushCursorSize={board.brushCursorSize}
         brushCursorTool={board.brushCursorTool}
         draftStroke={board.draftStroke}
-        draftStrokePreview={board.draftStrokePreview}
         eraserPreview={board.eraserPreview}
         isPanning={board.isPanning}
         movePreview={board.movePreview}

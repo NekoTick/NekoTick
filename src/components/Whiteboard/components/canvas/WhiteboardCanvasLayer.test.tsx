@@ -121,6 +121,34 @@ describe('WhiteboardCanvasLayer', () => {
     expect(handles.map((handle) => handle.getAttribute('data-whiteboard-selection-resize-handle')))
       .toEqual(['nw', 'ne', 'se', 'sw']);
   });
+  it('shows only proportional resize handles for a selected AutoDraw icon', () => {
+    const { container } = render(
+      <WhiteboardCanvasLayer
+        brushCursorColor="transparent" brushCursorPoint={null} brushCursorSize={1} brushCursorTool={null}
+        draftStroke={null} eraserPreview={EMPTY_WHITEBOARD_ERASER_PREVIEW} movePreview={null}
+        renderData={createRenderData([{
+          autoDrawIcon: 'clock', height: 80, id: 'icon-1', text: 'Clock',
+          type: 'icon', width: 240, x: 20, y: 30,
+        }], [], {
+          selectedElementIds: ['icon-1'],
+          selectionGeometry: getSelectedOverlayGeometry([{
+            autoDrawIcon: 'clock', height: 80, id: 'icon-1', text: 'Clock',
+            type: 'icon', width: 240, x: 20, y: 30,
+          }], []),
+        })}
+        selectionPath={null} spacePressed={false} tool="select"
+        viewport={{ x: 0, y: 0, zoom: 1 }} viewportSize={{ x: 500, y: 500 }}
+        onElementPointerDown={vi.fn()} onSelectionMovePointerDown={vi.fn()}
+        onSelectionResizePointerDown={vi.fn()} onSelectionRotationPointerDown={vi.fn()}
+      />,
+    );
+
+    const handles = Array.from(container.querySelectorAll('[data-whiteboard-selection-resize-handle]'));
+    expect(container.querySelector('rect[stroke-dasharray="6 5"]')).toHaveAttribute('x', '100');
+    expect(container.querySelector('rect[stroke-dasharray="6 5"]')).toHaveAttribute('width', '80');
+    expect(handles.map((handle) => handle.getAttribute('data-whiteboard-selection-resize-handle')))
+      .toEqual(['nw', 'ne', 'se', 'sw']);
+  });
   it('keeps a mixed text selection proportional', () => {
     const elements: WhiteboardElement[] = [
       {
@@ -278,7 +306,7 @@ describe('WhiteboardCanvasLayer', () => {
       />,
     );
 
-    expect(container.querySelector('rect.pointer-events-auto')).toBeNull();
+    expect(container.querySelector('[data-whiteboard-selection-move-target]')).toBeNull();
     expect(container.querySelector('[data-whiteboard-element="true"]')).toHaveClass('pointer-events-none');
   });
 
@@ -319,8 +347,7 @@ describe('WhiteboardCanvasLayer', () => {
     expect(onSelectionMovePointerDown).toHaveBeenCalledOnce();
   });
 
-  it('keeps selected images draggable when a lasso selects multiple items', () => {
-    const onSelectionMovePointerDown = vi.fn();
+  it('keeps mixed selection bounds from intercepting item hit testing', () => {
     const { container } = render(
       <WhiteboardCanvasLayer
         brushCursorColor="transparent"
@@ -345,16 +372,14 @@ describe('WhiteboardCanvasLayer', () => {
         viewport={{ x: 0, y: 0, zoom: 1 }}
         viewportSize={{ x: 500, y: 500 }}
         onElementPointerDown={vi.fn()}
-        onSelectionMovePointerDown={onSelectionMovePointerDown}
+        onSelectionMovePointerDown={vi.fn()}
         onSelectionResizePointerDown={vi.fn()}
       />,
     );
 
     expect(container.querySelector('[data-whiteboard-element="true"]')).toHaveClass('cursor-grab');
     const moveTarget = container.querySelector('[data-whiteboard-selection-move-target="true"]');
-    expect(moveTarget).toHaveStyle({ cursor: 'grab' });
-    moveTarget?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
-    expect(onSelectionMovePointerDown).toHaveBeenCalledOnce();
+    expect(moveTarget).toHaveClass('pointer-events-none');
   });
 
   it('uses only the group target when multiple strokes are selected', () => {

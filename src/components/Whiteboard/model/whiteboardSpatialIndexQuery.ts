@@ -7,7 +7,10 @@ export function getWhiteboardIndexedItems<T extends { id: string }>(
   ids: string[],
 ): T[] {
   const selected: T[] = [];
+  const selectedIds = new Set<string>();
   for (const id of ids) {
+    if (selectedIds.has(id)) continue;
+    selectedIds.add(id);
     const itemOrder = order.get(id);
     const item = itemOrder === undefined ? undefined : items[itemOrder];
     if (item?.id === id) selected.push(item);

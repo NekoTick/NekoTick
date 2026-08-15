@@ -65,20 +65,14 @@ const WhiteboardStrokeSvg = memo(function WhiteboardStrokeSvg({
 });
 
 export const WhiteboardDraftStrokeLayer = memo(function WhiteboardDraftStrokeLayer({
-  pending = false,
   stroke,
 }: {
-  pending?: boolean;
   stroke: WhiteboardStroke | null;
 }) {
   if (!stroke || stroke.points.length === 0) return null;
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-visible">
-      <g
-        data-whiteboard-autoshape-preview={pending ? 'pending' : undefined}
-        data-whiteboard-draft-stroke={pending ? 'preview' : 'raw'}
-        opacity={pending ? themeWhiteboardTokens.pendingAutoShapeOpacity : undefined}
-      >
+      <g data-whiteboard-draft-stroke="raw">
         <WhiteboardStrokeNode stroke={stroke} />
       </g>
     </svg>

@@ -17,7 +17,6 @@ import { getWhiteboardBoundsCandidates, type WhiteboardEraserSpatialIndex } from
 import { appendWhiteboardItems } from '../model/whiteboardCollection';
 import { insertWhiteboardLinearMidpoint, replaceWhiteboardLinearPoint, shouldCommitWhiteboardLinearStroke } from '../model/whiteboardLinear';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { finalizeWhiteboardAutoShape } from '../model/whiteboardAutoShape';
 
 interface WhiteboardPointerFinishOptions {
   activePenPointerRef: MutableRefObject<number | null>;
@@ -77,6 +76,10 @@ export function useWhiteboardPointerFinish({
   viewportZoom = 1,
 }: WhiteboardPointerFinishOptions) {
   return useCallback((event?: PointerEvent<HTMLDivElement>) => {
+    if (event && activePenPointerRef.current !== null && event.pointerId !== activePenPointerRef.current) {
+      deletePointer(event.pointerId);
+      return;
+    }
     const drawing = dragState?.kind === 'draw' || dragState?.kind === 'draw-autoshape' || dragState?.kind === 'draw-linear';
     const finalRotationPoint = event && event.type !== 'pointercancel' && dragState?.kind === 'rotate-selection'
       ? getBoardPoint(event.clientX, event.clientY)
@@ -97,26 +100,17 @@ export function useWhiteboardPointerFinish({
     flushResizeDrags();
     if (event?.pointerId === activePenPointerRef.current) activePenPointerRef.current = null;
     const currentDraft = getDraftStroke();
-    const finalizedDraft = currentDraft && dragState?.kind === 'draw-autoshape'
-      ? finalizeWhiteboardAutoShape(currentDraft, viewportZoom)
-      : currentDraft;
-    const commitDraft = finalizedDraft && finalizedDraft.points.length > 0
-      && (Boolean(finalizedDraft.autoShape) || !isLinearTool(finalizedDraft.tool) || shouldCommitWhiteboardLinearStroke(finalizedDraft, viewportZoom));
-    if (event?.type !== 'pointercancel' && drawing && commitDraft && finalizedDraft) {
+    const commitDraft = currentDraft && currentDraft.points.length > 0
+      && (!isLinearTool(currentDraft.tool) || shouldCommitWhiteboardLinearStroke(currentDraft, viewportZoom));
+    if (event?.type !== 'pointercancel' && drawing && commitDraft && currentDraft) {
       pushHistory();
-      setStrokes((current) => appendWhiteboardItems(current, [{ ...finalizedDraft }]));
+      setStrokes((current) => appendWhiteboardItems(current, [{ ...currentDraft }]));
       if (dragState?.kind === 'draw-autoshape') {
-        if (finalizedDraft.tool === 'pen') {
-          onAutoDrawStrokeCommit?.(finalizedDraft);
-        } else {
-          setSelectedElementIds([]);
-          setSelectedStrokeIds([finalizedDraft.id]);
-          setTool?.('select');
-        }
+        onAutoDrawStrokeCommit?.(currentDraft);
       }
       if (dragState?.kind === 'draw-linear') {
         setSelectedElementIds([]);
-        setSelectedStrokeIds([finalizedDraft.id]);
+        setSelectedStrokeIds([currentDraft.id]);
         setTool?.('select');
       }
       strokeIdRef.current += 1;
@@ -126,13 +120,11 @@ export function useWhiteboardPointerFinish({
       const path = finalPoint ? [...dragState.points, finalPoint] : dragState.points;
       const lassoBounds = getLassoBounds(path);
       const candidates = lassoBounds ? getWhiteboardBoundsCandidates(spatialIndex, lassoBounds) : null;
-      const selection = getItemsInLasso(
-        spatialIndex.allElements === elements ? candidates?.elements ?? elements : elements,
-        spatialIndex.allStrokes === strokes ? candidates?.strokes ?? strokes : strokes,
-        path,
-      );
+      const candidateElements = spatialIndex.allElements === elements ? candidates?.elements ?? elements : elements;
+      const candidateStrokes = spatialIndex.allStrokes === strokes ? candidates?.strokes ?? strokes : strokes;
+      const selection = getItemsInLasso(candidateElements, candidateStrokes, path);
       const clickedElement = lassoBounds && lassoBounds.width < 3 && lassoBounds.height < 3
-        ? findElementAtPoint(candidates?.elements ?? elements, finalPoint ?? path[0])
+        ? findElementAtPoint(candidateElements, finalPoint ?? path[0])
         : null;
       setSelectedElementIds(clickedElement ? [clickedElement.id] : selection.elementIds);
       setSelectedStrokeIds(selection.strokeIds);
@@ -215,7 +207,8 @@ export function useWhiteboardPointerFinish({
         : dragState.currentPoint;
       const dx = point.x - dragState.startPoint.x;
       const dy = point.y - dragState.startPoint.y;
-      if (event?.type !== 'pointercancel' && prepareMoveCommit?.(dragState, point)) {
+      const delegatedCommit = event?.type !== 'pointercancel' && Boolean(prepareMoveCommit?.(dragState, point));
+      if (delegatedCommit) {
         clearDraftStroke();
         return;
       }

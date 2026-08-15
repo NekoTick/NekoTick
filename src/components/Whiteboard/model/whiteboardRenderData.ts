@@ -57,15 +57,20 @@ export class WhiteboardSelectionRenderData {
   readonly #elements: WhiteboardElement[];
   readonly #strokes: WhiteboardStroke[];
   readonly #geometry: WhiteboardSelectedOverlayGeometry | null;
+  readonly #requiresProportionalResize: boolean;
 
   constructor(
     elements: WhiteboardElement[],
     strokes: WhiteboardStroke[],
     geometry: WhiteboardSelectedOverlayGeometry | null = null,
+    requiresProportionalResize = elements.some((element) => (
+      element.type === 'text' || (element.type === 'icon' && Boolean(element.autoDrawIcon))
+    )),
   ) {
     this.#elements = elements;
     this.#strokes = strokes;
     this.#geometry = geometry;
+    this.#requiresProportionalResize = requiresProportionalResize;
   }
 
   get elements(): WhiteboardElement[] {
@@ -78,5 +83,9 @@ export class WhiteboardSelectionRenderData {
 
   get geometry(): WhiteboardSelectedOverlayGeometry | null {
     return this.#geometry;
+  }
+
+  get requiresProportionalResize(): boolean {
+    return this.#requiresProportionalResize;
   }
 }

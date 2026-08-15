@@ -182,36 +182,6 @@ describe('WhiteboardStrokeLayer brush rendering', () => {
       .toHaveAttribute('opacity', String(themeWhiteboardTokens.eraserTargetPreviewOpacity));
   });
 
-  it('keeps the raw stroke visible beneath a pending auto shape', () => {
-    const shape: WhiteboardStroke = {
-      autoShape: 'rectangle', color: '#334455', id: 'shape-preview',
-      points: [
-        { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 100, y: 0 },
-        { pressure: 0.5, x: 100, y: 80 }, { pressure: 0.5, x: 0, y: 80 },
-        { pressure: 0.5, x: 0, y: 0 },
-      ],
-      size: 1, tool: 'line',
-    };
-    const rawStroke: WhiteboardStroke = {
-      ...shape,
-      autoShape: undefined,
-      points: shape.points.slice(0, 3),
-      tool: 'pen',
-    };
-    const { container, rerender } = render(<>
-      <WhiteboardDraftStrokeLayer stroke={rawStroke} />
-      <WhiteboardDraftStrokeLayer pending stroke={shape} />
-    </>);
-
-    expect(container.querySelector('[data-whiteboard-draft-stroke="raw"] [data-whiteboard-brush="pen"]')).not.toBeNull();
-    expect(container.querySelector('[data-whiteboard-autoshape-preview="pending"]'))
-      .toHaveAttribute('opacity', String(themeWhiteboardTokens.pendingAutoShapeOpacity));
-
-    rerender(<WhiteboardStrokeLayer strokes={[shape]} />);
-    expect(container.querySelector('[data-whiteboard-autoshape-preview]')).toBeNull();
-    expect(container.querySelector('[data-whiteboard-stroke="shape-preview"]')).not.toHaveAttribute('opacity');
-  });
-
   it.each([
     'pen', 'pencil', 'marker', 'colored-pencil', 'fountain', 'watercolor', 'crayon',
   ] as const)('uses identical chunked %s paths before and after commit', (tool) => {

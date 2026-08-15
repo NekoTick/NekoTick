@@ -10,7 +10,7 @@ export function renderWhiteboardAutoDrawIconSvg(
   if (!element.autoDrawIcon) return '';
   const viewBoxSize = themeWhiteboardTokens.autoDrawIconViewBoxSizePx;
   const strokeWidth = themeWhiteboardTokens.autoShapeStrokeWidthPx * viewBoxSize
-    / Math.sqrt(Math.max(1, element.width * element.height));
+    / Math.max(1, Math.min(element.width, element.height));
   const nodes = getWhiteboardAutoDrawCatalogEntry(element.autoDrawIcon).nodes.map(([tag, attributes]) => {
     const values = Object.entries(attributes)
       .filter(([name]) => name !== 'key')
@@ -18,7 +18,7 @@ export function renderWhiteboardAutoDrawIconSvg(
       .join(' ');
     return `<${tag}${values ? ` ${values}` : ''}/>`;
   }).join('');
-  return `<svg data-whiteboard-autodraw-icon="${element.autoDrawIcon}" x="${x}" y="${y}" width="${element.width}" height="${element.height}" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" preserveAspectRatio="none" fill="${themeWhiteboardTokens.strokeNoFill}" stroke="${escapeAttr(element.color ?? themeWhiteboardTokens.whiteboardTextDefaultColor)}" stroke-linecap="${themeWhiteboardTokens.strokeLineCap}" stroke-linejoin="${themeWhiteboardTokens.strokeLineJoin}" stroke-width="${strokeWidth}">${nodes}</svg>`;
+  return `<svg data-whiteboard-autodraw-icon="${element.autoDrawIcon}" x="${x}" y="${y}" width="${element.width}" height="${element.height}" viewBox="0 0 ${viewBoxSize} ${viewBoxSize}" preserveAspectRatio="xMidYMid meet" fill="${themeWhiteboardTokens.strokeNoFill}" stroke="${escapeAttr(element.color ?? themeWhiteboardTokens.whiteboardTextDefaultColor)}" stroke-linecap="${themeWhiteboardTokens.strokeLineCap}" stroke-linejoin="${themeWhiteboardTokens.strokeLineJoin}" stroke-width="${strokeWidth}">${nodes}</svg>`;
 }
 
 function toSvgAttribute(name: string): string {

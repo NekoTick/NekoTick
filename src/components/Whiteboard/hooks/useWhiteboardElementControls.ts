@@ -98,7 +98,9 @@ export function useWhiteboardElementControls({
       selectedStrokeIds,
     );
     if (!bounds) return;
-    const includesText = [...originalElementsById.values()].some((element) => element.type === 'text');
+    const requiresProportionalResize = [...originalElementsById.values()].some((element) => (
+      element.type === 'text' || (element.type === 'icon' && Boolean(element.autoDrawIcon))
+    ));
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
     pushHistory();
@@ -109,7 +111,7 @@ export function useWhiteboardElementControls({
       kind: 'resize-selection',
       originalElementsById,
       originalStrokesById,
-      preserveAspectRatio: event.shiftKey || includesText,
+      preserveAspectRatio: event.shiftKey || requiresProportionalResize,
       startPoint: point,
     });
   }, [elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, selectionBounds, setDragState, spacePressedRef, spatialIndex, strokes, tool]);

@@ -15,6 +15,7 @@ export {
   getBoundsUnion,
   extendSelectedOverlayGeometry,
   getElementBounds,
+  getElementContentRect,
   getElementCorners,
   getResizedSelectionBounds,
   getWhiteboardResizeScale,

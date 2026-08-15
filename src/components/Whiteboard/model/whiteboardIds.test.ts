@@ -14,4 +14,11 @@ describe('getNextWhiteboardIdSequence', () => {
   it('starts at one when no matching IDs exist', () => {
     expect(getNextWhiteboardIdSequence([{ id: 'wb-image-123' }], 'wb-connector-')).toBe(1);
   });
+
+  it('reserves sequences used by derived AutoDraw IDs', () => {
+    expect(getNextWhiteboardIdSequence([
+      { id: 'wb-stroke-12' },
+      { id: 'wb-stroke-41-autodraw' },
+    ], 'wb-stroke-')).toBe(42);
+  });
 });

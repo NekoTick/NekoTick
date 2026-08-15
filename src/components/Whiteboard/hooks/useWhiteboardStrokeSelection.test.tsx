@@ -55,6 +55,42 @@ describe('useWhiteboardStrokeSelection', () => {
     }));
   });
 
+  it('moves the pressed AutoDraw shape instead of another shape whose selection bounds contain it', () => {
+    const selected = {
+      autoShape: 'rectangle' as const, color: '#111111', id: 'selected',
+      points: [
+        { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 200, y: 0 },
+        { pressure: 0.5, x: 200, y: 200 }, { pressure: 0.5, x: 0, y: 200 },
+        { pressure: 0.5, x: 0, y: 0 },
+      ],
+      size: 1, tool: 'line' as const,
+    };
+    const pressed = {
+      autoShape: 'rectangle' as const, color: '#222222', id: 'pressed',
+      points: [
+        { pressure: 0.5, x: 60, y: 60 }, { pressure: 0.5, x: 140, y: 60 },
+        { pressure: 0.5, x: 140, y: 140 }, { pressure: 0.5, x: 60, y: 140 },
+        { pressure: 0.5, x: 60, y: 60 },
+      ],
+      size: 1, tool: 'line' as const,
+    };
+    const strokes = [selected, pressed];
+    const setDragState = vi.fn();
+    const setSelectedStrokeIds = vi.fn();
+    const { result } = renderHook(() => useWhiteboardStrokeSelection({
+      elements: [], pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [selected.id],
+      setDragState, setSelectedElementIds: vi.fn(), setSelectedStrokeIds,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], strokes), strokes, zoom: 1,
+    }));
+
+    act(() => result.current({ x: 100, y: 60 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
+
+    expect(setSelectedStrokeIds).toHaveBeenCalledWith([pressed.id]);
+    expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'move-strokes', strokeIds: [pressed.id],
+    }));
+  });
+
   it('selects the topmost nearby stroke from spatial candidates', () => {
     const lower = {
       color: '#111111', id: 'lower',
@@ -77,6 +113,47 @@ describe('useWhiteboardStrokeSelection', () => {
     act(() => result.current({ x: 20, y: 20 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
 
     expect(setSelectedStrokeIds).toHaveBeenCalledWith(['upper']);
+  });
+
+  it('uses live elements while only the stroke index is current', () => {
+    const element = {
+      autoDrawIcon: 'smile' as const, height: 80, id: 'new-icon', text: '', type: 'icon' as const,
+      width: 80, x: 0, y: 0,
+    };
+    const strokes: never[] = [];
+    const setSelectedElementIds = vi.fn();
+    const { result } = renderHook(() => useWhiteboardStrokeSelection({
+      elements: [element], pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [],
+      setDragState: vi.fn(), setSelectedElementIds, setSelectedStrokeIds: vi.fn(),
+      spatialIndex: createWhiteboardEraserSpatialIndex([], strokes), strokes, zoom: 1,
+    }));
+
+    act(() => result.current({ x: 40, y: 40 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
+
+    expect(setSelectedElementIds).toHaveBeenCalledWith([element.id]);
+  });
+
+  it('uses live strokes while only the element index is current', () => {
+    const elements: never[] = [];
+    const stroke = {
+      autoShape: 'rectangle' as const, color: '#111111', id: 'new-shape',
+      points: [
+        { pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 80, y: 0 },
+        { pressure: 0.5, x: 80, y: 80 }, { pressure: 0.5, x: 0, y: 80 },
+        { pressure: 0.5, x: 0, y: 0 },
+      ],
+      size: 1, tool: 'line' as const,
+    };
+    const setSelectedStrokeIds = vi.fn();
+    const { result } = renderHook(() => useWhiteboardStrokeSelection({
+      elements, pushHistory: vi.fn(), selectedElementIds: [], selectedStrokeIds: [],
+      setDragState: vi.fn(), setSelectedElementIds: vi.fn(), setSelectedStrokeIds,
+      spatialIndex: createWhiteboardEraserSpatialIndex(elements, []), strokes: [stroke], zoom: 1,
+    }));
+
+    act(() => result.current({ x: 40, y: 0 }, { shiftKey: false } as PointerEvent<HTMLDivElement>));
+
+    expect(setSelectedStrokeIds).toHaveBeenCalledWith([stroke.id]);
   });
 
   it('does not scan all board items when there is no active selection', () => {

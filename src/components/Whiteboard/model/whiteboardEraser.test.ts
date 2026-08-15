@@ -35,7 +35,7 @@ describe('whiteboard object eraser', () => {
     expect(targets.strokeIds).toEqual(['arrow']);
   });
 
-  it('erases a recognized shape only when the gesture crosses its outline', () => {
+  it('erases an AutoDraw shape only when the gesture crosses its outline', () => {
     const shape = {
       autoShape: 'rectangle' as const, color: '#111111', id: 'rectangle',
       points: [
@@ -228,6 +228,18 @@ describe('whiteboard object eraser', () => {
       .toEqual([strokes[2]]);
     expect(getWhiteboardIndexedItems(remaining, updated.strokeOrder, [strokes[2].id]))
       .toEqual([strokes[2]]);
+  });
+
+  it('returns an indexed item once when a selection repeats its id', () => {
+    const stroke = {
+      color: '#111111', id: 'stroke',
+      points: [{ pressure: 0.5, x: 20, y: 20 }], size: 1, tool: 'pen' as const,
+    };
+    const strokes = [stroke];
+    const index = createWhiteboardEraserSpatialIndex([], strokes);
+
+    expect(getWhiteboardIndexedItems(strokes, index.strokeOrder, [stroke.id, stroke.id]))
+      .toEqual([stroke]);
   });
 
   it('keeps sparse updates when a later stroke is appended', () => {

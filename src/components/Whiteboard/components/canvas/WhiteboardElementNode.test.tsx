@@ -27,9 +27,15 @@ describe('WhiteboardElementNode', () => {
       onPointerDown={vi.fn()}
     />);
 
-    expect(container.querySelector('[data-whiteboard-autodraw-icon="house"]')).not.toBeNull();
-    expect(container.querySelector('[data-whiteboard-autodraw-icon="house"] path')).not.toHaveAttribute('vector-effect');
-    expect(container.querySelector('[data-whiteboard-autodraw-icon="house"]')?.parentElement).toHaveStyle({ transform: 'scale(-1, 1)' });
+    const icon = container.querySelector('[data-whiteboard-autodraw-icon="house"]');
+    expect(screen.getByLabelText('House')).toHaveStyle({ height: '120px', left: '20px', top: '20px', width: '120px' });
+    expect(icon).toHaveAttribute('preserveAspectRatio', 'xMidYMid meet');
+    expect(icon).toHaveAttribute(
+      'stroke-width',
+      String(themeWhiteboardTokens.autoShapeStrokeWidthPx * themeWhiteboardTokens.autoDrawIconViewBoxSizePx / 120),
+    );
+    expect(icon?.querySelector('path')).not.toHaveAttribute('vector-effect');
+    expect(icon?.parentElement).toHaveStyle({ transform: 'scale(-1, 1)' });
   });
 
   it('renders an imported image without a bottom-right resize control', () => {

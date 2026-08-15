@@ -110,9 +110,9 @@ export function getWhiteboardSpliceUpdate<T>(
 export function getWhiteboardItemIds<T extends { id: string }>(items: T[]): string[] {
   const cached = itemIds.get(items);
   if (cached) return cached;
-  const ids = items.map((item) => item.id);
+  const ids = [...new Set(items.map((item) => item.id))];
   itemIds.set(items, ids);
-  fullSelectionSources.set(ids, items);
+  if (ids.length === items.length) fullSelectionSources.set(ids, items);
   return ids;
 }
 

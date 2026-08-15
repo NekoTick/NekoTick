@@ -115,13 +115,24 @@ export const WhiteboardContentLayer = memo(function WhiteboardContentLayer({
       : [],
     [preparedSelectionGeometry, previewSelectedStrokeIds, renderSelection, strokes, strokeIndex],
   );
+  const requiresProportionalResize = useMemo(
+    () => renderSelection && Boolean(elementIndex) && previewSelectedElementIds.some((id) => {
+      const index = elementIndex?.get(id);
+      const element = index === undefined ? null : elements[index];
+      return element?.id === id && (
+        element.type === 'text' || (element.type === 'icon' && Boolean(element.autoDrawIcon))
+      );
+    }),
+    [elementIndex, elements, previewSelectedElementIds, renderSelection],
+  );
   const selectionRenderData = useMemo(
     () => new WhiteboardSelectionRenderData(
       selectedElements,
       selectedStrokes,
       renderSelection ? preparedSelectionGeometry : null,
+      requiresProportionalResize,
     ),
-    [preparedSelectionGeometry, renderSelection, selectedElements, selectedStrokes],
+    [preparedSelectionGeometry, renderSelection, requiresProportionalResize, selectedElements, selectedStrokes],
   );
   const erasingElementIdSet = useMemo(() => new Set(erasingElementIds), [erasingElementIds]);
   const movingElementIds = movePreview?.elementIds ?? EMPTY_IDS;

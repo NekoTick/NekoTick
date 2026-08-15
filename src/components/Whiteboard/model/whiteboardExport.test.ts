@@ -143,7 +143,7 @@ describe('whiteboard export appearance', () => {
     expect(svg).toMatch(/data-whiteboard-linear="arrow"[^]*\bC/);
   });
 
-  it('exports recognized auto shape outlines', async () => {
+  it('exports AutoDraw shape outlines', async () => {
     const root = document.createElement('div');
     root.style.setProperty('--vlaina-bg-primary', '#ffffff');
     const blob = await createWhiteboardExportBlob({
@@ -177,7 +177,8 @@ describe('whiteboard export appearance', () => {
     const svg = await blob?.text();
 
     expect(svg).toContain('data-whiteboard-autodraw-icon="house"');
-    expect(svg).toContain(`stroke-width="${themeWhiteboardTokens.autoShapeStrokeWidthPx * themeWhiteboardTokens.autoDrawIconViewBoxSizePx / Math.sqrt(140 * 120)}"`);
+    expect(svg).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(svg).toContain(`stroke-width="${themeWhiteboardTokens.autoShapeStrokeWidthPx * themeWhiteboardTokens.autoDrawIconViewBoxSizePx / 120}"`);
     expect(svg).toContain('rotate(90)');
     expect(svg).toContain('stroke="#1e96eb"');
   });

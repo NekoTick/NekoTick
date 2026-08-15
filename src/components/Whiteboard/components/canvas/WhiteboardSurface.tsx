@@ -27,7 +27,6 @@ interface WhiteboardSurfaceProps {
   brushCursorSize: number;
   brushCursorTool: WhiteboardBrushTool | null;
   draftStroke: WhiteboardStroke | null;
-  draftStrokePreview?: WhiteboardStroke | null;
   eraserPreview: WhiteboardEraserPreview;
   isPanning: boolean;
   movePreview: WhiteboardMovePreview | null;
@@ -64,7 +63,6 @@ export function WhiteboardSurface({
   brushCursorSize,
   brushCursorTool,
   draftStroke,
-  draftStrokePreview = null,
   eraserPreview,
   isPanning,
   movePreview,
@@ -166,7 +164,6 @@ export function WhiteboardSurface({
         brushCursorSize={brushCursorSize}
         brushCursorTool={brushCursorTool}
         draftStroke={draftStroke}
-        draftStrokePreview={draftStrokePreview}
         eraserPreview={eraserPreview}
         movePreview={movePreview}
         resizePreview={resizePreview}

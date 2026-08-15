@@ -5,10 +5,9 @@ export function cloneElements(
   offset: number,
   idPrefix: string,
 ): WhiteboardElement[] {
-  const nextIds = new Map(elements.map((element, index) => [element.id, `${idPrefix}-element-${index + 1}`]));
-  return elements.map((element) => ({
+  return elements.map((element, index) => ({
     ...element,
-    id: nextIds.get(element.id)!,
+    id: `${idPrefix}-element-${index + 1}`,
     x: element.x + offset,
     y: element.y + offset,
   }));

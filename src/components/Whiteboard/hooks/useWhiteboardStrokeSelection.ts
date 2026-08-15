@@ -44,25 +44,6 @@ export function useWhiteboardStrokeSelection({
     const selectionBounds = selectedElementIds.length + selectedStrokeIds.length > 0
       ? getSelectionBounds(originalElements, originalStrokes, selectedElementIds, selectedStrokeIds)
       : null;
-    if (!event.shiftKey && selectionBounds && pointIsInsideRect(point, selectionBounds)) {
-      pushHistory();
-      setDragState(selectedElementIds.length > 0 ? {
-        kind: 'move-elements',
-        currentPoint: point,
-        elementIds: selectedElementIds,
-        originalElementsById: new Map(originalElements.map((element) => [element.id, element])),
-        originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
-        startPoint: point,
-        strokeIds: selectedStrokeIds,
-      } : {
-        kind: 'move-strokes',
-        currentPoint: point,
-        originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
-        startPoint: point,
-        strokeIds: selectedStrokeIds,
-      });
-      return;
-    }
     const hitTolerance = themeWhiteboardTokens.strokeHitTolerancePx / zoom;
     const candidates = spatialIndex.allStrokes === strokes || spatialIndex.allElements === elements
       ? getWhiteboardBoundsCandidates(spatialIndex, {
@@ -72,7 +53,14 @@ export function useWhiteboardStrokeSelection({
         y: point.y - hitTolerance,
       })
       : null;
-    const hitElement = findElementAtPoint(candidates?.elements ?? elements, point);
+    const candidateElements = spatialIndex.allElements === elements
+      ? candidates?.elements ?? elements
+      : elements;
+    const candidateStrokes = spatialIndex.allStrokes === strokes
+      ? candidates?.strokes ?? strokes
+      : strokes;
+    const hitElement = findElementAtPoint(candidateElements, point);
+    const hitStroke = findStrokeAtPoint(candidateStrokes, point, zoom);
     if (hitElement) {
       const hitSelected = selectedElementIds.includes(hitElement.id);
       const nextIds = hitSelected && event.shiftKey
@@ -83,21 +71,40 @@ export function useWhiteboardStrokeSelection({
       if (!keepStrokeSelection) setSelectedStrokeIds([]);
       if (event.shiftKey || nextIds.length === 0) return;
       pushHistory();
+      const nextElements = getSelectedItems(
+        elements, nextIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null,
+      );
       setDragState({
         kind: 'move-elements',
         currentPoint: point,
         elementIds: nextIds,
-        originalElementsById: new Map(getSelectedItems(
-          elements, nextIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null,
-        ).map((element) => [element.id, element])),
+        originalElementsById: new Map(nextElements.map((element) => [element.id, element])),
         originalStrokesById: new Map(keepStrokeSelection ? originalStrokes.map((stroke) => [stroke.id, stroke]) : []),
         startPoint: point,
         strokeIds: keepStrokeSelection ? selectedStrokeIds : [],
       });
       return;
     }
-    const hitStroke = findStrokeAtPoint(candidates?.strokes ?? strokes, point, zoom);
     if (!hitStroke) {
+      if (!event.shiftKey && selectionBounds && pointIsInsideRect(point, selectionBounds)) {
+        pushHistory();
+        setDragState(selectedElementIds.length > 0 ? {
+          kind: 'move-elements',
+          currentPoint: point,
+          elementIds: selectedElementIds,
+          originalElementsById: new Map(originalElements.map((element) => [element.id, element])),
+          originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+          startPoint: point,
+          strokeIds: selectedStrokeIds,
+        } : {
+          kind: 'move-strokes',
+          currentPoint: point,
+          originalStrokesById: new Map(originalStrokes.map((stroke) => [stroke.id, stroke])),
+          startPoint: point,
+          strokeIds: selectedStrokeIds,
+        });
+        return;
+      }
       setSelectedElementIds([]);
       setSelectedStrokeIds([]);
       setDragState({ kind: 'lasso', points: [point] });

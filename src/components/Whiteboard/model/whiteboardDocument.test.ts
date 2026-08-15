@@ -110,7 +110,7 @@ describe('whiteboard document format', () => {
   it.each([
     'triangle', 'rectangle', 'diamond', 'parallelogram', 'trapezoid',
     'pentagon', 'hexagon', 'octagon', 'ellipse', 'star', 'cross',
-  ] as const)('round-trips recognized %s geometry', (autoShape) => {
+  ] as const)('round-trips AutoDraw %s geometry', (autoShape) => {
     const shape: WhiteboardSnapshot['strokes'][number] = {
       autoShape, color: '#111111', id: 'shape',
       points: [{ pressure: 0.5, x: 0, y: 50 }, { pressure: 0.5, x: 100, y: 0 }, { pressure: 0.5, x: 200, y: 50 }],

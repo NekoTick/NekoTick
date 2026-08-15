@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { appendWhiteboardItems } from '../model/whiteboardCollection';
 import { getWhiteboardAutoDrawSuggestions, type WhiteboardAutoDrawSuggestion } from '../model/autodraw/whiteboardAutoDrawRecognition';
-import type { WhiteboardShapeRecognitionResult } from '../model/whiteboardAutoShape';
 import { getWhiteboardAutoShapePoints } from '../model/whiteboardAutoShapeGeometry';
 import {
   createStrokePoint,
@@ -12,7 +11,6 @@ import {
 } from '../model/whiteboardModel';
 
 interface WhiteboardAutoDrawOptions {
-  draftRecognition?: WhiteboardShapeRecognitionResult | null;
   draftStroke: WhiteboardStroke | null;
   pushHistory: () => void;
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>;
@@ -25,7 +23,6 @@ interface WhiteboardAutoDrawOptions {
 }
 
 export function useWhiteboardAutoDraw({
-  draftRecognition,
   draftStroke,
   pushHistory,
   setElements,
@@ -37,19 +34,20 @@ export function useWhiteboardAutoDraw({
   tool,
 }: WhiteboardAutoDrawOptions) {
   const [sessionStrokes, setSessionStrokes] = useState<WhiteboardStroke[]>([]);
+  const choosingSuggestionRef = useRef(false);
   const suggestions = useMemo(
     () => tool === 'autoshape'
       ? getWhiteboardAutoDrawSuggestions(
         draftStroke ? [...sessionStrokes, draftStroke] : sessionStrokes,
         12,
-        sessionStrokes.length === 0 && draftStroke ? draftRecognition ?? undefined : undefined,
       )
       : [],
-    [draftRecognition, draftStroke, sessionStrokes, tool],
+    [draftStroke, sessionStrokes, tool],
   );
 
   useEffect(() => {
     if (tool !== 'autoshape') {
+      choosingSuggestionRef.current = false;
       setSessionStrokes([]);
       return;
     }
@@ -58,21 +56,25 @@ export function useWhiteboardAutoDraw({
   }, [strokes, tool]);
 
   const addStroke = useCallback((stroke: WhiteboardStroke) => {
+    choosingSuggestionRef.current = false;
     setSessionStrokes((current) => [...current, stroke]);
   }, []);
 
-  const dismiss = useCallback(() => setSessionStrokes([]), []);
+  const dismiss = useCallback(() => {
+    choosingSuggestionRef.current = false;
+    setSessionStrokes([]);
+  }, []);
 
   const chooseSuggestion = useCallback((suggestion: WhiteboardAutoDrawSuggestion) => {
-    if (sessionStrokes.length === 0) return;
+    if (choosingSuggestionRef.current || sessionStrokes.length === 0) return;
     const bounds = getSessionBounds(sessionStrokes);
     if (!bounds) return;
-    const resultBounds = expandResultBounds(bounds);
+    choosingSuggestionRef.current = true;
+    const resultBounds = getSquareResultBounds(bounds);
     const source = sessionStrokes[0];
     const sessionIds = new Set(sessionStrokes.map((stroke) => stroke.id));
     const id = `${source.id}-autodraw`;
     pushHistory();
-    setStrokes((current) => current.filter((stroke) => !sessionIds.has(stroke.id)));
     if (suggestion.kind === 'shape') {
       const nextStroke: WhiteboardStroke = {
         autoShape: suggestion.shape,
@@ -87,7 +89,11 @@ export function useWhiteboardAutoDraw({
         size: source.size,
         tool: 'line',
       };
-      setStrokes((current) => appendWhiteboardItems(current, [nextStroke]));
+      setElements((current) => current.filter((element) => element.id !== id));
+      setStrokes((current) => appendWhiteboardItems(
+        current.filter((stroke) => !sessionIds.has(stroke.id) && stroke.id !== id),
+        [nextStroke],
+      ));
       setSelectedElementIds([]);
       setSelectedStrokeIds([id]);
     } else {
@@ -102,7 +108,11 @@ export function useWhiteboardAutoDraw({
         x: resultBounds.x,
         y: resultBounds.y,
       };
-      setElements((current) => appendWhiteboardItems(current, [nextElement]));
+      setStrokes((current) => current.filter((stroke) => !sessionIds.has(stroke.id) && stroke.id !== id));
+      setElements((current) => appendWhiteboardItems(
+        current.filter((element) => element.id !== id),
+        [nextElement],
+      ));
       setSelectedElementIds([id]);
       setSelectedStrokeIds([]);
     }
@@ -135,13 +145,12 @@ function getSessionBounds(strokes: WhiteboardStroke[]) {
   };
 }
 
-function expandResultBounds(bounds: { height: number; width: number; x: number; y: number }) {
-  const width = Math.max(themeWhiteboardTokens.autoDrawResultMinSizePx, bounds.width);
-  const height = Math.max(themeWhiteboardTokens.autoDrawResultMinSizePx, bounds.height);
+function getSquareResultBounds(bounds: { height: number; width: number; x: number; y: number }) {
+  const size = Math.max(themeWhiteboardTokens.autoDrawResultMinSizePx, Math.min(bounds.width, bounds.height));
   return {
-    height,
-    width,
-    x: bounds.x - (width - bounds.width) / 2,
-    y: bounds.y - (height - bounds.height) / 2,
+    height: size,
+    width: size,
+    x: bounds.x - (size - bounds.width) / 2,
+    y: bounds.y - (size - bounds.height) / 2,
   };
 }

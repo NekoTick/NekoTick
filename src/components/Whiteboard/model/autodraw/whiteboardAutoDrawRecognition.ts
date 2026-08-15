@@ -1,7 +1,6 @@
 import { pointsOnPath, type Point } from 'points-on-path';
 import { WHITEBOARD_AUTODRAW_CATALOG } from './whiteboardAutoDrawCatalog';
 import { getWhiteboardAutoShapePoints } from '../whiteboardAutoShapeGeometry';
-import { recognizeWhiteboardShape, type WhiteboardShapeRecognitionResult } from '../whiteboardAutoShape';
 import type { WhiteboardAutoDrawIcon } from './whiteboardAutoDrawTypes';
 import type { WhiteboardAutoShape, WhiteboardPoint, WhiteboardStroke } from '../whiteboardModel';
 
@@ -49,20 +48,16 @@ const shapeTemplates = SHAPES.map(([shape, label]) => ({
 export function getWhiteboardAutoDrawSuggestions(
   strokes: readonly WhiteboardStroke[],
   limit = 12,
-  recognition?: WhiteboardShapeRecognitionResult,
 ): WhiteboardAutoDrawSuggestion[] {
   const segments = strokes.flatMap((stroke) => splitStrokeSegments(stroke.points));
   const bounds = getSegmentBounds(segments);
   if (!bounds || Math.max(bounds.width, bounds.height) < MIN_DRAWING_SIZE) return [];
   const sketch = rasterize(segments);
-  const closedRecognition = strokes.length === 1
-    ? (recognition ?? recognizeWhiteboardShape(strokes[0].points)).type
-    : null;
   const suggestions: WhiteboardAutoDrawSuggestion[] = [
     ...shapeTemplates.map(({ label, shape, template }) => ({
       kind: 'shape' as const,
       label,
-      score: templateDistance(sketch, template) - (closedRecognition === shape ? 0.32 : 0),
+      score: templateDistance(sketch, template),
       shape,
     })),
     ...iconTemplates.map(({ icon, label, template }) => ({
