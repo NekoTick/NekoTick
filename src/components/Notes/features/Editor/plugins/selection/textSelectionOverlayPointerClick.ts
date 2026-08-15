@@ -27,14 +27,13 @@ export function collapsePointerNativeSelectionAt(
       type: TOOLBAR_ACTIONS.HIDE,
     })
     .setMeta(POINTER_NATIVE_SELECTION_META, false)
-    .setMeta('addToHistory', false)
-    .scrollIntoView();
+    .setMeta('addToHistory', false);
   view.dispatch(tr);
   if (!view.state.selection.eq(tr.selection)) {
     const nextState = view.state.apply(tr);
     view.updateState(nextState);
   }
-  view.focus();
+  view.dom.focus({ preventScroll: true });
   syncNativeSelectionToCaretTarget(view, { ...target, pos: nextPos });
   session.syncActiveClass();
 }

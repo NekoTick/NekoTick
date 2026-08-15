@@ -32,3 +32,19 @@ export function resolveTextBlockElement(view: EditorView, pos: number): HTMLElem
 export function resolveTextBlockCaretLineHeight(view: EditorView, pos: number): number | null {
   return resolveElementLineHeight(resolveTextBlockElement(view, pos));
 }
+
+export function resolveEmptyHeadingMarkerCaretRect(
+  view: EditorView,
+  pos: number,
+): { left: number; top: number; bottom: number } | null {
+  const { selection } = view.state;
+  if (!selection.empty || selection.head !== pos || selection.$from.parent.content.size !== 0) {
+    return null;
+  }
+  const textBlock = resolveTextBlockElement(view, pos);
+  if (!textBlock?.matches('h1, h2, h3, h4, h5, h6')) return null;
+  const marker = textBlock.querySelector<HTMLElement>('.heading-markdown-marker-empty');
+  if (!marker) return null;
+  const rect = marker.getBoundingClientRect();
+  return { left: rect.right, top: rect.top, bottom: rect.bottom };
+}

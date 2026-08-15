@@ -17,6 +17,7 @@ import {
 type PointerSession = {
   anchor: number;
   doc: EditorView['state']['doc'];
+  head: number;
   moved: boolean;
   selecting: boolean;
   startX: number;
@@ -85,9 +86,9 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
           });
         }
       }
-      view.dispatch(transaction.scrollIntoView());
+      view.dispatch(transaction);
       if (selection) {
-        view.focus();
+        if (!view.hasFocus()) view.dom.focus({ preventScroll: true });
         if (selection.anchor === selection.head) {
           syncNativeSelectionToCaretTarget(view, {
             doc: view.state.doc,
@@ -137,6 +138,7 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
       session = {
         anchor,
         doc: view.state.doc,
+        head: anchor,
         moved: false,
         selecting: false,
         startX: event.clientX,
@@ -174,6 +176,7 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
       }
 
       session.selecting = true;
+      session.head = head;
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
@@ -184,16 +187,16 @@ export const wikiLinkExpandedPointerPlugin = $prose(() => new Plugin<boolean>({
       if (!session) return;
       const current = session;
       session = null;
-      const expanded = wikiLinkExpansionPluginKey.getState(view.state)?.expanded;
-      const head = event && current.selecting && current.doc === view.state.doc
-        && expanded
-        ? resolveWikiLinkPointerPosition(view, event, expanded)
-        : null;
       if (event && current.selecting) {
         event.preventDefault();
       }
       // ProseMirror and the selection overlay must receive mouseup to release their pointer sessions.
-      setSessionActive(false, head === null ? undefined : { anchor: current.anchor, head });
+      setSessionActive(
+        false,
+        current.selecting && current.doc === view.state.doc
+          ? { anchor: current.anchor, head: current.head }
+          : undefined,
+      );
     };
 
     const handleBlur = () => finishSession();

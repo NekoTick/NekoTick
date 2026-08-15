@@ -77,6 +77,7 @@ function useTextSelectionCapableView(
         },
         dispatch: vi.fn(),
         focus: vi.fn(),
+        hasFocus: vi.fn(() => true),
         posAtCoords: vi.fn((point: { left: number; top: number }) => ({ pos: resolvePos(point) })),
     } as any;
 

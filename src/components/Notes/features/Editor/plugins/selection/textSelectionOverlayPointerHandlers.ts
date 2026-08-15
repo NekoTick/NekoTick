@@ -3,6 +3,7 @@ import {
   getNativeSelectionMetrics,
   isTextSelectionOverlayEligible,
   POINTER_SELECTION_ACTIVE_ATTRIBUTE,
+  TEXT_SELECTION_OVERLAY_FORCE_CLASS,
 } from './textSelectionOverlayState';
 import {
   getCaretTargetFromPoint,
@@ -13,6 +14,11 @@ import { didPointerDownStartWithBlockSelection } from '../cursor/blockSelectionI
 import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { isInlineTextSelectionEndpoint } from '../shared/pointerTextPosition';
 import {
+  getRetainedHeadingPointerTextProjection,
+  getRetainedHeadingMarkerSelectionHead,
+  syncRetainedHeadingMarkerSelection,
+} from '../heading/headingMarkerPointerRetention';
+import {
   cancelPointerClickCollapseReassertion,
   clearTextSelectionFromBlankPointerDown,
   collapsePointerNativeSelectionAt,
@@ -21,6 +27,12 @@ import {
 } from './textSelectionOverlayPointerClick';
 import type { TextSelectionOverlayViewContext } from './textSelectionOverlayViewTypes';
 import { scheduleClearNativeSelection } from './textSelectionOverlayViewSync';
+import {
+  beginHeadingPointerSelectionDiagnostic,
+  discardHeadingPointerSelectionDiagnostic,
+  finishHeadingPointerSelectionDiagnostic,
+  recordHeadingPointerSelectionMove,
+} from './headingSelectionPointerDiagnostics';
 
 const POINTER_TEXT_SELECTION_MOVE_THRESHOLD_PX = 4;
 
@@ -45,11 +57,9 @@ function dispatchPointerTextSelection(
     view.dispatch(
       view.state.tr
         .setSelection(TextSelection.create(view.state.doc, anchor, head))
-        .setMeta('addToHistory', false)
-        .scrollIntoView(),
+        .setMeta('addToHistory', false),
     );
-    view.dom.focus({ preventScroll: true });
-    view.focus();
+    if (!view.hasFocus()) view.dom.focus({ preventScroll: true });
     return true;
   } catch {
     return false;
@@ -60,9 +70,34 @@ function resolvePointerTextSelectionHead(
   view: TextSelectionOverlayViewContext['view'],
   event: { clientX: number; clientY: number },
 ): number | null {
-  const target = getCaretTargetFromPoint(view, event);
+  let target = getCaretTargetFromPoint(view, event);
+  if (target === null) {
+    const projectedPoint = getRetainedHeadingPointerTextProjection(view, event);
+    if (projectedPoint) target = getCaretTargetFromPoint(view, projectedPoint);
+  }
   if (target === null || !isInlineTextSelectionEndpoint(view, target.pos)) return null;
   return target.pos;
+}
+
+function syncPointerTextSelectionAtPoint(
+  context: TextSelectionOverlayViewContext,
+  event: { clientX: number; clientY: number },
+): boolean {
+  const { session, view } = context;
+  const anchor = session.pointerTextSelectionAnchor;
+  if (anchor === null || session.pointerTextSelectionDoc !== view.state.doc) return false;
+
+  const markerHead = getRetainedHeadingMarkerSelectionHead(view, event);
+  const head = markerHead ?? resolvePointerTextSelectionHead(view, event);
+  if (head === null || !dispatchPointerTextSelection(context, anchor, head)) return false;
+
+  session.pointerTextSelectionActive = true;
+  const retainedMarkerIsSelected = syncRetainedHeadingMarkerSelection(view);
+  if (markerHead !== null || retainedMarkerIsSelected) {
+    session.setPointerNativeSelection(false);
+    session.syncActiveClass();
+  }
+  return true;
 }
 
 function canStartPointerTextSelectionFallback(context: TextSelectionOverlayViewContext): boolean {
@@ -72,12 +107,24 @@ function canStartPointerTextSelectionFallback(context: TextSelectionOverlayViewC
   return nativeSelection === null || nativeSelection.isCollapsed;
 }
 
+function isHeadingTextPointerTarget(view: TextSelectionOverlayViewContext['view'], target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+  const heading = target.closest('h1, h2, h3, h4, h5, h6');
+  if (!heading || !view.dom.contains(heading)) return false;
+  if (target.closest('.heading-markdown-marker')) return true;
+  return target.closest('button, input, textarea, select, a[href], [contenteditable="false"]') === null;
+}
+
 export function handleTextSelectionOverlayMouseDown(
   context: TextSelectionOverlayViewContext,
   event: MouseEvent
 ): void {
   const { session, view } = context;
   if (event.button !== 0) return;
+  if (session.pointerNativeReleaseFrame !== null) {
+    cancelAnimationFrame(session.pointerNativeReleaseFrame);
+    session.pointerNativeReleaseFrame = null;
+  }
   if (
     event.target instanceof Element &&
     event.target.closest('.wiki-link-expanded, [data-wiki-link-source="true"]')
@@ -94,26 +141,39 @@ export function handleTextSelectionOverlayMouseDown(
   session.pointerTextSelectionDoc = null;
   session.pointerClickCollapseTarget = null;
   session.pendingPointerClickCollapseTarget = null;
+  beginHeadingPointerSelectionDiagnostic(context, event);
   const hasBlockSelection = hasSelectedBlocks(view.state)
     || didPointerDownStartWithBlockSelection(event);
+  const isPlainPointerGesture =
+    (event.clientX !== 0 || event.clientY !== 0)
+    && event.detail <= 1
+    && !event.shiftKey
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey;
+  const shouldForcePointerTextSelection = isPlainPointerGesture
+    && isHeadingTextPointerTarget(view, event.target);
   const shouldMaybeCollapseTextSelectionClick =
-    (isTextSelectionOverlayEligible(view.state) || hasBlockSelection) &&
-    (event.clientX !== 0 || event.clientY !== 0) &&
-    !event.shiftKey &&
-    !event.ctrlKey &&
-    !event.metaKey &&
-    !event.altKey;
+    (isTextSelectionOverlayEligible(view.state)
+      || hasBlockSelection
+      || shouldForcePointerTextSelection)
+    && isPlainPointerGesture;
   if (shouldMaybeCollapseTextSelectionClick) {
-    const clickedTarget = getCaretTargetFromPoint(view, event);
+    const retainedMarkerPos = getRetainedHeadingMarkerSelectionHead(view, event);
+    const clickedTarget = retainedMarkerPos === null
+      ? getCaretTargetFromPoint(view, event)
+      : { doc: view.state.doc, pos: retainedMarkerPos };
     const clickedTextTarget = hasBlockSelection
       ? getTextNodeCaretTargetFromPoint(view, event)
       : clickedTarget;
     const pointerTarget = hasBlockSelection ? clickedTextTarget : clickedTarget;
     if (pointerTarget !== null) {
-      if (hasBlockSelection) {
-        session.pointerTextSelectionAnchor = pointerTarget.pos;
-        session.pointerTextSelectionDoc = view.state.doc;
+      if (shouldForcePointerTextSelection) {
+        event.preventDefault();
+        session.pointerTextSelectionActive = true;
       }
+      session.pointerTextSelectionAnchor = pointerTarget.pos;
+      session.pointerTextSelectionDoc = view.state.doc;
       session.pointerClickCollapseTarget = pointerTarget;
       session.pendingPointerClickCollapseTarget = pointerTarget;
       collapsePointerNativeSelectionAt(context, pointerTarget);
@@ -153,24 +213,25 @@ export function handleTextSelectionOverlayMouseMove(
       cancelPointerClickCollapseReassertion(context);
       session.pointerClickCollapseTarget = null;
       session.pendingPointerClickCollapseTarget = null;
-      session.setPointerNativeSelection(true);
+      if (!session.pointerTextSelectionActive) session.setPointerNativeSelection(true);
       session.syncActiveClass();
       session.pointerSelectionAutoScroll.start();
     }
   }
 
-  const anchor = session.pointerTextSelectionAnchor;
-  if (
-    !session.pointerMovedSinceDown ||
-    anchor === null ||
-    session.pointerTextSelectionDoc !== context.view.state.doc
-  ) return;
-  if (!session.pointerTextSelectionActive && !canStartPointerTextSelectionFallback(context)) return;
-
-  const head = resolvePointerTextSelectionHead(context.view, event);
-  if (head === null) return;
-  if (!dispatchPointerTextSelection(context, anchor, head)) return;
-  session.pointerTextSelectionActive = true;
+  if (!session.pointerMovedSinceDown) {
+    recordHeadingPointerSelectionMove(context, event, 'below-threshold');
+    return;
+  }
+  if (!session.pointerTextSelectionActive && !canStartPointerTextSelectionFallback(context)) {
+    recordHeadingPointerSelectionMove(context, event, 'fallback-blocked');
+    return;
+  }
+  if (!syncPointerTextSelectionAtPoint(context, event)) {
+    recordHeadingPointerSelectionMove(context, event, 'sync-failed');
+    return;
+  }
+  recordHeadingPointerSelectionMove(context, event, 'selection-synced');
   event.preventDefault();
   event.stopPropagation();
   event.stopImmediatePropagation();
@@ -196,19 +257,24 @@ export function handleTextSelectionOverlayAutoScroll(context: TextSelectionOverl
 function finishPointerTextSelection(
   context: TextSelectionOverlayViewContext,
   event: MouseEvent,
-): void {
-  const { session, view } = context;
-  if (!session.pointerTextSelectionActive) return;
+  shouldSyncFinalPoint: boolean,
+): string {
+  const { session } = context;
+  if (!session.pointerMovedSinceDown) return 'not-drag';
+  if (
+    !session.pointerTextSelectionActive
+    && !canStartPointerTextSelectionFallback(context)
+  ) return 'fallback-blocked';
 
+  const outcome = shouldSyncFinalPoint
+    ? syncPointerTextSelectionAtPoint(context, event)
+      ? 'final-point-synced'
+      : 'final-point-sync-failed'
+    : 'last-move-current';
   event.preventDefault();
   event.stopPropagation();
   event.stopImmediatePropagation();
-  const anchor = session.pointerTextSelectionAnchor;
-  if (anchor === null || session.pointerTextSelectionDoc !== view.state.doc) return;
-  const head = resolvePointerTextSelectionHead(view, event);
-  if (head !== null) {
-    dispatchPointerTextSelection(context, anchor, head);
-  }
+  return outcome;
 }
 
 export function handleTextSelectionOverlayMouseUp(
@@ -216,15 +282,43 @@ export function handleTextSelectionOverlayMouseUp(
   event: MouseEvent
 ): void {
   const { session, view } = context;
-  view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
   if (!session.isPointerSelectionActive) return;
+  const shouldSyncFinalPoint =
+    session.lastPointerSelectionX !== event.clientX
+    || session.lastPointerSelectionY !== event.clientY;
+  const completedCustomPointerSelection = session.pointerTextSelectionActive;
+  if (!session.pointerMovedSinceDown && session.pointerDownPoint) {
+    const deltaX = event.clientX - session.pointerDownPoint.x;
+    const deltaY = event.clientY - session.pointerDownPoint.y;
+    if (Math.hypot(deltaX, deltaY) > POINTER_TEXT_SELECTION_MOVE_THRESHOLD_PX) {
+      session.pointerMovedSinceDown = true;
+      cancelPointerClickCollapseReassertion(context);
+      session.pointerClickCollapseTarget = null;
+      session.pendingPointerClickCollapseTarget = null;
+    }
+  }
   session.isPointerSelectionActive = false;
   session.lastPointerSelectionX = null;
   session.lastPointerSelectionY = null;
   session.pointerSelectionAutoScroll.stop();
   const clickCollapseTarget = session.pointerClickCollapseTarget;
   const shouldCollapsePointerClick = clickCollapseTarget !== null && !session.pointerMovedSinceDown;
-  finishPointerTextSelection(context, event);
+  const finishOutcome = finishPointerTextSelection(context, event, shouldSyncFinalPoint);
+  const expectedPointerSelection =
+    completedCustomPointerSelection
+    && view.state.selection instanceof TextSelection
+      ? {
+          anchor: view.state.selection.anchor,
+          doc: view.state.doc,
+          head: view.state.selection.head,
+        }
+      : null;
+  const diagnosticDetails = {
+    finalPointWasNew: shouldSyncFinalPoint,
+    outcome: finishOutcome,
+  };
+  finishHeadingPointerSelectionDiagnostic(context, event, diagnosticDetails);
+  view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
   session.pointerClickCollapseTarget = null;
   session.pointerDownPoint = null;
   session.pointerMovedSinceDown = false;
@@ -247,8 +341,35 @@ export function handleTextSelectionOverlayMouseUp(
 
   session.pendingPointerClickCollapseTarget = null;
   cancelPointerClickCollapseReassertion(context);
+  if (
+    isTextSelectionOverlayEligible(view.state)
+    && view.dom.getElementsByClassName(TEXT_SELECTION_OVERLAY_FORCE_CLASS).length > 0
+  ) {
+    session.setPointerNativeSelection(false);
+    session.syncActiveClass();
+  }
   session.pointerNativeReleaseFrame = requestAnimationFrame(() => {
     session.pointerNativeReleaseFrame = null;
+    if (
+      expectedPointerSelection
+      && view.state.doc === expectedPointerSelection.doc
+      && view.state.selection.empty
+      && (
+        view.state.selection.from === expectedPointerSelection.anchor
+        || view.state.selection.from === expectedPointerSelection.head
+      )
+    ) {
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.create(
+            view.state.doc,
+            expectedPointerSelection.anchor,
+            expectedPointerSelection.head,
+          ))
+          .setMeta('addToHistory', false),
+      );
+      session.syncActiveClass();
+    }
     if (!getPointerNativeSelectionEnabled(context)) return;
     if (isTextSelectionOverlayEligible(view.state)) return;
 
@@ -294,6 +415,7 @@ export function handleTextSelectionOverlayWindowBlur(context: TextSelectionOverl
   session.pointerTextSelectionDoc = null;
   session.pointerSelectionAutoScroll.stop();
   session.pendingPointerClickCollapseTarget = null;
+  discardHeadingPointerSelectionDiagnostic(context);
   cancelPointerClickCollapseReassertion(context);
   session.preserveNativeSelectionForKeyboard = false;
   session.syncActiveClass();

@@ -60,27 +60,57 @@
   position: relative;
 }
 
-.milkdown .ProseMirror h1.is-editor-empty::before,
-.milkdown .ProseMirror h2.is-editor-empty::before,
-.milkdown .ProseMirror h3.is-editor-empty::before,
-.milkdown .ProseMirror h4.is-editor-empty::before,
-.milkdown .ProseMirror h5.is-editor-empty::before,
-.milkdown .ProseMirror h6.is-editor-empty::before {
-  content: attr(data-placeholder);
+.milkdown .ProseMirror .heading-markdown-marker {
   color: var(--vlaina-soft-placeholder);
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+  line-height: inherit;
   pointer-events: none;
-  position: absolute;
-  left: 0;
-  top: 0;
+  user-select: none;
+  white-space: pre;
 }
 
-.milkdown .ProseMirror h1.is-editor-empty,
-.milkdown .ProseMirror h2.is-editor-empty,
-.milkdown .ProseMirror h3.is-editor-empty,
-.milkdown .ProseMirror h4.is-editor-empty,
-.milkdown .ProseMirror h5.is-editor-empty,
-.milkdown .ProseMirror h6.is-editor-empty {
-  position: relative;
+.milkdown .ProseMirror .heading-markdown-marker:not(
+  .heading-markdown-marker-empty
+):not(.heading-markdown-marker-block-selected) {
+  pointer-events: auto;
+}
+
+.milkdown .ProseMirror .heading-markdown-marker-empty ~ :is(
+  img.ProseMirror-separator,
+  br.ProseMirror-trailingBreak
+) {
+  display: none;
+}
+
+.milkdown .ProseMirror[data-editor-pointer-selecting='true'] .heading-markdown-marker:not(.heading-markdown-marker-empty):not(.heading-markdown-marker-block-selected):not(.heading-markdown-marker-retained) {
+  display: none;
+}
+
+.milkdown .ProseMirror .heading-markdown-fully-selected .editor-text-selection-overlay,
+.milkdown .ProseMirror :is(h1, h2, h3, h4, h5, h6):has(
+  > .heading-markdown-marker-pointer-selected
+) .editor-text-selection-overlay {
+  border-radius: var(--vlaina-radius-0);
+}
+
+.milkdown .ProseMirror:not(.toolbar-selection-hidden-preview) :is(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6
+) .editor-text-selection-overlay {
+  background-color: transparent;
+  background-image: linear-gradient(
+    var(--vlaina-markdown-color-selection),
+    var(--vlaina-markdown-color-selection)
+  );
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 1lh;
 }
 
 .milkdown h1,

@@ -4,22 +4,27 @@ import { Plugin } from '@milkdown/kit/prose/state';
 import { DOMParser as ProseDOMParser, type Node as ProseNode } from '@milkdown/kit/prose/model';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Parser, Serializer } from '@milkdown/kit/transformer';
-
 import { tryWriteTextToClipboardSynchronously, writeTextToClipboard } from '@/lib/clipboard';
 import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { hasHeadingDropPayload } from '../cursor/externalTextDropCursorPlugin';
 import { insertImageNodesAtSelection } from '../image-upload/imageNodeInsertion';
 import { collapseSelectionAndHideFloatingToolbar } from './copyCleanup';
 import { sanitizeClipboardHtml } from './sanitizer';
-import { serializeSelectionToClipboardText } from './selectionSerialization';
+import {
+    clearSelectedHeadingMarker,
+    prepareSelectedHeadingMarkerReplacement,
+} from '../heading/headingMarkerDeletion';
 import {
     collapseCapturedSelectionAndHideFloatingToolbar,
-    deleteCapturedSelection,
     isClipboardCopyShortcut,
     isClipboardCutShortcut,
     shouldHandleCopyShortcutDirectly,
     shouldHandleCutShortcutDirectly,
 } from './clipboardDirectHandlers';
+import {
+    captureHeadingMarkerClipboardSelection,
+    deleteHeadingMarkerClipboardSelection,
+} from './headingMarkerClipboard';
 import {
     getClipboardTextPayload,
     hasClipboardImageFilePayload,
@@ -98,6 +103,8 @@ export const clipboardPlugin = $prose((ctx) => {
             return null;
         }
     };
+    const captureClipboardSelection = (view: EditorView) =>
+        captureHeadingMarkerClipboardSelection(view, getMarkdownSerializer());
 
     return new Plugin({
         key: clipboardPluginKey,
@@ -118,10 +125,8 @@ export const clipboardPlugin = $prose((ctx) => {
                     return false;
                 }
 
-                const text = serializeSelectionToClipboardText(
-                    view.state,
-                    getMarkdownSerializer(),
-                );
+                const clipboardSelection = captureClipboardSelection(view);
+                const { includesHeadingMarker, text } = clipboardSelection;
                 if (text.length === 0) {
                     return false;
                 }
@@ -133,8 +138,14 @@ export const clipboardPlugin = $prose((ctx) => {
                 const doc = view.state.doc;
                 event.preventDefault();
                 if (isDirectCut) {
-                    deleteCapturedSelection(view, selection, doc);
+                    deleteHeadingMarkerClipboardSelection(
+                        view,
+                        selection,
+                        doc,
+                        clipboardSelection.deleteHeadingMarkerSelection,
+                    );
                 } else {
+                    if (includesHeadingMarker) clearSelectedHeadingMarker(view);
                     collapseCapturedSelectionAndHideFloatingToolbar(view, selection, doc);
                 }
                 return true;
@@ -145,10 +156,7 @@ export const clipboardPlugin = $prose((ctx) => {
                         return false;
                     }
 
-                    const text = serializeSelectionToClipboardText(
-                        view.state,
-                        getMarkdownSerializer(),
-                    );
+                    const { includesHeadingMarker, text } = captureClipboardSelection(view);
                     if (text.length === 0) return false;
 
                     const selection = view.state.selection;
@@ -156,12 +164,18 @@ export const clipboardPlugin = $prose((ctx) => {
                     event.preventDefault();
                     if (event.clipboardData) {
                         event.clipboardData.setData('text/plain', text);
+                        if (includesHeadingMarker) clearSelectedHeadingMarker(view);
                         collapseSelectionAndHideFloatingToolbar(view);
                         return true;
                     }
 
                     void writeTextToClipboard(text).then((didCopy) => {
                         if (didCopy) {
+                            if (
+                                includesHeadingMarker
+                                && view.state.doc.eq(doc)
+                                && selection.eq(view.state.selection)
+                            ) clearSelectedHeadingMarker(view);
                             collapseCapturedSelectionAndHideFloatingToolbar(view, selection, doc);
                         }
                     }).catch(() => undefined);
@@ -176,10 +190,8 @@ export const clipboardPlugin = $prose((ctx) => {
                         return false;
                     }
 
-                    const text = serializeSelectionToClipboardText(
-                        view.state,
-                        getMarkdownSerializer(),
-                    );
+                    const clipboardSelection = captureClipboardSelection(view);
+                    const { text } = clipboardSelection;
                     if (text.length === 0) return false;
 
                     const selection = view.state.selection;
@@ -187,13 +199,23 @@ export const clipboardPlugin = $prose((ctx) => {
                     event.preventDefault();
                     if (event.clipboardData) {
                         event.clipboardData.setData('text/plain', text);
-                        deleteCapturedSelection(view, selection, doc);
+                        deleteHeadingMarkerClipboardSelection(
+                            view,
+                            selection,
+                            doc,
+                            clipboardSelection.deleteHeadingMarkerSelection,
+                        );
                         return true;
                     }
 
                     void writeTextToClipboard(text).then((didCopy) => {
                         if (didCopy) {
-                            deleteCapturedSelection(view, selection, doc);
+                            deleteHeadingMarkerClipboardSelection(
+                                view,
+                                selection,
+                                doc,
+                                clipboardSelection.deleteHeadingMarkerSelection,
+                            );
                         }
                     }).catch(() => undefined);
                     return true;
@@ -235,6 +257,7 @@ export const clipboardPlugin = $prose((ctx) => {
                 if (hasClipboardImageOnlyHtmlPayload(event.clipboardData)) {
                     const html = event.clipboardData?.getData('text/html') ?? '';
                     const imageNodes = parseImageOnlyClipboardNodes(view, html);
+                    prepareSelectedHeadingMarkerReplacement(view);
                     if (!insertImageNodesAtSelection(view, imageNodes)) {
                         event.preventDefault();
                         return true;
@@ -248,6 +271,9 @@ export const clipboardPlugin = $prose((ctx) => {
                     if (shouldReplaceBlockSelectionForEmptyPaste(view, event)) {
                         replaceBlockSelectionBeforePaste(view);
                     }
+                    if (event.clipboardData?.getData('text/html')) {
+                        prepareSelectedHeadingMarkerReplacement(view);
+                    }
                     return false;
                 }
                 if (text.length > MAX_MARKDOWN_PASTE_CHARS) {
@@ -255,6 +281,7 @@ export const clipboardPlugin = $prose((ctx) => {
                     return true;
                 }
 
+                prepareSelectedHeadingMarkerReplacement(view);
                 if (!dispatchPlainTextPayload(view, text, getMarkdownParser())) {
                     return false;
                 }
