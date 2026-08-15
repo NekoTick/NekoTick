@@ -197,6 +197,10 @@ function getToolbarLayout(state: FloatingToolbarState): ToolbarLayout {
     return 'codeBlock';
   }
 
+  if (state.currentBlockType?.startsWith('heading')) {
+    return 'heading';
+  }
+
   return 'default';
 }
 

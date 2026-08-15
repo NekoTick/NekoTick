@@ -9,7 +9,7 @@ export interface ToolbarButtonConfig {
   mark?: string;
 }
 
-export type ToolbarLayout = 'default' | 'codeBlock';
+export type ToolbarLayout = 'default' | 'heading' | 'codeBlock';
 export type ToolbarGroupKey = 'ai' | 'block' | 'alignment' | 'format' | 'linkColor' | 'copyDelete';
 
 export const FORMAT_BUTTONS: ToolbarButtonConfig[] = [
@@ -30,5 +30,6 @@ export const EXTRA_BUTTONS: ToolbarButtonConfig[] = [
 
 export const TOOLBAR_LAYOUTS: Record<ToolbarLayout, ToolbarGroupKey[]> = {
   default: ['ai', 'block', 'alignment', 'format', 'linkColor', 'copyDelete'],
+  heading: ['ai', 'block', 'alignment', 'linkColor', 'copyDelete'],
   codeBlock: ['block', 'copyDelete'],
 };
