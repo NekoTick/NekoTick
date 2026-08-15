@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNotesStore } from '@/stores/useNotesStore';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
@@ -44,6 +44,11 @@ export function MarkdownSourceEditor({
     [currentNotePath]
   ));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  useLayoutEffect(() => {
+    if (mode === 'source' && active) {
+      textareaRef.current?.focus({ preventScroll: true });
+    }
+  }, [active, mode]);
   const draftRef = useRef(currentNoteContent);
   const committedDraftRef = useRef(currentNoteContent);
   const draftBaseContentRef = useRef(currentNoteContent);
@@ -287,7 +292,6 @@ export function MarkdownSourceEditor({
         data-note-source-editor="true"
         data-native-caret-overlay-disabled="true"
         defaultValue={currentNoteContent}
-        autoFocus={mode === 'source' && active}
         onBeforeInput={(event) => {
           captureSourceHistoryBeforeInput(event.currentTarget);
         }}

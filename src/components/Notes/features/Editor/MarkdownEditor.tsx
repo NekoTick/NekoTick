@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { Suspense, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useNotesStore } from '@/stores/useNotesStore';
@@ -119,6 +119,17 @@ export function MarkdownEditor({
     startAtTop: shouldStartWorkspaceRestoredNoteAtTop,
   });
   const handleEditorClick = useMarkdownEditorFocus({ active, hasActiveNote });
+  const editorModeShellRef = useRef<HTMLDivElement | null>(null);
+  const [editorModeShellMinHeight, setEditorModeShellMinHeight] = useState<number | null>(null);
+  const handleModeSwitchStart = useCallback(() => {
+    const editorModeShell = editorModeShellRef.current;
+    if (editorModeShell) {
+      setEditorModeShellMinHeight(Math.ceil(editorModeShell.getBoundingClientRect().height));
+    }
+  }, []);
+  const handleModeSwitchLayoutReady = useCallback(() => {
+    setEditorModeShellMinHeight(null);
+  }, []);
   const editorFind = useNoteEditorFind(currentNotePath);
   useHeldPageScroll(scrollRootRef, {
     enabled: active,
@@ -136,6 +147,9 @@ export function MarkdownEditor({
     currentNotePath,
     hasActiveNote,
     onEditorViewReady,
+    onModeSwitchStart: handleModeSwitchStart,
+    onModeSwitchLayoutReady: handleModeSwitchLayoutReady,
+    scrollRootRef,
   });
   const {
     coverController,
@@ -224,45 +238,53 @@ export function MarkdownEditor({
                 compactTitle={compactHeader}
               />
 
-              <Suspense fallback={null}>
-                {isSourceMode ? (
-                  <MarkdownSourceEditor
-                    active={hasActiveNote}
-                    currentNotePath={currentNotePath ?? ''}
-                    showBodyLineNumbers={showBodyLineNumbers}
-                    saveNote={saveNote}
-                    mode="source"
-                  />
-                ) : shouldUseSourceFallback ? (
-                  <MarkdownSourceEditor
-                    active={hasActiveNote}
-                    currentNotePath={currentNotePath ?? ''}
-                    showBodyLineNumbers={showBodyLineNumbers}
-                    saveNote={saveNote}
-                    mode="fallback"
-                  />
-                ) : (
-                  <ErrorBoundary
-                    resetKey={currentNotePath}
-                    fallback={(
-                      <MarkdownSourceEditor
-                        active={hasActiveNote}
-                        currentNotePath={currentNotePath ?? ''}
-                        showBodyLineNumbers={showBodyLineNumbers}
-                        saveNote={saveNote}
-                        mode="fallback"
-                      />
-                    )}
-                  >
-                    <MilkdownEditorRuntime
-                      active={active}
+              <div
+                ref={editorModeShellRef}
+                className="w-full"
+                style={editorModeShellMinHeight === null
+                  ? undefined
+                  : { minHeight: editorModeShellMinHeight }}
+              >
+                <Suspense fallback={null}>
+                  {isSourceMode ? (
+                    <MarkdownSourceEditor
+                      active={hasActiveNote}
+                      currentNotePath={currentNotePath ?? ''}
                       showBodyLineNumbers={showBodyLineNumbers}
-                      onEditorContentSyncFailure={handleEditorContentSyncFailure}
-                      onEditorViewReady={handleEditorViewReady}
+                      saveNote={saveNote}
+                      mode="source"
                     />
-                  </ErrorBoundary>
-                )}
-              </Suspense>
+                  ) : shouldUseSourceFallback ? (
+                    <MarkdownSourceEditor
+                      active={hasActiveNote}
+                      currentNotePath={currentNotePath ?? ''}
+                      showBodyLineNumbers={showBodyLineNumbers}
+                      saveNote={saveNote}
+                      mode="fallback"
+                    />
+                  ) : (
+                    <ErrorBoundary
+                      resetKey={currentNotePath}
+                      fallback={(
+                        <MarkdownSourceEditor
+                          active={hasActiveNote}
+                          currentNotePath={currentNotePath ?? ''}
+                          showBodyLineNumbers={showBodyLineNumbers}
+                          saveNote={saveNote}
+                          mode="fallback"
+                        />
+                      )}
+                    >
+                      <MilkdownEditorRuntime
+                        active={active}
+                        showBodyLineNumbers={showBodyLineNumbers}
+                        onEditorContentSyncFailure={handleEditorContentSyncFailure}
+                        onEditorViewReady={handleEditorViewReady}
+                      />
+                    </ErrorBoundary>
+                  )}
+                </Suspense>
+              </div>
             </>
           ) : null}
 

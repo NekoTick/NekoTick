@@ -225,6 +225,31 @@ async function toggleSourceModeWithShortcut(page: Page, targetMode: 'source' | '
   await expect(page.locator(SOURCE_EDITOR_SELECTOR)).toHaveCount(0);
 }
 
+async function toggleSourceModeWithScrollSamples(page: Page, targetMode: 'source' | 'rendered'): Promise<number[]> {
+  const samplesPromise = page.evaluate(() => new Promise<number[]>((resolve) => {
+    const scrollRoot = document.querySelector<HTMLElement>('[data-note-scroll-root="true"]');
+    if (!scrollRoot) {
+      resolve([]);
+      return;
+    }
+
+    const samples: number[] = [];
+    const startedAt = performance.now();
+    const sample = () => {
+      samples.push(scrollRoot.scrollTop);
+      if (performance.now() - startedAt >= 700) {
+        resolve(samples);
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+
+  await toggleSourceModeWithShortcut(page, targetMode);
+  return samplesPromise;
+}
+
 async function appendClipboardTextInSource(page: Page, text: string): Promise<void> {
   await page.locator(SOURCE_EDITOR_SELECTOR).focus();
   await page.evaluate(() => {
@@ -328,6 +353,47 @@ async function measureSourceToRenderedSwitchMs(page: Page, expectedRenderedText:
 
 test.describe('notes source mode layout', () => {
   test.setTimeout(120_000);
+
+  test('preserves scroll progress when entering and leaving source mode', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-source-scroll-progress');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      await openMarkdownFixture(page, {
+        filename: 'source-scroll-progress.md',
+        content: [
+          '# Source Scroll Progress',
+          ...Array.from({ length: 80 }, (_, index) =>
+            `Paragraph ${String(index + 1).padStart(2, '0')} keeps this note taller than the viewport.`
+          ),
+        ].join('\n\n'),
+      });
+
+      const setScrollProgress = (progress: number) => page.locator('[data-note-scroll-root="true"]')
+        .evaluate((element, nextProgress) => {
+          element.scrollTop = nextProgress * (element.scrollHeight - element.clientHeight);
+        }, progress);
+      const getScrollProgress = () => page.locator('[data-note-scroll-root="true"]')
+        .evaluate((element) => element.scrollTop / (element.scrollHeight - element.clientHeight));
+
+      await setScrollProgress(0.55);
+      const enteringSamples = await toggleSourceModeWithScrollSamples(page, 'source');
+      expect(enteringSamples.length).toBeGreaterThan(0);
+      expect(Math.min(...enteringSamples)).toBeGreaterThan(1);
+      await expect.poll(getScrollProgress).toBeCloseTo(0.55, 1);
+
+      await setScrollProgress(0.72);
+      const leavingSamples = await toggleSourceModeWithScrollSamples(page, 'rendered');
+      expect(leavingSamples.length).toBeGreaterThan(0);
+      expect(Math.min(...leavingSamples)).toBeGreaterThan(1);
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText('Paragraph 80', { timeout: 30_000 });
+      await expect.poll(getScrollProgress).toBeCloseTo(0.72, 1);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
 
   test('keeps source geometry stable when returning from other views', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-source-return-geometry');

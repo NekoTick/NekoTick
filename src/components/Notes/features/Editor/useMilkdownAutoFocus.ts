@@ -77,7 +77,12 @@ export function useMilkdownAutoFocus(args: {
         return false;
       }
 
+      const scrollRoot = view.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
+      const scrollTop = scrollRoot?.scrollTop;
       view.focus();
+      if (scrollRoot && scrollTop !== undefined) {
+        scrollRoot.scrollTop = scrollTop;
+      }
       return true;
     } catch {
       return false;
