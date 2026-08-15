@@ -29,7 +29,6 @@ import { useWhiteboardViewportScheduler } from './useWhiteboardViewportScheduler
 import { useWhiteboardAutoDraw } from './useWhiteboardAutoDraw';
 import { useWhiteboardSelectionColor } from './useWhiteboardSelectionColor';
 import { getNextWhiteboardIdSequence } from '../model/whiteboardIds';
-import { getWhiteboardAutoShapePreview, recognizeWhiteboardShape } from '../model/whiteboardAutoShape';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
 import { getWhiteboardResizePreview, getWhiteboardRotationPreview, type WhiteboardDragState } from '../model/whiteboardInteractions';
 import {
@@ -58,7 +57,10 @@ export function useWhiteboardController({
   const activeBoardId = useWhiteboardStore((state) => state.activeBoardId);
   const appliedBoardKeyRef = useRef<string | null>(null);
   const activePenPointerRef = useRef<number | null>(null);
-  const strokeIdRef = useRef(getNextWhiteboardIdSequence(WHITEBOARD_SEED_STROKES, 'wb-stroke-'));
+  const strokeIdRef = useRef(getNextWhiteboardIdSequence(
+    [...WHITEBOARD_SEED_STROKES, ...WHITEBOARD_SEED_ELEMENTS],
+    'wb-stroke-',
+  ));
   const { brushColors, brushSizes, resizeBrush, setBrushColor, setBrushSize } = useWhiteboardBrushSizes();
   const { appendDraftPoints, clearDraftStroke, draftStroke, getDraftStroke, setDraftStroke } = useWhiteboardDraftStroke();
   const { spacePressed, spacePressedRef } = useWhiteboardSpacePan(active);
@@ -78,13 +80,7 @@ export function useWhiteboardController({
     elements, paper: paperStyle, pushHistory, selectedElementIds, selectedStrokeIds,
     setElements, setStrokes, strokes,
   });
-  const draftShapeRecognition = useMemo(() => (
-    tool === 'autoshape' && draftStroke
-      ? recognizeWhiteboardShape(draftStroke.points, viewport.zoom)
-      : null
-  ), [draftStroke, tool, viewport.zoom]);
   const autoDraw = useWhiteboardAutoDraw({
-    draftRecognition: draftShapeRecognition,
     draftStroke, pushHistory, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes, setTool, strokes, tool,
   });
   const textEditing = useWhiteboardTextEditing({
@@ -197,11 +193,6 @@ export function useWhiteboardController({
     setDragState, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes,
     setTool, spatialIndex, strokeIdRef, strokes, viewportZoom: viewport.zoom,
   });
-  const draftStrokePreview = useMemo(() => (
-    tool === 'autoshape' && draftStroke
-      ? getWhiteboardAutoShapePreview(draftStroke, viewport.zoom, draftShapeRecognition ?? undefined)
-      : null
-  ), [draftShapeRecognition, draftStroke, tool, viewport.zoom]);
   return {
     brushCursorColor: isDrawingTool(tool) ? brushColors[tool] : 'transparent',
     brushCursorPoint,
@@ -210,7 +201,7 @@ export function useWhiteboardController({
     brushColors, brushSizes, canRedo, canUndo,
     autoDrawSuggestions: autoDraw.suggestions,
     clearBoard: boardActions.clearBoard,
-    draftStroke, draftStrokePreview: draftStrokePreview?.pending ? draftStrokePreview.stroke : null,
+    draftStroke,
     elements, eraserPreview: eraser.preview,
     copyBoardToClipboard, exportBoard, handleElementPointerDown, handleLinearPointPointerDown, handlePointerMove: pointerActions.handlePointerMove, handleViewportDoubleClick, importImage,
     handleRedo: boardActions.handleRedo,

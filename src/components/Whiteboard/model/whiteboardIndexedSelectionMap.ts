@@ -34,10 +34,10 @@ class WhiteboardIndexedSelectionMap<T extends { id: string }> implements Readonl
   readonly [Symbol.toStringTag] = 'WhiteboardIndexedSelectionMap';
 
   constructor(items: T[], ids: string[], order: WhiteboardItemOrder, fullSelection: boolean) {
-    this.#ids = fullSelection ? null : ids;
     this.#items = items;
     this.#order = order;
     this.#selectedIds = fullSelection ? null : new Set(ids);
+    this.#ids = this.#selectedIds ? [...this.#selectedIds] : null;
     this.size = this.#selectedIds?.size ?? items.length;
   }
 

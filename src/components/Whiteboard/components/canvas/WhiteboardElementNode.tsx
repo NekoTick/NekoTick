@@ -2,6 +2,7 @@ import { memo, type PointerEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardElement, WhiteboardTool } from '../../model/whiteboardModel';
+import { getElementContentRect } from '../../model/whiteboardSelection';
 import { WhiteboardAutoDrawIcon } from '../autodraw/WhiteboardAutoDrawIcon';
 
 interface WhiteboardElementNodeProps {
@@ -25,6 +26,7 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
 }: WhiteboardElementNodeProps) {
   const fontSize = element.fontSize ?? themeWhiteboardTokens.whiteboardTextFontSizePx;
   const lineHeight = element.lineHeight ?? themeWhiteboardTokens.whiteboardTextLineHeight;
+  const contentRect = getElementContentRect(element);
   return (
     <div
       data-whiteboard-element="true"
@@ -45,12 +47,12 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
         borderColor: showSelectionBorder
           ? 'var(--vlaina-color-whiteboard-selected)'
           : 'transparent',
-        height: element.height,
-        left: element.x,
+        height: contentRect.height,
+        left: contentRect.x,
         opacity: erasing ? themeWhiteboardTokens.eraserTargetPreviewOpacity : undefined,
         rotate: element.rotation ? `${element.rotation}rad` : undefined,
-        top: element.y,
-        width: element.width,
+        top: contentRect.y,
+        width: contentRect.width,
       }}
     >
       {element.imageSrc ? (
@@ -75,9 +77,9 @@ export const WhiteboardElementNode = memo(function WhiteboardElementNode({
         >
           <WhiteboardAutoDrawIcon
             color={element.color ?? themeWhiteboardTokens.whiteboardTextDefaultColor}
-            height={element.height}
+            height={contentRect.height}
             icon={element.autoDrawIcon}
-            width={element.width}
+            width={contentRect.width}
           />
         </div>
       ) : element.type === 'text' ? (

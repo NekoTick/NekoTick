@@ -54,7 +54,7 @@ describe('whiteboard linear elements', () => {
     expect(shouldCommitWhiteboardLinearStroke({ ...arrow, points: [{ pressure: 0.5, x: 0, y: 0 }, { pressure: 0.5, x: 7, y: 0 }] }, 1)).toBe(false);
   });
 
-  it('uses a heavier outline only for recognized shapes', () => {
+  it('uses a heavier outline only for AutoDraw shapes', () => {
     const line = createWhiteboardLinearStroke('line-1', 'line', { x: 0, y: 0 }, { x: 100, y: 0 }, '#111111', 1);
 
     expect(getWhiteboardLinearStrokeWidth(line)).toBe(2);

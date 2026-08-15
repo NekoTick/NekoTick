@@ -45,6 +45,41 @@ describe('useWhiteboardAutoDraw', () => {
     expect(result.current.autoDraw.suggestions).toEqual([]);
   });
 
+  it('centers a chosen icon in square bounds without stretching it', () => {
+    const sketch = createStroke('wide-sketch', [
+      { x: 10, y: 20 }, { x: 170, y: 20 }, { x: 170, y: 80 }, { x: 10, y: 80 },
+    ]);
+    const { result } = renderHook(() => useHarness(vi.fn()));
+
+    act(() => result.current.commit(sketch));
+    act(() => result.current.autoDraw.chooseSuggestion({
+      icon: 'house', kind: 'icon', label: 'House', score: 0,
+    }));
+
+    expect(result.current.elements).toEqual([expect.objectContaining({
+      height: 60, width: 60, x: 60, y: 20,
+    })]);
+  });
+
+  it('commits a suggestion once when the same handler fires twice', () => {
+    const pushHistory = vi.fn();
+    const sketch = createStroke('sketch', [{ x: 10, y: 20 }, { x: 90, y: 100 }]);
+    const { result } = renderHook(() => useHarness(pushHistory));
+    act(() => result.current.commit(sketch));
+    const choose = result.current.autoDraw.chooseSuggestion;
+    const suggestion = { icon: 'smile', kind: 'icon', label: 'Smile', score: 0 } as const;
+
+    act(() => {
+      choose(suggestion);
+      choose(suggestion);
+    });
+
+    expect(result.current.elements).toEqual([expect.objectContaining({
+      autoDrawIcon: 'smile', id: 'sketch-autodraw',
+    })]);
+    expect(pushHistory).toHaveBeenCalledOnce();
+  });
+
   it('ranks candidates from the current draft before pointer up', () => {
     const rectangle = createStroke('draft-rectangle', [
       { x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 80 },
@@ -74,6 +109,11 @@ describe('useWhiteboardAutoDraw', () => {
 
     expect(result.current.selectedElementIds).toEqual([]);
     expect(result.current.selectedStrokeIds).toEqual(['rectangle-autodraw']);
+    const resultPoints = result.current.strokes[0].points;
+    expect(Math.min(...resultPoints.map((point) => point.x))).toBe(20);
+    expect(Math.max(...resultPoints.map((point) => point.x))).toBe(100);
+    expect(Math.min(...resultPoints.map((point) => point.y))).toBe(0);
+    expect(Math.max(...resultPoints.map((point) => point.y))).toBe(80);
     expect(setTool).toHaveBeenCalledWith('select');
   });
 

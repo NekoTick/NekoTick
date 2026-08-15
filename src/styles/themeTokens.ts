@@ -349,7 +349,6 @@ export const themeWhiteboardTokens = {
   minElementHeightPx: 64,
   selectionResizeMinSizePx: 0.01,
   resizeHandlePx: 16,
-  pendingAutoShapeOpacity: 0.7,
   autoDrawSuggestionTopPx: 16,
   autoDrawSuggestionHorizontalInsetPx: 56,
   autoDrawSuggestionMaxWidthPx: 880,

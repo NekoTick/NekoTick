@@ -71,17 +71,31 @@ export function getElementBounds(element: WhiteboardElement): WhiteboardSelectio
   return { height: maxY - minY, width: maxX - minX, x: minX, y: minY };
 }
 
+export function getElementContentRect(element: WhiteboardElement): WhiteboardSelectionRect {
+  if (element.type !== 'icon' || !element.autoDrawIcon) {
+    return { height: element.height, width: element.width, x: element.x, y: element.y };
+  }
+  const size = Math.min(element.width, element.height);
+  return {
+    height: size,
+    width: size,
+    x: element.x + (element.width - size) / 2,
+    y: element.y + (element.height - size) / 2,
+  };
+}
+
 export function getElementCorners(element: WhiteboardElement): WhiteboardPoint[] {
+  const rect = getElementContentRect(element);
   const corners = [
-    { x: element.x, y: element.y },
-    { x: element.x + element.width, y: element.y },
-    { x: element.x + element.width, y: element.y + element.height },
-    { x: element.x, y: element.y + element.height },
+    { x: rect.x, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y },
+    { x: rect.x + rect.width, y: rect.y + rect.height },
+    { x: rect.x, y: rect.y + rect.height },
   ];
   if (!element.rotation) return corners;
   const center = {
-    x: element.x + element.width / 2,
-    y: element.y + element.height / 2,
+    x: rect.x + rect.width / 2,
+    y: rect.y + rect.height / 2,
   };
   const cosine = Math.cos(element.rotation);
   const sine = Math.sin(element.rotation);

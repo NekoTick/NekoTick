@@ -14,6 +14,7 @@ export {
   extendSelectedOverlayGeometry,
   getBoundsUnion,
   getElementBounds,
+  getElementContentRect,
   getElementCorners,
   getSelectedOverlayGeometry,
   getSelectionBounds,

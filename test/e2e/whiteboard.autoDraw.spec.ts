@@ -21,8 +21,8 @@ async function startWobblyCircle(page: Page, center: { x: number; y: number }, r
   for (const point of points.slice(1)) await page.mouse.move(point.x, point.y);
 }
 
-test('recognizes a circle drawn through the Board auto shape tool', async () => {
-  const { app, userDataRoot } = await launchIsolatedElectron('whiteboard-autoshape-circle');
+test('keeps an AutoDraw circle sketch unchanged until a candidate is chosen', async () => {
+  const { app, userDataRoot } = await launchIsolatedElectron('whiteboard-autodraw-circle');
 
   try {
     const [page] = await getOpenBridgePages(app, 1);
@@ -44,9 +44,7 @@ test('recognizes a circle drawn through the Board auto shape tool', async () => 
     }, 110);
 
     await expect(board.locator('[data-whiteboard-draft-stroke="raw"] [data-whiteboard-brush="pen"]')).toHaveCount(1);
-    const previewShape = board.locator('[data-whiteboard-draft-stroke="preview"] [data-whiteboard-autoshape="ellipse"]');
-    await expect(previewShape).toHaveCount(1);
-    await expect(previewShape.locator('path')).toHaveAttribute('stroke-width', '5');
+    await expect(board.locator('[data-whiteboard-draft-stroke="preview"]')).toHaveCount(0);
     const suggestions = board.locator('[data-whiteboard-autodraw-suggestions="true"]');
     await expect(suggestions).toBeVisible();
     await expect(suggestions.locator('[data-whiteboard-autodraw-candidate="ellipse"]')).toBeVisible();
@@ -55,15 +53,12 @@ test('recognizes a circle drawn through the Board auto shape tool', async () => 
 
     const committedStroke = board.locator('[data-whiteboard-stroke]');
     await expect(committedStroke).toHaveCount(1);
-    const committedShape = committedStroke.locator('[data-whiteboard-autoshape="ellipse"]');
-    await expect(committedShape).toHaveCount(1);
-    await expect(committedShape.locator('path')).toHaveAttribute('stroke-width', '5');
-    await expect(committedStroke.locator('[data-whiteboard-brush="pen"]')).toHaveCount(0);
-    await expect(suggestions).toHaveCount(0);
+    await expect(committedStroke.locator('[data-whiteboard-autoshape]')).toHaveCount(0);
+    await expect(committedStroke.locator('[data-whiteboard-brush="pen"]')).toHaveCount(1);
+    await expect(suggestions).toBeVisible();
     await expect(board.locator('[data-whiteboard-draft-stroke]')).toHaveCount(0);
-    await expect(autoShapeButton).toHaveAttribute('aria-pressed', 'false');
-    await expect(board.getByRole('button', { name: /^(Lasso|套索)$/ })).toHaveAttribute('aria-pressed', 'true');
-    await expect(board.locator('[data-whiteboard-selection-move-target="true"]')).toBeVisible();
+    await expect(autoShapeButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(board.getByRole('button', { name: /^(Lasso|套索)$/ })).toHaveAttribute('aria-pressed', 'false');
   } finally {
     await cleanupIsolatedElectron(app, userDataRoot);
   }
@@ -109,8 +104,8 @@ test('combines multiple house strokes before applying a Board AutoDraw candidate
   }
 });
 
-test('moves only the pressed recognized shape while another shape was selected', async () => {
-  const { app, userDataRoot } = await launchIsolatedElectron('whiteboard-autoshape-move-preview');
+test('moves only the pressed AutoDraw shape while another shape was selected', async () => {
+  const { app, userDataRoot } = await launchIsolatedElectron('whiteboard-autodraw-move-preview');
 
   try {
     const [page] = await getOpenBridgePages(app, 1);
@@ -119,20 +114,23 @@ test('moves only the pressed recognized shape while another shape was selected',
     const board = page.locator('[data-whiteboard-active="true"]');
     const surfaceBox = await board.locator(':scope > div').first().boundingBox();
     expect(surfaceBox).not.toBeNull();
-    const firstCenter = { x: surfaceBox!.x + 420, y: surfaceBox!.y + 330 };
-    const secondCenter = { x: surfaceBox!.x + 760, y: surfaceBox!.y + 330 };
-    const radius = 80;
+    const firstCenter = { x: surfaceBox!.x + 600, y: surfaceBox!.y + 330 };
+    const secondCenter = firstCenter;
+    const firstRadius = 130;
+    const secondRadius = 60;
 
     await board.getByRole('button', { name: /^(Auto shape|自动形状)$/ }).click();
-    await startWobblyCircle(page, firstCenter, radius);
+    await startWobblyCircle(page, firstCenter, firstRadius);
     await page.mouse.up();
+    await board.locator('[data-whiteboard-autodraw-candidate="ellipse"]').click();
     await board.getByRole('button', { name: /^(Auto shape|自动形状)$/ }).click();
-    await startWobblyCircle(page, secondCenter, radius);
+    await startWobblyCircle(page, secondCenter, secondRadius);
     await page.mouse.up();
+    await board.locator('[data-whiteboard-autodraw-candidate="ellipse"]').click();
 
     const shapes = board.locator('[data-whiteboard-stroke]');
     await expect(shapes).toHaveCount(2);
-    await page.mouse.click(firstCenter.x + radius, firstCenter.y);
+    await page.mouse.click(firstCenter.x + firstRadius, firstCenter.y);
     const selection = board.locator('[data-whiteboard-selection-move-target="true"]');
     await expect(selection).toBeVisible();
     await expect.poll(async () => (await selection.boundingBox())?.x ?? Infinity)
@@ -142,9 +140,9 @@ test('moves only the pressed recognized shape while another shape was selected',
     const secondBefore = await shapes.nth(1).boundingBox();
     expect(firstBefore).not.toBeNull();
     expect(secondBefore).not.toBeNull();
-    await page.mouse.move(secondCenter.x + radius, secondCenter.y);
+    await page.mouse.move(secondCenter.x + secondRadius, secondCenter.y);
     await page.mouse.down();
-    await page.mouse.move(secondCenter.x + radius + 70, secondCenter.y + 35, { steps: 6 });
+    await page.mouse.move(secondCenter.x + secondRadius + 70, secondCenter.y + 35, { steps: 6 });
 
     await expect.poll(async () => (await shapes.nth(1).boundingBox())?.x ?? -Infinity)
       .toBeGreaterThan(secondBefore!.x + 50);

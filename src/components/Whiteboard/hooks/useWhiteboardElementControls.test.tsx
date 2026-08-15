@@ -210,4 +210,28 @@ describe('useWhiteboardElementControls', () => {
       kind: 'resize-selection', preserveAspectRatio: true,
     }));
   });
+
+  it('preserves the aspect ratio when resizing one AutoDraw icon', () => {
+    const icon = {
+      autoDrawIcon: 'clock' as const, height: 80, id: 'icon', text: 'Clock',
+      type: 'icon' as const, width: 80, x: 10, y: 20,
+    };
+    const setDragState = vi.fn();
+    const { result } = renderHook(() => useWhiteboardElementControls({
+      elements: [icon], getBoardPoint: vi.fn(() => ({ x: 90, y: 100 })), pushHistory: vi.fn(),
+      selectedElementIds: [icon.id], selectedStrokeIds: [], setDragState, setElements: vi.fn(),
+      setSelectedElementIds: vi.fn(), setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
+      spacePressedRef: { current: false }, spatialIndex: createWhiteboardEraserSpatialIndex([icon], []),
+      strokes: [], tool: 'select',
+    }));
+
+    act(() => result.current.handleSelectionResizePointerDown({
+      button: 0, clientX: 90, clientY: 100, currentTarget: { setPointerCapture: vi.fn() },
+      pointerId: 1, shiftKey: false, stopPropagation: vi.fn(),
+    } as unknown as PointerEvent<SVGRectElement>, 'se'));
+
+    expect(setDragState).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'resize-selection', preserveAspectRatio: true,
+    }));
+  });
 });

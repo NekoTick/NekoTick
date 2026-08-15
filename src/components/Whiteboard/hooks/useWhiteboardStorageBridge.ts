@@ -62,7 +62,10 @@ export function useWhiteboardStorageBridge({
     setViewport(activeSnapshot.viewport);
     setSelectedElementIds([]);
     setSelectedStrokeIds([]);
-    strokeIdRef.current = getNextWhiteboardIdSequence(activeSnapshot.strokes, 'wb-stroke-');
+    strokeIdRef.current = getNextWhiteboardIdSequence(
+      [...activeSnapshot.strokes, ...activeSnapshot.elements],
+      'wb-stroke-',
+    );
   }, [
     activeBoardId, activeSnapshot, appliedBoardKeyRef, loadedNotesRootPath, notesRootPath,
     setElements, setPaper, setSelectedElementIds, setSelectedStrokeIds, setStrokes,

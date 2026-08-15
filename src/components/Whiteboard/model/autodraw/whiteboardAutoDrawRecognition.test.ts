@@ -11,7 +11,7 @@ const stroke = (id: string, points: WhiteboardPoint[]): WhiteboardStroke => ({
 });
 
 describe('whiteboard AutoDraw suggestions', () => {
-  it('ranks a recognized rectangle first without discarding other candidates', () => {
+  it('ranks a rectangle template first without discarding other candidates', () => {
     const rectangle = stroke('rectangle', [
       { x: 0, y: 0 }, { x: 160, y: 0 }, { x: 160, y: 100 },
       { x: 0, y: 100 }, { x: 0, y: 0 },

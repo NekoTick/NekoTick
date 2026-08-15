@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WhiteboardElement, WhiteboardStroke } from './whiteboardModel';
 import {
   findStrokeAtPoint,
+  getElementBounds,
   getElementsInLasso,
   getItemsInLasso,
   getResizedSelectionBounds,
@@ -192,6 +193,15 @@ describe('whiteboard lasso selection', () => {
 });
 
 describe('whiteboard selection resize', () => {
+  it('uses the visible square bounds of a rectangular AutoDraw icon', () => {
+    const icon: WhiteboardElement = {
+      autoDrawIcon: 'clock', height: 80, id: 'icon', text: 'Clock',
+      type: 'icon', width: 240, x: 10, y: 20,
+    };
+
+    expect(getElementBounds(icon)).toEqual({ height: 80, width: 80, x: 90, y: 20 });
+  });
+
   it.each([
     ['n', { x: 60, y: 110 }, { height: -10, width: 100, x: 10, y: 110 }],
     ['e', { x: -30, y: 60 }, { height: 80, width: -40, x: 10, y: 20 }],

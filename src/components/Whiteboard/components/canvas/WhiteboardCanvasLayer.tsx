@@ -38,7 +38,6 @@ interface WhiteboardCanvasLayerProps {
   brushCursorSize: number;
   brushCursorTool: WhiteboardBrushTool | null;
   draftStroke: WhiteboardStroke | null;
-  draftStrokePreview?: WhiteboardStroke | null;
   eraserPreview: WhiteboardEraserPreview;
   movePreview: WhiteboardMovePreview | null;
   renderData: WhiteboardRenderData;
@@ -131,7 +130,6 @@ export function WhiteboardCanvasLayer(props: WhiteboardCanvasLayerProps) {
         </div>
         <WhiteboardEraserTrail trail={props.eraserPreview.trail} zoom={props.viewport.zoom} />
         <WhiteboardDraftStrokeLayer stroke={props.draftStroke} />
-        <WhiteboardDraftStrokeLayer pending stroke={props.draftStrokePreview ?? null} />
         {props.textEditing ? (
           <WhiteboardTextEditor
             editing={props.textEditing}

@@ -5,7 +5,7 @@ import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 import { useWhiteboardPointerFinish } from './useWhiteboardPointerFinish';
 
 describe('useWhiteboardPointerFinish', () => {
-  it('applies a recognized auto shape on pointer up and selects it', () => {
+  it('keeps auto draw input as a pen stroke for object suggestions', () => {
     const points = [
       ...Array.from({ length: 18 }, (_, index) => ({ pressure: 0.5, x: index * 10, y: 0 })),
       ...Array.from({ length: 12 }, (_, index) => ({ pressure: 0.5, x: 180, y: index * 10 })),
@@ -30,13 +30,14 @@ describe('useWhiteboardPointerFinish', () => {
     act(() => result.current({ pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
 
     const update = setStrokes.mock.calls[0][0] as (current: typeof draft[]) => typeof draft[];
-    expect(update([])[0]).toMatchObject({ autoShape: 'rectangle', id: 'shape-1', tool: 'line' });
-    expect(onAutoDrawStrokeCommit).not.toHaveBeenCalled();
-    expect(setSelectedStrokeIds).toHaveBeenCalledWith(['shape-1']);
-    expect(setTool).toHaveBeenCalledWith('select');
+    expect(update([])[0]).toMatchObject({ id: 'shape-1', tool: 'pen' });
+    expect(update([])[0]).not.toHaveProperty('autoShape');
+    expect(onAutoDrawStrokeCommit).toHaveBeenCalledWith(expect.objectContaining({ id: 'shape-1', tool: 'pen' }));
+    expect(setSelectedStrokeIds).not.toHaveBeenCalled();
+    expect(setTool).not.toHaveBeenCalled();
   });
 
-  it('keeps unrecognized auto shape input available for object suggestions', () => {
+  it('keeps another auto draw stroke available for object suggestions', () => {
     const draft = {
       color: '#111111', id: 'object-sketch',
       points: Array.from({ length: 20 }, (_, index) => ({
@@ -180,6 +181,35 @@ describe('useWhiteboardPointerFinish', () => {
     expect(setStrokes).not.toHaveBeenCalled();
   });
 
+  it('ignores another pointer release while a pen pointer is active', () => {
+    const activePenPointerRef = { current: 7 as number | null };
+    const applyFinalDrawSample = vi.fn();
+    const clearDraftStroke = vi.fn();
+    const deletePointer = vi.fn();
+    const pushHistory = vi.fn();
+    const setDragState = vi.fn();
+    const setStrokes = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef, applyFinalDrawSample, clearDraftStroke, deletePointer,
+      dragState: { kind: 'draw' }, elements: [], finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 0, y: 0 })), getDraftStroke: vi.fn(() => ({
+        color: '#111111', id: 'draft', points: [{ pressure: 0.5, x: 0, y: 0 }], size: 1, tool: 'pen' as const,
+      })), pushHistory, setDragState, setElements: vi.fn(), setSelectedElementIds: vi.fn(),
+      setSelectedStrokeIds: vi.fn(), setStrokes,
+      spatialIndex: createWhiteboardEraserSpatialIndex([], []), strokeIdRef: { current: 1 }, strokes: [],
+    }));
+
+    act(() => result.current({ pointerId: 8, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    expect(deletePointer).toHaveBeenCalledWith(8);
+    expect(activePenPointerRef.current).toBe(7);
+    expect(applyFinalDrawSample).not.toHaveBeenCalled();
+    expect(pushHistory).not.toHaveBeenCalled();
+    expect(setStrokes).not.toHaveBeenCalled();
+    expect(clearDraftStroke).not.toHaveBeenCalled();
+    expect(setDragState).not.toHaveBeenCalled();
+  });
+
   it('preserves the draft stroke ID when the state update is deferred', () => {
     const draft = {
       color: '#ef4444', id: 'wb-stroke-1',
@@ -286,6 +316,25 @@ describe('useWhiteboardPointerFinish', () => {
     act(() => result.current({ clientX: 40, clientY: 40, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
 
     expect(setSelectedElementIds).toHaveBeenCalledWith(['image']);
+  });
+
+  it('uses live elements when completing a lasso click with a stale element index', () => {
+    const staleElement = { height: 100, id: 'stale', text: '', type: 'image' as const, width: 100, x: 0, y: 0 };
+    const liveElement = { ...staleElement, id: 'live' };
+    const strokes: [] = [];
+    const setSelectedElementIds = vi.fn();
+    const { result } = renderHook(() => useWhiteboardPointerFinish({
+      activePenPointerRef: { current: null }, clearDraftStroke: vi.fn(), deletePointer: vi.fn(),
+      dragState: { kind: 'lasso', points: [{ x: 40, y: 40 }] }, elements: [liveElement],
+      finishEraserGesture: vi.fn(), flushResizeDrags: vi.fn(),
+      getBoardPoint: vi.fn(() => ({ x: 40, y: 40 })), getDraftStroke: vi.fn(() => null), pushHistory: vi.fn(),
+      setDragState: vi.fn(), setElements: vi.fn(), setSelectedElementIds, setSelectedStrokeIds: vi.fn(), setStrokes: vi.fn(),
+      spatialIndex: createWhiteboardEraserSpatialIndex([staleElement], strokes), strokeIdRef: { current: 1 }, strokes,
+    }));
+
+    act(() => result.current({ clientX: 40, clientY: 40, pointerId: 7, type: 'pointerup' } as PointerEvent<HTMLDivElement>));
+
+    expect(setSelectedElementIds).toHaveBeenCalledWith(['live']);
   });
 
   it('limits lasso hit testing to nearby spatial candidates', () => {

@@ -23,14 +23,14 @@ export const WhiteboardAutoDrawIcon = memo(function WhiteboardAutoDrawIcon({
   const entry = getWhiteboardAutoDrawCatalogEntry(icon);
   const viewBoxSize = themeWhiteboardTokens.autoDrawIconViewBoxSizePx;
   const strokeWidth = targetStrokeWidth * viewBoxSize
-    / Math.sqrt(Math.max(1, width * height));
+    / Math.max(1, Math.min(width, height));
   return (
     <svg
       aria-hidden="true"
       className={className}
       data-whiteboard-autodraw-icon={icon}
       fill={themeWhiteboardTokens.strokeNoFill}
-      preserveAspectRatio="none"
+      preserveAspectRatio="xMidYMid meet"
       stroke={color}
       strokeLinecap={themeWhiteboardTokens.strokeLineCap}
       strokeLinejoin={themeWhiteboardTokens.strokeLineJoin}

@@ -177,21 +177,20 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
       }
     : null;
   const resizeBounds = groupBounds ?? singleBounds;
-  const includesText = elements.some((element) => element.type === 'text');
+  const requiresProportionalResize = renderData.requiresProportionalResize;
 
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-visible">
       {resizeBounds ? (
         <rect
           data-whiteboard-selection-move-target="true"
-          className="pointer-events-auto"
+          className="pointer-events-none"
           x={resizeBounds.x}
           y={resizeBounds.y}
           width={resizeBounds.width}
           height={resizeBounds.height}
           fill="transparent"
           style={{ cursor: movePreview ? 'grabbing' : 'grab' }}
-          onPointerDown={onSelectionMovePointerDown}
         />
       ) : null}
       {groupBounds ? null : (
@@ -238,7 +237,7 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
           disabled={spacePressed}
           flipX={Boolean(resizePreview && resizePreview.nextBounds.width < 0)}
           flipY={Boolean(resizePreview && resizePreview.nextBounds.height < 0)}
-          showEdgeHandles={!includesText}
+          showEdgeHandles={!requiresProportionalResize}
           zoom={linearZoom}
           onResizePointerDown={onSelectionResizePointerDown}
           onRotationPointerDown={handleSelectionRotationPointerDown}
