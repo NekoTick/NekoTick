@@ -215,16 +215,15 @@ body.editor-block-drag-active .milkdown-editor.markdown-body-line-numbers .body-
   user-select: none;
 }
 
-/* Selection */
-.milkdown-editor.theme-vlaina .ProseMirror::selection {
+/* Keep editor syntax colors while selection only contributes its background. */
+.milkdown-editor.theme-vlaina .ProseMirror::selection,
+.milkdown-editor.theme-vlaina .ProseMirror *::selection {
   background-color: var(--vlaina-markdown-color-selection) !important;
-  color: var(--vlaina-color-white) !important;
-  -webkit-text-fill-color: var(--vlaina-color-white) !important;
 }
 
-.milkdown-editor.theme-vlaina .ProseMirror::-moz-selection {
+.milkdown-editor.theme-vlaina .ProseMirror::-moz-selection,
+.milkdown-editor.theme-vlaina .ProseMirror *::-moz-selection {
   background-color: var(--vlaina-markdown-color-selection) !important;
-  color: var(--vlaina-color-white) !important;
 }
 
 /* Block controls (selected block drag handle) */

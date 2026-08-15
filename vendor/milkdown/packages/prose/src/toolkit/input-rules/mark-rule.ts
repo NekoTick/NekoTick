@@ -38,18 +38,29 @@ export function markRule(
       const startSpaces = fullMatch.search(/\S/)
       const textStart = start + fullMatch.indexOf(group)
       const textEnd = textStart + group.length
+      const syntaxMarkType = state.schema.marks.markdownSyntax
 
       initialStoredMarks = tr.storedMarks ?? []
 
-      if (textEnd < end) tr.delete(textEnd, end)
-
-      if (textStart > start) tr.delete(start + startSpaces, textStart)
-
-      markEnd = start + startSpaces + group.length
-
       const attrs = options.getAttr?.(match)
-
-      tr.addMark(start, markEnd, markType.create(attrs))
+      if (syntaxMarkType && textStart > start + startSpaces && textEnd < end) {
+        tr.addMark(
+          start + startSpaces,
+          textStart,
+          syntaxMarkType.create({ edge: 'open', kind: markType.name })
+        )
+        tr.addMark(textStart, textEnd, markType.create(attrs))
+        tr.addMark(
+          textEnd,
+          end,
+          syntaxMarkType.create({ edge: 'close', kind: markType.name })
+        )
+      } else {
+        if (textEnd < end) tr.delete(textEnd, end)
+        if (textStart > start) tr.delete(start + startSpaces, textStart)
+        markEnd = start + startSpaces + group.length
+        tr.addMark(start, markEnd, markType.create(attrs))
+      }
       tr.setStoredMarks(initialStoredMarks)
 
       options.beforeDispatch?.({ match, start, end, tr })

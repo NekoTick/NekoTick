@@ -223,6 +223,6 @@ export function commitBlockPreview(view: EditorView, blockType: BlockType): bool
 
 export function clearFormatPreview(view: EditorView): void {
   if (clearFormatPreviewState()) {
-    showTextSelectionOverlayForPreview(view);
+    showTextSelectionOverlayForPreview(view, false);
   }
 }

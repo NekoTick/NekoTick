@@ -11,6 +11,15 @@ import {
 } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
+import { addMarkdownSyntax, markdownSyntaxSchema } from './markdown-syntax'
+
+function getInlineCodeFence(text: string) {
+  let longestRun = 0
+  for (const run of text.matchAll(/`+/g)) {
+    longestRun = Math.max(longestRun, run[0].length)
+  }
+  return '`'.repeat(Math.max(1, longestRun + 1))
+}
 
 /// HTML attributes for the inlineCode mark.
 export const inlineCodeAttr = $markAttr('inlineCode')
@@ -22,6 +31,7 @@ withMeta(inlineCodeAttr, {
 
 /// InlineCode mark schema.
 export const inlineCodeSchema = $markSchema('inlineCode', (ctx) => ({
+  markdownSyntaxDelimited: true,
   priority: 100,
   code: true,
   inclusive: false,
@@ -30,9 +40,21 @@ export const inlineCodeSchema = $markSchema('inlineCode', (ctx) => ({
   parseMarkdown: {
     match: (node) => node.type === 'inlineCode',
     runner: (state, node, markType) => {
+      const text = String(node.value ?? '')
+      const fence = getInlineCodeFence(text)
+      const padded = /^ | $/.test(text) && !/^ +$/.test(text)
+      const syntaxMarkType = markdownSyntaxSchema.type(ctx)
+      addMarkdownSyntax(state, syntaxMarkType, `${fence}${padded ? ' ' : ''}`, {
+        edge: 'open',
+        kind: 'inlineCode',
+      })
       state.openMark(markType)
-      state.addText(node.value as string)
+      state.addText(text)
       state.closeMark(markType)
+      addMarkdownSyntax(state, syntaxMarkType, `${padded ? ' ' : ''}${fence}`, {
+        edge: 'close',
+        kind: 'inlineCode',
+      })
     },
   },
   toMarkdown: {

@@ -13,7 +13,6 @@ export interface TextSelectionOverlayViewSession {
   keyClearFrame: number | null;
   keyboardSelectionPendingCleanupTimeout: number | null;
   lastClassSignature: string;
-  lastPointerSelectionX: number | null;
   lastPointerSelectionY: number | null;
   pendingPointerClickCollapseTarget: PointerCaretTarget | null;
   pointerClickCollapseFrame: number | null;
@@ -21,9 +20,6 @@ export interface TextSelectionOverlayViewSession {
   pointerClickCollapseTimeout: number | null;
   pointerDownPoint: { x: number; y: number } | null;
   pointerMovedSinceDown: boolean;
-  pointerTextSelectionActive: boolean;
-  pointerTextSelectionAnchor: number | null;
-  pointerTextSelectionDoc: EditorView['state']['doc'] | null;
   pointerNativeReleaseFrame: number | null;
   pointerSelectionAutoScroll: VerticalEdgeAutoScrollHandle;
   preserveNativeSelectionForKeyboard: boolean;
@@ -33,6 +29,7 @@ export interface TextSelectionOverlayViewSession {
 }
 
 export interface TextSelectionOverlayViewContext {
+  ownerWindow: Window;
   session: TextSelectionOverlayViewSession;
   view: EditorView;
 }

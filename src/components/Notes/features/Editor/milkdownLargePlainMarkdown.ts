@@ -131,7 +131,17 @@ export function createLargePlainMarkdownDocJSON(markdown: string): ProseMirrorJS
       content.push({
         type: 'heading',
         attrs: { level: Math.min(6, headingMatch[1]?.length ?? 1) },
-        content: [{ type: 'text', text: text.trimEnd() }],
+        content: [
+          {
+            type: 'text',
+            marks: [{
+              type: 'markdownSyntax',
+              attrs: { edge: 'prefix', kind: 'heading' },
+            }],
+            text: `${headingMatch[1]} `,
+          },
+          ...(text.trimEnd() ? [{ type: 'text', text: text.trimEnd() }] : []),
+        ],
       });
       previousLineWasParagraph = false;
       if (nextBreak === -1) {

@@ -149,6 +149,7 @@ it('skips blank headings without reading aggregate heading text', () => {
   const headingType = schema.nodes.heading
   const blankTextNode = {
     isText: true,
+    marks: [],
     text: ' '.repeat(8_192),
   }
   const blankHeading = {
@@ -184,6 +185,7 @@ it('skips blank headings without reading aggregate heading text', () => {
 it('generates bounded heading id text without reading aggregate heading text', () => {
   const textNode = {
     isText: true,
+    marks: [],
     text: `${'Title '.repeat(1000)}Tail`,
   }
   const node = {

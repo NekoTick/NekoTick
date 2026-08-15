@@ -222,7 +222,7 @@ export function TitleInput({ notePath, initialTitle, onEnter, autoFocus, compact
       onPaste={preventImageClipboardTextPaste}
       onDrop={preventImageDataTransferTextDrop}
       onKeyDown={handleKeyDown}
-      className="block w-full resize-none overflow-hidden bg-transparent border-none outline-none font-bold leading-[var(--vlaina-leading-title)] tracking-normal text-[var(--vlaina-text-primary)] placeholder:text-[var(--vlaina-soft-placeholder)] selection:bg-[var(--vlaina-selection-bg)] selection:text-[var(--vlaina-color-white)]"
+      className="block w-full resize-none overflow-hidden bg-transparent border-none outline-none font-bold leading-[var(--vlaina-leading-title)] tracking-normal text-[var(--vlaina-text-primary)] placeholder:text-[var(--vlaina-soft-placeholder)] selection:bg-[var(--vlaina-selection-bg)]"
       style={titleInputStyle}
       placeholder={t('notes.untitled')}
     />

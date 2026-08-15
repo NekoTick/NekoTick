@@ -1,5 +1,9 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { showTextSelectionOverlayForTransaction } from '../selection/textSelectionOverlayPlugin';
+import {
+  setTextSelectionInlineDecorationsForTransaction,
+  showTextSelectionOverlayForTransaction,
+  textSelectionOverlayPluginKey,
+} from '../selection/textSelectionOverlayState';
 import {
   POINTER_NATIVE_SELECTION_CLASS,
   TEXT_SELECTION_OVERLAY_CLASS,
@@ -38,11 +42,24 @@ export function clearNativeSelectionForPreviewFrames(viewDom: HTMLElement): void
   ownerWindow.setTimeout(clear, 50);
 }
 
-export function showTextSelectionOverlayForPreview(view: EditorView): void {
+export function showTextSelectionOverlayForPreview(
+  view: EditorView,
+  renderInlineDecorations = true,
+): void {
+  const pluginState = textSelectionOverlayPluginKey.getState(view.state);
+  const hasInlineDecorations = view.dom instanceof HTMLElement
+    && view.dom.getElementsByClassName(TEXT_SELECTION_OVERLAY_CLASS).length > 0;
   if (
     view.dom instanceof HTMLElement &&
     !view.dom.classList.contains(POINTER_NATIVE_SELECTION_CLASS) &&
-    view.dom.getElementsByClassName(TEXT_SELECTION_OVERLAY_CLASS).length > 0
+    (
+      pluginState?.renderInlineDecorations === renderInlineDecorations
+      || (pluginState === undefined && renderInlineDecorations && hasInlineDecorations)
+    ) &&
+    (
+      !renderInlineDecorations
+      || hasInlineDecorations
+    )
   ) {
     return;
   }
@@ -54,7 +71,10 @@ export function showTextSelectionOverlayForPreview(view: EditorView): void {
   }
 
   view.dispatch(
-    showTextSelectionOverlayForTransaction(tr)
+    setTextSelectionInlineDecorationsForTransaction(
+      showTextSelectionOverlayForTransaction(tr),
+      renderInlineDecorations,
+    )
       .setMeta('addToHistory', false)
   );
 }

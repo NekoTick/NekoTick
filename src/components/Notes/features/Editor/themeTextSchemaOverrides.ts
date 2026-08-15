@@ -41,6 +41,7 @@ import {
     SOURCE_HTML_BLANK_LINE_COUNT_AFTER_ATTR,
     SOURCE_TIGHT_HTML_BEFORE_ATTR,
 } from './plugins/html-block/htmlBlockMarkdown';
+import { addMarkdownSyntax } from './plugins/markdown-syntax/markdownSyntax';
 export {
     renderRawMarkdownHtmlValueIntoElement,
     sanitizeRawMarkdownHtmlValue,
@@ -141,6 +142,12 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
                     ...(getTextAlignmentMarkdownParseAttrs(node) || {}),
                 };
                 state.openNode(type, attrs);
+                addMarkdownSyntax(
+                    state,
+                    `${'#'.repeat(Math.max(1, Math.min(6, Number(node.depth) || 1)))} `,
+                    'heading',
+                    'prefix',
+                );
                 state.next(node.children);
                 state.closeNode();
             },

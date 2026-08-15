@@ -10,6 +10,10 @@ import {
   createDelimitedMarkHandler,
 } from '../customInlineMarkStringify';
 import { remarkHighlight } from './highlightMarkdownTransforms';
+import {
+  addMarkdownSyntax,
+  applyDelimitedInputRule,
+} from '../markdown-syntax/markdownSyntax';
 
 type UndoableInputRule = InputRule & { undoable?: boolean };
 
@@ -26,6 +30,8 @@ export const highlightStringifyPlugin = createCustomInlineTextProtectionPlugin({
 });
 
 export const highlightMark = $mark('highlight', () => ({
+  markdownSyntaxDelimited: true,
+  priority: 40,
   parseDOM: [
     { tag: 'mark' },
     { tag: 'span.highlight' },
@@ -35,9 +41,11 @@ export const highlightMark = $mark('highlight', () => ({
   parseMarkdown: {
     match: (node) => node.type === 'highlight',
     runner: (state, node, markType) => {
+      addMarkdownSyntax(state, '==', 'highlight', 'open');
       state.openMark(markType);
       state.next(node.children);
       state.closeMark(markType);
+      addMarkdownSyntax(state, '==', 'highlight', 'close');
     }
   },
   toMarkdown: {
@@ -61,16 +69,7 @@ export const highlightInputRule = $inputRule(() => {
       const text = match[1];
       if (!text) return null;
       
-      const { tr, schema } = state;
-      const initialStoredMarks = state.storedMarks ?? [];
-      const markType = schema.marks.highlight;
-      if (!markType) return null;
-      
-      return tr
-        .delete(start, end)
-        .insertText(text)
-        .addMark(start, start + text.length, markType.create())
-        .setStoredMarks(initialStoredMarks);
+      return applyDelimitedInputRule(state, match, start, end, 'highlight');
     }
   );
   (rule as UndoableInputRule).undoable = false;
@@ -86,6 +85,8 @@ export const toggleHighlightCommand = $command('toggleHighlight', () => () => {
 });
 
 export const superscriptMark = $mark('superscript', () => ({
+  markdownSyntaxDelimited: true,
+  priority: 40,
   parseDOM: [
     { tag: 'sup' },
     { tag: 'span.superscript' }
@@ -94,9 +95,11 @@ export const superscriptMark = $mark('superscript', () => ({
   parseMarkdown: {
     match: (node) => node.type === 'superscript',
     runner: (state, node, markType) => {
+      addMarkdownSyntax(state, '^', 'superscript', 'open');
       state.openMark(markType);
       state.next(node.children);
       state.closeMark(markType);
+      addMarkdownSyntax(state, '^', 'superscript', 'close');
     }
   },
   toMarkdown: {
@@ -120,16 +123,7 @@ export const superscriptInputRule = $inputRule(() => {
       const text = match[1];
       if (!text) return null;
       
-      const { tr, schema } = state;
-      const initialStoredMarks = state.storedMarks ?? [];
-      const markType = schema.marks.superscript;
-      if (!markType) return null;
-      
-      return tr
-        .delete(start, end)
-        .insertText(text)
-        .addMark(start, start + text.length, markType.create())
-        .setStoredMarks(initialStoredMarks);
+      return applyDelimitedInputRule(state, match, start, end, 'superscript');
     }
   );
   (rule as UndoableInputRule).undoable = false;
@@ -145,6 +139,8 @@ export const toggleSuperscriptCommand = $command('toggleSuperscript', () => () =
 });
 
 export const subscriptMark = $mark('subscript', () => ({
+  markdownSyntaxDelimited: true,
+  priority: 40,
   parseDOM: [
     { tag: 'sub' },
     { tag: 'span.subscript' }
@@ -153,9 +149,11 @@ export const subscriptMark = $mark('subscript', () => ({
   parseMarkdown: {
     match: (node) => node.type === 'subscript',
     runner: (state, node, markType) => {
+      addMarkdownSyntax(state, '~', 'subscript', 'open');
       state.openMark(markType);
       state.next(node.children);
       state.closeMark(markType);
+      addMarkdownSyntax(state, '~', 'subscript', 'close');
     }
   },
   toMarkdown: {
@@ -179,16 +177,7 @@ export const subscriptInputRule = $inputRule(() => {
       const text = match[1];
       if (!text) return null;
       
-      const { tr, schema } = state;
-      const initialStoredMarks = state.storedMarks ?? [];
-      const markType = schema.marks.subscript;
-      if (!markType) return null;
-      
-      return tr
-        .delete(start, end)
-        .insertText(text)
-        .addMark(start, start + text.length, markType.create())
-        .setStoredMarks(initialStoredMarks);
+      return applyDelimitedInputRule(state, match, start, end, 'subscript');
     }
   );
   (rule as UndoableInputRule).undoable = false;

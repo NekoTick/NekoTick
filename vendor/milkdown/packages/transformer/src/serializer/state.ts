@@ -238,14 +238,16 @@ export class SerializerState extends Stack<
   }
 
   /// @internal
-  #runNode = (node: Node) => {
+  #runNode = (node: Node, nextNode?: Node) => {
     const { marks } = node
     const getPriority = (x: Mark) => x.type.spec.priority ?? 50
     const tmp = [...marks].sort((a, b) => getPriority(a) - getPriority(b))
     const unPreventNext = tmp.every((mark) => !this.#runProseMark(mark, node))
     if (unPreventNext) this.#runProseNode(node)
 
-    marks.forEach((mark) => this.#closeMark(mark))
+    marks.forEach((mark) => {
+      if (!nextNode || !mark.isInSet(nextNode.marks)) this.#closeMark(mark)
+    })
   }
 
   /// @internal
@@ -342,27 +344,30 @@ export class SerializerState extends Stack<
     let startSpaces = ''
     let endSpaces = ''
     const children = element.children
-    let first = -1
-    let last = -1
-    const findIndex = (node: MarkdownNode[]) => {
-      if (!node) return
-      node.forEach((child, index) => {
-        if (child.type === 'text' && child.value) {
-          if (first < 0) first = index
+    const findBoundaryText = (
+      nodes: MarkdownNode[] | undefined,
+      edge: 'first' | 'last',
+      depth = 0
+    ): (MarkdownNode & { value: string }) | undefined => {
+      if (!nodes?.length || depth > MAX_SERIALIZER_MARK_SEARCH_DEPTH) {
+        return undefined
+      }
 
-          last = index
+      for (let offset = 0; offset < nodes.length; offset += 1) {
+        const index = edge === 'first' ? offset : nodes.length - offset - 1
+        const child = nodes[index]
+        if (child.type === 'text' && child.value) {
+          return child as MarkdownNode & { value: string }
         }
-      })
+        const nested = findBoundaryText(child.children, edge, depth + 1)
+        if (nested) return nested
+      }
+      return undefined
     }
 
     if (children) {
-      findIndex(children)
-      const lastChild = children?.[last] as
-        | (MarkdownNode & { value: string })
-        | undefined
-      const firstChild = children?.[first] as
-        | (MarkdownNode & { value: string })
-        | undefined
+      const lastChild = findBoundaryText(children, 'last')
+      const firstChild = findBoundaryText(children, 'first')
       if (lastChild && lastChild.value.endsWith(' ')) {
         const text = lastChild.value
         const trimmed = text.trimEnd()
@@ -488,8 +493,8 @@ export class SerializerState extends Stack<
   /// the state will find a proper runner (by `match` method in serializer spec) to handle it.
   next = (nodes: Node | Fragment) => {
     if (isFragment(nodes)) {
-      nodes.forEach((node) => {
-        this.#runNode(node)
+      nodes.forEach((node, _offset, index) => {
+        this.#runNode(node, nodes.maybeChild(index + 1) ?? undefined)
       })
       return this
     }

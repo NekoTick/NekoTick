@@ -10,6 +10,7 @@ import {
 } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
+import { addMarkdownSyntax, markdownSyntaxSchema } from './markdown-syntax'
 
 /// HTML attributes for the strong mark.
 export const strongAttr = $markAttr('strong')
@@ -21,6 +22,7 @@ withMeta(strongAttr, {
 
 /// Strong mark schema.
 export const strongSchema = $markSchema('strong', (ctx) => ({
+  markdownSyntaxDelimited: true,
   attrs: {
     marker: {
       default: ctx.get(remarkStringifyOptionsCtx).strong || '*',
@@ -49,9 +51,20 @@ export const strongSchema = $markSchema('strong', (ctx) => ({
   parseMarkdown: {
     match: (node) => node.type === 'strong',
     runner: (state, node, markType) => {
-      state.openMark(markType, { marker: node.marker })
+      const marker = node.marker === '_' ? '_' : '*'
+      const delimiter = marker.repeat(2)
+      const syntaxMarkType = markdownSyntaxSchema.type(ctx)
+      addMarkdownSyntax(state, syntaxMarkType, delimiter, {
+        edge: 'open',
+        kind: 'strong',
+      })
+      state.openMark(markType, { marker })
       state.next(node.children)
       state.closeMark(markType)
+      addMarkdownSyntax(state, syntaxMarkType, delimiter, {
+        edge: 'close',
+        kind: 'strong',
+      })
     },
   },
   toMarkdown: {

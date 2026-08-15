@@ -1,10 +1,14 @@
 import { Plugin, TextSelection } from '@milkdown/kit/prose/state';
 import { DecorationSet } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
-import { createTextSelectionDecorationState } from './textSelectionOverlayDecorations';
+import {
+  createAtomicTextSelectionDecorationState,
+  createTextSelectionDecorationState,
+} from './textSelectionOverlayDecorations';
 import { createTextSelectionOverlayPluginView } from './textSelectionOverlayPluginView';
 import {
   POINTER_NATIVE_SELECTION_META,
+  TEXT_SELECTION_INLINE_DECORATIONS_META,
   isLargeEditorSelection,
   isTextSelectionOverlayEligible,
   textSelectionOverlayPluginKey,
@@ -27,6 +31,7 @@ export {
   LARGE_SELECTION_MIN_SELECTED_NODES,
   TEXT_SELECTION_OVERLAY_CLASS,
   getNativeSelectionMetrics,
+  setTextSelectionInlineDecorationsForTransaction,
   showTextSelectionOverlayForTransaction,
 } from './textSelectionOverlayState';
 
@@ -34,15 +39,18 @@ export const textSelectionOverlayPlugin = $prose(() => {
   return new Plugin({
     key: textSelectionOverlayPluginKey,
     state: {
-      init(_, state) {
-        const decorationState = createTextSelectionDecorationState(state);
+      init() {
         return {
-          ...decorationState,
+          ...getEmptyTextSelectionOverlayDecorationState(),
+          renderInlineDecorations: false,
           usePointerNativeSelection: false,
         };
       },
       apply(tr, previous, _oldState, newState) {
         const pointerNativeMeta = tr.getMeta(POINTER_NATIVE_SELECTION_META) as boolean | undefined;
+        const inlineDecorationsMeta = tr.getMeta(
+          TEXT_SELECTION_INLINE_DECORATIONS_META
+        ) as boolean | undefined;
         const blockSelectionAction = tr.getMeta(blankAreaDragBoxPluginKey) as BlockSelectionAction | undefined;
         const isSettingBlockSelection =
           blockSelectionAction?.type === 'set-blocks' &&
@@ -58,20 +66,29 @@ export const textSelectionOverlayPlugin = $prose(() => {
         if (isSettingBlockSelection) {
           usePointerNativeSelection = false;
         }
-        if (!tr.docChanged && !tr.selectionSet && pointerNativeMeta === undefined) {
+        let renderInlineDecorations = inlineDecorationsMeta ?? previous.renderInlineDecorations;
+        if ((tr.docChanged || tr.selectionSet) && inlineDecorationsMeta === undefined) {
+          renderInlineDecorations = false;
+        }
+        if (!tr.docChanged && !tr.selectionSet && pointerNativeMeta === undefined && inlineDecorationsMeta === undefined) {
           if (isSettingBlockSelection && (previous.decorationCount > 0 || previous.usePointerNativeSelection)) {
             return {
               ...getEmptyTextSelectionOverlayDecorationState(),
+              renderInlineDecorations: false,
               usePointerNativeSelection,
             };
           }
           return previous;
         }
+        if (!overlayEligible) renderInlineDecorations = false;
         const decorationState = usePointerNativeSelection || !overlayEligible
           ? getEmptyTextSelectionOverlayDecorationState()
-          : createTextSelectionDecorationState(newState);
+          : renderInlineDecorations
+            ? createTextSelectionDecorationState(newState)
+            : createAtomicTextSelectionDecorationState(newState);
         return {
           ...decorationState,
+          renderInlineDecorations,
           usePointerNativeSelection,
         };
       },

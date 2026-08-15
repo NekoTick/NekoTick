@@ -11,6 +11,7 @@ function getBoundedBodyText(root: HTMLElement, maxChars: number): string | null 
   let text = '';
   const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.parentElement?.closest('[data-markdown-syntax]')) continue;
     text += node.textContent ?? '';
     if (text.length > maxChars) return null;
   }

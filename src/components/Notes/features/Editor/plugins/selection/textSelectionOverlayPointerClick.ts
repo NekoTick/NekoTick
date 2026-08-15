@@ -29,24 +29,20 @@ export function collapsePointerNativeSelectionAt(
     .setMeta(POINTER_NATIVE_SELECTION_META, false)
     .setMeta('addToHistory', false);
   view.dispatch(tr);
-  if (!view.state.selection.eq(tr.selection)) {
-    const nextState = view.state.apply(tr);
-    view.updateState(nextState);
-  }
   view.dom.focus({ preventScroll: true });
   syncNativeSelectionToCaretTarget(view, { ...target, pos: nextPos });
   session.syncActiveClass();
 }
 
 export function cancelPointerClickCollapseReassertion(
-  { session }: TextSelectionOverlayViewContext
+  { ownerWindow, session }: TextSelectionOverlayViewContext
 ): void {
   if (session.pointerClickCollapseFrame !== null) {
-    cancelAnimationFrame(session.pointerClickCollapseFrame);
+    ownerWindow.cancelAnimationFrame(session.pointerClickCollapseFrame);
     session.pointerClickCollapseFrame = null;
   }
   if (session.pointerClickCollapseTimeout !== null) {
-    window.clearTimeout(session.pointerClickCollapseTimeout);
+    ownerWindow.clearTimeout(session.pointerClickCollapseTimeout);
     session.pointerClickCollapseTimeout = null;
   }
 }
@@ -72,29 +68,29 @@ export function schedulePointerClickCollapseReassertion(
   context: TextSelectionOverlayViewContext,
   target: PointerCaretTarget
 ): void {
-  const { session, view } = context;
+  const { ownerWindow, session, view } = context;
   const expectedDoc = view.state.doc;
   cancelPointerClickCollapseReassertion(context);
 
-  queueMicrotask(() => {
+  ownerWindow.queueMicrotask(() => {
     reassertPointerClickCollapse(context, target, expectedDoc);
   });
-  session.pointerClickCollapseFrame = requestAnimationFrame(() => {
+  session.pointerClickCollapseFrame = ownerWindow.requestAnimationFrame(() => {
     session.pointerClickCollapseFrame = null;
     reassertPointerClickCollapse(context, target, expectedDoc);
   });
-  session.pointerClickCollapseTimeout = window.setTimeout(() => {
+  session.pointerClickCollapseTimeout = ownerWindow.setTimeout(() => {
     session.pointerClickCollapseTimeout = null;
     reassertPointerClickCollapse(context, target, expectedDoc);
   }, 0);
 }
 
 export function clearTextSelectionFromBlankPointerDown(context: TextSelectionOverlayViewContext): void {
-  const { session, view } = context;
+  const { ownerWindow, session, view } = context;
   session.pendingPointerClickCollapseTarget = null;
   cancelPointerClickCollapseReassertion(context);
   if (session.pointerNativeReleaseFrame !== null) {
-    cancelAnimationFrame(session.pointerNativeReleaseFrame);
+    ownerWindow.cancelAnimationFrame(session.pointerNativeReleaseFrame);
     session.pointerNativeReleaseFrame = null;
   }
 

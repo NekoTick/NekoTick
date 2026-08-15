@@ -1,6 +1,9 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { PointerCaretTarget } from './textSelectionOverlayViewTypes';
-import { iterateTextGraphemeRanges } from '../shared/pointerTextPosition';
+import {
+  clampDocPosition,
+  iterateTextGraphemeRanges,
+} from '../shared/pointerTextPosition';
 
 export const MAX_TEXT_SELECTION_CARET_GRAPHEMES = 2048;
 const MAX_TEXT_SELECTION_CARET_TEXT_NODES = 64;
@@ -9,6 +12,10 @@ const MAX_TEXT_SELECTION_CARET_RECTS = 4096;
 interface PointerCoordinates {
   clientX: number;
   clientY: number;
+}
+
+interface CaretTargetOptions {
+  preferCoordinates?: boolean;
 }
 
 function isInlineCaretTarget(view: EditorView, target: PointerCaretTarget): boolean {
@@ -205,10 +212,35 @@ function getNativeCaretTargetFromPoint(
 
 export function getCaretTargetFromPoint(
   view: EditorView,
-  event: PointerCoordinates
+  event: PointerCoordinates,
+  options: CaretTargetOptions = {},
 ): PointerCaretTarget | null {
+  const resolveCoordinates = (): PointerCaretTarget | null => {
+    try {
+      const coordsTarget = view.posAtCoords?.({
+        left: event.clientX,
+        top: event.clientY,
+      });
+      if (!coordsTarget || !isInlineCaretTarget(view, { pos: coordsTarget.pos })) return null;
+      return {
+        doc: view.state.doc,
+        pos: clampDocPosition(view, coordsTarget.pos),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  if (options.preferCoordinates) {
+    const coordsTarget = resolveCoordinates();
+    if (coordsTarget !== null) return coordsTarget;
+  }
+
   const nativeTarget = getNativeCaretTargetFromPoint(view, event);
   if (nativeTarget !== null) return nativeTarget;
+
+  const coordsTarget = resolveCoordinates();
+  if (coordsTarget !== null) return coordsTarget;
 
   const textNodeTarget = getTextNodeCaretTargetFromPoint(view, event);
   if (textNodeTarget !== null && isInlineCaretTarget(view, textNodeTarget)) {

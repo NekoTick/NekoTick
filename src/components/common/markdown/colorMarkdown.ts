@@ -17,10 +17,7 @@ export interface ColorMarkdownMdastNode {
   value?: string;
   children?: ColorMarkdownMdastNode[];
   color?: string;
-  data?: {
-    hName?: string;
-    hProperties?: Record<string, unknown>;
-  };
+  data?: { hName?: string; hProperties?: Record<string, unknown> };
   position?: MarkdownSourcePosition;
 }
 
@@ -70,10 +67,7 @@ export function createUnderlineMdastNode(children: ColorMarkdownMdastNode[]): Co
   };
 }
 
-export function createTextColorMdastNode(
-  color: string,
-  children: ColorMarkdownMdastNode[]
-): ColorMarkdownMdastNode {
+export function createTextColorMdastNode(color: string, children: ColorMarkdownMdastNode[]): ColorMarkdownMdastNode {
   return {
     type: 'textColor',
     color,
@@ -169,6 +163,44 @@ function parseSplitInlineColorHtmlMark(
   };
 }
 
+function parseNestedSplitInlineColorHtmlMark(
+  children: ColorMarkdownMdastNode[],
+  index: number,
+): ColorMarkdownMdastNode | null {
+  const [outerOpen, innerOpen, text, innerClose, outerClose] = children.slice(index, index + 5);
+  if (
+    outerOpen?.type !== 'html'
+    || innerOpen?.type !== 'html'
+    || text?.type !== 'text'
+    || innerClose?.type !== 'html'
+    || outerClose?.type !== 'html'
+    || typeof outerOpen.value !== 'string'
+    || typeof innerOpen.value !== 'string'
+    || typeof text.value !== 'string'
+    || typeof innerClose.value !== 'string'
+    || typeof outerClose.value !== 'string'
+  ) return null;
+
+  const semanticType = /^<em>$/i.test(innerOpen.value.trim())
+    && /^<\/em>$/i.test(innerClose.value.trim())
+      ? 'htmlEmphasis'
+      : /^<strong>$/i.test(innerOpen.value.trim())
+        && /^<\/strong>$/i.test(innerClose.value.trim())
+          ? 'htmlStrong'
+          : null;
+  if (!semanticType) return null;
+
+  const parsed = parseInlineColorHtml(`${outerOpen.value}x${outerClose.value}`);
+  if (!parsed || (parsed.type !== 'textColor' && parsed.type !== 'bgColor')) return null;
+  return {
+    ...parsed,
+    children: [{
+      type: semanticType,
+      children: [{ ...text, value: decodeMarkdownHtmlText(text.value) }],
+    }],
+  };
+}
+
 export function replaceInlineColorHtmlMark(
   tree: ColorMarkdownMdastNode,
   growthBudget: MarkdownAstGrowthBudget = createMarkdownAstGrowthBudget(tree)
@@ -182,15 +214,16 @@ export function replaceInlineColorHtmlMark(
       const child = node.children[index];
       if (child.type === 'html' && typeof child.value === 'string') {
         const singleNode = parseInlineColorHtml(child.value.trim());
-        const splitNode = singleNode ? null : parseSplitInlineColorHtmlMark(node.children, index);
-        const nextNode = singleNode ?? splitNode;
+        const nestedNode = singleNode ? null : parseNestedSplitInlineColorHtmlMark(node.children, index);
+        const splitNode = singleNode || nestedNode ? null : parseSplitInlineColorHtmlMark(node.children, index);
+        const nextNode = singleNode ?? nestedNode ?? splitNode;
         if (nextNode) {
-          const replacedNodeCount = splitNode ? 3 : 1;
+          const replacedNodeCount = nestedNode ? 5 : splitNode ? 3 : 1;
           const additionalNodes = countMarkdownAstNodes(nextNode) - replacedNodeCount;
           if (!growthBudget.consume(additionalNodes)) {
             continue;
           }
-          node.children.splice(index, splitNode ? 3 : 1, nextNode);
+          node.children.splice(index, replacedNodeCount, nextNode);
           continue;
         }
       }

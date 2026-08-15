@@ -13,12 +13,18 @@ import {
 
 const TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS = /[\u200B\u200C\u2800\n\r\u2028\u2029]/gu;
 
+function hasVisibleText(text: string): boolean {
+  TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS.lastIndex = 0;
+  return VISIBLE_TEXT_PATTERN.test(text.replace(TEXT_SELECTION_OVERLAY_EXCLUDED_CHARACTERS, ''));
+}
+
 export function addTextSelectionOverlayDecorations(
   decorations: Decoration[],
   text: string,
   nodeStart: number,
   selectionFrom: number,
-  selectionTo: number
+  selectionTo: number,
+  includeWhitespace = false,
 ): void {
   const from = Math.max(selectionFrom, nodeStart);
   const to = Math.min(selectionTo, nodeStart + text.length);
@@ -28,7 +34,7 @@ export function addTextSelectionOverlayDecorations(
     if (decorations.length >= MAX_TEXT_SELECTION_OVERLAY_DECORATIONS) return;
     if (rangeTo <= rangeFrom) return;
     const selectedText = text.slice(rangeFrom - nodeStart, rangeTo - nodeStart);
-    if (!VISIBLE_TEXT_PATTERN.test(selectedText)) {
+    if (!includeWhitespace && !VISIBLE_TEXT_PATTERN.test(selectedText)) {
       return;
     }
     decorations.push(Decoration.inline(rangeFrom, rangeTo, {
@@ -60,7 +66,7 @@ function forEachTextSelectionOverlayNode(
   doc: ProseNode,
   from: number,
   to: number,
-  visit: (node: ProseNode, pos: number) => boolean | void,
+  visit: (node: ProseNode, pos: number, parent: ProseNode) => boolean | void,
   maxScanNodes: number
 ): void {
   let scannedNodes = 0;
@@ -100,7 +106,7 @@ function forEachTextSelectionOverlayNode(
     }
 
     scannedNodes += 1;
-    const shouldDescend = visit(node, pos);
+    const shouldDescend = visit(node, pos, frame.node);
     if (shouldDescend === false || node.childCount === 0) {
       continue;
     }
@@ -121,10 +127,12 @@ export function addTextSelectionOverlayDecorationsForRange(
   to: number,
   options: {
     includeAtomicBlocks?: boolean;
+    includeText?: boolean;
     maxScanNodes?: number;
   } = {}
 ): void {
-  forEachTextSelectionOverlayNode(doc, from, to, (node, pos) => {
+  const visibleTextByParent = new Map<ProseNode, boolean>();
+  forEachTextSelectionOverlayNode(doc, from, to, (node, pos, parent) => {
     if (decorations.length >= MAX_TEXT_SELECTION_OVERLAY_DECORATIONS) {
       return false;
     }
@@ -141,16 +149,45 @@ export function addTextSelectionOverlayDecorationsForRange(
       return false;
     }
 
-    if (!node.isText) return undefined;
+    if (!node.isText || options.includeText === false) return undefined;
+    let parentHasVisibleText = visibleTextByParent.get(parent);
+    if (parentHasVisibleText === undefined) {
+      parentHasVisibleText = hasVisibleText(parent.textContent);
+      visibleTextByParent.set(parent, parentHasVisibleText);
+    }
     addTextSelectionOverlayDecorations(
       decorations,
       node.text ?? '',
       pos,
       from,
-      to
+      to,
+      parentHasVisibleText,
     );
     return undefined;
   }, options.maxScanNodes ?? MAX_TEXT_SELECTION_OVERLAY_SCAN_NODES);
+}
+
+export function createAtomicTextSelectionDecorationState(
+  state: EditorState,
+): Pick<TextSelectionOverlayState, 'decorationCount' | 'decorations'> {
+  if (!(state.selection instanceof AllSelection)) {
+    return { decorationCount: 0, decorations: DecorationSet.empty };
+  }
+
+  const decorations: Decoration[] = [];
+  addTextSelectionOverlayDecorationsForRange(
+    decorations,
+    state.doc,
+    state.selection.from,
+    state.selection.to,
+    { includeAtomicBlocks: true, includeText: false },
+  );
+  return {
+    decorationCount: decorations.length,
+    decorations: decorations.length > 0
+      ? DecorationSet.create(state.doc, decorations)
+      : DecorationSet.empty,
+  };
 }
 
 export function createTextSelectionDecorationState(

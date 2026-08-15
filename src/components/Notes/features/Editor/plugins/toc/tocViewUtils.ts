@@ -35,6 +35,18 @@ function normalizeHeadingLevel(value: unknown, maxLevel: number): number | null 
 }
 
 export function readBoundedTocHeadingText(node: BoundedProseScanNode): string {
+  if (typeof node.childCount === 'number' && typeof node.child === 'function') {
+    let text = '';
+    for (let index = 0; index < node.childCount && text.length < MAX_TOC_VIEW_HEADING_TEXT_CHARS; index += 1) {
+      const child = node.child(index);
+      if (!child || child.marks?.some((mark) => mark.type?.name === 'markdownSyntax')) continue;
+      if (typeof child.text === 'string') {
+        text += child.text.slice(0, MAX_TOC_VIEW_HEADING_TEXT_CHARS - text.length);
+      }
+    }
+    return text;
+  }
+
   const size = node.content?.size;
   if (typeof size === 'number' && Number.isFinite(size) && size >= 0 && typeof node.textBetween === 'function') {
     return node.textBetween(0, Math.min(size, MAX_TOC_VIEW_HEADING_TEXT_CHARS), '', '');

@@ -7,6 +7,7 @@ import {
   inlineCodeSchema,
   linkAttr,
   linkSchema,
+  markdownSyntaxSchema,
   strongAttr,
   strongSchema,
 } from '../mark'
@@ -73,6 +74,8 @@ export const schema: MilkdownPlugin[] = [
 
   listItemAttr,
   listItemSchema,
+
+  markdownSyntaxSchema,
 
   emphasisAttr,
   emphasisSchema,

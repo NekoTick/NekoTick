@@ -12,7 +12,7 @@ export function handleTextSelectionOverlayKeyDown(
   context: TextSelectionOverlayViewContext,
   event: KeyboardEvent
 ): void {
-  const { session, view } = context;
+  const { ownerWindow, session, view } = context;
   if (event.isComposing) {
     return;
   }
@@ -32,9 +32,9 @@ export function handleTextSelectionOverlayKeyDown(
   if (shouldSuppressInitialKeyboardSelection) {
     view.dom.classList.add(KEYBOARD_SELECTION_PENDING_CLASS);
     if (session.keyboardSelectionPendingCleanupTimeout !== null) {
-      window.clearTimeout(session.keyboardSelectionPendingCleanupTimeout);
+      ownerWindow.clearTimeout(session.keyboardSelectionPendingCleanupTimeout);
     }
-    session.keyboardSelectionPendingCleanupTimeout = window.setTimeout(() => {
+    session.keyboardSelectionPendingCleanupTimeout = ownerWindow.setTimeout(() => {
       session.keyboardSelectionPendingCleanupTimeout = null;
       if (!isTextSelectionOverlayEligible(view.state)) {
         view.dom.classList.remove(KEYBOARD_SELECTION_PENDING_CLASS);
@@ -63,10 +63,10 @@ export function handleTextSelectionOverlayKeyDown(
   }
 
   if (session.keyClearFrame !== null) {
-    cancelAnimationFrame(session.keyClearFrame);
+    ownerWindow.cancelAnimationFrame(session.keyClearFrame);
   }
 
-  session.keyClearFrame = requestAnimationFrame(() => {
+  session.keyClearFrame = ownerWindow.requestAnimationFrame(() => {
     session.keyClearFrame = null;
     clearKeyboardSelectionState(context);
   });

@@ -2,6 +2,34 @@
   container-type: inline-size;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+  z-index: var(--vlaina-z-1);
+}
+
+.milkdown {
+  position: relative;
+}
+
+.milkdown > .editor-text-selection-layer {
+  contain: layout style paint;
+  inset: var(--vlaina-space-0);
+  pointer-events: none;
+  position: absolute;
+  z-index: var(--vlaina-z-0);
+}
+
+.milkdown > .editor-text-selection-layer[hidden],
+.milkdown > .ProseMirror.toolbar-selection-hidden-preview + .editor-text-selection-layer,
+.milkdown > .ProseMirror[data-toolbar-preview-hidden='true'] + .editor-text-selection-layer {
+  display: none;
+}
+
+.milkdown > .editor-text-selection-layer > .editor-text-selection-layer-rect {
+  background-color: var(--vlaina-markdown-color-selection-layer);
+  border-radius: var(--vlaina-radius-0);
+  left: var(--vlaina-space-0);
+  pointer-events: none;
+  position: absolute;
+  top: var(--vlaina-space-0);
 }
 
 .milkdown .ProseMirror > p:not([data-text-align]):not(.is-editor-empty):not(.editor-block-selected):not(.editor-editable-markdown-blank-line):not(.editor-empty-paragraph):not(.editor-paragraph-has-image-block) {
@@ -28,19 +56,16 @@
 
 ::highlight(editor-large-all-selection) {
   background-color: var(--vlaina-markdown-color-selection);
-  color: var(--vlaina-color-white);
 }
 
 @supports not selector(::highlight(editor-large-all-selection)) {
   .milkdown .ProseMirror.editor-large-all-selection {
     background-color: var(--vlaina-markdown-color-selection);
-    color: var(--vlaina-color-white);
   }
 }
 
 .milkdown .ProseMirror .editor-large-selection-visible {
   background-color: var(--vlaina-markdown-color-selection);
-  color: var(--vlaina-color-white);
 }
 
 .milkdown .ProseMirror.toolbar-selection-hidden-preview::selection,
@@ -85,12 +110,10 @@
   -webkit-text-fill-color: currentColor !important;
 }
 
-.milkdown .ProseMirror .editor-text-selection-overlay {
+.milkdown .ProseMirror.editor-text-selection-inline-paint .editor-text-selection-overlay {
   background-color: var(--vlaina-markdown-color-selection);
   box-shadow: none;
   border-radius: var(--vlaina-radius-3px);
-  color: var(--vlaina-color-white) !important;
-  -webkit-text-fill-color: var(--vlaina-color-white) !important;
   line-height: inherit;
   padding-block: max(0px, calc((1lh - 1em) / 2));
   pointer-events: none;
@@ -98,10 +121,8 @@
   -webkit-box-decoration-break: clone;
 }
 
-.milkdown .ProseMirror .editor-text-selection-overlay::selection {
+.milkdown .ProseMirror.editor-text-selection-inline-paint .editor-text-selection-overlay::selection {
   background-color: transparent !important;
-  color: var(--vlaina-color-white) !important;
-  -webkit-text-fill-color: var(--vlaina-color-white) !important;
 }
 
 .milkdown .ProseMirror.toolbar-selection-hidden-preview .editor-text-selection-overlay {

@@ -5,24 +5,30 @@ import {
   KEY_EVENT_LISTENER_OPTIONS,
   POINTER_NATIVE_SELECTION_CLASS,
   POINTER_SELECTION_ACTIVE_ATTRIBUTE,
+  TEXT_SELECTION_INLINE_PAINT_CLASS,
   TEXT_SELECTION_OVERLAY_ACTIVE_CLASS,
 } from './textSelectionOverlayState';
 import { handleTextSelectionOverlayKeyDown } from './textSelectionOverlayKeyboard';
 import {
-  handleTextSelectionOverlayClick,
-  handleTextSelectionOverlayAutoScroll,
   handleTextSelectionOverlayMouseDown,
   handleTextSelectionOverlayMouseMove,
+} from './textSelectionOverlayPointerHandlers';
+import {
+  handleTextSelectionOverlayClick,
   handleTextSelectionOverlayMouseUp,
   handleTextSelectionOverlayWindowBlur,
-} from './textSelectionOverlayPointerHandlers';
+} from './textSelectionOverlayPointerRelease';
 import { cancelPointerClickCollapseReassertion } from './textSelectionOverlayPointerClick';
 import { setPointerNativeSelection, syncTextSelectionOverlayActiveClass } from './textSelectionOverlayViewSync';
 import type { TextSelectionOverlayViewContext, TextSelectionOverlayViewSession } from './textSelectionOverlayViewTypes';
 import { installLargeSelectionHighlight } from './largeSelectionHighlight';
+import { installTextSelectionLayer } from './textSelectionLayer';
 
 export function createTextSelectionOverlayPluginView(view: EditorView) {
+  const ownerDocument = view.dom.ownerDocument;
+  const ownerWindow = ownerDocument.defaultView!;
   const largeSelectionHighlight = installLargeSelectionHighlight(view);
+  const selectionLayer = installTextSelectionLayer(view);
   const scrollRoot = view.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
   let context: TextSelectionOverlayViewContext;
   const session: TextSelectionOverlayViewSession = {
@@ -30,7 +36,6 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
     keyClearFrame: null,
     keyboardSelectionPendingCleanupTimeout: null,
     lastClassSignature: '',
-    lastPointerSelectionX: null,
     lastPointerSelectionY: null,
     pendingPointerClickCollapseTarget: null,
     pointerClickCollapseFrame: null,
@@ -38,9 +43,6 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
     pointerClickCollapseTimeout: null,
     pointerDownPoint: null,
     pointerMovedSinceDown: false,
-    pointerTextSelectionActive: false,
-    pointerTextSelectionAnchor: null,
-    pointerTextSelectionDoc: null,
     pointerNativeReleaseFrame: null,
     pointerSelectionAutoScroll: createVerticalEdgeAutoScroll({
       scrollRoot,
@@ -49,14 +51,13 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
           ? session.lastPointerSelectionY
           : null
       ),
-      onScroll: () => handleTextSelectionOverlayAutoScroll(context),
     }),
     preserveNativeSelectionForKeyboard: false,
     isPointerSelectionActive: false,
     setPointerNativeSelection: (nextValue) => setPointerNativeSelection(context, nextValue),
     syncActiveClass: () => syncTextSelectionOverlayActiveClass(context),
   };
-  context = { session, view };
+  context = { ownerWindow, session, view };
 
   const handleMouseDown = (event: MouseEvent) => handleTextSelectionOverlayMouseDown(context, event);
   const handleMouseMove = (event: MouseEvent) => handleTextSelectionOverlayMouseMove(context, event);
@@ -64,50 +65,56 @@ export function createTextSelectionOverlayPluginView(view: EditorView) {
     if (largeSelectionHighlight.handleKeyDown(event)) return;
     handleTextSelectionOverlayKeyDown(context, event);
   };
-  const handleMouseUp = (event: MouseEvent) => handleTextSelectionOverlayMouseUp(context, event);
+  const handleMouseUp = (event: MouseEvent) => {
+    const shouldRefreshSelectionLayer = session.isPointerSelectionActive;
+    handleTextSelectionOverlayMouseUp(context, event);
+    if (shouldRefreshSelectionLayer) selectionLayer.refresh();
+  };
   const handleClick = (event: MouseEvent) => handleTextSelectionOverlayClick(context, event);
   const handleWindowBlur = () => handleTextSelectionOverlayWindowBlur(context);
 
-  const ownerDocument = view.dom.ownerDocument;
   view.dom.addEventListener('mousedown', handleMouseDown, true);
   view.dom.addEventListener('keydown', handleKeyDown, KEY_EVENT_LISTENER_OPTIONS);
   ownerDocument.addEventListener('mousemove', handleMouseMove, true);
   ownerDocument.addEventListener('mouseup', handleMouseUp, true);
   view.dom.addEventListener('click', handleClick, true);
-  window.addEventListener('blur', handleWindowBlur);
+  ownerWindow.addEventListener('blur', handleWindowBlur);
   session.syncActiveClass();
   return {
     update() {
       largeSelectionHighlight.update();
       session.syncActiveClass();
+      selectionLayer.update(session.isPointerSelectionActive);
     },
     destroy() {
       largeSelectionHighlight.destroy();
+      selectionLayer.destroy();
       if (session.keyClearFrame !== null) {
-        cancelAnimationFrame(session.keyClearFrame);
+        ownerWindow.cancelAnimationFrame(session.keyClearFrame);
       }
       if (session.keyboardSelectionPendingCleanupTimeout !== null) {
-        window.clearTimeout(session.keyboardSelectionPendingCleanupTimeout);
+        ownerWindow.clearTimeout(session.keyboardSelectionPendingCleanupTimeout);
         session.keyboardSelectionPendingCleanupTimeout = null;
       }
       view.dom.classList.remove(KEYBOARD_SELECTION_PENDING_CLASS);
       if (session.pointerNativeReleaseFrame !== null) {
-        cancelAnimationFrame(session.pointerNativeReleaseFrame);
+        ownerWindow.cancelAnimationFrame(session.pointerNativeReleaseFrame);
       }
       cancelPointerClickCollapseReassertion(context);
       if (session.clearNativeSelectionFrame !== null) {
-        cancelAnimationFrame(session.clearNativeSelectionFrame);
+        ownerWindow.cancelAnimationFrame(session.clearNativeSelectionFrame);
       }
       view.dom.removeEventListener('mousedown', handleMouseDown, true);
       view.dom.removeEventListener('keydown', handleKeyDown, KEY_EVENT_LISTENER_OPTIONS);
       ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
       ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
       view.dom.removeEventListener('click', handleClick, true);
-      window.removeEventListener('blur', handleWindowBlur);
+      ownerWindow.removeEventListener('blur', handleWindowBlur);
       session.pointerSelectionAutoScroll.stop();
       view.dom.classList.remove(TEXT_SELECTION_OVERLAY_ACTIVE_CLASS);
       view.dom.classList.remove(POINTER_NATIVE_SELECTION_CLASS);
       view.dom.classList.remove(KEYBOARD_SELECTION_PENDING_CLASS);
+      view.dom.classList.remove(TEXT_SELECTION_INLINE_PAINT_CLASS);
       view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
     },
   };

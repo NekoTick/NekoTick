@@ -4,6 +4,7 @@ import {
   LARGE_SELECTION_HIGHLIGHT_NAME,
   LARGE_SELECTION_VISIBLE_ELEMENT_CLASS,
 } from './textSelectionOverlayState';
+import { getVisibleSelectionWindowChildren } from './visibleSelectionWindow';
 
 interface EditorHighlightRegistry {
   set: (name: string, highlight: EditorHighlight) => void;
@@ -27,65 +28,9 @@ const rangesByDocument = new WeakMap<Document, Map<HTMLElement, readonly Range[]
 const highlightByDocument = new WeakMap<Document, EditorHighlight>();
 const visibleElementsByEditor = new WeakMap<HTMLElement, readonly HTMLElement[]>();
 
-function isCollapsedSelectionBlock(element: HTMLElement): boolean {
-  return element.matches('.heading-collapsed-content, .editor-collapsed-content');
-}
-
 export interface VisibleLargeSelectionHighlight {
   elements: readonly HTMLElement[];
   ranges: readonly Range[];
-}
-
-function getSelectionWindowChildren(view: EditorView): HTMLElement[] {
-  const children = view.dom.children;
-  if (children.length === 0) return [];
-
-  const ownerWindow = view.dom.ownerDocument.defaultView;
-  const editorRect = view.dom.getBoundingClientRect();
-  const scrollRoot = view.dom.closest<HTMLElement>('[data-note-scroll-root="true"]');
-  const scrollRect = scrollRoot?.getBoundingClientRect();
-  const viewportTop = Math.max(0, scrollRect?.top ?? 0);
-  const viewportBottom = Math.min(
-    ownerWindow?.innerHeight ?? Number.POSITIVE_INFINITY,
-    scrollRect?.bottom ?? Number.POSITIVE_INFINITY,
-  );
-  const centerY = viewportTop + (viewportBottom - viewportTop) / 2;
-  const centerX = editorRect.left + editorRect.width / 2;
-  const candidate = typeof view.dom.ownerDocument.elementFromPoint === 'function'
-    ? view.dom.ownerDocument.elementFromPoint(centerX, centerY)
-    : null;
-  const viewportChild = candidate instanceof Node ? getTopLevelChild(view, candidate) : null;
-  const nativeAnchor = view.root.getSelection()?.anchorNode;
-  const anchorChild = nativeAnchor ? getTopLevelChild(view, nativeAnchor) : null;
-  const centerChild = viewportChild ?? anchorChild;
-
-  const centerIndex = centerChild
-    ? Math.max(0, Array.prototype.indexOf.call(children, centerChild) as number)
-    : 0;
-  const visible: HTMLElement[] = [];
-  for (let index = centerIndex; index >= 0; index -= 1) {
-    const child = children.item(index);
-    if (!(child instanceof HTMLElement) || isCollapsedSelectionBlock(child)) continue;
-    const rect = child.getBoundingClientRect();
-    if (rect.bottom <= viewportTop) break;
-    if (rect.top < viewportBottom && rect.bottom > viewportTop) visible.unshift(child);
-  }
-  for (let index = centerIndex + 1; index < children.length; index += 1) {
-    const child = children.item(index);
-    if (!(child instanceof HTMLElement) || isCollapsedSelectionBlock(child)) continue;
-    const rect = child.getBoundingClientRect();
-    if (rect.top >= viewportBottom) break;
-    if (rect.bottom > viewportTop && rect.top < viewportBottom) visible.push(child);
-  }
-  if (visible.length === 0) {
-    const first = Math.max(0, centerIndex - 2);
-    const last = Math.min(children.length - 1, centerIndex + 2);
-    for (let index = first; index <= last; index += 1) {
-      const child = children.item(index);
-      if (child instanceof HTMLElement && !isCollapsedSelectionBlock(child)) visible.push(child);
-    }
-  }
-  return visible;
 }
 
 function getTopLevelChild(view: EditorView, node: Node): HTMLElement | null {
@@ -166,7 +111,7 @@ export function createVisibleLargeSelectionRanges(
   view: EditorView,
   spec: LargeSelectionHighlightSpec,
 ): VisibleLargeSelectionHighlight {
-  const visibleChildren = getSelectionWindowChildren(view);
+  const visibleChildren = getVisibleSelectionWindowChildren(view);
   if (spec.type === 'all') {
     return {
       elements: visibleChildren,

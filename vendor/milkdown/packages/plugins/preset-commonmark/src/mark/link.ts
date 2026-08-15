@@ -7,6 +7,7 @@ import { $command, $markAttr, $markSchema } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
 import { hasInternalImageUrlPathSegment, hasUrlCredentials } from '../__internal__/url-security'
+import { addMarkdownSyntax, markdownSyntaxSchema } from './markdown-syntax'
 
 const controlOrBidiPattern = /[\u0000-\u001F\u007F\u202A-\u202E\u2066-\u2069\uFFFD]/
 const schemePattern = /^([A-Za-z][A-Za-z0-9+.-]*):/
@@ -22,6 +23,15 @@ function getPersistedLinkHref(value: unknown) {
   return typeof value === 'string' && value.length > 0 && value.length <= maxLinkHrefChars
     ? value
     : null
+}
+
+function getLinkDestinationSource(href: string) {
+  const escaped = href.replace(/([\\<>])/g, '\\$1')
+  return /[\s()<>]/.test(href) ? `<${escaped}>` : href.replace(/([()])/g, '\\$1')
+}
+
+function getLinkTitleSource(title: string | null) {
+  return title ? ` "${title.replace(/(["\\])/g, '\\$1')}"` : ''
 }
 
 function hasUnsafeBackslashUrlSyntax(value: string) {
@@ -62,6 +72,7 @@ withMeta(linkAttr, {
 
 /// Link mark schema.
 export const linkSchema = $markSchema('link', (ctx) => ({
+  markdownSyntaxDelimited: true,
   attrs: {
     href: { validate: 'string' },
     title: { default: null, validate: 'string|null' },
@@ -103,9 +114,20 @@ export const linkSchema = $markSchema('link', (ctx) => ({
         return
       }
       const title = normalizeLinkTitle(node.title)
+      const syntaxMarkType = markdownSyntaxSchema.type(ctx)
+      addMarkdownSyntax(state, syntaxMarkType, '[', {
+        edge: 'open',
+        kind: 'link',
+      })
       state.openMark(markType, { href: url, title })
       state.next(node.children)
       state.closeMark(markType)
+      addMarkdownSyntax(
+        state,
+        syntaxMarkType,
+        `](${getLinkDestinationSource(url)}${getLinkTitleSource(title)})`,
+        { edge: 'close', kind: 'link' }
+      )
     },
   },
   toMarkdown: {

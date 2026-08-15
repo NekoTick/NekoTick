@@ -9,6 +9,7 @@ import {
 } from './markdownAstBudget';
 import { transformCalloutBlockquotes } from './remarkCalloutTransforms';
 import {
+  replaceDelimitedContainerMark,
   replaceDelimitedTextMark,
   replaceSingleTildeDeleteMark,
 } from './remarkDelimitedMarks';
@@ -44,6 +45,7 @@ export function remarkNotesInlineExtensions(options: RemarkNotesInlineExtensions
     applyAlignmentCommentsToTree(tree, markdown);
     transformCalloutBlockquotes(tree, markdown, growthBudget);
     replaceDelimitedTextMark(tree, 'highlight', /==([^=]+)==/g, markdown, 2, growthBudget);
+    replaceDelimitedContainerMark(tree, 'highlight', '==', markdown, growthBudget);
     replaceDelimitedTextMark(
       tree,
       'superscript',
@@ -64,6 +66,7 @@ export function remarkNotesInlineExtensions(options: RemarkNotesInlineExtensions
       replaceSingleTildeDeleteMark(tree, markdown);
     }
     replaceUnderlineMarkdown(tree, markdown, growthBudget);
+    replaceDelimitedContainerMark(tree, 'underline', '++', markdown, growthBudget);
     replaceInlineColorHtmlMark(tree, growthBudget);
     replaceInlineHtmlMark(tree, 'highlight', /^<mark>([\s\S]*?)<\/mark>$/i, growthBudget);
     replaceInlineHtmlMark(tree, 'superscript', /^<sup>([\s\S]*?)<\/sup>$/i, growthBudget);

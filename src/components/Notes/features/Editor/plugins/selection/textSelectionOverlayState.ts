@@ -5,7 +5,6 @@ import { hasSelectedBlocks } from '../cursor/blockSelectionPluginState';
 import { DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT } from '../shared/boundedProseNodeScan';
 
 export const TEXT_SELECTION_OVERLAY_CLASS = 'editor-text-selection-overlay';
-export const TEXT_SELECTION_OVERLAY_FORCE_CLASS = 'editor-text-selection-overlay-force';
 export const TEXT_SELECTION_OVERLAY_ACTIVE_CLASS = 'editor-text-selection-overlay-active';
 export const POINTER_NATIVE_SELECTION_CLASS = 'editor-pointer-native-selection';
 export const LARGE_SELECTION_CLASS = 'editor-large-all-selection';
@@ -15,6 +14,8 @@ export const POINTER_SELECTION_ACTIVE_ATTRIBUTE = 'data-editor-pointer-selecting
 export const KEYBOARD_SELECTION_PENDING_CLASS = 'editor-keyboard-selection-pending';
 export const KEY_EVENT_LISTENER_OPTIONS = { capture: true };
 export const POINTER_NATIVE_SELECTION_META = 'editorTextSelectionPointerNative';
+export const TEXT_SELECTION_INLINE_DECORATIONS_META = 'editorTextSelectionInlineDecorations';
+export const TEXT_SELECTION_INLINE_PAINT_CLASS = 'editor-text-selection-inline-paint';
 export const VISIBLE_TEXT_PATTERN = /\S/u;
 export const MAX_TEXT_SELECTION_OVERLAY_DECORATIONS = 1000;
 export const MAX_TEXT_SELECTION_OVERLAY_SCAN_NODES = DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT;
@@ -31,6 +32,7 @@ const largeSelectionNodeScanCache = new WeakMap<object, {
 export interface TextSelectionOverlayState {
   decorations: DecorationSet;
   decorationCount: number;
+  renderInlineDecorations: boolean;
   usePointerNativeSelection: boolean;
 }
 
@@ -51,12 +53,8 @@ export function isModifiedNavigationKey(event: KeyboardEvent): boolean {
   return event.shiftKey || event.ctrlKey || event.metaKey || event.altKey;
 }
 
-export function getNativeSelectionMetrics() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const selection = window.getSelection();
+export function getNativeSelectionMetrics(view: EditorView) {
+  const selection = view.dom.ownerDocument.defaultView?.getSelection();
   if (!selection || selection.rangeCount === 0) {
     return null;
   }
@@ -156,4 +154,11 @@ export function isLargeEditorSelection(state: EditorState): boolean {
 
 export function showTextSelectionOverlayForTransaction(tr: EditorState['tr']): EditorState['tr'] {
   return tr.setMeta(POINTER_NATIVE_SELECTION_META, false);
+}
+
+export function setTextSelectionInlineDecorationsForTransaction(
+  tr: EditorState['tr'],
+  enabled: boolean,
+): EditorState['tr'] {
+  return tr.setMeta(TEXT_SELECTION_INLINE_DECORATIONS_META, enabled);
 }

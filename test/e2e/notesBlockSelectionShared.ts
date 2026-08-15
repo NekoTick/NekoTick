@@ -1,41 +1,10 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import { EDITOR_SELECTOR } from "./notesE2E";
-import type { BlockTextMatcher } from "./notesBlockSelectionDragHelpers";
 
-export async function openBlockSelectionFixture(page: Page): Promise<void> {
-  const { notePath } = await page.evaluate(() =>
-    (window as any).__vlainaE2E.createNotesFixture({
-      filename: 'block-selection.md',
-      content: [
-        '# Block Selection',
-        '',
-        'First selectable paragraph',
-        '',
-        'Second selectable paragraph',
-        '',
-        '- Parent item',
-        '  ```js',
-        '  const value = 1',
-        '  ```',
-        '',
-        'Final paragraph',
-        '',
-      ].join('\n'),
-    })
-  );
-
-  await page.evaluate((pathToOpen) => (window as any).__vlainaE2E.openAbsoluteNote(pathToOpen), notePath);
-  await expect(page.locator(EDITOR_SELECTOR)).toBeVisible();
-  await expect(page.locator(`${EDITOR_SELECTOR} p`, { hasText: 'First selectable paragraph' })).toBeVisible();
-  await expect(page.locator(`${EDITOR_SELECTOR} p`, { hasText: 'Second selectable paragraph' })).toBeVisible();
-}
-
-export async function expectSelectedParagraphs(page: Page, texts: string[]): Promise<void> {
-  await expect.poll(async () => page.evaluate((expectedTexts) => {
-    const selected = Array.from(document.querySelectorAll<HTMLElement>('.milkdown .ProseMirror .editor-block-selected'));
-    return expectedTexts.map((text) => selected.some((element) => element.textContent?.includes(text)));
-  }, texts)).toEqual(texts.map(() => true));
-}
+type BlockTextMatcher = {
+  include?: string;
+  exact?: string;
+  exclude?: string[];
+};
 
 export async function selectNoteBlocksByMatchers(page: Page, matchers: BlockTextMatcher[]): Promise<void> {
   const result = await page.evaluate(async (targetMatchers) => {
@@ -130,7 +99,7 @@ export async function moveMouseToBlockHandleGutter(
   await moveMouseToBlockHandleGutterAtRect(page, rect, options);
 }
 
-export async function moveMouseToBlockHandleGutterAtRect(
+async function moveMouseToBlockHandleGutterAtRect(
   page: Page,
   rect: { x?: number; y?: number; left?: number; top?: number; width: number; height: number },
   options: MoveMouseToBlockHandleGutterOptions = {},
@@ -224,7 +193,7 @@ export async function measureVisibleHandleGeometry(
   return geometry!;
 }
 
-export function expectHandleCenteredOnTarget(geometry: { controlsCenterY: number; targetCenterY: number }): void {
+function expectHandleCenteredOnTarget(geometry: { controlsCenterY: number; targetCenterY: number }): void {
   expect(Math.abs(geometry.controlsCenterY - geometry.targetCenterY)).toBeLessThanOrEqual(2);
 }
 
@@ -250,33 +219,4 @@ export function expectHandleAnchoredToOuterListRow(geometry: {
   expect(geometry.anchorGapX).toBeLessThan(88);
   expect(geometry.targetIndentFromAnchorX).toBeGreaterThan(16);
   expect(geometry.targetGapX).toBeGreaterThan(geometry.anchorGapX + 16);
-}
-
-export async function measureCollapseToggleClearance(
-  page: Page,
-  input: {
-    targetSelector: string;
-    targetText: string;
-    toggleSelector: string;
-  },
-): Promise<{
-  handleGapX: number;
-}> {
-  const geometry = await page.evaluate(({ targetSelector, targetText, toggleSelector }) => {
-    const target = Array.from(document.querySelectorAll<HTMLElement>(targetSelector))
-      .find((element) => element.textContent?.includes(targetText)) ?? null;
-    const controls = document.querySelector<HTMLElement>('.editor-block-controls.visible, .editor-block-controls.dragging');
-    const toggle = target?.querySelector<HTMLElement>(toggleSelector) ?? null;
-    if (!target || !controls || !toggle) return null;
-
-    const controlsRect = controls.getBoundingClientRect();
-    const toggleRect = toggle.getBoundingClientRect();
-
-    return {
-      handleGapX: toggleRect.left - controlsRect.right,
-    };
-  }, input);
-
-  expect(geometry).not.toBeNull();
-  return geometry!;
 }

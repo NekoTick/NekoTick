@@ -10,6 +10,7 @@ import {
 } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
+import { addMarkdownSyntax, markdownSyntaxSchema } from './markdown-syntax'
 
 /// HTML attributes for the emphasis mark.
 export const emphasisAttr = $markAttr('emphasis')
@@ -21,6 +22,7 @@ withMeta(emphasisAttr, {
 
 /// Emphasis mark schema.
 export const emphasisSchema = $markSchema('emphasis', (ctx) => ({
+  markdownSyntaxDelimited: true,
   attrs: {
     marker: {
       default: ctx.get(remarkStringifyOptionsCtx).emphasis || '*',
@@ -36,9 +38,19 @@ export const emphasisSchema = $markSchema('emphasis', (ctx) => ({
   parseMarkdown: {
     match: (node) => node.type === 'emphasis',
     runner: (state, node, markType) => {
-      state.openMark(markType, { marker: node.marker })
+      const marker = node.marker === '_' ? '_' : '*'
+      const syntaxMarkType = markdownSyntaxSchema.type(ctx)
+      addMarkdownSyntax(state, syntaxMarkType, marker, {
+        edge: 'open',
+        kind: 'emphasis',
+      })
+      state.openMark(markType, { marker })
       state.next(node.children)
       state.closeMark(markType)
+      addMarkdownSyntax(state, syntaxMarkType, marker, {
+        edge: 'close',
+        kind: 'emphasis',
+      })
     },
   },
   toMarkdown: {

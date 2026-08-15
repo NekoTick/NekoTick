@@ -124,6 +124,7 @@
   --vlaina-markdown-color-code-list: var(--vlaina-code-syntax-list);
   --vlaina-markdown-color-code-invalid: var(--vlaina-code-syntax-invalid);
   --vlaina-markdown-color-selection: var(--text-selection);
+  --vlaina-markdown-color-selection-layer: var(--text-selection);
   width: 100%;
   min-width: 0;
   box-sizing: border-box;

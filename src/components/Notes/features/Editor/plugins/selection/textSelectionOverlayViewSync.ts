@@ -6,6 +6,7 @@ import {
   POINTER_NATIVE_SELECTION_CLASS,
   POINTER_NATIVE_SELECTION_META,
   TEXT_SELECTION_OVERLAY_ACTIVE_CLASS,
+  TEXT_SELECTION_INLINE_PAINT_CLASS,
   clearNativeSelectionRange,
   getNativeSelectionMetrics,
   isLargeEditorSelection,
@@ -33,13 +34,14 @@ export function getEmptyTextSelectionOverlayDecorationState() {
   return { decorationCount: 0, decorations: DecorationSet.empty };
 }
 
-export function scheduleClearNativeSelection({ session, view }: TextSelectionOverlayViewContext): void {
+export function scheduleClearNativeSelection(context: TextSelectionOverlayViewContext): void {
+  const { ownerWindow, session, view } = context;
   if (session.clearNativeSelectionFrame !== null) return;
 
-  session.clearNativeSelectionFrame = requestAnimationFrame(() => {
+  session.clearNativeSelectionFrame = ownerWindow.requestAnimationFrame(() => {
     session.clearNativeSelectionFrame = null;
     if (session.isPointerSelectionActive) return;
-    const nativeSelection = getNativeSelectionMetrics();
+    const nativeSelection = getNativeSelectionMetrics(view);
     const shouldClearNativeRangeForOverlay =
       !session.isPointerSelectionActive &&
       !session.preserveNativeSelectionForKeyboard &&
@@ -71,6 +73,10 @@ export function syncTextSelectionOverlayActiveClass(context: TextSelectionOverla
     session.preserveNativeSelectionForKeyboard = false;
   }
   view.dom.classList.toggle(TEXT_SELECTION_OVERLAY_ACTIVE_CLASS, active);
+  view.dom.classList.toggle(
+    TEXT_SELECTION_INLINE_PAINT_CLASS,
+    Boolean(pluginState?.renderInlineDecorations),
+  );
   view.dom.classList.toggle(POINTER_NATIVE_SELECTION_CLASS, showPointerNativeSelection);
   if (active || !usePointerNativeSelection) {
     view.dom.classList.remove(KEYBOARD_SELECTION_PENDING_CLASS);
@@ -79,12 +85,13 @@ export function syncTextSelectionOverlayActiveClass(context: TextSelectionOverla
     active ? 'overlay-active' : 'overlay-inactive',
     showPointerNativeSelection ? 'native-active' : 'native-inactive',
     pluginState?.decorationCount ?? 0,
+    pluginState?.renderInlineDecorations ? 'inline-paint' : 'layer-paint',
   ].join(':');
   if (classSignature !== session.lastClassSignature) {
     session.lastClassSignature = classSignature;
     if (!active || usePointerNativeSelection) return;
     if (session.isPointerSelectionActive) return;
-    const nativeSelection = getNativeSelectionMetrics();
+    const nativeSelection = getNativeSelectionMetrics(view);
     if (
       nativeSelection &&
       !nativeSelection.isCollapsed &&

@@ -22,6 +22,10 @@ interface ProseMirrorDocView {
   ) => void;
 }
 
+function getProseMirrorDocView(view: EditorView): ProseMirrorDocView | null {
+  return (view as EditorView & { docView?: ProseMirrorDocView }).docView ?? null;
+}
+
 function getLargeSelectionBoundary(event: KeyboardEvent): 'end' | 'start' | null {
   if (event.isComposing || !event.shiftKey || event.altKey) return null;
   if (event.ctrlKey && event.key === 'End') return 'end';
@@ -163,7 +167,7 @@ export function installLargeSelectionHighlight(view: EditorView): {
 
   const update = () => {
     // ProseMirror's full native DOM range is replaced by the bounded highlight for large selections.
-    const nextDocView = (view as unknown as { docView?: ProseMirrorDocView }).docView ?? null;
+    const nextDocView = getProseMirrorDocView(view);
     if (nextDocView === docView) {
       syncHighlight();
       return;

@@ -27,6 +27,7 @@ export function readBoundedHeadingText(element: HTMLElement): string {
     node && text.length < MAX_OUTLINE_HEADING_TEXT_CHARS;
     node = walker.nextNode()
   ) {
+    if (node.parentElement?.closest('[data-markdown-syntax]')) continue;
     const value = node.nodeValue ?? '';
     if (value.length === 0) continue;
     const remaining = MAX_OUTLINE_HEADING_TEXT_CHARS - text.length;

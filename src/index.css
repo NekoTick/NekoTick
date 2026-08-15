@@ -547,12 +547,10 @@ html[data-shell-sidebar-peek-open] :is(
 
 ::selection {
   background-color: var(--vlaina-selection-bg);
-  color: var(--vlaina-color-white);
 }
 
 ::-moz-selection {
   background-color: var(--vlaina-selection-bg);
-  color: var(--vlaina-color-white);
 }
 
 ::-webkit-scrollbar-corner, .app-scrollbar::-webkit-scrollbar-corner {

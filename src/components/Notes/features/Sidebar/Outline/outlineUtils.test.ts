@@ -24,9 +24,13 @@ describe('outlineUtils', () => {
 
   it('reads heading text from text nodes with a fixed budget', () => {
     const heading = document.createElement('h2');
+    const syntax = document.createElement('span');
+    syntax.dataset.markdownSyntax = 'heading';
+    syntax.textContent = '## ';
     heading.append(
       document.createTextNode('Alpha   '),
       document.createElement('span'),
+      syntax,
       document.createTextNode('Beta'),
     );
     heading.querySelector('span')?.appendChild(document.createTextNode('Nested'));

@@ -23,6 +23,7 @@ import { mermaidEditorPlugin } from '../plugins/mermaid/mermaidEditorPlugin';
 import { htmlBlockEditorPlugin } from '../plugins/html-block/htmlBlockEditorPlugin';
 import { remarkSourceTightHtmlBoundariesPlugin } from '../plugins/html-block/htmlBlockMarkdown';
 import { htmlInlineSourceTextPlugin } from '../plugins/html-inline';
+import { markdownSyntaxPlugin } from '../plugins/markdown-syntax';
 import { backslashHardBreakTextPlugins } from '../plugins/hard-break';
 import { codePlugin } from '../plugins/code/codePlugin';
 import { codeBlockPlugins } from '../plugins/code/codeKeymap';
@@ -147,6 +148,7 @@ export const customPluginGroups = [
     name: 'interaction-overlays',
     plugins: [
       textSelectionOverlayPlugin,
+      markdownSyntaxPlugin,
       nativeSelectedNodeClassesPlugin,
       editorFindPlugin,
       tagTokenPlugin,

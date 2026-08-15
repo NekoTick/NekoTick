@@ -10,10 +10,7 @@ import {
   releaseCaretBlink,
 } from '@/lib/ui/caretOverlayStyles';
 import { isTagTokenBoundary } from './textBlockCaretTagBoundary';
-import {
-  resolveEmptyHeadingMarkerCaretRect,
-  resolveTextBlockCaretLineHeight,
-} from './textBlockCaretGeometry';
+import { resolveTextBlockCaretLineHeight } from './textBlockCaretGeometry';
 import { isBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
 
@@ -300,10 +297,7 @@ export class TextBlockCaretOverlayView {
 
     let rect: { left: number; top: number; bottom: number };
     try {
-      rect = resolveEmptyHeadingMarkerCaretRect(
-        this.view,
-        this.view.state.selection.head,
-      ) ?? this.view.coordsAtPos(this.view.state.selection.head);
+      rect = this.view.coordsAtPos(this.view.state.selection.head);
     } catch {
       if (this.keepLastCaretVisibleDuringKeyboardNavigation()) {
         return;

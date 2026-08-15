@@ -1,0 +1,1 @@
+export { markdownSyntaxPlugin } from './markdownSyntaxPlugin';

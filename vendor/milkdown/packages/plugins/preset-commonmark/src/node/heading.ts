@@ -14,6 +14,7 @@ import {
 } from '@milkdown/utils'
 
 import { serializeText, withMeta } from '../__internal__'
+import { addMarkdownSyntax, markdownSyntaxSchema } from '../mark/markdown-syntax'
 import { paragraphSchema } from './paragraph'
 import { createSetextHeadingFromDelimiter } from './setext-heading-input'
 
@@ -33,6 +34,7 @@ export function getBoundedHeadingTextForId(
   while (stack.length > 0 && text.length < maxChars) {
     const current = stack.pop()!
     if (current.isText) {
+      if (current.marks.some((mark) => mark.type.name === 'markdownSyntax')) continue
       text += (current.text ?? '').slice(0, maxChars - text.length)
       continue
     }
@@ -115,6 +117,10 @@ export const headingSchema = $nodeSchema('heading', (ctx) => {
       runner: (state, node, type) => {
         const depth = node.depth as number
         state.openNode(type, { level: depth })
+        addMarkdownSyntax(state, markdownSyntaxSchema.type(ctx), `${'#'.repeat(depth)} `, {
+          edge: 'prefix',
+          kind: 'heading',
+        })
         state.next(node.children)
         state.closeNode()
       },

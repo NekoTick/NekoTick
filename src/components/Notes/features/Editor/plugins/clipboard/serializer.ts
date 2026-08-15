@@ -36,6 +36,9 @@ export function serializeSliceToText(slice: any): string {
         }
 
         if (node.isText && node.text) {
+            if (node.marks?.some((mark: any) => mark.type.name === 'markdownSyntax')) {
+                return '';
+            }
             const linkMark = node.marks?.find((m: any) => m.type.name === 'link');
             if (linkMark) {
                 const href = linkMark.attrs?.href;

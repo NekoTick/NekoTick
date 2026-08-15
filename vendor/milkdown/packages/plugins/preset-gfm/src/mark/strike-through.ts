@@ -10,6 +10,7 @@ import {
 } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
+import { addMarkdownSyntax, markdownSyntaxSchema } from '@milkdown/preset-commonmark'
 
 /// HTML attributes for the strikethrough mark.
 export const strikethroughAttr = $markAttr('strike_through')
@@ -21,6 +22,7 @@ withMeta(strikethroughAttr, {
 
 /// Strikethrough mark schema.
 export const strikethroughSchema = $markSchema('strike_through', (ctx) => ({
+  markdownSyntaxDelimited: true,
   parseDOM: [
     { tag: 'del' },
     { tag: 's' },
@@ -34,9 +36,18 @@ export const strikethroughSchema = $markSchema('strike_through', (ctx) => ({
   parseMarkdown: {
     match: (node) => node.type === 'delete',
     runner: (state, node, markType) => {
+      const syntaxMarkType = markdownSyntaxSchema.type(ctx)
+      addMarkdownSyntax(state, syntaxMarkType, '~~', {
+        edge: 'open',
+        kind: 'strike_through',
+      })
       state.openMark(markType)
       state.next(node.children)
       state.closeMark(markType)
+      addMarkdownSyntax(state, syntaxMarkType, '~~', {
+        edge: 'close',
+        kind: 'strike_through',
+      })
     },
   },
   toMarkdown: {

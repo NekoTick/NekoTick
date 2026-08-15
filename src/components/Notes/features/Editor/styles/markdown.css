@@ -60,42 +60,25 @@
   position: relative;
 }
 
-.milkdown .ProseMirror .heading-markdown-marker {
-  color: var(--vlaina-soft-placeholder);
-  font-size: inherit;
+.milkdown .ProseMirror .markdown-syntax {
+  color: var(--vlaina-soft-placeholder) !important;
+  -webkit-text-fill-color: var(--vlaina-soft-placeholder) !important;
+  font-family: inherit;
+  font-size: 0;
+  font-style: inherit;
   font-weight: inherit;
   letter-spacing: 0;
   line-height: inherit;
-  pointer-events: none;
-  user-select: none;
+  pointer-events: auto;
+  user-select: text;
   white-space: pre;
 }
 
-.milkdown .ProseMirror .heading-markdown-marker:not(
-  .heading-markdown-marker-empty
-):not(.heading-markdown-marker-block-selected) {
-  pointer-events: auto;
+.milkdown .ProseMirror .markdown-source-expanded .markdown-syntax {
+  font-size: inherit;
 }
 
-.milkdown .ProseMirror .heading-markdown-marker-empty ~ :is(
-  img.ProseMirror-separator,
-  br.ProseMirror-trailingBreak
-) {
-  display: none;
-}
-
-.milkdown .ProseMirror[data-editor-pointer-selecting='true'] .heading-markdown-marker:not(.heading-markdown-marker-empty):not(.heading-markdown-marker-block-selected):not(.heading-markdown-marker-retained) {
-  display: none;
-}
-
-.milkdown .ProseMirror .heading-markdown-fully-selected .editor-text-selection-overlay,
-.milkdown .ProseMirror :is(h1, h2, h3, h4, h5, h6):has(
-  > .heading-markdown-marker-pointer-selected
-) .editor-text-selection-overlay {
-  border-radius: var(--vlaina-radius-0);
-}
-
-.milkdown .ProseMirror:not(.toolbar-selection-hidden-preview) :is(
+.milkdown .ProseMirror.editor-text-selection-inline-paint:not(.toolbar-selection-hidden-preview) :is(
   h1,
   h2,
   h3,

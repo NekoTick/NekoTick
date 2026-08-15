@@ -500,6 +500,7 @@
   --vlaina-markdown-color-code-addition-bg: var(--vlaina-code-syntax-addition-bg);
   --vlaina-markdown-color-code-deletion-bg: var(--vlaina-code-syntax-deletion-bg);
   --vlaina-markdown-color-selection: var(--vlaina-color-selection);
+  --vlaina-markdown-color-selection-layer: var(--vlaina-markdown-color-selection);
   --vlaina-markdown-color-task-border: var(--vlaina-markdown-color-text-subtle);
   --vlaina-markdown-color-task-checked-bg: var(--vlaina-markdown-color-link);
   --vlaina-markdown-color-task-checked-text: var(--vlaina-markdown-color-text-subtle);
@@ -764,7 +765,7 @@
   --vlaina-typora-fixed-light-accent: #1e96eb;
   --vlaina-typora-fixed-light-accent-hover: #0c7fd9;
   --vlaina-typora-fixed-light-accent-soft: rgb(39 131 222 / 0.12);
-  --vlaina-typora-fixed-light-selection: #2781db;
+  --vlaina-typora-fixed-light-selection: #54aeff;
   --vlaina-typora-fixed-light-text-primary: #2c2c2b;
   --vlaina-typora-fixed-light-text-secondary: #636363;
   --vlaina-typora-fixed-light-border: #e3e2e4;
@@ -840,7 +841,7 @@
   --vlaina-brand-qq: #12b7f5;
   --vlaina-brand-wechat: #07c160;
   --vlaina-color-caret: #41ace2;
-  --vlaina-color-selection: #2781db;
+  --vlaina-color-selection: #54aeff;
   --vlaina-color-info: #3b82f6;
   --vlaina-color-success: #22c55e;
   --vlaina-color-warning: #f59e0b;
