@@ -8,6 +8,7 @@ import { prepareNotesForReload } from '@/stores/notes/prepareNotesForReload';
 interface ErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode;
+  onError?: (error: Error, info: ErrorInfo) => void;
   resetKey?: string;
 }
 
@@ -58,6 +59,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     const componentStack = info.componentStack ?? '';
     const reportedAt = new Date().toISOString();
     this.setState({ componentStack, reportedAt });
+    this.props.onError?.(error, info);
 
     const desktopApp = getElectronBridge()?.app;
     void Promise.all([

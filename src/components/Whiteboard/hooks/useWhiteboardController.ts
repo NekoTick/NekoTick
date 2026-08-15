@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type Dispatch, type MouseEvent, type SetStateAction } from 'react';
+import { useCallback, useMemo, useRef, useState, type Dispatch, type MouseEvent, type PointerEvent, type SetStateAction } from 'react';
 import { useWhiteboardBoardActions } from './useWhiteboardBoardActions';
 import { useWhiteboardBrushCursor } from './useWhiteboardBrushCursor';
 import { useWhiteboardBrushSizes } from './useWhiteboardBrushSizes';
@@ -73,6 +73,7 @@ export function useWhiteboardController({
   const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
   const setSelectedElementId = useCallback<Dispatch<SetStateAction<string | null>>>((value) => setSelectedElementIds((current) => { const id = typeof value === 'function' ? value(current[0] ?? null) : value; return id ? [id] : []; }), []);
   const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([]);
+  const [penInputDetected, setPenInputDetected] = useState(false);
   const [dragState, setDragState] = useState<WhiteboardDragState | null>(null);
   const { brushCursorPoint, setBrushCursorPoint } = useWhiteboardBrushCursor();
   const { canRedo, canUndo, pushHistory, redo, undo } = useWhiteboardHistory({ active, elements, historyKey: activeBoardId, paper: paperStyle, setElements, setPaper: setPaperStyle, setStrokes, strokes });
@@ -171,6 +172,9 @@ export function useWhiteboardController({
     setSelectedStrokeIds, spacePressedRef,
     startStrokeSelection, startTextEditing: textEditing.startTextEditing, strokeIdRef, tool, updateLinearPoint, updatePointer, updateSelectionRotation, viewport, viewportRef,
   });
+  const handleInputPointerType = useCallback((event: PointerEvent<HTMLElement>) => {
+    setPenInputDetected(event.pointerType === 'pen');
+  }, []);
   const handleViewportPointerDown = useCallback((event: Parameters<typeof pointerActions.handleViewportPointerDown>[0]) => {
     if (textEditing.editing) {
       textEditing.commitTextEditing();
@@ -203,14 +207,14 @@ export function useWhiteboardController({
     clearBoard: boardActions.clearBoard,
     draftStroke,
     elements, eraserPreview: eraser.preview,
-    copyBoardToClipboard, exportBoard, handleElementPointerDown, handleLinearPointPointerDown, handlePointerMove: pointerActions.handlePointerMove, handleViewportDoubleClick, importImage,
+    copyBoardToClipboard, exportBoard, handleElementPointerDown, handleInputPointerType, handleLinearPointPointerDown, handlePointerMove: pointerActions.handlePointerMove, handleViewportDoubleClick, importImage,
     handleRedo: boardActions.handleRedo,
     handleSelectionMovePointerDown, handleSelectionResizePointerDown, handleSelectionRotationPointerDown, handleUndo: boardActions.handleUndo, handleViewportPointerDown, handleWheel: boardActions.handleWheel,
     fitView: boardActions.fitView,
     isPanning: pointerActions.isPanning,
     onCopy: clipboard.copySelection,
     onDuplicate: clipboard.duplicateSelection, onPaste: clipboard.pasteSelection, resetView: boardActions.resetView,
-    paperStyle,
+    paperStyle, penInputDetected,
     movePreview: pointerActions.movePreview,
     renderData,
     resizePreview: getWhiteboardResizePreview(dragState),

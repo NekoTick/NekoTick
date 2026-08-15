@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useNotesStore } from '@/stores/useNotesStore';
@@ -38,6 +38,7 @@ export function MarkdownEditor({
   isPeeking = false,
   peekOffset = 0,
   onEditorViewReady,
+  onSourceSurfaceChange,
   compactHeader = false,
   hideNoteActions = false,
 }: {
@@ -45,6 +46,7 @@ export function MarkdownEditor({
   isPeeking?: boolean;
   peekOffset?: number;
   onEditorViewReady?: () => void;
+  onSourceSurfaceChange?: (isSourceSurface: boolean) => void;
   compactHeader?: boolean;
   hideNoteActions?: boolean;
 }) {
@@ -137,11 +139,12 @@ export function MarkdownEditor({
   });
   const {
     getCurrentNoteContent,
-    handleEditorContentSyncFailure,
+    handleRenderedEditorFailure,
     handleEditorViewReady,
     handleToggleSourceMode,
     isEditorViewReady,
     isSourceMode,
+    isSourceSurface,
     shouldUseSourceFallback,
   } = useMarkdownEditorSourceMode({
     currentNotePath,
@@ -151,6 +154,9 @@ export function MarkdownEditor({
     onModeSwitchLayoutReady: handleModeSwitchLayoutReady,
     scrollRootRef,
   });
+  useEffect(() => {
+    onSourceSurfaceChange?.(isSourceSurface);
+  }, [isSourceSurface, onSourceSurfaceChange]);
   const {
     coverController,
     coverLayoutActive,
@@ -179,7 +185,7 @@ export function MarkdownEditor({
             currentNotePath={currentNotePath}
             currentNoteTitle={currentNoteTitle}
             getCurrentNoteContent={getCurrentNoteContent}
-            isSourceMode={isSourceMode}
+            isSourceMode={isSourceSurface}
             onToggleSourceMode={handleToggleSourceMode}
             notesPath={notesPath}
             starred={starred}
@@ -264,6 +270,7 @@ export function MarkdownEditor({
                     />
                   ) : (
                     <ErrorBoundary
+                      onError={handleRenderedEditorFailure}
                       resetKey={currentNotePath}
                       fallback={(
                         <MarkdownSourceEditor
@@ -278,7 +285,7 @@ export function MarkdownEditor({
                       <MilkdownEditorRuntime
                         active={active}
                         showBodyLineNumbers={showBodyLineNumbers}
-                        onEditorContentSyncFailure={handleEditorContentSyncFailure}
+                        onEditorContentSyncFailure={handleRenderedEditorFailure}
                         onEditorViewReady={handleEditorViewReady}
                       />
                     </ErrorBoundary>

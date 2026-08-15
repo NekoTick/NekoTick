@@ -13,13 +13,14 @@ export function getTextBlockVlookKind(
   node: any,
   runs: InlineTextRun[]
 ): VlookTextBlockKind | null {
-  if (node.type?.name !== 'paragraph' || runs.length === 0 || getTextContent(node).trim() === '') {
+  const visibleRuns = runs.filter((run) => !run.isMarkdownSyntax);
+  if (node.type?.name !== 'paragraph' || visibleRuns.length === 0 || getTextContent(node).trim() === '') {
     return null;
   }
 
   if (
     isEveryTextRun(
-      runs,
+      visibleRuns,
       (run) => run.hasEmphasis &&
         run.hasSuperscript &&
         !run.hasInlineCode &&
@@ -29,13 +30,13 @@ export function getTextBlockVlookKind(
     return 'tab-caption';
   }
 
-  if (isEveryTextRun(runs, (run) => run.hasEmphasis && run.hasVlookHighlight)) {
+  if (isEveryTextRun(visibleRuns, (run) => run.hasEmphasis && run.hasVlookHighlight)) {
     return 'caption';
   }
 
   if (
     isEveryTextRun(
-      runs,
+      visibleRuns,
       (run) => run.hasVlookHighlight && !run.hasEmphasis && !run.hasInlineCode
     )
   ) {
@@ -44,7 +45,7 @@ export function getTextBlockVlookKind(
 
   if (
     isEveryTextRun(
-      runs,
+      visibleRuns,
       (run) => run.hasStrong &&
         !run.hasInlineCode &&
         !run.hasEmphasis &&
@@ -56,7 +57,7 @@ export function getTextBlockVlookKind(
 
   if (
     isEveryTextRun(
-      runs,
+      visibleRuns,
       (run) => run.hasUnderline &&
         !run.hasInlineCode &&
         !run.hasStrong &&
@@ -69,7 +70,7 @@ export function getTextBlockVlookKind(
 
   if (
     isEveryTextRun(
-      runs,
+      visibleRuns,
       (run) => run.hasEmphasis &&
         !run.hasInlineCode &&
         !run.hasStrong &&

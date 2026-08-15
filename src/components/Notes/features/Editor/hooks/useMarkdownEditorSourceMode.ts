@@ -31,6 +31,8 @@ export function useMarkdownEditorSourceMode({
   const scrollRestoreTimeoutRef = useRef<number | null>(null);
   const modeSwitchPendingRef = useRef(false);
   const isEditorViewReady = editorReadyTarget === editorSession;
+  const shouldUseSourceFallback =
+    !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutTarget === editorSession;
 
   const notifyModeSwitchLayoutReady = useCallback(() => {
     if (modeSwitchPendingRef.current) {
@@ -83,7 +85,7 @@ export function useMarkdownEditorSourceMode({
     scheduleFinalScrollRestore,
   ]);
 
-  const handleEditorContentSyncFailure = useCallback(() => {
+  const handleRenderedEditorFailure = useCallback(() => {
     if (!currentNotePath) {
       return;
     }
@@ -91,6 +93,7 @@ export function useMarkdownEditorSourceMode({
     restorePendingScrollPosition();
     notifyModeSwitchLayoutReady();
     scheduleFinalScrollRestore();
+    setEditorReadyTarget(null);
     setEditorInitTimedOutTarget(editorSession);
     onEditorViewReady?.();
   }, [
@@ -135,9 +138,13 @@ export function useMarkdownEditorSourceMode({
       : null;
     flushCurrentPendingEditorMarkdown();
     void flushCurrentEditorSave();
+    setEditorReadyTarget(null);
     setEditorInitTimedOutTarget(null);
+    if (shouldUseSourceFallback) {
+      return;
+    }
     setIsSourceMode((nextSourceMode) => !nextSourceMode);
-  }, [currentNotePath, onModeSwitchStart, scrollRootRef]);
+  }, [currentNotePath, onModeSwitchStart, scrollRootRef, shouldUseSourceFallback]);
 
   useLayoutEffect(() => {
     if (!pendingScrollRestoreRef.current) {
@@ -172,7 +179,7 @@ export function useMarkdownEditorSourceMode({
   }, [handleToggleSourceMode, hasActiveNote]);
 
   useEffect(() => {
-    if (isSourceMode || !hasActiveNote || !currentNotePath || isEditorViewReady) {
+    if (isSourceMode || shouldUseSourceFallback || !hasActiveNote || !currentNotePath || isEditorViewReady) {
       return;
     }
 
@@ -197,6 +204,7 @@ export function useMarkdownEditorSourceMode({
     notifyModeSwitchLayoutReady,
     restorePendingScrollPosition,
     scheduleFinalScrollRestore,
+    shouldUseSourceFallback,
   ]);
 
   useEffect(() => {
@@ -207,12 +215,12 @@ export function useMarkdownEditorSourceMode({
 
   return {
     getCurrentNoteContent,
-    handleEditorContentSyncFailure,
+    handleRenderedEditorFailure,
     handleEditorViewReady,
     handleToggleSourceMode,
     isEditorViewReady,
     isSourceMode,
-    shouldUseSourceFallback:
-      !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutTarget === editorSession,
+    isSourceSurface: isSourceMode || shouldUseSourceFallback,
+    shouldUseSourceFallback,
   };
 }

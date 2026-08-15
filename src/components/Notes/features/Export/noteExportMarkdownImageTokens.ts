@@ -24,11 +24,11 @@ function unescapeMarkdownLinkDestination(value: string): string {
   return value.replace(MARKDOWN_LINK_DESTINATION_ESCAPE_PATTERN, '$1');
 }
 
-function normalizeMarkdownImageLookupSrc(value: string): string {
+export function normalizeMarkdownImageLookupSrc(value: string): string {
   return decodeMarkdownHtmlText(unescapeMarkdownLinkDestination(value));
 }
 
-function findMarkdownLabelEnd(
+export function findMarkdownLabelEnd(
   content: string,
   start: number,
   ignoredRanges: readonly ContentRange[],

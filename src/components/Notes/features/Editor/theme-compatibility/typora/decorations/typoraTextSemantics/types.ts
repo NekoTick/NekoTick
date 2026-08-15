@@ -4,6 +4,7 @@ export interface InlineTextRun {
   from: number;
   to: number;
   text: string;
+  isMarkdownSyntax?: boolean;
   hasEmphasis: boolean;
   hasInlineCode: boolean;
   hasStrong: boolean;

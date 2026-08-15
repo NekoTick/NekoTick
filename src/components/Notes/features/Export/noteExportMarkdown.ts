@@ -7,6 +7,7 @@ import {
   MAX_EXPORT_MARKDOWN_ASSET_TOKENS,
   findExportMarkdownAssetSourceTokensWithOptions,
 } from './noteExportMarkdownAssetTokens';
+import { MAX_EXPORT_EMBEDDED_IMAGE_BYTES } from './noteExportLimits';
 
 const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   avif: 'image/avif',
@@ -17,8 +18,8 @@ const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
   png: 'image/png',
   webp: 'image/webp',
 };
-const MAX_EXPORT_IMAGE_BYTES = 50 * 1024 * 1024;
-export const MAX_EXPORT_EMBEDDED_IMAGE_BYTES = 50 * 1024 * 1024;
+const MAX_EXPORT_IMAGE_BYTES = MAX_EXPORT_EMBEDDED_IMAGE_BYTES;
+export { MAX_EXPORT_EMBEDDED_IMAGE_BYTES } from './noteExportLimits';
 
 function getImageMimeType(path: string): string {
   const extension = path.split('.').pop()?.toLowerCase() ?? '';
@@ -43,16 +44,6 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-function createExportSegmentMarkerPrefix(markdown: string): string {
-  let salt = 0;
-  let prefix = '';
-  do {
-    prefix = `\0vlaina-export-segment-${salt}-`;
-    salt += 1;
-  } while (markdown.includes(prefix));
-  return prefix;
-}
-
 interface ResolvedExportAssetUrl {
   url: string;
   embeddedBytes: number;
@@ -61,10 +52,6 @@ interface ResolvedExportAssetUrl {
 type ExportAssetUrlCache = Map<string, Promise<ResolvedExportAssetUrl>>;
 interface ExportAssetBudget {
   embeddedBytes: number;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function getExportLocalImageAssetPath(src: string): string | null {
@@ -198,26 +185,36 @@ export async function resolveExportMarkdownAssetSources(
   notesPath: string,
   notePath: string,
 ): Promise<string> {
-  const segments: string[] = [];
-  const markerPrefix = createExportSegmentMarkerPrefix(markdown);
-  const protectedMarkdown = mapMarkdownOutsideProtectedSegments(markdown, (segment) => {
-    const marker = `${markerPrefix}${segments.length}\0`;
-    segments.push(segment);
-    return marker;
+  const normalizedMarkdown = markdown.replace(/\r\n?/g, '\n');
+  const lineStarts: number[] = [0];
+  for (let index = 0; index < normalizedMarkdown.length; index += 1) {
+    if (normalizedMarkdown[index] === '\n') lineStarts.push(index + 1);
+  }
+  const visibleRanges: Array<{ start: number; end: number }> = [];
+  mapMarkdownOutsideProtectedSegments(normalizedMarkdown, (segment, startIndex) => {
+    const start = lineStarts[startIndex] ?? normalizedMarkdown.length;
+    visibleRanges.push({ start, end: start + segment.length });
+    return segment;
   }, { protectHtmlBlocks: false });
-
+  const protectedRanges: Array<{ start: number; end: number }> = [];
+  let protectedCursor = 0;
+  for (const range of visibleRanges) {
+    if (protectedCursor < range.start) protectedRanges.push({ start: protectedCursor, end: range.start });
+    protectedCursor = range.end;
+  }
+  if (protectedCursor < normalizedMarkdown.length) {
+    protectedRanges.push({ start: protectedCursor, end: normalizedMarkdown.length });
+  }
   const assetUrlCache: ExportAssetUrlCache = new Map();
   const assetBudget: ExportAssetBudget = { embeddedBytes: 0 };
-  const resolvedSegments: string[] = [];
-  for (const segment of segments) {
-    resolvedSegments.push(await resolveExportMarkdownAssetSegment(segment, notesPath, notePath, assetUrlCache, assetBudget));
-  }
-
-  const markerPattern = new RegExp(`${escapeRegExp(markerPrefix)}(\\d+)\\0`, 'g');
-  return protectedMarkdown.replace(markerPattern, (_marker, rawIndex: string) => {
-    const index = Number.parseInt(rawIndex, 10);
-    return resolvedSegments[index] ?? '';
-  });
+  return resolveExportMarkdownAssetSegment(
+    normalizedMarkdown,
+    notesPath,
+    notePath,
+    assetUrlCache,
+    assetBudget,
+    protectedRanges,
+  );
 }
 
 async function resolveExportMarkdownAssetSegment(
@@ -226,8 +223,10 @@ async function resolveExportMarkdownAssetSegment(
   notePath: string,
   assetUrlCache: ExportAssetUrlCache,
   assetBudget: ExportAssetBudget,
+  ignoredRanges: Array<{ start: number; end: number }>,
 ): Promise<string> {
   const tokens = findExportMarkdownAssetSourceTokensWithOptions(markdown, {
+    ignoredRanges,
     maxTokens: MAX_EXPORT_MARKDOWN_ASSET_TOKENS,
   });
   if (tokens.length === 0) {

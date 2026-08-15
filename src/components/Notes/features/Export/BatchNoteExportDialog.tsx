@@ -42,11 +42,9 @@ export function BatchNoteExportDialog({
   const setGraphSelectedPath = useGraphUIStore((state) => state.setSelectedPath);
   const rootFolder = useNotesStore((state) => state.rootFolder);
   const getDisplayName = useNotesStore((state) => state.getDisplayName);
-  const scanAllNotes = useNotesStore((state) => state.scanAllNotes);
   const [externalSources, setExternalSources] = useState<BatchExportSource[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [format, setFormat] = useState<NoteExportFormat>('docx');
-  const [isScanning, setIsScanning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState({ completed: 0, total: 0 });
   const [isDragActive, setIsDragActive] = useState(false);
@@ -129,9 +127,7 @@ export function BatchNoteExportDialog({
     setQuery('');
     setPreviewSourceId(currentNotePath ? `root:${currentNotePath}` : null);
     setExportProgress({ completed: 0, total: 0 });
-    setIsScanning(true);
-    void scanAllNotes({ background: true }).finally(() => setIsScanning(false));
-  }, [currentNotePath, open, scanAllNotes]);
+  }, [currentNotePath, open]);
 
   const addExternalFiles = useCallback(async (files: FileList | File[]) => {
     const markdownFiles = Array.from(files).filter(isMarkdownExportFile);
@@ -247,14 +243,12 @@ export function BatchNoteExportDialog({
       onDrop={handleDrop}
       query={query}
       setQuery={setQuery}
-      isScanning={isScanning}
       isExporting={isExporting}
       exportProgress={exportProgress}
       isDragActive={isDragActive}
       selectedCount={selectedIds.size}
       allVisibleSelected={visibleSources.length > 0 && visibleSources.every((source) => selectedIds.has(source.id))}
       someVisibleSelected={visibleSources.some((source) => selectedIds.has(source.id))}
-      sources={sources}
       visibleSources={visibleSources}
       selectedIds={selectedIds}
       notesPath={notesPath}
