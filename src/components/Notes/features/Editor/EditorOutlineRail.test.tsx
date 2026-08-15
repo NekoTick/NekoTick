@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
     { id: 'details', level: 3, text: 'Details', from: 22, to: 29 },
   ],
   jumpToHeading: vi.fn(),
+  sourceHeadings: [
+    { id: 'source-heading', level: 2, text: 'Source heading', from: 4, to: 20 },
+  ],
+  jumpToSourceHeading: vi.fn(),
 }));
 
 vi.mock('@/lib/i18n', () => ({
@@ -29,6 +33,14 @@ vi.mock('../Sidebar/Outline/useNotesOutline', () => ({
   }),
 }));
 
+vi.mock('./sourceMode/useSourceNotesOutline', () => ({
+  useSourceNotesOutline: () => ({
+    activeId: 'source-heading',
+    headings: mocks.sourceHeadings,
+    jumpToHeading: mocks.jumpToSourceHeading,
+  }),
+}));
+
 describe('EditorOutlineRail', () => {
   beforeEach(() => {
     mocks.activeId = 'overview';
@@ -38,6 +50,7 @@ describe('EditorOutlineRail', () => {
       { id: 'details', level: 3, text: 'Details', from: 22, to: 29 },
     ];
     mocks.jumpToHeading.mockClear();
+    mocks.jumpToSourceHeading.mockClear();
   });
 
   afterEach(() => {
@@ -69,6 +82,15 @@ describe('EditorOutlineRail', () => {
 
     expect(rows).toHaveLength(3);
     rows.forEach((row) => expect(row).not.toHaveAttribute('tabindex', '-1'));
+  });
+
+  it('uses source headings while source mode is active', () => {
+    render(<EditorOutlineRail enabled sourceMode />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Source heading' }));
+
+    expect(screen.queryByRole('button', { name: 'Introduction' })).not.toBeInTheDocument();
+    expect(mocks.jumpToSourceHeading).toHaveBeenCalledWith('source-heading');
   });
 
   it('expands on hover and keyboard focus, then collapses after leaving', async () => {

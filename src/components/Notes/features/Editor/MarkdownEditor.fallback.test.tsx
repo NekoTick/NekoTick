@@ -156,16 +156,19 @@ vi.mock('./EditorTopRightToolbar', () => ({
     currentNotePath,
     isSourceMode,
     onToggleSourceMode,
+    showOutline,
     starred,
     toggleStarred,
   }: {
     currentNotePath?: string | null;
     isSourceMode?: boolean;
     onToggleSourceMode?: () => void;
+    showOutline?: boolean;
     starred: boolean;
     toggleStarred: (path: string) => void;
   }) => (
     <>
+      <span data-testid="outline-visibility">{showOutline ? 'visible' : 'hidden'}</span>
       <button
         type="button"
         aria-label={starred ? 'Unfavorite' : 'Add to Starred'}
@@ -829,6 +832,7 @@ describe('MarkdownEditor source fallback', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch to source mode' }));
     expect(screen.getByRole('button', { name: 'Switch to rendered mode' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('outline-visibility')).toHaveTextContent('visible'));
     fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
 
     expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();

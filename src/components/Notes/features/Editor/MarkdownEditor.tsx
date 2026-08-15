@@ -172,7 +172,7 @@ export function MarkdownEditor({
             toggleStarred={toggleStarred}
             currentNoteMetadata={currentNoteMetadata}
             showNoteActions={!hideNoteActions}
-            showOutline={isEditorViewReady && !isSourceMode && !shouldUseSourceFallback}
+            showOutline={isEditorViewReady && !shouldUseSourceFallback}
           />
         </Suspense>
       ) : null}

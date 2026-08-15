@@ -10,6 +10,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useNotesOutline } from '../Sidebar/Outline/useNotesOutline';
 import type { NotesOutlineHeading } from '../Sidebar/Outline/types';
+import { useSourceNotesOutline } from './sourceMode/useSourceNotesOutline';
 
 interface EditorOutlineRowProps {
   heading: NotesOutlineHeading;
@@ -50,9 +51,11 @@ const EditorOutlineRow = memo(forwardRef<HTMLButtonElement, EditorOutlineRowProp
   },
 ));
 
-export function EditorOutlineRail({ enabled }: { enabled: boolean }) {
+export function EditorOutlineRail({ enabled, sourceMode = false }: { enabled: boolean; sourceMode?: boolean }) {
   const { t } = useI18n();
-  const { headings, activeId, jumpToHeading } = useNotesOutline(enabled);
+  const renderedOutline = useNotesOutline(enabled && !sourceMode);
+  const sourceOutline = useSourceNotesOutline(enabled && sourceMode);
+  const { headings, activeId, jumpToHeading } = sourceMode ? sourceOutline : renderedOutline;
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const outlineViewportRef = useRef<HTMLDivElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
