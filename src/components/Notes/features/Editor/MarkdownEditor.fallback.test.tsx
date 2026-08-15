@@ -317,7 +317,7 @@ describe('MarkdownEditor source fallback', () => {
   it('focuses the open note at its initial position when returning to notes', async () => {
     const { rerender } = render(<MarkdownEditor active />);
 
-    const sourceEditor = await screen.findByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    await screen.findByLabelText('Markdown source editor');
     const outsideButton = document.createElement('button');
     document.body.appendChild(outsideButton);
     outsideButton.focus();
@@ -327,10 +327,11 @@ describe('MarkdownEditor source fallback', () => {
     rerender(<MarkdownEditor active />);
 
     await waitFor(() => {
-      expect(document.activeElement).toBe(sourceEditor);
+      expect(screen.getByLabelText('Markdown source editor')).toHaveFocus();
     });
-    expect(sourceEditor.selectionStart).toBe('# Alpha'.length);
-    expect(sourceEditor.selectionEnd).toBe('# Alpha'.length);
+    const returnedSourceEditor = screen.getByLabelText('Markdown source editor') as HTMLTextAreaElement;
+    expect(returnedSourceEditor.selectionStart).toBe('# Alpha'.length);
+    expect(returnedSourceEditor.selectionEnd).toBe('# Alpha'.length);
 
     outsideButton.remove();
   });
@@ -823,20 +824,20 @@ describe('MarkdownEditor source fallback', () => {
     });
   });
 
-  it('can leave source mode and retry the rendered editor after a startup fallback', async () => {
-    render(<MarkdownEditor />);
+  it('retries the rendered editor in one action after a render error fallback', async () => {
+    const onSourceSurfaceChange = vi.fn();
+    render(<MarkdownEditor onSourceSurfaceChange={onSourceSurfaceChange} />);
 
     const fallbackEditor = await screen.findByLabelText('Markdown source editor');
     expect(fallbackEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
+    expect(onSourceSurfaceChange).toHaveBeenLastCalledWith(true);
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
 
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to source mode' }));
-    expect(screen.getByRole('button', { name: 'Switch to rendered mode' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByTestId('outline-visibility')).toHaveTextContent('visible'));
     fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
 
     expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
     expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
+    expect(onSourceSurfaceChange).toHaveBeenLastCalledWith(false);
   });
 
   it('retries the rendered editor after switching away from a note that triggered the fallback', async () => {
@@ -874,6 +875,19 @@ describe('MarkdownEditor source fallback', () => {
 
     const sourceEditor = screen.getByLabelText('Markdown source editor');
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
+
+    mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
+
+    expect(screen.getByTestId('milkdown-live-dom')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+    });
+
+    expect(screen.getByLabelText('Markdown source editor')).toHaveValue('# Alpha\n\nInitial body');
+    expect(screen.queryByTestId('milkdown-live-dom')).toBeNull();
   });
 
   it('immediately falls back to source editing after content synchronization repeatedly fails', async () => {
@@ -884,6 +898,12 @@ describe('MarkdownEditor source fallback', () => {
     const sourceEditor = await screen.findByLabelText('Markdown source editor');
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
     expect(sourceEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
+
+    mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
+
+    expect(screen.getByTestId('milkdown-live-dom')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
   });
 
   it('does not treat a live ProseMirror DOM as proof that note content synchronized', async () => {

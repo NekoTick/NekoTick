@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { themeEditorLayoutTokens } from '@/styles/themeTokens';
 import { useMarkdownEditorSourceMode } from './useMarkdownEditorSourceMode';
 
 const mocks = vi.hoisted(() => ({
@@ -28,6 +29,10 @@ describe('useMarkdownEditorSourceMode', () => {
   beforeEach(() => {
     mocks.flushEditorSave.mockClear();
     mocks.flushPendingMarkdown.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('flushes editor content and persistence when source mode changes', () => {
@@ -64,5 +69,70 @@ describe('useMarkdownEditorSourceMode', () => {
 
     expect(result.current.isEditorViewReady).toBe(false);
     expect(result.current.shouldUseSourceFallback).toBe(false);
+  });
+
+  it('requires a fresh rendered-editor readiness signal after leaving source mode', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useMarkdownEditorSourceMode({
+      currentNotePath: 'alpha.md',
+      hasActiveNote: true,
+    }));
+
+    act(() => {
+      result.current.handleToggleSourceMode();
+    });
+    expect(result.current.isSourceMode).toBe(true);
+    expect(result.current.isEditorViewReady).toBe(true);
+
+    act(() => {
+      result.current.handleToggleSourceMode();
+    });
+    expect(result.current.isSourceMode).toBe(false);
+    expect(result.current.isEditorViewReady).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(themeEditorLayoutTokens.editorInitFallbackDelayMs);
+    });
+    expect(result.current.shouldUseSourceFallback).toBe(true);
+  });
+
+  it('discards a pending fallback timeout when the current note changes', () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ currentNotePath }) => useMarkdownEditorSourceMode({
+        currentNotePath,
+        hasActiveNote: true,
+      }),
+      { initialProps: { currentNotePath: 'alpha.md' } },
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(themeEditorLayoutTokens.editorInitFallbackDelayMs - 1);
+    });
+    rerender({ currentNotePath: 'beta.md' });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(result.current.shouldUseSourceFallback).toBe(false);
+  });
+
+  it('restarts the fallback timeout after the notes view is reactivated', () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(
+      ({ hasActiveNote }) => useMarkdownEditorSourceMode({
+        currentNotePath: 'alpha.md',
+        hasActiveNote,
+      }),
+      { initialProps: { hasActiveNote: true } },
+    );
+
+    rerender({ hasActiveNote: false });
+    rerender({ hasActiveNote: true });
+    act(() => {
+      vi.advanceTimersByTime(themeEditorLayoutTokens.editorInitFallbackDelayMs);
+    });
+
+    expect(result.current.shouldUseSourceFallback).toBe(true);
   });
 });

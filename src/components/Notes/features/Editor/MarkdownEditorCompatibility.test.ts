@@ -6,19 +6,21 @@ import {
   editorViewCtx,
   parserCtx,
   remarkStringifyOptionsCtx,
+  rootCtx,
   serializerCtx,
 } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
-import { gfm } from '@milkdown/kit/preset/gfm';
+import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
 import { history } from '@milkdown/kit/plugin/history';
 import { listener } from '@milkdown/kit/plugin/listener';
 import { tableBlock } from '@milkdown/kit/component/table-block';
+import { clipboardPlugin } from './plugins/clipboard/clipboardPlugin';
 import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { redo, undo } from '@milkdown/kit/prose/history';
 import { TextSelection } from '@milkdown/kit/prose/state';
-import { notesRemarkStringifyOptions } from './config/stringifyOptions';
+import { notesRemarkGfmOptions, notesRemarkStringifyOptions } from './config/stringifyOptions';
 import { customPlugins } from './config/plugins';
 import { configureTheme } from './theme';
 import {
@@ -82,16 +84,27 @@ function stripSourceBoundaryMetadata(value: unknown): unknown {
   );
 }
 
+function getVisibleTextContent(element: Element): string {
+  const clone = element.cloneNode(true) as Element;
+  clone.querySelectorAll('.markdown-syntax').forEach((syntax) => syntax.remove());
+  return clone.textContent ?? '';
+}
+
 async function createEditor(markdown: string) {
   const defaultValue = prepareEditorMarkdown(markdown);
+  const root = document.createElement('div');
+  document.body.appendChild(root);
   const editor = Editor.make()
     .config((ctx) => {
+      ctx.set(rootCtx, root);
       ctx.set(defaultValueCtx, defaultValue);
       ctx.update(remarkStringifyOptionsCtx, (prev) => ({
         ...prev,
         ...notesRemarkStringifyOptions,
       }));
+      ctx.set(remarkGFMPlugin.options.key, notesRemarkGfmOptions);
     })
+    .use(clipboardPlugin)
     .use(commonmark)
     .use(gfm)
     .use(history)
@@ -103,6 +116,7 @@ async function createEditor(markdown: string) {
   await act(async () => {
     await editor.create();
   });
+  (editor as unknown as { testRoot: HTMLElement }).testRoot = root;
   return editor;
 }
 
@@ -110,6 +124,7 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
   await act(async () => {
     await editor.destroy();
   });
+  (editor as unknown as { testRoot?: HTMLElement }).testRoot?.remove();
 }
 
 describe('MarkdownEditor compatibility', () => {
@@ -271,9 +286,9 @@ describe('MarkdownEditor compatibility', () => {
       '- <textarea>',
       '  raw HTML',
       '  </textarea>',
-      '| Key | Value |',
-      '| --- | ----: |',
-      '| row |     1 |',
+      '|Key|Value|',
+      '|-|-:|',
+      '|row|1|',
     ]],
     ['footnote raw HTML before an image', [
       'Footnote[^html].',
@@ -655,7 +670,7 @@ describe('MarkdownEditor compatibility', () => {
     const serializer = editor.ctx.get(serializerCtx);
 
     expect(view.dom.querySelector('.frontmatter-block-container.md-meta-block')).toBeInstanceOf(HTMLElement);
-    expect(view.dom.querySelector('h1')?.textContent).toBe('Heading');
+    expect(getVisibleTextContent(view.dom.querySelector('h1')!)).toBe('Heading');
     expect(isEditorMarkdownEquivalentToNoteContent(serializer(view.state.doc), source)).toBe(true);
 
     await destroyEditor(editor);
@@ -836,6 +851,10 @@ describe('MarkdownEditor compatibility', () => {
 
     const view = editor.ctx.get(editorViewCtx);
 
+    await waitFor(() => {
+      expect(view.dom.querySelector('.v-tag')).toBeInstanceOf(HTMLElement);
+    });
+
     const tag = view.dom.querySelector('.v-tag');
     expect(tag?.textContent).toBe('rd tag');
     expect(tag?.classList.contains('rd')).toBe(true);
@@ -846,7 +865,9 @@ describe('MarkdownEditor compatibility', () => {
     expect(badgeName?.classList.contains('og')).toBe(true);
     expect(view.dom.querySelector('.v-badge-value')?.textContent).toBe('value');
 
-    expect(view.dom.querySelector('.v-caption.vlook-caption-block')?.textContent).toBe('step');
+    const caption = view.dom.querySelector('.v-caption.vlook-caption-block');
+    expect(caption).toBeInstanceOf(HTMLElement);
+    expect(getVisibleTextContent(caption!)).toBe('step');
     expect(view.dom.querySelector('.v-caption .v-cap-1')?.textContent).toBe('step');
 
     const tabCaption = view.dom.querySelector('.vlook-tab-caption .v-tab-caption-label');
@@ -882,13 +903,17 @@ describe('MarkdownEditor compatibility', () => {
     ].join('\n'));
 
     const view = editor.ctx.get(editorViewCtx);
+
+    await waitFor(() => {
+      expect(view.dom.querySelectorAll('blockquote.v-q')).toHaveLength(3);
+    });
     const quotes = Array.from(view.dom.querySelectorAll('blockquote.v-q'));
 
     expect(quotes[0]?.classList.contains('rd')).toBe(true);
     expect(quotes[0]?.classList.contains('em')).toBe(false);
     expect(quotes[1]?.classList.contains('og')).toBe(true);
     expect(quotes[1]?.classList.contains('em')).toBe(true);
-    expect(quotes[2]?.querySelector('p:first-child > strong:only-child')?.textContent).toBe('Quote Title');
+    expect(quotes[2]?.querySelector('p:first-child strong')?.textContent).toBe('Quote Title');
 
     await destroyEditor(editor);
   });
@@ -901,6 +926,10 @@ describe('MarkdownEditor compatibility', () => {
     ].join('\n'));
 
     const view = editor.ctx.get(editorViewCtx);
+
+    await waitFor(() => {
+      expect(view.dom.querySelector('.milkdown-table-block.v-freeze.auto')).toBeInstanceOf(HTMLElement);
+    });
     const tableBlock = view.dom.querySelector('.milkdown-table-block.v-freeze.auto');
     expect(tableBlock).toBeInstanceOf(HTMLElement);
     expect(tableBlock?.classList.contains('table-figure')).toBe(true);
@@ -973,6 +1002,10 @@ describe('MarkdownEditor compatibility', () => {
     ].join('\n'));
 
     const view = editor.ctx.get(editorViewCtx);
+
+    await waitFor(() => {
+      expect(view.dom.querySelector('.v-caption.vlook-caption-block.table .v-cap-1')).toBeInstanceOf(HTMLElement);
+    });
 
     const tableCaption = view.dom.querySelector('.v-caption.vlook-caption-block.table .v-cap-1');
     expect(tableCaption).toBeInstanceOf(HTMLElement);
@@ -1413,7 +1446,7 @@ describe('MarkdownEditor compatibility', () => {
     const editor = await createEditor(markdown);
 
     const view = editor.ctx.get(editorViewCtx);
-    expect(view.state.doc.textContent.replace(/\s+/g, '')).toContain(expectedText.replace(/\s+/g, ''));
+    expect(getVisibleTextContent(view.dom).replace(/\s+/g, '')).toContain(expectedText.replace(/\s+/g, ''));
     await destroyEditor(editor);
   });
 

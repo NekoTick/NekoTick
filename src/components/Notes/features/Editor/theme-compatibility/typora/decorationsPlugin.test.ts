@@ -494,6 +494,21 @@ describe('createThemeCompatibilityDecorationRebuildController', () => {
 });
 
 describe('getTextContent', () => {
+  it('ignores hidden markdown syntax while reading descendant text', () => {
+    const node = {
+      descendants: (visit: (child: unknown) => void) => {
+        visit({
+          isText: true,
+          text: '# ',
+          marks: [{ type: { name: 'markdownSyntax' } }],
+        });
+        visit({ isText: true, text: 'Heading', marks: [] });
+      },
+    };
+
+    expect(getTextContent(node)).toBe('Heading');
+  });
+
   it('uses bounded textBetween for ProseMirror nodes', () => {
     const node = {
       content: { size: MAX_THEME_COMPAT_TEXT_CONTENT_CHARS + 100 },

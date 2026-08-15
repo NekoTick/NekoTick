@@ -217,22 +217,6 @@ export function useMilkdownExternalContentSync(args: {
         return;
       }
 
-      let hasExpectedContent = false;
-      if (liveSerializer) {
-        try {
-          hasExpectedContent = isEditorMarkdownEquivalentToNoteContent(
-            liveSerializer(view.state.doc),
-            currentNoteContent,
-          );
-        } catch {
-          hasExpectedContent = false;
-        }
-      }
-      if (!hasExpectedContent) {
-        handleSyncFailure();
-        return;
-      }
-
       lastAppliedNoteRef.current = {
         path: currentNotePath,
         diskRevision: currentNoteDiskRevision,

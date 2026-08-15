@@ -938,6 +938,30 @@ describe('MilkdownEditorInner external content sync', () => {
     });
   });
 
+  it('reports ready after a successful replacement even when Milkdown normalizes the source', async () => {
+    mocks.editorState.serializedMarkdown = '# Milkdown normalized';
+    const editor = createMockActiveEditor();
+    editor.dispatch.mockImplementation(() => {
+      mocks.editorState.serializedMarkdown = '# Milkdown normalized';
+    });
+    const onEditorContentSyncFailure = vi.fn();
+    const onEditorViewReady = vi.fn();
+
+    render(
+      <MilkdownEditorInner
+        onEditorContentSyncFailure={onEditorContentSyncFailure}
+        onEditorViewReady={onEditorViewReady}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(editor.parser).toHaveBeenCalledWith('# Small');
+      expect(editor.replace).toHaveBeenCalled();
+      expect(onEditorViewReady).toHaveBeenCalledTimes(1);
+    });
+    expect(onEditorContentSyncFailure).not.toHaveBeenCalled();
+  });
+
   it('preserves a non-empty live document while user input is pending', () => {
     mocks.editorState.serializedMarkdown = '# Pending local edit';
     mocks.pendingMarkdownAutosaveState.shouldSerialize = true;
@@ -1293,7 +1317,17 @@ describe('createLargePlainMarkdownDocJSON', () => {
     expect(doc?.content?.[0]).toEqual({
       type: 'heading',
       attrs: { level: 1 },
-      content: [{ type: 'text', text: 'Large Fast Path' }],
+      content: [
+        {
+          type: 'text',
+          marks: [{
+            type: 'markdownSyntax',
+            attrs: { edge: 'prefix', kind: 'heading' },
+          }],
+          text: '# ',
+        },
+        { type: 'text', text: 'Large Fast Path' },
+      ],
     });
     expect(doc?.content?.[1]).toEqual({
       type: 'html_block',
@@ -1429,7 +1463,17 @@ describe('createLargePlainMarkdownDocJSON', () => {
     expect(doc?.content?.[0]).toEqual({
       type: 'heading',
       attrs: { level: 1 },
-      content: [{ type: 'text', text: 'Large Fast Path' }],
+      content: [
+        {
+          type: 'text',
+          marks: [{
+            type: 'markdownSyntax',
+            attrs: { edge: 'prefix', kind: 'heading' },
+          }],
+          text: '# ',
+        },
+        { type: 'text', text: 'Large Fast Path' },
+      ],
     });
   });
 });

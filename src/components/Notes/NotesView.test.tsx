@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useEffect, type ReactNode } from 'react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dispatchDeleteCurrentNoteEvent } from '@/components/Notes/noteDeleteEvents';
 import { NOTE_SOURCE_MODE_TOGGLE_EVENT } from '@/components/Notes/features/Editor/sourceMode/sourceModeEvents';
@@ -71,6 +71,7 @@ type MockNotesState = {
   cancelPendingDraftDiscard: ReturnType<typeof vi.fn>;
   confirmPendingDraftDiscard: ReturnType<typeof vi.fn>;
   getDisplayName: ReturnType<typeof vi.fn>;
+  getBacklinks: ReturnType<typeof vi.fn>;
   error: string | null;
 };
 
@@ -119,6 +120,7 @@ const mocks = vi.hoisted(() => {
     cancelPendingDraftDiscard: vi.fn(),
     confirmPendingDraftDiscard: vi.fn(),
     getDisplayName: vi.fn((path: string) => path.split('/').pop() || path),
+    getBacklinks: vi.fn(() => []),
     error: null,
   };
 
@@ -173,6 +175,8 @@ const mocks = vi.hoisted(() => {
     openSidebarDiscussionForSelection: vi.fn(),
   };
 
+  const markdownEditorSourceSurface = { value: false };
+
   return {
     notesState,
     notesRootState,
@@ -181,6 +185,7 @@ const mocks = vi.hoisted(() => {
     toastState,
     editorViewRegistry,
     sidebarDiscussion,
+    markdownEditorSourceSurface,
   };
 });
 
@@ -365,7 +370,16 @@ vi.mock('@/lib/desktop/launchContext', () => ({
 }));
 
 vi.mock('./features/Editor', () => ({
-  MarkdownEditor: ({ active }: { active?: boolean }) => {
+  MarkdownEditor: ({
+    active,
+    onSourceSurfaceChange,
+  }: {
+    active?: boolean;
+    onSourceSurfaceChange?: (isSourceSurface: boolean) => void;
+  }) => {
+    useEffect(() => {
+      onSourceSurfaceChange?.(mocks.markdownEditorSourceSurface.value);
+    }, [onSourceSurfaceChange]);
     const hasRenderableNote = Boolean(mocks.notesState.currentNote?.path);
     if (!hasRenderableNote) {
       return <div data-testid="markdown-editor-shell" />;
@@ -387,7 +401,16 @@ vi.mock('./features/Editor', () => ({
 
 vi.mock('./features/Editor/preloadMarkdownEditor', () => ({
   preloadMarkdownEditor: vi.fn(async () => ({
-    MarkdownEditor: ({ active }: { active?: boolean }) => {
+    MarkdownEditor: ({
+      active,
+      onSourceSurfaceChange,
+    }: {
+      active?: boolean;
+      onSourceSurfaceChange?: (isSourceSurface: boolean) => void;
+    }) => {
+      useEffect(() => {
+        onSourceSurfaceChange?.(mocks.markdownEditorSourceSurface.value);
+      }, [onSourceSurfaceChange]);
       const hasRenderableNote = Boolean(mocks.notesState.currentNote?.path);
       if (!hasRenderableNote) {
         return <div data-testid="markdown-editor-shell" />;
@@ -588,6 +611,7 @@ describe('NotesView', () => {
     notesState.cancelPendingDraftDiscard.mockClear();
     notesState.confirmPendingDraftDiscard.mockClear();
     notesState.getDisplayName.mockClear();
+    notesState.getBacklinks.mockClear();
     mocks.toastState.addToast.mockClear();
     mocks.editorViewRegistry.getCurrentEditorNotePath.mockReset();
     mocks.editorViewRegistry.getCurrentEditorNotePath.mockImplementation(
@@ -627,6 +651,7 @@ describe('NotesView', () => {
     uiState.notesPreviewTitle = null;
     uiState.setNotesPreviewTitle.mockClear();
     uiState.languagePreference = 'en';
+    mocks.markdownEditorSourceSurface.value = false;
   });
 
   it('shows notes store errors as toast messages', async () => {
@@ -876,6 +901,58 @@ describe('NotesView', () => {
       expect(document.querySelector('[data-notes-split-layout="right"]')).toBeInTheDocument();
     });
     expect(screen.getByText('Beta active body')).toBeInTheDocument();
+  });
+
+  it('shows rendered-mode recovery in the active split pane for a source fallback', async () => {
+    notesState.currentNote = { path: 'docs/alpha.md', content: '# Alpha' };
+    notesState.openTabs = [
+      { path: 'docs/alpha.md', name: 'alpha', isDirty: false },
+      { path: 'docs/beta.md', name: 'beta', isDirty: false },
+    ];
+    notesState.noteContentsCache = new Map([
+      ['docs/beta.md', { content: '# Beta', modifiedAt: 1 }],
+    ]);
+    mocks.markdownEditorSourceSurface.value = true;
+
+    render(<NotesView />);
+    mockSplitDropRootRect({
+      left: 0,
+      right: 1000,
+      top: 0,
+      bottom: 800,
+      width: 1000,
+      height: 800,
+    });
+
+    await act(async () => {
+      dispatchNotesTabSplitDrag({
+        phase: 'end',
+        path: 'docs/beta.md',
+        clientX: 980,
+        clientY: 400,
+      });
+      await Promise.resolve();
+    });
+
+    await screen.findByTestId('markdown-editor');
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const primaryPane = document.querySelector('section[data-notes-split-pane="primary"]');
+    expect(primaryPane).toBeInstanceOf(HTMLElement);
+    fireEvent.pointerDown(within(primaryPane as HTMLElement).getByRole('button', { name: 'More' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+
+    const sourceModeToggleListener = vi.fn();
+    window.addEventListener(NOTE_SOURCE_MODE_TOGGLE_EVENT, sourceModeToggleListener);
+    try {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Rendered mode' }));
+      expect(sourceModeToggleListener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(NOTE_SOURCE_MODE_TOGGLE_EVENT, sourceModeToggleListener);
+    }
   });
 
   it('can split an existing preview pane to show multiple previews', async () => {

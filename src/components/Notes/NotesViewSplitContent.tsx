@@ -1,4 +1,4 @@
-import { Suspense, useCallback, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { Suspense, useCallback, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
 import type { NoteMetadataEntry } from '@/stores/notes/types';
@@ -19,6 +19,7 @@ import type {
 } from './features/Split/notesSplitLayout';
 import { MarkdownEditor } from './notesViewLazyComponents';
 import type { NotesSplitDropTarget } from './notesViewSplitTypes';
+import { dispatchNoteSourceModeToggleEvent } from './features/Editor/sourceMode/sourceModeEvents';
 
 const EMPTY_NOTE_CONTENTS_CACHE: ReturnType<typeof useNotesStore.getState>['noteContentsCache'] = new Map();
 
@@ -89,6 +90,7 @@ export function NotesViewSplitContent({
     const currentNote = useNotesStore.getState().currentNote;
     return currentNote && currentNote.path === currentNotePath ? currentNote.content : '';
   }, [currentNotePath]);
+  const [isPrimarySourceSurface, setIsPrimarySourceSurface] = useState(false);
   const currentSplitPaneTitle = currentNotePath ? getDisplayName(currentNotePath) : '';
   const primaryEditorContent = (
     <div
@@ -106,6 +108,7 @@ export function NotesViewSplitContent({
           <MarkdownEditor
             active={active}
             onEditorViewReady={onPrimaryContentReady}
+            onSourceSurfaceChange={setIsPrimarySourceSurface}
             compactHeader={hasSplitPanes}
             hideNoteActions={hasSplitPanes}
           />
@@ -129,6 +132,8 @@ export function NotesViewSplitContent({
               currentNotePath={currentNotePath}
               currentNoteTitle={currentSplitPaneTitle}
               getCurrentNoteContent={getCurrentNoteContent}
+              isSourceMode={isPrimarySourceSurface}
+              onToggleSourceMode={dispatchNoteSourceModeToggleEvent}
               notesPath={notesPath}
               starred={currentNoteStarred}
               toggleStarred={toggleStarred}
