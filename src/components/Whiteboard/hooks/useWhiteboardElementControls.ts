@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
 import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardEraserSpatialIndex, WhiteboardItemOrder } from '../model/whiteboardEraser';
+import type { WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 import { isWhiteboardFullSelection } from '../model/whiteboardCollection';
-import { createWhiteboardIndexedSelectionMap } from '../model/whiteboardIndexedSelectionMap';
+import { getWhiteboardSelectedItemMap } from '../model/whiteboardIndexedSelectionMap';
 import {
   type WhiteboardElement,
   type WhiteboardPoint,
@@ -16,6 +16,7 @@ import {
 } from '../model/whiteboardSelection';
 
 interface WhiteboardElementControlsOptions {
+  editSelectedText?: () => boolean;
   elements: WhiteboardElement[];
   getBoardPoint: (clientX: number, clientY: number) => WhiteboardPoint;
   interactionLocked?: boolean;
@@ -35,6 +36,7 @@ interface WhiteboardElementControlsOptions {
 }
 
 export function useWhiteboardElementControls({
+  editSelectedText,
   elements,
   getBoardPoint,
   interactionLocked = false,
@@ -71,8 +73,8 @@ export function useWhiteboardElementControls({
     if (nextIds.length === 0) return;
     pushHistory();
     const movingStrokeIds = keepStrokeSelection ? selectedStrokeIds : [];
-    const originalElementsById = getSelectedItemMap(elements, nextIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
-    const originalStrokesById = getSelectedItemMap(strokes, movingStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
+    const originalElementsById = getSelectedItems(elements, nextIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
+    const originalStrokesById = getSelectedItems(strokes, movingStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
     setDragState({
       kind: 'move-elements',
       elementIds: nextIds,
@@ -87,8 +89,8 @@ export function useWhiteboardElementControls({
   const handleSelectionResizePointerDown = useCallback((event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => {
     if (interactionLocked || tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
-    const originalElementsById = getSelectedItemMap(elements, selectedElementIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
-    const originalStrokesById = getSelectedItemMap(strokes, selectedStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
+    const originalElementsById = getSelectedItems(elements, selectedElementIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
+    const originalStrokesById = getSelectedItems(strokes, selectedStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
     const bounds = selectionBounds ?? getSelectionBounds(
       [...originalElementsById.values()],
       [...originalStrokesById.values()],
@@ -96,6 +98,7 @@ export function useWhiteboardElementControls({
       selectedStrokeIds,
     );
     if (!bounds) return;
+    const includesText = [...originalElementsById.values()].some((element) => element.type === 'text');
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
     pushHistory();
@@ -106,7 +109,7 @@ export function useWhiteboardElementControls({
       kind: 'resize-selection',
       originalElementsById,
       originalStrokesById,
-      preserveAspectRatio: event.shiftKey,
+      preserveAspectRatio: event.shiftKey || includesText,
       startPoint: point,
     });
   }, [elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, selectionBounds, setDragState, spacePressedRef, spatialIndex, strokes, tool]);
@@ -114,10 +117,11 @@ export function useWhiteboardElementControls({
   const handleSelectionMovePointerDown = useCallback((event: PointerEvent<SVGElement>) => {
     if (interactionLocked || tool !== 'select' || event.button !== 0 || spacePressedRef.current) return;
     event.stopPropagation();
+    if (event.detail >= 2 && editSelectedText?.()) return;
     const point = getBoardPoint(event.clientX, event.clientY);
     event.currentTarget.setPointerCapture(event.pointerId);
-    const originalElementsById = getSelectedItemMap(elements, selectedElementIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
-    const originalStrokesById = getSelectedItemMap(strokes, selectedStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
+    const originalElementsById = getSelectedItems(elements, selectedElementIds, spatialIndex.allElements === elements ? spatialIndex.elementOrder : null);
+    const originalStrokesById = getSelectedItems(strokes, selectedStrokeIds, spatialIndex.allStrokes === strokes ? spatialIndex.strokeOrder : null);
     if (originalElementsById.size === 0 && originalStrokesById.size === 0) return;
     pushHistory();
     setDragState(originalElementsById.size > 0 ? {
@@ -135,7 +139,7 @@ export function useWhiteboardElementControls({
       startPoint: point,
       strokeIds: selectedStrokeIds,
     });
-  }, [elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, spatialIndex, strokes, tool]);
+  }, [editSelectedText, elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, spacePressedRef, spatialIndex, strokes, tool]);
 
   const applyPendingSelectionResize = useCallback(() => {
     const pending = pendingSelectionResizeRef.current;
@@ -180,26 +184,12 @@ export function useWhiteboardElementControls({
   };
 }
 
-function getSelectedItemMap<T extends { id: string }>(
+function getSelectedItems<T extends { id: string }>(
   items: T[],
   ids: string[],
-  order: WhiteboardItemOrder | null,
+  order: { get: (id: string) => number | undefined } | null,
 ): ReadonlyMap<string, T> {
-  if (ids.length === 0) return new Map();
-  if (order) {
-    return createWhiteboardIndexedSelectionMap(
-      items,
-      ids,
-      order,
-      isWhiteboardFullSelection(ids, items),
-    );
-  }
-  const selectedIds = new Set(ids);
-  const selectedItems = new Map<string, T>();
-  for (const item of items) {
-    if (selectedIds.has(item.id)) selectedItems.set(item.id, item);
-  }
-  return selectedItems;
+  return getWhiteboardSelectedItemMap(items, ids, order, isWhiteboardFullSelection(ids, items));
 }
 
 function getNextElementSelection(selectedIds: string[], id: string, additive: boolean): string[] {

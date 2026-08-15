@@ -274,6 +274,53 @@ test.describe('notes title keyboard navigation', () => {
     }
   });
 
+  test('moves from the first body paragraph start to the note title with Backspace', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-title-backspace-navigation');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      const body = ['First body line backspace sentinel', 'Second body line backspace sentinel'].join('\n');
+      await openMarkdownFixture(page, {
+        filename: 'title-backspace-navigation.md',
+        content: body,
+      });
+
+      const selected = await page.evaluate(
+        (targetText) => (window as any).__vlainaE2E.selectEditorTextByText(targetText, targetText),
+        'First body line backspace sentinel',
+      );
+      expect(selected.selected).toBe(true);
+
+      await page.keyboard.press('ArrowLeft');
+      await waitForEditorAnimationFrame(page);
+      await page.keyboard.press('Backspace');
+      await waitForEditorAnimationFrame(page);
+
+      const state = await page.evaluate(() => {
+        const titleInput = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          '[data-note-title-input="true"]',
+        );
+        return {
+          activeIsTitle: document.activeElement === titleInput,
+          titleValue: titleInput?.value ?? '',
+          selectionStart: titleInput?.selectionStart ?? null,
+          selectionEnd: titleInput?.selectionEnd ?? null,
+          content: String((window as any).__vlainaE2E.getNotesState().currentNote?.content ?? ''),
+        };
+      });
+
+      expect(state.activeIsTitle, JSON.stringify(state, null, 2)).toBe(true);
+      expect(state.selectionStart).toBe(state.titleValue.length);
+      expect(state.selectionEnd).toBe(state.titleValue.length);
+      expect(state.content).toBe(body);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('moves to the note title after Backspace deletes the top body blank line', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-title-backspace-top-blank-line');
 
@@ -410,6 +457,52 @@ test.describe('notes title keyboard navigation', () => {
       expect(state.activeIsTitle, JSON.stringify(state, null, 2)).toBe(true);
       expect(state.selectionStart).toBe(state.titleValue.length);
       expect(state.selectionEnd).toBe(state.titleValue.length);
+      expect(state.content).toBe(body);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('keeps the title selection when a drag ends in the adjacent header space', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-title-drag-selection');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      const body = 'First body line must not receive focus';
+      await openMarkdownFixture(page, {
+        filename: 'title-drag-selection.md',
+        content: body,
+      });
+
+      await expect(page.locator(EDITOR_SELECTOR)).toContainText(body);
+      const titleInput = page.locator('[data-note-title-input="true"]');
+      const box = await titleInput.boundingBox();
+      expect(box).not.toBeNull();
+
+      await page.mouse.move(box!.x + 4, box!.y + box!.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box!.x + box!.width + 24, box!.y + box!.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      const state = await page.evaluate(() => {
+        const titleInput = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          '[data-note-title-input="true"]',
+        );
+        return {
+          activeIsTitle: document.activeElement === titleInput,
+          selectionStart: titleInput?.selectionStart ?? null,
+          selectionEnd: titleInput?.selectionEnd ?? null,
+          editorSelection: (window as any).__vlainaE2E.getEditorSelectionSummary(),
+          content: String((window as any).__vlainaE2E.getNotesState().currentNote?.content ?? ''),
+        };
+      });
+
+      expect(state.activeIsTitle, JSON.stringify(state, null, 2)).toBe(true);
+      expect(state.selectionEnd).toBeGreaterThan(state.selectionStart ?? 0);
       expect(state.content).toBe(body);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);

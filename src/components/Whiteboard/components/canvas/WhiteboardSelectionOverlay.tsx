@@ -2,35 +2,51 @@ import { memo, useMemo, type PointerEvent } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   getSelectedOverlayGeometry,
+  normalizeWhiteboardSelectionRect,
   type WhiteboardLassoPath,
   type WhiteboardResizeHandle,
   type WhiteboardSelectionRect,
 } from '../../model/whiteboardSelection';
 import type { WhiteboardStroke } from '../../model/whiteboardModel';
-import type { WhiteboardMovePreview } from '../../model/whiteboardInteractions';
+import { isLinearTool } from '../../model/whiteboardModel';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
 import type { WhiteboardSelectionRenderData } from '../../model/whiteboardRenderData';
+import {
+  getWhiteboardResizePreviewGeometry,
+  getWhiteboardRotationPreviewGeometry,
+} from '../../model/whiteboardSelectionPreviewGeometry';
 import { WhiteboardSelectionDragTargets } from './WhiteboardSelectionDragTargets';
+import { WhiteboardLinearPointHandles } from './WhiteboardLinearPointHandles';
+import { WhiteboardSelectionTransformHandles } from './WhiteboardSelectionTransformHandles';
 
 const EMPTY_SELECTED_STROKES: WhiteboardStroke[] = [];
 
 interface WhiteboardSelectionOverlayProps {
   movePreview: WhiteboardMovePreview | null;
   renderData: WhiteboardSelectionRenderData;
-  resizePreviewBounds?: WhiteboardSelectionRect | null;
+  resizePreview?: WhiteboardResizePreview | null;
+  rotationPreview?: WhiteboardRotationPreview | null;
   selectionPath: WhiteboardLassoPath | null;
   spacePressed: boolean;
+  zoom?: number;
+  onLinearPointPointerDown?: (event: PointerEvent<SVGCircleElement>, strokeId: string, pointIndex: number, midpoint: boolean) => void;
   onSelectionMovePointerDown: (event: PointerEvent<SVGElement>) => void;
   onSelectionResizePointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
+  onSelectionRotationPointerDown?: (event: PointerEvent<SVGCircleElement>, center: { x: number; y: number }) => void;
 }
 
 export const WhiteboardSelectionOverlay = memo(function WhiteboardSelectionOverlay({
   movePreview,
   renderData,
-  resizePreviewBounds,
+  resizePreview,
+  rotationPreview,
   selectionPath,
   spacePressed,
+  zoom = 1,
+  onLinearPointPointerDown = ignoreLinearPointPointerDown,
   onSelectionMovePointerDown,
   onSelectionResizePointerDown,
+  onSelectionRotationPointerDown = ignoreSelectionRotationPointerDown,
 }: WhiteboardSelectionOverlayProps) {
   if (selectionPath) {
     return <WhiteboardActiveSelectionOverlay selectionPath={selectionPath} />;
@@ -40,10 +56,14 @@ export const WhiteboardSelectionOverlay = memo(function WhiteboardSelectionOverl
     <WhiteboardSelectedItemsOverlay
       movePreview={movePreview}
       renderData={renderData}
-      resizePreviewBounds={resizePreviewBounds}
+      resizePreview={resizePreview}
+      rotationPreview={rotationPreview}
       spacePressed={spacePressed}
+      zoom={zoom}
+      onLinearPointPointerDown={onLinearPointPointerDown}
       onSelectionMovePointerDown={onSelectionMovePointerDown}
       onSelectionResizePointerDown={onSelectionResizePointerDown}
+      onSelectionRotationPointerDown={onSelectionRotationPointerDown}
     />
   );
 });
@@ -108,38 +128,56 @@ function WhiteboardActiveSelectionOverlay({
 const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOverlay({
   movePreview,
   renderData,
-  resizePreviewBounds,
+  resizePreview,
+  rotationPreview,
   spacePressed,
+  zoom,
+  onLinearPointPointerDown,
   onSelectionMovePointerDown,
   onSelectionResizePointerDown,
+  onSelectionRotationPointerDown,
 }: Omit<WhiteboardSelectionOverlayProps, 'selectionPath'>) {
+  const handleLinearPointPointerDown = onLinearPointPointerDown ?? ignoreLinearPointPointerDown;
+  const handleSelectionRotationPointerDown = onSelectionRotationPointerDown ?? ignoreSelectionRotationPointerDown;
+  const linearZoom = zoom ?? 1;
   const { elements, strokes } = renderData;
   const baseGeometry = useMemo(
     () => renderData.geometry ?? getSelectedOverlayGeometry(elements, strokes),
     [elements, renderData.geometry, strokes],
   );
+  const previewGeometry = useMemo(() => (
+    resizePreview
+      ? getWhiteboardResizePreviewGeometry(resizePreview, baseGeometry)
+      : rotationPreview
+        ? getWhiteboardRotationPreviewGeometry(rotationPreview, baseGeometry)
+        : baseGeometry
+  ), [baseGeometry, resizePreview, rotationPreview]);
   const selectedStrokes = useMemo(
-    () => baseGeometry.singleStroke && !resizePreviewBounds ? [baseGeometry.singleStroke] : EMPTY_SELECTED_STROKES,
-    [baseGeometry, resizePreviewBounds],
+    () => baseGeometry.singleStroke && !resizePreview && !rotationPreview ? [baseGeometry.singleStroke] : EMPTY_SELECTED_STROKES,
+    [baseGeometry, resizePreview, rotationPreview],
   );
-  const groupBounds = baseGeometry.groupBounds
-    ? resizePreviewBounds ?? offsetRect(baseGeometry.groupBounds, movePreview)
+  const groupBounds = previewGeometry.groupBounds
+    ? normalizeWhiteboardSelectionRect(offsetRect(previewGeometry.groupBounds, movePreview))
     : null;
-  const strokeBounds = useMemo(() => (
-    baseGeometry.singleStroke && baseGeometry.singleBounds
+  const linearStroke = baseGeometry.singleStroke && !baseGeometry.singleStroke.autoShape && isLinearTool(baseGeometry.singleStroke.tool)
+    ? baseGeometry.singleStroke
+    : null;
+  const singleItemBounds = useMemo(() => (
+    previewGeometry.singleBounds
       ? [{
-          ...(resizePreviewBounds ?? offsetRect(baseGeometry.singleBounds, movePreview)),
-          id: baseGeometry.singleBounds.id,
+          ...normalizeWhiteboardSelectionRect(offsetRect(previewGeometry.singleBounds, movePreview)),
+          id: previewGeometry.singleBounds.id,
         }]
       : []
-  ), [baseGeometry, movePreview, resizePreviewBounds]);
-  const singleBounds = baseGeometry.singleBounds
+  ), [movePreview, previewGeometry.singleBounds]);
+  const singleBounds = previewGeometry.singleBounds
     ? {
-        ...(resizePreviewBounds ?? offsetRect(baseGeometry.singleBounds, movePreview)),
-        id: baseGeometry.singleBounds.id,
+        ...normalizeWhiteboardSelectionRect(offsetRect(previewGeometry.singleBounds, movePreview)),
+        id: previewGeometry.singleBounds.id,
       }
     : null;
   const resizeBounds = groupBounds ?? singleBounds;
+  const includesText = elements.some((element) => element.type === 'text');
 
   return (
     <svg aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-visible">
@@ -163,7 +201,10 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
           strokes={selectedStrokes}
         />
       )}
-      {strokeBounds.map((bounds) => (
+      {linearStroke && !movePreview && !resizePreview && !rotationPreview ? (
+        <WhiteboardLinearPointHandles stroke={linearStroke} zoom={linearZoom} onPointerDown={handleLinearPointPointerDown} />
+      ) : null}
+      {singleItemBounds.map((bounds) => (
         <rect
           key={bounds.id}
           x={bounds.x}
@@ -171,7 +212,6 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
           width={bounds.width}
           height={bounds.height}
           fill="transparent"
-          rx="6"
           stroke="var(--vlaina-color-whiteboard-selected)"
           strokeDasharray="6 5"
           strokeWidth={themeWhiteboardTokens.strokeSelectionWidthPx}
@@ -193,75 +233,23 @@ const WhiteboardSelectedItemsOverlay = memo(function WhiteboardSelectedItemsOver
         />
       ) : null}
       {resizeBounds ? (
-        <SelectionResizeHandles bounds={resizeBounds} disabled={spacePressed} onPointerDown={onSelectionResizePointerDown} />
+        <WhiteboardSelectionTransformHandles
+          bounds={resizeBounds}
+          disabled={spacePressed}
+          flipX={Boolean(resizePreview && resizePreview.nextBounds.width < 0)}
+          flipY={Boolean(resizePreview && resizePreview.nextBounds.height < 0)}
+          showEdgeHandles={!includesText}
+          zoom={linearZoom}
+          onResizePointerDown={onSelectionResizePointerDown}
+          onRotationPointerDown={handleSelectionRotationPointerDown}
+        />
       ) : null}
     </svg>
   );
 });
 
-function SelectionResizeHandles({
-  bounds,
-  disabled,
-  onPointerDown,
-}: {
-  bounds: WhiteboardSelectionRect;
-  disabled: boolean;
-  onPointerDown: (event: PointerEvent<SVGRectElement>, handle: WhiteboardResizeHandle) => void;
-}) {
-  const edge = themeWhiteboardTokens.selectionResizeEdgeHitSizePx;
-  const size = themeWhiteboardTokens.selectionResizeHandleSizePx;
-  const halfEdge = edge / 2;
-  const halfSize = size / 2;
-  const edgeHandles: Array<{ cursor: string; handle: WhiteboardResizeHandle; rect: WhiteboardSelectionRect }> = [
-    { cursor: 'ns-resize', handle: 'n', rect: { height: edge, width: bounds.width, x: bounds.x, y: bounds.y - halfEdge } },
-    { cursor: 'ew-resize', handle: 'e', rect: { height: bounds.height, width: edge, x: bounds.x + bounds.width - halfEdge, y: bounds.y } },
-    { cursor: 'ns-resize', handle: 's', rect: { height: edge, width: bounds.width, x: bounds.x, y: bounds.y + bounds.height - halfEdge } },
-    { cursor: 'ew-resize', handle: 'w', rect: { height: bounds.height, width: edge, x: bounds.x - halfEdge, y: bounds.y } },
-  ];
-  const cornerHandles: Array<{ cursor: string; handle: WhiteboardResizeHandle; x: number; y: number }> = [
-    { cursor: 'nwse-resize', handle: 'nw', x: bounds.x, y: bounds.y },
-    { cursor: 'nesw-resize', handle: 'ne', x: bounds.x + bounds.width, y: bounds.y },
-    { cursor: 'nwse-resize', handle: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-    { cursor: 'nesw-resize', handle: 'sw', x: bounds.x, y: bounds.y + bounds.height },
-  ];
-
-  return (
-    <g>
-      {edgeHandles.map(({ cursor, handle, rect }) => (
-        <rect
-          key={handle}
-          data-whiteboard-selection-resize-handle={handle}
-          className={disabled ? 'pointer-events-none' : 'pointer-events-auto'}
-          x={rect.x}
-          y={rect.y}
-          width={rect.width}
-          height={rect.height}
-          fill="transparent"
-          style={disabled ? undefined : { cursor }}
-          onPointerDown={(event) => onPointerDown(event, handle)}
-        />
-      ))}
-      {cornerHandles.map(({ cursor, handle, x, y }) => (
-        <rect
-          key={handle}
-          data-whiteboard-selection-resize-handle={handle}
-          className={disabled ? 'pointer-events-none' : 'pointer-events-auto'}
-          x={x - halfSize}
-          y={y - halfSize}
-          width={size}
-          height={size}
-          fill="var(--vlaina-color-floating-surface)"
-          rx={themeWhiteboardTokens.brushCursorStrokeWidthPx}
-          stroke="var(--vlaina-color-whiteboard-selected)"
-          strokeWidth={themeWhiteboardTokens.strokeSelectionWidthPx}
-          style={disabled ? undefined : { cursor }}
-          vectorEffect="non-scaling-stroke"
-          onPointerDown={(event) => onPointerDown(event, handle)}
-        />
-      ))}
-    </g>
-  );
-}
+function ignoreLinearPointPointerDown() {}
+function ignoreSelectionRotationPointerDown() {}
 
 function offsetRect<T extends WhiteboardSelectionRect>(rect: T, movePreview: WhiteboardMovePreview | null): T {
   return movePreview ? { ...rect, x: rect.x + movePreview.dx, y: rect.y + movePreview.dy } : rect;

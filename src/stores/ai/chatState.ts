@@ -82,13 +82,6 @@ export function filterUnreadSessionIds(unreadSessionIds: string[] | undefined, s
   return uniqueSessionIds((unreadSessionIds || []).filter((sessionId) => allowedIds.has(sessionId)))
 }
 
-function revokeComputerUseForSelectionChange() {
-  const store = useUnifiedStore.getState()
-  if (store.data.ai?.computerUseEnabled) {
-    store.updateAIData({ computerUseEnabled: false })
-  }
-}
-
 export const useAIUIStore = create<AIUIState>((set, get) => ({
   generatingSessions: {},
   unreadSessions: {},
@@ -154,22 +147,15 @@ export const useAIUIStore = create<AIUIState>((set, get) => ({
   setError: (error: string | null) => set({ error }),
   initializeSelection: ({ currentSessionId, temporaryChatEnabled }) => {
     if (get().selectionInitialized) return
-    revokeComputerUseForSelectionChange()
     set({ currentSessionId, temporaryChatEnabled, selectionInitialized: true })
   },
   setChatSelection: ({ currentSessionId, temporaryChatEnabled }) => {
-    const current = get()
-    if (current.currentSessionId !== currentSessionId || current.temporaryChatEnabled !== temporaryChatEnabled) {
-      revokeComputerUseForSelectionChange()
-    }
     set({ currentSessionId, temporaryChatEnabled, selectionInitialized: true })
   },
   setCurrentSessionId: (currentSessionId) => {
-    if (get().currentSessionId !== currentSessionId) revokeComputerUseForSelectionChange()
     set({ currentSessionId, selectionInitialized: true })
   },
   setTemporaryChatEnabled: (temporaryChatEnabled) => {
-    if (get().temporaryChatEnabled !== temporaryChatEnabled) revokeComputerUseForSelectionChange()
     set({ temporaryChatEnabled, selectionInitialized: true })
   },
   setTemporaryReturnSessionId: (sessionId) => set({ temporaryReturnSessionId: sessionId }),

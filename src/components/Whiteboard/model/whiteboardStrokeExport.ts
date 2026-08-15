@@ -1,11 +1,19 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { getStrokeWidth, WHITEBOARD_BRUSHES, type WhiteboardStroke } from './whiteboardModel';
+import { getStrokeWidth, isLinearTool, WHITEBOARD_BRUSHES, type WhiteboardDrawingTool, type WhiteboardStroke } from './whiteboardModel';
+import { getWhiteboardArrowheadPath, getWhiteboardLinearRenderPath, getWhiteboardLinearStrokeWidth } from './whiteboardLinear';
 import { getStrokeDabGeometry } from './whiteboardStrokeDynamics';
 import { getStrokeRenderGeometry, getStrokeRenderWidth } from './whiteboardStrokeRenderGeometry';
 import { getWhiteboardStrokeDashStyle, getWhiteboardStrokeNoise, getWhiteboardStrokeRenderSeed, groupWhiteboardStrokeGrainPaths } from './whiteboardStrokeTexture';
 
 export function renderWhiteboardStrokeSvg(stroke: WhiteboardStroke): string {
   if (stroke.points.length === 0) return '';
+  if (isLinearTool(stroke.tool)) {
+    const color = escapeAttr(stroke.color);
+    const width = getWhiteboardLinearStrokeWidth(stroke);
+    const path = renderLine(getWhiteboardLinearRenderPath(stroke), color, width, 1);
+    const arrowhead = getWhiteboardArrowheadPath(stroke);
+    return `<g data-whiteboard-linear="${stroke.tool}">${path}${arrowhead ? renderLine(arrowhead, color, width, 1) : ''}</g>`;
+  }
   const brush = WHITEBOARD_BRUSHES[stroke.tool];
   const color = escapeAttr(stroke.color || brush.color);
   if (stroke.points.length === 1) {
@@ -103,7 +111,7 @@ function renderStrokeDab(
   width: number,
 ): string {
   const { x, y } = point;
-  const geometry = getStrokeDabGeometry(stroke.tool, width, point);
+  const geometry = getStrokeDabGeometry(stroke.tool as WhiteboardDrawingTool, width, point);
   const transform = geometry.angle ? ` transform="rotate(${geometry.angle} ${x} ${y})"` : '';
   if (geometry.shape === 'rect') {
     return `<rect data-whiteboard-brush-dab="marker" x="${x - geometry.width / 2}" y="${y - geometry.height / 2}" width="${geometry.width}" height="${geometry.height}" rx="${themeWhiteboardTokens.strokeEdgeFeatherWidthPx}" fill="${color}" opacity="${opacity}"${transform}/>`;

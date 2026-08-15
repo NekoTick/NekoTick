@@ -119,7 +119,7 @@ export function ChatSidebarHoverEmptyHint({
   return (
     <div
       className={cn(
-        'pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover/chat-sidebar-surface:opacity-[var(--vlaina-opacity-100)]',
+        'pointer-events-none absolute inset-0 flex items-center justify-center opacity-[var(--vlaina-opacity-0)] transition-opacity duration-[var(--vlaina-duration-150)] group-hover/chat-sidebar-surface:opacity-[var(--vlaina-opacity-100)]',
         className,
       )}
       {...props}

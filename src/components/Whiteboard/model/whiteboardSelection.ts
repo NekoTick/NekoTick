@@ -6,17 +6,26 @@ import {
 } from './whiteboardModel';
 import { getStrokePointSegments } from './whiteboardStrokeGeometry';
 import { getStrokePointMaxWidth } from './whiteboardStrokeDynamics';
+import { getWhiteboardLinearSegments, getWhiteboardLinearVisualPoints } from './whiteboardLinear';
+import { isLinearTool } from './whiteboardModel';
 import { distanceBetweenSegments } from './whiteboardSegmentGeometry';
-import { getElementBounds, getStrokeBounds, type WhiteboardSelectionRect } from './whiteboardSelectionTransform';
+import { getElementBounds, getElementCorners, getStrokeBounds, type WhiteboardSelectionRect } from './whiteboardSelectionTransform';
 
 export {
   getBoundsUnion,
   extendSelectedOverlayGeometry,
   getElementBounds,
+  getElementCorners,
   getResizedSelectionBounds,
+  getWhiteboardResizeScale,
   getSelectedOverlayGeometry,
   getSelectionBounds,
   getStrokeBounds,
+  normalizeWhiteboardSelectionRect,
+  rotateSelectionElement,
+  rotateSelectionElements,
+  rotateSelectionStroke,
+  rotateSelectionStrokes,
   resizeSelectionElements,
   resizeSelectionElement,
   resizeSelectionStroke,
@@ -57,7 +66,8 @@ export function findElementAtPoint(
 ): WhiteboardElement | null {
   for (let index = elements.length - 1; index >= 0; index -= 1) {
     const element = elements[index];
-    if (pointInRect(point, getElementBounds(element))) return element;
+    const bounds = getElementBounds(element);
+    if (pointInRect(point, bounds) && pointInPolygon(point, getElementCorners(element))) return element;
   }
   return null;
 }
@@ -103,6 +113,12 @@ function isPointNearStroke(stroke: WhiteboardStroke, point: WhiteboardPoint, tol
   if (stroke.points.length === 1) {
     return distance(stroke.points[0], point) <= getStrokeMaxWidth(stroke) / 2 + tolerance;
   }
+  if (isLinearTool(stroke.tool)) {
+    const width = getStrokePointMaxWidth(stroke.tool, stroke.points[0], stroke.size);
+    return getWhiteboardLinearSegments(stroke).some(([start, end]) => (
+      distanceToSegment(point, start, end) <= width / 2 + tolerance
+    ));
+  }
   return getStrokePointSegments(stroke.points).some((segment) => segment.some((current, index) => {
     const previous = segment[index - 1];
     if (!previous) return false;
@@ -127,13 +143,12 @@ function elementIntersectsLasso(
 ): boolean {
   const bounds = getElementBounds(element);
   if (!rectsOverlap(bounds, lassoBounds)) return false;
-  const points = [
-    { x: bounds.x, y: bounds.y },
-    { x: bounds.x + bounds.width, y: bounds.y },
-    { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-    { x: bounds.x, y: bounds.y + bounds.height },
-  ];
-  return points.some((point) => pointInPolygon(point, path)) || segments.some(([start, end]) => segmentIntersectsRect(start, end, bounds));
+  const points = getElementCorners(element);
+  const elementSegments = points.map((point, index) => [point, points[(index + 1) % points.length]] as WhiteboardLassoSegment);
+  return points.some((point) => pointInPolygon(point, path))
+    || segments.some(([start, end]) => elementSegments.some(([edgeStart, edgeEnd]) => (
+      segmentsIntersect(start, end, edgeStart, edgeEnd)
+    )));
 }
 
 function strokeIntersectsLasso(
@@ -144,7 +159,14 @@ function strokeIntersectsLasso(
 ): boolean {
   const bounds = getStrokeBounds(stroke);
   if (!bounds || !rectsOverlap(bounds, lassoBounds)) return false;
-  if (stroke.points.some((point) => pointInPolygon(point, path))) return true;
+  const points = isLinearTool(stroke.tool) ? getWhiteboardLinearVisualPoints(stroke) : stroke.points;
+  if (points.some((point) => pointInPolygon(point, path))) return true;
+  if (isLinearTool(stroke.tool)) {
+    const width = getStrokePointMaxWidth(stroke.tool, stroke.points[0], stroke.size);
+    return getWhiteboardLinearSegments(stroke).some(([previous, current]) => (
+      lassoSegments.some(([start, end]) => distanceBetweenSegments(previous, current, start, end) <= width / 2)
+    ));
+  }
   return getStrokePointSegments(stroke.points).some((segment) => segment.some((current, index) => {
     const previous = segment[index - 1];
     const width = Math.max(
@@ -183,19 +205,6 @@ function pointInPolygon(point: WhiteboardPoint, polygon: WhiteboardLassoPath): b
 
 function getLassoSegments(path: WhiteboardLassoPath): WhiteboardLassoSegment[] {
   return path.map((point, index) => [point, path[(index + 1) % path.length]]);
-}
-
-function segmentIntersectsRect(start: WhiteboardPoint, end: WhiteboardPoint, rect: WhiteboardSelectionRect): boolean {
-  const topLeft = { x: rect.x, y: rect.y };
-  const topRight = { x: rect.x + rect.width, y: rect.y };
-  const bottomRight = { x: rect.x + rect.width, y: rect.y + rect.height };
-  const bottomLeft = { x: rect.x, y: rect.y + rect.height };
-  return [
-    [topLeft, topRight],
-    [topRight, bottomRight],
-    [bottomRight, bottomLeft],
-    [bottomLeft, topLeft],
-  ].some(([edgeStart, edgeEnd]) => segmentsIntersect(start, end, edgeStart, edgeEnd));
 }
 
 function segmentsIntersect(a: WhiteboardPoint, b: WhiteboardPoint, c: WhiteboardPoint, d: WhiteboardPoint): boolean {

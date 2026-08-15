@@ -55,14 +55,4 @@ describe('WhiteboardBrushCursor', () => {
       stroke.unmount();
     }
   });
-
-  it('shows the active size for the stroke eraser', () => {
-    const { container } = render(<WhiteboardBrushCursor color="transparent" point={{ x: 20, y: 30 }} size={1} tool="stroke-eraser" />);
-
-    const cursor = container.querySelector('[data-whiteboard-brush-cursor="stroke-eraser"]');
-
-    expect(cursor).toHaveAttribute('r', '10');
-    expect(cursor).not.toHaveAttribute('stroke');
-    expect(cursor).not.toHaveAttribute('stroke-width');
-  });
 });

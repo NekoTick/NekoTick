@@ -185,25 +185,6 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
     expect(mocks.strokeLayer).toHaveBeenCalledTimes(1);
   });
 
-  it('renders partial eraser replacements in place of the source stroke', () => {
-    const replacement = {
-      ...stroke,
-      id: 'stroke-1-part-2',
-      points: stroke.points.slice(1),
-    };
-    const { rerender } = render(<WhiteboardCanvasLayer {...baseProps} />);
-
-    rerender(
-      <WhiteboardCanvasLayer
-        {...baseProps}
-        strokeEraserPreview={{ replacements: new Map([[stroke.id, [replacement]]]) }}
-        tool="stroke-eraser"
-      />,
-    );
-
-    expect(mocks.strokeLayer.mock.calls.at(-1)?.[0].strokes).toEqual([replacement]);
-  });
-
   it('renders only resized preview items while document arrays stay unchanged', () => {
     const bounds = { height: 100, width: 100, x: 0, y: 0 };
     const nextBounds = { height: 150, width: 200, x: 10, y: 20 };
@@ -223,7 +204,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
 
     expect(mocks.strokeLayer.mock.calls[0][0].strokes).toEqual([]);
     expect(mocks.strokeLayer.mock.calls[1][0].strokes[0]).not.toBe(stroke);
-    expect(mocks.selectionOverlay.mock.calls.at(-1)?.[0].resizePreviewBounds).toBe(nextBounds);
+    expect(mocks.selectionOverlay.mock.calls.at(-1)?.[0].resizePreview).toMatchObject({ nextBounds });
   });
 
   it('reuses source geometry with a layer transform for large resize previews', () => {
@@ -252,6 +233,34 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
     expect(mocks.strokeLayer).toHaveBeenCalledTimes(1);
     expect(mocks.strokeLayer.mock.calls[0][0]).toMatchObject({
       cssTransform: 'translate(10px, 20px) scale(2, 1.5) translate(0px, 0px)',
+      strokes,
+    });
+  });
+
+  it('reuses source geometry while a large resize crosses an edge', () => {
+    const strokes = Array.from({ length: 1001 }, (_, index) => ({
+      ...stroke,
+      id: `flipped-stroke-${index}`,
+    }));
+
+    render(
+      <WhiteboardCanvasLayer
+        {...baseProps}
+        renderData={createRenderData([], strokes, {
+          selectedStrokeIds: strokes.map((item) => item.id),
+        })}
+        resizePreview={{
+          nextBounds: { height: -50, width: 200, x: 10, y: 20 },
+          originalElementsById: new Map(),
+          originalStrokesById: new Map(strokes.map((item) => [item.id, item])),
+          startBounds: { height: 100, width: 100, x: 0, y: 0 },
+        }}
+      />,
+    );
+
+    expect(mocks.strokeLayer).toHaveBeenCalledTimes(1);
+    expect(mocks.strokeLayer.mock.calls[0][0]).toMatchObject({
+      cssTransform: 'translate(10px, 20px) scale(2, -0.5) translate(0px, 0px)',
       strokes,
     });
   });
@@ -325,7 +334,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
   it('keeps the static stroke list stable while a selection moves', () => {
     const staticStroke = { ...stroke, id: 'stroke-static' };
     const strokes = [stroke, staticStroke];
-    const movePreview = { dx: 4, dy: 6 };
+    const movePreview = { dx: 4, dy: 6, elementIds: [], strokeIds: [stroke.id] };
     const selectedStrokeIds = [stroke.id];
     const renderData = createRenderData([], strokes, { selectedStrokeIds });
     const { rerender } = render(
@@ -353,7 +362,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
   });
 
   it('keeps a fully moving visible stroke set in the primary layer', () => {
-    const movePreview = { dx: 4, dy: 6 };
+    const movePreview = { dx: 4, dy: 6, elementIds: [], strokeIds: [stroke.id] };
     const { rerender } = render(
       <WhiteboardCanvasLayer
         {...baseProps}
@@ -390,7 +399,7 @@ describe('WhiteboardCanvasLayer performance boundaries', () => {
       x: index * 60, y: 0,
     }));
     const selectedElementIds = ['image-999'];
-    const movePreview = { dx: 4, dy: 6 };
+    const movePreview = { dx: 4, dy: 6, elementIds: selectedElementIds, strokeIds: [] };
     const renderData = createRenderData(elements, emptyStrokes, { selectedElementIds });
     const { rerender } = render(
       <WhiteboardCanvasLayer

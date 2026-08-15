@@ -172,6 +172,12 @@ export function useNotesSplitPanes(args: {
       openNote,
       openNoteByAbsolutePath,
     })).then(() => {
+      if (useNotesStore.getState().currentNote?.path !== path) {
+        if (pendingSplitEditorFocusRef.current?.path === path) {
+          pendingSplitEditorFocusRef.current = null;
+        }
+        return;
+      }
       if (previousPath && previousPath !== path) {
         if (!activeSplitPreviewLeafIdRef.current) {
           setPrimaryPreviewLeaf({
@@ -204,6 +210,12 @@ export function useNotesSplitPanes(args: {
       openNote,
       openNoteByAbsolutePath,
     })).then(() => {
+      if (useNotesStore.getState().currentNote?.path !== path) {
+        if (pendingSplitEditorFocusRef.current?.path === path) {
+          pendingSplitEditorFocusRef.current = null;
+        }
+        return;
+      }
       setActiveSplitPreviewLeafId(null);
       setPrimaryPreviewLeaf(null);
       logNotesSplitDiagnostic('split-activate-primary-preview-complete', {

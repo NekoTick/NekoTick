@@ -18,6 +18,9 @@ function renderFocusSurface() {
       <div data-no-auto-close="true">
         <div data-testid="picker-blank" />
       </div>
+      <div data-no-editor-drag-box="true">
+        <div data-testid="header-drag-blank" />
+      </div>
       <div data-note-content-root="true" data-testid="content-root">
         <div data-testid="line-trailing-blank" />
       </div>
@@ -49,11 +52,12 @@ describe('focusEditorFromNoteUpperBlankArea', () => {
     expect(mocks.focusNoteInitialPosition).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves icon controls, picker chrome, and concrete line trailing space alone', () => {
+  it('leaves icon controls, picker chrome, header drag space, and concrete line trailing space alone', () => {
     renderFocusSurface();
 
     fireEvent.click(screen.getByRole('button', { name: 'Icon control' }), { button: 0, clientY: 120 });
     fireEvent.click(screen.getByTestId('picker-blank'), { button: 0, clientY: 120 });
+    fireEvent.click(screen.getByTestId('header-drag-blank'), { button: 0, clientY: 120 });
     fireEvent.click(screen.getByTestId('line-trailing-blank'), { button: 0, clientY: 240 });
 
     expect(mocks.focusNoteInitialPosition).not.toHaveBeenCalled();

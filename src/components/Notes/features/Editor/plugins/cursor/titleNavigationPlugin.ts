@@ -13,13 +13,20 @@ export const titleNavigationPlugin = $prose(() => {
                 if (
                     event.defaultPrevented ||
                     event.isComposing ||
-                    event.key !== 'ArrowUp' ||
                     event.shiftKey ||
                     event.ctrlKey ||
                     event.metaKey ||
                     event.altKey
                 ) return false;
-                if (!shouldMoveSelectionToTitle(view)) return false;
+                const { $cursor } = view.state.selection;
+                const shouldMove = event.key === 'ArrowUp'
+                    ? shouldMoveSelectionToTitle(view)
+                    : event.key === 'Backspace'
+                        && $cursor?.depth === 1
+                        && $cursor.before(1) === 0
+                        && $cursor.parentOffset === 0
+                        && $cursor.parent.type.name === 'paragraph';
+                if (!shouldMove) return false;
                 if (!focusNoteTitleInputAtEnd()) return false;
 
                 event.preventDefault();

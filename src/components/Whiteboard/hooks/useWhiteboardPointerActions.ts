@@ -16,8 +16,9 @@ import {
 import type { WhiteboardEraserSample } from '../model/whiteboardEraser';
 import {
   clampWhiteboardZoom,
-  isBrushTool,
-  isDrawingTool,
+  isBrushPanelTool,
+  isLinearTool,
+  isStrokeTool,
   screenPointToBoardPoint,
   type WhiteboardBrushColors,
   type WhiteboardBrushSizes,
@@ -28,6 +29,7 @@ import {
   type WhiteboardTool,
   type WhiteboardViewport,
 } from '../model/whiteboardModel';
+import { createWhiteboardLinearStroke } from '../model/whiteboardLinear';
 import { getStrokePointMinDistance } from '../model/whiteboardStrokeGeometry';
 import {
   useWhiteboardLassoDragScheduler,
@@ -51,10 +53,6 @@ interface WhiteboardPointerActionsOptions {
     begin: (points: WhiteboardEraserSample[]) => void;
     update: (points: WhiteboardEraserSample[]) => void;
   };
-  strokeEraserActions: {
-    begin: (points: WhiteboardEraserSample[]) => void;
-    update: (points: WhiteboardEraserSample[]) => void;
-  };
   resizeSelection: (state: Extract<WhiteboardDragState, { kind: 'resize-selection' }>, point: WhiteboardPoint) => void;
   scheduleViewport: (update: SetStateAction<WhiteboardViewport>) => void;
   setBrushCursorPoint: (point: WhiteboardPoint | null) => void;
@@ -64,8 +62,11 @@ interface WhiteboardPointerActionsOptions {
   setSelectedStrokeIds: Dispatch<SetStateAction<string[]>>;
   spacePressedRef: MutableRefObject<boolean>;
   startStrokeSelection: (point: WhiteboardPoint, event: PointerEvent<HTMLDivElement>) => void;
+  startTextEditing: (point: WhiteboardPoint, color: string) => void;
   strokeIdRef: MutableRefObject<number>;
   tool: WhiteboardTool;
+  updateLinearPoint: (state: Extract<WhiteboardDragState, { kind: 'edit-linear-point' }>, point: WhiteboardPoint, angleLocked: boolean) => void;
+  updateSelectionRotation: (state: Extract<WhiteboardDragState, { kind: 'rotate-selection' }>, point: WhiteboardPoint) => void;
   updatePointer: (pointerId: number, clientX: number, clientY: number) => WhiteboardPoint | null;
   viewport: WhiteboardViewport;
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -93,9 +94,11 @@ export function useWhiteboardPointerActions({
   setSelectedStrokeIds,
   spacePressedRef,
   startStrokeSelection,
-  strokeEraserActions,
+  startTextEditing,
   strokeIdRef,
   tool,
+  updateLinearPoint,
+  updateSelectionRotation,
   updatePointer,
   viewport,
   viewportRef,
@@ -104,7 +107,7 @@ export function useWhiteboardPointerActions({
   const scheduleMoveDragPoint = useWhiteboardMoveDragScheduler(setDragState);
   const scheduleLassoPoint = useWhiteboardLassoDragScheduler(setDragState);
   const { collectEraserSamples, collectStrokePoints, resetStrokeInput } = useWhiteboardPointerSamples({
-    brushSizes, getBoardPointFromRect, tool, viewport, viewportRef,
+    getBoardPointFromRect, viewport, viewportRef,
   });
 
   useEffect(() => {
@@ -156,33 +159,52 @@ export function useWhiteboardPointerActions({
     if (
       event.pointerType === 'touch'
       && !drawWithTouch
-      && (isBrushTool(tool) || tool === 'eraser')
+      && (isStrokeTool(tool) || tool === 'autoshape' || tool === 'eraser')
     ) {
       startPan(event);
       return;
     }
     const rect = activePointerRectRef.current ?? viewportRef.current?.getBoundingClientRect();
     const point = rect ? getBoardPointFromRect(event.clientX, event.clientY, rect) : { x: 0, y: 0 };
-    if (isDrawingTool(tool) && event.button === 0) {
+    if ((isBrushPanelTool(tool) || tool === 'autoshape') && event.button === 0) {
+      const drawingTool = tool === 'autoshape' ? 'pen' : tool;
       setSelectedElementId(null);
       setSelectedStrokeIds([]);
       resetStrokeInput();
       setDraftStroke({
-        color: brushColors[tool],
+        color: brushColors[drawingTool],
         id: `wb-stroke-${strokeIdRef.current}`,
-        points: collectStrokePoints(event, tool, rect ?? undefined),
-        size: brushSizes[tool],
-        tool,
+        points: collectStrokePoints(event, drawingTool, rect ?? undefined),
+        size: brushSizes[drawingTool],
+        tool: drawingTool,
       });
-      setDragState({ kind: 'draw' });
+      setDragState({ kind: tool === 'autoshape' ? 'draw-autoshape' : 'draw' });
       return;
     }
-    if ((tool === 'eraser' || tool === 'stroke-eraser') && event.button === 0) {
+    if (isLinearTool(tool) && event.button === 0) {
+      setSelectedElementId(null);
+      setSelectedStrokeIds([]);
+      setDraftStroke(createWhiteboardLinearStroke(
+        `wb-stroke-${strokeIdRef.current}`,
+        tool,
+        point,
+        point,
+        brushColors[tool],
+        brushSizes[tool],
+      ));
+      setDragState({ kind: 'draw-linear', startPoint: point });
+      return;
+    }
+    if (tool === 'text' && event.button === 0) {
+      event.preventDefault();
+      startTextEditing(point, brushColors.pen);
+      return;
+    }
+    if (tool === 'eraser' && event.button === 0) {
       setSelectedStrokeIds([]);
       setSelectedElementId(null);
       const samples = collectEraserSamples(event, rect ?? undefined);
-      if (tool === 'eraser') eraserActions.begin(samples);
-      else strokeEraserActions.begin(samples);
+      eraserActions.begin(samples);
       setDragState({ kind: 'draw' });
       return;
     }
@@ -194,7 +216,7 @@ export function useWhiteboardPointerActions({
     activePenPointerRef, brushColors, brushSizes, collectEraserSamples, collectStrokePoints,
     addPointer, drawWithTouch, eraserActions, getBoardPointFromRect, interactionLocked, setDraftStroke, setDragState,
     resetStrokeInput, setSelectedElementId, setSelectedStrokeIds, spacePressedRef, startPan, startPinch,
-    startStrokeSelection, strokeEraserActions, strokeIdRef, tool, viewportRef,
+    startStrokeSelection, startTextEditing, strokeIdRef, tool, viewportRef,
   ]);
 
   const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -203,7 +225,7 @@ export function useWhiteboardPointerActions({
     if (!activePointerRectRef.current) activePointerRectRef.current = viewportRef.current?.getBoundingClientRect() ?? null;
     const rect = activePointerRectRef.current;
     const point = rect ? getBoardPointFromRect(event.clientX, event.clientY, rect) : { x: 0, y: 0 };
-    if (!dragState || dragState.kind === 'draw') setBrushCursorPoint(point);
+    if (!dragState || dragState.kind === 'draw' || dragState.kind === 'draw-autoshape' || dragState.kind === 'draw-linear') setBrushCursorPoint(point);
     if (!dragState) return;
     if (dragState.kind === 'pinch') {
       const metrics = getPinchMetrics();
@@ -225,16 +247,38 @@ export function useWhiteboardPointerActions({
       });
       return;
     }
-    if (dragState.kind === 'draw') {
-      if (tool === 'eraser' || tool === 'stroke-eraser') {
+    if (dragState.kind === 'draw' || dragState.kind === 'draw-autoshape') {
+      if (tool === 'eraser') {
         const samples = collectEraserSamples(event, rect ?? undefined);
-        if (tool === 'eraser') eraserActions.update(samples);
-        else strokeEraserActions.update(samples);
+        eraserActions.update(samples);
         return;
       }
-      if (isDrawingTool(tool)) {
-        appendDraftPoints(tool, collectStrokePoints(event, tool, rect ?? undefined), getStrokePointMinDistance(viewport.zoom));
+      if (isBrushPanelTool(tool) || tool === 'autoshape') {
+        const drawingTool = tool === 'autoshape' ? 'pen' : tool;
+        appendDraftPoints(drawingTool, collectStrokePoints(event, drawingTool, rect ?? undefined), getStrokePointMinDistance(viewport.zoom));
       }
+      return;
+    }
+    if (dragState.kind === 'draw-linear') {
+      if (isLinearTool(tool)) {
+        setDraftStroke(createWhiteboardLinearStroke(
+          `wb-stroke-${strokeIdRef.current}`,
+          tool,
+          dragState.startPoint,
+          point,
+          brushColors[tool],
+          brushSizes[tool],
+          event.shiftKey,
+        ));
+      }
+      return;
+    }
+    if (dragState.kind === 'edit-linear-point') {
+      updateLinearPoint(dragState, point, event.shiftKey);
+      return;
+    }
+    if (dragState.kind === 'rotate-selection') {
+      updateSelectionRotation(dragState, point);
       return;
     }
     if (dragState.kind === 'lasso') {
@@ -250,10 +294,10 @@ export function useWhiteboardPointerActions({
       return;
     }
   }, [
-    appendDraftPoints, collectEraserSamples, collectStrokePoints, dragState, eraserActions, getBoardPointFromRect,
+    appendDraftPoints, brushColors, brushSizes, collectEraserSamples, collectStrokePoints, dragState, eraserActions, getBoardPointFromRect,
     interactionLocked,
     getPinchMetrics, resizeSelection, scheduleLassoPoint, scheduleMoveDragPoint,
-    scheduleViewport, setBrushCursorPoint, setDragState, strokeEraserActions, tool, updatePointer, viewport.zoom,
+    scheduleViewport, setBrushCursorPoint, setDragState, setDraftStroke, strokeIdRef, tool, updateLinearPoint, updatePointer, updateSelectionRotation, viewport.zoom,
     viewportRef,
   ]);
 

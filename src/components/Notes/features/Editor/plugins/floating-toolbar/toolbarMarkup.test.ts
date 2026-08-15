@@ -58,6 +58,39 @@ describe('toolbar markup', () => {
     expect(markup).not.toContain('data-action="color"');
   });
 
+  it.each([
+    'heading1',
+    'heading2',
+    'heading3',
+    'heading4',
+    'heading5',
+    'heading6',
+  ] as const)('omits inline formatting controls for a selected %s', (currentBlockType) => {
+    const markup = renderToolbarMarkup(createState({ currentBlockType }));
+
+    expect(markup).toContain('data-action="ai"');
+    expect(markup).toContain('data-action="block"');
+    expect(markup).toContain('data-action="alignment"');
+    expect(markup).toContain('data-action="link"');
+    expect(markup).toContain('data-action="color"');
+    expect(markup).toContain('data-action="copy"');
+    expect(markup).toContain('data-action="delete"');
+    expect(markup).not.toContain('toolbar-format-group');
+    expect(markup).not.toContain('data-action="bold"');
+    expect(markup).not.toContain('data-action="italic"');
+    expect(markup).not.toContain('data-action="underline"');
+    expect(markup).not.toContain('data-action="strike"');
+    expect(markup).not.toContain('data-action="code"');
+    expect(markup).not.toContain('data-action="highlight"');
+  });
+
+  it('keeps inline formatting controls for a paragraph selection', () => {
+    const markup = renderToolbarMarkup(createState({ currentBlockType: 'paragraph' }));
+
+    expect(markup).toContain('toolbar-format-group');
+    expect(markup).toContain('data-action="bold"');
+  });
+
   it('uses the shared composer pill surface for toolbar dropdown panels', () => {
     const dropdownFiles = [
       'components/BlockDropdown.ts',

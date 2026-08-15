@@ -50,7 +50,7 @@ export function EditorTopRightToolbar({
 
       {showOutline || showNoteActions ? (
         <div className="flex items-center gap-1">
-          <EditorOutlineRail enabled={!editorFind.isOpen && showOutline} />
+          <EditorOutlineRail enabled={!editorFind.isOpen && showOutline} sourceMode={isSourceMode} />
           {!editorFind.isOpen && showNoteActions ? (
             <NoteToolbarActions
               currentNotePath={currentNotePath}

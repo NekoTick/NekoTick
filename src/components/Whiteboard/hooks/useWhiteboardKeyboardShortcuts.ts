@@ -1,16 +1,17 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { isEditableTarget } from '../model/whiteboardInteractions';
-import type { WhiteboardBrushTool, WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
+import type { WhiteboardElement, WhiteboardStroke, WhiteboardStrokeTool, WhiteboardTool } from '../model/whiteboardModel';
 import { translateStroke } from '../model/whiteboardSelection';
 import { markWhiteboardSparseUpdate } from '../model/whiteboardCollection';
 import type { WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
 
 interface WhiteboardKeyboardShortcutsOptions {
   active: boolean;
+  editSelectedText?: () => boolean;
   pushHistory: () => void;
-  resizeBrush: (tool: WhiteboardBrushTool, deltaY: number) => void;
+  resizeBrush: (tool: WhiteboardStrokeTool, deltaY: number) => void;
   selectAll: () => void;
-  selectedBrushTool: WhiteboardBrushTool | null;
+  selectedBrushTool: WhiteboardStrokeTool | null;
   selectedElementIds: string[];
   selectedStrokeIds: string[];
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>;
@@ -26,16 +27,22 @@ const TOOL_KEYS: Partial<Record<string, WhiteboardTool>> = {
   '3': 'pen',
   '4': 'pencil',
   '5': 'marker',
-  '6': 'eraser',
+  '6': 'line',
+  '7': 'arrow',
+  '8': 'eraser',
+  a: 'arrow',
   e: 'eraser',
   h: 'hand',
+  l: 'line',
   m: 'marker',
   p: 'pen',
+  t: 'text',
   v: 'select',
 };
 
 export function useWhiteboardKeyboardShortcuts({
   active,
+  editSelectedText,
   pushHistory,
   resizeBrush,
   selectAll,
@@ -65,6 +72,10 @@ export function useWhiteboardKeyboardShortcuts({
         selectAll();
         return;
       }
+      if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey && editSelectedText?.()) {
+        event.preventDefault();
+        return;
+      }
       if (!event.ctrlKey && !event.metaKey && !event.altKey) {
         const nextTool = TOOL_KEYS[key];
         if (nextTool) {
@@ -81,7 +92,7 @@ export function useWhiteboardKeyboardShortcuts({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    active, pushHistory, resizeBrush, selectAll, selectedBrushTool,
+    active, editSelectedText, pushHistory, resizeBrush, selectAll, selectedBrushTool,
     selectedElementIds, selectedStrokeIds, setElements, setStrokes, setTool, spatialIndex, viewportZoom,
   ]);
 }

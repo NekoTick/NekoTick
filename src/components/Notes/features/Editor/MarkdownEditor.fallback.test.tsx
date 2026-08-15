@@ -1,4 +1,5 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownSourceEditor } from './MarkdownSourceEditor';
@@ -67,7 +68,7 @@ const mocks = vi.hoisted(() => {
     notifyNotesStoreListeners,
     notesState,
     milkdownRuntimeMode: {
-      value: 'throw' as 'throw' | 'never-ready' | 'live-dom-never-ready',
+      value: 'throw' as 'throw' | 'never-ready' | 'live-dom-never-ready' | 'sync-failure',
     },
   };
 });
@@ -155,16 +156,19 @@ vi.mock('./EditorTopRightToolbar', () => ({
     currentNotePath,
     isSourceMode,
     onToggleSourceMode,
+    showOutline,
     starred,
     toggleStarred,
   }: {
     currentNotePath?: string | null;
     isSourceMode?: boolean;
     onToggleSourceMode?: () => void;
+    showOutline?: boolean;
     starred: boolean;
     toggleStarred: (path: string) => void;
   }) => (
     <>
+      <span data-testid="outline-visibility">{showOutline ? 'visible' : 'hidden'}</span>
       <button
         type="button"
         aria-label={starred ? 'Unfavorite' : 'Add to Starred'}
@@ -228,7 +232,17 @@ vi.mock('./find/useNoteEditorFind', () => ({
 }));
 
 vi.mock('./MilkdownEditorInner', () => ({
-  MilkdownEditorRuntime: () => {
+  MilkdownEditorRuntime: ({
+    onEditorContentSyncFailure,
+  }: {
+    onEditorContentSyncFailure?: () => void;
+  }) => {
+    useEffect(() => {
+      if (mocks.milkdownRuntimeMode.value === 'sync-failure') {
+        onEditorContentSyncFailure?.();
+      }
+    }, [onEditorContentSyncFailure]);
+
     if (mocks.milkdownRuntimeMode.value === 'throw') {
       throw new Error('Milkdown failed to create');
     }
@@ -818,6 +832,7 @@ describe('MarkdownEditor source fallback', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Switch to source mode' }));
     expect(screen.getByRole('button', { name: 'Switch to rendered mode' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('outline-visibility')).toHaveTextContent('visible'));
     fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
 
     expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
@@ -825,12 +840,20 @@ describe('MarkdownEditor source fallback', () => {
   });
 
   it('retries the rendered editor after switching away from a note that triggered the fallback', async () => {
+    mocks.milkdownRuntimeMode.value = 'sync-failure';
     const { rerender } = render(<MarkdownEditor />);
 
     expect(await screen.findByLabelText('Markdown source editor')).toBeInTheDocument();
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
     mocks.notesState.currentNote = { path: 'beta.md', content: '# Beta' };
     mocks.notesState.openTabs = [{ path: 'beta.md', name: 'beta.md', isDirty: false }];
+    rerender(<MarkdownEditor />);
+
+    expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
+
+    mocks.notesState.currentNote = { path: 'alpha.md', content: '# Alpha\n\nInitial body' };
+    mocks.notesState.openTabs = [{ path: 'alpha.md', name: 'alpha.md', isDirty: false }];
     rerender(<MarkdownEditor />);
 
     expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
@@ -853,7 +876,17 @@ describe('MarkdownEditor source fallback', () => {
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
   });
 
-  it('does not switch to source fallback when a live ProseMirror editor is present', async () => {
+  it('immediately falls back to source editing after content synchronization repeatedly fails', async () => {
+    mocks.milkdownRuntimeMode.value = 'sync-failure';
+
+    render(<MarkdownEditor />);
+
+    const sourceEditor = await screen.findByLabelText('Markdown source editor');
+    expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
+    expect(sourceEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
+  });
+
+  it('does not treat a live ProseMirror DOM as proof that note content synchronized', async () => {
     vi.useFakeTimers();
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
 
@@ -866,8 +899,9 @@ describe('MarkdownEditor source fallback', () => {
       vi.advanceTimersByTime(30_000);
     });
 
-    expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
-    expect(screen.getByTestId('milkdown-live-dom')).toBeInstanceOf(HTMLElement);
+    const sourceEditor = screen.getByLabelText('Markdown source editor');
+    expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
+    expect(screen.queryByTestId('milkdown-live-dom')).toBeNull();
   });
 
   it('focuses the title when clicking the editor shell for an empty untitled draft', () => {

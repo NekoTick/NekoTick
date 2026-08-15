@@ -1,14 +1,12 @@
 const {
   createAccountApi,
   createAiProviderApi,
-  createComputerApi,
 } = require('./preloadRequestApis.cjs');
 
 function createDesktopApi(deps) {
   const {
     callIpcCallback,
     createRendererErrorReport,
-    hostPlatform,
     ipcRenderer,
     normalizeDesktopBinaryWritePayload,
     normalizeDesktopTextWritePayload,
@@ -221,7 +219,6 @@ function createDesktopApi(deps) {
       },
     },
     aiProvider: createAiProviderApi(deps),
-    computer: hostPlatform === 'linux' ? createComputerApi(deps) : undefined,
     dragDrop: {
       getPathForFile(file) {
         return webUtils.getPathForFile(file);

@@ -44,6 +44,7 @@ export function useWhiteboardEraserGesture({
   const lastSampleRef = useRef<WhiteboardEraserSample | null>(null);
   const pendingSamplesRef = useRef<WhiteboardEraserSample[]>([]);
   const spatialIndexRef = useRef(spatialIndex);
+  const touchingRef = useRef<MutableEraserTargets>(createMutableTargets());
   const targetsRef = useRef<MutableEraserTargets>(createMutableTargets());
   const trailRef = useRef<WhiteboardEraserSample[]>([]);
 
@@ -51,23 +52,35 @@ export function useWhiteboardEraserGesture({
     const pending = pendingSamplesRef.current;
     pendingSamplesRef.current = [];
     if (pending.length === 0) return;
-    const sweepSamples = lastSampleRef.current ? [lastSampleRef.current, ...pending] : pending;
-    lastSampleRef.current = pending.at(-1) ?? lastSampleRef.current;
-    const candidates = getWhiteboardEraserCandidates(spatialIndexRef.current, sweepSamples);
-    const hits = getWhiteboardEraserTargets(
-      candidates.elements.filter((element) => !targetsRef.current.elementIds.has(element.id)),
-      candidates.strokes.filter((stroke) => !targetsRef.current.strokeIds.has(stroke.id)),
-      sweepSamples,
-    );
-    hits.elementIds.forEach((id) => targetsRef.current.elementIds.add(id));
-    hits.strokeIds.forEach((id) => targetsRef.current.strokeIds.add(id));
+    let previous = lastSampleRef.current;
+    for (const sample of pending) {
+      const sweepSamples = previous ? [previous, sample] : [sample];
+      const candidates = getWhiteboardEraserCandidates(spatialIndexRef.current, sweepSamples);
+      const crossed = getWhiteboardEraserTargets(candidates.elements, candidates.strokes, sweepSamples);
+      toggleNewCrossings(targetsRef.current.elementIds, touchingRef.current.elementIds, crossed.elementIds);
+      toggleNewCrossings(targetsRef.current.strokeIds, touchingRef.current.strokeIds, crossed.strokeIds);
+
+      // Keep each target latched until the eraser head has actually left it.
+      const touchingCandidates = getWhiteboardEraserCandidates(spatialIndexRef.current, [sample]);
+      const touching = getWhiteboardEraserTargets(
+        touchingCandidates.elements,
+        touchingCandidates.strokes,
+        [sample],
+      );
+      touchingRef.current = {
+        elementIds: new Set(touching.elementIds),
+        strokeIds: new Set(touching.strokeIds),
+      };
+      previous = sample;
+    }
+    lastSampleRef.current = previous;
     const latestSample = pending.at(-1);
     if (latestSample) trailRef.current = [...trailRef.current, latestSample];
-    setPreview((current) => ({
-      elementIds: hits.elementIds.length > 0 ? [...targetsRef.current.elementIds] : current.elementIds,
-      strokeIds: hits.strokeIds.length > 0 ? [...targetsRef.current.strokeIds] : current.strokeIds,
+    setPreview({
+      elementIds: [...targetsRef.current.elementIds],
+      strokeIds: [...targetsRef.current.strokeIds],
       trail: trailRef.current,
-    }));
+    });
   }, []);
 
   const publishPendingSamples = useCallback(() => {
@@ -106,6 +119,7 @@ export function useWhiteboardEraserGesture({
     lastTrailDecayRef.current = 0;
     lastSampleRef.current = null;
     pendingSamplesRef.current = [];
+    touchingRef.current = createMutableTargets();
     targetsRef.current = createMutableTargets();
     trailRef.current = [];
     setPreview(EMPTY_WHITEBOARD_ERASER_PREVIEW);
@@ -172,6 +186,18 @@ export function useWhiteboardEraserGesture({
 
 function createMutableTargets(): MutableEraserTargets {
   return { elementIds: new Set(), strokeIds: new Set() };
+}
+
+function toggleNewCrossings(
+  targets: Set<string>,
+  touching: Set<string>,
+  crossedIds: string[],
+): void {
+  for (const id of crossedIds) {
+    if (touching.has(id)) continue;
+    if (targets.has(id)) targets.delete(id);
+    else targets.add(id);
+  }
 }
 
 function hasCurrentSources(

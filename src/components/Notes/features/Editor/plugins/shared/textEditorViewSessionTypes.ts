@@ -40,6 +40,7 @@ export interface CreateTextEditorViewSessionArgs<
   onOutsideCloseIntent: () => void;
   refs: TRefs;
   popupClassName: string;
+  popupLayout?: 'anchored' | 'viewport-centered';
   placeholder: string;
   getEditorState: () => TState | undefined;
   getStateRenderKey: (state: TState) => string;
@@ -53,10 +54,11 @@ export interface CreateTextEditorViewSessionArgs<
   preferStatePositionOnInitialRender?: (state: TState) => boolean;
   scrollPopupIntoViewOnInitialRender?: boolean;
   constrainTextareaHeightToViewport?: boolean;
+  resizeTextareaToContent?: boolean;
   configurePopup?: (
     elements: TextEditorPopupElements,
     notifyInput: () => void,
-  ) => void;
+  ) => void | (() => void);
   previewInput: (args: TextEditorPreviewArgs<TState, TRefs>) => void;
   previewInputDebounceMs?: number;
   previewCancel: (args: TextEditorPreviewArgs<TState, TRefs>) => void;

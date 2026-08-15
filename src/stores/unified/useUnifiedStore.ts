@@ -16,7 +16,6 @@ import {
 } from '@/lib/config';
 import type { UndoAction } from '../types';
 import { isTemporarySession, isTemporarySessionId } from '@/lib/ai/temporaryChat';
-import { requestManager } from '@/lib/ai/requestManager';
 
 export type {
   CustomIcon,
@@ -129,7 +128,6 @@ function createDefaultAIData(): NonNullable<UnifiedData['ai']> {
     customSystemPrompt: '',
     includeTimeContext: true,
     webSearchEnabled: false,
-    computerUseEnabled: false,
   };
 }
 
@@ -172,7 +170,6 @@ function normalizeUnifiedData(data: UnifiedData): UnifiedData {
         customSystemPrompt: ai.customSystemPrompt || '',
         includeTimeContext: ai.includeTimeContext !== false,
         webSearchEnabled: ai.webSearchEnabled === true,
-        computerUseEnabled: false,
         unreadSessionIds: Array.isArray(ai.unreadSessionIds) ? ai.unreadSessionIds : [],
         temporaryChatEnabled: false,
       }
@@ -268,7 +265,6 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => {
         const state = get();
         const currentAI = state.data.ai || initialState.data.ai!;
         const updateKeys = Object.keys(updates) as Array<keyof NonNullable<UnifiedData['ai']>>;
-        const persistedUpdateKeys = updateKeys.filter((key) => key !== 'computerUseEnabled');
         const hasChanges = updateKeys.some((key) => !Object.is(currentAI[key], updates[key]));
         if (!hasChanges) {
             return;
@@ -282,11 +278,8 @@ export const useUnifiedStore = create<UnifiedStore>((set, get) => {
             }
         };
         set({ data: newData });
-        if (currentAI.computerUseEnabled === true && updates.computerUseEnabled === false) {
-            requestManager.abortComputerUse();
-        }
-        if (!skipPersist && persistedUpdateKeys.length > 0) {
-            persist(newData, getAIDataSavePatch(persistedUpdateKeys));
+        if (!skipPersist && updateKeys.length > 0) {
+            persist(newData, getAIDataSavePatch(updateKeys));
         }
     },
 

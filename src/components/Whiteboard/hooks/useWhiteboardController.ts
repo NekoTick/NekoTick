@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useMemo, useRef, useState, type Dispatch, type MouseEvent, type SetStateAction } from 'react';
 import { useWhiteboardBoardActions } from './useWhiteboardBoardActions';
 import { useWhiteboardBrushCursor } from './useWhiteboardBrushCursor';
 import { useWhiteboardBrushSizes } from './useWhiteboardBrushSizes';
@@ -12,24 +12,30 @@ import { useWhiteboardExport } from './useWhiteboardExport';
 import { useWhiteboardHistory } from './useWhiteboardHistory';
 import { useWhiteboardImageImport } from './useWhiteboardImageImport';
 import { useWhiteboardKeyboardShortcuts } from './useWhiteboardKeyboardShortcuts';
+import { useWhiteboardLinearPointControls } from './useWhiteboardLinearPointControls';
 import { useWhiteboardPersistence } from './useWhiteboardPersistence';
 import { useWhiteboardPointerActions } from './useWhiteboardPointerActions';
 import { useWhiteboardPointerFinish } from './useWhiteboardPointerFinish';
 import { useWhiteboardReady } from './useWhiteboardReady';
 import { useWhiteboardSelectionDeletion } from './useWhiteboardSelectionDeletion';
+import { useWhiteboardSelectionRotationControls } from './useWhiteboardSelectionRotationControls';
 import { useWhiteboardSpacePan } from './useWhiteboardSpacePan';
 import { useWhiteboardStrokeSelection } from './useWhiteboardStrokeSelection';
-import { useWhiteboardStrokeEraserGesture } from './useWhiteboardStrokeEraserGesture';
 import { useWhiteboardStorageBridge } from './useWhiteboardStorageBridge';
 import { useWhiteboardSpatialIndex } from './useWhiteboardSpatialIndex';
 import { useWhiteboardTouchPointers } from './useWhiteboardTouchPointers';
+import { useWhiteboardTextEditing } from './useWhiteboardTextEditing';
 import { useWhiteboardViewportScheduler } from './useWhiteboardViewportScheduler';
+import { useWhiteboardAutoDraw } from './useWhiteboardAutoDraw';
+import { useWhiteboardSelectionColor } from './useWhiteboardSelectionColor';
 import { getNextWhiteboardIdSequence } from '../model/whiteboardIds';
+import { getWhiteboardAutoShapePreview, recognizeWhiteboardShape } from '../model/whiteboardAutoShape';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
-import { getWhiteboardResizePreview, type WhiteboardDragState } from '../model/whiteboardInteractions';
+import { getWhiteboardResizePreview, getWhiteboardRotationPreview, type WhiteboardDragState } from '../model/whiteboardInteractions';
 import {
   WHITEBOARD_DEFAULT_PAPER_STYLE, WHITEBOARD_INITIAL_VIEWPORT, WHITEBOARD_SEED_ELEMENTS, WHITEBOARD_SEED_STROKES,
   isBrushTool,
+  isStrokeTool,
   isDrawingTool,
   type WhiteboardBrushTool, type WhiteboardElement,
   type WhiteboardPaperStyle, type WhiteboardStroke, type WhiteboardTool,
@@ -68,6 +74,22 @@ export function useWhiteboardController({
   const [dragState, setDragState] = useState<WhiteboardDragState | null>(null);
   const { brushCursorPoint, setBrushCursorPoint } = useWhiteboardBrushCursor();
   const { canRedo, canUndo, pushHistory, redo, undo } = useWhiteboardHistory({ active, elements, historyKey: activeBoardId, paper: paperStyle, setElements, setPaper: setPaperStyle, setStrokes, strokes });
+  const selectionColor = useWhiteboardSelectionColor({
+    elements, paper: paperStyle, pushHistory, selectedElementIds, selectedStrokeIds,
+    setElements, setStrokes, strokes,
+  });
+  const draftShapeRecognition = useMemo(() => (
+    tool === 'autoshape' && draftStroke
+      ? recognizeWhiteboardShape(draftStroke.points, viewport.zoom)
+      : null
+  ), [draftStroke, tool, viewport.zoom]);
+  const autoDraw = useWhiteboardAutoDraw({
+    draftRecognition: draftShapeRecognition,
+    draftStroke, pushHistory, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes, setTool, strokes, tool,
+  });
+  const textEditing = useWhiteboardTextEditing({
+    elements, pushHistory, setElements, setSelectedElementIds, setSelectedStrokeIds, setTool,
+  });
   const {
     interactionLocked,
     prepareMoveCommit,
@@ -80,7 +102,6 @@ export function useWhiteboardController({
     dragState, elements, selectedElementIds, selectedStrokeIds, setDragState, setElements,
     setSelectedElementIds, setSelectedStrokeIds, setStrokes, setTool, strokes,
   });
-  const strokeEraser = useWhiteboardStrokeEraserGesture({ pushHistory, setStrokes, spatialIndex, strokes });
   const eraser = useWhiteboardEraserGesture({ elements, pushHistory, setElements, setStrokes, spatialIndex, strokes });
   useWhiteboardStorageBridge({
     active, appliedBoardKeyRef, elements, setElements, setPaper: setPaperStyle,
@@ -94,11 +115,23 @@ export function useWhiteboardController({
   useWhiteboardSelectionDeletion({
     active, pushHistory, selectedElementIds, selectedStrokeIds, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes,
   });
-  useWhiteboardEscapeKey({ active, cancelEraserGesture: () => { eraser.finish(true); strokeEraser.finish(true); }, clearDraftStroke, setDragState, setSelectedElementId, setSelectedStrokeIds, setTool });
+  useWhiteboardEscapeKey({ active, cancelEraserGesture: () => eraser.finish(true), clearDraftStroke, setDragState, setSelectedElementId, setSelectedStrokeIds, setTool });
   const { getBoardPoint, getBoardPointFromRect, getViewportPoint } = useWhiteboardCoordinates(viewport, viewportRef);
+  const {
+    cancelPendingLinearPoint,
+    handleLinearPointPointerDown,
+    updateLinearPoint,
+  } = useWhiteboardLinearPointControls({
+    getBoardPoint, interactionLocked, pushHistory, setDragState, setStrokes, strokes, tool, viewportZoom: viewport.zoom,
+  });
   const { addPointer, deletePointer, getPinchMetrics, updatePointer } = useWhiteboardTouchPointers(getViewportPoint);
-  const { flushResizeDrags, handleElementPointerDown, handleSelectionMovePointerDown, handleSelectionResizePointerDown, resizeSelection, selectElement } = useWhiteboardElementControls({
-    elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, selectionBounds, setDragState, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes, spacePressedRef, spatialIndex, strokes, tool,
+  const {
+    cancelPendingSelectionRotation,
+    handleSelectionRotationPointerDown,
+    updateSelectionRotation,
+  } = useWhiteboardSelectionRotationControls({
+    elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds,
+    setDragState, spacePressedRef, spatialIndex, strokes, tool,
   });
   const handlePaperStyleChange = useCallback((nextPaperStyle: WhiteboardPaperStyle) => {
     if (nextPaperStyle === paperStyle) return;
@@ -122,36 +155,66 @@ export function useWhiteboardController({
     active, elements, importImage, pushHistory, selectedElementIds, selectedStrokeIds,
     setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes, setTool, strokes,
   });
-  const startStrokeSelection = useWhiteboardStrokeSelection({ elements, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementId, setSelectedStrokeIds, spatialIndex, strokes, zoom: viewport.zoom });
-  useWhiteboardKeyboardShortcuts({ active, pushHistory, resizeBrush, selectAll, selectedBrushTool: isBrushTool(tool) ? tool : null, selectedElementIds, selectedStrokeIds, setElements, setStrokes, setTool, spatialIndex, viewportZoom: viewport.zoom });
+  const editSelectedText = useCallback(() => {
+    if (selectedElementIds.length !== 1 || selectedStrokeIds.length > 0) return false;
+    const element = elements.find((candidate) => candidate.id === selectedElementIds[0]);
+    if (element?.type !== 'text') return false;
+    textEditing.editTextElement(element);
+    return true;
+  }, [elements, selectedElementIds, selectedStrokeIds.length, textEditing.editTextElement]);
+  const { flushResizeDrags, handleElementPointerDown, handleSelectionMovePointerDown, handleSelectionResizePointerDown, resizeSelection, selectElement } = useWhiteboardElementControls({
+    editSelectedText, elements, getBoardPoint, interactionLocked, pushHistory, selectedElementIds, selectedStrokeIds, selectionBounds, setDragState, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes, spacePressedRef, spatialIndex, strokes, tool,
+  });
+  const startStrokeSelection = useWhiteboardStrokeSelection({ elements, pushHistory, selectedElementIds, selectedStrokeIds, setDragState, setSelectedElementIds, setSelectedStrokeIds, spatialIndex, strokes, zoom: viewport.zoom });
+  useWhiteboardKeyboardShortcuts({ active, editSelectedText, pushHistory, resizeBrush, selectAll, selectedBrushTool: isStrokeTool(tool) ? tool : null, selectedElementIds, selectedStrokeIds, setElements, setStrokes, setTool, spatialIndex, viewportZoom: viewport.zoom });
   const pointerActions = useWhiteboardPointerActions({
     activePenPointerRef, addPointer, appendDraftPoints, brushColors, brushSizes, clearDraftStroke,
     dragState, drawWithTouch, eraserActions: eraser, getBoardPointFromRect, getPinchMetrics, resizeSelection,
     interactionLocked, scheduleViewport, setBrushCursorPoint,
     setDragState, setDraftStroke, setSelectedElementId,
     setSelectedStrokeIds, spacePressedRef,
-    startStrokeSelection, strokeEraserActions: strokeEraser, strokeIdRef, tool, updatePointer, viewport, viewportRef,
+    startStrokeSelection, startTextEditing: textEditing.startTextEditing, strokeIdRef, tool, updateLinearPoint, updatePointer, updateSelectionRotation, viewport, viewportRef,
   });
+  const handleViewportPointerDown = useCallback((event: Parameters<typeof pointerActions.handleViewportPointerDown>[0]) => {
+    if (textEditing.editing) {
+      textEditing.commitTextEditing();
+      return;
+    }
+    pointerActions.handleViewportPointerDown(event);
+  }, [pointerActions.handleViewportPointerDown, textEditing.commitTextEditing, textEditing.editing]);
+  const handleViewportDoubleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (tool !== 'select' || interactionLocked || spacePressedRef.current) return;
+    if (!textEditing.editTextAtPoint(getBoardPoint(event.clientX, event.clientY))) return;
+    event.preventDefault();
+    setDragState(null);
+  }, [getBoardPoint, interactionLocked, setDragState, spacePressedRef, textEditing.editTextAtPoint, tool]);
   const finishPointerAction = useWhiteboardPointerFinish({
     activePenPointerRef, applyFinalDrawSample: pointerActions.handlePointerMove,
     clearDraftStroke, deletePointer, dragState,
     elements, finishEraserGesture: eraser.finish,
-    finishStrokeEraserGesture: strokeEraser.finish,
-    flushResizeDrags, getBoardPoint, getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory,
+    cancelPendingLinearPoint, cancelPendingSelectionRotation, flushResizeDrags, getBoardPoint, getDraftStroke, prepareMoveCommit, prepareResizeCommit, pushHistory,
+    onAutoDrawStrokeCommit: autoDraw.addStroke,
     setDragState, setElements, setSelectedElementIds, setSelectedStrokeIds, setStrokes,
-    spatialIndex, strokeIdRef, strokes,
+    setTool, spatialIndex, strokeIdRef, strokes, viewportZoom: viewport.zoom,
   });
+  const draftStrokePreview = useMemo(() => (
+    tool === 'autoshape' && draftStroke
+      ? getWhiteboardAutoShapePreview(draftStroke, viewport.zoom, draftShapeRecognition ?? undefined)
+      : null
+  ), [draftShapeRecognition, draftStroke, tool, viewport.zoom]);
   return {
     brushCursorColor: isDrawingTool(tool) ? brushColors[tool] : 'transparent',
     brushCursorPoint,
     brushCursorSize: isBrushTool(tool) ? brushSizes[tool] : 1,
     brushCursorTool: isBrushTool(tool) ? tool : null as WhiteboardBrushTool | null,
     brushColors, brushSizes, canRedo, canUndo,
+    autoDrawSuggestions: autoDraw.suggestions,
     clearBoard: boardActions.clearBoard,
-    draftStroke, elements, eraserPreview: eraser.preview,
-    copyBoardToClipboard, exportBoard, handleElementPointerDown, handlePointerMove: pointerActions.handlePointerMove, importImage,
+    draftStroke, draftStrokePreview: draftStrokePreview?.pending ? draftStrokePreview.stroke : null,
+    elements, eraserPreview: eraser.preview,
+    copyBoardToClipboard, exportBoard, handleElementPointerDown, handleLinearPointPointerDown, handlePointerMove: pointerActions.handlePointerMove, handleViewportDoubleClick, importImage,
     handleRedo: boardActions.handleRedo,
-    handleSelectionMovePointerDown, handleSelectionResizePointerDown, handleUndo: boardActions.handleUndo, handleViewportPointerDown: pointerActions.handleViewportPointerDown, handleWheel: boardActions.handleWheel,
+    handleSelectionMovePointerDown, handleSelectionResizePointerDown, handleSelectionRotationPointerDown, handleUndo: boardActions.handleUndo, handleViewportPointerDown, handleWheel: boardActions.handleWheel,
     fitView: boardActions.fitView,
     isPanning: pointerActions.isPanning,
     onCopy: clipboard.copySelection,
@@ -160,11 +223,18 @@ export function useWhiteboardController({
     movePreview: pointerActions.movePreview,
     renderData,
     resizePreview: getWhiteboardResizePreview(dragState),
+    rotationPreview: getWhiteboardRotationPreview(dragState),
     selectedElementIds, selectedStrokeIds,
+    selectedContentColor: selectionColor.selectedContentColor,
     selectionPath: pointerActions.selectionPath,
     resizeBrush, setBrushColor, setBrushCursorPoint, setBrushSize,
     setPaperStyle: handlePaperStyleChange, setSelectedElementId: selectElement,
-    setTool, spacePressed, spatialIndex, strokeEraserPreview: strokeEraser.preview, strokes, tool,
+    setSelectedContentColor: selectionColor.setSelectedContentColor,
+    previewSelectedContentColor: selectionColor.previewSelectedContentColor,
+    cancelSelectedContentColor: selectionColor.cancelSelectedContentColor,
+    chooseAutoDrawSuggestion: autoDraw.chooseSuggestion, dismissAutoDrawSuggestions: autoDraw.dismiss,
+    setTool, spacePressed, spatialIndex, strokes, textEditing: textEditing.editing, tool,
+    commitTextEditing: textEditing.commitTextEditing, updateTextEditing: textEditing.updateTextEditing,
     updateZoom: boardActions.updateZoom, viewport, viewportRef, finishPointerAction,
   };
 }

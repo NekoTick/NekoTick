@@ -323,6 +323,7 @@
   --vlaina-size-560px: 560px;
   --vlaina-size-600px: 600px;
   --vlaina-size-720px: 720px;
+  --vlaina-size-760px: 760px;
   --vlaina-size-850px: 850px;
   --vlaina-size-860px: 860px;
   --vlaina-size-900px: 900px;
@@ -437,9 +438,11 @@
   --vlaina-width-full-minus-16px: calc(100% - var(--vlaina-size-16px));
   --vlaina-width-note-find-bar: min(var(--vlaina-size-400px), calc(100vw - var(--vlaina-size-2rem)));
   --vlaina-width-global-search: min(var(--vlaina-size-900px), calc(100vw - var(--vlaina-size-32px)));
+  --vlaina-width-text-editor-workspace: min(var(--vlaina-size-1080px), calc(100vw - var(--vlaina-size-32px)));
   --vlaina-width-global-search-results: var(--vlaina-size-320px);
   --vlaina-width-batch-export: min(calc(var(--vlaina-size-900px) + var(--vlaina-size-240px)), calc(100vw - var(--vlaina-size-32px)));
   --vlaina-height-global-search: min(640px, calc(100vh - var(--vlaina-size-64px)));
+  --vlaina-height-text-editor-workspace: min(var(--vlaina-size-760px), calc(100vh - var(--vlaina-size-32px)));
   --vlaina-markdown-size-video-max-width: min(100%, var(--vlaina-size-720px));
   --vlaina-width-editor-embed: min(100%, var(--vlaina-size-560px));
   --vlaina-width-editor-content-max: var(--vlaina-size-900px);
@@ -719,7 +722,6 @@
   --vlaina-height-git-popover: min(var(--vlaina-size-600px), calc(100vh - var(--vlaina-size-64px)));
   --vlaina-offset-dropdown-below-input: calc(100% + var(--vlaina-size-8px));
   --vlaina-offset-account-menu-anchor-x: calc(100% - var(--vlaina-size-10px));
-  --vlaina-offset-computer-command-approval: calc(100% - var(--vlaina-space-12px));
   --radius: 0.5rem;
   --vlaina-radius-0: 0;
   --vlaina-radius-1px: 1px;
@@ -1015,6 +1017,8 @@
   --vlaina-color-whiteboard-crayon: #ef4444;
   --vlaina-color-whiteboard-element: rgb(255 255 255 / 0.92);
   --vlaina-color-whiteboard-selected: var(--vlaina-color-accent);
+  --vlaina-color-whiteboard-linear-handle-fill: rgb(255 255 255 / 0.9);
+  --vlaina-color-whiteboard-linear-handle-stroke: var(--vlaina-color-whiteboard-selected);
   --vlaina-color-whiteboard-selection-fill: rgb(30 150 235 / 0.1);
   --vlaina-color-whiteboard-eraser-trail: var(--vlaina-color-whiteboard-selected);
   --vlaina-shadow-whiteboard-element: 0 14px 34px rgb(15 23 42 / 0.1), 0 1px 2px rgb(15 23 42 / 0.08);
@@ -1514,6 +1518,8 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-color-whiteboard-crayon: #f87171;
   --vlaina-color-whiteboard-element: rgb(21 21 23 / 0.94);
   --vlaina-color-whiteboard-selected: var(--vlaina-color-accent);
+  --vlaina-color-whiteboard-linear-handle-fill: rgb(255 255 255 / 0.9);
+  --vlaina-color-whiteboard-linear-handle-stroke: var(--vlaina-color-whiteboard-selected);
   --vlaina-color-whiteboard-selection-fill: rgb(93 190 255 / 0.14);
   --vlaina-color-whiteboard-eraser-trail: var(--vlaina-color-whiteboard-selected);
   --vlaina-shadow-whiteboard-element: 0 16px 34px rgb(0 0 0 / 0.26), 0 1px 2px rgb(0 0 0 / 0.24);

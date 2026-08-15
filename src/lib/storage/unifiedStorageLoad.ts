@@ -84,7 +84,6 @@ export async function loadUnifiedData(): Promise<UnifiedData> {
         customSystemPrompt: '',
         includeTimeContext: true,
         webSearchEnabled: false,
-        computerUseEnabled: false,
         deletedProviderIds: [],
         deletedSessionIds: [],
         messages: {}
@@ -119,7 +118,6 @@ export async function loadUnifiedData(): Promise<UnifiedData> {
               aiData.customSystemPrompt = sessionsData.customSystemPrompt;
               aiData.includeTimeContext = sessionsData.includeTimeContext;
               aiData.webSearchEnabled = sessionsData.webSearchEnabled;
-              aiData.computerUseEnabled = sessionsData.computerUseEnabled;
               aiData.deletedSessionIds = sessionsData.deletedSessionIds;
               aiData.deletedProviderIds = sessionsData.deletedProviderIds;
               providerIds = sessionsData.providerIds;

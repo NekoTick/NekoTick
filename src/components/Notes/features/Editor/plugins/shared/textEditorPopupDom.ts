@@ -15,6 +15,10 @@ export interface TextEditorPopupElements {
   saveButton: HTMLButtonElement;
 }
 
+export interface MountedTextEditorPopupElements extends TextEditorPopupElements {
+  cleanup: (() => void) | null;
+}
+
 export interface MountTextEditorPopupArgs {
   container: HTMLElement;
   value: string;
@@ -28,7 +32,7 @@ export interface MountTextEditorPopupArgs {
   configurePopup?: (
     elements: TextEditorPopupElements,
     notifyInput: () => void,
-  ) => void;
+  ) => void | (() => void);
 }
 
 const POPUP_VIEWPORT_MARGIN = 12;
@@ -113,7 +117,7 @@ export function resizeTextEditorPopupTextareaToContent(args: {
     : themeTextAreaTokens.overflowHidden;
 }
 
-export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditorPopupElements {
+export function mountTextEditorPopup(args: MountTextEditorPopupArgs): MountedTextEditorPopupElements {
   const {
     container,
     value,
@@ -172,7 +176,7 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditor
 
   cancelButton.addEventListener('click', onCancel);
   saveButton.addEventListener('click', onSave);
-  configurePopup?.(elements, notifyInput);
+  const cleanup = configurePopup?.(elements, notifyInput);
   container.replaceChildren(card);
   if (onResizeRequest) {
     onResizeRequest();
@@ -180,5 +184,8 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): TextEditor
     resizeTextEditorPopupTextareaToContent({ card, textarea });
   }
 
-  return elements;
+  return {
+    ...elements,
+    cleanup: typeof cleanup === 'function' ? cleanup : null,
+  };
 }

@@ -1,31 +1,36 @@
-.math-formula-picker {
-  display: grid;
+.math-formula-picker-shortcuts {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: var(--vlaina-size-400px);
+  display: flex;
+  flex-direction: column;
   gap: var(--vlaina-space-8px);
+  padding: var(--vlaina-space-12px) var(--vlaina-space-16px);
+  border-bottom: var(--vlaina-border-width-1) solid var(--vlaina-color-border-shell);
+  background: var(--vlaina-color-floating-surface);
 }
 
-.math-formula-picker-header,
-.math-formula-picker-tools {
+.math-formula-picker-search-field {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--vlaina-space-8px);
+  color: var(--vlaina-sidebar-notes-text-soft);
 }
 
-.math-formula-picker-heading {
-  color: var(--vlaina-color-math-editor-text);
+.math-formula-picker-search-input {
+  min-width: 0;
+  height: var(--vlaina-size-48px);
+  flex: 1 1 auto;
+  padding-inline: var(--vlaina-space-12px);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--vlaina-text-primary);
   font-size: var(--vlaina-font-sm);
-  font-weight: var(--vlaina-font-weight-semibold);
 }
 
-.math-formula-picker-modes {
-  display: inline-flex;
-  padding: var(--vlaina-space-2px);
-  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
-  border-radius: var(--vlaina-notes-ui-radius-compact);
-  background: var(--vlaina-color-input-surface);
-}
-
-.math-formula-picker-mode,
 .math-formula-picker-tool {
   min-height: var(--vlaina-size-28px);
   padding-inline: var(--vlaina-space-8px);
@@ -34,102 +39,40 @@
   font-size: var(--vlaina-font-xs);
 }
 
-.math-formula-picker-mode[aria-selected='true'],
-.math-formula-picker-mode:hover,
 .math-formula-picker-tool:hover {
   background: var(--vlaina-color-math-editor-secondary-bg-hover);
 }
 
-.math-formula-picker-mode[aria-selected='true'] {
-  color: var(--vlaina-accent);
-}
-
-.math-formula-picker-search-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-}
-
-.math-formula-picker-search-trigger,
-.math-formula-picker-search-field {
-  min-height: var(--vlaina-size-36px);
-  border: var(--vlaina-border-width-1) solid var(--vlaina-border);
-  border-radius: var(--vlaina-radius-pill);
-  background: var(--vlaina-color-input-surface);
-  color: var(--vlaina-color-text-soft);
-}
-
-.math-formula-picker-search-trigger {
-  width: var(--vlaina-size-36px);
-  display: inline-grid;
-  place-items: center;
-  padding: var(--vlaina-space-0);
-}
-
-.math-formula-picker-search-trigger:hover,
-.math-formula-picker-search-field:focus-within {
-  border-color: var(--vlaina-accent);
-  color: var(--vlaina-accent);
-}
-
-.math-formula-picker-search-field {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--vlaina-space-8px);
-  padding-inline: var(--vlaina-space-12px) var(--vlaina-space-4px);
-}
-
-.math-formula-picker-search-input {
-  width: 100%;
-  min-width: 0;
-  min-height: var(--vlaina-size-34px);
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--vlaina-color-math-editor-text);
-  font-size: var(--vlaina-font-xs);
-}
-
-.math-formula-picker-search-input:focus {
-  border-color: var(--vlaina-accent);
-  box-shadow: var(--vlaina-shadow-math-editor-focus);
-}
-
-.math-formula-picker-search-close {
-  width: var(--vlaina-size-28px);
-  height: var(--vlaina-size-28px);
-  flex: 0 0 auto;
-  padding: var(--vlaina-space-0);
-  border-radius: var(--vlaina-radius-pill);
-  color: var(--vlaina-color-text-soft);
-  font-size: var(--vlaina-font-18);
-  line-height: var(--vlaina-leading-1);
-}
-
-.math-formula-picker-search-close:hover {
-  background: var(--vlaina-color-math-editor-secondary-bg-hover);
-  color: var(--vlaina-accent);
-}
-
 .math-formula-picker-categories {
+  min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--vlaina-space-6px);
-  max-width: 100%;
   padding-bottom: var(--vlaina-space-2px);
+  scrollbar-width: thin;
+}
+
+.math-formula-picker-category-row {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: var(--vlaina-space-6px);
 }
 
 .math-formula-picker-category {
-  flex: 1 1 max-content;
-  min-width: min(100%, max-content);
+  width: auto;
+  min-width: min-content;
+  min-height: var(--vlaina-size-64px);
   height: auto;
+  flex: 1 1 max-content;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: var(--vlaina-space-2px);
   padding: var(--vlaina-space-6px);
+  overflow: visible;
   border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
   border-radius: var(--vlaina-notes-ui-radius-compact);
   background: var(--vlaina-color-input-surface);
@@ -143,27 +86,61 @@
 }
 
 .math-formula-picker-category-formula {
-  max-width: 100%;
+  width: max-content;
+  max-width: none;
+  padding: var(--vlaina-space-2px);
   overflow: visible;
+  box-sizing: content-box;
   font-size: var(--vlaina-font-sm);
 }
 
 .math-formula-picker-category-name {
-  max-width: 100%;
-  overflow-wrap: anywhere;
+  max-width: var(--vlaina-size-180px);
+  overflow: visible;
+  overflow-wrap: normal;
   text-align: center;
+  text-overflow: clip;
+  white-space: normal;
   font-size: var(--vlaina-font-xs);
   line-height: var(--vlaina-leading-12);
 }
 
+.math-formula-picker-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vlaina-space-8px);
+  padding-block: var(--vlaina-space-6px);
+}
+
+.math-formula-picker-preview .katex-display {
+  margin: var(--vlaina-space-0);
+}
+
 .math-formula-picker-results {
+  position: static;
+  z-index: var(--vlaina-z-40);
   min-height: 0;
-  max-height: min(50vh, var(--vlaina-size-400px));
-  padding: var(--vlaina-space-8px);
+  max-height: min(var(--vlaina-size-200px), calc(100vh - var(--vlaina-size-240px)));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--vlaina-space-6px);
+  padding: var(--vlaina-space-12px);
   overflow-y: auto;
-  border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
+  border: var(--vlaina-border-width-1) solid var(--vlaina-color-border-shell);
   border-radius: var(--vlaina-notes-ui-radius-compact);
-  background: var(--vlaina-color-input-surface);
+  background: var(--vlaina-color-floating-surface);
+  box-shadow: var(--vlaina-shadow-lg);
+}
+
+.math-formula-picker-results[data-layout='groups'] {
+  display: block;
+  overflow-y: auto;
+}
+
+.math-formula-picker-results[hidden] {
+  display: none;
 }
 
 .math-formula-picker-group + .math-formula-picker-group {
@@ -177,23 +154,41 @@
   font-weight: var(--vlaina-font-weight-medium);
 }
 
-.math-formula-picker-grid,
-.math-formula-picker-results[data-layout='grid'] {
+.math-formula-picker-grid {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: var(--vlaina-space-6px);
 }
 
+.math-formula-picker-results[data-layout='grid'] {
+  display: block;
+}
+
+.math-formula-picker-result-chunk {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  align-items: stretch;
+  gap: var(--vlaina-space-6px);
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--vlaina-size-400px);
+}
+
+.math-formula-picker-result-chunk + .math-formula-picker-result-chunk {
+  margin-top: var(--vlaina-space-6px);
+}
+
 .math-formula-picker-item {
-  flex: 1 1 max-content;
   width: max-content;
-  min-width: min(100%, max-content);
+  min-width: min(100%, var(--vlaina-size-48px));
   max-width: 100%;
-  min-height: 0;
+  min-height: var(--vlaina-size-36px);
   height: auto;
+  flex: 1 1 max-content;
   display: grid;
   place-items: center;
+  box-sizing: border-box;
   padding: var(--vlaina-space-8px);
   overflow-x: auto;
   overflow-wrap: anywhere;
@@ -203,14 +198,34 @@
   color: var(--vlaina-color-math-editor-text);
 }
 
+.math-formula-picker-results[data-formula-kind='template'] .math-formula-picker-item,
+.math-formula-picker-results[data-layout='grid'] .math-formula-picker-item {
+  min-width: min(100%, var(--vlaina-size-180px));
+}
+
+.math-formula-picker-results[data-layout='grid'] .math-formula-picker-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--vlaina-size-36px);
+}
+
+.math-formula-picker-item[data-formula-rendered='false'] {
+  display: block;
+  overflow: hidden;
+  color: var(--vlaina-color-text-secondary);
+  font-family: var(--font-mono), monospace;
+  line-height: var(--vlaina-size-18px);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .math-formula-picker-item:hover {
   border-color: var(--vlaina-accent);
   background: var(--vlaina-color-math-editor-secondary-bg-hover);
   color: var(--vlaina-accent);
 }
 
-.math-formula-picker-item .katex,
-.math-formula-picker-category-formula .katex {
+.math-formula-picker-item .katex {
   font-size: var(--vlaina-font-sm);
 }
 
@@ -226,4 +241,39 @@
 .math-formula-picker-render-error {
   color: var(--vlaina-color-text-secondary);
   font-size: var(--vlaina-font-xs);
+}
+
+@media (max-width: 720px) {
+  .math-formula-picker-shortcuts {
+    max-height: var(--vlaina-size-240px);
+    padding-inline: var(--vlaina-space-12px);
+  }
+
+  .math-formula-picker-results {
+    position: absolute;
+    top: 100%;
+    bottom: auto;
+    left: var(--vlaina-space-12px);
+    right: var(--vlaina-space-12px);
+    margin-top: var(--vlaina-space-8px);
+    max-height: min(var(--vlaina-size-400px), calc(100vh - var(--vlaina-size-240px)));
+  }
+
+  .math-formula-picker-category {
+    width: max-content;
+    flex: 0 0 max-content;
+    min-width: var(--vlaina-size-88px);
+  }
+
+  .math-formula-picker-categories {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .math-formula-picker-category-row {
+    display: contents;
+  }
+
 }

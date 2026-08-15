@@ -11,7 +11,6 @@ interface WhiteboardElementListProps {
   elements: WhiteboardElement[];
   erasingElementIdSet: Set<string>;
   selectedElementIdSet: WhiteboardIdLookup;
-  selectedItemCount: number;
   tool: WhiteboardTool;
   moving: boolean;
   transform?: string;
@@ -26,7 +25,7 @@ export const WhiteboardElementList = memo(function WhiteboardElementList(props: 
       erasing={props.erasingElementIdSet.has(element.id)}
       moving={props.moving}
       selected={props.tool === 'select' && props.selectedElementIdSet.has(element.id)}
-      showSelectionBorder={props.tool === 'select' && props.selectedItemCount <= 1 && props.selectedElementIdSet.has(element.id)}
+      showSelectionBorder={false}
       tool={props.tool}
       onPointerDown={props.onElementPointerDown}
     />

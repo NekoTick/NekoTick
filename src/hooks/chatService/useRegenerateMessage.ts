@@ -46,8 +46,6 @@ interface UseRegenerateMessageOptions {
   customSystemPrompt: string;
   includeTimeContext: boolean;
   webSearchEnabled: boolean;
-  computerUseEnabled: boolean;
-  computerUseCwd: string;
   messages: readonly unknown[];
   isAccountConnected: boolean;
   setSessionLoading: (sessionId: string, loading: boolean) => void;
@@ -69,8 +67,6 @@ export function useRegenerateMessage({
   customSystemPrompt,
   includeTimeContext,
   webSearchEnabled,
-  computerUseEnabled,
-  computerUseCwd,
   messages,
   isAccountConnected,
   setSessionLoading,
@@ -104,7 +100,7 @@ export function useRegenerateMessage({
       }
 
       const requestStartedAt = Date.now();
-      const requestController = requestManager.start(sessionId, { computerUse: computerUseEnabled });
+      const requestController = requestManager.start(sessionId);
       const ensureRequestActive = () => {
         if (isChatRequestCancelled(sessionId, requestController)) {
           throw new DOMException('Aborted', 'AbortError');
@@ -144,7 +140,6 @@ export function useRegenerateMessage({
           modelId: selectedModel.id,
           providerId: provider.id,
           webSearchEnabled,
-          computerUseEnabled,
         });
         const timezoneOffset = useUnifiedStore.getState().data.settings.timezone.offset;
         const requestHistory = buildRequestHistory({
@@ -191,21 +186,6 @@ export function useRegenerateMessage({
               signal,
               options: {
                 webSearchEnabled,
-                computerUseEnabled,
-                computerUseCwd: computerUseCwd || undefined,
-                computerUseApprovalContext: {
-                  sessionId,
-                  messageId,
-                },
-                onComputerCommandStatus: (status) => {
-                  if (!isActiveRequest()) return;
-                  addChatDebugLog('computer-use', `status:${status.phase}`, {
-                    sessionId,
-                    messageId,
-                    commandLength: status.command.length,
-                    exitCode: status.exitCode,
-                  }, status.phase === 'failed' || status.phase === 'timed_out' ? 'warn' : 'info');
-                },
                 onWebSearchStatus: (status) => {
                   if (!isActiveRequest()) {
                     return;
@@ -314,8 +294,6 @@ export function useRegenerateMessage({
       customSystemPrompt,
       includeTimeContext,
       webSearchEnabled,
-      computerUseEnabled,
-      computerUseCwd,
       setSessionLoading,
       setError,
       maybeGenerateAutoTitle,

@@ -1,4 +1,5 @@
 import { BLANK_TERMINATED_NON_EDITABLE_HTML_TAG_NAMES } from './markdownSerializationShared';
+import { mapMarkdownOutsideProtectedSegments } from './markdownProtectedBlocks';
 
 const EDITOR_MARKDOWN_BLANK_LINE_PLACEHOLDER = '<!--vlaina-markdown-blank-line-->';
 const EDITOR_RENDERED_HTML_BOUNDARY_PLACEHOLDER = '<!--vlaina-rendered-html-boundary-blank-line-->';
@@ -33,6 +34,14 @@ const NON_EDITABLE_HTML_BOUNDARY_TAG_NAMES = new Set([
 ]);
 
 export function exposeRenderedHtmlBoundaryBlankLinesForEditor(text: string): string {
+  return mapMarkdownOutsideProtectedSegments(
+    text,
+    exposeRenderedHtmlBoundaryBlankLinesInSegment,
+    { protectHtmlBlocks: false },
+  );
+}
+
+function exposeRenderedHtmlBoundaryBlankLinesInSegment(text: string): string {
   if (!text.includes('\n\n')) return text;
 
   const lines = text.split('\n');

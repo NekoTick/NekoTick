@@ -3,7 +3,6 @@ import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from './whi
 import { markWhiteboardSparseUpdate } from './whiteboardCollection';
 import { translateStroke } from './whiteboardSelectionTransform';
 import { getElementBounds, getStrokeBounds, type WhiteboardSelectedOverlayGeometry, type WhiteboardSelectionRect } from './whiteboardSelectionTransform';
-import { themeWhiteboardTokens } from '@/styles/themeTokens';
 
 const ASYNC_MOVE_ITEM_THRESHOLD = 1000;
 const ASYNC_MOVE_POINT_THRESHOLD = 20_000;
@@ -122,13 +121,12 @@ function finishGeometry(geometry: GeometryAccumulator): WhiteboardSelectedOverla
   if (geometry.count <= 1) {
     return { groupBounds: null, singleBounds: geometry.singleBounds, singleStroke: geometry.singleStroke };
   }
-  const padding = themeWhiteboardTokens.strokeSelectionPaddingPx;
   return {
     groupBounds: {
-      height: geometry.maxY - geometry.minY + padding * 2,
-      width: geometry.maxX - geometry.minX + padding * 2,
-      x: geometry.minX - padding,
-      y: geometry.minY - padding,
+      height: geometry.maxY - geometry.minY,
+      width: geometry.maxX - geometry.minX,
+      x: geometry.minX,
+      y: geometry.minY,
     },
     singleBounds: null,
     singleStroke: null,

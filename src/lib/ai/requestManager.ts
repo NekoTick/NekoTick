@@ -3,11 +3,9 @@ import {
     getSessionIdAliasesResolvingTo,
     resolveSessionIdAlias,
 } from './sessionIdAliases';
-import { clearComputerCommandAlwaysRunApprovals } from './computerUse/approvalState';
 
 export class RequestManager {
     private controllers = new Map<string, AbortController>();
-    private computerUseControllers = new WeakSet<AbortController>();
     private generations = new Map<string, number>();
     private controllerGenerations = new WeakMap<AbortController, { sessionId: string; generation: number }>();
 
@@ -23,7 +21,6 @@ export class RequestManager {
         if (controller) {
             controller.abort();
             this.controllers.delete(resolvedSessionId);
-            this.computerUseControllers.delete(controller);
         }
         return resolvedSessionId;
     }
@@ -35,14 +32,11 @@ export class RequestManager {
         }
     }
 
-    start(sessionId: string, options: { computerUse?: boolean } = {}): AbortController {
+    start(sessionId: string): AbortController {
         const resolvedSessionId = resolveSessionIdAlias(sessionId);
         this.abortControllerForSession(resolvedSessionId);
         const controller = new AbortController();
         this.controllers.set(resolvedSessionId, controller);
-        if (options.computerUse) {
-            this.computerUseControllers.add(controller);
-        }
         this.markLatestController(resolvedSessionId, controller);
         return controller;
     }
@@ -52,22 +46,9 @@ export class RequestManager {
         this.clearAliasesForResolvedSession(sessionId, resolvedSessionId);
     }
 
-    abortComputerUse() {
-        clearComputerCommandAlwaysRunApprovals();
-        for (const [sessionId, controller] of this.controllers) {
-            if (!this.computerUseControllers.has(controller)) continue;
-            controller.abort();
-            this.controllers.delete(sessionId);
-            this.computerUseControllers.delete(controller);
-            this.clearAliasesForResolvedSession(sessionId, sessionId);
-        }
-    }
-
     finish(sessionId: string, controller?: AbortController) {
         const resolvedSessionId = resolveSessionIdAlias(sessionId);
         if (!controller) {
-            const current = this.controllers.get(resolvedSessionId);
-            if (current) this.computerUseControllers.delete(current);
             this.controllers.delete(resolvedSessionId);
             this.clearAliasesForResolvedSession(sessionId, resolvedSessionId);
             return;
@@ -76,7 +57,6 @@ export class RequestManager {
         if (current === controller) {
             this.controllers.delete(resolvedSessionId);
         }
-        this.computerUseControllers.delete(controller);
         if (!current || current === controller) {
             this.clearAliasesForResolvedSession(sessionId, resolvedSessionId);
         }

@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -22,11 +21,6 @@ import { ChatInputActions } from './ChatInputActions';
 import { ManagedQuotaNotice, managedQuotaNoticeFrameClass } from './ManagedQuotaNotice';
 import { NoteMentionPicker } from './NoteMentionPicker';
 import type { NoteMentionCandidate } from '../noteMentionHelpers';
-import { ComputerCommandApprovalNotice } from '@/components/Chat/features/ComputerUse/ComputerCommandApprovalNotice';
-import {
-  isComputerCommandApprovalForSession,
-  usePendingComputerCommandApprovals,
-} from '@/lib/ai/computerUse/approvalState';
 import { useWebSearchQuotaStore } from '@/stores/useWebSearchQuotaStore';
 
 interface ChatInputComposerFrameProps {
@@ -36,8 +30,6 @@ interface ChatInputComposerFrameProps {
   attachments: Attachment[];
   canSend: boolean;
   canSubmit: boolean;
-  computerUseAvailable: boolean;
-  computerUseEnabled: boolean;
   composerRootRef: RefObject<HTMLDivElement | null>;
   currentPageCandidates: NoteMentionCandidate[];
   fileInputRef: RefObject<HTMLInputElement | null>;
@@ -64,7 +56,6 @@ interface ChatInputComposerFrameProps {
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   onComposerDrop: (event: DragEvent<HTMLDivElement>) => void | Promise<void>;
   onComposerDropCapture: (event: DragEvent<HTMLDivElement>) => void;
-  onDisableComputerUse: () => void;
   onCompositionEnd: (event: CompositionEvent<HTMLTextAreaElement>) => void;
   onCompositionStart: (event: CompositionEvent<HTMLTextAreaElement>) => void;
   onDragEnter: (event: DragEvent<HTMLDivElement>) => void;
@@ -73,13 +64,10 @@ interface ChatInputComposerFrameProps {
   onRemoveAttachment: (attachmentId: string) => void;
   onRemoveNoteMention: (path: string) => void;
   onRequestComposerFocus: (position?: number) => void;
-  onRequestEnableComputerUse: () => void;
   onSend: () => void;
   onTextareaScroll: (event: UIEvent<HTMLTextAreaElement>) => void;
   onToggleWebSearch: () => void;
   showMentionPicker: boolean;
-  showComputerCommandApproval: boolean;
-  sessionId?: string | null;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   textareaScrollTop: number;
   webSearchEnabled: boolean;
@@ -93,8 +81,6 @@ export function ChatInputComposerFrame({
   attachments,
   canSend,
   canSubmit,
-  computerUseAvailable,
-  computerUseEnabled,
   composerRootRef,
   currentPageCandidates,
   fileInputRef,
@@ -121,7 +107,6 @@ export function ChatInputComposerFrame({
   onComposerChange,
   onComposerDrop,
   onComposerDropCapture,
-  onDisableComputerUse,
   onCompositionEnd,
   onCompositionStart,
   onDragEnter,
@@ -130,44 +115,18 @@ export function ChatInputComposerFrame({
   onRemoveAttachment,
   onRemoveNoteMention,
   onRequestComposerFocus,
-  onRequestEnableComputerUse,
   onSend,
   onTextareaScroll,
   onToggleWebSearch,
   showMentionPicker,
-  showComputerCommandApproval,
-  sessionId,
   textareaRef,
   textareaScrollTop,
   webSearchEnabled,
   webSearchAvailable = true,
 }: ChatInputComposerFrameProps) {
   const { t } = useI18n();
-  const pendingComputerCommandApprovals = usePendingComputerCommandApprovals();
-  const sessionComputerCommandApprovals = pendingComputerCommandApprovals.filter(
-    (approval) => isComputerCommandApprovalForSession(approval, sessionId),
-  );
-  const hasComputerCommandApproval = showComputerCommandApproval &&
-    sessionComputerCommandApprovals.length > 0;
   const isWebSearchQuotaExhausted = useWebSearchQuotaStore((state) => state.exhausted);
-  const hasComposerNotice = isQuotaSendBlocked || isWebSearchQuotaExhausted || hasComputerCommandApproval;
-  const previousApprovalCountRef = useRef(sessionComputerCommandApprovals.length);
-
-  useEffect(() => {
-    const previousApprovalCount = previousApprovalCountRef.current;
-    previousApprovalCountRef.current = sessionComputerCommandApprovals.length;
-    if (
-      showComputerCommandApproval &&
-      previousApprovalCount > 0 &&
-      sessionComputerCommandApprovals.length === 0
-    ) {
-      onRequestComposerFocus();
-    }
-  }, [
-    onRequestComposerFocus,
-    sessionComputerCommandApprovals.length,
-    showComputerCommandApproval,
-  ]);
+  const hasComposerNotice = isQuotaSendBlocked || isWebSearchQuotaExhausted;
 
   return (
     <>
@@ -183,17 +142,6 @@ export function ChatInputComposerFrame({
       />
 
       <div className="relative z-[var(--vlaina-z-10)]">
-        {hasComputerCommandApproval ? (
-          <div
-            data-computer-command-approval-frame="true"
-            className={cn(
-              managedQuotaNoticeFrameClass,
-              'pointer-events-auto absolute inset-x-0 bottom-[var(--vlaina-offset-computer-command-approval)] z-[var(--vlaina-z-0)] pb-[var(--vlaina-space-12px)]',
-            )}
-          >
-            <ComputerCommandApprovalNotice sessionId={sessionId} />
-          </div>
-        ) : null}
         <div className={cn((isQuotaSendBlocked || isWebSearchQuotaExhausted) && managedQuotaNoticeFrameClass)}>
           <div
             data-chat-input="true"
@@ -282,10 +230,6 @@ export function ChatInputComposerFrame({
               webSearchEnabled={webSearchEnabled}
               webSearchAvailable={webSearchAvailable}
               onToggleWebSearch={onToggleWebSearch}
-              computerUseAvailable={computerUseAvailable}
-              computerUseEnabled={computerUseEnabled}
-              onRequestEnableComputerUse={onRequestEnableComputerUse}
-              onDisableComputerUse={onDisableComputerUse}
               onRequestComposerFocus={onRequestComposerFocus}
               onStop={handleStopButton}
               onSend={onSend}

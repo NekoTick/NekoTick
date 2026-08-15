@@ -1,4 +1,5 @@
 import { useI18n } from '@/lib/i18n';
+import { WhiteboardAutoDrawSuggestionStrip } from './components/autodraw';
 import { WhiteboardSurface } from './components/canvas';
 import { WhiteboardMoreMenu, WhiteboardToolbar, WhiteboardZoomControls } from './components/toolbar';
 import { useWhiteboardController } from './hooks/useWhiteboardController';
@@ -36,20 +37,24 @@ export function WhiteboardView({
         brushCursorSize={board.brushCursorSize}
         brushCursorTool={board.brushCursorTool}
         draftStroke={board.draftStroke}
+        draftStrokePreview={board.draftStrokePreview}
         eraserPreview={board.eraserPreview}
         isPanning={board.isPanning}
         movePreview={board.movePreview}
         paperStyle={board.paperStyle}
         renderData={board.renderData}
         resizePreview={board.resizePreview}
+        rotationPreview={board.rotationPreview}
         selectionPath={board.selectionPath}
         spacePressed={board.spacePressed}
-        strokeEraserPreview={board.strokeEraserPreview}
         tool={board.tool}
+        textEditing={board.textEditing}
         viewport={board.viewport}
         viewportRef={board.viewportRef}
         onElementPointerDown={board.handleElementPointerDown}
         onImageDrop={board.importImage}
+        onLinearPointPointerDown={board.handleLinearPointPointerDown}
+        onDoubleClick={board.handleViewportDoubleClick}
         onPointerCancel={board.finishPointerAction}
         onPointerDown={board.handleViewportPointerDown}
         onPointerLeave={() => board.setBrushCursorPoint(null)}
@@ -57,6 +62,9 @@ export function WhiteboardView({
         onPointerUp={board.finishPointerAction}
         onSelectionMovePointerDown={board.handleSelectionMovePointerDown}
         onSelectionResizePointerDown={board.handleSelectionResizePointerDown}
+        onSelectionRotationPointerDown={board.handleSelectionRotationPointerDown}
+        onTextEditingChange={board.updateTextEditing}
+        onTextEditingCommit={board.commitTextEditing}
         onWheel={board.handleWheel}
       />
       <WhiteboardMoreMenu
@@ -64,6 +72,12 @@ export function WhiteboardView({
         onCopyImage={board.copyBoardToClipboard}
         onExport={board.exportBoard}
         onPaperStyleChange={board.setPaperStyle}
+      />
+
+      <WhiteboardAutoDrawSuggestionStrip
+        suggestions={board.autoDrawSuggestions}
+        onChoose={board.chooseAutoDrawSuggestion}
+        onDismiss={board.dismissAutoDrawSuggestions}
       />
 
       <WhiteboardZoomControls
@@ -78,11 +92,15 @@ export function WhiteboardView({
         active={active}
         brushColors={board.brushColors}
         brushSizes={board.brushSizes}
+        selectionColor={board.selectedContentColor}
         spacePressed={board.spacePressed}
         tool={board.tool}
         onBrushColorChange={board.setBrushColor}
         onBrushSizeSelect={board.setBrushSize}
         onImageAdd={board.importImage}
+        onSelectionColorCancel={board.cancelSelectedContentColor}
+        onSelectionColorChange={board.setSelectedContentColor}
+        onSelectionColorPreviewChange={board.previewSelectedContentColor}
         onToolChange={board.setTool}
       />
     </section>

@@ -358,6 +358,22 @@ describe('markdown internal artifact protection', () => {
     expect(normalizeSerializedMarkdownDocument(markdown)).toBe(markdown);
   });
 
+  it('does not add rendered HTML boundary helpers inside fenced frontmatter content', () => {
+    const markdown = [
+      '````yaml-frontmatter vlaina-internal-frontmatter',
+      'body: |',
+      '  ```md',
+      '  <span>First</span>',
+      '',
+      '  <span>Second</span>',
+      '  ```',
+      '````',
+      '# Heading',
+    ].join('\n');
+
+    expect(preserveMarkdownBlankLinesForEditor(markdown)).toBe(markdown);
+  });
+
   it('preserves internal artifact-like comments inside multiline html comments', () => {
     const blankLineComment = [
       '<!--',

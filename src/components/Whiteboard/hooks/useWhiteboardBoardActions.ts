@@ -4,9 +4,9 @@ import type { WhiteboardDragState } from '../model/whiteboardInteractions';
 import {
   WHITEBOARD_INITIAL_VIEWPORT,
   clampWhiteboardZoom,
-  isBrushTool,
+  isStrokeTool,
   zoomViewportAtPoint,
-  type WhiteboardBrushTool,
+  type WhiteboardStrokeTool,
   type WhiteboardElement,
   type WhiteboardPoint,
   type WhiteboardStroke,
@@ -20,7 +20,7 @@ interface WhiteboardBoardActionsOptions {
   elements: WhiteboardElement[];
   pushHistory: () => void;
   redo: () => void;
-  resizeBrush: (tool: WhiteboardBrushTool, deltaY: number) => void;
+  resizeBrush: (tool: WhiteboardStrokeTool, deltaY: number) => void;
   setDragState: Dispatch<SetStateAction<WhiteboardDragState | null>>;
   setDraftStroke: (stroke: WhiteboardStroke | null) => void;
   setElements: Dispatch<SetStateAction<WhiteboardElement[]>>;
@@ -54,7 +54,7 @@ export function useWhiteboardBoardActions(options: WhiteboardBoardActionsOptions
       options.scheduleViewport((current) => zoomViewportAtPoint(current, point, current.zoom * (1 - event.deltaY * themeWhiteboardTokens.wheelZoomIntensity)));
       return;
     }
-    if (isBrushTool(options.tool) && !options.spacePressedRef.current) {
+    if (isStrokeTool(options.tool) && !options.spacePressedRef.current) {
       options.resizeBrush(options.tool, event.deltaY);
       return;
     }

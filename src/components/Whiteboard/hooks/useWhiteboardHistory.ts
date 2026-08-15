@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import { isEditableTarget } from '../model/whiteboardInteractions';
 import type { WhiteboardElement, WhiteboardPaperStyle, WhiteboardStroke } from '../model/whiteboardModel';
 
-interface WhiteboardSnapshot {
+export interface WhiteboardSnapshot {
   elements: WhiteboardElement[];
   paper: WhiteboardPaperStyle;
   strokes: WhiteboardStroke[];
@@ -88,12 +88,12 @@ export function useWhiteboardHistory({
     setStrokes(snapshot.strokes);
   }, [setElements, setPaper, setStrokes]);
 
-  const pushHistory = useCallback(() => {
+  const pushHistory = useCallback((snapshot: WhiteboardSnapshot = getSnapshot()) => {
     schedulePendingEntry();
     if (pendingEntryRef.current) {
       undoStackRef.current = undoStackRef.current.filter((entry) => entry !== pendingEntryRef.current);
     }
-    const entry = { ...getSnapshot(), retainedBytes: 0 };
+    const entry = { ...snapshot, retainedBytes: 0 };
     undoStackRef.current = [...undoStackRef.current.slice(-(HISTORY_MAX_ENTRIES - 1)), entry];
     pendingEntryRef.current = entry;
     redoStackRef.current = [];

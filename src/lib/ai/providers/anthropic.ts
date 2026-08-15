@@ -5,8 +5,7 @@ import { providerFetch } from '../providerHttp'
 import { readBoundedProviderResponseText } from './boundedResponseText'
 import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody'
 import { buildAnthropicMessageRequest } from './anthropicRequest'
-import { consumeAnthropicStream, consumeAnthropicStreamResult, isAbortError } from './anthropicStream'
-import { runAnthropicAgentToolLoop } from '@/lib/ai/computerUse/anthropicAgentToolLoop'
+import { consumeAnthropicStream, isAbortError } from './anthropicStream'
 
 export const ANTHROPIC_VERSION = '2023-06-01'
 
@@ -103,31 +102,6 @@ export async function sendAnthropicMessage({
   const url = `${baseUrl}/messages`
   const body = buildAnthropicMessageRequest({ message, history, model, options })
   const headers = buildAnthropicHeaders(apiKey, true)
-  if (options?.computerUseEnabled) {
-    return await runAnthropicAgentToolLoop({
-      approvalContext: options.computerUseApprovalContext,
-      body,
-      defaultCwd: options.computerUseCwd,
-      onChunk,
-      onApiTranscript: options.onApiTranscript,
-      onCommandStatus: options.onComputerCommandStatus,
-      onWebSearchStatus: options.onWebSearchStatus,
-      signal,
-      webSearchEnabled: options.webSearchEnabled === true,
-      requestResult: async (nextBody, nextOnChunk) => {
-        const result = await requestAnthropic({
-          url,
-          headers,
-          body: { ...nextBody, stream: true },
-          timeoutMs,
-          signal,
-          consume: (response, requestSignal) =>
-            consumeAnthropicStreamResult(response, nextOnChunk, requestSignal),
-        })
-        return { content: result.blocks }
-      },
-    })
-  }
   return await requestAnthropic({
     url,
     headers,

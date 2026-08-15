@@ -37,7 +37,6 @@ export function useMilkdownEditorFactory(args: {
   currentNotePath: string | undefined;
   currentNoteContent: string;
   initialContent: string;
-  reportEditorReady: (editor: ActiveMilkdownEditor) => void;
   shouldSerializeEditorMarkdown: () => boolean;
   activatedEditorRef: React.MutableRefObject<ActiveMilkdownEditor | null>;
 }) {
@@ -48,7 +47,6 @@ export function useMilkdownEditorFactory(args: {
     currentNoteContent,
     currentNotePath,
     initialContent,
-    reportEditorReady,
     shouldSerializeEditorMarkdown,
     activatedEditorRef,
   } = args;
@@ -146,7 +144,6 @@ export function useMilkdownEditorFactory(args: {
           totalSinceFactoryMs: Math.round(performance.now() - editorFactoryStartedAt),
         });
         activateEditor(statusEditor);
-        reportEditorReady(statusEditor);
       }
       if (status === 'OnDestroy' || status === 'Destroyed') {
         if (activatedEditorRef.current === statusEditor) {

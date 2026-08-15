@@ -4,7 +4,7 @@ import {
   WHITEBOARD_SEED_STROKES,
   clampWhiteboardZoom,
   resizeWhiteboardElement,
-  type WhiteboardDrawingTool,
+  type WhiteboardStrokeTool,
   type WhiteboardElement,
   type WhiteboardPaperStyle,
   type WhiteboardStroke,
@@ -13,10 +13,11 @@ import {
 } from './whiteboardModel';
 import type { WhiteboardSnapshot } from './whiteboardDocumentFormat';
 import { splitWhiteboardStrokeSegments } from './whiteboardStrokeSegments';
+import { isWhiteboardAutoDrawIcon } from './autodraw/whiteboardAutoDrawTypes';
 
 type JsonRecord = Record<string, unknown>;
 const paperStyles = new Set<WhiteboardPaperStyle>(['blank', 'dots', 'grid', 'ruled']);
-const drawingTools = new Set<WhiteboardDrawingTool>(['pen', 'pencil', 'marker', 'colored-pencil', 'fountain', 'watercolor', 'crayon']);
+const strokeTools = new Set<WhiteboardStrokeTool>(['pen', 'pencil', 'marker', 'colored-pencil', 'fountain', 'watercolor', 'crayon', 'line', 'arrow']);
 const WHITEBOARD_ID_MAX_CHARS = 200;
 const WHITEBOARD_COLOR_MAX_CHARS = 256;
 const WHITEBOARD_ASSET_PATH_MAX_CHARS = 256;
@@ -74,18 +75,28 @@ export function readStoredWhiteboardElement(value: unknown): WhiteboardElement |
 }
 
 function readWhiteboardElement(value: unknown, runtimeValues: boolean): WhiteboardElement | null {
-  if (!isRecord(value) || value.type !== 'image') return null;
+  if (!isRecord(value) || (value.type !== 'icon' && value.type !== 'image' && value.type !== 'text')) return null;
   const id = readString(value.id, WHITEBOARD_ID_MAX_CHARS);
   const x = readFiniteNumber(value.x);
   const y = readFiniteNumber(value.y);
   const width = readPositiveNumber(value.width);
   const height = readPositiveNumber(value.height);
+  const rotation = readFiniteNumber(value.rotation);
   if (!id || x === null || y === null || width === null || height === null) return null;
-  return resizeWhiteboardElement({
+  const element: WhiteboardElement = {
     height, id, text: typeof value.text === 'string' ? value.text : '', type: value.type, width, x, y,
-    ...(isSafeImageAssetPath(value.imageAssetPath) ? { imageAssetPath: value.imageAssetPath } : {}),
-    ...(runtimeValues && typeof value.imageSrc === 'string' ? { imageSrc: value.imageSrc } : {}),
-  }, width, height);
+    ...(value.type === 'icon' && isWhiteboardAutoDrawIcon(value.autoDrawIcon) ? { autoDrawIcon: value.autoDrawIcon } : {}),
+    ...(value.flipX === true ? { flipX: true } : {}),
+    ...(value.flipY === true ? { flipY: true } : {}),
+    ...(rotation !== null && rotation !== 0 ? { rotation } : {}),
+    ...((value.type === 'icon' || value.type === 'text') && readString(value.color, WHITEBOARD_COLOR_MAX_CHARS) ? { color: readString(value.color, WHITEBOARD_COLOR_MAX_CHARS)! } : {}),
+    ...(value.type === 'text' && readPositiveNumber(value.fontSize) !== null ? { fontSize: readPositiveNumber(value.fontSize)! } : {}),
+    ...(value.type === 'text' && readPositiveNumber(value.lineHeight) !== null ? { lineHeight: readPositiveNumber(value.lineHeight)! } : {}),
+    ...(value.type === 'image' && isSafeImageAssetPath(value.imageAssetPath) ? { imageAssetPath: value.imageAssetPath } : {}),
+    ...(value.type === 'image' && runtimeValues && typeof value.imageSrc === 'string' ? { imageSrc: value.imageSrc } : {}),
+  };
+  if (value.type === 'icon' && !element.autoDrawIcon) return null;
+  return value.type === 'image' ? resizeWhiteboardElement(element, width, height) : element;
 }
 
 export function readStoredWhiteboardStroke(value: unknown): WhiteboardStroke | null {
@@ -95,10 +106,23 @@ export function readStoredWhiteboardStroke(value: unknown): WhiteboardStroke | n
 function readWhiteboardStroke(value: unknown, runtimePoints: boolean): WhiteboardStroke | null {
   if (!isRecord(value)) return null;
   const id = readString(value.id, WHITEBOARD_ID_MAX_CHARS);
-  const tool = typeof value.tool === 'string' && drawingTools.has(value.tool as WhiteboardDrawingTool) ? value.tool as WhiteboardDrawingTool : null;
+  const tool = typeof value.tool === 'string' && strokeTools.has(value.tool as WhiteboardStrokeTool) ? value.tool as WhiteboardStrokeTool : null;
   const color = readString(value.color, WHITEBOARD_COLOR_MAX_CHARS);
   const size = readPositiveNumber(value.size);
   const points = readStrokePoints(value.points, runtimePoints);
+  const autoShape = value.autoShape === 'triangle'
+    || value.autoShape === 'rectangle'
+    || value.autoShape === 'diamond'
+    || value.autoShape === 'parallelogram'
+    || value.autoShape === 'trapezoid'
+    || value.autoShape === 'pentagon'
+    || value.autoShape === 'hexagon'
+    || value.autoShape === 'octagon'
+    || value.autoShape === 'ellipse'
+    || value.autoShape === 'star'
+    || value.autoShape === 'cross'
+    ? value.autoShape
+    : null;
   const renderPathOffset = readNonNegativeNumber(value.renderPathOffset);
   const renderPointOffset = readNonNegativeInteger(value.renderPointOffset);
   const renderSeed = readString(value.renderSeed, WHITEBOARD_ID_MAX_CHARS);
@@ -106,6 +130,7 @@ function readWhiteboardStroke(value: unknown, runtimePoints: boolean): Whiteboar
   const renderTaperStart = value.renderTaperStart === false;
   const renderTextureScale = readPositiveNumber(value.renderTextureScale);
   return id && tool && color && size !== null && points.length > 0 ? {
+    ...(autoShape ? { autoShape } : {}),
     color,
     id,
     points,

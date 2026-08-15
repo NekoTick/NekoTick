@@ -5,7 +5,7 @@ const FRONTMATTER_CLOSE_PATTERN = /^---[ \t]*$/;
 const FRONTMATTER_LANGUAGE = 'yaml-frontmatter';
 const FRONTMATTER_INTERNAL_META = 'vlaina-internal-frontmatter';
 const FRONTMATTER_INTERNAL_OPEN_PATTERN =
-  new RegExp(`^\`\`\`${FRONTMATTER_LANGUAGE}[ \\t]+${FRONTMATTER_INTERNAL_META}[ \\t]*$`);
+  new RegExp(`^(\`{3,})${FRONTMATTER_LANGUAGE}[ \\t]+${FRONTMATTER_INTERNAL_META}[ \\t]*$`);
 const MAX_FRONTMATTER_DELIMITER_LINE_CHARS = 1024;
 const MAX_FRONTMATTER_CHARS = 256 * 1024;
 const MAX_FRONTMATTER_LINES = 2048;
@@ -160,11 +160,27 @@ function splitLeadingFrontmatter(markdown: string): FrontmatterSections | null {
 }
 
 function splitLeadingInternalFrontmatter(markdown: string): FrontmatterSections | null {
+  let openingFence = '';
   return splitLeadingDelimitedBlock(
     markdown,
-    (line) => FRONTMATTER_INTERNAL_OPEN_PATTERN.test(line),
-    (line) => line === '```',
+    (line) => {
+      const match = FRONTMATTER_INTERNAL_OPEN_PATTERN.exec(line);
+      openingFence = match?.[1] ?? '';
+      return Boolean(openingFence);
+    },
+    (line) => openingFence.length > 0 && line === openingFence,
   );
+}
+
+function getInternalFrontmatterFence(frontmatterLines: readonly string[]): string {
+  let longestBacktickRun = 0;
+  for (const line of frontmatterLines) {
+    for (const run of line.match(/`+/g) ?? []) {
+      longestBacktickRun = Math.max(longestBacktickRun, run.length);
+    }
+  }
+
+  return '`'.repeat(Math.max(3, longestBacktickRun + 1));
 }
 
 function buildFrontmatterBlock(
@@ -177,8 +193,9 @@ function buildFrontmatterBlock(
     return body;
   }
 
-  const opening = fenced ? `\`\`\`${FRONTMATTER_LANGUAGE} ${FRONTMATTER_INTERNAL_META}` : '---';
-  const closing = fenced ? '```' : '---';
+  const internalFence = fenced ? getInternalFrontmatterFence(frontmatterLines) : '';
+  const opening = fenced ? `${internalFence}${FRONTMATTER_LANGUAGE} ${FRONTMATTER_INTERNAL_META}` : '---';
+  const closing = fenced ? internalFence : '---';
   const frontmatter = [opening, ...frontmatterLines, closing].join('\n');
 
   return body || options?.preserveBodySeparator ? `${frontmatter}\n${body}` : frontmatter;

@@ -6,8 +6,9 @@ import {
   type WhiteboardPaperStyle,
   type WhiteboardStroke,
 } from './whiteboardModel';
-import { getStrokeBounds } from './whiteboardSelection';
+import { getElementBounds, getStrokeBounds } from './whiteboardSelection';
 import { renderWhiteboardStrokeSvg } from './whiteboardStrokeExport';
+import { renderWhiteboardAutoDrawIconSvg } from './autodraw/whiteboardAutoDrawExport';
 
 export type WhiteboardExportFormat = 'jpeg' | 'png' | 'svg' | 'webp';
 const WHITEBOARD_EXPORT_IMAGE_LOAD_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 20 : 15_000;
@@ -124,8 +125,24 @@ function renderPaperPattern(paper: WhiteboardPaperStyle, color: string): { defs:
 function renderElement(element: WhiteboardElement, bounds: ExportBounds): string {
   const x = element.x - bounds.x;
   const y = element.y - bounds.y;
+  const transform = element.flipX || element.flipY || element.rotation
+    ? ` transform="translate(${x + element.width / 2} ${y + element.height / 2}) rotate(${(element.rotation ?? 0) * 180 / Math.PI}) scale(${element.flipX ? -1 : 1} ${element.flipY ? -1 : 1}) translate(${-x - element.width / 2} ${-y - element.height / 2})"`
+    : '';
   if (element.imageSrc) {
-    return `<image href="${escapeAttr(element.imageSrc)}" x="${x}" y="${y}" width="${element.width}" height="${element.height}" preserveAspectRatio="xMidYMid slice"/>`;
+    return `<image href="${escapeAttr(element.imageSrc)}" x="${x}" y="${y}" width="${element.width}" height="${element.height}" preserveAspectRatio="xMidYMid slice"${transform}/>`;
+  }
+  if (element.type === 'icon') {
+    const icon = renderWhiteboardAutoDrawIconSvg(element, x, y);
+    return transform ? `<g${transform}>${icon}</g>` : icon;
+  }
+  if (element.type === 'text') {
+    const fontSize = element.fontSize ?? themeWhiteboardTokens.whiteboardTextFontSizePx;
+    const lineHeight = element.lineHeight ?? themeWhiteboardTokens.whiteboardTextLineHeight;
+    const lines = element.text.split('\n');
+    const spans = lines.map((line, index) => (
+      `<tspan x="${x}" dy="${index === 0 ? fontSize : fontSize * lineHeight}">${escapeText(line || ' ')}</tspan>`
+    )).join('');
+    return `<text data-whiteboard-text="true" x="${x}" y="${y}" fill="${escapeAttr(element.color ?? themeWhiteboardTokens.whiteboardTextDefaultColor)}" font-family="${escapeAttr(themeWhiteboardTokens.whiteboardTextFontFamily)}" font-size="${fontSize}"${transform}>${spans}</text>`;
   }
   return '';
 }
@@ -148,7 +165,10 @@ function getExportBounds(elements: WhiteboardElement[], strokes: WhiteboardStrok
     maxX = Math.max(maxX, x + width);
     maxY = Math.max(maxY, y + height);
   };
-  elements.forEach((element) => includeBounds(element.x, element.y, element.width, element.height));
+  elements.forEach((element) => {
+    const elementBounds = getElementBounds(element);
+    includeBounds(elementBounds.x, elementBounds.y, elementBounds.width, elementBounds.height);
+  });
   strokes.forEach((stroke) => {
     const bounds = getStrokeBounds(stroke);
     if (bounds) includeBounds(bounds.x, bounds.y, bounds.width, bounds.height);
@@ -202,4 +222,8 @@ function css(styles: CSSStyleDeclaration, name: string): string {
 
 function escapeAttr(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+}
+
+function escapeText(value: string): string {
+  return escapeAttr(value).replaceAll('>', '&gt;');
 }

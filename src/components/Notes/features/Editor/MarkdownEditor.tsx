@@ -126,6 +126,7 @@ export function MarkdownEditor({
   });
   const {
     getCurrentNoteContent,
+    handleEditorContentSyncFailure,
     handleEditorViewReady,
     handleToggleSourceMode,
     isEditorViewReady,
@@ -135,7 +136,6 @@ export function MarkdownEditor({
     currentNotePath,
     hasActiveNote,
     onEditorViewReady,
-    scrollRootRef,
   });
   const {
     coverController,
@@ -172,7 +172,7 @@ export function MarkdownEditor({
             toggleStarred={toggleStarred}
             currentNoteMetadata={currentNoteMetadata}
             showNoteActions={!hideNoteActions}
-            showOutline={isEditorViewReady && !isSourceMode && !shouldUseSourceFallback}
+            showOutline={isEditorViewReady && !shouldUseSourceFallback}
           />
         </Suspense>
       ) : null}
@@ -257,6 +257,7 @@ export function MarkdownEditor({
                     <MilkdownEditorRuntime
                       active={active}
                       showBodyLineNumbers={showBodyLineNumbers}
+                      onEditorContentSyncFailure={handleEditorContentSyncFailure}
                       onEditorViewReady={handleEditorViewReady}
                     />
                   </ErrorBoundary>
