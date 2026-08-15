@@ -22,6 +22,7 @@ function renderToolbar(overrides: Partial<ComponentProps<typeof WhiteboardToolba
         brushColors={WHITEBOARD_DEFAULT_BRUSH_COLORS}
         brushSizes={WHITEBOARD_DEFAULT_BRUSH_SIZES}
         selectionColor={null}
+        showBrushSizes
         spacePressed={false}
         tool="select"
         onBrushColorChange={onBrushColorChange}
@@ -65,6 +66,7 @@ describe('WhiteboardToolbar', () => {
       brushColors: WHITEBOARD_DEFAULT_BRUSH_COLORS,
       brushSizes: WHITEBOARD_DEFAULT_BRUSH_SIZES,
       selectionColor: null,
+      showBrushSizes: true,
       spacePressed: false,
       tool: 'select' as const,
       onBrushColorChange: vi.fn(),
@@ -90,6 +92,7 @@ describe('WhiteboardToolbar', () => {
       brushColors: WHITEBOARD_DEFAULT_BRUSH_COLORS,
       brushSizes: WHITEBOARD_DEFAULT_BRUSH_SIZES,
       selectionColor: null,
+      showBrushSizes: true,
       spacePressed: false,
       tool: 'select' as const,
       onBrushColorChange: vi.fn(),
@@ -257,6 +260,13 @@ describe('WhiteboardToolbar', () => {
     expect(screen.queryByRole('button', { name: 'whiteboard.customColor' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '#000000' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'whiteboard.brushSize 100%' })).toBeInTheDocument();
+  });
+
+  it('hides brush size choices until pen input is detected', () => {
+    renderToolbar({ showBrushSizes: false });
+
+    expect(screen.queryByRole('button', { name: 'whiteboard.brushSize 100%' })).not.toBeInTheDocument();
+    expect(document.querySelector('[data-whiteboard-size-preview]')).not.toBeInTheDocument();
   });
 
   it('lifts the active tool without adding a colored background', () => {

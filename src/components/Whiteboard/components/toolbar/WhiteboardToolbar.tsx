@@ -30,6 +30,7 @@ interface WhiteboardToolbarProps {
   brushColors: WhiteboardBrushColors;
   brushSizes: WhiteboardBrushSizes;
   selectionColor: string | null;
+  showBrushSizes: boolean;
   spacePressed: boolean;
   tool: WhiteboardTool;
   onBrushColorChange: (tool: WhiteboardStrokeTool, color: string) => void;
@@ -133,7 +134,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
   return (
     <>
       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-[var(--vlaina-z-50)] flex justify-center px-3">
-        <div className="app-no-drag pointer-events-auto relative flex max-w-full min-w-0 items-center">
+        <div className="app-no-drag pointer-events-none relative flex w-full min-w-0 items-center justify-center">
           {openPanel && !props.spacePressed ? (
             <div className="pointer-events-none absolute bottom-full left-1/2 z-[var(--vlaina-z-50)] flex w-max max-w-[var(--vlaina-whiteboard-panel-max-width)] -translate-x-1/2 pb-2">
               <div ref={toolPanelRef} className="pointer-events-auto w-max max-w-full">
@@ -153,7 +154,7 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
             onPointerLeave={dock.onPointerLeave}
             onPointerMove={(event) => { if (!colorPickerOpen) dock.onPointerMove(event); }}
             className={cn(
-              'flex h-[var(--vlaina-size-72px)] max-w-[var(--vlaina-whiteboard-toolbar-max-width)] min-w-0 items-center gap-1 overflow-x-auto px-2 sm:overflow-visible',
+              'flex h-[var(--vlaina-size-72px)] w-max max-w-[var(--vlaina-whiteboard-toolbar-max-width)] min-w-0 items-center gap-1 overflow-x-auto px-2 sm:overflow-visible',
               whiteboardMainToolbarSurfaceClassName,
             )}
           >
@@ -196,8 +197,12 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
                 />
               </>
             ) : null}
-            <ToolbarDivider />
-            <SizeChoices sizes={props.brushSizes} tool={styleTool} onChange={handleBrushSizeSelect} />
+            {props.showBrushSizes ? (
+              <>
+                <ToolbarDivider />
+                <SizeChoices sizes={props.brushSizes} tool={styleTool} onChange={handleBrushSizeSelect} />
+              </>
+            ) : null}
           </div>
         </div>
       </div>

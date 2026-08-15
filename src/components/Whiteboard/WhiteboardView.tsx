@@ -30,6 +30,8 @@ export function WhiteboardView({
       aria-label={t('app.viewWhiteboard')}
       data-whiteboard-active={active ? 'true' : 'false'}
       className="relative h-full min-h-0 overflow-hidden bg-[var(--vlaina-bg-primary)] text-[var(--vlaina-color-text-primary)]"
+      onPointerDownCapture={board.handleInputPointerType}
+      onPointerMoveCapture={board.handleInputPointerType}
     >
       <WhiteboardSurface
         brushCursorColor={board.brushCursorColor}
@@ -92,6 +94,7 @@ export function WhiteboardView({
         brushColors={board.brushColors}
         brushSizes={board.brushSizes}
         selectionColor={board.selectedContentColor}
+        showBrushSizes={board.penInputDetected}
         spacePressed={board.spacePressed}
         tool={board.tool}
         onBrushColorChange={board.setBrushColor}
