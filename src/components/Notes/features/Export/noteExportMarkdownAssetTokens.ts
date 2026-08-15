@@ -12,9 +12,11 @@ import {
 import { getNonExcludedContentRanges } from '@/lib/markdown/contentRangeExclusion';
 import type { ExportMarkdownAssetSourceToken } from './noteExportMarkdownAssetTypes';
 import { findMarkdownImageSourceMatches } from './noteExportMarkdownImageTokens';
+import { findMarkdownReferenceImageSources } from './noteExportMarkdownReferenceImageTokens';
 export { MAX_EXPORT_MARKDOWN_IMAGE_PART_SCAN_CHARS } from './noteExportMarkdownImageTokens';
 
 export interface ExportMarkdownAssetTokenOptions {
+  ignoredRanges?: readonly ContentRange[];
   maxTokens?: number;
 }
 
@@ -69,9 +71,13 @@ export function findExportMarkdownAssetSourceTokensWithOptions(
     Number.isFinite(maxTokens) ? MAX_EXPORT_IGNORED_INLINE_RANGES : Number.POSITIVE_INFINITY,
   );
   const ignoredRanges = ignoredInlineScan.exhaustedAt === null
-    ? ignoredInlineScan.ranges
+    ? normalizeContentRanges([
+        ...ignoredInlineScan.ranges,
+        ...(options?.ignoredRanges ?? []),
+      ])
     : normalizeContentRanges([
         ...ignoredInlineScan.ranges,
+        ...(options?.ignoredRanges ?? []),
         { start: ignoredInlineScan.exhaustedAt, end: content.length },
       ]);
   const htmlBlockScan = collectMarkdownHtmlBlockRanges(
@@ -107,11 +113,22 @@ export function findExportMarkdownAssetSourceTokensWithOptions(
     htmlTagRanges,
     maxTokens,
   );
+  const referenceImageScan = findMarkdownReferenceImageSources(
+    content,
+    ignoredMarkdownRanges,
+    htmlTagRanges,
+    maxTokens - markdownMatches.length,
+  );
   return [
     ...markdownMatches.map((match) => match.token),
+    ...referenceImageScan.tokens,
     ...findHtmlImageSourceTokens(
       content,
-      normalizeContentRanges([...ignoredRanges, ...markdownMatches.map((match) => match.imageRange)]),
+      normalizeContentRanges([
+        ...ignoredRanges,
+        ...markdownMatches.map((match) => match.imageRange),
+        ...referenceImageScan.imageRanges,
+      ]),
       htmlTagRanges,
       maxTokens,
     ),

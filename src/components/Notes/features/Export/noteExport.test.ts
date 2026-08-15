@@ -5,6 +5,7 @@ import {
   exportNoteToFilePath,
   getNoteExportFileName,
   MAX_NOTE_EXPORT_OUTPUT_BYTES,
+  MAX_PNG_EXPORT_CANVAS_DIMENSION,
 } from './noteExport';
 import { createDocxExportBytes } from './noteExportDocx';
 
@@ -201,8 +202,34 @@ describe('exportNote', () => {
 
     expect(mocks.renderNoteExportHtml).not.toHaveBeenCalled();
     expect(mocks.renderNoteExportElement).toHaveBeenCalledWith('# Exported', 'Exported');
+    expect(mocks.toPng).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({
+      skipAutoScale: true,
+    }));
     expect(mocks.writeDesktopBinaryFile.mock.calls[0]?.[0]).toBe('/tmp/Exported.png');
     expect(new TextDecoder().decode(mocks.writeDesktopBinaryFile.mock.calls[0]?.[1])).toBe('png');
+  });
+
+  it('rejects oversized PNG dimensions before cloning the export element', async () => {
+    const element = document.createElement('article');
+    const cleanup = vi.fn();
+    Object.defineProperty(element, 'clientWidth', { configurable: true, value: 840 });
+    Object.defineProperty(element, 'clientHeight', {
+      configurable: true,
+      value: MAX_PNG_EXPORT_CANVAS_DIMENSION + 1,
+    });
+    mocks.renderNoteExportElement.mockResolvedValueOnce({ element, cleanup });
+
+    await expect(exportNote({
+      format: 'png',
+      markdown: '# Too tall',
+      notePath: 'Too tall.md',
+      notesPath: '/notesRoot',
+      title: 'Too tall',
+    })).rejects.toThrow('PNG export dimensions exceed the safe canvas limit.');
+
+    expect(mocks.toPng).not.toHaveBeenCalled();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(mocks.writeDesktopBinaryFile).not.toHaveBeenCalled();
   });
 
   it('rejects PNG exports when html-to-image returns a non-PNG data URL', async () => {

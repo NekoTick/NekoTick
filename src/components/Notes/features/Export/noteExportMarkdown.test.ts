@@ -56,6 +56,44 @@ describe('resolveExportMarkdownAssetSources', () => {
     );
   });
 
+  it('embeds local images used by Markdown reference image definitions', async () => {
+    mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([104, 105]));
+
+    const markdown = await resolveExportMarkdownAssetSources(
+      ['![demo][asset]', '[asset]: img:demo.png "Demo"'].join('\n'),
+      '/notesRoot',
+      'docs/demo.md',
+    );
+
+    expect(markdown).toBe([
+      '![demo][asset]',
+      '[asset]: data:image/png;base64,aGk= "Demo"',
+    ].join('\n'));
+  });
+
+  it('resolves reference image definitions across protected fenced code blocks', async () => {
+    mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([104, 105]));
+
+    const markdown = await resolveExportMarkdownAssetSources([
+      '![demo][asset]',
+      '```md',
+      '![ignored](img:ignored.png)',
+      '```',
+      '[asset]: img:demo.png',
+    ].join('\n'), '/notesRoot', 'docs/demo.md');
+
+    expect(markdown).toBe([
+      '![demo][asset]',
+      '```md',
+      '![ignored](img:ignored.png)',
+      '```',
+      '[asset]: data:image/png;base64,aGk=',
+    ].join('\n'));
+    expect(mocks.resolveExistingNotesRootAssetPath).toHaveBeenCalledTimes(1);
+  });
+
   it('embeds serialized relative note image sources as data URLs', async () => {
     mocks.resolveExistingNotesRootAssetPath
       .mockResolvedValueOnce('/notesRoot/docs/assets/demo.png')

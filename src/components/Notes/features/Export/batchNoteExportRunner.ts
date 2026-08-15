@@ -14,6 +14,18 @@ interface RunBatchNoteExportsOptions {
   onProgress?: (completed: number, total: number) => void;
 }
 
+export function getBatchNoteExportConcurrency(
+  formats: readonly NoteExportFormat[],
+  requestedConcurrency: number,
+): number {
+  const requested = Number.isFinite(requestedConcurrency)
+    ? Math.max(1, Math.floor(requestedConcurrency))
+    : 1;
+  if (formats.some((format) => format === 'pdf' || format === 'png')) return 1;
+  if (formats.includes('docx')) return Math.min(requested, 2);
+  return Math.min(requested, 4);
+}
+
 export async function runBatchNoteExports({
   sources,
   formats,
@@ -28,7 +40,8 @@ export async function runBatchNoteExports({
   const total = sources.length * formats.length;
   const tasks = sources.flatMap((source) => formats.map((format) => ({ source, format })));
   const contentBySourceId = new Map<string, Promise<string>>();
-  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), tasks.length);
+  const remainingTasksBySourceId = new Map(sources.map((source) => [source.id, formats.length]));
+  const workerCount = Math.min(getBatchNoteExportConcurrency(formats, concurrency), tasks.length);
   let nextTaskIndex = 0;
   let completed = 0;
   let canceled = false;
@@ -53,7 +66,7 @@ export async function runBatchNoteExports({
           format,
           markdown: content,
           notePath: source.external ? source.name : source.path,
-          notesPath,
+          notesPath: source.external ? '' : notesPath,
           title: getTitle(source),
         };
         const result = outputDirectory
@@ -65,6 +78,9 @@ export async function runBatchNoteExports({
               ),
             )
           : await exportNote(request);
+        const remainingTasks = (remainingTasksBySourceId.get(source.id) ?? 1) - 1;
+        remainingTasksBySourceId.set(source.id, remainingTasks);
+        if (remainingTasks <= 0) contentBySourceId.delete(source.id);
         if (result.canceled) {
           canceled = true;
           return;

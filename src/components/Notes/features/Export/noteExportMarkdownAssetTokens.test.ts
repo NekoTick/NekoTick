@@ -50,6 +50,36 @@ describe('findExportMarkdownAssetSourceTokens', () => {
     ]);
   });
 
+  it('extracts destinations used by full, collapsed, and shortcut reference images', () => {
+    const markdown = [
+      '![full][cover]',
+      '![collapsed][]',
+      '![shortcut]',
+      '[cover]: img:cover.png "Cover"',
+      '[collapsed]: <assets/collapsed.webp>',
+      '[shortcut]: img:shortcut.jpg',
+    ].join('\n');
+
+    expect(findExportMarkdownAssetSourceTokens(markdown).map((token) => token.lookupSrc)).toEqual([
+      'img:cover.png',
+      'assets/collapsed.webp',
+      'img:shortcut.jpg',
+    ]);
+  });
+
+  it('ignores reference image syntax and definitions inside protected content', () => {
+    const markdown = [
+      '`![inline][hidden]`',
+      '[hidden]: img:hidden.png',
+      '![real][visible]',
+      '[visible]: img:visible.png',
+    ].join('\n');
+
+    expect(findExportMarkdownAssetSourceTokens(markdown).map((token) => token.lookupSrc)).toEqual([
+      'img:visible.png',
+    ]);
+  });
+
   it('does not hide visible assets after angle-bracket text inside HTML attributes', () => {
     const markdown = [
       '<span data-example="<svg>"></span>',

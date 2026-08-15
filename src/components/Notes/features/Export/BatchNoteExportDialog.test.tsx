@@ -242,6 +242,13 @@ describe('BatchNoteExportDialog', () => {
     expect(screen.queryByText('notes.exportStyleDescription')).not.toBeInTheDocument();
   });
 
+  it('does not scan every note when the dialog opens', async () => {
+    renderDialog();
+    await act(async () => undefined);
+
+    expect(mocks.scanAllNotes).not.toHaveBeenCalled();
+  });
+
   it('selects notes by clicking the full row without a trailing check icon', async () => {
     renderDialog();
 
@@ -329,7 +336,7 @@ describe('BatchNoteExportDialog', () => {
       format: 'docx',
       markdown: '# External',
       notePath: 'external.md',
-      notesPath: '/notes',
+      notesPath: '',
       title: 'external',
     });
   });
