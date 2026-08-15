@@ -2,7 +2,6 @@ import type { DragEvent } from 'react';
 import { GlobalSearchPreview } from '@/components/layout/sidebar/GlobalSearchPreview';
 import type { GlobalSearchResult } from '@/components/layout/sidebar/globalSearchResults';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { SidebarLiveNoteFileIcon } from '@/components/Notes/features/Sidebar/SidebarNoteFileIcon';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
@@ -15,10 +14,10 @@ import { Icon } from '@/components/ui/icons';
 import { UploadSaveSpinner } from '@/components/common/UniversalIconPicker/UploadSaveSpinner';
 import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
-import { getParentPath, normalizePath } from '@/lib/storage/adapter';
 import { themeIconTokens } from '@/styles/themeTokens';
 import { BATCH_EXPORT_FORMATS, type BatchExportSource } from './batchNoteExportModel';
 import type { NoteExportFormat } from './noteExportTypes';
+import { BatchNoteExportSourceList } from './BatchNoteExportSourceList';
 
 type BatchFormatOption = (typeof BATCH_EXPORT_FORMATS)[number];
 
@@ -30,14 +29,12 @@ interface BatchNoteExportDialogViewProps {
   onDrop: (event: DragEvent<HTMLDivElement>) => void;
   query: string;
   setQuery: (query: string) => void;
-  isScanning: boolean;
   isExporting: boolean;
   exportProgress: { completed: number; total: number };
   isDragActive: boolean;
   selectedCount: number;
   allVisibleSelected: boolean;
   someVisibleSelected: boolean;
-  sources: BatchExportSource[];
   visibleSources: BatchExportSource[];
   selectedIds: Set<string>;
   notesPath: string;
@@ -62,14 +59,12 @@ export function BatchNoteExportDialogView({
   onDrop,
   query,
   setQuery,
-  isScanning,
   isExporting,
   exportProgress,
   isDragActive,
   selectedCount,
   allVisibleSelected,
   someVisibleSelected,
-  sources,
   visibleSources,
   selectedIds,
   notesPath,
@@ -133,58 +128,14 @@ export function BatchNoteExportDialogView({
                 {t('notes.selectAll')}
               </label>
             ) : null}
-            <div className="max-h-[var(--vlaina-size-240px)] min-h-0 overflow-y-auto px-2 pb-2 md:max-h-none md:flex-1">
-              {isScanning && sources.length === 0 ? (
-                <div className="px-2 py-8 text-center text-[length:var(--vlaina-font-12)] text-[var(--vlaina-sidebar-notes-text-soft)]">{t('notes.loadingNotes')}</div>
-              ) : visibleSources.length === 0 ? (
-                <div className="px-2 py-8 text-center text-[length:var(--vlaina-font-12)] text-[var(--vlaina-sidebar-notes-text-soft)]">{t('notes.noMarkdownNotes')}</div>
-              ) : visibleSources.map((source) => {
-                const selected = selectedIds.has(source.id);
-                const parentPath = source.external ? null : getParentPath(source.path);
-                return (
-                  <button
-                    key={source.id}
-                    type="button"
-                    aria-pressed={selected}
-                    disabled={isExporting}
-                    onPointerMove={() => onPreviewSourceChange(source.id)}
-                    onFocus={() => onPreviewSourceChange(source.id)}
-                    onClick={() => toggleSelected(source.id)}
-                    className={cn(
-                      'group/batch-export-note mb-0.5 flex w-full cursor-pointer items-start gap-2 rounded-[var(--vlaina-notes-ui-radius-compact)] px-2 py-2 text-left text-[length:var(--vlaina-font-13)] hover:bg-[var(--vlaina-sidebar-notes-row-hover)]',
-                      parentPath ? 'h-[var(--vlaina-size-56px)]' : 'h-[var(--vlaina-size-40px)]',
-                      isExporting && 'cursor-not-allowed opacity-[var(--vlaina-opacity-50)]',
-                      selected && 'bg-[var(--vlaina-sidebar-row-selected-bg)] shadow-[var(--vlaina-shadow-selection-soft)]',
-                    )}
-                  >
-                    <span className="mt-0.5 flex size-[var(--vlaina-size-18px)] shrink-0 items-center justify-center leading-none">
-                      <SidebarLiveNoteFileIcon
-                        notePath={source.path}
-                        notesRootPath={source.external ? undefined : notesPath}
-                      />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className={cn(
-                        'block truncate text-[length:var(--vlaina-font-13)] font-medium leading-5 group-hover/batch-export-note:text-[var(--vlaina-sidebar-row-selected-text)] group-focus-within/batch-export-note:text-[var(--vlaina-sidebar-row-selected-text)]',
-                        selected ? 'text-[var(--vlaina-sidebar-row-selected-text)]' : 'text-[var(--vlaina-sidebar-notes-text)]',
-                      )}>{source.name}</span>
-                      {parentPath ? (
-                        <span className={cn(
-                          'block truncate text-[length:var(--vlaina-font-11)] leading-[var(--vlaina-leading-145)] group-hover/batch-export-note:text-[var(--vlaina-sidebar-row-selected-text-soft)] group-focus-within/batch-export-note:text-[var(--vlaina-sidebar-row-selected-text-soft)]',
-                          selected ? 'text-[var(--vlaina-sidebar-row-selected-text-soft)]' : 'text-[var(--vlaina-sidebar-notes-text-soft)]',
-                        )}>{normalizePath(parentPath, true)}/</span>
-                      ) : null}
-                    </span>
-                    {source.external ? (
-                      <span className={cn(
-                        'shrink-0 text-[length:var(--vlaina-font-11)] group-hover/batch-export-note:text-[var(--vlaina-sidebar-row-selected-text-soft)] group-focus-within/batch-export-note:text-[var(--vlaina-sidebar-row-selected-text-soft)]',
-                        selected ? 'text-[var(--vlaina-sidebar-row-selected-text-soft)]' : 'text-[var(--vlaina-sidebar-notes-text-soft)]',
-                      )}>{t('notes.externalFile')}</span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+            <BatchNoteExportSourceList
+              isExporting={isExporting}
+              notesPath={notesPath}
+              onPreviewSourceChange={onPreviewSourceChange}
+              selectedIds={selectedIds}
+              sources={visibleSources}
+              toggleSelected={toggleSelected}
+            />
             <label
               className={cn(
                 'mx-2 mb-3 mt-1 flex min-h-16 shrink-0 cursor-pointer items-center justify-center rounded-[var(--vlaina-notes-ui-radius-compact)] border border-dashed px-3 text-center text-[length:var(--vlaina-font-12)] transition-colors',

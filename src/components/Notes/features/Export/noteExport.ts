@@ -19,6 +19,7 @@ import {
   normalizeAppLanguagePreference,
 } from '@/lib/i18n/languages';
 import { formatMessage, getMessages } from '@/lib/i18n/messages';
+import { MAX_EXPORT_MARKDOWN_CHARS, MAX_NOTE_EXPORT_OUTPUT_BYTES } from './noteExportLimits';
 
 const EXPORT_EXTENSIONS: Record<NoteExportFormat, string> = {
   docx: 'docx',
@@ -33,9 +34,9 @@ const EXPORT_FILTERS: Record<NoteExportFormat, { name: string; extensions: strin
   pdf: [{ name: 'PDF Document', extensions: ['pdf'] }],
   png: [{ name: 'PNG Image', extensions: ['png'] }],
 };
-const MAX_EXPORT_MARKDOWN_CHARS = 2 * 1024 * 1024;
 const MAX_PNG_EXPORT_BYTES = 50 * 1024 * 1024;
-export const MAX_NOTE_EXPORT_OUTPUT_BYTES = 64 * 1024 * 1024;
+export const MAX_PNG_EXPORT_CANVAS_DIMENSION = 16_384;
+export { MAX_NOTE_EXPORT_OUTPUT_BYTES } from './noteExportLimits';
 const STORAGE_KEY_LANGUAGE_PREFERENCE = 'vlaina-language-preference';
 
 function translateExportMessage(title: string): string {
@@ -173,10 +174,25 @@ function htmlToBytes(html: string): Uint8Array {
 async function createPngBytes(markdown: string, title: string): Promise<Uint8Array> {
   const { element, cleanup } = await renderNoteExportElement(markdown, title);
   try {
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const style = window.getComputedStyle(element);
+    const width = element.clientWidth
+      + (Number.parseFloat(style.borderLeftWidth) || 0)
+      + (Number.parseFloat(style.borderRightWidth) || 0);
+    const height = element.clientHeight
+      + (Number.parseFloat(style.borderTopWidth) || 0)
+      + (Number.parseFloat(style.borderBottomWidth) || 0);
+    if (
+      width * pixelRatio > MAX_PNG_EXPORT_CANVAS_DIMENSION
+      || height * pixelRatio > MAX_PNG_EXPORT_CANVAS_DIMENSION
+    ) {
+      throw new Error('PNG export dimensions exceed the safe canvas limit.');
+    }
     const dataUrl = await toPng(element, {
       backgroundColor: themeColorTokens.exportSurface,
       cacheBust: true,
-      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      pixelRatio,
+      skipAutoScale: true,
     });
     return dataUrlToBytes(dataUrl);
   } finally {
