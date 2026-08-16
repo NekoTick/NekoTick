@@ -237,7 +237,12 @@ function isMermaidElementVisible(anchor: HTMLElement) {
     && rect.left < window.innerWidth;
 }
 
-function installLazyMermaidRender(anchor: HTMLElement, codeSnapshot: string, renderKey: string | undefined) {
+function installLazyMermaidRender(
+  anchor: HTMLElement,
+  codeSnapshot: string,
+  renderKey: string | undefined,
+  priority?: MermaidRenderPriority,
+) {
   anchor.dataset.mermaidLazy = 'true';
   setMermaidPendingMarkup(anchor);
 
@@ -253,9 +258,10 @@ function installLazyMermaidRender(anchor: HTMLElement, codeSnapshot: string, ren
 
     disconnectLazyMermaidRender(anchor);
     const preload = mermaidBackgroundPreloads.get(anchor);
-    const priority = isMermaidElementVisible(anchor) ? 'interactive' : 'background';
+    const renderPriority = priority
+      ?? (isMermaidElementVisible(anchor) ? 'interactive' : 'background');
     if (preload?.started) {
-      void renderMermaidElementAsync(anchor, codeSnapshot, renderKey, priority, false);
+      void renderMermaidElementAsync(anchor, codeSnapshot, renderKey, renderPriority, false);
       return;
     }
     cancelMermaidBackgroundPreload(anchor);
@@ -263,7 +269,7 @@ function installLazyMermaidRender(anchor: HTMLElement, codeSnapshot: string, ren
       anchor,
       codeSnapshot,
       renderKey,
-      priority,
+      renderPriority,
     );
   };
 
@@ -280,7 +286,11 @@ function installLazyMermaidRender(anchor: HTMLElement, codeSnapshot: string, ren
 
 export function createMermaidElement(
   code: string,
-  options: { preloadBackground?: boolean; render?: boolean } = {},
+  options: {
+    preloadBackground?: boolean;
+    priority?: MermaidRenderPriority;
+    render?: boolean;
+  } = {},
 ) {
   const normalizedCode = normalizeMermaidEditorCodeInput(code);
   const renderCode = getMermaidRenderCode(normalizedCode);
@@ -309,16 +319,32 @@ export function createMermaidElement(
     const codeSnapshot = normalizedCode;
     const renderKey = wrapper.dataset.renderKey;
     if (shouldLazyRenderMermaidElement()) {
-      installLazyMermaidRender(wrapper, codeSnapshot, renderKey);
+      installLazyMermaidRender(wrapper, codeSnapshot, renderKey, options.priority);
       if (options.preloadBackground === true) {
         queueMermaidBackgroundPreload(wrapper, codeSnapshot, renderKey);
       }
     } else {
-      renderMermaidElementAsync(wrapper, codeSnapshot, renderKey);
+      renderMermaidElementAsync(
+        wrapper,
+        codeSnapshot,
+        renderKey,
+        options.priority ?? 'background',
+      );
     }
   } else {
     wrapper.innerHTML = mermaidEmptyMarkup();
   }
 
+  return wrapper;
+}
+
+export function createCachedMermaidElement(code: string) {
+  const normalizedCode = normalizeMermaidEditorCodeInput(code);
+  if (!normalizedCode.trim()) return null;
+  const cachedMarkup = readCachedMermaidMarkup(getMermaidRenderCode(normalizedCode));
+  if (cachedMarkup == null) return null;
+
+  const wrapper = createMermaidElement(normalizedCode, { render: false });
+  wrapper.innerHTML = cachedMarkup;
   return wrapper;
 }

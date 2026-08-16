@@ -1,6 +1,7 @@
 import type { TextEditorPopupElements } from '../shared/textEditorPopupDom';
 import { createTextEditorWorkspace } from '../shared/textEditorWorkspaceDom';
 import {
+  createCachedMermaidElement,
   createMermaidElement,
   disposeMermaidElement,
   renderMermaidEditorLivePreview,
@@ -44,6 +45,8 @@ export function configureMermaidEditorWorkspace(
   const templateList = document.createElement('div');
   templateList.className = 'mermaid-editor-workspace-template-list';
   const isChinese = document.documentElement.lang.toLowerCase().startsWith('zh');
+  const templateEntries: Array<{ button: HTMLButtonElement; code: string }> = [];
+  const templatePreviews: HTMLElement[] = [];
 
   mermaidEditorTemplates.forEach((template) => {
     const label = isChinese ? template.labelZh : template.label;
@@ -52,10 +55,23 @@ export function configureMermaidEditorWorkspace(
     button.className = 'mermaid-editor-workspace-template';
     button.dataset.templateId = template.id;
     button.setAttribute('aria-label', label);
-    const name = document.createElement('span');
-    name.className = 'mermaid-editor-workspace-template-name';
-    name.textContent = label;
-    button.append(name);
+    const cachedThumbnail = createCachedMermaidElement(template.code);
+    if (cachedThumbnail) {
+      cachedThumbnail.classList.add('mermaid-editor-workspace-template-preview');
+      cachedThumbnail.setAttribute('aria-hidden', 'true');
+      templatePreviews.push(cachedThumbnail);
+      button.append(cachedThumbnail);
+    } else {
+      const thumbnailSlot = document.createElement('div');
+      thumbnailSlot.className = 'mermaid-editor-workspace-template-preview';
+      thumbnailSlot.setAttribute('aria-hidden', 'true');
+      const thumbnailPlaceholder = document.createElement('div');
+      thumbnailPlaceholder.className = 'mermaid-placeholder';
+      thumbnailPlaceholder.setAttribute('aria-hidden', 'true');
+      thumbnailSlot.append(thumbnailPlaceholder);
+      button.append(thumbnailSlot);
+      templateEntries.push({ button, code: template.code });
+    }
     button.addEventListener('click', () => {
       textarea.value = template.code;
       textarea.setSelectionRange(template.code.length, template.code.length);
@@ -82,7 +98,9 @@ export function configureMermaidEditorWorkspace(
   inputPane.append(tools);
 
   preview.classList.add('markdown-surface');
-  const previewSurface = createMermaidElement(textarea.value, { render: false });
+  const cachedPreviewSurface = createCachedMermaidElement(textarea.value);
+  const previewSurface = cachedPreviewSurface
+    ?? createMermaidElement(textarea.value, { render: false });
   previewSurface.classList.add('mermaid-editor-workspace-preview-content');
   preview.append(previewSurface);
 
@@ -125,9 +143,33 @@ export function configureMermaidEditorWorkspace(
     queuedPreviewCode = code;
     flushPreview();
   };
+  let nextTemplateIndex = 0;
+  let templateRenderFrame: number | undefined;
+  const renderNextTemplate = () => {
+    templateRenderFrame = undefined;
+    if (isCleanedUp) return;
+    const entry = templateEntries[nextTemplateIndex];
+    if (!entry) return;
+
+    nextTemplateIndex += 1;
+    const thumbnail = createMermaidElement(entry.code, {
+      preloadBackground: false,
+      priority: 'background',
+    });
+    thumbnail.classList.add('mermaid-editor-workspace-template-preview');
+    thumbnail.setAttribute('aria-hidden', 'true');
+    templatePreviews.push(thumbnail);
+    entry.button.replaceChildren(thumbnail);
+    if (nextTemplateIndex < templateEntries.length) {
+      templateRenderFrame = requestAnimationFrame(renderNextTemplate);
+    }
+  };
   let initialRenderFrame: number | undefined = requestAnimationFrame(() => {
     initialRenderFrame = undefined;
-    renderPreview(textarea.value);
+    if (!cachedPreviewSurface) renderPreview(textarea.value);
+    if (templateEntries.length) {
+      templateRenderFrame = requestAnimationFrame(renderNextTemplate);
+    }
   });
 
   return {
@@ -138,7 +180,10 @@ export function configureMermaidEditorWorkspace(
       queuedPreviewCode = null;
       if (initialRenderFrame !== undefined) cancelAnimationFrame(initialRenderFrame);
       initialRenderFrame = undefined;
+      if (templateRenderFrame !== undefined) cancelAnimationFrame(templateRenderFrame);
+      templateRenderFrame = undefined;
       textarea.removeEventListener('keydown', handleTextareaKeyDown);
+      templatePreviews.forEach(disposeMermaidElement);
       disposeMermaidElement(previewSurface);
     },
   };

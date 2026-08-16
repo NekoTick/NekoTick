@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createClosedMathEditorState } from './mathEditorState';
-import { getMathAnchorViewportPosition, resolveMathAnchorElement } from './mathEditorPlacement';
-import { findMathEditorTargetElement } from './mathEditorOpenInteraction';
+import {
+  findMathEditorTargetElement,
+  getMathAnchorViewportPosition,
+  resolveMathAnchorElement,
+} from './mathEditorOpenInteraction';
 import { resolveMathEditorOpenState } from './mathEditorOpenResolver';
 
 describe('mathEditorPlugin', () => {

@@ -36,7 +36,7 @@ const MERMAID_ALIAS_DIRECTIVES = new Map<string, string>([
   ['statediagramv2', 'stateDiagram-v2'],
   ['er', 'erDiagram'],
   ['erdiagram', 'erDiagram'],
-  ['eventmodeling', 'eventModeling'],
+  ['eventmodeling', 'eventmodeling'],
   ['gantt', 'gantt'],
   ['pie', 'pie'],
   ['journey', 'journey'],

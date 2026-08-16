@@ -3,13 +3,9 @@ import type { TextEditorPopupElements } from '../shared/textEditorPopupDom';
 import { createTextEditorWorkspace } from '../shared/textEditorWorkspaceDom';
 import {
   mathFormulaCategories,
-  type MathFormulaCategory,
   type MathFormulaItem,
 } from './mathFormulaCatalog';
-import {
-  getMathFormulaPickerCopy,
-  localizeMathFormulaName,
-} from './mathFormulaPickerCopy';
+import { getMathFormulaPickerCopy } from './mathFormulaPickerCopy';
 import {
   createMathFormulaPickerButton,
   createMathFormulaSearchIcon,
@@ -20,6 +16,7 @@ import {
   insertMathFormulaSnippet,
   jumpToMathFormulaPlaceholder,
 } from './mathFormulaPickerInput';
+import { createMathFormulaPickerPanelCache } from './mathFormulaPickerPanels';
 import { createMathFormulaPickerRenderer } from './mathFormulaPickerRenderer';
 import { searchMathFormulaItems } from './mathFormulaPickerSearch';
 
@@ -34,9 +31,7 @@ export function configureMathFormulaPicker(
   let activeCategoryId = mathFormulaCategories[0]?.id ?? '';
   let hoverCloseTimer: ReturnType<typeof setTimeout> | undefined;
   const formulaItemsByButton = new WeakMap<HTMLElement, MathFormulaItem>();
-  const categoryPanels = new Map<string, HTMLElement>();
   let searchRenderFrame: number | undefined;
-  let categoryWarmupIdle: number | undefined;
 
   const {
     workspace,
@@ -150,28 +145,7 @@ export function configureMathFormulaPicker(
     return button;
   };
 
-  const getCategoryPanel = (category: MathFormulaCategory) => {
-    let panel = categoryPanels.get(category.id);
-    if (panel) return panel;
-    panel = document.createElement('div');
-    panel.className = 'math-formula-picker-category-panel';
-    const fragment = document.createDocumentFragment();
-    category.groups.forEach((formulaGroup) => {
-      const section = document.createElement('section');
-      section.className = 'math-formula-picker-group';
-      const label = document.createElement('h3');
-      label.className = 'math-formula-picker-group-label';
-      label.textContent = localizeMathFormulaName(formulaGroup);
-      const grid = document.createElement('div');
-      grid.className = 'math-formula-picker-grid';
-      formulaGroup.items.forEach((formula) => grid.append(createFormulaButton(formula)));
-      section.append(label, grid);
-      fragment.append(section);
-    });
-    panel.append(fragment);
-    categoryPanels.set(category.id, panel);
-    return panel;
-  };
+  const getCategoryPanel = createMathFormulaPickerPanelCache(createFormulaButton);
 
   const renderItems = (formulaItems: MathFormulaItem[]) => {
     results.hidden = true;
@@ -261,6 +235,7 @@ export function configureMathFormulaPicker(
   renderMathFormulaPickerCategories({
     categories,
     results,
+    prepareFormula: formulaRenderer.prepareButton,
     onOpen(categoryId) {
       cancelHoverClose();
       cancelSearchRender();
@@ -270,18 +245,11 @@ export function configureMathFormulaPicker(
     },
   });
   formulaRenderer.renderPreviewNow();
-  const warmupCategory = mathFormulaCategories[0];
-  if (warmupCategory && typeof window.requestIdleCallback === 'function') {
-    categoryWarmupIdle = window.requestIdleCallback(() => {
-      categoryWarmupIdle = undefined;
-      formulaRenderer.renderAllNow(getCategoryPanel(warmupCategory));
-    });
-  }
+  formulaRenderer.renderPreparedGradually(categories);
 
   return () => {
     cancelHoverClose();
     cancelSearchRender();
-    if (categoryWarmupIdle !== undefined) window.cancelIdleCallback(categoryWarmupIdle);
     formulaRenderer.destroy();
   };
 }

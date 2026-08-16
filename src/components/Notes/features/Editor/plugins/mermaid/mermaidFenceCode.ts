@@ -44,7 +44,7 @@ const STANDARD_DIRECTIVE_BY_LANGUAGE = new Map<string, string>([
   ['statediagramv2', 'stateDiagram-v2'],
   ['er', 'erDiagram'],
   ['erdiagram', 'erDiagram'],
-  ['eventmodeling', 'eventModeling'],
+  ['eventmodeling', 'eventmodeling'],
   ['gantt', 'gantt'],
   ['pie', 'pie'],
   ['journey', 'journey'],

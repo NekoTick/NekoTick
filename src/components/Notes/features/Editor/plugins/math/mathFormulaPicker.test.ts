@@ -47,6 +47,9 @@ describe('mathFormulaPicker', () => {
     expect(document.querySelector('.math-formula-picker-mode')).toBeNull();
     expect(document.querySelector('.math-formula-picker-shortcuts')).toBeInTheDocument();
     expect(document.querySelectorAll('.math-formula-picker-category')).toHaveLength(23);
+    expect(document.querySelectorAll(
+      '.math-formula-picker-category-formula[data-formula-rendered="false"]',
+    )).toHaveLength(23);
     expect(document.querySelector('.math-formula-picker-results')).not.toBeVisible();
   });
 
@@ -191,6 +194,30 @@ describe('mathFormulaPicker', () => {
     category.dispatchEvent(new MouseEvent('mouseenter'));
 
     expect(document.querySelector('.math-formula-picker-category-panel')).toBe(firstPanel);
+  });
+
+  it('restores cached category formulas immediately in the next picker', async () => {
+    const firstElements = createTextEditorPopupElements();
+    const firstCleanup = configureMathFormulaPicker(firstElements, vi.fn());
+    document.body.append(firstElements.card);
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll(
+        '.math-formula-picker-category-formula[data-formula-rendered="true"]',
+      )).toHaveLength(mathFormulaCategories.length);
+    });
+    firstCleanup();
+    firstElements.card.remove();
+
+    const secondElements = createTextEditorPopupElements();
+    configureMathFormulaPicker(secondElements, vi.fn());
+    document.body.append(secondElements.card);
+
+    expect(document.querySelectorAll(
+      '.math-formula-picker-category-formula[data-formula-rendered="true"]',
+    )).toHaveLength(mathFormulaCategories.length);
+    expect(document.querySelectorAll(
+      '.math-formula-picker-category-formula[data-formula-rendered="false"]',
+    )).toHaveLength(0);
   });
 
   it('keeps formula search available as a full-width field', () => {

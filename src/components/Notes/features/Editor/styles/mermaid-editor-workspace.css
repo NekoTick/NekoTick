@@ -21,16 +21,15 @@
 .mermaid-editor-workspace-template {
   min-width: 0;
   min-height: var(--vlaina-size-56px);
-  display: grid;
-  align-content: center;
-  justify-items: start;
-  gap: var(--vlaina-space-2px);
-  padding: var(--vlaina-space-6px) var(--vlaina-space-8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--vlaina-space-4px);
   border: var(--vlaina-border-width-1) solid var(--vlaina-color-math-editor-border);
   border-radius: var(--vlaina-notes-ui-radius-compact);
   background: var(--vlaina-color-input-surface);
   color: var(--vlaina-color-math-editor-text);
-  text-align: left;
+  overflow: hidden;
 }
 
 .mermaid-editor-workspace-template:hover,
@@ -41,12 +40,26 @@
   outline: none;
 }
 
-.mermaid-editor-workspace-template-name {
+.mermaid-editor-workspace-template-preview {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: var(--vlaina-space-0) !important;
+  padding: var(--vlaina-space-0) !important;
+  border: 0 !important;
+  background: transparent !important;
+  overflow: hidden !important;
+  pointer-events: none;
+}
+
+.mermaid-editor-workspace-template-preview svg {
+  display: block;
+  width: 100%;
   max-width: 100%;
-  overflow-wrap: anywhere;
-  font-size: var(--vlaina-font-xs);
-  font-weight: var(--vlaina-font-weight-semibold);
-  line-height: var(--vlaina-leading-20px);
+  max-height: 100%;
+  height: auto;
+  margin: var(--vlaina-space-0) auto;
 }
 
 .mermaid-editor-workspace-tools {

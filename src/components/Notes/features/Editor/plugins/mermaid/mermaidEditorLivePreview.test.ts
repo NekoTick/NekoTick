@@ -16,6 +16,7 @@ vi.mock('./mermaidRenderer', () => ({
 
 import {
   clearMermaidRenderCaches,
+  createCachedMermaidElement,
   createMermaidElement,
   disposeMermaidElement,
   getMermaidElementCode,
@@ -321,9 +322,11 @@ describe('mermaidEditorLivePreview', () => {
 
     const firstMarkup = await resolveMermaidMarkup(code);
     const secondMarkup = await resolveMermaidMarkup(code);
+    const cachedElement = createCachedMermaidElement(code);
 
     expect(renderMermaid).toHaveBeenCalledTimes(1);
     expect(firstMarkup).toBe(secondMarkup);
+    expect(cachedElement?.querySelector('[data-rendered="initial"]')).not.toBeNull();
   });
 
   it('does not write an async initial render into a disposed Mermaid element', async () => {

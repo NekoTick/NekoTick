@@ -28,8 +28,8 @@ describe('mermaidEditorSessionActions', () => {
         textareaElement: {
           value: 'graph TD\nA --> B',
         } as HTMLTextAreaElement,
-        draftCode: '',
-        initialCode: '',
+        draftValue: '',
+        initialValue: '',
       },
       getEditorState: () => ({
         isOpen: true,
@@ -72,8 +72,8 @@ describe('mermaidEditorSessionActions', () => {
         textareaElement: {
           value: 'sequenceDiagram\n',
         } as HTMLTextAreaElement,
-        draftCode: '',
-        initialCode: 'sequenceDiagram\n',
+        draftValue: '',
+        initialValue: 'sequenceDiagram\n',
       },
       getEditorState: () => ({
         isOpen: true,
@@ -123,8 +123,8 @@ describe('mermaidEditorSessionActions', () => {
             '```',
           ].join('\n'),
         } as HTMLTextAreaElement,
-        draftCode: '',
-        initialCode: '',
+        draftValue: '',
+        initialValue: '',
       },
       getEditorState: () => ({
         isOpen: true,
@@ -179,8 +179,8 @@ describe('mermaidEditorSessionActions', () => {
         textareaElement: {
           value: code,
         } as HTMLTextAreaElement,
-        draftCode: '',
-        initialCode: '',
+        draftValue: '',
+        initialValue: '',
       },
       getEditorState: () => ({
         isOpen: true,

@@ -184,7 +184,10 @@ export const mermaidEditorTemplates: MermaidEditorTemplate[] = [
     '      "Leaf"',
   ]),
   template('event-modeling', 'Event modeling', '事件建模图', 'eventmodeling', [
-    'eventmodeling title Event Model',
+    'eventmodeling',
+    '  tf 01 ui OrderForm',
+    '  tf 02 command PlaceOrder ->> 01',
+    '  tf 03 event OrderPlaced ->> 02',
   ]),
   template('ishikawa', 'Ishikawa', '鱼骨图', 'ishikawa', [
     'ishikawa',

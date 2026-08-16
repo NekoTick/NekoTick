@@ -1,35 +1,20 @@
+import {
+  createTextEditorOpenInteraction,
+  type TextEditorOpenInteractionView,
+} from '../shared/textEditorOpenInteraction';
 import { resolveMathEditorOpenState } from './mathEditorOpenResolver';
-import { getMathAnchorViewportPosition, resolveMathAnchorElement } from './mathEditorPlacement';
 import type { MathEditorState } from './types';
 
 const MATH_NODE_SELECTOR = '[data-type="math-block"], [data-type="math-inline"]';
+const mathEditorOpenInteraction = createTextEditorOpenInteraction<MathEditorState>({
+  nodeSelector: MATH_NODE_SELECTOR,
+  resolveOpenState: resolveMathEditorOpenState,
+});
 
-interface MathEditorPluginViewLike {
-  state: {
-    doc: {
-      resolve: (pos: number) => unknown;
-      nodeAt: (pos: number) => unknown;
-    };
-  };
-  dom: HTMLElement;
-  posAtDOM: (node: Node, offset: number) => number;
-  nodeDOM?: (pos: number) => Node | null;
-}
-
-export function findMathEditorTargetElement(
-  view: { dom: HTMLElement },
-  target: EventTarget | null
-) {
-  const targetElement =
-    target instanceof HTMLElement ? target : target instanceof Node ? target.parentElement : null;
-  const mathElement = targetElement?.closest(MATH_NODE_SELECTOR);
-
-  if (!(mathElement instanceof HTMLElement) || !view.dom.contains(mathElement)) {
-    return null;
-  }
-
-  return mathElement;
-}
+export const findMathEditorTargetElement = mathEditorOpenInteraction.findTargetElement;
+export const getMathAnchorViewportPosition = mathEditorOpenInteraction.getAnchorViewportPosition;
+export const resolveMathAnchorElement = mathEditorOpenInteraction.resolveAnchorElement;
+export const resolveMathEditorOpenMeta = mathEditorOpenInteraction.resolveOpenMeta;
 
 export function isHorizontalScrollbarPointerDown(args: {
   event: MouseEvent;
@@ -58,66 +43,20 @@ export function isHorizontalScrollbarPointerDown(args: {
         event.clientX <= rect.right &&
         event.clientY >= rect.bottom - scrollbarHeight &&
         event.clientY <= rect.bottom;
-
-      if (hitHorizontalScrollbar) {
-        return true;
-      }
+      if (hitHorizontalScrollbar) return true;
     }
 
-    if (current === mathElement) {
-      break;
-    }
-
+    if (current === mathElement) break;
     current = current.parentElement;
   }
 
   return false;
 }
 
-export function resolveMathEditorOpenMeta(args: {
-  view: MathEditorPluginViewLike;
-  pos: number;
-  target: EventTarget | null;
-}): MathEditorState | null {
-  const { view, pos, target } = args;
-
-  return resolveMathEditorOpenState({
-    view: view as never,
-    pos,
-    getPosition(nodePos: number) {
-      return getMathAnchorViewportPosition(
-        resolveMathAnchorElement(
-          target,
-          typeof view.nodeDOM === 'function' ? view.nodeDOM(nodePos) : null
-        )
-      );
-    },
-  });
-}
-
 export function resolveMathEditorPointerOpen(args: {
-  view: MathEditorPluginViewLike;
+  view: TextEditorOpenInteractionView;
   target: EventTarget | null;
 }) {
-  const { view, target } = args;
-  const mathElement = findMathEditorTargetElement(view, target);
-  if (!mathElement) {
-    return null;
-  }
-
-  try {
-    const meta = resolveMathEditorOpenMeta({
-      view,
-      pos: view.posAtDOM(mathElement, 0),
-      target,
-    });
-
-    if (!meta) {
-      return null;
-    }
-
-    return { mathElement, meta };
-  } catch {
-    return null;
-  }
+  const resolved = mathEditorOpenInteraction.resolvePointerOpen(args);
+  return resolved ? { mathElement: resolved.targetElement, meta: resolved.meta } : null;
 }

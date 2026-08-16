@@ -295,7 +295,10 @@ export const MERMAID_FORMAT_FIXTURES: MermaidFormatFixture[] = [
     label: 'eventmodeling',
     minWidth: 50,
     source: [
-      'eventmodeling title Event Model',
+      'eventmodeling',
+      '  tf 01 ui OrderForm',
+      '  tf 02 command PlaceOrder ->> 01',
+      '  tf 03 event OrderPlaced ->> 02',
     ],
   },
   {
