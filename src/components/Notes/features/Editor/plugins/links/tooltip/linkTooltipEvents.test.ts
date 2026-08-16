@@ -624,6 +624,36 @@ describe('installLinkTooltipEvents', () => {
         cleanup();
     });
 
+    it('does not scan the entire editor for a hover on the editor root', () => {
+        const { editorDom, handlers } = createHandlers();
+        const link = document.createElement('a');
+        link.href = 'https://example.com/docs';
+        link.textContent = 'docs';
+        const getClientRects = vi.fn(() => [{
+            left: 5,
+            right: 45,
+            top: 5,
+            bottom: 25,
+            width: 40,
+            height: 20,
+        }] as unknown as DOMRectList);
+        link.getClientRects = getClientRects;
+        editorDom.appendChild(link);
+
+        const cleanup = installLinkTooltipEvents(handlers);
+        editorDom.dispatchEvent(new MouseEvent('mouseover', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 12,
+            clientY: 12,
+        }));
+
+        expect(getClientRects).not.toHaveBeenCalled();
+        expect(handlers.showLinkWithDelay).not.toHaveBeenCalled();
+
+        cleanup();
+    });
+
     it('shows editor link tooltips without changing an existing block selection', () => {
         const { editorDom, handlers } = createHandlers();
         const link = document.createElement('a');

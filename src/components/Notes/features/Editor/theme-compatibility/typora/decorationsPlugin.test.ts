@@ -475,6 +475,27 @@ describe('createThemeCompatibilityDecorationRebuildController', () => {
     vi.useRealTimers();
   });
 
+  it('flushes only a pending rebuild when the scroll idle boundary arrives', () => {
+    vi.useFakeTimers();
+    const dispatchRebuild = vi.fn();
+    const controller = createThemeCompatibilityDecorationRebuildController({
+      delayMs: 160,
+      dispatchRebuild,
+    });
+
+    controller.flushIfPending();
+    expect(dispatchRebuild).not.toHaveBeenCalled();
+
+    controller.schedule();
+    controller.flushIfPending();
+    expect(dispatchRebuild).toHaveBeenCalledTimes(1);
+
+    controller.flushIfPending();
+    expect(dispatchRebuild).toHaveBeenCalledTimes(1);
+    controller.destroy();
+    vi.useRealTimers();
+  });
+
   it('drops pending rebuilds after destroy', () => {
     vi.useFakeTimers();
     const dispatchRebuild = vi.fn();

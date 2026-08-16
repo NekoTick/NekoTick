@@ -29,6 +29,13 @@ export function createThemeCompatibilityDecorationRebuildController({
     dispatchRebuild();
   };
 
+  const flushIfPending = () => {
+    if (pendingTimer === null) {
+      return;
+    }
+    flush();
+  };
+
   const schedule = () => {
     if (destroyed) {
       return;
@@ -53,6 +60,7 @@ export function createThemeCompatibilityDecorationRebuildController({
     deferIfPending,
     destroy,
     flush,
+    flushIfPending,
     schedule,
   };
 }

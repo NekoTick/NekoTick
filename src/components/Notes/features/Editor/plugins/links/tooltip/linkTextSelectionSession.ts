@@ -60,7 +60,11 @@ function resolveEventLinkTextRoot(view: EditorView, target: EventTarget | null):
     return linkRoot.matches(GENERATED_TOC_LINK_SELECTOR) ? null : linkRoot;
 }
 
-export function resolveLinkTextRootFromMouseEvent(view: EditorView, event: MouseEvent): HTMLElement | null {
+export function resolveLinkTextRootFromMouseEvent(
+    view: EditorView,
+    event: MouseEvent,
+    options: { allowEditorWideScan?: boolean } = {},
+): HTMLElement | null {
     const directRoot = resolveEventLinkTextRoot(view, event.target);
     if (directRoot) return directRoot;
 
@@ -70,6 +74,7 @@ export function resolveLinkTextRootFromMouseEvent(view: EditorView, event: Mouse
             ? event.target.parentElement
             : null;
     const scanRoot = targetElement?.closest(LINK_TEXT_SCAN_ROOT_SELECTOR);
+    if (!scanRoot && options.allowEditorWideScan === false) return null;
     const root = scanRoot instanceof HTMLElement && view.dom.contains(scanRoot) ? scanRoot : view.dom;
     let best: { area: number; link: HTMLElement } | null = null;
 

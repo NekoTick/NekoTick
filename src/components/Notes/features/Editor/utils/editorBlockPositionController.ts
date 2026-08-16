@@ -1,4 +1,5 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { isBlockSelectionInteractionPending } from '../plugins/cursor/blockSelectionInteractionState';
 import {
   BLOCK_SELECTION_PENDING_CLASS,
@@ -32,10 +33,13 @@ export function createCurrentEditorBlockPositionControllerWithState({
   publishSnapshot,
   nextVersion,
 }: CreateCurrentEditorBlockPositionControllerOptions): EditorBlockPositionController {
-  let frameId = 0;
+  let refreshFrameId = 0;
+  let scrollFrameId = 0;
   let contentMutationTimerId = 0;
   let pendingBlockSelectionRefreshTimerId = 0;
   let needsRefreshAfterPendingBlockSelection = false;
+  let needsRefreshAfterScroll = false;
+  let scrolling = false;
   let destroyed = false;
   let mutationObserver: MutationObserver | null = null;
   let resizeObserver: ResizeObserver | null = null;
@@ -99,17 +103,26 @@ export function createCurrentEditorBlockPositionControllerWithState({
     }
 
     clearContentMutationRefresh();
+    needsRefreshAfterScroll = false;
     const snapshot = createSnapshot(view, nextVersion);
     publishSnapshot(snapshot);
   };
 
   const scheduleRefresh = () => {
-    if (destroyed || frameId !== 0) {
+    if (destroyed || refreshFrameId !== 0) {
+      return;
+    }
+    if (scrolling) {
+      needsRefreshAfterScroll = true;
       return;
     }
 
-    frameId = requestAnimationFrame(() => {
-      frameId = 0;
+    refreshFrameId = requestAnimationFrame(() => {
+      refreshFrameId = 0;
+      if (scrolling) {
+        needsRefreshAfterScroll = true;
+        return;
+      }
       if (isBlockSelectionPending()) {
         scheduleRefreshAfterPendingBlockSelection();
         return;
@@ -196,12 +209,22 @@ export function createCurrentEditorBlockPositionControllerWithState({
   }
 
   const handleScroll = () => {
-    if (destroyed || frameId !== 0) {
+    if (destroyed) {
       return;
     }
 
-    frameId = requestAnimationFrame(() => {
-      frameId = 0;
+    scrolling = true;
+    if (refreshFrameId !== 0) {
+      cancelAnimationFrame(refreshFrameId);
+      refreshFrameId = 0;
+      needsRefreshAfterScroll = true;
+    }
+    if (scrollFrameId !== 0) {
+      return;
+    }
+
+    scrollFrameId = requestAnimationFrame(() => {
+      scrollFrameId = 0;
       const snapshot = getCurrentSnapshot();
       if (
         snapshot
@@ -218,16 +241,33 @@ export function createCurrentEditorBlockPositionControllerWithState({
         return;
       }
 
-      if (isBlockSelectionPending()) {
-        scheduleRefreshAfterPendingBlockSelection();
-        return;
+      needsRefreshAfterScroll = true;
+      if (!scrolling) {
+        needsRefreshAfterScroll = false;
+        scheduleRefresh();
       }
-
-      refresh();
     });
   };
 
+  const handleScrollIdle = () => {
+    if (
+      destroyed
+      || !scrolling
+      || scrollRoot?.dataset.overlayScrollbarInteracting === 'true'
+    ) {
+      return;
+    }
+
+    scrolling = false;
+    if (!needsRefreshAfterScroll) {
+      return;
+    }
+    needsRefreshAfterScroll = false;
+    scheduleRefresh();
+  };
+
   scrollRoot?.addEventListener('scroll', handleScroll, { passive: true });
+  window.addEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
   window.addEventListener('resize', scheduleRefresh);
 
   publishSnapshot(createEmptySnapshot(view, nextVersion()));
@@ -239,15 +279,20 @@ export function createCurrentEditorBlockPositionControllerWithState({
     refresh,
     destroy() {
       destroyed = true;
-      if (frameId !== 0) {
-        cancelAnimationFrame(frameId);
-        frameId = 0;
+      if (refreshFrameId !== 0) {
+        cancelAnimationFrame(refreshFrameId);
+        refreshFrameId = 0;
+      }
+      if (scrollFrameId !== 0) {
+        cancelAnimationFrame(scrollFrameId);
+        scrollFrameId = 0;
       }
       clearContentMutationRefresh();
       clearPendingBlockSelectionRefresh();
       mutationObserver?.disconnect();
       resizeObserver?.disconnect();
       scrollRoot?.removeEventListener('scroll', handleScroll);
+      window.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
       window.removeEventListener('resize', scheduleRefresh);
       if (getCurrentSnapshot()?.view === view) {
         publishSnapshot(null);

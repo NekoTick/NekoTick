@@ -7,6 +7,7 @@ import {
   peekTableScroll,
   type TableScrollSnapshot,
 } from './table-scroll-memory'
+import { createTableLayoutSyncScheduler } from './table-block-layout-scheduler'
 
 const TABLE_BLOCK_SELECTION_BLEED_X_START = 24
 const TABLE_BLOCK_SELECTION_BLEED_X_END = 10
@@ -145,7 +146,6 @@ export function useTableBlockLayout({
   let resizeObserver: ResizeObserver | undefined
   let observedScrollRoot: HTMLElement | undefined
   let observedContent: HTMLElement | undefined
-  let syncFrame = 0
 
   const resolveScrollRoot = () => {
     const root = rootRef.value
@@ -300,21 +300,17 @@ export function useTableBlockLayout({
 
   }
 
-  const queueLayoutSync = () => {
-    if (typeof window === 'undefined') return
-    if (syncFrame !== 0) return
-
-    syncFrame = window.requestAnimationFrame(() => {
-      syncFrame = 0
-      syncEdgeCreateZones()
-    })
-  }
+  const layoutScheduler = createTableLayoutSyncScheduler({
+    isScrollInteractionActive: () =>
+      resolveScrollRoot()?.dataset.overlayScrollbarInteracting === 'true',
+    syncLayout: syncEdgeCreateZones,
+  })
 
   onMounted(() => {
-    window.addEventListener('resize', syncEdgeCreateZones)
+    window.addEventListener('resize', layoutScheduler.queueLayoutSync)
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
-        queueLayoutSync()
+        layoutScheduler.queueLayoutSync()
       })
 
       if (tableWrapperRef.value) resizeObserver.observe(tableWrapperRef.value)
@@ -322,22 +318,19 @@ export function useTableBlockLayout({
       syncObservedTargets()
     }
 
-    queueLayoutSync()
+    layoutScheduler.queueLayoutSync()
   })
 
   onBeforeUnmount(() => {
-    window.removeEventListener('resize', syncEdgeCreateZones)
-    if (syncFrame !== 0) {
-      window.cancelAnimationFrame(syncFrame)
-      syncFrame = 0
-    }
+    window.removeEventListener('resize', layoutScheduler.queueLayoutSync)
+    layoutScheduler.destroy()
     if (observedScrollRoot) resizeObserver?.unobserve(observedScrollRoot)
     if (observedContent) resizeObserver?.unobserve(observedContent)
     resizeObserver?.disconnect()
   })
 
   return {
-    queueLayoutSync,
+    queueLayoutSync: layoutScheduler.queueLayoutSync,
     syncEdgeCreateZones,
   }
 }

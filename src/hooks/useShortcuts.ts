@@ -40,6 +40,7 @@ interface UseShortcutsOptions {
 export function useShortcuts(options: UseShortcutsOptions = {}) {
   const { scope = 'global', handlers: extraHandlers = {} } = options;
   const shortcutTargetRef = useRef<EventTarget | null>(null);
+  const modifierKeyHeldRef = useRef(false);
   const {
     toggleDrawer,
     appViewMode,
@@ -282,10 +283,50 @@ export function useShortcuts(options: UseShortcutsOptions = {}) {
       }
     };
 
-    window.addEventListener('wheel', handleWheel, { passive: false });
+    let modifierWheelListenerActive = false;
+    const modifierWheelListenerOptions: AddEventListenerOptions = { passive: false };
+    const enableModifierWheelListener = () => {
+      if (modifierWheelListenerActive) return;
+      modifierWheelListenerActive = true;
+      window.addEventListener('wheel', handleWheel, modifierWheelListenerOptions);
+    };
+    const disableModifierWheelListener = () => {
+      if (!modifierWheelListenerActive) return;
+      modifierWheelListenerActive = false;
+      window.removeEventListener('wheel', handleWheel, modifierWheelListenerOptions);
+    };
+    const handleModifierKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.key === 'Control' || event.key === 'Meta') {
+        modifierKeyHeldRef.current = true;
+        enableModifierWheelListener();
+      }
+    };
+    const handleModifierKeyUp = (event: KeyboardEvent) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        modifierKeyHeldRef.current = false;
+        disableModifierWheelListener();
+      }
+    };
+    const handleWindowBlur = () => {
+      modifierKeyHeldRef.current = false;
+      disableModifierWheelListener();
+    };
+
+    window.addEventListener('keydown', handleModifierKeyDown, true);
+    window.addEventListener('keyup', handleModifierKeyUp, true);
+    window.addEventListener('blur', handleWindowBlur);
+    if (modifierKeyHeldRef.current) {
+      enableModifierWheelListener();
+    }
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('wheel', handleWheel);
+      if (modifierWheelListenerActive) {
+        window.removeEventListener('wheel', handleWheel, modifierWheelListenerOptions);
+        modifierWheelListenerActive = false;
+      }
+      window.removeEventListener('keydown', handleModifierKeyDown, true);
+      window.removeEventListener('keyup', handleModifierKeyUp, true);
+      window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [

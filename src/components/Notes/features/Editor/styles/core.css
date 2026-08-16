@@ -162,9 +162,10 @@ body.editor-block-drag-active .editor-block-drag-preview-layer * {
   pointer-events: none;
 }
 
+/* Keep ordinary paragraphs in the normal flow; lazy materialization of many small blocks causes scroll-time style/layout churn. */
 .milkdown-editor[data-note-lazy-block-visibility='true'][data-markdown-compat-layer='native']
   .ProseMirror:not(.editor-find-active) > :is(
-  p,
+  p.editor-paragraph-has-image-block,
   pre,
   .code-block-container,
   .frontmatter-block-container,
