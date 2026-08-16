@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import {
   createCurrentEditorBlockPositionController,
   clearCurrentEditorBlockPositionSnapshot,
@@ -580,6 +581,86 @@ describe('editorBlockPositionCache', () => {
     setBlockSelectionInteractionPending(dom, false);
     controller.destroy();
     scrollRoot.remove();
+  });
+
+  it('defers rebuilding a stale snapshot until Notes scrolling is idle', async () => {
+    const scrollRoot = document.createElement('div');
+    scrollRoot.setAttribute('data-note-scroll-root', 'true');
+    const dom = document.createElement('div');
+    const paragraph = document.createElement('p');
+    const textNode = document.createTextNode('Ready');
+    const paragraphRect = vi.fn(() => rect(30, 54));
+    paragraph.getBoundingClientRect = paragraphRect;
+    paragraph.append(textNode);
+    dom.append(paragraph);
+    scrollRoot.append(dom);
+    document.body.append(scrollRoot);
+
+    const paragraphNode = {
+      type: { name: 'paragraph' },
+      nodeSize: 7,
+      forEach() {},
+    };
+    const doc = {
+      childCount: 1,
+      content: { size: 7 },
+      forEach(callback: (node: typeof paragraphNode, offset: number) => void) {
+        callback(paragraphNode, 0);
+      },
+      child(index: number) {
+        return index === 0 ? paragraphNode : null;
+      },
+      resolve() {
+        return {
+          parent: { type: { name: 'doc' } },
+          nodeAfter: paragraphNode,
+          index: () => 0,
+          posAtIndex: () => 0,
+        };
+      },
+    };
+    const view = {
+      dom,
+      state: { doc },
+      domAtPos() {
+        return { node: textNode, offset: 0 };
+      },
+      nodeDOM() {
+        return paragraph;
+      },
+    };
+
+    const controller = createCurrentEditorBlockPositionController(view as any);
+    try {
+      const openingSnapshot = getCurrentEditorBlockPositionSnapshot();
+      expect(openingSnapshot).not.toBeNull();
+      setCurrentEditorBlockPositionSnapshot({
+        ...openingSnapshot!,
+        doc: { content: { size: 7 } } as any,
+      });
+
+      scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+      scrollRoot.scrollTop = 40;
+      scrollRoot.dispatchEvent(new Event('scroll'));
+      await waitForNextFrame();
+
+      expect(paragraphRect).not.toHaveBeenCalled();
+      expect(getCurrentEditorBlockPositionSnapshot()?.doc).not.toBe(doc);
+
+      window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+      await waitForNextFrame();
+      expect(paragraphRect).not.toHaveBeenCalled();
+
+      delete scrollRoot.dataset.overlayScrollbarInteracting;
+      window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
+      await waitForNextFrame();
+
+      expect(getCurrentEditorBlockPositionSnapshot()?.doc).toBe(doc);
+      expect(paragraphRect).toHaveBeenCalledTimes(1);
+    } finally {
+      controller.destroy();
+      scrollRoot.remove();
+    }
   });
 
   it('does not return block targets from a stale document snapshot', () => {

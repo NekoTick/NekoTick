@@ -44,6 +44,9 @@ export function logNoteScrollDiagnostic(
     throttleMs?: number;
   },
 ): void {
+  // Scroll diagnostics are development-only; avoid layout reads in production.
+  if (!import.meta.env.DEV) return;
+
   const { includeSnapshot = true, ...logOptions } = options ?? {};
   logDiagnostic('notes-scroll', event, {
     ...(includeSnapshot ? readNoteScrollSnapshot(scrollRoot) : {}),

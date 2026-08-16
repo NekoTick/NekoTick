@@ -534,6 +534,11 @@ describe('useShortcuts', () => {
 
     vi.useFakeTimers();
     try {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Control',
+        ctrlKey: true,
+        bubbles: true,
+      }));
       const zoomInEvent = new WheelEvent('wheel', {
         ctrlKey: true,
         deltaY: -80,
@@ -585,6 +590,11 @@ describe('useShortcuts', () => {
 
       expect(normalWheelEvent.defaultPrevented).toBe(false);
       expect(useUIStore.getState().fontSize).toBe(17);
+
+      window.dispatchEvent(new KeyboardEvent('keyup', {
+        key: 'Control',
+        bubbles: true,
+      }));
     } finally {
       vi.useRealTimers();
     }
@@ -607,11 +617,17 @@ describe('useShortcuts', () => {
       cancelable: true,
     });
     act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Control',
+        ctrlKey: true,
+        bubbles: true,
+      }));
       target.dispatchEvent(event);
     });
 
     expect(event.defaultPrevented).toBe(true);
     expect(useUIStore.getState().fontSize).toBe(17);
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', bubbles: true }));
     dialog.remove();
   });
 

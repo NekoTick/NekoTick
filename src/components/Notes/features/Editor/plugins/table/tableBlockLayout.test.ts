@@ -1,10 +1,56 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents'
 
 import {
   resolveTableEdgeZoneLayout,
   resolveTableScrollRestorePosition,
   resolveTableWideLayoutMetrics,
 } from '../../../../../../../vendor/milkdown/packages/components/src/table-block/view/table-block-layout'
+import { createTableLayoutSyncScheduler } from '../../../../../../../vendor/milkdown/packages/components/src/table-block/view/table-block-layout-scheduler'
+
+function setupTableLayoutScheduler() {
+  const frames = new Map<number, FrameRequestCallback>()
+  let nextFrame = 1
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    const frame = nextFrame
+    nextFrame += 1
+    frames.set(frame, callback)
+    return frame
+  })
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frame) => {
+    frames.delete(frame)
+  })
+
+  const scrollRoot = document.createElement('div')
+  scrollRoot.dataset.noteScrollRoot = 'true'
+  const syncLayout = vi.fn()
+  const scheduler = createTableLayoutSyncScheduler({
+    isScrollInteractionActive: () =>
+      scrollRoot.dataset.overlayScrollbarInteracting === 'true',
+    syncLayout,
+  })
+
+  const flushNextFrame = () => {
+    const entry = frames.entries().next().value as [number, FrameRequestCallback] | undefined
+    if (!entry) return
+    frames.delete(entry[0])
+    entry[1](performance.now())
+  }
+
+  return {
+    flushNextFrame,
+    frames,
+    scheduler,
+    scrollRoot,
+    syncLayout,
+  }
+}
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('table block layout', () => {
   it('expands into the surrounding scroll root and keeps selection bleed room for narrow tables', () => {
@@ -146,5 +192,56 @@ describe('table block layout', () => {
         left: 394,
       },
     })
+  })
+
+  it('defers layout reads while the notes viewport is scrolling and flushes once at idle', () => {
+    const layout = setupTableLayoutScheduler()
+    layout.scrollRoot.dataset.overlayScrollbarInteracting = 'true'
+
+    layout.scheduler.queueLayoutSync()
+
+    expect(layout.frames.size).toBe(0)
+    expect(layout.syncLayout).not.toHaveBeenCalled()
+
+    delete layout.scrollRoot.dataset.overlayScrollbarInteracting
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT))
+
+    expect(layout.frames.size).toBe(1)
+    layout.flushNextFrame()
+    expect(layout.syncLayout).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT))
+    expect(layout.frames.size).toBe(0)
+  })
+
+  it('defers an already queued layout when scrolling starts before its frame runs', () => {
+    const layout = setupTableLayoutScheduler()
+    layout.scheduler.queueLayoutSync()
+    expect(layout.frames.size).toBe(1)
+
+    layout.scrollRoot.dataset.overlayScrollbarInteracting = 'true'
+    layout.flushNextFrame()
+
+    expect(layout.syncLayout).not.toHaveBeenCalled()
+    expect(layout.frames.size).toBe(0)
+
+    delete layout.scrollRoot.dataset.overlayScrollbarInteracting
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT))
+    layout.flushNextFrame()
+
+    expect(layout.syncLayout).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops deferred layout work when the table unmounts', () => {
+    const layout = setupTableLayoutScheduler()
+    layout.scrollRoot.dataset.overlayScrollbarInteracting = 'true'
+    layout.scheduler.queueLayoutSync()
+
+    layout.scheduler.destroy()
+    delete layout.scrollRoot.dataset.overlayScrollbarInteracting
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT))
+
+    expect(layout.frames.size).toBe(0)
+    expect(layout.syncLayout).not.toHaveBeenCalled()
   })
 })

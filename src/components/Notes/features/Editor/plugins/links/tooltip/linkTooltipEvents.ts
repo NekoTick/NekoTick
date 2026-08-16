@@ -41,10 +41,14 @@ function isGeneratedTocLinkEvent(view: EditorView, event: MouseEvent): boolean {
     return tocLink instanceof HTMLElement && view.dom.contains(tocLink);
 }
 
-function resolveTooltipEligibleLink(view: EditorView, event: MouseEvent): HTMLElement | null {
+function resolveTooltipEligibleLink(
+    view: EditorView,
+    event: MouseEvent,
+    options: { allowEditorWideScan?: boolean } = {},
+): HTMLElement | null {
     if (isGeneratedTocLinkEvent(view, event)) return null;
 
-    const link = resolveLinkTextRootFromMouseEvent(view, event);
+    const link = resolveLinkTextRootFromMouseEvent(view, event, options);
     if (link?.matches(
         '.wiki-link[data-wiki-link-target], .wiki-link-expanded[data-wiki-link-expanded]'
     )) return null;
@@ -262,7 +266,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
             return;
         }
 
-        const link = resolveTooltipEligibleLink(view, event);
+        const link = resolveTooltipEligibleLink(view, event, { allowEditorWideScan: false });
         if (!link) {
             if (hoveredLink === null && !hasActiveLink()) return;
             hoveredLink = null;

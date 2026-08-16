@@ -12,6 +12,8 @@ import {
   type UseHeldPageScrollOptions,
 } from './heldPageScrollMetrics';
 
+const passiveCaptureListenerOptions = { capture: true, passive: true } as const;
+
 export function useHeldPageScroll(
   scrollRootRef: RefObject<HTMLDivElement | null>,
   {
@@ -253,10 +255,10 @@ export function useHeldPageScroll(
     document.addEventListener('visibilitychange', handleVisibilityChange);
     document.addEventListener('keydown', handleKeyDown, true);
     document.addEventListener('keyup', handleKeyUp, true);
-    document.addEventListener('wheel', handleManualScrollIntent, true);
+    document.addEventListener('wheel', handleManualScrollIntent, passiveCaptureListenerOptions);
     document.addEventListener('pointerdown', handleManualScrollIntent, true);
-    document.addEventListener('touchstart', handleManualScrollIntent, true);
-    document.addEventListener('touchmove', handleManualScrollIntent, true);
+    document.addEventListener('touchstart', handleManualScrollIntent, passiveCaptureListenerOptions);
+    document.addEventListener('touchmove', handleManualScrollIntent, passiveCaptureListenerOptions);
 
     return () => {
       hoverRoot?.removeEventListener('pointerenter', handlePointerEnter);
@@ -266,10 +268,10 @@ export function useHeldPageScroll(
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       document.removeEventListener('keydown', handleKeyDown, true);
       document.removeEventListener('keyup', handleKeyUp, true);
-      document.removeEventListener('wheel', handleManualScrollIntent, true);
+      document.removeEventListener('wheel', handleManualScrollIntent, passiveCaptureListenerOptions);
       document.removeEventListener('pointerdown', handleManualScrollIntent, true);
-      document.removeEventListener('touchstart', handleManualScrollIntent, true);
-      document.removeEventListener('touchmove', handleManualScrollIntent, true);
+      document.removeEventListener('touchstart', handleManualScrollIntent, passiveCaptureListenerOptions);
+      document.removeEventListener('touchmove', handleManualScrollIntent, passiveCaptureListenerOptions);
       stopScrolling();
     };
   }, [enabled, ignoreEditableTargets, scopeRef, scrollRootRef]);

@@ -3,6 +3,7 @@ import { Plugin, PluginKey, type Transaction } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { DecorationSet } from '@milkdown/kit/prose/view';
 import { $prose } from '@milkdown/kit/utils';
+import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
 import { DEFAULT_PROSE_DOC_SCAN_NODE_LIMIT } from '../../plugins/shared/boundedProseNodeScan';
 import { getTransactionChangedRanges } from '../../plugins/shared/transactionStepText';
 import { listContainsTaskItems } from './decorations/typoraBlockAttrs';
@@ -201,8 +202,13 @@ export const themeCompatibilityDecorationsPlugin = $prose(() => {
       let currentView = editorView;
       let lastScheduledRebuildVersion =
         themeCompatibilityDecorationsPluginKey.getState(editorView.state)?.rebuildVersion ?? 0;
+      const scrollRoot = editorView.dom.closest<HTMLElement>('[data-note-scroll-root="true"]');
       const controller = createThemeCompatibilityDecorationRebuildController({
         dispatchRebuild: () => {
+          if (scrollRoot?.dataset.overlayScrollbarInteracting === 'true') {
+            controller.schedule();
+            return;
+          }
           currentView.dispatch(
             currentView.state.tr
               .setMeta(themeCompatibilityDecorationsPluginKey, REBUILD_THEME_COMPATIBILITY_DECORATIONS_META)
@@ -213,8 +219,16 @@ export const themeCompatibilityDecorationsPlugin = $prose(() => {
       const deferPendingRebuild = () => {
         controller.deferIfPending();
       };
+      const handleScrollIdle = () => {
+        if (scrollRoot?.dataset.overlayScrollbarInteracting === 'true') {
+          return;
+        }
+        controller.flushIfPending();
+      };
       editorView.dom.addEventListener('editor:block-user-input', deferPendingRebuild);
       editorView.dom.addEventListener('editor:image-user-input', deferPendingRebuild);
+      scrollRoot?.addEventListener('scroll', deferPendingRebuild, { passive: true });
+      window.addEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
       for (const eventName of THEME_COMPATIBILITY_USER_INPUT_EVENTS) {
         editorView.dom.addEventListener(eventName, deferPendingRebuild, true);
       }
@@ -239,6 +253,8 @@ export const themeCompatibilityDecorationsPlugin = $prose(() => {
         destroy() {
           editorView.dom.removeEventListener('editor:block-user-input', deferPendingRebuild);
           editorView.dom.removeEventListener('editor:image-user-input', deferPendingRebuild);
+          scrollRoot?.removeEventListener('scroll', deferPendingRebuild);
+          window.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
           for (const eventName of THEME_COMPATIBILITY_USER_INPUT_EVENTS) {
             editorView.dom.removeEventListener(eventName, deferPendingRebuild, true);
           }
