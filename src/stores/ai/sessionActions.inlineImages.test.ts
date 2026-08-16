@@ -22,7 +22,7 @@ const mocked = vi.hoisted(() => ({
   })),
 }))
 
-vi.mock('@/components/Chat/common/messageImageTokens', () => ({
+vi.mock('@/lib/markdown/markdownImageTokens', () => ({
   parseMarkdownAndHtmlImageTokens: mocked.parseMarkdownAndHtmlImageTokens,
 }))
 
@@ -837,9 +837,10 @@ describe('session inline image persistence', () => {
       }
     })
     mocked.parseMarkdownAndHtmlImageTokens.mockImplementation((content: string) => {
-      const targetStart = content.indexOf(source)
+      const tokenSource = [source, 'attachment://persisted.png'].find((candidate) => content.includes(candidate))
+      const targetStart = tokenSource ? content.indexOf(tokenSource) : -1
       return targetStart >= 0
-        ? [{ start: 0, end: content.length, src: source, targetStart, targetEnd: targetStart + source.length }]
+        ? [{ start: 0, end: content.length, src: tokenSource, targetStart, targetEnd: targetStart + tokenSource.length }]
         : []
     })
     seedSession([createMessage('m1', [

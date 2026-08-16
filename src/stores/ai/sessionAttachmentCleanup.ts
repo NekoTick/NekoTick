@@ -1,4 +1,4 @@
-import { parseMarkdownAndHtmlImageTokens } from '@/components/Chat/common/messageImageTokens'
+import { parseMarkdownAndHtmlImageTokens } from '@/lib/markdown/markdownImageTokens'
 import type { ChatMessage, ChatMessageContent, ChatSession } from '@/lib/ai/types'
 import { isTemporarySession } from '@/lib/ai/temporaryChat'
 import { deleteStoredAttachmentFile } from '@/lib/storage/attachmentStorage'

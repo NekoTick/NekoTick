@@ -9,7 +9,7 @@ import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
 import { actions as aiActions } from '@/stores/useAIStore';
 import type { AIModel, ApiTranscriptMessage, ChatMessage, ChatSendOptions, Provider } from '@/lib/ai/types';
-import { sendMessageWithEndpointFallback } from './chatService/sendMessageWithEndpointFallback';
+import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
 import { runWithSessionMutationLock } from '@/lib/ai/sessionMutationLock';
 import { convertToBase64, deleteAttachment, type Attachment } from '@/lib/storage/attachmentStorage';
 import { MAX_COMPOSER_PROGRAMMATIC_INSERT_CHARS } from '@/lib/ui/composerFocusRegistry';
@@ -99,7 +99,7 @@ vi.mock('./useAutoTitle', () => ({
   useAutoTitle: () => ({ generateAutoTitle: mocked.generateAutoTitle }),
 }));
 
-vi.mock('./chatService/sendMessageWithEndpointFallback', () => ({
+vi.mock('./sendMessageWithEndpointFallback', () => ({
   sendMessageWithEndpointFallback: mocked.sendMessageWithEndpointFallback,
 }));
 

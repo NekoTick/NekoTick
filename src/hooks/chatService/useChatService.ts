@@ -8,12 +8,12 @@ import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { useAutoTitle } from './useAutoTitle';
 import {
   MAX_TEMPORARY_ATTACHMENT_EPHEMERAL_CONCURRENCY,
-} from './chatService/temporaryAttachments';
-import { useActiveComposerRequest } from './chatService/useActiveComposerRequest';
-import { useEditMessage } from './chatService/useEditMessage';
-import { useRegenerateMessage } from './chatService/useRegenerateMessage';
-import { useSendMessage } from './chatService/useSendMessage';
-import { useSwitchMessageVersion } from './chatService/useSwitchMessageVersion';
+} from './temporaryAttachments';
+import { useActiveComposerRequest } from './useActiveComposerRequest';
+import { useEditMessage } from './useEditMessage';
+import { useRegenerateMessage } from './useRegenerateMessage';
+import { useSendMessage } from './useSendMessage';
+import { useSwitchMessageVersion } from './useSwitchMessageVersion';
 
 const EMPTY_MESSAGES: never[] = [];
 const EMPTY_PROVIDERS: never[] = [];

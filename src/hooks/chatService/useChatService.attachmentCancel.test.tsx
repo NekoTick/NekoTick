@@ -5,7 +5,7 @@ import { useAIUIStore } from '@/stores/ai/chatState';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { useNotesStore } from '@/stores/notes/useNotesStore';
 import type { AIModel, ChatMessage, Provider } from '@/lib/ai/types';
-import { sendMessageWithEndpointFallback } from './chatService/sendMessageWithEndpointFallback';
+import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
 import { convertToBase64, type Attachment } from '@/lib/storage/attachmentStorage';
 
 const IMAGE_DATA_URL = 'data:image/png;base64,QVRUQUNITUVOVA==';
@@ -63,7 +63,7 @@ vi.mock('./useAutoTitle', () => ({
   useAutoTitle: () => ({ generateAutoTitle: mocked.generateAutoTitle }),
 }));
 
-vi.mock('./chatService/sendMessageWithEndpointFallback', () => ({
+vi.mock('./sendMessageWithEndpointFallback', () => ({
   sendMessageWithEndpointFallback: mocked.sendMessageWithEndpointFallback,
 }));
 

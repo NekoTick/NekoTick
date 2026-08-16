@@ -220,7 +220,8 @@ test.describe('chat attachment preview', () => {
       });
 
       await setAppViewMode(page, 'chat');
-      await expect(page.locator(CHAT_COMPOSER_TEXTAREA_SELECTOR)).toBeVisible({ timeout: 30_000 });
+      const textarea = page.locator(CHAT_COMPOSER_TEXTAREA_SELECTOR);
+      await expect(textarea).toBeVisible({ timeout: 30_000 });
 
       await page.locator('[data-chat-input-action="open-actions"]').click();
       const fileChooserPromise = page.waitForEvent('filechooser');
@@ -259,7 +260,7 @@ test.describe('chat attachment preview', () => {
         const messages = sessionId ? state.messages[sessionId] ?? [] : [];
         const userMessages = messages.filter((message: { role: string }) => message.role === 'user');
         return userMessages[userMessages.length - 1]?.content ?? '';
-      }), { timeout: 30_000 }).toContain('This file should reach the chat request.');
+      }), { timeout: 30_000 }).toContain('@e2e-notes.md');
 
       await expect(page.locator(`${CHAT_MESSAGE_SELECTOR}[data-role="assistant"]`, {
         hasText: 'Attachment request received.',

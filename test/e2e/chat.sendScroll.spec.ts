@@ -232,7 +232,7 @@ test.describe('chat send scroll anchoring', () => {
     }
   });
 
-  test('keeps a short user message near the composer when sent from the top of a long chat', async () => {
+  test('moves a short user message near the top when sent from the top of a long chat', async () => {
     const provider = await createDelayedStreamingProvider();
     const { app, userDataRoot } = await launchIsolatedElectron('chat-send-scroll-history');
 
@@ -262,14 +262,14 @@ test.describe('chat send scroll anchoring', () => {
       await textarea.fill('hi');
       await textarea.press('Enter');
 
-      await expectShortPromptPositionBeforeAssistant(page, 'near-composer');
+      await expectShortPromptPositionBeforeAssistant(page, 'near-top');
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
       await provider.close();
     }
   });
 
-  test('keeps a long user message visible near the composer when sent from the top of a long chat', async () => {
+  test('keeps the top of a long user message visible after sending from the top of a long chat', async () => {
     const provider = await createDelayedStreamingProvider();
     const { app, userDataRoot } = await launchIsolatedElectron('chat-send-scroll-long-user-history');
 
@@ -301,7 +301,7 @@ test.describe('chat send scroll anchoring', () => {
       await textarea.fill(prompt);
       await textarea.press('Enter');
 
-      await expectLastUserMessagePositionBeforeAssistant(page, promptPrefix, 'near-composer');
+      await expectLastUserMessagePositionBeforeAssistant(page, promptPrefix, 'near-top');
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
       await provider.close();

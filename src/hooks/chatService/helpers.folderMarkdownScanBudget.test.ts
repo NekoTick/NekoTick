@@ -42,7 +42,7 @@ vi.mock('@/stores/notes/pendingEditorMarkdownFlusher', () => ({
   flushCurrentPendingEditorMarkdown: mocks.flushCurrentPendingEditorMarkdown,
 }));
 
-vi.mock('@/components/Chat/common/svgRasterize', () => ({
+vi.mock('@/lib/markdown/svgRasterize', () => ({
   isSvgDataUrl: (value: string) => value.trim().toLowerCase().startsWith('data:image/svg+xml'),
   rasterizeSvgDataUrlToPng: vi.fn(),
 }));

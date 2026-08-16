@@ -28,7 +28,7 @@ vi.mock("@/stores/ai/chatState", () => ({
   useAIUIStore: mocks.useAIUIStore,
 }));
 
-vi.mock("@/hooks/useAutoTitle", () => ({
+vi.mock("@/hooks/chatService/useAutoTitle", () => ({
   useAutoTitle: () => ({
     generateAutoTitle: mocks.generateAutoTitle,
   }),

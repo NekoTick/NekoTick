@@ -3,10 +3,10 @@ import { normalizeApiTranscriptMessages } from '@/lib/ai/apiTranscript'
 import { generateId } from '@/lib/id'
 import { saveSessionJson } from '@/lib/storage/chatStorage'
 import {
+  extractChatMessageImageSources,
   MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES,
   MAX_CHAT_MESSAGE_IMAGE_SOURCES,
-} from '@/components/Chat/common/messageClipboard'
-import { extractChatMessageImageSources } from '@/lib/ai/chatImageSourcePolicy'
+} from '@/lib/ai/chatImageSourcePolicy'
 import { stripThinkingContent } from '@/lib/ai/stripThinkingContent'
 import { sanitizeWebSearchStatuses } from '@/lib/ai/webSearch/statusMarkup'
 

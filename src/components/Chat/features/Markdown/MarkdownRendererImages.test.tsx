@@ -135,9 +135,14 @@ describe('MarkdownRenderer images', () => {
   });
 
   it('keeps safe raw style declarations with CSS whitespace around the colon', () => {
-    render(<MarkdownRenderer content={'<span style="color : #123456"><em>nested</em></span>'} />);
+    render(
+      <MarkdownRenderer
+        content={'<span style="color : #123456"><em>nested</em></span> <mark style="background-color : #abcdef"><strong>bold</strong></mark>'}
+      />
+    );
 
     expect(screen.getByText('nested').closest('span')).toHaveStyle({ color: '#123456' });
+    expect(screen.getByText('bold').closest('mark')).toHaveStyle({ backgroundColor: '#abcdef' });
   });
 
   it('drops raw picture sources so they cannot bypass remote image approval', () => {

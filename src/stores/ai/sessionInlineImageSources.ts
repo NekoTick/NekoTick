@@ -1,5 +1,5 @@
 import type { ApiTranscriptMessage, ChatMessage, ChatMessageContent } from '@/lib/ai/types'
-import { parseMarkdownAndHtmlImageTokens } from '@/components/Chat/common/messageImageTokens'
+import { parseMarkdownAndHtmlImageTokens } from '@/lib/markdown/markdownImageTokens'
 import { normalizeRenderableDataImageSrc } from '@/components/common/markdown/imagePolicy'
 import { extractChatMessageImageSources } from '@/lib/ai/chatImageSourcePolicy'
 import {

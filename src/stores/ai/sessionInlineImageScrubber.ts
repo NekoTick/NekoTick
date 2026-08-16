@@ -1,5 +1,5 @@
-import type { ImageToken } from '@/components/Chat/common/messageImageTokens'
-import { parseMarkdownAndHtmlImageTokens } from '@/components/Chat/common/messageImageTokens'
+import type { ImageToken } from '@/lib/markdown/markdownImageTokens'
+import { parseMarkdownAndHtmlImageTokens } from '@/lib/markdown/markdownImageTokens'
 import { normalizeRenderableDataImageSrc } from '@/components/common/markdown/imagePolicy'
 import { htmlImageTagHasDataImageSrc } from '@/lib/markdown/markdownHtmlImageSrc'
 import {
