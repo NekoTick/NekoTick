@@ -1,6 +1,6 @@
 import { MessageItem } from '@/components/Chat/features/Messages/components/MessageItem';
 import { NotesSplitPreviewPane } from '@/components/Notes/features/Split/NotesSplitPreviewPane';
-import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/whiteboardDocument';
+import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/document';
 import type { ChatMessage } from '@/lib/ai/types';
 import {
   GlobalSearchGraphPreviewButton,

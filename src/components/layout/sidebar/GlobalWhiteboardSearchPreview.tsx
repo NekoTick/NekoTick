@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WhiteboardCanvasLayer } from '@/components/Whiteboard/components/canvas/WhiteboardCanvasLayer';
-import { EMPTY_WHITEBOARD_ERASER_PREVIEW, createWhiteboardEraserSpatialIndexAsync } from '@/components/Whiteboard/model/whiteboardEraser';
-import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/whiteboardDocument';
-import { WHITEBOARD_DEFAULT_PAPER_STYLE, WHITEBOARD_INITIAL_VIEWPORT } from '@/components/Whiteboard/model/whiteboardModel';
-import { readWhiteboardBoard, type WhiteboardIndexEntry } from '@/components/Whiteboard/model/whiteboardRepository';
-import { WhiteboardRenderData } from '@/components/Whiteboard/model/whiteboardRenderData';
-import { fitViewportToContent } from '@/components/Whiteboard/model/whiteboardViewport';
+import { EMPTY_WHITEBOARD_ERASER_PREVIEW, createWhiteboardEraserSpatialIndexAsync } from '@/components/Whiteboard/model/interaction';
+import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/document';
+import { WHITEBOARD_DEFAULT_PAPER_STYLE, WHITEBOARD_INITIAL_VIEWPORT } from '@/components/Whiteboard/model/core';
+import { readWhiteboardBoard, type WhiteboardIndexEntry } from '@/components/Whiteboard/model/persistence';
+import { WhiteboardRenderData } from '@/components/Whiteboard/model/rendering';
+import { fitViewportToContent } from '@/components/Whiteboard/model/geometry';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 
 const noop = () => {};

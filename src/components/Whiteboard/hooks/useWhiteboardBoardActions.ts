@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction, type WheelEvent } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
 import {
   WHITEBOARD_INITIAL_VIEWPORT,
   clampWhiteboardZoom,
@@ -12,8 +12,8 @@ import {
   type WhiteboardStroke,
   type WhiteboardTool,
   type WhiteboardViewport,
-} from '../model/whiteboardModel';
-import { fitViewportToContent } from '../model/whiteboardViewport';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
+import { fitViewportToContent } from '@/components/Whiteboard/model/geometry/whiteboardViewport';
 
 interface WhiteboardBoardActionsOptions {
   clearDraftStroke: () => void;

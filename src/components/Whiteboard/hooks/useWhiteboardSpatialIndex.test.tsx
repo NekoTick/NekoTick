@@ -1,23 +1,23 @@
 import { act, renderHook } from '@testing-library/react';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { markWhiteboardSparseUpdate } from '../model/whiteboardCollection';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
+import { markWhiteboardSparseUpdate } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 const mocks = vi.hoisted(() => ({
   createSpatialIndexAsync: vi.fn(),
 }));
 
-vi.mock('../model/whiteboardEraser', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../model/whiteboardEraser')>();
+vi.mock('@/components/Whiteboard/model/interaction/whiteboardEraser', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/Whiteboard/model/interaction/whiteboardEraser')>();
   return {
     ...actual,
     createWhiteboardEraserSpatialIndexAsync: mocks.createSpatialIndexAsync,
   };
 });
 
-import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
+import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 import { useWhiteboardSpatialIndex } from './useWhiteboardSpatialIndex';
 
 const initialStrokes: WhiteboardStroke[] = [0, 100].map((x, index) => ({

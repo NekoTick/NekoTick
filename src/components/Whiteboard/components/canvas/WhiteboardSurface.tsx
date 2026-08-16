@@ -13,12 +13,12 @@ import {
   type WhiteboardStroke,
   type WhiteboardTool,
   type WhiteboardViewport,
-} from '../../model/whiteboardModel';
-import type { WhiteboardLassoPath } from '../../model/whiteboardSelection';
-import type { WhiteboardResizeHandle } from '../../model/whiteboardSelection';
-import type { WhiteboardEraserPreview } from '../../model/whiteboardEraser';
-import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardRenderData } from '../../model/whiteboardRenderData';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
+import type { WhiteboardLassoPath } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import type { WhiteboardResizeHandle } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import type { WhiteboardEraserPreview } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 import type { WhiteboardTextEditingState } from '../../hooks/useWhiteboardTextEditing';
 
 interface WhiteboardSurfaceProps {

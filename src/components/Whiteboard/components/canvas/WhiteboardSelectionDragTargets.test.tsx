@@ -1,12 +1,12 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 const mocks = vi.hoisted(() => ({
   getCenterStrokePath: vi.fn((stroke: WhiteboardStroke) => `M ${stroke.points[0]?.x ?? 0} 0 L 10 0`),
 }));
 
-vi.mock('../../model/whiteboardStrokeRenderGeometry', () => ({
+vi.mock('@/components/Whiteboard/model/geometry/whiteboardStrokeRenderGeometry', () => ({
   getCenterStrokePath: mocks.getCenterStrokePath,
   getStrokeRenderWidth: () => 1,
 }));

@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { useRef, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WhiteboardElement } from '../model/whiteboardModel';
+import type { WhiteboardElement } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardImageImport } from './useWhiteboardImageImport';
 
 const mocks = vi.hoisted(() => ({

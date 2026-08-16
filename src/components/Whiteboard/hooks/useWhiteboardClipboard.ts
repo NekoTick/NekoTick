@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { isImageFileLike } from '@/lib/assets/core/naming';
-import { isEditableTarget } from '../model/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
-import { cloneElements, cloneStrokes } from '../model/whiteboardTransform';
-import { appendWhiteboardItems } from '../model/whiteboardCollection';
+import { isEditableTarget } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardElement, WhiteboardStroke, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { cloneElements, cloneStrokes } from '@/components/Whiteboard/model/geometry/whiteboardTransform';
+import { appendWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
 
 interface WhiteboardClipboardPayload {
   elements: WhiteboardElement[];

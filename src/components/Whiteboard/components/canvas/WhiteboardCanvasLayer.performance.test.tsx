@@ -1,9 +1,9 @@
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentProps } from 'react';
-import { createWhiteboardEraserSpatialIndex } from '../../model/whiteboardEraser';
-import type { WhiteboardElement, WhiteboardStroke } from '../../model/whiteboardModel';
-import { WhiteboardRenderData, type WhiteboardSelectionRenderData } from '../../model/whiteboardRenderData';
+import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import type { WhiteboardElement, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { WhiteboardRenderData, type WhiteboardSelectionRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 
 const mocks = vi.hoisted(() => ({
   selectionOverlay: vi.fn(),

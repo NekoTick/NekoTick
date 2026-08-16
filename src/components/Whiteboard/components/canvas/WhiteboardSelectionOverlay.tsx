@@ -6,15 +6,15 @@ import {
   type WhiteboardLassoPath,
   type WhiteboardResizeHandle,
   type WhiteboardSelectionRect,
-} from '../../model/whiteboardSelection';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
-import { isLinearTool } from '../../model/whiteboardModel';
-import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardSelectionRenderData } from '../../model/whiteboardRenderData';
+} from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { isLinearTool } from '@/components/Whiteboard/model/core/whiteboardModel';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardSelectionRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 import {
   getWhiteboardResizePreviewGeometry,
   getWhiteboardRotationPreviewGeometry,
-} from '../../model/whiteboardSelectionPreviewGeometry';
+} from '@/components/Whiteboard/model/interaction/whiteboardSelectionPreviewGeometry';
 import { WhiteboardSelectionDragTargets } from './WhiteboardSelectionDragTargets';
 import { WhiteboardLinearPointHandles } from './WhiteboardLinearPointHandles';
 import { WhiteboardSelectionTransformHandles } from './WhiteboardSelectionTransformHandles';

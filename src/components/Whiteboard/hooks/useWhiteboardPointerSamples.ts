@@ -1,12 +1,12 @@
 import { useCallback, useRef, type PointerEvent, type RefObject } from 'react';
-import { getCoalescedPointerEvents } from '../model/whiteboardInteractions';
-import { createResponsiveStrokePoints, type WhiteboardStrokeInputState } from '../model/whiteboardStrokeInput';
-import type { WhiteboardEraserSample } from '../model/whiteboardEraser';
+import { getCoalescedPointerEvents } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import { createResponsiveStrokePoints, type WhiteboardStrokeInputState } from '@/components/Whiteboard/model/geometry/whiteboardStrokeInput';
+import type { WhiteboardEraserSample } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 import type {
   WhiteboardDrawingTool,
   WhiteboardPoint,
   WhiteboardViewport,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardPointerSamplesOptions {
   getBoardPointFromRect: (clientX: number, clientY: number, rect: DOMRectReadOnly) => WhiteboardPoint;

@@ -1,9 +1,9 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
-import { isEditableTarget } from '../model/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardStroke, WhiteboardStrokeTool, WhiteboardTool } from '../model/whiteboardModel';
-import { translateStroke } from '../model/whiteboardSelection';
-import { markWhiteboardSparseUpdate } from '../model/whiteboardCollection';
-import type { WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
+import { isEditableTarget } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardElement, WhiteboardStroke, WhiteboardStrokeTool, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { translateStroke } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import { markWhiteboardSparseUpdate } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import type { WhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 
 interface WhiteboardKeyboardShortcutsOptions {
   active: boolean;

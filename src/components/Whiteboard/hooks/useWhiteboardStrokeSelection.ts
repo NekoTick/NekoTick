@@ -1,9 +1,9 @@
 import { useCallback, type Dispatch, type PointerEvent, type SetStateAction } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '../model/whiteboardModel';
-import { findElementAtPoint, findStrokeAtPoint, getSelectionBounds } from '../model/whiteboardSelection';
-import { getWhiteboardBoundsCandidates, getWhiteboardIndexedItems, type WhiteboardEraserSpatialIndex, type WhiteboardItemOrder } from '../model/whiteboardEraser';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { findElementAtPoint, findStrokeAtPoint, getSelectionBounds } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import { getWhiteboardBoundsCandidates, getWhiteboardIndexedItems, type WhiteboardEraserSpatialIndex, type WhiteboardItemOrder } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 
 interface WhiteboardStrokeSelectionOptions {
   elements: WhiteboardElement[];

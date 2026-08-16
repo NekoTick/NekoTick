@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { Icon } from '@/components/ui/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { clampRgbChannel, hexToRgb, hsvToRgb, rgbToHex, rgbToHsv, type HsvColor } from '../../model/whiteboardColor';
+import { clampRgbChannel, hexToRgb, hsvToRgb, rgbToHex, rgbToHsv, type HsvColor } from '@/components/Whiteboard/model/core/whiteboardColor';
 import { WhiteboardDockSlot, whiteboardFloatingPanelClassName } from './WhiteboardToolbarPrimitives';
 
 interface WhiteboardColorPickerProps {

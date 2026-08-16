@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { normalizePath } from '@/lib/storage/adapter/pathUtils';
 import { getNotesRootStorageKey } from '@/lib/storage/notesRootStorageKey';
 import { WHITEBOARD_SYSTEM_STORAGE_SCOPE } from '@/lib/storage/whiteboardStoragePaths';
-import { normalizeWhiteboardSnapshot } from '../model/whiteboardDocument';
+import { normalizeWhiteboardSnapshot } from '@/components/Whiteboard/model/document/whiteboardDocument';
 import { flushWhiteboardStorage, useWhiteboardStore } from './useWhiteboardStore';
 
 const mocks = vi.hoisted(() => {

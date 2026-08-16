@@ -1,8 +1,8 @@
 import { memo, type PointerEvent } from 'react';
 import { cn } from '@/lib/utils';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardElement, WhiteboardTool } from '../../model/whiteboardModel';
-import { getElementContentRect } from '../../model/whiteboardSelection';
+import type { WhiteboardElement, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { getElementContentRect } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 import { WhiteboardAutoDrawIcon } from '../autodraw/WhiteboardAutoDrawIcon';
 
 interface WhiteboardElementNodeProps {

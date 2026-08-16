@@ -1,19 +1,19 @@
 import { memo, type ReactElement } from 'react';
-import { getStrokeWidth, isLinearTool, WHITEBOARD_BRUSHES, type WhiteboardDrawingTool, type WhiteboardStroke } from '../../model/whiteboardModel';
-import { getWhiteboardArrowheadPath, getWhiteboardLinearRenderPath, getWhiteboardLinearStrokeWidth } from '../../model/whiteboardLinear';
+import { getStrokeWidth, isLinearTool, WHITEBOARD_BRUSHES, type WhiteboardDrawingTool, type WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { getWhiteboardArrowheadPath, getWhiteboardLinearRenderPath, getWhiteboardLinearStrokeWidth } from '@/components/Whiteboard/model/geometry/whiteboardLinear';
 import {
   getPressureStrokePath,
   getStrokeDabGeometry,
   getStrokeRenderGeometry,
   getStrokeRenderWidth,
-} from '../../model/whiteboardStrokeGeometry';
-import { getWhiteboardStrokeRenderChunks } from '../../model/whiteboardStrokeRenderChunks';
+} from '@/components/Whiteboard/model/geometry/whiteboardStrokeGeometry';
+import { getWhiteboardStrokeRenderChunks } from '@/components/Whiteboard/model/geometry/whiteboardStrokeRenderChunks';
 import {
   getWhiteboardStrokeDashStyle,
   getWhiteboardStrokeNoise,
   getWhiteboardStrokeRenderSeed,
   groupWhiteboardStrokeGrainPaths,
-} from '../../model/whiteboardStrokeTexture';
+} from '@/components/Whiteboard/model/geometry/whiteboardStrokeTexture';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 
 export const WhiteboardStrokeNode = memo(function WhiteboardStrokeNode({ stroke }: { stroke: WhiteboardStroke }) {

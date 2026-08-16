@@ -12,8 +12,8 @@ import {
   type WhiteboardBrushPanelTool,
   type WhiteboardStrokeTool,
   type WhiteboardTool,
-} from '../../model/whiteboardModel';
-import { WHITEBOARD_LINEAR_TOOLS } from '../../model/whiteboardLinear';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
+import { WHITEBOARD_LINEAR_TOOLS } from '@/components/Whiteboard/model/geometry/whiteboardLinear';
 import { WhiteboardToolPanel, type WhiteboardToolPanelName } from './WhiteboardToolPanel';
 import { WhiteboardColorPicker } from './WhiteboardColorPicker';
 import { WhiteboardSelectionColorChoice } from './WhiteboardSelectionColorChoice';

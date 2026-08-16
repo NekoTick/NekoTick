@@ -8,9 +8,9 @@ import {
   type WhiteboardEraserSpatialIndex,
   type WhiteboardEraserPreview,
   type WhiteboardEraserSample,
-} from '../model/whiteboardEraser';
-import type { WhiteboardElement, WhiteboardStroke } from '../model/whiteboardModel';
-import { removeWhiteboardItems } from '../model/whiteboardCollection';
+} from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import type { WhiteboardElement, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { removeWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
 
 interface WhiteboardEraserGestureOptions {
   elements: WhiteboardElement[];

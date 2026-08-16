@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WhiteboardElement, WhiteboardTool } from '../model/whiteboardModel';
+import type { WhiteboardElement, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardTextEditing } from './useWhiteboardTextEditing';
 
 const existingText: WhiteboardElement = {

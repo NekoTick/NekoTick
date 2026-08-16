@@ -4,7 +4,7 @@ import type {
   WhiteboardElement,
   WhiteboardPaperStyle,
   WhiteboardStroke,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import type { WhiteboardSnapshot } from './useWhiteboardHistory';
 
 interface UseWhiteboardSelectionColorOptions {

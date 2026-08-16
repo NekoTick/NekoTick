@@ -1,8 +1,8 @@
 import { pointsOnPath, type Point } from 'points-on-path';
 import { WHITEBOARD_AUTODRAW_CATALOG } from './whiteboardAutoDrawCatalog';
-import { getWhiteboardAutoShapePoints } from '../whiteboardAutoShapeGeometry';
+import { getWhiteboardAutoShapePoints } from '@/components/Whiteboard/model/geometry/whiteboardAutoShapeGeometry';
 import type { WhiteboardAutoDrawIcon } from './whiteboardAutoDrawTypes';
-import type { WhiteboardAutoShape, WhiteboardPoint, WhiteboardStroke } from '../whiteboardModel';
+import type { WhiteboardAutoShape, WhiteboardPoint, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 export type WhiteboardAutoDrawSuggestion =
   | { kind: 'icon'; icon: WhiteboardAutoDrawIcon; label: string; score: number }

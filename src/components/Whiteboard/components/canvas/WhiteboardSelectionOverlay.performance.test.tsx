@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { WhiteboardSelectionRenderData } from '../../model/whiteboardRenderData';
+import { WhiteboardSelectionRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 import { WhiteboardSelectionOverlay } from './WhiteboardSelectionOverlay';
 
 const strokes = [0, 40].map((x, index) => ({

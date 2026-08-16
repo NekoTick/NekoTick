@@ -28,9 +28,9 @@ import { useWhiteboardTextEditing } from './useWhiteboardTextEditing';
 import { useWhiteboardViewportScheduler } from './useWhiteboardViewportScheduler';
 import { useWhiteboardAutoDraw } from './useWhiteboardAutoDraw';
 import { useWhiteboardSelectionColor } from './useWhiteboardSelectionColor';
-import { getNextWhiteboardIdSequence } from '../model/whiteboardIds';
+import { getNextWhiteboardIdSequence } from '@/components/Whiteboard/model/core/whiteboardIds';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
-import { getWhiteboardResizePreview, getWhiteboardRotationPreview, type WhiteboardDragState } from '../model/whiteboardInteractions';
+import { getWhiteboardResizePreview, getWhiteboardRotationPreview, type WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
 import {
   WHITEBOARD_DEFAULT_PAPER_STYLE, WHITEBOARD_INITIAL_VIEWPORT, WHITEBOARD_SEED_ELEMENTS, WHITEBOARD_SEED_STROKES,
   isBrushTool,
@@ -38,7 +38,7 @@ import {
   isDrawingTool,
   type WhiteboardBrushTool, type WhiteboardElement,
   type WhiteboardPaperStyle, type WhiteboardStroke, type WhiteboardTool,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardControllerOptions {
   active: boolean;

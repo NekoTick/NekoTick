@@ -3,7 +3,7 @@ import {
   screenPointToBoardPoint,
   type WhiteboardPoint,
   type WhiteboardViewport,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 
 export function useWhiteboardCoordinates(
   viewport: WhiteboardViewport,

@@ -1,7 +1,7 @@
 import type { PointerEvent } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
+import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 import { useWhiteboardElementControls } from './useWhiteboardElementControls';
 
 describe('useWhiteboardElementControls', () => {

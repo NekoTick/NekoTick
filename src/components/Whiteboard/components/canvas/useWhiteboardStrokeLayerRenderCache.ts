@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardStrokeLayerRender {
   strokes: WhiteboardStroke[];

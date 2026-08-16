@@ -6,7 +6,7 @@ import {
   type WhiteboardBrushColors,
   type WhiteboardBrushSizes,
   type WhiteboardStrokeTool,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 
 export function useWhiteboardBrushSizes() {
   const [brushColor, setBrushColor] = useState<string | WhiteboardBrushColors>(WHITEBOARD_DEFAULT_BRUSH_COLORS.pen);

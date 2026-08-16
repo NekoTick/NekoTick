@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardStrokeLayerRenderCache } from './useWhiteboardStrokeLayerRenderCache';
 
 interface RenderProps {

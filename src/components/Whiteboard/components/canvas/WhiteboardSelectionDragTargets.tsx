@@ -1,8 +1,8 @@
 import { memo, type PointerEvent } from 'react';
 import { themeIconTokens, themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardMovePreview } from '../../model/whiteboardInteractions';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
-import { getCenterStrokePath, getStrokeRenderWidth } from '../../model/whiteboardStrokeRenderGeometry';
+import type { WhiteboardMovePreview } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { getCenterStrokePath, getStrokeRenderWidth } from '@/components/Whiteboard/model/geometry/whiteboardStrokeRenderGeometry';
 
 interface WhiteboardSelectionDragTargetsProps {
   movePreview: WhiteboardMovePreview | null;

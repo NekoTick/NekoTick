@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { WhiteboardPoint } from '../model/whiteboardModel';
+import type { WhiteboardPoint } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardPinchMetrics {
   center: WhiteboardPoint;

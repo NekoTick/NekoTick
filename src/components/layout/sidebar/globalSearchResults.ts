@@ -5,7 +5,7 @@ import type {
   NotesSidebarSearchEntry,
   NotesSidebarSearchResult,
 } from '@/components/Notes/features/Sidebar/notesSidebarSearchResults';
-import type { WhiteboardIndexEntry } from '@/components/Whiteboard/model/whiteboardRepository';
+import type { WhiteboardIndexEntry } from '@/components/Whiteboard/model/persistence';
 import type { ChatSession } from '@/lib/ai/types';
 import type { AppViewMode } from '@/stores/uiSlice';
 import type { GlobalSearchSources } from './globalSearchSources';

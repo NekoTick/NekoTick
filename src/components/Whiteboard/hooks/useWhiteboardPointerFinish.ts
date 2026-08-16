@@ -1,6 +1,6 @@
 import { useCallback, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
-import { isWhiteboardMoveDragState, type WhiteboardDragState } from '../model/whiteboardInteractions';
-import { isLinearTool, type WhiteboardElement, type WhiteboardPoint, type WhiteboardStroke, type WhiteboardTool } from '../model/whiteboardModel';
+import { isWhiteboardMoveDragState, type WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import { isLinearTool, type WhiteboardElement, type WhiteboardPoint, type WhiteboardStroke, type WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 import {
   getItemsInLasso,
   getLassoBounds,
@@ -12,10 +12,10 @@ import {
   rotateSelectionStrokes,
   translateElementsFromOriginals,
   translateStrokesFromOriginals,
-} from '../model/whiteboardSelection';
-import { getWhiteboardBoundsCandidates, type WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
-import { appendWhiteboardItems } from '../model/whiteboardCollection';
-import { insertWhiteboardLinearMidpoint, replaceWhiteboardLinearPoint, shouldCommitWhiteboardLinearStroke } from '../model/whiteboardLinear';
+} from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import { getWhiteboardBoundsCandidates, type WhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import { appendWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import { insertWhiteboardLinearMidpoint, replaceWhiteboardLinearPoint, shouldCommitWhiteboardLinearStroke } from '@/components/Whiteboard/model/geometry/whiteboardLinear';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 
 interface WhiteboardPointerFinishOptions {

@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '../model/whiteboardModel';
+import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardAutoDraw } from './useWhiteboardAutoDraw';
 
 const createStroke = (id: string, points: WhiteboardPoint[]): WhiteboardStroke => ({

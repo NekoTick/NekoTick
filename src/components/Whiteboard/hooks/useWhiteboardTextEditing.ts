@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import { appendWhiteboardItems, markWhiteboardSparseUpdate, removeWhiteboardItems } from '../model/whiteboardCollection';
-import { findElementAtPoint } from '../model/whiteboardSelection';
+import { appendWhiteboardItems, markWhiteboardSparseUpdate, removeWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import { findElementAtPoint } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 import {
   createWhiteboardTextElement,
   finalizeWhiteboardTextElement,
   loadWhiteboardTextFonts,
-} from '../model/whiteboardText';
-import type { WhiteboardElement, WhiteboardPoint, WhiteboardTool } from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/geometry/whiteboardText';
+import type { WhiteboardElement, WhiteboardPoint, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 export interface WhiteboardTextEditingState {
   element: WhiteboardElement;

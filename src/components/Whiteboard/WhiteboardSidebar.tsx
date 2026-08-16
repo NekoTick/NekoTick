@@ -22,7 +22,7 @@ import { useI18n } from '@/lib/i18n';
 import { useNotesRootStore } from '@/stores/useNotesRootStore';
 import { WHITEBOARD_SYSTEM_STORAGE_SCOPE } from '@/lib/storage/whiteboardStoragePaths';
 import { themeIconTokens } from '@/styles/themeTokens';
-import type { WhiteboardIndexEntry } from './model/whiteboardRepository';
+import type { WhiteboardIndexEntry } from './model/persistence';
 import { useWhiteboardStore } from './stores/useWhiteboardStore';
 
 export function WhiteboardSidebar() {

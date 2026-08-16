@@ -1,6 +1,6 @@
 import type { PointerEvent } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardResizeHandle, WhiteboardSelectionRect } from '../../model/whiteboardSelection';
+import type { WhiteboardResizeHandle, WhiteboardSelectionRect } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 
 interface WhiteboardSelectionTransformHandlesProps {
   bounds: WhiteboardSelectionRect;

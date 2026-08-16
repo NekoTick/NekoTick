@@ -6,9 +6,9 @@ import {
   type WhiteboardPoint,
   type WhiteboardTool,
   type WhiteboardViewport,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
-import { appendWhiteboardItems } from '../model/whiteboardCollection';
+import { appendWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
 
 interface WhiteboardImageImportOptions {
   pushHistory: () => void;

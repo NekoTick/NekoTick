@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardDrawingTool } from '../../model/whiteboardModel';
+import type { WhiteboardDrawingTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { WhiteboardBrushCursor } from './WhiteboardBrushCursor';
 import { WhiteboardStrokeLayer } from './WhiteboardStrokeLayer';
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { isWhiteboardMoveDragState, type WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardPoint } from '../model/whiteboardModel';
+import { isWhiteboardMoveDragState, type WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardPoint } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 const LASSO_POINT_SPACING_SCREEN_PX = 6;
 const LASSO_MAX_POINTS = 420;

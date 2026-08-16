@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
-import { isWhiteboardFullSelection } from '../model/whiteboardCollection';
-import type { WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
-import { getWhiteboardSelectedItemMap } from '../model/whiteboardIndexedSelectionMap';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
+import { isWhiteboardFullSelection } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import type { WhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import { getWhiteboardSelectedItemMap } from '@/components/Whiteboard/model/interaction/whiteboardIndexedSelectionMap';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardSelectionRotationControlsOptions {
   elements: WhiteboardElement[];

@@ -2,14 +2,14 @@ import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateA
 import { useNotesRootStore } from '@/stores/useNotesRootStore';
 import { WHITEBOARD_SYSTEM_STORAGE_SCOPE } from '@/lib/storage/whiteboardStoragePaths';
 import { useImageCacheGeneration } from '@/hooks/useImageCacheGeneration';
-import { getNextWhiteboardIdSequence } from '../model/whiteboardIds';
-import { refreshWhiteboardAssetUrls } from '../model/whiteboardRepository';
+import { getNextWhiteboardIdSequence } from '@/components/Whiteboard/model/core/whiteboardIds';
+import { refreshWhiteboardAssetUrls } from '@/components/Whiteboard/model/persistence/whiteboardRepository';
 import type {
   WhiteboardElement,
   WhiteboardPaperStyle,
   WhiteboardStroke,
   WhiteboardViewport,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
 
 interface WhiteboardStorageBridgeOptions {

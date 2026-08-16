@@ -1,6 +1,6 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
-import { isEditableTarget, type WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardTool } from '../model/whiteboardModel';
+import { isEditableTarget, type WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardEscapeKeyOptions {
   active: boolean;

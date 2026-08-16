@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useWhiteboardEraserGesture } from './useWhiteboardEraserGesture';
-import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
-import type { WhiteboardStroke } from '../model/whiteboardModel';
+import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 function createOptions() {
   const elements = [

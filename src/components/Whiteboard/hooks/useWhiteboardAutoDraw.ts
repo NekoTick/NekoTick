@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { appendWhiteboardItems } from '../model/whiteboardCollection';
+import { appendWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
 import { getWhiteboardAutoDrawSuggestions, type WhiteboardAutoDrawSuggestion } from '../model/autodraw/whiteboardAutoDrawRecognition';
-import { getWhiteboardAutoShapePoints } from '../model/whiteboardAutoShapeGeometry';
+import { getWhiteboardAutoShapePoints } from '@/components/Whiteboard/model/geometry/whiteboardAutoShapeGeometry';
 import {
   createStrokePoint,
   type WhiteboardElement,
   type WhiteboardStroke,
   type WhiteboardTool,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardAutoDrawOptions {
   draftStroke: WhiteboardStroke | null;

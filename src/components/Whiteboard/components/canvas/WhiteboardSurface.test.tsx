@@ -1,9 +1,9 @@
 import { createRef, type ComponentProps } from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { EMPTY_WHITEBOARD_ERASER_PREVIEW } from '../../model/whiteboardEraser';
-import { createWhiteboardEraserSpatialIndex } from '../../model/whiteboardEraser';
-import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
+import { EMPTY_WHITEBOARD_ERASER_PREVIEW } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import { WhiteboardRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 import { WhiteboardSurface } from './WhiteboardSurface';
 
 function createProps(): ComponentProps<typeof WhiteboardSurface> {

@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 import { useWhiteboardHistory } from './useWhiteboardHistory';
-import type { WhiteboardElement, WhiteboardPaperStyle, WhiteboardStroke } from '../model/whiteboardModel';
+import type { WhiteboardElement, WhiteboardPaperStyle, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 describe('useWhiteboardHistory', () => {
   it('clears undo and redo state when the active board changes', () => {

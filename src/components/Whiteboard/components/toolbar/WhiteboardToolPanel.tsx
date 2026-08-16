@@ -3,7 +3,7 @@ import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import {
   WHITEBOARD_DRAWING_TOOLS,
   type WhiteboardTool,
-} from '../../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import {
   WhiteboardToolbarButton,
   WhiteboardToolbarGroup,

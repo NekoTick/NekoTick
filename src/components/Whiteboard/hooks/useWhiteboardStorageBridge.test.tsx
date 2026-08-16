@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { useRef, type Dispatch, type SetStateAction } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { normalizeWhiteboardSnapshot } from '../model/whiteboardDocument';
-import type { WhiteboardElement } from '../model/whiteboardModel';
+import { normalizeWhiteboardSnapshot } from '@/components/Whiteboard/model/document/whiteboardDocument';
+import type { WhiteboardElement } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { incrementImageCacheGeneration } from '@/lib/assets/io/imageCacheGeneration';
 import { useWhiteboardStorageBridge } from './useWhiteboardStorageBridge';
 
@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   refreshWhiteboardAssetUrls: vi.fn(),
 }));
 
-vi.mock('../model/whiteboardRepository', () => ({
+vi.mock('@/components/Whiteboard/model/persistence/whiteboardRepository', () => ({
   refreshWhiteboardAssetUrls: mocks.refreshWhiteboardAssetUrls,
 }));
 

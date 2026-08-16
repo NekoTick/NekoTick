@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WhiteboardSnapshot } from '../model/whiteboardDocument';
+import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/document/whiteboardDocument';
 import { useWhiteboardPersistence } from './useWhiteboardPersistence';
 import { useWhiteboardStore } from '../stores/useWhiteboardStore';
 

@@ -4,7 +4,7 @@ import {
   type ChatSidebarSearchEntry,
 } from '@/components/Chat/features/Sidebar/chatSidebarSearch';
 import type { NoteGraphNode } from '@/components/Graph/model/noteGraph';
-import type { WhiteboardIndexEntry } from '@/components/Whiteboard/model/whiteboardRepository';
+import type { WhiteboardIndexEntry } from '@/components/Whiteboard/model/persistence';
 import type { ChatSession } from '@/lib/ai/types';
 
 export interface GlobalSearchSources {

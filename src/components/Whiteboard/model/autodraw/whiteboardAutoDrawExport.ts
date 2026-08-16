@@ -1,6 +1,6 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import { getWhiteboardAutoDrawCatalogEntry } from './whiteboardAutoDrawCatalog';
-import type { WhiteboardElement } from '../whiteboardModel';
+import type { WhiteboardElement } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 export function renderWhiteboardAutoDrawIconSvg(
   element: WhiteboardElement,
