@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   addToast: vi.fn(),
   backlinks: [] as { path: string; name: string; context: string }[],
   currentNote: null as { path: string; content: string } | null,
+  dropdownMenuModal: undefined as boolean | undefined,
   dropdownMenuCloseAutoFocus: undefined as undefined | ((event: { preventDefault: () => void }) => void),
   exportNote: vi.fn(),
   flushCurrentPendingEditorMarkdown: vi.fn(),
@@ -28,12 +29,16 @@ vi.mock('@/components/Notes/notesViewLazyComponents', () => ({
 }));
 
 vi.mock('@/components/ui/dropdown-menu', () => ({
-  DropdownMenu: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenu: ({ children, modal }: { children?: React.ReactNode; modal?: boolean }) => {
+    mocks.dropdownMenuModal = modal;
+    return <div>{children}</div>;
+  },
   DropdownMenuContent: ({
     align,
     children,
     className,
     onCloseAutoFocus,
+    onOpenAutoFocus: _onOpenAutoFocus,
     sideOffset,
     ...props
   }: {
@@ -236,6 +241,7 @@ describe('EditorTopRightToolbar', () => {
     mocks.addToast.mockReset();
     mocks.backlinks = [];
     mocks.currentNote = null;
+    mocks.dropdownMenuModal = undefined;
     mocks.dropdownMenuCloseAutoFocus = undefined;
     mocks.exportNote.mockReset();
     mocks.flushCurrentPendingEditorMarkdown.mockReset();
@@ -327,6 +333,7 @@ describe('EditorTopRightToolbar', () => {
 
     openMoreMenu(getByRole);
     openExportMenu(getByRole);
+    expect(mocks.dropdownMenuModal).toBe(false);
     expect(container.firstElementChild).toHaveAttribute('data-no-editor-drag-box', 'true');
     expect(container.firstElementChild).toHaveClass('translate-x-[var(--vlaina-window-resize-compensation-x)]');
     expect(getByTestId('note-menu-content')).toHaveAttribute('data-no-editor-drag-box', 'true');
