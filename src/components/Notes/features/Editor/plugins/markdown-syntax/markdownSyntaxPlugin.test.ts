@@ -79,6 +79,33 @@ describe('markdownSyntaxPlugin', () => {
     expect(view.dom.querySelector('h2')?.id).toBe('123');
   });
 
+  it('expands syntax for every textblock in a multi-block selection', async () => {
+    const editor = await createEditor('### 3\n#### 4\n##### 5');
+    const view = editor.ctx.get(editorViewCtx);
+    const headings: Array<{ from: number; nodeSize: number }> = [];
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'heading') headings.push({ from: pos, nodeSize: node.nodeSize });
+      return true;
+    });
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      headings[0]!.from + 1,
+      headings[2]!.from + headings[2]!.nodeSize - 1,
+    )));
+
+    expect(view.dom.querySelectorAll('.markdown-source-expanded')).toHaveLength(3);
+    expect(view.dom.querySelectorAll('.markdown-syntax-selected')).toHaveLength(3);
+  });
+
+  it('keeps marker-only headings visible', async () => {
+    const editor = await createEditor(['#', '##', '###', '####', '#####', '######', '# Heading'].join('\n'));
+    const view = editor.ctx.get(editorViewCtx);
+
+    expect(view.dom.querySelectorAll('.markdown-empty-heading')).toHaveLength(6);
+    expect(view.dom.querySelector('h1:last-child')).not.toHaveClass('markdown-empty-heading');
+  });
+
   it('preserves nested semantic marks while exposing every delimiter', async () => {
     const editor = await createEditor('**bold ==mark==**');
     const view = editor.ctx.get(editorViewCtx);

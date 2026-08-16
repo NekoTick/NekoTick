@@ -3,6 +3,7 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import {
   isLargeEditorSelection,
   isTextSelectionOverlayEligible,
+  POINTER_SELECTION_ACTIVE_ATTRIBUTE,
   textSelectionOverlayPluginKey,
 } from './textSelectionOverlayState';
 import {
@@ -150,8 +151,9 @@ export function measureTextSelectionLayerRects(
   layer: HTMLElement,
 ): TextSelectionLayerRect[] {
   const pluginState = textSelectionOverlayPluginKey.getState(view.state);
+  const isPointerSelecting = view.dom.hasAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
   if (
-    pluginState?.usePointerNativeSelection
+    (pluginState?.usePointerNativeSelection && !isPointerSelecting)
     || pluginState?.renderInlineDecorations
     || !isTextSelectionOverlayEligible(view.state)
     || isLargeEditorSelection(view.state)

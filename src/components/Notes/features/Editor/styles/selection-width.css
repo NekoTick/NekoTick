@@ -47,6 +47,13 @@
   -webkit-text-fill-color: inherit !important;
 }
 
+.milkdown .ProseMirror[data-editor-pointer-selecting='true']:not(.editor-large-all-selection)::selection,
+.milkdown .ProseMirror[data-editor-pointer-selecting='true']:not(.editor-large-all-selection) *::selection {
+  background-color: transparent !important;
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+}
+
 .milkdown .ProseMirror.editor-keyboard-selection-pending::selection,
 .milkdown .ProseMirror.editor-keyboard-selection-pending *::selection {
   background-color: transparent !important;

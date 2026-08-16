@@ -74,8 +74,25 @@
   white-space: pre;
 }
 
+.milkdown .ProseMirror :is(
+  .markdown-syntax.markdown-syntax-selected,
+  .markdown-syntax-selected,
+  .markdown-syntax-selected .markdown-syntax
+) {
+  color: var(--vlaina-color-white) !important;
+  -webkit-text-fill-color: var(--vlaina-color-white) !important;
+}
+
 .milkdown .ProseMirror .markdown-source-expanded .markdown-syntax {
   font-size: inherit;
+}
+
+.milkdown .ProseMirror[data-editor-pointer-selecting='true'] .markdown-source-expanded .markdown-syntax {
+  font-size: var(--vlaina-font-0);
+}
+
+.milkdown .ProseMirror .markdown-empty-heading .markdown-syntax {
+  font-size: inherit !important;
 }
 
 .milkdown .ProseMirror.editor-text-selection-inline-paint:not(.toolbar-selection-hidden-preview) :is(

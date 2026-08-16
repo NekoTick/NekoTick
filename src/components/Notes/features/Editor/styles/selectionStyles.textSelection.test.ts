@@ -54,6 +54,14 @@ describe("editor text selection and link styles", () => {
     const sharedSource = readSharedBlockNodeTypesSource();
 
     expect(css).toContain('.milkdown .ProseMirror.editor-text-selection-overlay-active:not(.editor-pointer-native-selection) *::selection {');
+    expect(css).toContain([
+      ".milkdown .ProseMirror[data-editor-pointer-selecting='true']:not(.editor-large-all-selection)::selection,",
+      ".milkdown .ProseMirror[data-editor-pointer-selecting='true']:not(.editor-large-all-selection) *::selection {",
+      '  background-color: transparent !important;',
+      '  color: inherit !important;',
+      '  -webkit-text-fill-color: inherit !important;',
+      '}',
+    ].join('\n'));
     expect(css).not.toContain('.milkdown .ProseMirror.editor-text-selection-overlay-active *::selection {');
     expect(css).toContain('background-color: transparent !important;');
     expect(css).toContain('.milkdown .ProseMirror.editor-keyboard-selection-pending::selection,');
@@ -76,6 +84,9 @@ describe("editor text selection and link styles", () => {
     expect(css).toContain('.milkdown > .editor-text-selection-layer > .editor-text-selection-layer-rect {');
     expect(css).toContain('background-color: var(--vlaina-markdown-color-selection-layer);');
     expect(themeCss).toContain(
+      '--vlaina-markdown-color-selection: #bedffe;',
+    );
+    expect(themeCss).toContain(
       '--vlaina-markdown-color-selection-layer: var(--vlaina-markdown-color-selection);',
     );
     expect(css).toContain('contain: layout style paint;');
@@ -97,6 +108,28 @@ describe("editor text selection and link styles", () => {
     expect(css).toContain('border-radius: var(--vlaina-radius-3px);');
     expect(css).toContain('line-height: inherit;');
     expect(markdownCss).not.toContain('inline-markdown-script-selection-fill');
+    expect(markdownCss).toContain('color: var(--vlaina-soft-placeholder) !important;');
+    expect(markdownCss).toContain('-webkit-text-fill-color: var(--vlaina-soft-placeholder) !important;');
+    expect(markdownCss).toContain([
+      '.milkdown .ProseMirror :is(',
+      '  .markdown-syntax.markdown-syntax-selected,',
+      '  .markdown-syntax-selected,',
+      '  .markdown-syntax-selected .markdown-syntax',
+      ') {',
+      '  color: var(--vlaina-color-white) !important;',
+      '  -webkit-text-fill-color: var(--vlaina-color-white) !important;',
+      '}',
+    ].join('\n'));
+    expect(markdownCss).toContain([
+      ".milkdown .ProseMirror[data-editor-pointer-selecting='true'] .markdown-source-expanded .markdown-syntax {",
+      '  font-size: var(--vlaina-font-0);',
+      '}',
+    ].join('\n'));
+    expect(markdownCss).toContain([
+      '.milkdown .ProseMirror .markdown-empty-heading .markdown-syntax {',
+      '  font-size: inherit !important;',
+      '}',
+    ].join('\n'));
     expect(css).toContain('padding-block: max(0px, calc((1lh - 1em) / 2));');
     expect(css).not.toContain('background-color: var(--vlaina-block-selection-color-default);');
     expect(css).not.toContain('vlaina-ai-review-selection');
@@ -121,6 +154,8 @@ describe("editor text selection and link styles", () => {
     expect(source).toContain('selection instanceof AllSelection');
     expect(source).toContain('hasSelectedBlocks(state)');
     expect(source).toContain('isTextSelectionOverlayEligible(view.state)');
+    expect(source).toContain('const isPointerSelecting = view.dom.hasAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);');
+    expect(source).toContain('(pluginState?.usePointerNativeSelection && !isPointerSelecting)');
   });
 
   it('keeps atomic select-all overlays visible when native selections are hidden', () => {

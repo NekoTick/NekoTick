@@ -25,20 +25,73 @@ function findTextblockAt(doc: ProseNode, pos: number): TextblockRange | null {
 
 function collectExpandedTextblocks(doc: ProseNode, selection: Selection): TextblockRange[] {
   const blocks = new Map<number, TextblockRange>();
-  const anchor = findTextblockAt(doc, selection.anchor);
-  const head = findTextblockAt(doc, selection.head);
-  if (anchor) blocks.set(anchor.from, anchor);
-  if (head) blocks.set(head.from, head);
+  if (selection.empty) {
+    const textblock = findTextblockAt(doc, selection.head);
+    return textblock ? [textblock] : [];
+  }
+
+  doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+    if (!node.isTextblock) return true;
+    blocks.set(pos, { from: pos, node });
+    return false;
+  });
   return [...blocks.values()];
 }
 
-function createExpandedDecorations(textblocks: readonly TextblockRange[], doc: ProseNode): DecorationSet {
-  const decorations = textblocks.map(({ from, node }) => (
-    Decoration.node(from, from + node.nodeSize, {
-      class: 'markdown-source-expanded',
+function isEmptyHeading(node: ProseNode): boolean {
+  if (node.type.name !== 'heading') return false;
+
+  let hasContent = false;
+  node.forEach((child) => {
+    if (hasContent) return;
+    if (!child.isText) {
+      hasContent = true;
+      return;
+    }
+    if (child.marks.some((mark) => mark.type.name === 'markdownSyntax')) return;
+    hasContent = Boolean(child.text?.trim());
+  });
+  return !hasContent;
+}
+
+function createExpandedDecorations(
+  textblocks: readonly TextblockRange[],
+  doc: ProseNode,
+  selection: Selection,
+): DecorationSet {
+  const decorations: Decoration[] = [];
+  const expandedPositions = new Set<number>();
+  textblocks.forEach(({ from, node }) => {
+    expandedPositions.add(from);
+    const classes = ['markdown-source-expanded'];
+    if (isEmptyHeading(node)) classes.push('markdown-empty-heading');
+    decorations.push(Decoration.node(from, from + node.nodeSize, {
+      class: classes.join(' '),
       'data-markdown-source-expanded': 'true',
-    })
-  ));
+    }));
+
+    if (selection.empty) return;
+    node.forEach((child, offset) => {
+      if (
+        !child.isText
+        || !child.text
+        || !child.marks.some((mark) => mark.type.name === 'markdownSyntax')
+      ) return;
+      decorations.push(Decoration.inline(
+        from + 1 + offset,
+        from + 1 + offset + child.nodeSize,
+        { class: 'markdown-syntax-selected' },
+      ));
+    });
+  });
+  doc.descendants((node, pos) => {
+    if (isEmptyHeading(node) && !expandedPositions.has(pos)) {
+      decorations.push(Decoration.node(pos, pos + node.nodeSize, {
+        class: 'markdown-empty-heading',
+      }));
+    }
+    return true;
+  });
   return decorations.length > 0
     ? DecorationSet.create(doc, decorations)
     : DecorationSet.empty;
@@ -47,6 +100,7 @@ function createExpandedDecorations(textblocks: readonly TextblockRange[], doc: P
 export const markdownSyntaxPlugin = $prose((ctx) => {
   let cachedDoc: EditorState['doc'] | null = null;
   let cachedTextblockPositions: number[] = [];
+  let cachedSelectionWasNonEmpty = false;
   let cachedDecorations = DecorationSet.empty;
 
   return new Plugin({
@@ -61,12 +115,14 @@ export const markdownSyntaxPlugin = $prose((ctx) => {
           cachedDoc === state.doc
           && positions.length === cachedTextblockPositions.length
           && positions.every((position, index) => position === cachedTextblockPositions[index])
+          && cachedSelectionWasNonEmpty === !state.selection.empty
         ) {
           return cachedDecorations;
         }
         cachedDoc = state.doc;
         cachedTextblockPositions = positions;
-        cachedDecorations = createExpandedDecorations(textblocks, state.doc);
+        cachedSelectionWasNonEmpty = !state.selection.empty;
+        cachedDecorations = createExpandedDecorations(textblocks, state.doc, state.selection);
         return cachedDecorations;
       },
     },

@@ -502,7 +502,7 @@
   --vlaina-markdown-color-code-invalid: var(--vlaina-code-syntax-invalid);
   --vlaina-markdown-color-code-addition-bg: var(--vlaina-code-syntax-addition-bg);
   --vlaina-markdown-color-code-deletion-bg: var(--vlaina-code-syntax-deletion-bg);
-  --vlaina-markdown-color-selection: var(--vlaina-color-selection);
+  --vlaina-markdown-color-selection: #bedffe;
   --vlaina-markdown-color-selection-layer: var(--vlaina-markdown-color-selection);
   --vlaina-markdown-color-task-border: var(--vlaina-markdown-color-text-subtle);
   --vlaina-markdown-color-task-checked-bg: var(--vlaina-markdown-color-link);

@@ -44,6 +44,7 @@ export function readTextSelectionOverlaySource() {
     'textSelectionOverlayKeyboard.ts',
     'textSelectionOverlayPointerHandlers.ts',
     'textSelectionOverlayPointerRelease.ts',
+    'textSelectionLayerRects.ts',
   ].map((fileName) => readSource(`${root}/${fileName}`)).join('\n');
 }
 
