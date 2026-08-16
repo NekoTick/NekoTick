@@ -11,6 +11,7 @@ export const LARGE_SELECTION_CLASS = 'editor-large-all-selection';
 export const LARGE_SELECTION_HIGHLIGHT_NAME = 'editor-large-all-selection';
 export const LARGE_SELECTION_VISIBLE_ELEMENT_CLASS = 'editor-large-selection-visible';
 export const POINTER_SELECTION_ACTIVE_ATTRIBUTE = 'data-editor-pointer-selecting';
+export const POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE = 'data-editor-pointer-selection-started-focused';
 export const KEYBOARD_SELECTION_PENDING_CLASS = 'editor-keyboard-selection-pending';
 export const KEY_EVENT_LISTENER_OPTIONS = { capture: true };
 export const POINTER_NATIVE_SELECTION_META = 'editorTextSelectionPointerNative';
