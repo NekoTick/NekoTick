@@ -12,8 +12,8 @@ import {
   getWhiteboardMovePreview,
   isWhiteboardMoveDragState,
   type WhiteboardDragState,
-} from '../model/whiteboardInteractions';
-import type { WhiteboardEraserSample } from '../model/whiteboardEraser';
+} from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardEraserSample } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 import {
   clampWhiteboardZoom,
   isBrushPanelTool,
@@ -28,9 +28,9 @@ import {
   type WhiteboardStrokePoint,
   type WhiteboardTool,
   type WhiteboardViewport,
-} from '../model/whiteboardModel';
-import { createWhiteboardLinearStroke } from '../model/whiteboardLinear';
-import { getStrokePointMinDistance } from '../model/whiteboardStrokeGeometry';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
+import { createWhiteboardLinearStroke } from '@/components/Whiteboard/model/geometry/whiteboardLinear';
+import { getStrokePointMinDistance } from '@/components/Whiteboard/model/geometry/whiteboardStrokeGeometry';
 import {
   useWhiteboardLassoDragScheduler,
   useWhiteboardMoveDragScheduler,

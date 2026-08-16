@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useI18n } from '@/lib/i18n';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { getWhiteboardTextCaretIndex, measureWhiteboardText } from '../../model/whiteboardText';
+import { getWhiteboardTextCaretIndex, measureWhiteboardText } from '@/components/Whiteboard/model/geometry/whiteboardText';
 import type { WhiteboardTextEditingState } from '../../hooks/useWhiteboardTextEditing';
 
 interface WhiteboardTextEditorProps {

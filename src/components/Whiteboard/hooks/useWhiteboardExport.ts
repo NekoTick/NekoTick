@@ -3,8 +3,8 @@ import {
   copyWhiteboardImageToClipboard,
   exportWhiteboard,
   type WhiteboardExportFormat,
-} from '../model/whiteboardExport';
-import type { WhiteboardElement, WhiteboardPaperStyle, WhiteboardStroke } from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/export/whiteboardExport';
+import type { WhiteboardElement, WhiteboardPaperStyle, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardExportOptions {
   elements: WhiteboardElement[];

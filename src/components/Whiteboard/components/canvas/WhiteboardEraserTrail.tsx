@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardPoint } from '../../model/whiteboardModel';
-import type { WhiteboardEraserSample } from '../../model/whiteboardEraser';
+import type { WhiteboardPoint } from '@/components/Whiteboard/model/core/whiteboardModel';
+import type { WhiteboardEraserSample } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 
 export const WhiteboardEraserTrail = memo(function WhiteboardEraserTrail({
   trail,

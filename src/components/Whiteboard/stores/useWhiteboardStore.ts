@@ -8,8 +8,8 @@ import {
   writeWhiteboardBoard,
   writeWhiteboardIndex,
   type WhiteboardIndexEntry,
-} from '../model/whiteboardRepository';
-import { normalizeWhiteboardSnapshot, type WhiteboardSnapshot } from '../model/whiteboardDocument';
+} from '@/components/Whiteboard/model/persistence';
+import { normalizeWhiteboardSnapshot, type WhiteboardSnapshot } from '@/components/Whiteboard/model/document';
 import { queueWhiteboardSnapshotWrite, waitForWhiteboardSnapshotWrites } from './whiteboardSnapshotQueue';
 
 export type WhiteboardSaveResult =

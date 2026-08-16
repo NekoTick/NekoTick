@@ -14,8 +14,8 @@ import { Icon } from '@/components/ui/icons';
 import { useI18n } from '@/lib/i18n';
 import { hasNativeFileShare } from '@/lib/nativeFileShare';
 import { cn } from '@/lib/utils';
-import type { WhiteboardExportFormat } from '../../model/whiteboardExport';
-import type { WhiteboardPaperStyle } from '../../model/whiteboardModel';
+import type { WhiteboardExportFormat } from '@/components/Whiteboard/model/export/whiteboardExport';
+import type { WhiteboardPaperStyle } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardMoreMenuProps {
   onCopyImage: () => void;

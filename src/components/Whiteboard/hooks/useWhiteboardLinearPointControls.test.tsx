@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardStroke } from '../model/whiteboardModel';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardLinearPointControls } from './useWhiteboardLinearPointControls';
 
 describe('useWhiteboardLinearPointControls', () => {

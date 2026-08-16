@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getWhiteboardAutoDrawSuggestions } from './whiteboardAutoDrawRecognition';
-import type { WhiteboardPoint, WhiteboardStroke } from '../whiteboardModel';
+import type { WhiteboardPoint, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 const stroke = (id: string, points: WhiteboardPoint[]): WhiteboardStroke => ({
   color: '#111111',

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { WhiteboardSnapshot } from '../model/whiteboardDocument';
+import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/document/whiteboardDocument';
 import { useWhiteboardStore, type WhiteboardSaveResult } from '../stores/useWhiteboardStore';
 
 const WHITEBOARD_PERSISTENCE_DELAY_MS = 250;

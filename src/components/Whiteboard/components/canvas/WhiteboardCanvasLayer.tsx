@@ -13,24 +13,24 @@ import {
   type WhiteboardStroke,
   type WhiteboardTool,
   type WhiteboardViewport,
-} from '../../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import {
   getStrokeBounds,
   rectsOverlap,
   type WhiteboardLassoPath,
   type WhiteboardResizeHandle,
   type WhiteboardSelectionRect,
-} from '../../model/whiteboardSelection';
-import { getWhiteboardCullingWindow, type WhiteboardCullingWindow } from '../../model/whiteboardViewport';
-import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
-import { getWhiteboardAppendStart } from '../../model/whiteboardCollection';
-import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
+} from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import { getWhiteboardCullingWindow, type WhiteboardCullingWindow } from '@/components/Whiteboard/model/geometry/whiteboardViewport';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import { getWhiteboardAppendStart } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import { WhiteboardRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 import type { WhiteboardTextEditingState } from '../../hooks/useWhiteboardTextEditing';
 import {
   getWhiteboardBoundsCandidates,
   type WhiteboardEraserPreview,
   type WhiteboardEraserSpatialIndex,
-} from '../../model/whiteboardEraser';
+} from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 
 interface WhiteboardCanvasLayerProps {
   brushCursorColor: string;

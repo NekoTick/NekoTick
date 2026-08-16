@@ -1,5 +1,5 @@
-import { writeWhiteboardBoard, type WhiteboardIndexEntry } from '../model/whiteboardRepository';
-import type { WhiteboardSnapshot } from '../model/whiteboardDocument';
+import { writeWhiteboardBoard, type WhiteboardIndexEntry } from '@/components/Whiteboard/model/persistence';
+import type { WhiteboardSnapshot } from '@/components/Whiteboard/model/document';
 
 interface SnapshotWriteWaiter {
   reject: (reason?: unknown) => void;

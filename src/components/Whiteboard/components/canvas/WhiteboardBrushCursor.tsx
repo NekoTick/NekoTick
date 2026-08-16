@@ -4,7 +4,7 @@ import {
   type WhiteboardBrushTool,
   type WhiteboardPoint,
   type WhiteboardStroke,
-} from '../../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import { WhiteboardStrokeNode } from './WhiteboardStrokeNode';
 
 interface WhiteboardBrushCursorProps {

@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { createWhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
+import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
 import { useWhiteboardSelectionRotationControls } from './useWhiteboardSelectionRotationControls';
 
 describe('useWhiteboardSelectionRotationControls', () => {

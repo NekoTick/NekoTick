@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { getWhiteboardStrokeNode, WhiteboardStrokeNode } from './WhiteboardStrokeNode';
 import { useWhiteboardProgressiveStrokeSlots } from './useWhiteboardProgressiveStrokeSlots';
 

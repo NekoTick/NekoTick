@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 const EMPTY_STROKES: WhiteboardStroke[] = [];
 const PROGRESSIVE_REPLACEMENT_BATCH_SIZE = 16;

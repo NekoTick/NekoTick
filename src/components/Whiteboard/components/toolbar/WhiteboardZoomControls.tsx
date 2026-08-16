@@ -2,7 +2,7 @@ import { memo, type WheelEvent } from 'react';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardViewport } from '../../model/whiteboardModel';
+import type { WhiteboardViewport } from '@/components/Whiteboard/model/core/whiteboardModel';
 import {
   WhiteboardToolbarButton,
   WhiteboardToolbarGroup,

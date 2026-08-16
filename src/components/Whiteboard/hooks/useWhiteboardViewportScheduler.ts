@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import type { WhiteboardViewport } from '../model/whiteboardModel';
+import type { WhiteboardViewport } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 type ViewportUpdate = SetStateAction<WhiteboardViewport>;
 

@@ -4,7 +4,7 @@ import type { PointerEvent } from 'react';
 import {
   WHITEBOARD_DEFAULT_BRUSH_COLORS,
   WHITEBOARD_DEFAULT_BRUSH_SIZES,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import { useWhiteboardPointerActions } from './useWhiteboardPointerActions';
 
 type PointerActionOptions = Parameters<typeof useWhiteboardPointerActions>[0];

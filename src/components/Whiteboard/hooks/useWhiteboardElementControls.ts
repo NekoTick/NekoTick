@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useRef, type Dispatch, type MutableRefObject, type PointerEvent, type SetStateAction } from 'react';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import type { WhiteboardEraserSpatialIndex } from '../model/whiteboardEraser';
-import { isWhiteboardFullSelection } from '../model/whiteboardCollection';
-import { getWhiteboardSelectedItemMap } from '../model/whiteboardIndexedSelectionMap';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import { isWhiteboardFullSelection } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import { getWhiteboardSelectedItemMap } from '@/components/Whiteboard/model/interaction/whiteboardIndexedSelectionMap';
 import {
   type WhiteboardElement,
   type WhiteboardPoint,
   type WhiteboardStroke,
   type WhiteboardTool,
-} from '../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import {
   getResizedSelectionBounds,
   getSelectionBounds,
   type WhiteboardResizeHandle,
-} from '../model/whiteboardSelection';
+} from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 
 interface WhiteboardElementControlsOptions {
   editSelectedText?: () => boolean;

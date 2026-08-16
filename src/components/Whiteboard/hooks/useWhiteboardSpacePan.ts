@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { isEditableTarget } from '../model/whiteboardInteractions';
+import { isEditableTarget } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
 
 export function useWhiteboardSpacePan(active: boolean) {
   const spacePressedRef = useRef(false);

@@ -1,6 +1,6 @@
 import { memo, type PointerEvent } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardElement, WhiteboardTool } from '../../model/whiteboardModel';
+import type { WhiteboardElement, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 import { WhiteboardElementNode } from './WhiteboardElementNode';
 
 export interface WhiteboardIdLookup {

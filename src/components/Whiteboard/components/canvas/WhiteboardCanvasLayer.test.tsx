@@ -1,10 +1,10 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { appendWhiteboardItems } from '../../model/whiteboardCollection';
-import { createWhiteboardEraserSpatialIndex, EMPTY_WHITEBOARD_ERASER_PREVIEW } from '../../model/whiteboardEraser';
-import type { WhiteboardElement, WhiteboardStroke } from '../../model/whiteboardModel';
-import { WhiteboardRenderData } from '../../model/whiteboardRenderData';
-import { getSelectedOverlayGeometry, type WhiteboardSelectedOverlayGeometry } from '../../model/whiteboardSelection';
+import { appendWhiteboardItems } from '@/components/Whiteboard/model/core/whiteboardCollection';
+import { createWhiteboardEraserSpatialIndex, EMPTY_WHITEBOARD_ERASER_PREVIEW } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
+import type { WhiteboardElement, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { WhiteboardRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
+import { getSelectedOverlayGeometry, type WhiteboardSelectedOverlayGeometry } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 import { WhiteboardCanvasLayer } from './WhiteboardCanvasLayer';
 
 function createRenderData(

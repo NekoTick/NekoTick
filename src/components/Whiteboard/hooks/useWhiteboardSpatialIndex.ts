@@ -11,22 +11,22 @@ import {
   getWhiteboardItemIds,
   isWhiteboardFullSelection,
   markWhiteboardFullSelection,
-} from '../model/whiteboardCollection';
+} from '@/components/Whiteboard/model/core/whiteboardCollection';
 import {
   isWhiteboardMoveDragState,
   type WhiteboardDragState,
-} from '../model/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
-import { prepareWhiteboardMove, shouldPrepareWhiteboardMove } from '../model/whiteboardPreparedMove';
-import { prepareWhiteboardResize, shouldPrepareWhiteboardResize } from '../model/whiteboardPreparedResize';
-import { WhiteboardRenderData } from '../model/whiteboardRenderData';
-import type { WhiteboardSelectedOverlayGeometry, WhiteboardSelectionRect } from '../model/whiteboardSelection';
+} from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import type { WhiteboardElement, WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { prepareWhiteboardMove, shouldPrepareWhiteboardMove } from '@/components/Whiteboard/model/interaction/whiteboardPreparedMove';
+import { prepareWhiteboardResize, shouldPrepareWhiteboardResize } from '@/components/Whiteboard/model/interaction/whiteboardPreparedResize';
+import { WhiteboardRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
+import type { WhiteboardSelectedOverlayGeometry, WhiteboardSelectionRect } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 import {
   createWhiteboardEraserSpatialIndex,
   createWhiteboardEraserSpatialIndexAsync,
   tryUpdateWhiteboardEraserSpatialIndex,
   type WhiteboardEraserSpatialIndex,
-} from '../model/whiteboardEraser';
+} from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 
 interface WhiteboardSpatialIndexOptions {
   dragState: WhiteboardDragState | null;

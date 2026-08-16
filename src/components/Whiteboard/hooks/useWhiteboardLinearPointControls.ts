@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, type Dispatch, type PointerEvent, type SetStateAction } from 'react';
-import type { WhiteboardDragState } from '../model/whiteboardInteractions';
-import { insertWhiteboardLinearMidpoint, replaceWhiteboardLinearPoint } from '../model/whiteboardLinear';
+import type { WhiteboardDragState } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import { insertWhiteboardLinearMidpoint, replaceWhiteboardLinearPoint } from '@/components/Whiteboard/model/geometry/whiteboardLinear';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '../model/whiteboardModel';
+import type { WhiteboardPoint, WhiteboardStroke, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardLinearPointControlsOptions {
   getBoardPoint: (clientX: number, clientY: number) => WhiteboardPoint;

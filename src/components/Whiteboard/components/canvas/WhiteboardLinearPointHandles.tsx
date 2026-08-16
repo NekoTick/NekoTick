@@ -1,7 +1,7 @@
 import type { PointerEvent } from 'react';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { getWhiteboardLinearMidpoint, isWhiteboardLinearSegmentTooShort } from '../../model/whiteboardLinear';
-import type { WhiteboardStroke } from '../../model/whiteboardModel';
+import { getWhiteboardLinearMidpoint, isWhiteboardLinearSegmentTooShort } from '@/components/Whiteboard/model/geometry/whiteboardLinear';
+import type { WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 interface WhiteboardLinearPointHandlesProps {
   onPointerDown: (

@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { useWhiteboardSelectionDeletion } from './useWhiteboardSelectionDeletion';
-import type { WhiteboardElement, WhiteboardStroke } from '../model/whiteboardModel';
+import type { WhiteboardElement, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 describe('useWhiteboardSelectionDeletion', () => {
   it('deletes only selected images', () => {

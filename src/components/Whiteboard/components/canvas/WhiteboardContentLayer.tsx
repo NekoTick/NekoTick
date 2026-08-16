@@ -7,7 +7,7 @@ import type {
   WhiteboardPoint,
   WhiteboardStroke,
   WhiteboardTool,
-} from '../../model/whiteboardModel';
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import {
   getElementBounds,
   getStrokeBounds,
@@ -15,25 +15,25 @@ import {
   type WhiteboardLassoPath,
   type WhiteboardResizeHandle,
   type WhiteboardSelectionRect,
-} from '../../model/whiteboardSelection';
-import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '../../model/whiteboardInteractions';
-import { WhiteboardSelectionRenderData, type WhiteboardRenderData } from '../../model/whiteboardRenderData';
+} from '@/components/Whiteboard/model/interaction/whiteboardSelection';
+import type { WhiteboardMovePreview, WhiteboardResizePreview, WhiteboardRotationPreview } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
+import { WhiteboardSelectionRenderData, type WhiteboardRenderData } from '@/components/Whiteboard/model/rendering/whiteboardRenderData';
 import {
   getWhiteboardResizePreviewItems,
   getWhiteboardResizePreviewSourceItems,
   getWhiteboardResizePreviewTransform,
   shouldTransformWhiteboardResizePreview,
-} from '../../model/whiteboardResizePreview';
+} from '@/components/Whiteboard/model/interaction/whiteboardResizePreview';
 import {
   getWhiteboardBoundsCandidates,
   getWhiteboardIndexedItems,
-} from '../../model/whiteboardEraser';
+} from '@/components/Whiteboard/model/interaction/whiteboardEraser';
 import { useWhiteboardStrokeLayerRenderCache } from './useWhiteboardStrokeLayerRenderCache';
-import { isWhiteboardFullSelection } from '../../model/whiteboardCollection';
+import { isWhiteboardFullSelection } from '@/components/Whiteboard/model/core/whiteboardCollection';
 import {
   getWhiteboardRotationPreviewItems,
   getWhiteboardRotationPreviewTransform,
-} from '../../model/whiteboardRotationPreview';
+} from '@/components/Whiteboard/model/interaction/whiteboardRotationPreview';
 
 const EMPTY_IDS: string[] = [];
 

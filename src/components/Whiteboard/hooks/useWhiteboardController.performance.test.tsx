@@ -5,8 +5,8 @@ const mocks = vi.hoisted(() => ({
   createSpatialIndex: vi.fn(),
 }));
 
-vi.mock('../model/whiteboardEraser', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../model/whiteboardEraser')>();
+vi.mock('@/components/Whiteboard/model/interaction/whiteboardEraser', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/Whiteboard/model/interaction/whiteboardEraser')>();
   return {
     ...actual,
     createWhiteboardEraserSpatialIndex: (...args: Parameters<typeof actual.createWhiteboardEraserSpatialIndex>) => {

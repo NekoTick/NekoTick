@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { WhiteboardPoint } from '../model/whiteboardModel';
+import type { WhiteboardPoint } from '@/components/Whiteboard/model/core/whiteboardModel';
 
 export function useWhiteboardBrushCursor() {
   const [brushCursorPoint, setBrushCursorPointState] = useState<WhiteboardPoint | null>(null);

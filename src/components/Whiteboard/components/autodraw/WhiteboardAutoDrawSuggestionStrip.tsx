@@ -4,7 +4,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { getWhiteboardAutoShapePoints } from '../../model/whiteboardAutoShapeGeometry';
+import { getWhiteboardAutoShapePoints } from '@/components/Whiteboard/model/geometry/whiteboardAutoShapeGeometry';
 import type { WhiteboardAutoDrawSuggestion } from '../../model/autodraw/whiteboardAutoDrawRecognition';
 import { whiteboardMainToolbarSurfaceClassName } from '../toolbar/WhiteboardToolbarPrimitives';
 import { WhiteboardAutoDrawIcon } from './WhiteboardAutoDrawIcon';

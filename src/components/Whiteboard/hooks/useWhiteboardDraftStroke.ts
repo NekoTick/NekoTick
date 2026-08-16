@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { WhiteboardDrawingTool, WhiteboardStroke, WhiteboardStrokePoint } from '../model/whiteboardModel';
-import { appendStrokePointsInPlace } from '../model/whiteboardStrokeGeometry';
+import type { WhiteboardDrawingTool, WhiteboardStroke, WhiteboardStrokePoint } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { appendStrokePointsInPlace } from '@/components/Whiteboard/model/geometry/whiteboardStrokeGeometry';
 
 export function useWhiteboardDraftStroke() {
   const [draftStroke, setDraftStrokeState] = useState<WhiteboardStroke | null>(null);

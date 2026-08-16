@@ -1,8 +1,8 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import type { WhiteboardDrawingTool, WhiteboardStroke } from '../../model/whiteboardModel';
-import { rotateSelectionStroke } from '../../model/whiteboardSelection';
+import type { WhiteboardDrawingTool, WhiteboardStroke } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { rotateSelectionStroke } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 import { WhiteboardDraftStrokeLayer, WhiteboardStrokeLayer } from './WhiteboardStrokeLayer';
 
 function renderBrush(tool: WhiteboardDrawingTool) {
