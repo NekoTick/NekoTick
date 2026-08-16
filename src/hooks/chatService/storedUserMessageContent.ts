@@ -4,8 +4,8 @@ import {
   parseMarkdownAndHtmlImageTokens,
   stripImageTokens,
   type ImageToken,
-} from '@/components/Chat/common/messageImageTokens';
-import { isSvgDataUrl } from '@/components/Chat/common/svgRasterize';
+} from '@/lib/markdown/markdownImageTokens';
+import { isSvgDataUrl } from '@/lib/markdown/svgRasterize';
 import { scrubOverflowMarkdownDataImages } from '@/lib/markdown/overflowDataImageScrubber';
 import { replaceRenderableMessageImageTokens } from '@/lib/markdown/renderableImageTokens';
 import {

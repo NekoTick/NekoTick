@@ -196,6 +196,7 @@ function parseNestedSplitInlineColorHtmlMark(
     ...parsed,
     children: [{
       type: semanticType,
+      data: { hName: semanticType === 'htmlEmphasis' ? 'em' : 'strong' },
       children: [{ ...text, value: decodeMarkdownHtmlText(text.value) }],
     }],
   };

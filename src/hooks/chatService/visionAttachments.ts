@@ -5,11 +5,11 @@ import {
   type Attachment,
 } from '@/lib/storage/attachmentStorage';
 import type { ChatMessageContentPart } from '@/lib/ai/types';
-import { isRenderedImageSource } from '@/components/Chat/common/messageClipboard';
+import { isRenderedImageSource } from '@/lib/ai/chatImageSourcePolicy';
 import {
   isSvgDataUrl,
   rasterizeSvgDataUrlToPng,
-} from '@/components/Chat/common/svgRasterize';
+} from '@/lib/markdown/svgRasterize';
 import { isRenderableDataImageSrc, normalizeRenderableImageSrc } from '@/components/common/markdown/imagePolicy';
 import { extractStoredAttachmentFilename } from '@/lib/storage/attachmentUrl';
 import { escapeMarkdownAngleDestination } from '@/lib/markdown/markdownImageMarkdown';

@@ -20,6 +20,9 @@ type NormalizedImageToken = ImageToken & { src: string };
 const MAX_CHAT_IMAGE_NON_DATA_SOURCE_CHARS = 16 * 1024;
 const MAX_CHAT_IMAGE_DATA_SOURCE_CHARS = Math.ceil(MAX_INLINE_IMAGE_BYTES / 3) * 4 + 128;
 
+export const MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES = 2000;
+export const MAX_CHAT_MESSAGE_IMAGE_SOURCES = 1000;
+
 function startsWithDataImageCandidate(value: string): boolean {
   let index = 0;
   while (index < value.length && index < 128 && /\s/.test(value[index])) {
@@ -72,6 +75,26 @@ export function normalizePersistedChatMessageImageSource(src: unknown): string |
     return null;
   }
   return normalized;
+}
+
+export function isRenderedImageSource(src: string): boolean {
+  return !parseVideoUrl(src);
+}
+
+export function normalizeRenderedMessageImageSources(sources: readonly string[] | undefined): string[] {
+  if (!sources || sources.length === 0) {
+    return [];
+  }
+
+  const normalizedSources: string[] = [];
+  const entryLimit = Math.min(sources.length, MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES);
+  for (let index = 0; index < entryLimit && normalizedSources.length < MAX_CHAT_MESSAGE_IMAGE_SOURCES; index += 1) {
+    const src = normalizeRenderableImageSrc(sources[index]);
+    if (src && isRenderedImageSource(src)) {
+      normalizedSources.push(src);
+    }
+  }
+  return normalizedSources;
 }
 
 function normalizeChatMessageImageSourceForMode(

@@ -146,6 +146,10 @@ describe('clipboard paste markdown persistence', () => {
     ['mermaid', ['```mermaid', 'flowchart TD', 'A --> B', '```'].join('\n')],
     ['custom inline marks', '==highlight== ++underlined++ X^2^ H~2~O'],
     ['color html', '<span style="color: #123456">red</span> <mark style="background-color: #ecf6ff">bg</mark>'],
+    [
+      'nested color html',
+      '<span style="color: #123456"><em>nested</em></span> <mark style="background-color: #ecf6ff"><strong>bold</strong></mark>',
+    ],
     ['toc', '[TOC]'],
   ] as const)('preserves pasted %s markdown on save', async (_name, markdown) => {
     await expect(pasteAndPersist(markdown)).resolves.toBe(markdown);

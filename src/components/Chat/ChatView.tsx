@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef, useSyncExternalStore } from '
 import { AnimatePresence } from 'framer-motion';
 import { actions as aiActions } from '@/stores/useAIStore';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
-import { useChatService } from '@/hooks/useChatService';
-import { useMessageAutoscroll } from '@/hooks/useMessageAutoscroll';
+import { useChatService } from '@/hooks/chatService/useChatService';
+import { useMessageAutoscroll } from '@/components/Chat/features/Messages/autoscroll/useMessageAutoscroll';
 import { useChatShortcuts } from './hooks/useChatShortcuts';
 import { useComposerClickFocus } from './hooks/useComposerClickFocus';
 import { useChatEmbeddedSidebar } from './hooks/useChatEmbeddedSidebar';
@@ -29,14 +29,14 @@ import {
 import { ChatInput } from '@/components/Chat/features/Input/ChatInput';
 import { MessageList } from '@/components/Chat/features/Messages/MessageList';
 import { SelectionInsertButton } from '@/components/Chat/features/Messages/components/SelectionInsertButton';
-import { WelcomeScreen } from '@/components/Chat/layout/WelcomeScreen';
+import { WelcomeScreen } from '@/components/Chat/features/Welcome/WelcomeScreen';
 import { ChatShortcutsDialog } from '@/components/Chat/common/ChatShortcutsDialog';
 import { TemporaryChatToggle } from '@/components/Chat/features/Temporary/TemporaryChatToggle';
 import { useTemporaryTogglePresentation } from '@/components/Chat/features/Temporary/useTemporaryTogglePresentation';
 import { estimateChatLoadingHeight } from '@/components/Chat/features/Layout/chatMessageLayout';
 import { useManagedAIStore } from '@/stores/useManagedAIStore';
-import { ChatEmbeddedHeader } from './ChatEmbeddedHeader';
-import { ChatEmbeddedSidebarOverlay } from './ChatEmbeddedSidebarOverlay';
+import { ChatEmbeddedHeader } from './features/Embedded/ChatEmbeddedHeader';
+import { ChatEmbeddedSidebarOverlay } from './features/Embedded/ChatEmbeddedSidebarOverlay';
 import { EMPTY_MODELS, EMPTY_PROVIDERS, type ChatViewProps } from './ChatViewState';
 import { ChatErrorNotice } from './common/ChatErrorNotice';
 import type { ChatMessageNavigationHandler } from './features/Messages/MessageListTypes';

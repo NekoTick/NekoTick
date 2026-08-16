@@ -6,7 +6,7 @@ import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
 import { isStandaloneImageGenerationModel } from '@/lib/ai/modelCapabilities';
 import { APP_LANGUAGES, type AppLanguage, useI18n } from '@/lib/i18n';
 import { parseMarkdownAndHtmlImageTokens } from '@/lib/markdown/markdownImageTokens';
-import { sendMessageWithEndpointFallback } from './chatService/sendMessageWithEndpointFallback';
+import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
 import { isManagedProviderId } from '@/lib/ai/managedService';
 import { isManagedBudgetExhausted } from '@/lib/ai/managedQuota';
 import { applyManagedQuotaExhaustedSnapshot, useManagedAIStore } from '@/stores/useManagedAIStore';

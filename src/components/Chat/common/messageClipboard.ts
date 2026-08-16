@@ -3,8 +3,8 @@ import { stripThinkingContent } from '@/lib/ai/stripThinkingContent';
 import { normalizeClipboardImageDataUrl, writeImageBlobToClipboard, writeTextToClipboard } from '@/lib/clipboard';
 import { getElectronBridge } from '@/lib/electron/bridge';
 import { isRenderableDataImageSrc, normalizeRenderableImageSrc } from '@/components/common/markdown/imagePolicy';
-import { parseVideoUrl } from '@/lib/markdown/videoUrl';
 import { stripImagePresentationFragment } from '@/lib/markdown/imageResourceSource';
+import { isRenderedImageSource } from '@/lib/ai/chatImageSourcePolicy';
 import { fetchChatImageBlob, MAX_CHAT_IMAGE_FETCH_BYTES } from './chatImageFetch';
 import { resolveSafeChatImageSource } from './chatImageSourceResolution';
 import {
@@ -22,8 +22,13 @@ import { isSvgImageMimeType, rasterizeSvgBlobToPngBlob } from './svgRasterize';
 
 const MAX_COPY_IMAGE_SCAN_TOKENS = 2000;
 const MAX_COPY_TEXT_IMAGE_TOKENS = 1000;
-export const MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES = 2000;
-export const MAX_CHAT_MESSAGE_IMAGE_SOURCES = 1000;
+
+export {
+  isRenderedImageSource,
+  normalizeRenderedMessageImageSources,
+  MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES,
+  MAX_CHAT_MESSAGE_IMAGE_SOURCES,
+} from '@/lib/ai/chatImageSourcePolicy';
 
 function normalizeImageToken(token: ImageToken): ImageToken | null {
   const src = normalizeRenderableImageSrc(token.src);
@@ -50,26 +55,6 @@ export function extractMessageImageSources(content: string, options?: ImageToken
   const tokens = normalizeImageTokens(parseMarkdownAndHtmlImageTokens(content, options));
 
   return tokens.map((token) => token.src).filter((src): src is string => !!src);
-}
-
-export function isRenderedImageSource(src: string): boolean {
-  return !parseVideoUrl(src);
-}
-
-export function normalizeRenderedMessageImageSources(sources: readonly string[] | undefined): string[] {
-  if (!sources || sources.length === 0) {
-    return [];
-  }
-
-  const normalizedSources: string[] = [];
-  const entryLimit = Math.min(sources.length, MAX_CHAT_MESSAGE_IMAGE_SOURCE_ENTRIES);
-  for (let index = 0; index < entryLimit && normalizedSources.length < MAX_CHAT_MESSAGE_IMAGE_SOURCES; index += 1) {
-    const src = normalizeRenderableImageSrc(sources[index]);
-    if (src && isRenderedImageSource(src)) {
-      normalizedSources.push(src);
-    }
-  }
-  return normalizedSources;
 }
 
 export function extractRenderedMarkdownImageSources(content: string, options?: ImageTokenParseOptions): string[] {

@@ -33,7 +33,7 @@ vi.mock('@/stores/unified/useUnifiedStore', () => ({
   }),
 }));
 
-vi.mock('@/hooks/useChatService', () => ({
+vi.mock('@/hooks/chatService/useChatService', () => ({
   useChatService: () => ({
     clearRecalledComposerDraft: vi.fn(),
     editMessage: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('@/hooks/useChatService', () => ({
   }),
 }));
 
-vi.mock('@/hooks/useMessageAutoscroll', () => ({
+vi.mock('@/components/Chat/features/Messages/autoscroll/useMessageAutoscroll', () => ({
   useMessageAutoscroll: () => ({
     containerRef: { current: null },
     currentTurnTopSpacerHeight: 0,
@@ -132,7 +132,7 @@ vi.mock('@/components/Chat/features/Messages/MessageList', () => ({
   },
 }));
 
-vi.mock('@/components/Chat/layout/WelcomeScreen', () => ({
+vi.mock('@/components/Chat/features/Welcome/WelcomeScreen', () => ({
   WelcomeScreen: (props: Record<string, unknown>) => {
     mocks.welcomeProps(props);
     return <div data-testid="welcome-screen" />;
@@ -151,8 +151,8 @@ vi.mock('@/components/Chat/features/Temporary/TemporaryChatToggle', () => ({
 vi.mock('@/components/Chat/features/Temporary/useTemporaryTogglePresentation', () => ({
   useTemporaryTogglePresentation: () => ({ showInChatArea: true, showInTitleBar: false }),
 }));
-vi.mock('./ChatEmbeddedHeader', () => ({ ChatEmbeddedHeader: () => null }));
-vi.mock('./ChatEmbeddedSidebarOverlay', () => ({ ChatEmbeddedSidebarOverlay: () => null }));
+vi.mock('./features/Embedded/ChatEmbeddedHeader', () => ({ ChatEmbeddedHeader: () => null }));
+vi.mock('./features/Embedded/ChatEmbeddedSidebarOverlay', () => ({ ChatEmbeddedSidebarOverlay: () => null }));
 
 import { ChatView } from './ChatView';
 

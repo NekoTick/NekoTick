@@ -10,7 +10,7 @@ import {
   saveSessionJson,
   scheduleSessionJsonSave,
 } from '@/lib/storage/chatStorage';
-import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/components/Chat/common/messageClipboard';
+import { MAX_CHAT_MESSAGE_IMAGE_SOURCES } from '@/lib/ai/chatImageSourcePolicy';
 import { useUIStore } from '@/stores/uiSlice';
 
 vi.mock('@/lib/storage/chatStorage', () => ({

@@ -6,7 +6,7 @@ import { useAIUIStore } from '@/stores/ai/chatState';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { cn, iconButtonStyles } from '@/lib/utils';
 import { hasUserMessage } from '@/lib/ai/temporaryChat';
-import { useAutoTitle } from '@/hooks/useAutoTitle';
+import { useAutoTitle } from '@/hooks/chatService/useAutoTitle';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 

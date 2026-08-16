@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MAX_AUTO_TITLE_CHARS, buildAutoTitlePrompt, useAutoTitle } from './useAutoTitle';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { useUIStore } from '@/stores/uiSlice';
-import { sendMessageWithEndpointFallback } from './chatService/sendMessageWithEndpointFallback';
+import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
 import type { AIModel, Provider } from '@/lib/ai/types';
 import { APP_LANGUAGES, getMessages } from '@/lib/i18n';
 
@@ -43,7 +43,7 @@ vi.mock('@/lib/storage/assetStorage', () => ({
   scanGlobalIcons: mocked.scanGlobalIcons,
 }));
 
-vi.mock('./chatService/sendMessageWithEndpointFallback', () => ({
+vi.mock('./sendMessageWithEndpointFallback', () => ({
   sendMessageWithEndpointFallback: mocked.sendMessageWithEndpointFallback,
 }));
 
