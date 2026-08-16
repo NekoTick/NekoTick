@@ -55,11 +55,14 @@ describe('WhiteboardSurface', () => {
     expect(surface).not.toHaveClass('cursor-crosshair');
   });
 
-  it('forwards native double clicks for text editing', () => {
+  it('recognizes the second mouse down before selection DOM changes can cancel the double click', () => {
     const props = createProps();
     const { container } = render(<WhiteboardSurface {...props} />);
 
-    fireEvent.doubleClick(container.firstElementChild!);
+    fireEvent.mouseDown(container.firstElementChild!, { detail: 1 });
+    expect(props.onDoubleClick).not.toHaveBeenCalled();
+
+    fireEvent.mouseDown(container.firstElementChild!, { detail: 2 });
 
     expect(props.onDoubleClick).toHaveBeenCalledOnce();
   });

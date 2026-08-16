@@ -39,16 +39,17 @@ function renderToolbar(overrides: Partial<ComponentProps<typeof WhiteboardToolba
 }
 
 describe('WhiteboardToolbar', () => {
-  it('exposes standalone line, arrow, auto shape, and text tools', () => {
+  it('places the text tool between the brush and line tools', () => {
     const { container, onToolChange } = renderToolbar();
 
     const labels = within(container.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]')!)
       .getAllByRole('button')
       .map((button) => button.getAttribute('aria-label'));
+    expect(labels.indexOf('whiteboard.tool.pen')).toBeLessThan(labels.indexOf('whiteboard.tool.text'));
+    expect(labels.indexOf('whiteboard.tool.text')).toBeLessThan(labels.indexOf('whiteboard.tool.line'));
     expect(labels.indexOf('whiteboard.tool.line')).toBeLessThan(labels.indexOf('whiteboard.tool.arrow'));
     expect(labels.indexOf('whiteboard.tool.arrow')).toBeLessThan(labels.indexOf('whiteboard.tool.autoshape'));
-    expect(labels.indexOf('whiteboard.tool.autoshape')).toBeLessThan(labels.indexOf('whiteboard.tool.text'));
-    expect(labels.indexOf('whiteboard.tool.text')).toBeLessThan(labels.indexOf('whiteboard.addImage'));
+    expect(labels.indexOf('whiteboard.tool.autoshape')).toBeLessThan(labels.indexOf('whiteboard.addImage'));
 
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.line' }));
     fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.arrow' }));

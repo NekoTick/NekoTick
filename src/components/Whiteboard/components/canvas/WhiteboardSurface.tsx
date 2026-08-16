@@ -150,7 +150,9 @@ export function WhiteboardSurface({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onDoubleClick={onDoubleClick}
+      onMouseDownCapture={(event) => {
+        if (event.detail === 2) onDoubleClick(event);
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}
