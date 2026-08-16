@@ -209,9 +209,70 @@ describe('useGraphViewportController', () => {
       runFrames(1016);
     });
 
-    expect(hook.result.current.viewport.zoom).toBeCloseTo(
-      themeGraphTokens.minZoom * Math.exp(80 * 12 * themeGraphTokens.wheelZoomIntensity),
-    );
+    const targetZoom = themeGraphTokens.minZoom
+      * Math.exp(80 * 12 * themeGraphTokens.wheelZoomIntensity);
+    expect(hook.result.current.viewport.zoom).toBeGreaterThan(themeGraphTokens.minZoom);
+    expect(hook.result.current.viewport.zoom).toBeLessThan(targetZoom);
+
+    for (let now = 1032; frames.size > 0 && now < 2000; now += 16) {
+      act(() => runFrames(now));
+    }
+    expect(hook.result.current.viewport.zoom).toBeCloseTo(targetZoom);
+  });
+
+  it('continues a released pan with decaying inertia', () => {
+    const onViewportSettled = vi.fn();
+    const svgRef = { current: svg };
+    const hook = renderHook(() => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      onViewportSettled,
+      selectedPath: null,
+      svgRef,
+    }));
+    act(() => runFrames(1000));
+    act(() => hook.result.current.setViewport({ x: 20, y: 30, zoom: 1 }));
+    onViewportSettled.mockClear();
+
+    let started = false;
+    act(() => {
+      started = hook.result.current.startPanInertia({ x: 1, y: 0.5 });
+      runFrames(1016);
+    });
+
+    expect(started).toBe(true);
+    expect(hook.result.current.viewport.x).toBeGreaterThan(20);
+    expect(hook.result.current.viewport.y).toBeGreaterThan(30);
+    expect(onViewportSettled).not.toHaveBeenCalled();
+
+    for (let now = 1032; frames.size > 0 && now < 3000; now += 16) {
+      act(() => runFrames(now));
+    }
+    expect(frames.size).toBe(0);
+    expect(onViewportSettled).toHaveBeenCalledOnce();
+  });
+
+  it('stops pan inertia when another viewport interaction takes over', () => {
+    const svgRef = { current: svg };
+    const hook = renderHook(() => useGraphViewportController({
+      nodeKey: 'graph',
+      nodes: [{ id: 'Alpha.md', label: 'Alpha', degree: 0, x: 400, y: 300 }],
+      selectedPath: null,
+      svgRef,
+    }));
+    act(() => runFrames(1000));
+    act(() => {
+      hook.result.current.setViewport({ x: 20, y: 30, zoom: 1 });
+      hook.result.current.startPanInertia({ x: 1, y: 0 });
+      runFrames(1016);
+    });
+    const interruptedViewport = hook.result.current.viewport;
+
+    act(() => hook.result.current.cancelViewportWork());
+
+    expect(frames.size).toBe(0);
+    act(() => runFrames(1032));
+    expect(hook.result.current.viewport).toEqual(interruptedViewport);
   });
 
   it('notifies after wheel zoom settles so deferred scene work can catch up once', () => {
@@ -239,6 +300,11 @@ describe('useGraphViewportController', () => {
       } as never));
       act(() => runFrames(1016));
       expect(onViewportSettled).not.toHaveBeenCalled();
+
+      for (let now = 1032; frames.size > 0 && now < 2000; now += 16) {
+        act(() => runFrames(now));
+      }
+      expect(frames.size).toBe(0);
 
       act(() => vi.advanceTimersByTime(themeGraphTokens.wheelSettleDelayMs - 1));
       expect(onViewportSettled).not.toHaveBeenCalled();

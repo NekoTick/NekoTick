@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
   type RefObject,
-  type WheelEvent,
 } from 'react';
 import { themeGraphTokens } from '@/styles/themeTokens';
 import {
@@ -31,14 +30,7 @@ export function useGraphViewportController(args: {
   const nodesRef = useRef(args.nodes);
   const [viewport, setViewport] = useState(GRAPH_INITIAL_VIEWPORT);
   const viewportRef = useRef(viewport);
-  const pendingWheelRef = useRef<{
-    clientX: number;
-    clientY: number;
-    deltaY: number;
-  } | null>(null);
   const fitFrameRef = useRef<number | null>(null);
-  const wheelFrameRef = useRef<number | null>(null);
-  const wheelSettleTimeoutRef = useRef<number | null>(null);
   const previousCanvasSizeRef = useRef<GraphPoint | null>(null);
   const onViewportSettledRef = useRef(args.onViewportSettled);
   nodesRef.current = args.nodes;
@@ -50,33 +42,21 @@ export function useGraphViewportController(args: {
     fitFrameRef.current = null;
   }, []);
 
-  const cancelWheelSettle = useCallback(() => {
-    if (wheelSettleTimeoutRef.current !== null) {
-      window.clearTimeout(wheelSettleTimeoutRef.current);
-    }
-    wheelSettleTimeoutRef.current = null;
-  }, []);
-
-  const cancelWheelFrame = useCallback(() => {
-    if (wheelFrameRef.current !== null) window.cancelAnimationFrame(wheelFrameRef.current);
-    wheelFrameRef.current = null;
-    pendingWheelRef.current = null;
-    cancelWheelSettle();
-  }, [cancelWheelSettle]);
-
   const {
     animateViewportTo,
     canAnimate,
     cancelViewportAnimation,
     cancelViewportWork,
+    handleWheel,
     setViewportImmediately,
+    startPanInertia,
     viewportAnimationTargetRef,
   } = useGraphViewportAnimation({
     active: args.active !== false,
     cancelPendingFit,
-    cancelWheelFrame,
     onViewportSettledRef,
     setViewport,
+    svgRef: args.svgRef,
     viewportRef,
   });
 
@@ -236,54 +216,6 @@ export function useGraphViewportController(args: {
     cancelViewportAnimation,
   ]);
 
-  const handleWheel = useCallback((event: WheelEvent<SVGSVGElement>) => {
-    if (!canAnimate) return;
-    event.preventDefault();
-    cancelPendingFit();
-    cancelViewportAnimation();
-    cancelWheelSettle();
-    const deltaUnit = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-      ? themeGraphTokens.wheelLineHeightPx
-      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight : 1;
-    const normalizedDelta = Math.max(
-      -themeGraphTokens.wheelDeltaMaxPx,
-      Math.min(themeGraphTokens.wheelDeltaMaxPx, event.deltaY * deltaUnit),
-    );
-    const previous = pendingWheelRef.current;
-    pendingWheelRef.current = {
-      clientX: event.clientX,
-      clientY: event.clientY,
-      deltaY: (previous?.deltaY ?? 0) + normalizedDelta,
-    };
-    if (wheelFrameRef.current !== null) return;
-    wheelFrameRef.current = window.requestAnimationFrame(() => {
-      wheelFrameRef.current = null;
-      const pending = pendingWheelRef.current;
-      pendingWheelRef.current = null;
-      if (!pending) return;
-      const rect = args.svgRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const current = viewportRef.current;
-      const next = zoomGraphViewportAtPoint(
-        current,
-        { x: pending.clientX - rect.left, y: pending.clientY - rect.top },
-        current.zoom * Math.exp(-pending.deltaY * themeGraphTokens.wheelZoomIntensity),
-      );
-      viewportRef.current = next;
-      setViewport(next);
-      wheelSettleTimeoutRef.current = window.setTimeout(() => {
-        wheelSettleTimeoutRef.current = null;
-        onViewportSettledRef.current?.();
-      }, themeGraphTokens.wheelSettleDelayMs);
-    });
-  }, [
-    args.svgRef,
-    canAnimate,
-    cancelPendingFit,
-    cancelViewportAnimation,
-    cancelWheelSettle,
-  ]);
-
   return {
     cancelPendingFit,
     cancelViewportAnimation,
@@ -293,6 +225,7 @@ export function useGraphViewportController(args: {
     handleWheel,
     resetZoom,
     setViewport: setViewportImmediately,
+    startPanInertia,
     viewport,
     zoomIn,
     zoomOut,

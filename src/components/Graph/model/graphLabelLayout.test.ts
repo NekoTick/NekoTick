@@ -3,10 +3,10 @@ import type { PositionedGraphNode } from './graphLayout';
 import { layoutGraphLabels } from './graphLabelLayout';
 import {
   getGraphLabelBounds,
-  getGraphLabelWidth,
   getGraphNodeBounds,
-  GraphLabelBoundsIndex,
 } from './graphLabelGeometry';
+import { GraphLabelBoundsIndex } from './graphLabelBoundsIndex';
+import { getGraphLabelWidth } from './graphLabelMetrics';
 
 function node(id: string, x: number, y: number, degree = 1): PositionedGraphNode {
   return { id: `${id}.md`, label: id, degree, x, y };
@@ -101,6 +101,54 @@ describe('layoutGraphLabels', () => {
       getGraphLabelBounds(candidates[1]!, viewport, placement!),
       getGraphNodeBounds(obstacle, viewport),
     )).toBe(false);
+  });
+
+  it('uses a second ring of free space for every focused neighbor label', () => {
+    const nodes = [
+      node('Concept 12 Prototype', 184, 46, 5),
+      node('Concept 03 Outline', 72, 59),
+      node('Concept 13 Association', 206, 121),
+      node('Concept 17 Association', 293, 122),
+      node('Concept 09 Boundary', 124, 188, 2),
+      node('Concept 07 Constraint', 204, 193),
+    ];
+    const backgroundNodes = [
+      node('Background 1', 130, 78),
+      node('Background 2', 140, 119),
+      node('Background 3', 174, 174),
+      node('Background 4', 253, 198),
+      node('Background 5', 338, 195),
+      node('Background 6', 35, 148),
+      node('Background 7', 47, 220),
+    ];
+    const viewport = { x: 0, y: 0, zoom: 1 };
+    const placements = layoutGraphLabels(
+      nodes,
+      viewport,
+      [nodes[0]!.id],
+      { x: 429, y: 232 },
+      [...nodes, ...backgroundNodes],
+    );
+
+    expect(new Set(placements.keys())).toEqual(new Set(nodes.map((item) => item.id)));
+    const placedLabels = nodes.map((graphNode) => ({
+      bounds: getGraphLabelBounds(graphNode, viewport, placements.get(graphNode.id)!),
+      node: graphNode,
+    }));
+    for (let index = 0; index < placedLabels.length; index += 1) {
+      const label = placedLabels[index]!;
+      expect(label.bounds.left).toBeGreaterThanOrEqual(0);
+      expect(label.bounds.right).toBeLessThanOrEqual(429);
+      expect(label.bounds.top).toBeGreaterThanOrEqual(0);
+      expect(label.bounds.bottom).toBeLessThanOrEqual(232);
+      for (const obstacle of [...nodes, ...backgroundNodes]) {
+        if (obstacle.id === label.node.id) continue;
+        expect(intersects(label.bounds, getGraphNodeBounds(obstacle, viewport))).toBe(false);
+      }
+      for (let other = index + 1; other < placedLabels.length; other += 1) {
+        expect(intersects(label.bounds, placedLabels[other]!.bounds)).toBe(false);
+      }
+    }
   });
 
   it('keeps labels out of interactive overlay bounds', () => {

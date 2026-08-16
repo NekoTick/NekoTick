@@ -10,14 +10,23 @@ import {
 } from 'react';
 import { logDiagnostic } from '@/lib/diagnostics/diagnosticsLog';
 import { themeGraphTokens } from '@/styles/themeTokens';
+import {
+  createGraphPanVelocity,
+  getCurrentGraphPanVelocity,
+  sampleGraphPanVelocity,
+  type GraphPanVelocity,
+} from '../model/graphPanVelocity';
 import type { GraphViewport } from '../model/graphViewport';
 import type { GraphNodePosition } from '../store/useGraphUIStore';
 
 type DragState =
-  | { kind: 'pan'; moved: boolean; pointerId: number; pointerType: string; startClientX: number; startClientY: number; startViewport: GraphViewport }
+  | { kind: 'pan'; moved: boolean; pointerId: number; pointerType: string; startClientX: number; startClientY: number; startViewport: GraphViewport; velocity: GraphPanVelocity }
   | { kind: 'node'; id: string; moved: boolean; pointerId: number; pointerType: string; startedAt: number; startClientX: number; startClientY: number; startPosition: GraphNodePosition };
 
-export type GraphPointerInteractionResult = 'node' | 'viewport' | 'background';
+export type GraphPointerInteractionResult = 'node' | 'background' | {
+  kind: 'viewport';
+  velocity: { x: number; y: number };
+};
 
 interface GraphPointerInteractionOptions {
   onDragPosition: (id: string, position: GraphNodePosition) => void;
@@ -45,11 +54,18 @@ function getMovement(drag: DragState, clientX: number, clientY: number) {
   };
 }
 
+function getPointerEventTime(event: { timeStamp?: number }): number {
+  const { timeStamp } = event;
+  return typeof timeStamp === 'number' && Number.isFinite(timeStamp)
+    ? timeStamp
+    : performance.now();
+}
+
 export function useGraphPointerInteractions(options: GraphPointerInteractionOptions) {
   const optionsRef = useRef(options);
   const dragRef = useRef<DragState | null>(null);
   const viewportRef = useRef(options.viewport);
-  const pendingPointRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingPointRef = useRef<{ eventAt: number; x: number; y: number } | null>(null);
   const frameRef = useRef<number | null>(null);
   optionsRef.current = options;
   viewportRef.current = options.viewport;
@@ -63,12 +79,16 @@ export function useGraphPointerInteractions(options: GraphPointerInteractionOpti
     y: drag.startPosition.y + deltaY / viewportRef.current.zoom,
   }), []);
 
-  const applyPointerPoint = useCallback((clientX: number, clientY: number) => {
+  const applyPointerPoint = useCallback((clientX: number, clientY: number, eventAt: number) => {
     const drag = dragRef.current;
     if (!drag) return;
     const movement = getMovement(drag, clientX, clientY);
-    dragRef.current = { ...drag, moved: movement.moved };
     if (drag.kind === 'pan') {
+      dragRef.current = {
+        ...drag,
+        moved: movement.moved,
+        velocity: sampleGraphPanVelocity(drag.velocity, clientX, clientY, eventAt),
+      };
       optionsRef.current.setViewport({
         ...drag.startViewport,
         x: drag.startViewport.x + movement.deltaX,
@@ -76,6 +96,7 @@ export function useGraphPointerInteractions(options: GraphPointerInteractionOpti
       });
       return;
     }
+    dragRef.current = { ...drag, moved: movement.moved };
     if (!movement.moved) return;
     optionsRef.current.onDragPosition(
       drag.id,
@@ -87,13 +108,17 @@ export function useGraphPointerInteractions(options: GraphPointerInteractionOpti
     frameRef.current = null;
     const point = pendingPointRef.current;
     pendingPointRef.current = null;
-    if (point) applyPointerPoint(point.x, point.y);
+    if (point) applyPointerPoint(point.x, point.y, point.eventAt);
   }, [applyPointerPoint]);
 
   const handlePointerMove = useCallback((event: PointerEvent<SVGSVGElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    pendingPointRef.current = { x: event.clientX, y: event.clientY };
+    pendingPointRef.current = {
+      eventAt: getPointerEventTime(event),
+      x: event.clientX,
+      y: event.clientY,
+    };
     if (frameRef.current === null) {
       frameRef.current = window.requestAnimationFrame(flushPendingPoint);
     }
@@ -142,7 +167,15 @@ export function useGraphPointerInteractions(options: GraphPointerInteractionOpti
         x: drag.startViewport.x + movement.deltaX,
         y: drag.startViewport.y + movement.deltaY,
       });
-      return 'viewport';
+      const releasedAt = getPointerEventTime(event);
+      const releasedVelocity = drag.velocity.lastClientX === event.clientX
+        && drag.velocity.lastClientY === event.clientY
+        ? drag.velocity
+        : sampleGraphPanVelocity(drag.velocity, event.clientX, event.clientY, releasedAt);
+      return {
+        kind: 'viewport',
+        velocity: getCurrentGraphPanVelocity(releasedVelocity, releasedAt),
+      };
     }
     optionsRef.current.onSelectPath(null);
     return 'background';
@@ -196,6 +229,7 @@ export function useGraphPointerInteractions(options: GraphPointerInteractionOpti
     if (event.button !== 0 && event.button !== 1) return;
     if (dragRef.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    const eventAt = getPointerEventTime(event);
     dragRef.current = {
       kind: 'pan',
       moved: false,
@@ -204,6 +238,7 @@ export function useGraphPointerInteractions(options: GraphPointerInteractionOpti
       startClientX: event.clientX,
       startClientY: event.clientY,
       startViewport: viewportRef.current,
+      velocity: createGraphPanVelocity(event.clientX, event.clientY, eventAt),
     };
   }, []);
 

@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 import { themeGraphTokens } from '@/styles/themeTokens';
 import type { GraphNavigationDirection } from '../model/graphKeyboardNavigation';
-import type { GraphLabelPlacement } from '../model/graphLabelLayout';
+import type { GraphLabelPlacement } from '../model/graphLabelPlacement';
 import type { PositionedGraphNode } from '../model/graphLayout';
 import type { GraphNodePosition } from '../store/useGraphUIStore';
 

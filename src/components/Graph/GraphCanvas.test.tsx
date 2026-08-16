@@ -7,6 +7,7 @@ import {
   getGraphLabelExclusionBounds,
   GraphCanvasScene,
 } from './canvas/GraphCanvasScene';
+import { GraphLabelBoundsIndex } from './model/graphLabelBoundsIndex';
 import type { PositionedGraphNode, PositionedNoteGraph } from './model/graphLayout';
 
 vi.mock('@/components/ui/icons', () => ({
@@ -610,7 +611,7 @@ describe('GraphCanvas', () => {
     render(
       <svg>
         <GraphCanvasScene
-          currentPath={null}
+          currentPath="Gamma.md"
           dragPositionId={null}
           edges={graph.edges}
           focusablePath="Alpha.md"
@@ -626,6 +627,7 @@ describe('GraphCanvas', () => {
           onSelect={vi.fn()}
           onStartDrag={vi.fn()}
           selectedPath={null}
+          showAllLabels
           viewport={{ x: 0, y: 0, zoom: 0.5 }}
           viewportSize={{ x: 800, y: 600 }}
         />
@@ -635,6 +637,94 @@ describe('GraphCanvas', () => {
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('Beta')).toBeInTheDocument();
     expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+  });
+
+  it('shows only parent labels in a low-zoom all-notes overview', () => {
+    const intersectionArea = vi.spyOn(GraphLabelBoundsIndex.prototype, 'getIntersectionArea');
+    const parent = { id: 'Parent.md', label: 'Parent', degree: 20, x: 400, y: 300 };
+    const secondaryParent = {
+      id: 'Secondary Parent.md',
+      label: 'Secondary Parent',
+      degree: 3,
+      x: 400,
+      y: 100,
+    };
+    const children = Array.from({ length: 11 }, (_, index) => ({
+      id: `Child ${index}.md`,
+      label: `Child ${index}`,
+      degree: 1,
+      x: 100 + (index % 4) * 180,
+      y: 400 + Math.floor(index / 4) * 120,
+    }));
+    const nodes = [parent, secondaryParent, ...children];
+    const edges = children.map((child) => ({ source: parent, target: child }));
+
+    render(
+      <svg>
+        <GraphCanvasScene
+          currentPath={null}
+          dragPositionId={null}
+          edges={edges}
+          focusablePath="Parent.md"
+          hoveredPath={null}
+          labelLayoutRevision={0}
+          labelsReady
+          nodes={nodes}
+          onHoverChange={vi.fn()}
+          onFocusChange={vi.fn()}
+          onNavigate={vi.fn()}
+          onOpen={vi.fn()}
+          onPositionNudge={vi.fn()}
+          onSelect={vi.fn()}
+          onStartDrag={vi.fn()}
+          selectedPath={null}
+          showAllLabels
+          viewport={{ x: 0, y: 0, zoom: 0.4 }}
+          viewportSize={{ x: 800, y: 600 }}
+        />
+      </svg>,
+    );
+
+    expect(screen.getByText('Parent')).toBeInTheDocument();
+    expect(screen.getByText('Secondary Parent')).toBeInTheDocument();
+    for (const child of children) expect(screen.queryByText(child.label)).not.toBeInTheDocument();
+    expect(intersectionArea).not.toHaveBeenCalled();
+  });
+
+  it('shows every note label in the all-notes canvas even when nodes overlap', () => {
+    const intersectionArea = vi.spyOn(GraphLabelBoundsIndex.prototype, 'getIntersectionArea');
+    const nodes = Array.from({ length: 12 }, (_, index) => ({
+      id: `Note-${index}.md`,
+      label: `Note ${index}`,
+      degree: 0,
+      x: 200,
+      y: 150,
+    }));
+    const denseGraph: PositionedNoteGraph = {
+      edges: [],
+      focusNodeId: nodes[0]!.id,
+      nodes,
+    };
+    const positionOverrides = Object.fromEntries(nodes.map((item) => [
+      item.id,
+      { x: item.x, y: item.y },
+    ]));
+    const view = render(
+      <GraphCanvas
+        active={false}
+        graph={denseGraph}
+        positionOverrides={positionOverrides}
+        selectedPath={null}
+        onOpenPath={vi.fn()}
+        onPositionCommit={vi.fn()}
+        onPositionsCommit={vi.fn()}
+        onSelectPath={vi.fn()}
+      />,
+    );
+
+    expect(view.container.querySelectorAll('[data-graph-node-label="true"]'))
+      .toHaveLength(nodes.length);
+    expect(intersectionArea).not.toHaveBeenCalled();
   });
 
   it('limits context labels without dropping highlighted edges for a high-degree node', () => {
@@ -1090,6 +1180,8 @@ describe('GraphCanvas', () => {
 
     const canvas = screen.getByRole('group', { name: 'app.viewGraph' });
     const content = canvas.querySelector('g')!;
+    expect(content).toHaveClass('vlaina-graph-viewport');
+    expect(content.style.transform).toMatch(/^translate\(.+px, .+px\) scale\(.+\)$/);
     const before = content.getAttribute('transform');
     fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 20, pointerId: 2 });
     fireEvent.pointerMove(canvas, { clientX: 80, clientY: 60, pointerId: 2 });

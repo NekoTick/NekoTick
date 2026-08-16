@@ -12,10 +12,10 @@ import { useGraphPinchZoom } from './useGraphPinchZoom';
 import { useGraphPointerInteractions } from './useGraphPointerInteractions';
 
 interface ViewportController {
-  cancelPendingFit: () => void;
-  cancelViewportAnimation: () => void;
+  cancelViewportWork: () => void;
   getViewport: () => GraphViewport;
   setViewport: Dispatch<SetStateAction<GraphViewport>>;
+  startPanInertia: (velocity: { x: number; y: number }) => boolean;
   viewport: GraphViewport;
 }
 
@@ -36,10 +36,10 @@ export function useGraphCanvasPointerController(args: {
   viewportController: ViewportController;
 }) {
   const {
-    cancelPendingFit,
-    cancelViewportAnimation,
+    cancelViewportWork,
     getViewport,
     setViewport,
+    startPanInertia,
     viewport,
   } = args.viewportController;
   const pointer = useGraphPointerInteractions({
@@ -56,9 +56,8 @@ export function useGraphCanvasPointerController(args: {
 
   const beginUserAction = useCallback(() => {
     args.userPositionedViewportRef.current = true;
-    cancelPendingFit();
-    cancelViewportAnimation();
-  }, [args.userPositionedViewportRef, cancelPendingFit, cancelViewportAnimation]);
+    cancelViewportWork();
+  }, [args.userPositionedViewportRef, cancelViewportWork]);
 
   const pinch = useGraphPinchZoom({
     getViewport,
@@ -106,8 +105,16 @@ export function useGraphCanvasPointerController(args: {
     const draggedNodeId = pointer.getDraggedNodeId();
     const result = pointer.finishDrag(event);
     if (result) args.clearPointerHover(draggedNodeId);
-    if (result === 'viewport') args.onViewportSettled();
-  }, [args.clearPointerHover, args.onViewportSettled, pinch.handlePointerEnd, pointer]);
+    if (result && typeof result === 'object' && !startPanInertia(result.velocity)) {
+      args.onViewportSettled();
+    }
+  }, [
+    args.clearPointerHover,
+    args.onViewportSettled,
+    pinch.handlePointerEnd,
+    pointer,
+    startPanInertia,
+  ]);
 
   const cancelPointerInteraction = useCallback((event: PointerEvent<SVGSVGElement>) => {
     if (pinch.handlePointerCancel(event)) {

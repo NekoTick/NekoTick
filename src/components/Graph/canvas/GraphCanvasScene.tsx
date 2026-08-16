@@ -13,8 +13,15 @@ import {
 } from '../model/graphViewport';
 import { buildGraphEdgeIndex, type GraphEdgeIndex } from '../model/graphEdgeIndex';
 import type { GraphScreenBounds } from '../model/graphLabelGeometry';
+import {
+  getGraphLabelCandidates,
+  getGraphLabelPriorityIds,
+  getOverviewLabelNodes,
+  shouldUseFastAllLabelLayout,
+} from '../model/graphLabelCandidates';
 import type { GraphNavigationDirection } from '../model/graphKeyboardNavigation';
-import { layoutGraphLabels, type GraphLabelPlacement } from '../model/graphLabelLayout';
+import { layoutGraphLabels } from '../model/graphLabelLayout';
+import type { GraphLabelPlacement } from '../model/graphLabelPlacement';
 import type { PositionedGraphEdge, PositionedGraphNode } from '../model/graphLayout';
 import type { GraphNodePosition } from '../store/useGraphUIStore';
 import { themeGraphTokens } from '@/styles/themeTokens';
@@ -51,9 +58,11 @@ export function GraphCanvasScene(props: {
     <g
       role="listbox"
       aria-label={t('graph.nodesCount', { count: props.nodes.length })}
+      className="vlaina-graph-viewport"
       transform={`translate(${props.viewport.x} ${props.viewport.y}) scale(${props.viewport.zoom})`}
       style={{
         [themeGraphTokens.inverseZoomProperty]: 1 / props.viewport.zoom,
+        transform: `translate(${props.viewport.x}px, ${props.viewport.y}px) scale(${props.viewport.zoom})`,
       } as CSSProperties}
     >
       <GraphSceneContent
@@ -117,30 +126,48 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
   const connectedToHighlighted = highlightedPath
     ? props.edgeIndex.get(highlightedPath)?.neighborIds ?? EMPTY_NEIGHBORS
     : EMPTY_NEIGHBORS;
-  const labelPriorityIds = useMemo(
-    () => [...new Set([
-      activePath,
-      props.selectedPath,
-      props.currentPath,
-      ...(props.showAllLabels ? props.nodes.map((node) => node.id) : []),
-    ].filter((id): id is string => Boolean(id)))],
-    [activePath, props.currentPath, props.nodes, props.selectedPath, props.showAllLabels],
+  const overviewLabelNodes = useMemo(
+    () => props.showAllLabels && !highlightedPath
+      ? getOverviewLabelNodes(props.nodes, props.viewport.zoom)
+      : props.nodes,
+    [highlightedPath, props.nodes, props.showAllLabels, props.viewport.zoom],
   );
-  const labelPriorityIdSet = useMemo(
-    () => new Set(labelPriorityIds),
-    [labelPriorityIds],
+  const useFastAllLabelLayout = shouldUseFastAllLabelLayout(
+    props.showAllLabels,
+    highlightedPath,
+    props.nodes.length,
+  );
+  const labelPriorityIds = useMemo(
+    () => getGraphLabelPriorityIds({
+      activePath,
+      currentPath: props.currentPath,
+      highlightedPath,
+      overviewLabelNodes,
+      selectedPath: props.selectedPath,
+      showAllLabels: props.showAllLabels,
+      useFastAllLabelLayout,
+    }),
+    [
+      activePath,
+      props.currentPath,
+      highlightedPath,
+      overviewLabelNodes,
+      props.selectedPath,
+      props.showAllLabels,
+      useFastAllLabelLayout,
+    ],
   );
   const labelCandidates = useMemo(
-    () => highlightedPath
-      ? props.nodes.filter((node) => (
-        labelPriorityIdSet.has(node.id) || connectedToHighlighted.has(node.id)
-      ))
-      : props.nodes,
+    () => getGraphLabelCandidates({
+      connectedToHighlighted,
+      highlightedPath,
+      nodes: props.nodes,
+      overviewLabelNodes,
+    }),
     [
       connectedToHighlighted,
       highlightedPath,
-      labelPriorityIdSet,
-      props.nodes,
+      overviewLabelNodes,
     ],
   );
   const labelPlacements = useMemo(
@@ -153,6 +180,7 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
         props.nodes,
         getGraphLabelExclusionBounds(props.viewportSize, props.topOverlayVisible ?? false),
         props.maxVisibleLabels,
+        useFastAllLabelLayout,
       )
       : EMPTY_LABEL_PLACEMENTS,
     [
@@ -162,12 +190,14 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
       props.labelLayoutRevision,
       props.maxVisibleLabels,
       props.nodes,
+      props.showAllLabels,
       props.topOverlayVisible,
       props.viewport.x,
       props.viewport.y,
       props.viewport.zoom,
       props.viewportSize.x,
       props.viewportSize.y,
+      useFastAllLabelLayout,
     ],
   );
   return (
