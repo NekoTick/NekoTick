@@ -8,6 +8,7 @@ import {
   buildToolCallDedupeKey,
   parseToolArguments,
 } from './openAIToolLoopToolArgs';
+import { MAX_WEB_SEARCH_TOOL_CALL_CONCURRENCY } from './openAIToolLoopTypes';
 
 export function collectUniqueSearchResultUrls(
   status: WebSearchStatus,
@@ -77,21 +78,34 @@ export function buildAssistantToolMessage(result: {
   return message;
 }
 
-export async function runToolCallsSequentially(
+export async function runToolCallsWithConcurrency(
   toolCalls: OpenAIToolCall[],
   options: WebSearchToolRunnerOptions,
 ): Promise<OpenAIWireMessage[]> {
-  const contentByKey = new Map<string, string>();
-  const contents: string[] = [];
-  for (const toolCall of toolCalls) {
+  const contentByKey = new Map<string, Promise<string>>();
+  const contents = new Array<string>(toolCalls.length);
+  let nextIndex = 0;
+  const hasOneToolType = new Set(toolCalls.map((toolCall) => toolCall.function.name)).size <= 1;
+  const workerCount = hasOneToolType
+    ? Math.min(MAX_WEB_SEARCH_TOOL_CALL_CONCURRENCY, toolCalls.length)
+    : Math.min(1, toolCalls.length);
+
+  const runNext = async (): Promise<void> => {
+    const index = nextIndex;
+    nextIndex += 1;
+    if (index >= toolCalls.length) return;
+    const toolCall = toolCalls[index];
     const key = buildToolCallDedupeKey(toolCall);
     let content = contentByKey.get(key);
-    if (content === undefined) {
-      content = await runWebSearchToolCall(toolCall.function, options);
+    if (!content) {
+      content = runWebSearchToolCall(toolCall.function, options);
       contentByKey.set(key, content);
     }
-    contents.push(content);
-  }
+    contents[index] = await content;
+    await runNext();
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => runNext()));
 
   return toolCalls.map((toolCall, index) => ({
     role: 'tool',

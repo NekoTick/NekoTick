@@ -33,6 +33,7 @@ const config = {
   maxHttpErrorRate: readNumberEnv("PERF_MAX_HTTP_ERROR_RATE", 0.05, 0, 1),
   maxServerErrorRate: readNumberEnv("PERF_MAX_SERVER_ERROR_RATE", 0.01, 0, 1),
   p95BudgetMs: readIntegerEnv("PERF_P95_BUDGET_MS", 0, 0, 600_000),
+  p95TtftBudgetMs: readIntegerEnv("PERF_P95_TTFT_BUDGET_MS", 0, 0, 600_000),
   chatModelId: String(process.env.PERF_CHAT_MODEL_ID || "perf-model-000001").trim() || "perf-model-000001",
   chatStream: readBooleanEnv("PERF_CHAT_STREAM", false),
   json: readBooleanEnv("PERF_JSON", false),
@@ -111,6 +112,7 @@ async function runWorker({ workerId, deadline, collect, stats }) {
     const startedAt = performance.now();
     let status = 0;
     let bytes = 0;
+    let ttftMs = null;
     let errorName = "";
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -124,8 +126,22 @@ async function runWorker({ workerId, deadline, collect, stats }) {
       });
       scenarioRuntime.maybeUpdateSessionToken(request.sessionIndex, response.headers.get("x-app-session-token"));
       status = response.status;
-      const body = await response.arrayBuffer();
-      bytes = body.byteLength;
+      if (request.measureTtft && response.body) {
+        const reader = response.body.getReader();
+        let firstChunkSeen = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!firstChunkSeen && value.byteLength > 0) {
+            firstChunkSeen = true;
+            ttftMs = performance.now() - startedAt;
+          }
+          bytes += value.byteLength;
+        }
+      } else {
+        const body = await response.arrayBuffer();
+        bytes = body.byteLength;
+      }
     } catch (error) {
       errorName = formatFetchError(error);
     } finally {
@@ -139,6 +155,7 @@ async function runWorker({ workerId, deadline, collect, stats }) {
         status,
         bytes,
         latencyMs: performance.now() - startedAt,
+        ttftMs,
         errorName,
       });
     }

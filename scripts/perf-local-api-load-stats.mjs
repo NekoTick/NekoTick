@@ -65,6 +65,10 @@ class Metric {
     this.maxLatencyMs = 0;
     this.latencySamplesSeen = 0;
     this.latencies = [];
+    this.totalTtftMs = 0;
+    this.maxTtftMs = 0;
+    this.ttftSamplesSeen = 0;
+    this.ttfts = [];
     this.statusCounts = new Map();
   }
 
@@ -74,6 +78,11 @@ class Metric {
     this.totalLatencyMs += sample.latencyMs;
     this.maxLatencyMs = Math.max(this.maxLatencyMs, sample.latencyMs);
     this.recordLatency(sample.latencyMs);
+    if (typeof sample.ttftMs === "number" && Number.isFinite(sample.ttftMs) && sample.ttftMs >= 0) {
+      this.totalTtftMs += sample.ttftMs;
+      this.maxTtftMs = Math.max(this.maxTtftMs, sample.ttftMs);
+      this.recordTtft(sample.ttftMs);
+    }
 
     const statusKey = sample.status > 0 ? String(sample.status) : `ERR:${sample.errorName || "network"}`;
     this.statusCounts.set(statusKey, (this.statusCounts.get(statusKey) || 0) + 1);
@@ -101,8 +110,19 @@ class Metric {
     }
   }
 
+  recordTtft(value) {
+    this.ttftSamplesSeen += 1;
+    if (this.ttfts.length < this.maxLatencySamples) {
+      this.ttfts.push(value);
+      return;
+    }
+    const slot = Math.floor(Math.random() * this.ttftSamplesSeen);
+    if (slot < this.maxLatencySamples) this.ttfts[slot] = value;
+  }
+
   toSummary(elapsedSeconds) {
     const sorted = [...this.latencies].sort((left, right) => left - right);
+    const sortedTtft = [...this.ttfts].sort((left, right) => left - right);
     const requests = this.requests;
     const httpErrors = this.http4xx + this.http5xx;
     return {
@@ -120,6 +140,12 @@ class Metric {
       p95Ms: percentile(sorted, 95),
       p99Ms: percentile(sorted, 99),
       maxMs: round(this.maxLatencyMs),
+      ttftSamples: this.ttftSamplesSeen,
+      ttftAvgMs: this.ttftSamplesSeen > 0 ? round(this.totalTtftMs / this.ttftSamplesSeen) : 0,
+      ttftP50Ms: percentile(sortedTtft, 50),
+      ttftP95Ms: percentile(sortedTtft, 95),
+      ttftP99Ms: percentile(sortedTtft, 99),
+      ttftMaxMs: round(this.maxTtftMs),
       mbReceived: round(this.bytes / 1024 / 1024),
       sampledLatencies: sorted.length,
       latencySampled: this.latencySamplesSeen > sorted.length,
@@ -130,7 +156,7 @@ class Metric {
 export function printSummary(summary) {
   console.log("\nOverall");
   console.log(formatTable([
-    ["requests", "rps", "ok", "4xx", "5xx", "net err", "http err", "server err", "avg", "p50", "p90", "p95", "p99", "max", "MiB"],
+    ["requests", "rps", "ok", "4xx", "5xx", "net err", "http err", "server err", "avg", "p50", "p90", "p95", "p99", "max", "TTFT p50", "TTFT p95", "MiB"],
     [
       summary.overall.requests,
       summary.overall.rps,
@@ -146,13 +172,15 @@ export function printSummary(summary) {
       `${summary.overall.p95Ms}ms`,
       `${summary.overall.p99Ms}ms`,
       `${summary.overall.maxMs}ms`,
+      summary.overall.ttftSamples > 0 ? `${summary.overall.ttftP50Ms}ms` : "-",
+      summary.overall.ttftSamples > 0 ? `${summary.overall.ttftP95Ms}ms` : "-",
       summary.overall.mbReceived,
     ],
   ]));
 
   console.log("\nBy endpoint");
   console.log(formatTable([
-    ["endpoint", "requests", "rps", "ok", "4xx", "5xx", "net err", "p50", "p95", "p99", "max", "MiB"],
+    ["endpoint", "requests", "rps", "ok", "4xx", "5xx", "net err", "p50", "p95", "p99", "max", "TTFT p50", "TTFT p95", "MiB"],
     ...summary.endpoints.map((item) => [
       item.name,
       item.requests,
@@ -165,6 +193,8 @@ export function printSummary(summary) {
       `${item.p95Ms}ms`,
       `${item.p99Ms}ms`,
       `${item.maxMs}ms`,
+      item.ttftSamples > 0 ? `${item.ttftP50Ms}ms` : "-",
+      item.ttftSamples > 0 ? `${item.ttftP95Ms}ms` : "-",
       item.mbReceived,
     ]),
   ]));
@@ -210,6 +240,14 @@ export function violatesBudget(summary, config) {
   }
   if (config.p95BudgetMs > 0 && summary.overall.p95Ms > config.p95BudgetMs) {
     console.error(`p95 ${summary.overall.p95Ms}ms exceeded ${config.p95BudgetMs}ms.`);
+    return true;
+  }
+  if (
+    config.p95TtftBudgetMs > 0 &&
+    summary.overall.ttftSamples > 0 &&
+    summary.overall.ttftP95Ms > config.p95TtftBudgetMs
+  ) {
+    console.error(`TTFT p95 ${summary.overall.ttftP95Ms}ms exceeded ${config.p95TtftBudgetMs}ms.`);
     return true;
   }
   return false;

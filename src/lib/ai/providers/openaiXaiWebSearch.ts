@@ -3,7 +3,9 @@ import { parseHTTPError } from '../errors'
 import { providerFetch } from '../providerHttp'
 import { stringifyProviderJsonRequestBody } from '@/lib/ai/providerRequestBody'
 import { sanitizeWebSearchSourceUrl } from '@/lib/ai/webSearch/statusMarkup'
+import { consumeOpenAIStream } from '@/lib/ai/streaming'
 import {
+  createHtmlRejectingChunkHandler,
   emitApiTranscript,
   emitChunk,
   emitWebSearchStatus,
@@ -140,14 +142,15 @@ export async function sendXaiNativeWebSearchMessage({
     signal,
     { phase: 'searching', query: extractTextPrompt(body.messages[body.messages.length - 1]?.content ?? '') }
   )
-  const payload = await runWithOpenAIRequestTimeout(signal, timeoutMs, async (requestSignal) => {
+  const result = await runWithOpenAIRequestTimeout(signal, timeoutMs, async (requestSignal) => {
     const response = await providerFetch(`${baseUrl}/responses`, {
       method: 'POST',
-      headers,
+      headers: { ...headers, Accept: 'text/event-stream' },
       body: stringifyProviderJsonRequestBody({
         model: body.model,
         input: buildXaiResponsesInput(body.messages),
         tools: [{ type: 'web_search' }],
+        stream: true,
         ...buildChatCompletionOptions(options),
       }),
       signal: requestSignal,
@@ -164,14 +167,43 @@ export async function sendXaiNativeWebSearchMessage({
       throw parseHTTPError(response.status, errorBody)
     }
 
-    return await readResponseJson<Record<string, unknown>>(response, requestSignal)
+    if (response.headers.get('content-type')?.toLowerCase().includes('text/event-stream')) {
+      const citationUrls: string[] = []
+      let completedResponse: Record<string, unknown> | null = null
+      const content = await consumeOpenAIStream(
+        response,
+        createHtmlRejectingChunkHandler(onChunk, requestSignal),
+        {
+          signal: requestSignal,
+          onPayload: (payload) => {
+            collectXaiCitationUrlsFromValue(payload, citationUrls)
+            if (isRecord(payload.response)) {
+              completedResponse = payload.response
+              collectXaiCitationUrlsFromValue(payload.response, citationUrls)
+            }
+          },
+        },
+      )
+      return {
+        content: content || (completedResponse ? extractXaiResponsesText(completedResponse) : ''),
+        citationUrls: citationUrls.slice(0, 8),
+        emitted: content.length > 0,
+      }
+    }
+
+    const payload = await readResponseJson<Record<string, unknown>>(response, requestSignal)
+    return {
+      content: extractXaiResponsesText(payload),
+      citationUrls: extractXaiCitationUrls(payload),
+      emitted: false,
+    }
   })
   throwIfAborted(signal)
-  const content = rejectHtmlErrorContent(extractXaiResponsesText(payload))
+  const content = rejectHtmlErrorContent(result.content)
   if (!content.trim()) {
     throw new Error('The model completed web search but returned no visible answer.')
   }
-  const citationUrls = extractXaiCitationUrls(payload)
+  const citationUrls = result.citationUrls
   if (citationUrls.length > 0) {
     emitWebSearchStatus(options?.onWebSearchStatus, signal, {
       phase: 'results',
@@ -184,7 +216,9 @@ export async function sendXaiNativeWebSearchMessage({
       metrics: { successCount: citationUrls.length },
     })
   }
-  emitChunk(onChunk, signal, content)
+  if (!result.emitted) {
+    emitChunk(onChunk, signal, content)
+  }
   emitApiTranscript(options?.onApiTranscript, signal, [{ role: 'assistant', content }])
   return content
 }

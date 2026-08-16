@@ -28,6 +28,7 @@ const mocked = vi.hoisted(() => {
       managedAIState.lastBudgetSyncAt = Date.now();
     }),
     refreshBudget: vi.fn(async () => {}),
+    refreshBudgetIfStale: vi.fn(async () => {}),
   };
   return {
     saveSessionJson: vi.fn(async () => {}),
@@ -265,6 +266,7 @@ describe('useChatService session context isolation', () => {
     mocked.managedAIState.lastBudgetSyncAt = null;
     mocked.managedAIState.applyBudgetSnapshot.mockClear();
     mocked.managedAIState.refreshBudget.mockClear();
+    mocked.managedAIState.refreshBudgetIfStale.mockClear();
     mocked.convertToBase64.mockResolvedValue(TEMPORARY_IMAGE_DATA_URL);
     mocked.deleteAttachment.mockResolvedValue(undefined);
     mocked.deleteStoredAttachmentFile.mockResolvedValue(undefined);

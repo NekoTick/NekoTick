@@ -15,6 +15,7 @@ export function createScenarioRuntime(config, sessionTokens, selectedProfileName
       "session-budget": sessionEndpoints(true),
       budget: budgetEndpoints(),
       chat: chatEndpoints(),
+      "web-search": webSearchEndpoints(),
       analytics: adminAnalyticsEndpoints(),
       "analytics-ranges": adminAnalyticsEndpoints(),
       "analytics-page": adminAnalyticsPageEndpoints(),
@@ -54,7 +55,7 @@ export function createScenarioRuntime(config, sessionTokens, selectedProfileName
       ? (workerId + requestIndex) % config.sessionUsers
       : null;
     const headers = {
-      Accept: "application/json",
+      Accept: endpointConfig.accept || "application/json",
       "User-Agent": `vlaina-local-api-load/${selectedProfileName}`,
       "CF-Connecting-IP": ipFor(workerId, requestIndex),
     };
@@ -77,6 +78,7 @@ export function createScenarioRuntime(config, sessionTokens, selectedProfileName
       method,
       headers,
       body,
+      measureTtft: endpointConfig.measureTtft,
       sessionIndex,
       url: new URL(path, `${config.baseUrl}/`).toString(),
     };
@@ -108,10 +110,25 @@ export function createScenarioRuntime(config, sessionTokens, selectedProfileName
       endpoint("POST /v1/chat/completions", () => "/v1/chat/completions", 100, {
         session: true,
         method: "POST",
+        accept: config.chatStream ? "text/event-stream" : "application/json",
+        measureTtft: config.chatStream,
         bodyFactory: () => ({
           model: config.chatModelId,
           stream: config.chatStream,
           messages: [{ role: "user", content: "Return a short local performance test response." }],
+        }),
+      }),
+    ];
+  }
+
+  function webSearchEndpoints() {
+    return [
+      endpoint("POST /v1/web-search", () => "/v1/web-search", 100, {
+        session: true,
+        method: "POST",
+        bodyFactory: () => ({
+          action: "search",
+          query: "local performance test query",
         }),
       }),
     ];
@@ -221,6 +238,8 @@ function endpoint(name, pathFactory, weight, options = {}) {
     bodyFactory: typeof options.bodyFactory === "function" ? options.bodyFactory : null,
     admin: options.admin === true,
     session: options.session === true,
+    accept: typeof options.accept === "string" ? options.accept : null,
+    measureTtft: options.measureTtft === true,
   };
 }
 

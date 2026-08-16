@@ -9,5 +9,5 @@ export function refreshManagedBudgetIfNeeded(providerId: string): void {
   if (!useAccountSessionStore.getState().isConnected) {
     return;
   }
-  void useManagedAIStore.getState().refreshBudget().catch(() => undefined);
+  void useManagedAIStore.getState().refreshBudgetIfStale().catch(() => undefined);
 }

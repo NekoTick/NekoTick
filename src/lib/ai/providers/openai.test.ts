@@ -1620,6 +1620,7 @@ describe('OpenAICompatibleClient endpoint detection', () => {
       model: 'grok-4',
       input: [{ role: 'user', content: 'what is new with xai?' }],
       tools: [{ type: 'web_search' }],
+      stream: true,
     });
     expect(body.tools[0].function).toBeUndefined();
     expect(result).toBe('Grok answer with sources.');
@@ -1641,6 +1642,61 @@ describe('OpenAICompatibleClient endpoint detection', () => {
         metrics: { successCount: 2 },
       },
     ]);
+  });
+
+  it('emits xAI native web search text before the Responses stream completes', async () => {
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal('fetch', fetchMock);
+    const chunks: string[] = [];
+    const statuses: unknown[] = [];
+    let settled = false;
+
+    const request = new OpenAICompatibleClient().sendMessage(
+      'what is new with xai?',
+      [],
+      buildModel({ apiModelId: 'grok-4', name: 'Grok 4' }),
+      buildProvider({ name: 'xAI', apiHost: 'https://api.x.ai', endpointType: 'openai' }),
+      (chunk) => chunks.push(chunk),
+      undefined,
+      {
+        webSearchEnabled: true,
+        onWebSearchStatus: (status) => statuses.push(status),
+      },
+    );
+    request.finally(() => {
+      settled = true;
+    }).catch(() => undefined);
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    streamController!.enqueue(new TextEncoder().encode(
+      'data: {"type":"response.output_text.delta","delta":"First"}\n\n',
+    ));
+
+    await vi.waitFor(() => expect(chunks).toEqual(['First']));
+    expect(settled).toBe(false);
+
+    streamController!.enqueue(new TextEncoder().encode([
+      'data: {"type":"response.output_text.delta","delta":" answer."}',
+      'data: {"type":"response.completed","response":{"citations":["https://x.ai/news"]}}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n')));
+    streamController!.close();
+
+    await expect(request).resolves.toBe('First answer.');
+    expect(chunks).toEqual(['First', 'First answer.']);
+    expect(statuses).toEqual(expect.arrayContaining([
+      expect.objectContaining({ phase: 'complete', urls: ['https://x.ai/news'] }),
+    ]));
   });
 
   it('does not replay xAI native search when the model rejects web search input', async () => {

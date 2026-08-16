@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { runOpenAIWebSearchJsonToolLoop, runOpenAIWebSearchToolLoop } from './openAIToolLoop';
+import { runToolCallsWithConcurrency } from './openAIToolLoopToolRuntime';
 import { withSourceLinks } from './openAIToolLoopShared';
 import type { WebSearchClient } from './client';
 import type { WebSearchStatus } from './types';
@@ -72,6 +73,43 @@ function createClient(): WebSearchClient {
 }
 
 describe('structured web search loop', () => {
+  it('runs independent tool calls concurrently while preserving message order', async () => {
+    let releaseRequests: (() => void) | null = null;
+    const requestGate = new Promise<void>((resolve) => {
+      releaseRequests = resolve;
+    });
+    let activeRequests = 0;
+    let maxActiveRequests = 0;
+    const client = createClient();
+    client.webSearch = vi.fn(async (query) => {
+      activeRequests += 1;
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests);
+      await requestGate;
+      activeRequests -= 1;
+      return { query, results: [SEARCH_RESULT] };
+    });
+
+    const request = runToolCallsWithConcurrency([
+      {
+        id: 'search-first',
+        type: 'function',
+        function: { name: 'web_search', arguments: JSON.stringify({ query: 'first' }) },
+      },
+      {
+        id: 'search-second',
+        type: 'function',
+        function: { name: 'web_search', arguments: JSON.stringify({ query: 'second' }) },
+      },
+    ], { client });
+
+    await vi.waitFor(() => expect(client.webSearch).toHaveBeenCalledTimes(2));
+    expect(maxActiveRequests).toBe(2);
+    releaseRequests!();
+
+    const messages = await request;
+    expect(messages.map((message) => message.tool_call_id)).toEqual(['search-first', 'search-second']);
+  });
+
   it('searches, reads an allowed result, and returns plain assistant content', async () => {
     const client = createClient();
     const statuses: WebSearchStatus[] = [];

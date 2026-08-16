@@ -28,6 +28,7 @@ export interface StreamAccumulator {
 
 interface ConsumeOpenAIStreamOptions {
   onAssistantTranscriptMessage?: (message: ApiTranscriptMessage) => void
+  onPayload?: (payload: Record<string, unknown>) => void
   mapErrorPayload?: (message: string, code?: string) => Error | string
   signal?: AbortSignal
 }
@@ -225,6 +226,9 @@ export async function consumeOpenAIStream(
     if (!payload) {
       return
     }
+
+    options?.onPayload?.(payload)
+    throwIfAborted(options?.signal)
 
     const errorMessage = extractErrorMessage(payload)
     if (errorMessage) {
