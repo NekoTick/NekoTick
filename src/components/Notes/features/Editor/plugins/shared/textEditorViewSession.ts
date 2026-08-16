@@ -35,6 +35,7 @@ export function createTextEditorViewSession<
     refs,
     popupClassName,
     popupLayout = 'anchored',
+    deferConfigurePopup = false,
     placeholder,
     getEditorState,
     getStateRenderKey,
@@ -223,6 +224,7 @@ export function createTextEditorViewSession<
     const { textarea, cleanup } = mountTextEditorPopup({
       container,
       value,
+      deferConfigurePopup,
       placeholder,
       onResizeRequest: resizeTextareaToContent
         ? textareaResizeController.schedule

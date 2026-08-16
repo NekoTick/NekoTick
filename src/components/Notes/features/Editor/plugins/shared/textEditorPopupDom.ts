@@ -22,6 +22,7 @@ export interface MountedTextEditorPopupElements extends TextEditorPopupElements 
 export interface MountTextEditorPopupArgs {
   container: HTMLElement;
   value: string;
+  deferConfigurePopup?: boolean;
   placeholder?: string;
   onInput: (value: string) => void;
   onResizeRequest?: () => void;
@@ -121,6 +122,7 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): MountedTex
   const {
     container,
     value,
+    deferConfigurePopup = false,
     placeholder,
     onInput,
     onResizeRequest,
@@ -176,16 +178,66 @@ export function mountTextEditorPopup(args: MountTextEditorPopupArgs): MountedTex
 
   cancelButton.addEventListener('click', onCancel);
   saveButton.addEventListener('click', onSave);
-  const cleanup = configurePopup?.(elements, notifyInput);
   container.replaceChildren(card);
-  if (onResizeRequest) {
-    onResizeRequest();
+
+  const requestResize = () => {
+    if (onResizeRequest) {
+      onResizeRequest();
+    } else {
+      resizeTextEditorPopupTextareaToContent({ card, textarea });
+    }
+  };
+  let configureFrame: number | null = null;
+  let configureTimer: number | null = null;
+  let configureCleanup: (() => void) | null = null;
+  let isCleanedUp = false;
+  const runConfigurePopup = () => {
+    configureTimer = null;
+    if (isCleanedUp) return;
+    const restoreTextareaFocus = document.activeElement === textarea;
+    const selectionStart = textarea.selectionStart;
+    const selectionEnd = textarea.selectionEnd;
+    const selectionDirection = textarea.selectionDirection;
+    const cleanup = configurePopup?.(elements, notifyInput);
+    configureCleanup = typeof cleanup === 'function' ? cleanup : null;
+    if (restoreTextareaFocus) {
+      try {
+        textarea.focus({ preventScroll: true });
+      } catch {
+        textarea.focus();
+      }
+      textarea.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+    }
+    requestResize();
+  };
+
+  if (configurePopup && deferConfigurePopup && typeof window !== 'undefined') {
+    // Paint the lightweight editor surface before initializing heavy formula/diagram workspaces.
+    requestResize();
+    configureFrame = window.requestAnimationFrame(() => {
+      configureFrame = null;
+      configureTimer = window.setTimeout(runConfigurePopup, 0);
+    });
   } else {
-    resizeTextEditorPopupTextareaToContent({ card, textarea });
+    runConfigurePopup();
   }
 
   return {
     ...elements,
-    cleanup: typeof cleanup === 'function' ? cleanup : null,
+    cleanup: configurePopup
+      ? () => {
+        isCleanedUp = true;
+        if (configureFrame !== null) {
+          window.cancelAnimationFrame(configureFrame);
+          configureFrame = null;
+        }
+        if (configureTimer !== null) {
+          window.clearTimeout(configureTimer);
+          configureTimer = null;
+        }
+        configureCleanup?.();
+        configureCleanup = null;
+      }
+      : null,
   };
 }

@@ -41,6 +41,7 @@ export interface CreateTextEditorViewSessionArgs<
   refs: TRefs;
   popupClassName: string;
   popupLayout?: 'anchored' | 'viewport-centered';
+  deferConfigurePopup?: boolean;
   placeholder: string;
   getEditorState: () => TState | undefined;
   getStateRenderKey: (state: TState) => string;

@@ -220,6 +220,81 @@ describe('textEditorPopupDom', () => {
     expect(onInput).toHaveBeenCalledWith('configured');
   });
 
+  it('mounts the base popup before deferred specialized setup runs', () => {
+    vi.useFakeTimers();
+    const frameCallbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      frameCallbacks.push(callback);
+      return frameCallbacks.length;
+    });
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const container = document.createElement('div');
+    document.body.append(container);
+    const configurePopup = vi.fn((elements: {
+      content: HTMLElement;
+      textarea: HTMLTextAreaElement;
+    }) => {
+      const workspace = document.createElement('div');
+      workspace.className = 'specialized-workspace';
+      workspace.append(elements.textarea);
+      elements.content.prepend(workspace);
+    });
+
+    const { cleanup } = mountTextEditorPopup({
+      container,
+      value: 'draft',
+      deferConfigurePopup: true,
+      onInput: vi.fn(),
+      onCancel: vi.fn(),
+      onSave: vi.fn(),
+      configurePopup,
+    });
+
+    expect(container.querySelector('.text-editor-card')).not.toBeNull();
+    expect(configurePopup).not.toHaveBeenCalled();
+    const textarea = container.querySelector('textarea')!;
+    textarea.focus();
+    textarea.setSelectionRange(2, 4);
+
+    frameCallbacks[0]?.(0);
+    expect(configurePopup).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(0);
+
+    expect(configurePopup).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.specialized-workspace')).not.toBeNull();
+    expect(document.activeElement).toBe(textarea);
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([2, 4]);
+    cleanup?.();
+    container.remove();
+  });
+
+  it('cancels deferred specialized setup when the popup closes immediately', () => {
+    vi.useFakeTimers();
+    const requestAnimationFrame = vi.fn(() => 1);
+    const cancelAnimationFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame);
+    vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrame);
+    const container = document.createElement('div');
+    const configurePopup = vi.fn();
+
+    const { cleanup } = mountTextEditorPopup({
+      container,
+      value: 'draft',
+      deferConfigurePopup: true,
+      onInput: vi.fn(),
+      onCancel: vi.fn(),
+      onSave: vi.fn(),
+      configurePopup,
+    });
+
+    cleanup?.();
+    vi.advanceTimersByTime(0);
+
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
+    expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
+    expect(configurePopup).not.toHaveBeenCalled();
+  });
+
   it('blocks image clipboard companion text in Mermaid, math, and HTML text popups', () => {
     const container = document.createElement('div');
     document.body.appendChild(container);

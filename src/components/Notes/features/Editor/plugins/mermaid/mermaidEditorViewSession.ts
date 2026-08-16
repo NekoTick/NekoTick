@@ -33,6 +33,7 @@ export function createMermaidEditorViewSession(args: {
     refs,
     popupClassName: 'text-editor-popup math-editor-popup text-editor-workspace-popup mermaid-editor-popup',
     popupLayout: 'viewport-centered',
+    deferConfigurePopup: true,
     placeholder: translate('editor.mermaidPlaceholder'),
     getEditorState: () =>
       mermaidEditorPluginKey.getState(editorView.state) as MermaidEditorState | undefined,
