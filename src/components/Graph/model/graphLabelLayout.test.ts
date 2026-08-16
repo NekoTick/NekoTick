@@ -83,6 +83,40 @@ describe('layoutGraphLabels', () => {
     }
   });
 
+  it('keeps the fast large-graph layout collision free', () => {
+    const nodes = Array.from({ length: 80 }, (_, index) => (
+      node(
+        `Dense ${index}`,
+        100 + (index % 10) * 28,
+        100 + Math.floor(index / 10) * 24,
+        index,
+      )
+    ));
+    const viewport = { x: 0, y: 0, zoom: 0.7 };
+    const placements = layoutGraphLabels(
+      nodes,
+      viewport,
+      [],
+      { x: 500, y: 400 },
+      nodes,
+      [],
+      Number.POSITIVE_INFINITY,
+      true,
+    );
+    const labels = [...placements].map(([id, placement]) => ({
+      bounds: getGraphLabelBounds(nodes.find((item) => item.id === id)!, viewport, placement),
+      id,
+    }));
+
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.length).toBeLessThan(nodes.length);
+    for (let left = 0; left < labels.length; left += 1) {
+      for (let right = left + 1; right < labels.length; right += 1) {
+        expect(intersects(labels[left]!.bounds, labels[right]!.bounds)).toBe(false);
+      }
+    }
+  });
+
   it('keeps focused labels clear of nodes outside the focused neighborhood', () => {
     const candidates = [node('A', 100, 100), node('B', 160, 100)];
     const obstacle = node('C', 185, 100);

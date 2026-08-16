@@ -18,8 +18,8 @@ vi.mock('@/lib/desktop/window', () => ({
   },
 }));
 
-vi.mock('@/stores/accountSession', () => ({
-  useAccountSessionStore: () => ({
+vi.mock('@/stores/accountSession', () => {
+  const state = {
     isConnecting: false,
     error: null,
     signIn: vi.fn(),
@@ -27,8 +27,11 @@ vi.mock('@/stores/accountSession', () => ({
     verifyEmailCode: vi.fn().mockResolvedValue(true),
     cancelConnect: vi.fn(),
     clearError: vi.fn(),
-  }),
-}));
+  };
+  return {
+    useAccountSessionStore: (selector: (accountState: typeof state) => unknown) => selector(state),
+  };
+});
 
 describe('AccountLoginDialog', () => {
   beforeEach(() => {

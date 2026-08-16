@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useAIStore } from '@/stores/useAIStore';
+import { actions as aiActions, useAICustomSystemPrompt } from '@/stores/useAIStore';
 import { SettingsTextarea } from '@/components/Settings/components/SettingsFields';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { cn } from '@/lib/utils';
@@ -10,10 +10,8 @@ const SYSTEM_PROMPT_MAX_LENGTH = 4000;
 
 export function AIBehaviorSettings() {
   const { t } = useI18n();
-  const {
-    customSystemPrompt,
-    setCustomSystemPrompt,
-  } = useAIStore();
+  const customSystemPrompt = useAICustomSystemPrompt();
+  const { setCustomSystemPrompt } = aiActions;
   const [draftSystemPrompt, setDraftSystemPrompt] = useState(customSystemPrompt);
   const isEditingPromptRef = useRef(false);
   const isComposingPromptRef = useRef(false);

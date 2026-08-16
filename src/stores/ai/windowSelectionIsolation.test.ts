@@ -257,6 +257,37 @@ describe('chat window selection isolation', () => {
     unmount();
   });
 
+  it('does not rerender runtime selection effects for message-only updates', async () => {
+    let renderCount = 0;
+    let hook:
+      | { unmount: () => void }
+      | undefined;
+
+    await act(async () => {
+      hook = renderHook(() => {
+        renderCount += 1;
+        useAIStoreRuntimeEffects();
+      });
+    });
+    const settledRenderCount = renderCount;
+    const originalMessages = useUnifiedStore.getState().data.ai?.messages ?? {};
+
+    await act(async () => {
+      useUnifiedStore.getState().updateAIData({
+        messages: {
+          ...originalMessages,
+          'session-1': [{
+            ...((originalMessages['session-1'] || [])[0] as ChatMessage),
+            content: 'stream update',
+          }],
+        },
+      }, true);
+    });
+
+    expect(renderCount).toBe(settledRenderCount);
+    hook?.unmount();
+  });
+
   it('initializes regular windows from the persisted last chat session first', async () => {
     seedStores({
       currentSessionId: 'session-1',

@@ -134,7 +134,12 @@ function AutoFitIdentityText({ value }: { value: string }) {
 }
 
 export const UserIdentityCard: React.FC<UserIdentityCardProps> = ({ onLogout, onSwitchAccount }) => {
-  const { username, primaryEmail, isConnected, provider, membershipTier, membershipName } = useAccountSessionStore();
+  const username = useAccountSessionStore((state) => state.username);
+  const primaryEmail = useAccountSessionStore((state) => state.primaryEmail);
+  const isConnected = useAccountSessionStore((state) => state.isConnected);
+  const provider = useAccountSessionStore((state) => state.provider);
+  const membershipTier = useAccountSessionStore((state) => state.membershipTier);
+  const membershipName = useAccountSessionStore((state) => state.membershipName);
   const { t } = useI18n();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 

@@ -25,7 +25,7 @@ interface RecentNotesRootsListProps {
 
 export function RecentNotesRootsList({ notesRoots, onOpen }: RecentNotesRootsListProps) {
   const { t } = useI18n();
-  const { removeFromRecent } = useNotesRootStore();
+  const removeFromRecent = useNotesRootStore((state) => state.removeFromRecent);
 
   const handleRemove = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

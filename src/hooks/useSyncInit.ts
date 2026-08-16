@@ -8,7 +8,6 @@ export function useSyncInit() {
   const checkStatus = useAccountSessionStore((state) => state.checkStatus);
   const handleAuthCallback = useAccountSessionStore((state) => state.handleAuthCallback);
   const isConnected = useAccountSessionStore((state) => state.isConnected);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const authHandledRef = useRef(false);
 
   useEffect(() => {
@@ -38,22 +37,41 @@ export function useSyncInit() {
   }, [checkStatus]);
 
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (!isConnected) {
+      return;
     }
 
-    if (isConnected) {
-      intervalRef.current = setInterval(() => {
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const stopStatusPolling = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+    const startStatusPolling = () => {
+      if (intervalId !== null || document.visibilityState !== 'visible') {
+        return;
+      }
+
+      intervalId = setInterval(() => {
         void checkStatus().catch(() => undefined);
       }, TOKEN_CHECK_INTERVAL);
-    }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void checkStatus().catch(() => undefined);
+        startStatusPolling();
+      } else {
+        stopStatusPolling();
+      }
+    };
+
+    startStatusPolling();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      stopStatusPolling();
     };
   }, [isConnected, checkStatus]);
 }

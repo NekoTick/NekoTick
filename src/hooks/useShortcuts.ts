@@ -41,18 +41,16 @@ export function useShortcuts(options: UseShortcutsOptions = {}) {
   const { scope = 'global', handlers: extraHandlers = {} } = options;
   const shortcutTargetRef = useRef<EventTarget | null>(null);
   const modifierKeyHeldRef = useRef(false);
-  const {
-    toggleDrawer,
-    appViewMode,
-    toggleAppViewMode,
-    toggleSidebar,
-    notesSidebarView,
-    setNotesSidebarView,
-    fontSize,
-    setFontSizePreview,
-    setFontSize,
-    resetFontSize,
-  } = useAppUIStore();
+  const toggleDrawer = useAppUIStore((state) => state.toggleDrawer);
+  const appViewMode = useAppUIStore((state) => state.appViewMode);
+  const toggleAppViewMode = useAppUIStore((state) => state.toggleAppViewMode);
+  const toggleSidebar = useAppUIStore((state) => state.toggleSidebar);
+  const notesSidebarView = useAppUIStore((state) => state.notesSidebarView);
+  const setNotesSidebarView = useAppUIStore((state) => state.setNotesSidebarView);
+  const fontSize = useAppUIStore((state) => state.fontSize);
+  const setFontSizePreview = useAppUIStore((state) => state.setFontSizePreview);
+  const setFontSize = useAppUIStore((state) => state.setFontSize);
+  const resetFontSize = useAppUIStore((state) => state.resetFontSize);
   const pendingFontSizeCommitTimerRef = useRef<number | null>(null);
   const pendingFontSizeCommitRef = useRef(fontSize);
   const cancelScheduledFontSizeCommit = useCallback(() => {

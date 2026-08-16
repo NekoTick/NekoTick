@@ -24,11 +24,20 @@ export { createAIChatSession } from './ai/chatState'
 export { startAIStoreRuntimeEffects } from './ai/runtimeEffectsStart'
 
 export function useAIStoreRuntimeEffects(): void {
-  const aiData = useUnifiedStore(s => s.data.ai);
+  const aiSessions = useUnifiedStore(s => s.data.ai?.sessions || EMPTY_AI_ARRAY);
+  const aiCurrentSessionId = useUnifiedStore(s => s.data.ai?.currentSessionId ?? null);
+  const aiTemporaryChatEnabled = useUnifiedStore(s => s.data.ai?.temporaryChatEnabled === true);
+  const aiUnreadSessionIds = useUnifiedStore(s => s.data.ai?.unreadSessionIds || EMPTY_AI_ARRAY);
   const lastChatSessionId = useUnifiedStore(s => s.data.settings.ui?.lastChatSessionId);
   const loaded = useUnifiedStore(s => s.loaded);
   const load = useUnifiedStore(s => s.load);
-  const uiState = useAIUIStore();
+  const selectionInitialized = useAIUIStore((state) => state.selectionInitialized);
+  const selectedSessionId = useAIUIStore((state) => state.currentSessionId);
+  const temporaryChatEnabled = useAIUIStore((state) => state.temporaryChatEnabled);
+  const initializeSelection = useAIUIStore((state) => state.initializeSelection);
+  const setTemporaryChatEnabled = useAIUIStore((state) => state.setTemporaryChatEnabled);
+  const setCurrentSessionId = useAIUIStore((state) => state.setCurrentSessionId);
+  const markSessionRead = useAIUIStore((state) => state.markSessionRead);
   const accountConnected = useAccountSessionStore((s) => s.isConnected);
   const launchContextRef = useRef(readWindowLaunchContext());
   const suppressStartupAIPersistRef = useRef((() => {
@@ -37,96 +46,100 @@ export function useAIStoreRuntimeEffects(): void {
   })());
 
   useEffect(() => {
-    if (!loaded || uiState.selectionInitialized) {
+    if (!loaded || selectionInitialized) {
       return;
     }
 
     const launchContext = launchContextRef.current;
     if (launchContext.isNewWindow && launchContext.viewMode === 'chat') {
       const requestedSessionId = launchContext.chatSessionId;
-      const currentSessionId = requestedSessionId && aiData?.sessions.some((session) => session.id === requestedSessionId)
+      const currentSessionId = requestedSessionId && aiSessions.some((session) => session.id === requestedSessionId)
         ? requestedSessionId
         : null;
-      uiState.initializeSelection({ currentSessionId, temporaryChatEnabled: false });
+      initializeSelection({ currentSessionId, temporaryChatEnabled: false });
       if (currentSessionId) {
         void actions.switchSession(currentSessionId).catch(() => undefined);
       }
       return;
     }
 
-    const currentSessionId = resolveRestoredChatSessionId(aiData, lastChatSessionId);
-    uiState.initializeSelection({
+    const currentSessionId = resolveRestoredChatSessionId(
+      { sessions: aiSessions, currentSessionId: aiCurrentSessionId },
+      lastChatSessionId,
+    );
+    initializeSelection({
       currentSessionId,
-      temporaryChatEnabled: !!aiData?.temporaryChatEnabled,
+      temporaryChatEnabled: aiTemporaryChatEnabled,
     });
-    if (currentSessionId && !aiData?.temporaryChatEnabled) {
+    if (currentSessionId && !aiTemporaryChatEnabled) {
       void actions.switchSession(currentSessionId).catch(() => undefined);
     }
   }, [
-    aiData?.currentSessionId,
-    aiData?.sessions,
-    aiData?.temporaryChatEnabled,
+    aiCurrentSessionId,
+    aiSessions,
+    aiTemporaryChatEnabled,
+    initializeSelection,
     lastChatSessionId,
     loaded,
-    uiState,
+    selectionInitialized,
   ]);
 
   useEffect(() => {
-    if (!loaded || !uiState.selectionInitialized || !uiState.temporaryChatEnabled) {
+    if (!loaded || !selectionInitialized || !temporaryChatEnabled) {
       return;
     }
 
-    const currentSessionId = uiState.currentSessionId;
-    const currentSession = currentSessionId
-      ? aiData?.sessions.find((session) => session.id === currentSessionId)
+    const currentSession = selectedSessionId
+      ? aiSessions.find((session) => session.id === selectedSessionId)
       : null;
     const hasActiveTemporarySession =
-      isTemporarySessionId(currentSessionId) || isTemporarySession(currentSession);
+      isTemporarySessionId(selectedSessionId) || isTemporarySession(currentSession);
 
     if (hasActiveTemporarySession) {
       return;
     }
 
-    uiState.setTemporaryChatEnabled(false);
+    setTemporaryChatEnabled(false);
   }, [
-    aiData?.sessions,
+    aiSessions,
     loaded,
-    uiState,
+    selectedSessionId,
+    selectionInitialized,
+    setTemporaryChatEnabled,
+    temporaryChatEnabled,
   ]);
 
   useEffect(() => {
-    if (!loaded || !uiState.selectionInitialized) {
+    if (!loaded || !selectionInitialized) {
       return;
     }
 
-    const currentSessionId = uiState.currentSessionId;
-    if (!currentSessionId || isTemporarySessionId(currentSessionId)) {
+    if (!selectedSessionId || isTemporarySessionId(selectedSessionId)) {
       return;
     }
 
-    if (aiData?.sessions.some((session) => session.id === currentSessionId)) {
+    if (aiSessions.some((session) => session.id === selectedSessionId)) {
       return;
     }
 
-    uiState.setCurrentSessionId(null);
-  }, [aiData?.sessions, loaded, uiState]);
+    setCurrentSessionId(null);
+  }, [aiSessions, loaded, selectedSessionId, selectionInitialized, setCurrentSessionId]);
 
   useEffect(() => {
-    if (!loaded || !uiState.selectionInitialized) {
+    if (!loaded || !selectionInitialized) {
       return;
     }
 
-    const currentSessionId = uiState.currentSessionId;
-    if (!currentSessionId) {
+    if (!selectedSessionId) {
       return;
     }
 
-    if (!(aiData?.unreadSessionIds || []).includes(currentSessionId)) {
+    if (!aiUnreadSessionIds.includes(selectedSessionId)) {
       return;
     }
 
-    uiState.markSessionRead(currentSessionId);
-  }, [aiData?.unreadSessionIds, loaded, uiState]);
+    markSessionRead(selectedSessionId);
+  }, [aiUnreadSessionIds, loaded, markSessionRead, selectedSessionId, selectionInitialized]);
 
   useEffect(() => {
     if (!loaded) {
@@ -190,6 +203,21 @@ export function useAIStoreRuntimeEffects(): void {
 }
 
 export { actions } from './ai/providerActions'
+
+export const useAIProviders = () =>
+  useUnifiedStore(s => s.data.ai?.providers || EMPTY_AI_ARRAY)
+
+export const useAIModels = () =>
+  useUnifiedStore(s => s.data.ai?.models || EMPTY_AI_ARRAY)
+
+export const useAIBenchmarkResults = () =>
+  useUnifiedStore(s => s.data.ai?.benchmarkResults || EMPTY_AI_RECORD)
+
+export const useAIFetchedModels = () =>
+  useUnifiedStore(s => s.data.ai?.fetchedModels || EMPTY_AI_RECORD)
+
+export const useAICustomSystemPrompt = () =>
+  useUnifiedStore(s => s.data.ai?.customSystemPrompt || '')
 
 export const useAIStore = () => {
   const aiData = useUnifiedStore(s => s.data.ai);

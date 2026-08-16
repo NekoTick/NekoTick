@@ -6,8 +6,10 @@ import { RecentNotesRootsList } from './components/RecentNotesRootsList';
 import './NotesRootWelcome.css';
 
 export function NotesRootWelcome() {
-  const { initialize, recentNotesRoots, openNotesRoot, isLoading } =
-    useNotesRootStore();
+  const initialize = useNotesRootStore((state) => state.initialize);
+  const recentNotesRoots = useNotesRootStore((state) => state.recentNotesRoots);
+  const openNotesRoot = useNotesRootStore((state) => state.openNotesRoot);
+  const isLoading = useNotesRootStore((state) => state.isLoading);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {

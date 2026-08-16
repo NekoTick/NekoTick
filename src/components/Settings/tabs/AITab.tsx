@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useAIStore } from '@/stores/useAIStore';
+import { actions as aiActions, useAIModels, useAIProviders } from '@/stores/useAIStore';
 import { ProviderDetail } from './ai/ProviderDetail';
 import { AIBehaviorSettings } from './ai/AIBehaviorSettings';
 import { MANAGED_PROVIDER_ID } from '@/lib/ai/managedService';
@@ -12,7 +12,9 @@ import { SETTINGS_BEFORE_CLOSE_EVENT } from '../settingsEvents';
 
 export function AITab() {
   const { t } = useI18n();
-  const { providers, models, addProvider, updateProvider, deleteProvider, reorderCustomProviders } = useAIStore();
+  const providers = useAIProviders();
+  const models = useAIModels();
+  const { addProvider, updateProvider, deleteProvider, reorderCustomProviders } = aiActions;
   const customProviders = useMemo(
     () => providers.filter((provider) => provider.id !== MANAGED_PROVIDER_ID),
     [providers]

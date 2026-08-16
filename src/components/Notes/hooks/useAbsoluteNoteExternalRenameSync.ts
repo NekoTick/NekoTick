@@ -172,20 +172,35 @@ export function useAbsoluteNoteExternalRenameSync(currentNotePath: string | unde
     };
 
     const startPollingSync = () => {
-      if (pollingTimer !== null) {
-        return;
-      }
+      const ensurePollingTimer = () => {
+        if (pollingTimer !== null || document.visibilityState !== 'visible') {
+          return;
+        }
+        pollingTimer = window.setInterval(syncCurrentAbsoluteNote, BROAD_ABSOLUTE_NOTE_SYNC_POLL_MS);
+      };
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          ensurePollingTimer();
+          syncCurrentAbsoluteNote();
+        } else if (pollingTimer !== null) {
+          window.clearInterval(pollingTimer);
+          pollingTimer = null;
+        }
+      };
 
-      pollingTimer = window.setInterval(syncCurrentAbsoluteNote, BROAD_ABSOLUTE_NOTE_SYNC_POLL_MS);
+      ensurePollingTimer();
       window.addEventListener('focus', syncCurrentAbsoluteNote);
-      document.addEventListener('visibilitychange', syncCurrentAbsoluteNote);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+
+    let stopPollingSync: (() => void) | null = null;
 
     const run = async () => {
       void reconcileExternalPathEventFile();
 
       if (shouldAvoidNativeAbsoluteNoteWatch(watchedParentPath)) {
-        startPollingSync();
+        stopPollingSync = startPollingSync();
         return;
       }
 
@@ -234,7 +249,7 @@ export function useAbsoluteNoteExternalRenameSync(currentNotePath: string | unde
         unwatch = stopWatching;
       } catch {
         if (!disposed) {
-          startPollingSync();
+          stopPollingSync = startPollingSync();
         }
       }
     };
@@ -248,7 +263,7 @@ export function useAbsoluteNoteExternalRenameSync(currentNotePath: string | unde
         pollingTimer = null;
       }
       window.removeEventListener('focus', syncCurrentAbsoluteNote);
-      document.removeEventListener('visibilitychange', syncCurrentAbsoluteNote);
+      stopPollingSync?.();
       unsubscribeRenameBroadcast();
       void unwatch?.().catch(() => undefined);
     };

@@ -71,7 +71,7 @@ export function useImageActions({
     updateNodeAttrs, markImageUserInput, setCropParams, setIsActive, setHeight
 }: UseImageActionsProps) {
     const { t } = useI18n();
-    const { addToast } = useToastStore();
+    const addToast = useToastStore((state) => state.addToast);
     const [isSaving, setIsSaving] = useState(false);
     const nodeSrc = typeof node.attrs.src === 'string' ? node.attrs.src : '';
     const nodeAlt = typeof node.attrs.alt === 'string' ? node.attrs.alt : '';

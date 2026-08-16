@@ -552,4 +552,25 @@ describe('OverlayScrollArea', () => {
 
     expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the resize observer while virtualized children rerender', () => {
+    const { rerender } = render(
+      <div style={{ height: 120 }}>
+        <OverlayScrollArea>
+          <div style={{ height: 240 }}>first content</div>
+        </OverlayScrollArea>
+      </div>
+    );
+
+    expect(ResizeObserverMock.instances).toHaveLength(1);
+    rerender(
+      <div style={{ height: 120 }}>
+        <OverlayScrollArea>
+          <div style={{ height: 480 }}>updated content</div>
+        </OverlayScrollArea>
+      </div>
+    );
+
+    expect(ResizeObserverMock.instances).toHaveLength(1);
+  });
 });

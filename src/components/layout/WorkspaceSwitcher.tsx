@@ -23,7 +23,10 @@ interface WorkspaceSwitcherProps {
 }
 
 const WorkspaceSwitcherBase = ({ onOpenSettings, className }: WorkspaceSwitcherProps) => {
-  const { isConnected, username, primaryEmail, signOut } = useAccountSessionStore();
+  const isConnected = useAccountSessionStore((state) => state.isConnected);
+  const username = useAccountSessionStore((state) => state.username);
+  const primaryEmail = useAccountSessionStore((state) => state.primaryEmail);
+  const signOut = useAccountSessionStore((state) => state.signOut);
   const authPromptSessionId = useAIUIStore((state) => state.authPromptSessionId);
   const currentSessionId = useAIUIStore((state) => state.currentSessionId);
   const temporaryChatEnabled = useAIUIStore((state) => state.temporaryChatEnabled);

@@ -17,7 +17,8 @@ vi.mock('@/lib/i18n', () => ({
 }));
 
 vi.mock('@/stores/useToastStore', () => ({
-  useToastStore: () => ({ addToast: mocks.addToast }),
+  useToastStore: (selector: (state: { addToast: typeof mocks.addToast }) => unknown) =>
+    selector({ addToast: mocks.addToast }),
 }));
 
 function renderToolbar(overrides: Partial<Parameters<typeof ImageToolbar>[0]> = {}) {

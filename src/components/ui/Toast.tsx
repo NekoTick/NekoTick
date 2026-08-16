@@ -37,7 +37,8 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
 }
 
 export function ToastContainer() {
-  const { toasts, removeToast } = useToastStore();
+  const toasts = useToastStore((state) => state.toasts);
+  const removeToast = useToastStore((state) => state.removeToast);
   
   return (
     <div className="fixed bottom-4 right-4 z-[var(--vlaina-z-max)] flex max-w-[var(--vlaina-width-toast-stack-max)] flex-col gap-2 pointer-events-none">

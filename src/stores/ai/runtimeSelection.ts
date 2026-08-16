@@ -1,7 +1,10 @@
-import type { useUnifiedStore } from '../unified/useUnifiedStore';
+interface RestorableChatSelectionState {
+  sessions?: Array<{ id: string }>;
+  currentSessionId?: string | null;
+}
 
 export function resolveRestoredChatSessionId(
-  aiData: ReturnType<typeof useUnifiedStore.getState>['data']['ai'],
+  aiData: RestorableChatSelectionState | null | undefined,
   lastChatSessionId: string | null | undefined,
 ): string | null {
   const sessions = aiData?.sessions || [];

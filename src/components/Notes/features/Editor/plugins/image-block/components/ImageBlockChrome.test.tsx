@@ -11,7 +11,8 @@ vi.mock('@/lib/i18n', () => ({
 }));
 
 vi.mock('@/stores/useToastStore', () => ({
-  useToastStore: () => ({ addToast: vi.fn() }),
+  useToastStore: (selector: (state: { addToast: () => void }) => unknown) =>
+    selector({ addToast: vi.fn() }),
 }));
 
 function renderChrome(overrides: Partial<Parameters<typeof ImageBlockChrome>[0]> = {}) {

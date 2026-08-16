@@ -16,8 +16,13 @@ interface AccountLoginDialogProps {
 }
 
 export function AccountLoginDialog({ open, onOpenChange }: AccountLoginDialogProps) {
-  const { isConnecting, error, signIn, requestEmailCode, verifyEmailCode, cancelConnect, clearError } =
-    useAccountSessionStore();
+  const isConnecting = useAccountSessionStore((state) => state.isConnecting);
+  const error = useAccountSessionStore((state) => state.error);
+  const signIn = useAccountSessionStore((state) => state.signIn);
+  const requestEmailCode = useAccountSessionStore((state) => state.requestEmailCode);
+  const verifyEmailCode = useAccountSessionStore((state) => state.verifyEmailCode);
+  const cancelConnect = useAccountSessionStore((state) => state.cancelConnect);
+  const clearError = useAccountSessionStore((state) => state.clearError);
   const { t } = useI18n();
   const closeButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const openFocusTimeoutRef = React.useRef<number | null>(null);

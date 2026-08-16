@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useAIStore } from '@/stores/useAIStore';
+import {
+  actions as aiActions,
+  useAIBenchmarkResults,
+  useAIFetchedModels,
+  useAIModels,
+} from '@/stores/useAIStore';
 import { useAccountSessionStore } from '@/stores/accountSession';
 import { Provider } from '@/lib/ai/types';
 import { MANAGED_PROVIDER_ID } from '@/lib/ai/managedService';
@@ -32,27 +37,25 @@ export function ProviderDetail({
   onDraftClear,
 }: ProviderDetailProps) {
   const { t } = useI18n();
+  const models = useAIModels();
+  const benchmarkResults = useAIBenchmarkResults();
+  const persistedFetchedModels = useAIFetchedModels();
   const {
     updateProvider,
-    models,
-    benchmarkResults,
-    fetchedModels: persistedFetchedModels,
     addModel,
     addModels,
     deleteModel,
     refreshManagedProvider,
     setProviderBenchmarkResults,
     setProviderFetchedModels,
-  } = useAIStore();
-  const {
-    isConnected,
-    isConnecting,
-    error: authError,
-    signIn,
-    requestEmailCode,
-    verifyEmailCode,
-    signOut,
-  } = useAccountSessionStore();
+  } = aiActions;
+  const isConnected = useAccountSessionStore((state) => state.isConnected);
+  const isConnecting = useAccountSessionStore((state) => state.isConnecting);
+  const authError = useAccountSessionStore((state) => state.error);
+  const signIn = useAccountSessionStore((state) => state.signIn);
+  const requestEmailCode = useAccountSessionStore((state) => state.requestEmailCode);
+  const verifyEmailCode = useAccountSessionStore((state) => state.verifyEmailCode);
+  const signOut = useAccountSessionStore((state) => state.signOut);
 
   const [modelQuery, setModelQuery] = useState('');
   const [quickAddModelId, setQuickAddModelId] = useState('');

@@ -1,4 +1,4 @@
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { useAccountSessionStore } from '@/stores/accountSession';
 import { initialAccountSessionState } from '@/stores/accountSession/state';
@@ -55,5 +55,26 @@ describe('useUserAvatar', () => {
     const { result } = renderHook(() => useUserAvatar());
 
     expect(result.current).toBeNull();
+  });
+
+  it('does not rerender for unrelated account status changes', () => {
+    useAccountSessionStore.setState({
+      ...initialAccountSessionState,
+      provider: 'google',
+      avatarUrl: 'https://lh3.googleusercontent.com/avatar',
+    });
+    let renderCount = 0;
+    const { result } = renderHook(() => {
+      renderCount += 1;
+      return useUserAvatar();
+    });
+    const initialRenderCount = renderCount;
+
+    act(() => {
+      useAccountSessionStore.setState({ isLoading: false, hasCheckedStatus: true });
+    });
+
+    expect(renderCount).toBe(initialRenderCount);
+    expect(result.current).toBe('https://lh3.googleusercontent.com/avatar');
   });
 });

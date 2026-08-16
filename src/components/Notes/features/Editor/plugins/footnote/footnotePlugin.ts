@@ -30,6 +30,12 @@ import {
   transactionMayInsertFootnote,
   transactionTouchesFootnoteContext,
 } from './footnoteTransactionContext';
+import {
+  FOOTNOTE_TOOLTIP_POSITIONED_CLASS,
+  installFootnoteTooltipPositioning,
+  resolveFootnoteRef,
+  syncFootnoteTooltipPosition,
+} from './footnoteTooltipPosition';
 import type { FootnoteDefAttrs, FootnoteRefAttrs } from './types';
 
 export const footnoteInteractionPluginKey = new PluginKey('footnoteInteraction');
@@ -37,31 +43,12 @@ export {
   handleEmptyFootnoteDefinitionDelete,
   handleFootnoteArrowNavigation,
   handleFootnoteModEnterExit, hasNonBlankFootnoteRefInputPrefix, MAX_FOOTNOTE_PREVIEW_SOURCE_TEXT_CHARS, MAX_FOOTNOTE_REF_INPUT_PREFIX_CHECK_CHARS, readBoundedFootnotePreviewSource,
-  syncFootnoteReferencePreviews,
+  FOOTNOTE_TOOLTIP_POSITIONED_CLASS, resolveFootnoteRef, syncFootnoteReferencePreviews, syncFootnoteTooltipPosition,
   transactionTouchesFootnoteContext
 };
 
 interface FootnoteInteractionPluginState {
   hasFootnotes: boolean;
-}
-
-export const FOOTNOTE_TOOLTIP_POSITIONED_CLASS = 'editor-footnote-tooltip-positioned';
-const FOOTNOTE_TOOLTIP_LEFT_STYLE = '--vlaina-footnote-tooltip-left';
-const FOOTNOTE_TOOLTIP_TOP_STYLE = '--vlaina-footnote-tooltip-top';
-
-export function syncFootnoteTooltipPosition(ref: HTMLElement): void {
-  const rect = ref.getBoundingClientRect();
-  if (rect.width <= 0 && rect.height <= 0) return;
-
-  ref.style.setProperty(FOOTNOTE_TOOLTIP_LEFT_STYLE, `${rect.left + rect.width / 2}px`);
-  ref.style.setProperty(FOOTNOTE_TOOLTIP_TOP_STYLE, `${rect.top}px`);
-  ref.classList.add(FOOTNOTE_TOOLTIP_POSITIONED_CLASS);
-}
-
-function resolveFootnoteRef(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof Element)) return null;
-  const ref = target.closest('.footnote-ref[data-id], .footnote-ref[data-label]');
-  return ref instanceof HTMLElement ? ref : null;
 }
 
 function findFootnoteDefinition(editorDom: HTMLElement, id: string): HTMLElement | null {
@@ -100,27 +87,8 @@ export const footnoteInteractionPlugin = $prose(() => {
       },
     },
     view(view) {
-      let activeRef: HTMLElement | null = null;
       const editorDom = view.dom;
-      const ownerWindow = editorDom.ownerDocument.defaultView;
-      const syncActiveRef = () => {
-        if (activeRef && editorDom.contains(activeRef)) {
-          syncFootnoteTooltipPosition(activeRef);
-        }
-      };
-      const handlePointerOver = (event: Event) => {
-        activeRef = resolveFootnoteRef(event.target);
-        if (activeRef) syncFootnoteTooltipPosition(activeRef);
-      };
-      const handleFocusIn = (event: Event) => {
-        activeRef = resolveFootnoteRef(event.target);
-        if (activeRef) syncFootnoteTooltipPosition(activeRef);
-      };
-      editorDom.addEventListener('mouseover', handlePointerOver);
-      editorDom.addEventListener('focusin', handleFocusIn);
-      editorDom.addEventListener('scroll', syncActiveRef, true);
-      ownerWindow?.addEventListener('scroll', syncActiveRef, true);
-      ownerWindow?.addEventListener('resize', syncActiveRef);
+      const tooltipPositioning = installFootnoteTooltipPositioning(editorDom);
 
       let lastSyncedDoc: object | null = null;
       let lastSyncedState: FootnoteInteractionPluginState | null = null;
@@ -132,7 +100,7 @@ export const footnoteInteractionPlugin = $prose(() => {
       }
       return {
         update(nextView) {
-          if (activeRef && !nextView.dom.contains(activeRef)) activeRef = null;
+          tooltipPositioning.prune();
           const pluginState = footnoteInteractionPluginKey.getState(nextView.state) ?? null;
           if (!pluginState?.hasFootnotes) {
             lastSyncedDoc = null;
@@ -147,11 +115,7 @@ export const footnoteInteractionPlugin = $prose(() => {
           lastSyncedState = pluginState;
         },
         destroy() {
-          editorDom.removeEventListener('mouseover', handlePointerOver);
-          editorDom.removeEventListener('focusin', handleFocusIn);
-          editorDom.removeEventListener('scroll', syncActiveRef, true);
-          ownerWindow?.removeEventListener('scroll', syncActiveRef, true);
-          ownerWindow?.removeEventListener('resize', syncActiveRef);
+          tooltipPositioning.destroy();
         },
       };
     },

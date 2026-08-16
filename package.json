@@ -40,7 +40,7 @@
     "test:e2e:smoke": "node scripts/ensure-not-wsl.mjs test:e2e:smoke && playwright test -c playwright.e2e.config.ts test/e2e/app.layoutSmoke.spec.ts test/e2e/sidebar.hoverPrefetch.spec.ts",
     "test:e2e:notes": "node scripts/ensure-not-wsl.mjs test:e2e:notes && playwright test -c playwright.e2e.config.ts test/e2e/notes.*.spec.ts",
     "test:e2e:chat": "node scripts/ensure-not-wsl.mjs test:e2e:chat && playwright test -c playwright.e2e.config.ts test/e2e/chat.*.spec.ts",
-    "test:e2e:settings": "node scripts/ensure-not-wsl.mjs test:e2e:settings && playwright test -c playwright.e2e.config.ts test/e2e/settings.aiChannelReorder.spec.ts test/e2e/preferences.multiWindow.spec.ts",
+    "test:e2e:settings": "node scripts/ensure-not-wsl.mjs test:e2e:settings && playwright test -c playwright.e2e.config.ts test/e2e/settings.aiChannelReorder.spec.ts test/e2e/preferences.multiWindow.spec.ts test/e2e/settings.performance.spec.ts",
     "perf:seed:local": "node api/scripts/perf-seed-local.mjs",
     "perf:api:local": "node scripts/perf-local-api-load.mjs",
     "preview": "node scripts/ensure-not-wsl.mjs preview && vite preview",

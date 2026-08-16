@@ -9,10 +9,10 @@ const aiStoreMock = vi.hoisted(() => ({
 }));
 
 vi.mock('@/stores/useAIStore', () => ({
-  useAIStore: () => ({
-    customSystemPrompt: aiStoreMock.customSystemPrompt,
+  useAICustomSystemPrompt: () => aiStoreMock.customSystemPrompt,
+  actions: {
     setCustomSystemPrompt: aiStoreMock.setCustomSystemPrompt,
-  }),
+  },
 }));
 
 vi.mock('@/lib/i18n', () => ({

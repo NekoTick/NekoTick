@@ -320,6 +320,32 @@ describe('useNotesExternalSync', () => {
     hoisted.notesState.notesPath = '/notesRoot';
   });
 
+  it('pauses broad-path polling while the document is hidden', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    hoisted.notesState.notesPath = '/home/user';
+    const hook = renderHook(() => useNotesExternalSync('/home/user', '/home/user'));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    hoisted.notesState.syncCurrentNoteFromDisk.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(hoisted.notesState.syncCurrentNoteFromDisk).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(hoisted.notesState.syncCurrentNoteFromDisk).toHaveBeenCalled();
+
+    hook.unmount();
+    hoisted.notesState.notesPath = '/notesRoot';
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  });
+
   it('falls back to polling when native watch startup fails unexpectedly', async () => {
     hoisted.watchDesktopPath.mockRejectedValueOnce(new Error('Permission denied'));
     const hook = renderHook(() => useNotesExternalSync('/notesRoot', '/notesRoot'));

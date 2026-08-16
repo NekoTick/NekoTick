@@ -423,4 +423,31 @@ describe('useAbsoluteNoteExternalRenameSync', () => {
 
     hook.unmount();
   });
+
+  it('pauses fallback polling while the document is hidden', async () => {
+    vi.useFakeTimers();
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    const hook = renderHook(() => useAbsoluteNoteExternalRenameSync('/home/user/current.md'));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    hoisted.notesState.syncCurrentNoteFromDisk.mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(hoisted.notesState.syncCurrentNoteFromDisk).not.toHaveBeenCalled();
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(hoisted.notesState.syncCurrentNoteFromDisk).toHaveBeenCalledWith({ force: true });
+
+    hook.unmount();
+    vi.useRealTimers();
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+  });
 });

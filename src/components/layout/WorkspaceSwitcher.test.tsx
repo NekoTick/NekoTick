@@ -13,14 +13,17 @@ const hoisted = vi.hoisted(() => {
   return { aiState };
 });
 
-vi.mock('@/stores/accountSession', () => ({
-  useAccountSessionStore: () => ({
+vi.mock('@/stores/accountSession', () => {
+  const state = {
     isConnected: false,
     username: null,
     primaryEmail: null,
     signOut: vi.fn(),
-  }),
-}));
+  };
+  return {
+    useAccountSessionStore: (selector: (accountState: typeof state) => unknown) => selector(state),
+  };
+});
 
 vi.mock('@/stores/useAIStore', () => ({ actions: { promoteTemporarySession: vi.fn() } }));
 vi.mock('@/stores/ai/chatState', () => ({

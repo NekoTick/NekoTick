@@ -36,7 +36,8 @@ test('keeps live AutoDraw responsive during a dense stroke', async () => {
     await page.mouse.up();
 
     await expect(board.locator('[data-whiteboard-stroke]')).toHaveCount(1);
-    await expect(board.locator('[data-whiteboard-selection-move-target="true"]')).toBeVisible();
+    await expect(board.locator('[data-whiteboard-autodraw-suggestions="true"]')).toBeVisible();
+    await expect(board.getByRole('button', { name: /^(Auto shape|自动形状)$/ })).toHaveAttribute('aria-pressed', 'true');
     const metrics = await stopMainThreadFrameProbe(page, '__whiteboardAutoDrawFrameProbe');
     console.info('whiteboard live AutoDraw frame metrics', metrics);
 

@@ -101,10 +101,11 @@ export function useNativeCaretOverlay(): void {
 
     const schedule = () => {
       const activeElement = doc.activeElement;
-      if (
-        isTextControl(activeElement) &&
-        activeElement.matches('[data-native-caret-overlay-disabled="true"]')
-      ) {
+      if (!isTextControl(activeElement)) {
+        if (caret) hide();
+        return;
+      }
+      if (activeElement.matches('[readonly], [disabled], [data-native-caret-overlay-disabled="true"]')) {
         if (frameId !== null) {
           window.cancelAnimationFrame(frameId);
           frameId = null;

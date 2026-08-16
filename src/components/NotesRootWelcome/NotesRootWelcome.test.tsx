@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
       { id: 'notes-root-1', name: 'Alpha NotesRoot', path: '/notes-roots/alpha' },
     ],
     openNotesRoot: vi.fn().mockResolvedValue(true),
+    removeFromRecent: vi.fn().mockResolvedValue(undefined),
     isLoading: false,
   },
   windowState: {
@@ -19,7 +20,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/stores/useNotesRootStore', () => ({
-  useNotesRootStore: () => mocks.notesRootState,
+  useNotesRootStore: (selector?: (state: typeof mocks.notesRootState) => unknown) =>
+    selector ? selector(mocks.notesRootState) : mocks.notesRootState,
 }));
 
 vi.mock('@/lib/desktop/window', () => ({

@@ -15,7 +15,10 @@ interface CreateNotesRootModalProps {
 
 export function CreateNotesRootModal({ isOpen, onClose }: CreateNotesRootModalProps) {
   const { t } = useI18n();
-  const { createNotesRoot, isLoading, error, clearError } = useNotesRootStore();
+  const createNotesRoot = useNotesRootStore((state) => state.createNotesRoot);
+  const isLoading = useNotesRootStore((state) => state.isLoading);
+  const error = useNotesRootStore((state) => state.error);
+  const clearError = useNotesRootStore((state) => state.clearError);
   const [name, setName] = useState('');
   const [parentPath, setParentPath] = useState('');
   const pathInputRef = useRef<HTMLInputElement>(null);

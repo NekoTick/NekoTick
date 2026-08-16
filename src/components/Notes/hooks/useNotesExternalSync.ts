@@ -65,6 +65,7 @@ export function useNotesExternalSync(notesRootPath: string | null, notesPath: st
     let unwatch: (() => Promise<void>) | null = null;
     let releaseWatcher: (() => void) | null = null;
     let reconcilePollTimer: number | null = null;
+    let reconcilePollConfig: { intervalMs: number; skipTreeSnapshot: boolean } | null = null;
     const eventFileStartedAt = Date.now();
     const unsubscribeRenameBroadcast = subscribeNotesExternalPathRename(
       notesPath,
@@ -137,12 +138,32 @@ export function useNotesExternalSync(notesRootPath: string | null, notesPath: st
       }
     };
 
+    const ensureReconcilePolling = () => {
+      if (
+        reconcilePollTimer !== null
+        || !reconcilePollConfig
+        || document.visibilityState !== 'visible'
+      ) {
+        return;
+      }
+
+      const { intervalMs, skipTreeSnapshot } = reconcilePollConfig;
+      reconcilePollTimer = window.setInterval(() => {
+        if (document.visibilityState !== 'visible') {
+          stopReconcilePolling();
+          return;
+        }
+        void reconcileExternalPathEventFile();
+        void syncActions.runPollingReconcile({ skipTreeSnapshot });
+      }, intervalMs);
+    };
+
     const startReconcilePolling = (options?: {
       intervalMs?: number;
       skipTreeSnapshot?: boolean;
       immediate?: boolean;
     }) => {
-      if (reconcilePollTimer !== null) {
+      if (reconcilePollConfig !== null) {
         return;
       }
 
@@ -153,20 +174,19 @@ export function useNotesExternalSync(notesRootPath: string | null, notesPath: st
           ? BROAD_PATH_RECONCILE_POLL_MS
           : NOTES_RECONCILE_POLL_MS
       );
-      reconcilePollTimer = window.setInterval(() => {
-        if (document.visibilityState !== 'visible') {
-          return;
-        }
-        void reconcileExternalPathEventFile();
-        void syncActions.runPollingReconcile({ skipTreeSnapshot });
-      }, reconcilePollMs);
-      if (options?.immediate !== false) {
+      reconcilePollConfig = { intervalMs: reconcilePollMs, skipTreeSnapshot };
+      ensureReconcilePolling();
+      if (options?.immediate !== false && document.visibilityState === 'visible') {
         void reconcileExternalPathEventFile();
         void syncActions.runPollingReconcile({ skipTreeSnapshot });
       }
     };
 
     const reconcileOnFocus = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      ensureReconcilePolling();
       void reconcileExternalPathEventFile();
       void syncActions.runPollingReconcile({
         skipTreeSnapshot: shouldAvoidRecursiveNativeWatch(notesPath),
@@ -175,10 +195,13 @@ export function useNotesExternalSync(notesRootPath: string | null, notesPath: st
 
     const reconcileOnVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        ensureReconcilePolling();
         void reconcileExternalPathEventFile();
         void syncActions.runPollingReconcile({
           skipTreeSnapshot: shouldAvoidRecursiveNativeWatch(notesPath),
         });
+      } else {
+        stopReconcilePolling();
       }
     };
 
@@ -230,6 +253,7 @@ export function useNotesExternalSync(notesRootPath: string | null, notesPath: st
       window.removeEventListener('focus', reconcileOnFocus);
       document.removeEventListener('visibilitychange', reconcileOnVisibilityChange);
       stopReconcilePolling();
+      reconcilePollConfig = null;
       unsubscribeRenameBroadcast();
       syncActions.clearTimers();
       void unwatch?.().catch(() => undefined);

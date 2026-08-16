@@ -205,6 +205,19 @@ describe('useNativeCaretOverlay', () => {
     hook.unmount();
   });
 
+  it('does not schedule global scroll refreshes without an editable text control', () => {
+    const hook = renderHook(() => useNativeCaretOverlay());
+    requestAnimationFrameSpy.mockClear();
+
+    act(() => {
+      document.dispatchEvent(new Event('scroll'));
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
   it('leaves opted-out textareas on the native caret', () => {
     const textarea = document.createElement('textarea');
     textarea.setAttribute('data-native-caret-overlay-disabled', 'true');

@@ -11,14 +11,14 @@ const aiStoreMock = vi.hoisted(() => ({
 }));
 
 vi.mock('@/stores/useAIStore', () => ({
-  useAIStore: () => ({
-    providers: aiStoreMock.providers,
-    models: [],
+  useAIProviders: () => aiStoreMock.providers,
+  useAIModels: () => [],
+  actions: {
     addProvider: aiStoreMock.addProvider,
     updateProvider: vi.fn(),
     deleteProvider: vi.fn(),
     reorderCustomProviders: vi.fn(),
-  }),
+  },
 }));
 
 vi.mock('./ai/AIBehaviorSettings', () => ({

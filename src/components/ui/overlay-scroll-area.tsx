@@ -17,6 +17,7 @@ import {
   useOverlayScrollInteraction,
   useOverlayScrollbarDrag,
 } from './overlayScrollAreaHooks';
+import { observeOverlayScrollAreaContent } from './overlayScrollAreaResizeObserver';
 
 interface OverlayScrollAreaProps extends Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'children'> {
   children?: ReactNode;
@@ -170,21 +171,11 @@ export const OverlayScrollArea = forwardRef<HTMLDivElement, OverlayScrollAreaPro
       return;
     }
 
-    const resizeObserver = new ResizeObserver(() => {
-      scheduleMetricsUpdate();
-    });
+    const stopObservingContent = observeOverlayScrollAreaContent(viewport, scheduleMetricsUpdate);
+    scheduleMetricsUpdate();
 
-    resizeObserver.observe(viewport);
-    Array.from(viewport.children).forEach((child) => {
-      if (child instanceof HTMLElement) {
-        resizeObserver.observe(child);
-      }
-    });
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, [children, scheduleMetricsUpdate]);
+    return stopObservingContent;
+  }, [scheduleMetricsUpdate]);
 
   const handleWrapperWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current;

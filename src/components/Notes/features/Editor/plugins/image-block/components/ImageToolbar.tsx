@@ -28,7 +28,7 @@ export const ImageToolbar: React.FC<ImageToolbarProps> = ({
     hideMediaActions = false,
 }) => {
     const { t } = useI18n();
-    const { addToast } = useToastStore();
+    const addToast = useToastStore((state) => state.addToast);
     const [copied, setCopied] = useState(false);
     const mountedRef = React.useRef(true);
 

@@ -16,6 +16,7 @@ import type { PositionedGraphNode } from './graphLayout';
 import type { GraphPoint, GraphViewport } from './graphViewport';
 
 const labelWidthsByNode = new WeakMap<PositionedGraphNode, { label: string; width: number }>();
+const FORCE_ALL_LABEL_NODE_LIMIT = 16;
 
 function getCachedGraphNodeLabelWidth(node: PositionedGraphNode): number {
   const cached = labelWidthsByNode.get(node);
@@ -91,7 +92,7 @@ export function layoutGraphLabels(
   obstacleNodes: readonly PositionedGraphNode[] = nodes,
   exclusionBounds: readonly GraphScreenBounds[] = [],
   maximumPlacements = Number.POSITIVE_INFINITY,
-  forceAllPlacements = false,
+  fastLayout = false,
 ): ReadonlyMap<string, GraphLabelPlacement> {
   const placements = new Map<string, GraphLabelPlacement>();
   if (nodes.length === 0) return placements;
@@ -110,6 +111,7 @@ export function layoutGraphLabels(
   const labelWidths: number[] = [];
   const collisionIndex = new GraphLabelBoundsIndex();
   const priorityIdSet = new Set(priorityIds);
+  const forceAllPlacements = fastLayout && nodes.length <= FORCE_ALL_LABEL_NODE_LIMIT;
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index]!;
     nodeIndexById.set(node.id, index);
@@ -146,7 +148,8 @@ export function layoutGraphLabels(
       false,
     );
   });
-  if (!forceAllPlacements) {
+  // Large overviews skip the degree sort, but still use the spatial index so labels never stack.
+  if (!fastLayout) {
     remainingNodes.sort((left, right) => right.degree - left.degree || left.id.localeCompare(right.id));
   }
   const expandRemainingPlacements = priorityNodes.length > 0

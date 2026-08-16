@@ -7,14 +7,17 @@ const mocks = vi.hoisted(() => ({
   clearError: vi.fn(),
 }));
 
-vi.mock('@/stores/useNotesRootStore', () => ({
-  useNotesRootStore: () => ({
+vi.mock('@/stores/useNotesRootStore', () => {
+  const state = {
     createNotesRoot: mocks.createNotesRoot,
     isLoading: false,
     error: null,
     clearError: mocks.clearError,
-  }),
-}));
+  };
+  return {
+    useNotesRootStore: (selector: (notesRootState: typeof state) => unknown) => selector(state),
+  };
+});
 
 vi.mock('@/lib/i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),

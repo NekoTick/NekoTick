@@ -10,7 +10,7 @@ interface LoginPromptProps {
 }
 
 export const LoginPrompt: React.FC<LoginPromptProps> = ({ onOpenDialog }) => {
-  const { isConnecting } = useAccountSessionStore();
+  const isConnecting = useAccountSessionStore((state) => state.isConnecting);
   const { t } = useI18n();
   const signInLabel = isConnecting ? t('account.continueSignIn') : t('account.signIn');
 

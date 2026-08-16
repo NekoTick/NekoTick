@@ -74,4 +74,21 @@ describe('useWindowResizeLagCompensation', () => {
     expect(document.documentElement.style.getPropertyValue('--vlaina-window-resize-compensation-x')).toBe('0px');
     unmount();
   });
+
+  it('does not keep an animation frame loop alive while the window is idle', () => {
+    const requestAnimationFrameSpy = vi.mocked(window.requestAnimationFrame);
+    const cancelAnimationFrameSpy = vi.mocked(window.cancelAnimationFrame);
+    const { unmount } = renderHook(() => useWindowResizeLagCompensation());
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+      window.dispatchEvent(new Event('resize'));
+    });
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(1);
+  });
 });

@@ -13,22 +13,22 @@ vi.mock('@/lib/account/capacitorRuntime', () => ({
 }));
 
 vi.mock('@/stores/useAIStore', () => ({
-  useAIStore: () => ({
+  useAIModels: () => [],
+  useAIBenchmarkResults: () => ({}),
+  useAIFetchedModels: () => ({}),
+  actions: {
     updateProvider: storeMock.updateProvider,
-    models: [],
-    benchmarkResults: {},
-    fetchedModels: {},
     addModel: vi.fn(),
     addModels: vi.fn(),
     deleteModel: vi.fn(),
     refreshManagedProvider: vi.fn(),
     setProviderBenchmarkResults: vi.fn(),
     setProviderFetchedModels: vi.fn(),
-  }),
+  },
 }));
 
-vi.mock('@/stores/accountSession', () => ({
-  useAccountSessionStore: () => ({
+vi.mock('@/stores/accountSession', () => {
+  const state = {
     isConnected: false,
     isConnecting: false,
     error: null,
@@ -36,8 +36,11 @@ vi.mock('@/stores/accountSession', () => ({
     requestEmailCode: vi.fn(),
     verifyEmailCode: vi.fn(),
     signOut: vi.fn(),
-  }),
-}));
+  };
+  return {
+    useAccountSessionStore: (selector: (accountState: typeof state) => unknown) => selector(state),
+  };
+});
 
 vi.mock('./provider-detail/ManagedProviderPanel', () => ({
   ManagedProviderPanel: () => null,

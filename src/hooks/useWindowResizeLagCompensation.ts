@@ -33,7 +33,7 @@ export function useWindowResizeLagCompensation() {
 
     const root = document.documentElement;
     const baselineGap = window.outerWidth - window.innerWidth;
-    let frameId = 0;
+    let frameId: number | null = null;
     let lastCompensation = Number.NaN;
 
     const applyCompensation = () => {
@@ -49,22 +49,30 @@ export function useWindowResizeLagCompensation() {
       }
     };
 
-    const applyCompensationFrame = () => {
+    const scheduleCompensation = () => {
       applyCompensation();
-      frameId = window.requestAnimationFrame(applyCompensationFrame);
+      if (frameId !== null) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        applyCompensation();
+      });
     };
 
     applyCompensation();
-    window.addEventListener('resize', applyCompensation, true);
-    window.visualViewport?.addEventListener('resize', applyCompensation, true);
-    window.visualViewport?.addEventListener('scroll', applyCompensation, true);
-    frameId = window.requestAnimationFrame(applyCompensationFrame);
+    window.addEventListener('resize', scheduleCompensation, true);
+    window.visualViewport?.addEventListener('resize', scheduleCompensation, true);
+    window.visualViewport?.addEventListener('scroll', scheduleCompensation, true);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener('resize', applyCompensation, true);
-      window.visualViewport?.removeEventListener('resize', applyCompensation, true);
-      window.visualViewport?.removeEventListener('scroll', applyCompensation, true);
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+        frameId = null;
+      }
+      window.removeEventListener('resize', scheduleCompensation, true);
+      window.visualViewport?.removeEventListener('resize', scheduleCompensation, true);
+      window.visualViewport?.removeEventListener('scroll', scheduleCompensation, true);
       root.style.removeProperty(COMPENSATION_CSS_VARIABLE);
     };
   }, []);
