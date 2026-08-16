@@ -969,6 +969,7 @@ export const themeUiFeedbackTokens = {
   editorMarkdownSerializationDebounceMs: 500,
   editorThemeCompatibilityDecorationDebounceMs: 700,
   editorTextEditorLivePreviewDebounceMs: 180,
+  editorPreviewPrewarmDelayMs: 80,
   editorPendingMarkdownCommitThrottleMs: 120,
   editorPendingMarkdownTestCommitThrottleMs: 0,
   editorCompositionSettleMs: 220,

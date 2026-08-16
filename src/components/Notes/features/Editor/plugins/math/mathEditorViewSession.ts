@@ -1,5 +1,9 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { translate } from '@/lib/i18n';
+import {
+  createTextEditorValueSessionRefs,
+  textEditorValueSessionBindings,
+} from '../shared/textEditorValueSession';
 import { createTextEditorViewSession } from '../shared/textEditorViewSession';
 import {
   cancelMathEditorSession,
@@ -12,7 +16,7 @@ import { renderMathEditorLivePreview } from './mathEditorLivePreview';
 import {
   getMathAnchorViewportPosition,
   resolveMathAnchorElement,
-} from './mathEditorPlacement';
+} from './mathEditorOpenInteraction';
 import type { MathEditorState } from './types';
 
 export function createMathEditorViewSession(args: {
@@ -20,11 +24,7 @@ export function createMathEditorViewSession(args: {
   onOutsideCloseIntent: () => void;
 }) {
   const { editorView, onOutsideCloseIntent } = args;
-  const refs: MathEditorSessionRefs = {
-    textareaElement: null,
-    draftLatex: '',
-    initialLatex: '',
-  };
+  const refs: MathEditorSessionRefs = createTextEditorValueSessionRefs();
 
   return createTextEditorViewSession<MathEditorState, MathEditorSessionRefs>({
     editorView,
@@ -38,17 +38,7 @@ export function createMathEditorViewSession(args: {
       mathEditorPluginKey.getState(editorView.state) as MathEditorState | undefined,
     getStateRenderKey: (state) => `${state.nodePos}:${state.displayMode ? 'block' : 'inline'}`,
     getValue: (state) => state.latex,
-    setInitialValue: (nextRefs, value) => {
-      nextRefs.initialLatex = value;
-    },
-    setDraftValue: (nextRefs, value) => {
-      nextRefs.draftLatex = value;
-    },
-    getInitialValue: (nextRefs) => nextRefs.initialLatex,
-    resetRefs: (nextRefs) => {
-      nextRefs.draftLatex = '';
-      nextRefs.initialLatex = '';
-    },
+    ...textEditorValueSessionBindings,
     resolveAnchorElement: (_state, nodeDom) => resolveMathAnchorElement(null, nodeDom),
     getAnchorViewportPosition: getMathAnchorViewportPosition,
     preferStatePositionOnInitialRender: (state) => state.openSource === 'new-empty-block',

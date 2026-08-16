@@ -1,10 +1,12 @@
 import {
   renderMathFormulaPickerButtonFormula,
   renderMathFormulaPickerFormula,
+  restoreCachedMathFormulaPickerButtonFormula,
 } from './mathFormulaPickerDom';
+import { createMathFormulaRenderQueue } from './mathFormulaRenderQueue';
 
-const FORMULA_RENDER_FRAME_BUDGET_MS = 4;
 const FORMULA_ITEM_SELECTOR = '.math-formula-picker-item[data-formula-rendered="false"]';
+const PREPARED_FORMULA_SELECTOR = '[data-formula-rendered="false"]';
 const FORMULA_RESULT_CHUNK_SELECTOR = '.math-formula-picker-result-chunk';
 
 export function createMathFormulaPickerRenderer(args: {
@@ -13,12 +15,20 @@ export function createMathFormulaPickerRenderer(args: {
   getPreviewLatex: () => string;
 }) {
   const { results, preview, getPreviewLatex } = args;
-  const pendingFormulaRenders = new Map<HTMLElement, string>();
   const formulaDefinitions = new WeakMap<HTMLElement, string>();
-  let formulaRenderFrame: number | undefined;
   let previewRenderFrame: number | undefined;
+  let formulaObserver: IntersectionObserver | undefined;
+  const renderFormula = (element: HTMLElement, formula: string) => {
+    renderMathFormulaPickerButtonFormula(element, formula);
+    element.dataset.formulaRendered = 'true';
+  };
+  const visibleFormulaRenders = createMathFormulaRenderQueue({
+    onSettled: (element) => formulaObserver?.unobserve(element),
+    render: renderFormula,
+  });
+  const preparedFormulaRenders = createMathFormulaRenderQueue({ render: renderFormula });
 
-  const formulaObserver = typeof IntersectionObserver === 'undefined'
+  formulaObserver = typeof IntersectionObserver === 'undefined'
     ? undefined
     : new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -29,50 +39,40 @@ export function createMathFormulaPickerRenderer(args: {
         elements.forEach((element) => {
           const formula = formulaDefinitions.get(element);
           if (!entry.isIntersecting) {
-            pendingFormulaRenders.delete(element);
+            visibleFormulaRenders.remove(element);
           } else if (formula) {
-            pendingFormulaRenders.set(element, formula);
+            visibleFormulaRenders.add(element, formula);
           }
         });
       });
-      scheduleFormulaRenders();
     }, {
       root: results,
       rootMargin: '25% 0px',
     });
 
-  const flushFormulaRenders = () => {
-    formulaRenderFrame = undefined;
-    const frameStart = performance.now();
-    for (const [element, formula] of pendingFormulaRenders) {
-      pendingFormulaRenders.delete(element);
-      if (element.isConnected) {
-        renderMathFormulaPickerButtonFormula(element, formula);
-        element.dataset.formulaRendered = 'true';
-      }
-      formulaObserver?.unobserve(element);
-      if (performance.now() - frameStart >= FORMULA_RENDER_FRAME_BUDGET_MS) break;
+  const prepareButton = (element: HTMLElement, latex: string) => {
+    formulaDefinitions.set(element, latex);
+    if (restoreCachedMathFormulaPickerButtonFormula(element, latex)) {
+      element.dataset.formulaRendered = 'true';
+      return;
     }
-    scheduleFormulaRenders();
+    element.dataset.formulaRendered = 'false';
   };
 
-  function scheduleFormulaRenders() {
-    if (!pendingFormulaRenders.size || formulaRenderFrame !== undefined) return;
-    formulaRenderFrame = requestAnimationFrame(flushFormulaRenders);
-  }
-
-  const prepareButton = (element: HTMLElement, latex: string) => {
-    element.dataset.formulaRendered = 'false';
-    formulaDefinitions.set(element, latex);
+  const renderPreparedGradually = (container: HTMLElement) => {
+    container.querySelectorAll<HTMLElement>(PREPARED_FORMULA_SELECTOR).forEach((element) => {
+      const formula = formulaDefinitions.get(element);
+      if (formula) preparedFormulaRenders.add(element, formula);
+    });
   };
 
   const renderAllNow = (container: HTMLElement) => {
     container.querySelectorAll<HTMLElement>(FORMULA_ITEM_SELECTOR).forEach((element) => {
       const formula = formulaDefinitions.get(element);
       if (!formula) return;
-      pendingFormulaRenders.delete(element);
-      renderMathFormulaPickerButtonFormula(element, formula);
-      element.dataset.formulaRendered = 'true';
+      visibleFormulaRenders.remove(element);
+      preparedFormulaRenders.remove(element);
+      renderFormula(element, formula);
     });
   };
 
@@ -87,22 +87,19 @@ export function createMathFormulaPickerRenderer(args: {
         formulaObserver.observe(element);
       } else if (element.matches(FORMULA_ITEM_SELECTOR)) {
         const formula = formulaDefinitions.get(element);
-        if (formula) pendingFormulaRenders.set(element, formula);
+        if (formula) visibleFormulaRenders.add(element, formula);
       } else {
         element.querySelectorAll<HTMLElement>(FORMULA_ITEM_SELECTOR).forEach((button) => {
           const formula = formulaDefinitions.get(button);
-          if (formula) pendingFormulaRenders.set(button, formula);
+          if (formula) visibleFormulaRenders.add(button, formula);
         });
       }
     });
-    if (!formulaObserver) scheduleFormulaRenders();
   };
 
   const reset = () => {
     formulaObserver?.disconnect();
-    pendingFormulaRenders.clear();
-    if (formulaRenderFrame !== undefined) cancelAnimationFrame(formulaRenderFrame);
-    formulaRenderFrame = undefined;
+    visibleFormulaRenders.clear();
   };
 
   const renderPreviewNow = () => {
@@ -117,6 +114,7 @@ export function createMathFormulaPickerRenderer(args: {
 
   const destroy = () => {
     reset();
+    preparedFormulaRenders.clear();
     formulaObserver?.disconnect();
     if (previewRenderFrame !== undefined) cancelAnimationFrame(previewRenderFrame);
     previewRenderFrame = undefined;
@@ -127,6 +125,7 @@ export function createMathFormulaPickerRenderer(args: {
     observeUnrendered,
     prepareButton,
     renderAllNow,
+    renderPreparedGradually,
     renderPreviewNow,
     reset,
     schedulePreview,

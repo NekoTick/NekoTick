@@ -169,7 +169,7 @@ describe('createMermaidFenceStarterCode', () => {
   it('returns an editable starter directive for diagram fence aliases', () => {
     expect(createMermaidFenceStarterCode('sequence')).toBe('sequenceDiagram\n');
     expect(createMermaidFenceStarterCode('flow')).toBe('flowchart TD\n');
-    expect(createMermaidFenceStarterCode('eventmodeling')).toBe('eventModeling\n');
+    expect(createMermaidFenceStarterCode('eventmodeling')).toBe('eventmodeling\n');
     expect(createMermaidFenceStarterCode('radar')).toBe('radar-beta\n');
     expect(createMermaidFenceStarterCode('zenuml')).toBe('zenuml\n');
   });

@@ -1,5 +1,9 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { translate } from '@/lib/i18n';
+import {
+  createTextEditorValueSessionRefs,
+  textEditorValueSessionBindings,
+} from '../shared/textEditorValueSession';
 import { createTextEditorViewSession } from '../shared/textEditorViewSession';
 import { renderMermaidEditorLivePreview } from './mermaidDom';
 import {
@@ -20,11 +24,7 @@ export function createMermaidEditorViewSession(args: {
   onOutsideCloseIntent: () => void;
 }) {
   const { editorView, onOutsideCloseIntent } = args;
-  const refs: MermaidEditorSessionRefs = {
-    textareaElement: null,
-    draftCode: '',
-    initialCode: '',
-  };
+  const refs: MermaidEditorSessionRefs = createTextEditorValueSessionRefs();
   let renderDraftPreview: ((code: string) => void) | null = null;
 
   return createTextEditorViewSession<MermaidEditorState, MermaidEditorSessionRefs>({
@@ -39,17 +39,7 @@ export function createMermaidEditorViewSession(args: {
       mermaidEditorPluginKey.getState(editorView.state) as MermaidEditorState | undefined,
     getStateRenderKey: (state) => String(state.nodePos),
     getValue: (state) => state.code,
-    setInitialValue: (nextRefs, value) => {
-      nextRefs.initialCode = value;
-    },
-    setDraftValue: (nextRefs, value) => {
-      nextRefs.draftCode = value;
-    },
-    getInitialValue: (nextRefs) => nextRefs.initialCode,
-    resetRefs: (nextRefs) => {
-      nextRefs.draftCode = '';
-      nextRefs.initialCode = '';
-    },
+    ...textEditorValueSessionBindings,
     resolveAnchorElement: (_state, nodeDom) => resolveMermaidAnchorElement(null, nodeDom),
     getAnchorViewportPosition: getMermaidAnchorViewportPosition,
     preferStatePositionOnInitialRender: (state) => state.openSource === 'new-empty-block',

@@ -28,8 +28,8 @@ describe('mathEditorSessionActions', () => {
         textareaElement: {
           value: 'x + y',
         } as HTMLTextAreaElement,
-        draftLatex: '',
-        initialLatex: '',
+        draftValue: '',
+        initialValue: '',
       },
       getEditorState: () => ({
         isOpen: true,
@@ -74,8 +74,8 @@ describe('mathEditorSessionActions', () => {
         textareaElement: {
           value: 'x + y',
         } as HTMLTextAreaElement,
-        draftLatex: '',
-        initialLatex: 'x',
+        draftValue: '',
+        initialValue: 'x',
       },
       getEditorState: () => ({
         isOpen: true,
@@ -120,8 +120,8 @@ describe('mathEditorSessionActions', () => {
         textareaElement: {
           value: '  ',
         } as HTMLTextAreaElement,
-        draftLatex: '',
-        initialLatex: 'x',
+        draftValue: '',
+        initialValue: 'x',
       },
       getEditorState: () => ({
         isOpen: true,

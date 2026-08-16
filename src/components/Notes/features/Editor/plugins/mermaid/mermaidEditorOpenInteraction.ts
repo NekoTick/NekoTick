@@ -1,86 +1,35 @@
+import {
+  createTextEditorOpenInteraction,
+  type TextEditorOpenInteractionView,
+} from '../shared/textEditorOpenInteraction';
 import { resolveMermaidEditorOpenState } from './mermaidEditorOpenResolver';
 import type { MermaidEditorState } from './types';
-import { themeDomStyleTokens } from '@/styles/themeTokens';
 
 const MERMAID_NODE_SELECTOR = '[data-type="mermaid"]';
 const MERMAID_SCROLLBAR_HIT_AREA_PX = 18;
+const mermaidEditorOpenInteraction = createTextEditorOpenInteraction<MermaidEditorState>({
+  nodeSelector: MERMAID_NODE_SELECTOR,
+  resolveOpenState: resolveMermaidEditorOpenState,
+});
 
-interface MermaidEditorPluginViewLike {
-  state: {
-    doc: {
-      resolve: (pos: number) => unknown;
-      nodeAt: (pos: number) => unknown;
-    };
-  };
-  dom: HTMLElement;
-  posAtDOM: (node: Node, offset: number) => number;
-  nodeDOM?: (pos: number) => Node | null;
-}
-
-export function resolveMermaidAnchorElement(target: EventTarget | null, fallback: Node | null) {
-  const targetElement =
-    target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
-  const closestMermaidElement = targetElement?.closest(MERMAID_NODE_SELECTOR);
-
-  if (closestMermaidElement instanceof HTMLElement) {
-    return closestMermaidElement;
-  }
-
-  if (fallback instanceof HTMLElement) {
-    return fallback;
-  }
-
-  return targetElement instanceof HTMLElement ? targetElement : null;
-}
-
-export function getMermaidAnchorViewportPosition(anchorElement: HTMLElement | null) {
-  if (!anchorElement) {
-    return {
-      x: themeDomStyleTokens.editorPopupFallbackX,
-      y: themeDomStyleTokens.editorPopupFallbackY,
-    };
-  }
-
-  const rect = anchorElement.getBoundingClientRect();
-  return {
-    x: rect.left,
-    y: rect.bottom + themeDomStyleTokens.editorPopupAnchorOffsetPx,
-  };
-}
-
-export function findMermaidEditorTargetElement(
-  view: { dom: HTMLElement },
-  target: EventTarget | null
-) {
-  const targetElement =
-    target instanceof HTMLElement ? target : target instanceof Node ? target.parentElement : null;
-  const mermaidElement = targetElement?.closest(MERMAID_NODE_SELECTOR);
-
-  if (!(mermaidElement instanceof HTMLElement) || !view.dom.contains(mermaidElement)) {
-    return null;
-  }
-
-  return mermaidElement;
-}
+export const findMermaidEditorTargetElement = mermaidEditorOpenInteraction.findTargetElement;
+export const getMermaidAnchorViewportPosition = mermaidEditorOpenInteraction.getAnchorViewportPosition;
+export const resolveMermaidAnchorElement = mermaidEditorOpenInteraction.resolveAnchorElement;
+export const resolveMermaidEditorOpenMeta = mermaidEditorOpenInteraction.resolveOpenMeta;
 
 export function isMermaidScrollbarPointerDown(args: {
   event: MouseEvent;
   mermaidElement: HTMLElement;
 }) {
   const { event, mermaidElement } = args;
-  if (typeof window === 'undefined') {
-    return false;
-  }
+  if (typeof window === 'undefined') return false;
 
   const overflowX = window.getComputedStyle(mermaidElement).overflowX;
   const measuredScrollbarHeight = mermaidElement.offsetHeight - mermaidElement.clientHeight;
   const hasHorizontalScrollbar =
     (overflowX === 'auto' || overflowX === 'scroll') &&
     mermaidElement.scrollWidth > mermaidElement.clientWidth;
-
-  if (!hasHorizontalScrollbar) {
-    return false;
-  }
+  if (!hasHorizontalScrollbar) return false;
 
   const rect = mermaidElement.getBoundingClientRect();
   const scrollbarHitArea = Math.max(measuredScrollbarHeight, MERMAID_SCROLLBAR_HIT_AREA_PX);
@@ -99,50 +48,10 @@ export function isSelectedScrollableMermaidElement(mermaidElement: HTMLElement) 
   );
 }
 
-export function resolveMermaidEditorOpenMeta(args: {
-  view: MermaidEditorPluginViewLike;
-  pos: number;
-  target: EventTarget | null;
-}): MermaidEditorState | null {
-  const { view, pos, target } = args;
-
-  return resolveMermaidEditorOpenState({
-    view: view as never,
-    pos,
-    getPosition(nodePos: number) {
-      return getMermaidAnchorViewportPosition(
-        resolveMermaidAnchorElement(
-          target,
-          typeof view.nodeDOM === 'function' ? view.nodeDOM(nodePos) : null
-        )
-      );
-    },
-  });
-}
-
 export function resolveMermaidEditorPointerOpen(args: {
-  view: MermaidEditorPluginViewLike;
+  view: TextEditorOpenInteractionView;
   target: EventTarget | null;
 }) {
-  const { view, target } = args;
-  const mermaidElement = findMermaidEditorTargetElement(view, target);
-  if (!mermaidElement) {
-    return null;
-  }
-
-  try {
-    const meta = resolveMermaidEditorOpenMeta({
-      view,
-      pos: view.posAtDOM(mermaidElement, 0),
-      target,
-    });
-
-    if (!meta) {
-      return null;
-    }
-
-    return { mermaidElement, meta };
-  } catch {
-    return null;
-  }
+  const resolved = mermaidEditorOpenInteraction.resolvePointerOpen(args);
+  return resolved ? { mermaidElement: resolved.targetElement, meta: resolved.meta } : null;
 }

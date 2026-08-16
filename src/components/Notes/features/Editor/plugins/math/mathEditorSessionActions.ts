@@ -1,21 +1,19 @@
-import type { EditorView } from '@milkdown/kit/prose/view';
+import {
+  createTextEditorValueSessionActions,
+  type TextEditorValueSessionRefs,
+} from '../shared/textEditorValueSession';
+import type { TextEditorSessionActionArgs } from '../shared/textEditorViewSession';
 import { applyMathNodeLatex, removeMathNode } from './mathEditorEditing';
 import { mathEditorPluginKey } from './mathEditorPluginKey';
 import { createClosedMathEditorState, shouldDiscardNewMathNodeOnCancel } from './mathEditorState';
 import type { MathEditorState } from './types';
 
-export interface MathEditorSessionRefs {
-  textareaElement: HTMLTextAreaElement | null;
-  draftLatex: string;
-  initialLatex: string;
-}
+export type MathEditorSessionRefs = TextEditorValueSessionRefs;
 
-interface MathEditorSessionActionArgs {
-  editorView: EditorView;
-  refs: MathEditorSessionRefs;
-  getEditorState: () => MathEditorState | undefined;
-  resetSessionDom: () => void;
-}
+type MathEditorSessionActionArgs = TextEditorSessionActionArgs<
+  MathEditorState,
+  MathEditorSessionRefs
+>;
 
 function closeMathEditorSession(args: MathEditorSessionActionArgs) {
   const { editorView, resetSessionDom } = args;
@@ -25,57 +23,17 @@ function closeMathEditorSession(args: MathEditorSessionActionArgs) {
   );
 }
 
-function resolveCurrentDraftLatex(
-  refs: MathEditorSessionRefs,
-  nextDraftLatex?: string
-) {
-  if (typeof nextDraftLatex === 'string') {
-    refs.draftLatex = nextDraftLatex;
-    return refs.draftLatex;
-  }
+const mathEditorSessionActions = createTextEditorValueSessionActions<
+  MathEditorState,
+  MathEditorSessionRefs
+>({
+  applyValue: applyMathNodeLatex,
+  closeSession: closeMathEditorSession,
+  getStateValue: (state) => state.latex,
+  removeNode: (editorView, nodePos) => removeMathNode(editorView as never, nodePos),
+  shouldDiscardOnCancel: shouldDiscardNewMathNodeOnCancel,
+  shouldRemoveOnSave: (_state, draftLatex) => !draftLatex.trim(),
+});
 
-  if (refs.textareaElement) {
-    refs.draftLatex = refs.textareaElement.value;
-  }
-
-  return refs.draftLatex;
-}
-
-function restoreOriginalLatex(args: MathEditorSessionActionArgs, state: MathEditorState) {
-  applyMathNodeLatex(
-    args.editorView,
-    state.nodePos,
-    args.refs.initialLatex || state.latex
-  );
-}
-
-export function cancelMathEditorSession(args: MathEditorSessionActionArgs) {
-  const state = args.getEditorState();
-
-  if (state && shouldDiscardNewMathNodeOnCancel(state)) {
-    removeMathNode(args.editorView as never, state.nodePos);
-  } else if (state) {
-    restoreOriginalLatex(args, state);
-  }
-
-  closeMathEditorSession(args);
-  args.editorView.focus();
-}
-
-export function saveMathEditorSession(args: MathEditorSessionActionArgs) {
-  const state = args.getEditorState();
-  if (!state || state.nodePos < 0) {
-    closeMathEditorSession(args);
-    return;
-  }
-
-  const draftLatex = resolveCurrentDraftLatex(args.refs);
-  if (!draftLatex.trim()) {
-    removeMathNode(args.editorView as never, state.nodePos);
-  } else {
-    applyMathNodeLatex(args.editorView, state.nodePos, draftLatex);
-  }
-
-  closeMathEditorSession(args);
-  args.editorView.focus();
-}
+export const cancelMathEditorSession = mathEditorSessionActions.cancelSession;
+export const saveMathEditorSession = mathEditorSessionActions.saveSession;

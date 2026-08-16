@@ -1,5 +1,6 @@
 import { $prose } from '@milkdown/kit/utils';
 import { Plugin } from '@milkdown/kit/prose/state';
+import { createTextEditorHoverPrewarm } from '../shared/textEditorHoverPrewarm';
 import { shouldSuppressPreviewEditorOpen } from '../shared/previewContextMenuSuppression';
 import {
   findMathEditorTargetElement,
@@ -10,6 +11,7 @@ import {
 import { mathEditorPluginKey } from './mathEditorPluginKey';
 import { createClosedMathEditorState } from './mathEditorState';
 import { createMathEditorViewSession } from './mathEditorViewSession';
+import { prewarmMathFormulaPicker } from './mathFormulaPickerPrewarm';
 import type { MathEditorState } from './types';
 
 function getSuppressDeadline() {
@@ -106,12 +108,28 @@ export const mathEditorPlugin = $prose(() => {
       },
     },
     view(editorView) {
-      return createMathEditorViewSession({
+      const hoverPrewarm = createTextEditorHoverPrewarm({
+        editorDom: editorView.dom,
+        findTarget: (target) => findMathEditorTargetElement(editorView, target),
+        prewarm: () => {
+          const state = mathEditorPluginKey.getState(editorView.state) as MathEditorState | undefined;
+          return state?.isOpen ? undefined : prewarmMathFormulaPicker();
+        },
+      });
+      const session = createMathEditorViewSession({
         editorView,
         onOutsideCloseIntent() {
           suppressOpenUntil = getSuppressDeadline() + 120;
         },
       });
+
+      return {
+        update: session.update,
+        destroy() {
+          hoverPrewarm.destroy();
+          session.destroy();
+        },
+      };
     },
   });
 });

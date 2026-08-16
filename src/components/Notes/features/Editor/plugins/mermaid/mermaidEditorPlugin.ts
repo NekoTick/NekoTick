@@ -1,5 +1,6 @@
 import { $prose } from '@milkdown/kit/utils';
 import { Plugin } from '@milkdown/kit/prose/state';
+import { createTextEditorHoverPrewarm } from '../shared/textEditorHoverPrewarm';
 import { shouldSuppressPreviewEditorOpen } from '../shared/previewContextMenuSuppression';
 import {
   findMermaidEditorTargetElement,
@@ -8,6 +9,7 @@ import {
   resolveMermaidEditorPointerOpen,
 } from './mermaidEditorOpenInteraction';
 import { mermaidEditorPluginKey } from './mermaidEditorPluginKey';
+import { prewarmMermaidEditor } from './mermaidEditorPrewarm';
 import { createClosedMermaidEditorState } from './mermaidEditorState';
 import { createMermaidEditorViewSession } from './mermaidEditorViewSession';
 import type { MermaidEditorState } from './types';
@@ -164,6 +166,14 @@ export const mermaidEditorPlugin = $prose(() => {
     },
     view(editorView) {
       const documentRef = editorView.dom.ownerDocument;
+      const hoverPrewarm = createTextEditorHoverPrewarm({
+        editorDom: editorView.dom,
+        findTarget: (target) => findMermaidEditorTargetElement(editorView, target),
+        prewarm: () => {
+          const state = mermaidEditorPluginKey.getState(editorView.state) as MermaidEditorState | undefined;
+          return state?.isOpen ? undefined : prewarmMermaidEditor();
+        },
+      });
       const suppressSelectedScrollableMermaidOpen = (event: MouseEvent) => {
         const mermaidElement = findMermaidEditorTargetElement(editorView, event.target);
         if (!mermaidElement || !isSelectedScrollableMermaidElement(mermaidElement)) {
@@ -190,6 +200,7 @@ export const mermaidEditorPlugin = $prose(() => {
       return {
         update: session.update,
         destroy() {
+          hoverPrewarm.destroy();
           documentRef.removeEventListener('mousedown', suppressSelectedScrollableMermaidOpen, true);
           documentRef.removeEventListener('mouseup', suppressSelectedScrollableMermaidOpen, true);
           documentRef.removeEventListener('click', suppressSelectedScrollableMermaidOpen, true);

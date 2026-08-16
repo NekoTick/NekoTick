@@ -9,7 +9,8 @@ import { localizeMathFormulaName } from './mathFormulaPickerCopy';
 const MAX_FORMULA_RENDER_CACHE_ENTRIES = 768;
 const FORMULA_CATEGORY_ROW_SIZE = 12;
 const FORMULA_SEARCH_CHUNK_SIZE = 40;
-const formulaRenderCache = new Map<string, { html: string; error: boolean }>();
+type FormulaRenderCacheEntry = { html: string; error: boolean };
+const formulaRenderCache = new Map<string, FormulaRenderCacheEntry>();
 
 export function createMathFormulaPickerButton(className: string, label: string) {
   const button = document.createElement('button');
@@ -41,8 +42,9 @@ export function renderMathFormulaPickerCategories(args: {
   categories: HTMLElement;
   results: HTMLElement;
   onOpen: (categoryId: string) => void;
+  prepareFormula: (element: HTMLElement, latex: string) => void;
 }) {
-  const { categories, results, onOpen } = args;
+  const { categories, results, onOpen, prepareFormula } = args;
   categories.replaceChildren();
   let row: HTMLElement | undefined;
 
@@ -61,7 +63,8 @@ export function renderMathFormulaPickerCategories(args: {
 
     const formula = document.createElement('span');
     formula.className = 'math-formula-picker-category-formula';
-    renderMathFormulaPickerButtonFormula(formula, category.label);
+    formula.textContent = category.label;
+    prepareFormula(formula, category.label);
     const name = document.createElement('span');
     name.className = 'math-formula-picker-category-name';
     name.textContent = nameText;
@@ -92,18 +95,33 @@ export function createMathFormulaSearchResults(
   return fragment;
 }
 
-function renderMathFormulaPickerFormulaOutput(
-  element: HTMLElement,
+function readCachedFormulaRender(cacheKey: string) {
+  const result = formulaRenderCache.get(cacheKey);
+  if (result) {
+    formulaRenderCache.delete(cacheKey);
+    formulaRenderCache.set(cacheKey, result);
+  }
+  return result;
+}
+
+function applyFormulaRender(element: HTMLElement, result: FormulaRenderCacheEntry) {
+  element.innerHTML = result.html;
+  element.classList.toggle('math-formula-picker-render-error', result.error);
+  return result;
+}
+
+function formulaRenderCacheKey(latex: string, displayMode: boolean, htmlOnly: boolean) {
+  return `${displayMode ? 'display:' : 'inline:'}${htmlOnly ? 'html:' : ''}${latex}`;
+}
+
+function resolveMathFormulaPickerFormulaOutput(
   latex: string,
   displayMode = false,
   htmlOnly = false,
 ) {
-  const cacheKey = `${displayMode ? 'display:' : 'inline:'}${htmlOnly ? 'html:' : ''}${latex}`;
-  let result = formulaRenderCache.get(cacheKey);
-  if (result) {
-    formulaRenderCache.delete(cacheKey);
-    formulaRenderCache.set(cacheKey, result);
-  } else {
+  const cacheKey = formulaRenderCacheKey(latex, displayMode, htmlOnly);
+  let result = readCachedFormulaRender(cacheKey);
+  if (!result) {
     const rendered = renderLatexUncached(latex, displayMode, htmlOnly ? 'html' : 'htmlAndMathml');
     result = { html: rendered.html, error: Boolean(rendered.error) };
     formulaRenderCache.set(cacheKey, result);
@@ -113,9 +131,33 @@ function renderMathFormulaPickerFormulaOutput(
       else break;
     }
   }
-  element.innerHTML = result.html;
-  element.classList.toggle('math-formula-picker-render-error', result.error);
   return result;
+}
+
+function renderMathFormulaPickerFormulaOutput(
+  element: HTMLElement,
+  latex: string,
+  displayMode = false,
+  htmlOnly = false,
+) {
+  return applyFormulaRender(
+    element,
+    resolveMathFormulaPickerFormulaOutput(latex, displayMode, htmlOnly),
+  );
+}
+
+export function prewarmMathFormulaPickerButtonFormula(latex: string) {
+  resolveMathFormulaPickerFormulaOutput(latex, false, true);
+}
+
+export function restoreCachedMathFormulaPickerButtonFormula(
+  element: HTMLElement,
+  latex: string,
+) {
+  const result = readCachedFormulaRender(formulaRenderCacheKey(latex, false, true));
+  if (!result) return false;
+  applyFormulaRender(element, result);
+  return true;
 }
 
 export function renderMathFormulaPickerFormula(
