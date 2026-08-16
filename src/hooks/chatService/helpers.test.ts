@@ -32,6 +32,7 @@ const MAX_NOTE_MENTION_READ_BYTES = 512 * 1024;
 const mocks = vi.hoisted(() => ({
   isConnected: false,
   refreshBudget: vi.fn().mockResolvedValue(undefined),
+  refreshBudgetIfStale: vi.fn().mockResolvedValue(undefined),
   flushCurrentPendingEditorMarkdown: vi.fn(),
   rasterizeSvgDataUrlToPng: vi.fn(),
   storage: {
@@ -67,6 +68,7 @@ vi.mock('@/stores/useManagedAIStore', () => ({
   useManagedAIStore: {
     getState: () => ({
       refreshBudget: mocks.refreshBudget,
+      refreshBudgetIfStale: mocks.refreshBudgetIfStale,
     }),
   },
 }));
@@ -145,6 +147,7 @@ describe('chat service helpers', () => {
   beforeEach(() => {
     mocks.isConnected = false;
     mocks.refreshBudget.mockClear();
+    mocks.refreshBudgetIfStale.mockClear();
     mocks.flushCurrentPendingEditorMarkdown.mockReset();
     mocks.rasterizeSvgDataUrlToPng.mockReset();
     mocks.rasterizeSvgDataUrlToPng.mockResolvedValue('data:image/png;base64,RASTER');
@@ -164,7 +167,7 @@ describe('chat service helpers', () => {
 
     refreshManagedBudgetIfNeeded('provider-1');
 
-    expect(mocks.refreshBudget).not.toHaveBeenCalled();
+    expect(mocks.refreshBudgetIfStale).not.toHaveBeenCalled();
   });
 
   it('does not refresh budget for managed providers after sign-out', () => {
@@ -172,7 +175,7 @@ describe('chat service helpers', () => {
 
     refreshManagedBudgetIfNeeded('vlaina-managed');
 
-    expect(mocks.refreshBudget).not.toHaveBeenCalled();
+    expect(mocks.refreshBudgetIfStale).not.toHaveBeenCalled();
   });
 
   it('refreshes budget for managed providers while signed in', () => {
@@ -180,7 +183,7 @@ describe('chat service helpers', () => {
 
     refreshManagedBudgetIfNeeded('vlaina-managed');
 
-    expect(mocks.refreshBudget).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshBudgetIfStale).toHaveBeenCalledTimes(1);
   });
 
   it('limits combined chat image attachments at the message cap', () => {
@@ -227,12 +230,12 @@ describe('chat service helpers', () => {
 
   it('ignores managed budget refresh failures', async () => {
     mocks.isConnected = true;
-    mocks.refreshBudget.mockRejectedValueOnce(new Error('refresh failed'));
+    mocks.refreshBudgetIfStale.mockRejectedValueOnce(new Error('refresh failed'));
 
     refreshManagedBudgetIfNeeded('vlaina-managed');
     await Promise.resolve();
 
-    expect(mocks.refreshBudget).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshBudgetIfStale).toHaveBeenCalledTimes(1);
   });
 
   it('stores local attachment references without exposing file URLs in chat content', async () => {

@@ -18,7 +18,7 @@ import {
   boundedToolNameForLog, buildCachedReadToolMessages, cacheReadContentForToolMessages, getReadToolUrls,
   hasOnlyAlreadyReadToolCalls, hasOnlySearchToolCalls,
 } from './openAIToolLoopToolArgs';
-import { appendForcedReadMessages, buildAssistantToolMessage, runToolCallsSequentially } from './openAIToolLoopToolRuntime';
+import { appendForcedReadMessages, buildAssistantToolMessage, runToolCallsWithConcurrency } from './openAIToolLoopToolRuntime';
 import { createWebSearchExecutionSession } from './executionSession';
 import { buildNoToolRecoveryMessages, recoverJsonVisibleAnswer } from './openAIToolLoopRecovery';
 import { MAX_WEB_SEARCH_TOOL_LOOPS } from './openAIToolLoopTypes';
@@ -78,7 +78,7 @@ export async function runOpenAIWebSearchJsonToolLoop({
       },
     };
     const assistantMessage: OpenAIWireMessage = { role: 'assistant', content: '', tool_calls: [toolCall] };
-    const toolMessages = await runToolCallsSequentially([toolCall], {
+    const toolMessages = await runToolCallsWithConcurrency([toolCall], {
       client,
       onStatus: emitStatus,
       signal,
@@ -248,7 +248,7 @@ export async function runOpenAIWebSearchJsonToolLoop({
         name: boundedToolNameForLog(call.function.name),
       })),
     });
-    const toolMessages = await runToolCallsSequentially(result.toolCalls, {
+    const toolMessages = await runToolCallsWithConcurrency(result.toolCalls, {
       client,
       onStatus: emitStatus,
       signal,
