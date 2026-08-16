@@ -10,6 +10,7 @@ import {
 } from '../utils/noteScrollPositionStorage';
 import { isSidebarSearchNavigationPending } from '../../Sidebar/sidebarSearchNavigation';
 import { OVERLAY_SCROLL_IDLE_EVENT } from '@/components/ui/overlayScrollAreaEvents';
+import { logNoteScrollDiagnostic } from '../utils/notesScrollDiagnostics';
 
 export function canPersistNoteScrollPosition(scrollRoot: HTMLElement | null): scrollRoot is HTMLElement {
   return Boolean(
@@ -60,6 +61,12 @@ export function useMarkdownEditorScrollPersistence({
       return;
     }
 
+    logNoteScrollDiagnostic(
+      'scroll-persist-flush',
+      scrollRootRef.current,
+      { scrollTop: pending.scrollTop },
+      { includeSnapshot: false },
+    );
     persistNoteScrollPosition(pending.notesPath, pending.path, pending.scrollTop);
   }, []);
 
@@ -73,6 +80,13 @@ export function useMarkdownEditorScrollPersistence({
       path,
       scrollTop,
     };
+
+    logNoteScrollDiagnostic(
+      'scroll-persist-scheduled',
+      scrollRootRef.current,
+      { scrollTop },
+      { includeSnapshot: false },
+    );
 
     if (scrollPositionPersistTimerRef.current !== null) {
       window.clearTimeout(scrollPositionPersistTimerRef.current);
@@ -99,6 +113,12 @@ export function useMarkdownEditorScrollPersistence({
       }
       const scrollTop = scrollRoot.scrollTop;
       scrollPositionsRef.current.set(pending.path, scrollTop);
+      logNoteScrollDiagnostic(
+        'scroll-commit',
+        scrollRoot,
+        { scrollTop },
+        { includeSnapshot: false },
+      );
       if (canPersistNoteScrollPosition(scrollRoot)) {
         schedulePersistedScrollPosition(activeNotesPathRef.current, pending.path, scrollTop);
       }
@@ -109,13 +129,37 @@ export function useMarkdownEditorScrollPersistence({
       if (!path) return;
 
       const restoreSession = restoreSessionRef.current;
-      if (restoreSession?.path === path) return;
+      if (restoreSession?.path === path) {
+        logNoteScrollDiagnostic(
+          'scroll-during-restore',
+          scrollRoot,
+          {},
+          { throttleKey: 'scroll-during-restore', throttleMs: 250 },
+        );
+        return;
+      }
 
       pendingScrollPositionSaveRef.current = { path };
+      const isScrollbarInteracting = scrollRoot.dataset.overlayScrollbarInteracting === 'true';
+      logNoteScrollDiagnostic(
+        'scroll',
+        scrollRoot,
+        { overlayScrollbarInteracting: isScrollbarInteracting },
+        {
+          includeSnapshot: !isScrollbarInteracting,
+          throttleKey: 'scroll',
+          throttleMs: 250,
+        },
+      );
     };
 
     const handleScrollIdle = () => {
-      if (scrollRoot.dataset.overlayScrollbarInteracting === 'true') return;
+      const isScrollbarInteracting = scrollRoot.dataset.overlayScrollbarInteracting === 'true';
+      logNoteScrollDiagnostic('scroll-idle', scrollRoot, {
+        isScrollbarInteracting,
+        hasPendingScrollPosition: Boolean(pendingScrollPositionSaveRef.current),
+      }, { includeSnapshot: false });
+      if (isScrollbarInteracting) return;
       commitPendingScrollPosition();
     };
 
@@ -201,6 +245,9 @@ export function useMarkdownEditorScrollPersistence({
     activeNotesPathRef.current = currentNotePath ? notesPath : null;
 
     if (!hasActiveNote || !currentNotePath) {
+      logNoteScrollDiagnostic('restore-skipped-no-active-note', scrollRoot, {
+        hasActiveNote,
+      });
       restoreSessionRef.current = null;
       activeNotesPathRef.current = null;
       scrollRoot.scrollTop = 0;
@@ -208,6 +255,7 @@ export function useMarkdownEditorScrollPersistence({
     }
 
     if (isSidebarSearchNavigationPending(currentNotePath)) {
+      logNoteScrollDiagnostic('restore-skipped-search-navigation', scrollRoot);
       restoreSessionRef.current = null;
       return;
     }
@@ -221,6 +269,10 @@ export function useMarkdownEditorScrollPersistence({
       : scrollPositionsRef.current.get(currentNotePath)
         ?? loadPersistedNoteScrollPosition(notesPath, currentNotePath)
         ?? 0;
+    logNoteScrollDiagnostic('restore-start', scrollRoot, {
+      startAtTop,
+      targetScrollTop,
+    });
     restoreSessionRef.current = {
       path: currentNotePath,
       targetScrollTop,
@@ -239,8 +291,16 @@ export function useMarkdownEditorScrollPersistence({
       writeScrollTop: (nextScrollTop) => {
         scrollRoot.scrollTop = nextScrollTop;
       },
-      onApply: () => {},
+      onApply: (reason) => {
+        logNoteScrollDiagnostic('restore-write', scrollRoot, {
+          reason,
+          targetScrollTop,
+        });
+      },
       onFinish: () => {
+        logNoteScrollDiagnostic('restore-finish', scrollRoot, {
+          targetScrollTop,
+        });
         scrollPositionsRef.current.set(currentNotePath, scrollRoot.scrollTop);
         if (canPersistNoteScrollPosition(scrollRoot)) {
           flushPendingPersistedScrollPosition();
@@ -249,6 +309,9 @@ export function useMarkdownEditorScrollPersistence({
         restoreSessionRef.current = null;
       },
       onStop: () => {
+        logNoteScrollDiagnostic('restore-stop', scrollRoot, {
+          targetScrollTop,
+        });
         unsubscribeBlockSnapshot();
         cancelAnimationFrame(frameA);
         window.clearTimeout(timeoutId);
