@@ -183,11 +183,11 @@ export function useWhiteboardController({
     pointerActions.handleViewportPointerDown(event);
   }, [pointerActions.handleViewportPointerDown, textEditing.commitTextEditing, textEditing.editing]);
   const handleViewportDoubleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
-    if (tool !== 'select' || interactionLocked || spacePressedRef.current) return;
+    if (textEditing.editing || tool !== 'select' || interactionLocked || spacePressedRef.current) return;
     if (!textEditing.editTextAtPoint(getBoardPoint(event.clientX, event.clientY))) return;
     event.preventDefault();
     setDragState(null);
-  }, [getBoardPoint, interactionLocked, setDragState, spacePressedRef, textEditing.editTextAtPoint, tool]);
+  }, [getBoardPoint, interactionLocked, setDragState, spacePressedRef, textEditing.editTextAtPoint, textEditing.editing, tool]);
   const finishPointerAction = useWhiteboardPointerFinish({
     activePenPointerRef, applyFinalDrawSample: pointerActions.handlePointerMove,
     clearDraftStroke, deletePointer, dragState,

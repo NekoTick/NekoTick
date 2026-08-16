@@ -166,11 +166,11 @@ export const WhiteboardToolbar = memo(function WhiteboardToolbar(props: Whiteboa
             <WhiteboardToolbarGroup>
               <span className="mx-0.5 h-[var(--vlaina-size-32px)] w-px shrink-0 bg-[var(--vlaina-color-toolbar-border)]" />
               <WhiteboardToolbarButton dock large partiallyRevealed active={drawingActive} icon={drawingConfig.icon} imageSrc={drawingConfig.imageSrc} label={t(drawingConfig.labelKey)} onClick={() => togglePanel('brush', drawingActive, lastDrawingTool)} />
+              <WhiteboardToolbarButton dock large active={textActive} icon="whiteboard.text" label={t('whiteboard.tool.text')} onClick={() => chooseStandaloneTool('text')} />
               {WHITEBOARD_LINEAR_TOOLS.map((linearTool) => (
                 <WhiteboardToolbarButton key={linearTool.id} dock large active={visualTool === linearTool.id} icon={linearTool.icon} label={t(linearTool.labelKey)} onClick={() => chooseStandaloneTool(linearTool.id)} />
               ))}
               <WhiteboardToolbarButton dock large active={autoShapeActive} icon="whiteboard.autoshape" label={t('whiteboard.tool.autoshape')} onClick={() => chooseStandaloneTool('autoshape')} />
-              <WhiteboardToolbarButton dock large active={textActive} icon="whiteboard.text" label={t('whiteboard.tool.text')} onClick={() => chooseStandaloneTool('text')} />
               <WhiteboardToolbarButton dock large icon="whiteboard.image" label={t('whiteboard.addImage')} onClick={handleImageSelect} />
             </WhiteboardToolbarGroup>
             {drawingActive || linearActive || autoShapeActive || textActive ? (
