@@ -2,6 +2,7 @@ import {
   getNativeSelectionMetrics,
   isTextSelectionOverlayEligible,
   POINTER_SELECTION_ACTIVE_ATTRIBUTE,
+  POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE,
 } from './textSelectionOverlayState';
 import { syncNativeSelectionToCaretTarget } from './textSelectionOverlayCaret';
 import {
@@ -37,6 +38,7 @@ export function handleTextSelectionOverlayMouseUp(
   const clickCollapseTarget = session.pointerClickCollapseTarget;
   const shouldCollapsePointerClick = clickCollapseTarget !== null && !session.pointerMovedSinceDown;
   view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+  view.dom.removeAttribute(POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE);
   session.pointerClickCollapseTarget = null;
   session.pointerDownPoint = null;
   session.pointerMovedSinceDown = false;
@@ -101,6 +103,7 @@ export function handleTextSelectionOverlayWindowBlur(
 ): void {
   const { session, view } = context;
   view.dom.removeAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+  view.dom.removeAttribute(POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE);
   session.isPointerSelectionActive = false;
   session.lastPointerSelectionY = null;
   session.pointerSelectionAutoScroll.stop();

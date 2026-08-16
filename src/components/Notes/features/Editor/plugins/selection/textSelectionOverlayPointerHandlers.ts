@@ -1,6 +1,7 @@
 import {
   isTextSelectionOverlayEligible,
   POINTER_SELECTION_ACTIVE_ATTRIBUTE,
+  POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE,
 } from './textSelectionOverlayState';
 import {
   getCaretTargetFromPoint,
@@ -32,6 +33,11 @@ export function handleTextSelectionOverlayMouseDown(
     && event.target.closest('.wiki-link-expanded, [data-wiki-link-source="true"]')
   ) return;
   view.dom.setAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE, 'true');
+  if (view.hasFocus()) {
+    view.dom.setAttribute(POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE, 'true');
+  } else {
+    view.dom.removeAttribute(POINTER_SELECTION_STARTED_FOCUSED_ATTRIBUTE);
+  }
   session.preserveNativeSelectionForKeyboard = false;
   session.isPointerSelectionActive = true;
   session.pointerMovedSinceDown = false;

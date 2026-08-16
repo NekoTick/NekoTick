@@ -457,6 +457,11 @@
   text-decoration: line-through;
 }
 
+[data-note-content-root='true'] .markdown-surface :is(strong, em, del, s, u),
+[data-notes-split-preview-content='true'] :is(strong, em, del, s, u) {
+  color: var(--vlaina-color-notes-markdown-emphasis);
+}
+
 .markdown-surface mark,
 .markdown-surface .highlight {
   border-radius: var(--vlaina-radius-02em);

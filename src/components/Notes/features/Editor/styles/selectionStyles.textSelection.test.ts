@@ -121,7 +121,7 @@ describe("editor text selection and link styles", () => {
       '}',
     ].join('\n'));
     expect(markdownCss).toContain([
-      ".milkdown .ProseMirror[data-editor-pointer-selecting='true'] .markdown-source-expanded .markdown-syntax {",
+      ".milkdown .ProseMirror[data-editor-pointer-selecting='true']:not([data-editor-pointer-selection-started-focused='true']) .markdown-source-expanded .markdown-syntax {",
       '  font-size: var(--vlaina-font-0);',
       '}',
     ].join('\n'));
