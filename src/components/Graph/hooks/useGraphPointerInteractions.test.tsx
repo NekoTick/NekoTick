@@ -180,4 +180,53 @@ describe('useGraphPointerInteractions', () => {
     expect(onOpenPath).toHaveBeenCalledWith('Alpha.md');
     expect(onPositionCommit).not.toHaveBeenCalled();
   });
+
+  it('reports the release velocity after panning the viewport', () => {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    Object.defineProperty(svg, 'setPointerCapture', { value: vi.fn() });
+    Object.defineProperty(svg, 'hasPointerCapture', { value: vi.fn(() => false) });
+    const hook = renderHook(() => useGraphPointerInteractions({
+      onDragPosition: vi.fn(),
+      onOpenPath: vi.fn(),
+      onPositionCommit: vi.fn(),
+      onReleaseDrag: vi.fn(),
+      onSelectPath: vi.fn(),
+      setDragPosition: vi.fn(),
+      setViewport: vi.fn(),
+      svgRef: { current: svg },
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }));
+
+    act(() => hook.result.current.startPan({
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+      currentTarget: svg,
+      pointerId: 11,
+      pointerType: 'mouse',
+      timeStamp: 1000,
+    } as never));
+    let result: ReturnType<typeof hook.result.current.finishDrag> = null;
+    act(() => {
+      result = hook.result.current.finishDrag({
+        clientX: 132,
+        clientY: 116,
+        currentTarget: svg,
+        pointerId: 11,
+        timeStamp: 1016,
+      } as never);
+    });
+
+    expect(result).toEqual({
+      kind: 'viewport',
+      velocity: {
+        x: expect.any(Number),
+        y: expect.any(Number),
+      },
+    });
+    if (result && typeof result === 'object') {
+      expect(result.velocity.x).toBeGreaterThan(0);
+      expect(result.velocity.y).toBeGreaterThan(0);
+    }
+  });
 });

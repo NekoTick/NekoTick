@@ -280,6 +280,7 @@ export function GraphCanvas(props: GraphCanvasProps) {
           onSelect={keyboardNavigation.handleSelectPath}
           onStartDrag={nodePointerTarget.handleStartDrag}
           selectedPath={props.selectedPath}
+          showAllLabels
           viewport={viewportController.viewport}
           viewportSize={canvasSize}
         />

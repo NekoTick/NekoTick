@@ -1274,6 +1274,12 @@ html[data-whiteboard-color-picking='true'] * {
   to { opacity: 1; }
 }
 
+.vlaina-graph-viewport {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
 .vlaina-graph-enter {
   animation: vlaina-graph-enter var(--vlaina-motion-graph-enter-duration) var(--vlaina-motion-graph-enter-easing) both;
 }
@@ -1327,6 +1333,10 @@ html[data-whiteboard-color-picking='true'] * {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .vlaina-graph-viewport {
+    will-change: auto;
+  }
+
   .vlaina-graph-enter,
   .vlaina-graph-label-enter {
     animation: none;
