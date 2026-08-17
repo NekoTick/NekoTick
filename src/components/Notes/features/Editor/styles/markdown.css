@@ -61,8 +61,8 @@
 }
 
 .milkdown .ProseMirror .markdown-syntax {
-  color: var(--vlaina-soft-placeholder) !important;
-  -webkit-text-fill-color: var(--vlaina-soft-placeholder) !important;
+  color: var(--vlaina-markdown-color-syntax) !important;
+  -webkit-text-fill-color: var(--vlaina-markdown-color-syntax) !important;
   font-family: inherit;
   font-size: 0;
   font-style: inherit;
@@ -72,15 +72,6 @@
   pointer-events: auto;
   user-select: text;
   white-space: pre;
-}
-
-.milkdown .ProseMirror :is(
-  .markdown-syntax.markdown-syntax-selected,
-  .markdown-syntax-selected,
-  .markdown-syntax-selected .markdown-syntax
-) {
-  color: var(--vlaina-color-white) !important;
-  -webkit-text-fill-color: var(--vlaina-color-white) !important;
 }
 
 .milkdown .ProseMirror .markdown-source-expanded .markdown-syntax {

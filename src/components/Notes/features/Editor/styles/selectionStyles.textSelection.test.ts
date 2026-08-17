@@ -108,18 +108,9 @@ describe("editor text selection and link styles", () => {
     expect(css).toContain('border-radius: var(--vlaina-radius-3px);');
     expect(css).toContain('line-height: inherit;');
     expect(markdownCss).not.toContain('inline-markdown-script-selection-fill');
-    expect(markdownCss).toContain('color: var(--vlaina-soft-placeholder) !important;');
-    expect(markdownCss).toContain('-webkit-text-fill-color: var(--vlaina-soft-placeholder) !important;');
-    expect(markdownCss).toContain([
-      '.milkdown .ProseMirror :is(',
-      '  .markdown-syntax.markdown-syntax-selected,',
-      '  .markdown-syntax-selected,',
-      '  .markdown-syntax-selected .markdown-syntax',
-      ') {',
-      '  color: var(--vlaina-color-white) !important;',
-      '  -webkit-text-fill-color: var(--vlaina-color-white) !important;',
-      '}',
-    ].join('\n'));
+    expect(markdownCss).toContain('color: var(--vlaina-markdown-color-syntax) !important;');
+    expect(markdownCss).toContain('-webkit-text-fill-color: var(--vlaina-markdown-color-syntax) !important;');
+    expect(markdownCss).not.toContain('.markdown-syntax-selected');
     expect(markdownCss).toContain([
       ".milkdown .ProseMirror[data-editor-pointer-selecting='true']:not([data-editor-pointer-selection-started-focused='true']) .markdown-source-expanded .markdown-syntax {",
       '  font-size: var(--vlaina-font-0);',
