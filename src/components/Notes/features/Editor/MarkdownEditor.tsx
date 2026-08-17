@@ -246,7 +246,7 @@ export function MarkdownEditor({
 
               <div
                 ref={editorModeShellRef}
-                className="w-full"
+                className="w-full flex flex-col items-center"
                 style={editorModeShellMinHeight === null
                   ? undefined
                   : { minHeight: editorModeShellMinHeight }}

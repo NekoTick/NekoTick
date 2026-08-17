@@ -301,6 +301,15 @@ describe('MarkdownEditor source fallback', () => {
     expect(sourceEditor.closest('[data-vlaina-markdown-font-size-surface="true"]')).toBeInstanceOf(HTMLElement);
   });
 
+  it('centers the body layout container with the note header at wide widths', async () => {
+    render(<MarkdownEditor />);
+
+    const sourceRoot = (await screen.findByLabelText('Markdown source editor'))
+      .closest('[data-note-content-root="true"]');
+
+    expect(sourceRoot?.parentElement).toHaveClass('flex', 'flex-col', 'items-center');
+  });
+
   it('focuses the source textarea when source mode opens', () => {
     render(
       <MarkdownSourceEditor
