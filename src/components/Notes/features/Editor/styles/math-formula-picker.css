@@ -11,26 +11,6 @@
   background: var(--vlaina-color-floating-surface);
 }
 
-.math-formula-picker-search-field {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  color: var(--vlaina-sidebar-notes-text-soft);
-}
-
-.math-formula-picker-search-input {
-  min-width: 0;
-  height: var(--vlaina-size-48px);
-  flex: 1 1 auto;
-  padding-inline: var(--vlaina-space-12px);
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--vlaina-text-primary);
-  font-size: var(--vlaina-font-sm);
-}
-
 .math-formula-picker-tool {
   min-height: var(--vlaina-size-28px);
   padding-inline: var(--vlaina-space-8px);
@@ -161,24 +141,6 @@
   gap: var(--vlaina-space-6px);
 }
 
-.math-formula-picker-results[data-layout='grid'] {
-  display: block;
-}
-
-.math-formula-picker-result-chunk {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: start;
-  align-items: stretch;
-  gap: var(--vlaina-space-6px);
-  content-visibility: auto;
-  contain-intrinsic-size: auto var(--vlaina-size-400px);
-}
-
-.math-formula-picker-result-chunk + .math-formula-picker-result-chunk {
-  margin-top: var(--vlaina-space-6px);
-}
-
 .math-formula-picker-item {
   width: max-content;
   min-width: min(100%, var(--vlaina-size-48px));
@@ -198,14 +160,8 @@
   color: var(--vlaina-color-math-editor-text);
 }
 
-.math-formula-picker-results[data-formula-kind='template'] .math-formula-picker-item,
-.math-formula-picker-results[data-layout='grid'] .math-formula-picker-item {
+.math-formula-picker-results[data-formula-kind='template'] .math-formula-picker-item {
   min-width: min(100%, var(--vlaina-size-180px));
-}
-
-.math-formula-picker-results[data-layout='grid'] .math-formula-picker-item {
-  content-visibility: auto;
-  contain-intrinsic-size: auto var(--vlaina-size-36px);
 }
 
 .math-formula-picker-item[data-formula-rendered='false'] {
@@ -229,15 +185,6 @@
   font-size: var(--vlaina-font-sm);
 }
 
-.math-formula-picker-empty {
-  flex: 1 1 100%;
-  align-self: center;
-  margin: var(--vlaina-space-0);
-  color: var(--vlaina-color-text-secondary);
-  text-align: center;
-  font-size: var(--vlaina-font-xs);
-}
-
 .math-formula-picker-render-error {
   color: var(--vlaina-color-text-secondary);
   font-size: var(--vlaina-font-xs);
@@ -247,16 +194,6 @@
   .math-formula-picker-shortcuts {
     max-height: var(--vlaina-size-240px);
     padding-inline: var(--vlaina-space-12px);
-  }
-
-  .math-formula-picker-results {
-    position: absolute;
-    top: 100%;
-    bottom: auto;
-    left: var(--vlaina-space-12px);
-    right: var(--vlaina-space-12px);
-    margin-top: var(--vlaina-space-8px);
-    max-height: min(var(--vlaina-size-400px), calc(100vh - var(--vlaina-size-240px)));
   }
 
   .math-formula-picker-category {

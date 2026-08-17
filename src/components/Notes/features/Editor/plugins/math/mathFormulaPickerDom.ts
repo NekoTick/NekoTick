@@ -1,14 +1,9 @@
-import { themeIconTokens } from '@/styles/themeTokens';
-import {
-  mathFormulaCategories,
-  type MathFormulaItem,
-} from './mathFormulaCatalog';
+import { mathFormulaCategories } from './mathFormulaCatalog';
 import { renderLatexUncached } from './katex';
 import { localizeMathFormulaName } from './mathFormulaPickerCopy';
 
 const MAX_FORMULA_RENDER_CACHE_ENTRIES = 768;
 const FORMULA_CATEGORY_ROW_SIZE = 12;
-const FORMULA_SEARCH_CHUNK_SIZE = 40;
 type FormulaRenderCacheEntry = { html: string; error: boolean };
 const formulaRenderCache = new Map<string, FormulaRenderCacheEntry>();
 
@@ -18,24 +13,6 @@ export function createMathFormulaPickerButton(className: string, label: string) 
   button.className = className;
   button.setAttribute('aria-label', label);
   return button;
-}
-
-export function createMathFormulaSearchIcon() {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', `${themeIconTokens.sizeCompact}`);
-  svg.setAttribute('height', `${themeIconTokens.sizeCompact}`);
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', 'm21 21-4.3-4.3m1.3-5.2a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z');
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', 'currentColor');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
-  path.setAttribute('stroke-width', '2');
-  svg.append(path);
-  return svg;
 }
 
 export function renderMathFormulaPickerCategories(args: {
@@ -77,22 +54,6 @@ export function renderMathFormulaPickerCategories(args: {
   });
 
   categories.append(results);
-}
-
-export function createMathFormulaSearchResults(
-  formulaItems: MathFormulaItem[],
-  createButton: (formula: MathFormulaItem) => HTMLElement,
-) {
-  const fragment = document.createDocumentFragment();
-  formulaItems.forEach((formula, index) => {
-    if (index % FORMULA_SEARCH_CHUNK_SIZE === 0) {
-      const chunk = document.createElement('div');
-      chunk.className = 'math-formula-picker-result-chunk';
-      fragment.append(chunk);
-    }
-    (fragment.lastElementChild as HTMLElement).append(createButton(formula));
-  });
-  return fragment;
 }
 
 function readCachedFormulaRender(cacheKey: string) {

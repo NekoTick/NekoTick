@@ -3,6 +3,7 @@ import { createClosedMathEditorState } from './mathEditorState';
 import {
   findMathEditorTargetElement,
   getMathAnchorViewportPosition,
+  isHorizontalScrollbarPointerDown,
   resolveMathAnchorElement,
 } from './mathEditorOpenInteraction';
 import { resolveMathEditorOpenState } from './mathEditorOpenResolver';
@@ -75,6 +76,50 @@ describe('mathEditorPlugin', () => {
     editor.append(mermaid, math);
 
     expect(findMathEditorTargetElement({ dom: editor }, mermaid)).toBeNull();
+  });
+
+  it('treats inline formula scrollbar clicks as scrolling instead of editor opening', () => {
+    const wrapper = document.createElement('span');
+    wrapper.setAttribute('data-type', 'math-inline');
+    Object.defineProperties(wrapper, {
+      clientHeight: { value: 120 },
+      clientWidth: { value: 300 },
+      offsetHeight: { value: 120 },
+      scrollWidth: { value: 900 },
+      getBoundingClientRect: {
+        value: () => ({
+          left: 10,
+          right: 310,
+          top: 20,
+          bottom: 140,
+          width: 300,
+          height: 120,
+          x: 10,
+          y: 20,
+          toJSON: () => ({}),
+        }),
+      },
+    });
+    wrapper.style.overflowX = 'auto';
+
+    const detectPointerDown = (clientY: number) => {
+      let isScrollbarPointerDown = false;
+      wrapper.addEventListener('mousedown', (event) => {
+        isScrollbarPointerDown = isHorizontalScrollbarPointerDown({
+          event,
+          mathElement: wrapper,
+        });
+      }, { once: true });
+      wrapper.dispatchEvent(new MouseEvent('mousedown', {
+        bubbles: true,
+        clientX: 120,
+        clientY,
+      }));
+      return isScrollbarPointerDown;
+    };
+
+    expect(detectPointerDown(136)).toBe(true);
+    expect(detectPointerDown(90)).toBe(false);
   });
 
   it('resolves an open state for a math node so the editor can open on the first pointer interaction', () => {

@@ -195,6 +195,15 @@
   background: transparent !important;
 }
 
+.milkdown [data-type='math-inline'].math-inline-wrapper {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .milkdown-editor[data-note-lazy-block-visibility='true'][data-markdown-compat-layer='native']
   .milkdown .ProseMirror:not(.editor-find-active) [data-type='math-block'].math-block-wrapper {
   content-visibility: auto;

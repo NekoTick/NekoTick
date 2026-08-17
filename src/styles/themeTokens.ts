@@ -1023,6 +1023,7 @@ export const themeEditorLayoutTokens = {
   findBlockTopMinOffsetPx: 40,
   findBlockTopMaxOffsetPx: 160,
   findBlockTopViewportRatio: 0.26,
+  previewHorizontalScrollbarHitAreaPx: 18,
   defaultViewportWidthPx: 1200,
   autoCreateBlankDraftDelayMs: 0,
   autoSaveDebounceMs: 800,
