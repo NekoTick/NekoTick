@@ -4,6 +4,58 @@ import { createWhiteboardEraserSpatialIndex } from '@/components/Whiteboard/mode
 import { useWhiteboardKeyboardShortcuts } from './useWhiteboardKeyboardShortcuts';
 
 describe('useWhiteboardKeyboardShortcuts', () => {
+  it('switches the eight tools before image in toolbar order', () => {
+    const setTool = vi.fn();
+    const spatialIndex = createWhiteboardEraserSpatialIndex([], []);
+    renderHook(() => useWhiteboardKeyboardShortcuts({
+      active: true, pushHistory: vi.fn(), resizeBrush: vi.fn(), selectAll: vi.fn(),
+      selectedBrushTool: null, selectedElementIds: [], selectedStrokeIds: [],
+      setElements: vi.fn(), setStrokes: vi.fn(), setTool, spatialIndex, viewportZoom: 1,
+    }));
+
+    ['1', '2', '3', '4', '5', '6', '7', '8'].forEach((key) => {
+      act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key })));
+    });
+
+    expect(setTool.mock.calls.map(([tool]) => tool)).toEqual([
+      'hand', 'select', 'eraser', 'pen', 'text', 'line', 'arrow', 'autoshape',
+    ]);
+  });
+
+  it('restores the last drawing tool with shortcut 4', () => {
+    const setTool = vi.fn();
+    const spatialIndex = createWhiteboardEraserSpatialIndex([], []);
+    const { rerender } = renderHook(({ selectedBrushTool }: { selectedBrushTool: 'crayon' | null }) => (
+      useWhiteboardKeyboardShortcuts({
+        active: true, pushHistory: vi.fn(), resizeBrush: vi.fn(), selectAll: vi.fn(),
+        selectedBrushTool, selectedElementIds: [], selectedStrokeIds: [],
+        setElements: vi.fn(), setStrokes: vi.fn(), setTool, spatialIndex, viewportZoom: 1,
+      })
+    ), { initialProps: { selectedBrushTool: 'crayon' } });
+    rerender({ selectedBrushTool: null });
+
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: '4' })));
+
+    expect(setTool).toHaveBeenCalledWith('crayon');
+  });
+
+  it('does not switch tools while typing in an input', () => {
+    const setTool = vi.fn();
+    const spatialIndex = createWhiteboardEraserSpatialIndex([], []);
+    renderHook(() => useWhiteboardKeyboardShortcuts({
+      active: true, pushHistory: vi.fn(), resizeBrush: vi.fn(), selectAll: vi.fn(),
+      selectedBrushTool: null, selectedElementIds: [], selectedStrokeIds: [],
+      setElements: vi.fn(), setStrokes: vi.fn(), setTool, spatialIndex, viewportZoom: 1,
+    }));
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: '1' })));
+
+    expect(setTool).not.toHaveBeenCalled();
+    input.remove();
+  });
+
   it('opens the only selected text with Enter', () => {
     const editSelectedText = vi.fn(() => true);
     const spatialIndex = createWhiteboardEraserSpatialIndex([], []);

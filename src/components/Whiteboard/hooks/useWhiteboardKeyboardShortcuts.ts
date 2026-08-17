@@ -1,6 +1,13 @@
-import { useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { isEditableTarget } from '@/components/Whiteboard/model/interaction/whiteboardInteractions';
-import type { WhiteboardElement, WhiteboardStroke, WhiteboardStrokeTool, WhiteboardTool } from '@/components/Whiteboard/model/core/whiteboardModel';
+import {
+  isBrushPanelTool,
+  type WhiteboardBrushPanelTool,
+  type WhiteboardElement,
+  type WhiteboardStroke,
+  type WhiteboardStrokeTool,
+  type WhiteboardTool,
+} from '@/components/Whiteboard/model/core/whiteboardModel';
 import { translateStroke } from '@/components/Whiteboard/model/interaction/whiteboardSelection';
 import { markWhiteboardSparseUpdate } from '@/components/Whiteboard/model/core/whiteboardCollection';
 import type { WhiteboardEraserSpatialIndex } from '@/components/Whiteboard/model/interaction/whiteboardEraser';
@@ -22,14 +29,13 @@ interface WhiteboardKeyboardShortcutsOptions {
 }
 
 const TOOL_KEYS: Partial<Record<string, WhiteboardTool>> = {
-  '1': 'select',
-  '2': 'hand',
-  '3': 'pen',
-  '4': 'pencil',
-  '5': 'marker',
+  '1': 'hand',
+  '2': 'select',
+  '3': 'eraser',
+  '5': 'text',
   '6': 'line',
   '7': 'arrow',
-  '8': 'eraser',
+  '8': 'autoshape',
   a: 'arrow',
   e: 'eraser',
   h: 'hand',
@@ -55,6 +61,14 @@ export function useWhiteboardKeyboardShortcuts({
   spatialIndex,
   viewportZoom,
 }: WhiteboardKeyboardShortcutsOptions) {
+  const lastDrawingToolRef = useRef<WhiteboardBrushPanelTool>('pen');
+
+  useEffect(() => {
+    if (selectedBrushTool && isBrushPanelTool(selectedBrushTool)) {
+      lastDrawingToolRef.current = selectedBrushTool;
+    }
+  }, [selectedBrushTool]);
+
   useEffect(() => {
     if (!active) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -77,7 +91,7 @@ export function useWhiteboardKeyboardShortcuts({
         return;
       }
       if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-        const nextTool = TOOL_KEYS[key];
+        const nextTool = key === '4' ? lastDrawingToolRef.current : TOOL_KEYS[key];
         if (nextTool) {
           event.preventDefault();
           setTool(nextTool);
