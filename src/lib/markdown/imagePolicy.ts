@@ -213,6 +213,7 @@ export function createMarkdownSanitizeSchema() {
         'align',
         'width',
         'dataVlainaCrop',
+        'dataObsidianImageEmbed',
       ])),
       audio: Array.from(new Set([...(attributes.audio || []), ...(GITHUB_RAW_HTML_ATTRIBUTE_NAMES_BY_TAG.audio || [])])),
       iframe: Array.from(new Set([...(attributes.iframe || []), ...(GITHUB_RAW_HTML_ATTRIBUTE_NAMES_BY_TAG.iframe || [])])),

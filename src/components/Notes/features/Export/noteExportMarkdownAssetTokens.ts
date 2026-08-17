@@ -10,6 +10,7 @@ import {
   type HtmlTagRangeScan,
 } from './noteExportMarkdownHtmlTokens';
 import { getNonExcludedContentRanges } from '@/lib/markdown/contentRangeExclusion';
+import { findObsidianImageEmbedSourceTokens } from '@/lib/notes/markdown/obsidianImageEmbed';
 import type { ExportMarkdownAssetSourceToken } from './noteExportMarkdownAssetTypes';
 import { findMarkdownImageSourceMatches } from './noteExportMarkdownImageTokens';
 import { findMarkdownReferenceImageSources } from './noteExportMarkdownReferenceImageTokens';
@@ -119,9 +120,25 @@ export function findExportMarkdownAssetSourceTokensWithOptions(
     htmlTagRanges,
     maxTokens - markdownMatches.length,
   );
+  const obsidianMatches = findObsidianImageEmbedSourceTokens(
+    content,
+    ignoredMarkdownRanges,
+    maxTokens - markdownMatches.length - referenceImageScan.tokens.length,
+  );
   return [
     ...markdownMatches.map((match) => match.token),
     ...referenceImageScan.tokens,
+    ...obsidianMatches.map((match) => ({
+      start: match.sourceStart,
+      end: match.sourceEnd,
+      src: match.target.src,
+      lookupSrc: match.target.src,
+      obsidianEmbed: match.target.obsidianEmbed,
+      referenceOffset: match.embedStart,
+      referenceSource: match.source,
+      replaceStart: match.embedStart,
+      replaceEnd: match.embedEnd,
+    })),
     ...findHtmlImageSourceTokens(
       content,
       normalizeContentRanges([

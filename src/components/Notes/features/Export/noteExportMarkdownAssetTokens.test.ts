@@ -11,6 +11,45 @@ import {
 import { MAX_EXPORT_HTML_TAG_END_SCAN_CHARS } from './noteExportMarkdownHtmlTokens';
 
 describe('findExportMarkdownAssetSourceTokens', () => {
+  it('extracts Obsidian image paths while preserving the full reference span', () => {
+    const markdown = '![[1.png]]\n![[attachments/cover.png|Cover]]\n![[table.png\\|300]]';
+    const tokens = findExportMarkdownAssetSourceTokens(markdown);
+
+    expect(tokens.map((token) => ({
+      src: token.src,
+      referenceSource: token.referenceSource,
+      referenceOffset: token.referenceOffset,
+    }))).toEqual([
+      { src: '1.png', referenceSource: '![[1.png]]', referenceOffset: 0 },
+      {
+        src: 'attachments/cover.png',
+        referenceSource: '![[attachments/cover.png|Cover]]',
+        referenceOffset: 11,
+      },
+      {
+        src: 'table.png',
+        referenceSource: '![[table.png\\|300]]',
+        referenceOffset: 44,
+      },
+    ]);
+  });
+
+  it('ignores Obsidian image syntax in code and non-image embeds', () => {
+    const markdown = [
+      '`![[inline.png]]`',
+      '```md',
+      '![[fenced.png]]',
+      '```',
+      '![[notes/demo.md]]',
+      '[linked ![[linked.png]]](https://example.test)',
+      '![[visible.webp]]',
+    ].join('\n');
+
+    expect(findExportMarkdownAssetSourceTokens(markdown).map((token) => token.src)).toEqual([
+      'visible.webp',
+    ]);
+  });
+
   it('keeps asset extraction correct after many ignored inline ranges', () => {
     const ignoredImages = Array.from(
       { length: 1500 },

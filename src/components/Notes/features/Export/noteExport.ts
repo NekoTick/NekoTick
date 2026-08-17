@@ -220,11 +220,14 @@ async function createNoteExportOutput(request: NoteExportRequest): Promise<{
     throw new Error('Note is too large to export safely.');
   }
 
-  const markdown = await resolveExportMarkdownAssetSources(
-    rawMarkdown,
-    request.notesPath,
-    request.notePath,
-  );
+  const markdown = request.rootNodes
+    ? await resolveExportMarkdownAssetSources(rawMarkdown, request.notesPath, request.notePath, {
+        preserveObsidianSize: request.format !== 'docx',
+        rootNodes: request.rootNodes,
+      })
+    : await resolveExportMarkdownAssetSources(rawMarkdown, request.notesPath, request.notePath, {
+        preserveObsidianSize: request.format !== 'docx',
+      });
   const html = request.format === 'html' || request.format === 'pdf'
     ? await renderNoteExportHtml(markdown, title)
     : null;

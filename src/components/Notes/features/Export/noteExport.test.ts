@@ -119,6 +119,7 @@ describe('exportNote', () => {
       '# Exported',
       '/notesRoot',
       'Exported.md',
+      { preserveObsidianSize: true },
     );
     expect(mocks.renderNoteExportHtml).toHaveBeenCalledWith('# Exported', 'Exported');
 

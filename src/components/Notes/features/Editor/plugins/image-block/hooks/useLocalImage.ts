@@ -54,10 +54,11 @@ export function useLocalImage(
     rawSrc: string,
     notesPath: string,
     currentNotePath: string | undefined,
-    enabled = true
+    enabled = true,
+    openedFolderFallbackSrc?: string | null,
 ): UseLocalImageResult {
     const imageCacheGeneration = useImageCacheGeneration();
-    const resolutionKey = `${imageCacheGeneration}\0${enabled ? '1' : '0'}\0${rawSrc}\0${notesPath}\0${currentNotePath ?? ''}`;
+    const resolutionKey = `${imageCacheGeneration}\0${enabled ? '1' : '0'}\0${rawSrc}\0${notesPath}\0${currentNotePath ?? ''}\0${openedFolderFallbackSrc ?? ''}`;
     const initialResolvedSrc = getInitialResolvedImageSrc(rawSrc, enabled);
     const initialState: LocalImageState = {
         key: resolutionKey,
@@ -146,11 +147,19 @@ export function useLocalImage(
                 }
 
                 commitLoading();
-                const candidatePaths = await resolveImageSourcePathCandidates({
+                let candidatePaths = await resolveImageSourcePathCandidates({
                     rawSrc: safeBaseSrc,
                     notesPath,
                     currentNotePath,
                 });
+
+                if (candidatePaths.length > 0 && openedFolderFallbackSrc) {
+                    const fallbackPaths = await resolveImageSourcePathCandidates({
+                        rawSrc: openedFolderFallbackSrc,
+                        notesPath,
+                    });
+                    candidatePaths = [...new Set([...candidatePaths, ...fallbackPaths])];
+                }
 
                 if (candidatePaths.length > 0) {
                     let pathsToTry = candidatePaths;
@@ -203,7 +212,15 @@ export function useLocalImage(
         return () => {
             isMounted = false;
         };
-    }, [rawSrc, notesPath, currentNotePath, enabled, resolutionKey, initialResolvedSrc]);
+    }, [
+        rawSrc,
+        notesPath,
+        currentNotePath,
+        enabled,
+        openedFolderFallbackSrc,
+        resolutionKey,
+        initialResolvedSrc,
+    ]);
 
     return { resolvedSrc, isLoading, error };
 }

@@ -132,6 +132,18 @@ describe('createDocxExportBytes', () => {
     expect(second.data).toBe(first.data);
   });
 
+  it('embeds Obsidian image syntax after portable asset resolution', async () => {
+    const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+
+    await createDocxExportBytes(`![[${image}|Cover image]]`, 'Title');
+
+    expect(mocks.imageRun).toHaveBeenCalledTimes(1);
+    expect(mocks.imageRun).toHaveBeenCalledWith(expect.objectContaining({
+      altText: expect.objectContaining({ description: 'Cover image' }),
+      transformation: { width: 1, height: 1 },
+    }));
+  });
+
   it('renders unsafe links and unsupported images as plain fallback text', async () => {
     await createDocxExportBytes([
       '[unsafe](javascript:alert(1))',

@@ -74,6 +74,27 @@ describe('imageNodeAttrs', () => {
         expect(next.alt).toBe('new');
     });
 
+    it('keeps Obsidian source metadata for alias-only updates', () => {
+        const obsidianEmbed = {
+            src: 'image.png',
+            alias: 'old',
+            size: null,
+            width: null,
+            height: null,
+        };
+        const aliasUpdate = mergeImageNodeAttrs({
+            src: 'image.png',
+            alt: 'old',
+            persistedSrc: 'image.png',
+            obsidianEmbed,
+        }, { alt: 'new' });
+        const layoutUpdate = mergeImageNodeAttrs(aliasUpdate, { align: 'left' });
+
+        expect(aliasUpdate.persistedSrc).toBe('image.png');
+        expect(aliasUpdate.obsidianEmbed).toBe(obsidianEmbed);
+        expect(layoutUpdate.persistedSrc).toBeNull();
+    });
+
     it('handles non-string src values safely', () => {
         expect(getImageAlignment({ src: 123 })).toBe('center');
         expect(getImageWidth({ src: 123, width: '40%' })).toBe('40%');

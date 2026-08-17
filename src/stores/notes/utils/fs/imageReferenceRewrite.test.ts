@@ -104,4 +104,58 @@ describe('collectImageReferenceContentUpdates', () => {
       content: '![cover](archive/old.png)',
     }]);
   });
+
+  it('rewrites Obsidian image paths while preserving aliases and code literals', async () => {
+    const content = [
+      '![[old image.png|Cover image]]',
+      '| ![[old image.png\\|300]] |',
+      '`![[old image.png|inline literal]]`',
+      '```md',
+      '![[old image.png|fenced literal]]',
+      '```',
+    ].join('\n');
+    const rootFolder = {
+      id: '',
+      name: 'Notes',
+      path: '',
+      isFolder: true as const,
+      expanded: true,
+      children: [
+        { id: 'docs/alpha.md', name: 'alpha', path: 'docs/alpha.md', isFolder: false as const },
+        {
+          id: 'assets',
+          name: 'assets',
+          path: 'assets',
+          isFolder: true as const,
+          expanded: false,
+          children: [{
+            id: 'assets/old image.png',
+            name: 'old image.png',
+            path: 'assets/old image.png',
+            isFolder: false as const,
+            kind: 'image' as const,
+          }],
+        },
+      ],
+    };
+
+    const updates = await collectImageReferenceContentUpdates({
+      notesPath: '/notesRoot',
+      rootFolder,
+      oldImagePath: 'assets/old image.png',
+      newImagePath: 'assets/new image.png',
+      currentNote: { path: 'docs/alpha.md', content },
+      noteContentsCache: new Map(),
+      noteMetadata: null,
+    });
+
+    expect(updates[0]?.content).toBe([
+      '![[../assets/new image.png|Cover image]]',
+      '| ![[../assets/new image.png\\|300]] |',
+      '`![[old image.png|inline literal]]`',
+      '```md',
+      '![[old image.png|fenced literal]]',
+      '```',
+    ].join('\n'));
+  });
 });

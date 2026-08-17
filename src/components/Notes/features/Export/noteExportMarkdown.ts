@@ -3,10 +3,14 @@ import { hasInternalNoteAssetUrlPathSegment } from '@/lib/assets/core/internalAs
 import { resolveExistingNotesRootAssetPath } from '@/lib/assets/core/paths';
 import { mapMarkdownOutsideProtectedSegments } from '@/lib/notes/markdown/markdownProtectedBlocks';
 import { getNoteInternalImageAssetPath, sanitizeNoteMediaSrc } from '@/lib/notes/markdown/urlSecurity';
+import { formatMarkdownImage } from '@/lib/markdown/markdownImageMarkdown';
+import { resolveObsidianImagePath } from '@/lib/notes/markdown/obsidianImagePath';
+import type { FileTreeNode } from '@/stores/notes/types';
 import {
   MAX_EXPORT_MARKDOWN_ASSET_TOKENS,
   findExportMarkdownAssetSourceTokensWithOptions,
 } from './noteExportMarkdownAssetTokens';
+import type { ExportMarkdownAssetSourceToken } from './noteExportMarkdownAssetTypes';
 import { MAX_EXPORT_EMBEDDED_IMAGE_BYTES } from './noteExportLimits';
 
 const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
@@ -52,6 +56,33 @@ interface ResolvedExportAssetUrl {
 type ExportAssetUrlCache = Map<string, Promise<ResolvedExportAssetUrl>>;
 interface ExportAssetBudget {
   embeddedBytes: number;
+}
+
+interface ResolveExportMarkdownAssetOptions {
+  preserveObsidianSize?: boolean;
+  rootNodes?: readonly FileTreeNode[];
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatExportObsidianImage(
+  src: string,
+  token: ExportMarkdownAssetSourceToken,
+  preserveSize: boolean,
+): string {
+  const embed = token.obsidianEmbed;
+  if (!embed) return src;
+  if (preserveSize && embed.width) {
+    return `<img src="${escapeHtmlAttribute(src)}" alt="" width="${embed.width}" />`;
+  }
+  return formatMarkdownImage(src, embed.size ? '' : embed.alias);
 }
 
 function getExportLocalImageAssetPath(src: string): string | null {
@@ -184,6 +215,7 @@ export async function resolveExportMarkdownAssetSources(
   markdown: string,
   notesPath: string,
   notePath: string,
+  options: ResolveExportMarkdownAssetOptions = {},
 ): Promise<string> {
   const normalizedMarkdown = markdown.replace(/\r\n?/g, '\n');
   const lineStarts: number[] = [0];
@@ -214,6 +246,7 @@ export async function resolveExportMarkdownAssetSources(
     assetUrlCache,
     assetBudget,
     protectedRanges,
+    options,
   );
 }
 
@@ -224,6 +257,7 @@ async function resolveExportMarkdownAssetSegment(
   assetUrlCache: ExportAssetUrlCache,
   assetBudget: ExportAssetBudget,
   ignoredRanges: Array<{ start: number; end: number }>,
+  options: ResolveExportMarkdownAssetOptions,
 ): Promise<string> {
   const tokens = findExportMarkdownAssetSourceTokensWithOptions(markdown, {
     ignoredRanges,
@@ -236,12 +270,25 @@ async function resolveExportMarkdownAssetSegment(
   const parts: string[] = [];
   let cursor = 0;
   for (const token of tokens) {
-    if (token.start < cursor) {
+    const replaceStart = token.replaceStart ?? token.start;
+    const replaceEnd = token.replaceEnd ?? token.end;
+    if (replaceStart < cursor) {
       continue;
     }
-    parts.push(markdown.slice(cursor, token.start));
-    parts.push(await resolveAssetUrlCached(assetUrlCache, token.lookupSrc ?? token.src, notesPath, notePath, assetBudget, token.src));
-    cursor = token.end;
+    parts.push(markdown.slice(cursor, replaceStart));
+    const openedFolderSrc = token.obsidianEmbed && options.rootNodes
+      ? resolveObsidianImagePath(token.lookupSrc ?? token.src, options.rootNodes, notePath)
+      : null;
+    const resolvedSrc = await resolveAssetUrlCached(
+      assetUrlCache,
+      openedFolderSrc ?? token.lookupSrc ?? token.src,
+      notesPath,
+      notePath,
+      assetBudget,
+      token.src,
+    );
+    parts.push(formatExportObsidianImage(resolvedSrc, token, options.preserveObsidianSize === true));
+    cursor = replaceEnd;
   }
   parts.push(markdown.slice(cursor));
   return parts.join('');

@@ -192,6 +192,7 @@ export function BatchNoteExportDialog({
         sources: selectedSources,
         formats: [format],
         notesPath,
+        rootNodes: rootFolder?.children,
         outputDirectory: typeof desktopOutputDirectory === 'string' ? desktopOutputDirectory : null,
         concurrency: hasNativeFileShare() ? 1 : BATCH_EXPORT_CONCURRENCY,
         getContent: async (source) => {
@@ -219,7 +220,7 @@ export function BatchNoteExportDialog({
       setIsExporting(false);
       setExportProgress({ completed: 0, total: 0 });
     }
-  }, [addToast, currentNotePath, currentNoteTitle, format, getCurrentNoteContent, getDisplayName, notesPath, onOpenChange, selectedIds, sources, t]);
+  }, [addToast, currentNotePath, currentNoteTitle, format, getCurrentNoteContent, getDisplayName, notesPath, onOpenChange, rootFolder, selectedIds, sources, t]);
 
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();

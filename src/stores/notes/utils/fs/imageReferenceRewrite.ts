@@ -1,8 +1,9 @@
 import { resolveNotesRootAssetPathCandidates } from '@/lib/assets/core/paths';
 import { getStorageAdapter } from '@/lib/storage/adapter';
 import { findExportMarkdownAssetSourceTokensWithOptions } from '@/components/Notes/features/Export/noteExportMarkdownAssetTokens';
+import { resolveObsidianImagePath } from '@/lib/notes/markdown/obsidianImagePath';
 import { readNoteMetadataFromMarkdown, updateNoteMetadataInMarkdown } from '../../frontmatter';
-import type { NoteCoverMetadata, NotesStore } from '../../types';
+import type { FileTreeNode, NoteCoverMetadata, NotesStore } from '../../types';
 import {
   collectNoteContentScanPaths,
   MAX_SEARCHABLE_NOTE_BYTES,
@@ -80,6 +81,8 @@ async function rewriteNoteContent(
   oldImageFullPathKey: string,
   newImagePath: string,
   metadataCover: NoteCoverMetadata | undefined,
+  rootNodes: readonly FileTreeNode[],
+  oldImagePath: string,
 ) {
   const tokens = findExportMarkdownAssetSourceTokensWithOptions(content, {
     maxTokens: MAX_RENAME_IMAGE_TOKENS_PER_NOTE + 1,
@@ -91,20 +94,30 @@ async function rewriteNoteContent(
   const matches: boolean[] = [];
   for (let index = 0; index < tokens.length; index += RENAME_SOURCE_BATCH_SIZE) {
     const batch = tokens.slice(index, index + RENAME_SOURCE_BATCH_SIZE);
-    matches.push(...await Promise.all(batch.map((token) => sourceTargetsImage(
-      notesPath,
-      notePath,
-      token.lookupSrc ?? token.src,
-      oldImageFullPathKey,
-    ))));
+    matches.push(...await Promise.all(batch.map(async (token) => {
+      const obsidianPath = token.obsidianEmbed
+        ? resolveObsidianImagePath(token.lookupSrc ?? token.src, rootNodes, notePath)
+        : null;
+      if (obsidianPath) {
+        return getPathComparisonKey(obsidianPath) === getPathComparisonKey(oldImagePath);
+      }
+      return sourceTargetsImage(
+        notesPath,
+        notePath,
+        token.lookupSrc ?? token.src,
+        oldImageFullPathKey,
+      );
+    })));
   }
-  const encodedReference = encodeReferencePath(getRelativeImagePath(newImagePath, notePath));
+  const relativeReference = getRelativeImagePath(newImagePath, notePath);
+  const encodedReference = encodeReferencePath(relativeReference);
   let nextContent = content;
   for (let index = tokens.length - 1; index >= 0; index -= 1) {
     if (!matches[index]) continue;
     const token = tokens[index];
     if (!token) continue;
-    nextContent = `${nextContent.slice(0, token.start)}${encodedReference}${nextContent.slice(token.end)}`;
+    const replacement = token.obsidianEmbed ? relativeReference : encodedReference;
+    nextContent = `${nextContent.slice(0, token.start)}${replacement}${nextContent.slice(token.end)}`;
   }
 
   const parsedCover = readNoteMetadataFromMarkdown(content).cover;
@@ -175,6 +188,8 @@ export async function collectImageReferenceContentUpdates(input: Pick<
         oldImageFullPathKey,
         input.newImagePath,
         input.noteMetadata?.notes[note.path]?.cover,
+        input.rootFolder.children,
+        input.oldImagePath,
       );
       if (nextContent !== content) {
         updates.push({

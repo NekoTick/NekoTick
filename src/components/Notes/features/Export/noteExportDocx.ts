@@ -10,6 +10,7 @@ import {
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
+import { remarkObsidianImageEmbeds } from '@/components/common/markdown/theme-compatibility/obsidian/imageEmbed';
 import type { Definition, Root, RootContent } from 'mdast';
 import { themeExportLayoutTokens } from '@/styles/themeTokens';
 import {
@@ -65,7 +66,8 @@ function appendTruncationNotice(children: DocxBlock[]) {
 }
 
 export async function createDocxExportBytes(markdown: string, title: string): Promise<Uint8Array> {
-  const root = unified().use(remarkParse).use(remarkGfm).parse(markdown) as Root;
+  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkObsidianImageEmbeds);
+  const root = processor.runSync(processor.parse(markdown), { value: markdown }) as Root;
   const context = createBuildContext(root);
   const children: DocxBlock[] = [
     new Paragraph({
