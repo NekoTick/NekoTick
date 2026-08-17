@@ -22,6 +22,9 @@ export function useNotesSplitResize(args: {
   const { setSplitPaneTree } = args;
   const setLayoutPanelDragging = useUIStore((s) => s.setLayoutPanelDragging);
   const activeSplitResizeRef = useRef<ActiveNotesSplitResize | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
+  const resizeFrameScheduledRef = useRef(false);
+  const pendingResizePointRef = useRef<{ x: number; y: number } | null>(null);
 
   const updateSplitResizeRatio = useCallback((clientX: number, clientY: number) => {
     const resize = activeSplitResizeRef.current;
@@ -47,13 +50,42 @@ export function useNotesSplitResize(args: {
     }
 
     event.preventDefault();
-    updateSplitResizeRatio(event.clientX, event.clientY);
+    pendingResizePointRef.current = { x: event.clientX, y: event.clientY };
+    if (resizeFrameScheduledRef.current) return;
+
+    resizeFrameScheduledRef.current = true;
+    const frameId = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      resizeFrameScheduledRef.current = false;
+      const point = pendingResizePointRef.current;
+      pendingResizePointRef.current = null;
+      if (point) {
+        updateSplitResizeRatio(point.x, point.y);
+      }
+    });
+    if (resizeFrameScheduledRef.current) {
+      resizeFrameRef.current = frameId;
+    }
   }, [updateSplitResizeRatio]);
 
-  const stopSplitResize = useCallback(() => {
+  const stopSplitResize = useCallback((event?: PointerEvent) => {
     const resize = activeSplitResizeRef.current;
     if (!resize) {
       return;
+    }
+
+    const pendingPoint = pendingResizePointRef.current;
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+    }
+    resizeFrameRef.current = null;
+    resizeFrameScheduledRef.current = false;
+    pendingResizePointRef.current = null;
+    if (pendingPoint && (event?.type === 'pointerup' || event?.type === 'pointercancel')) {
+      const finalPoint = event.type === 'pointerup'
+        ? { x: event.clientX, y: event.clientY }
+        : pendingPoint;
+      updateSplitResizeRatio(finalPoint.x, finalPoint.y);
     }
 
     document.removeEventListener('pointermove', handleSplitResizePointerMove, true);
@@ -64,7 +96,7 @@ export function useNotesSplitResize(args: {
     activeSplitResizeRef.current = null;
     setLayoutPanelDragging(false);
     requestNativeCaretOverlayRefresh();
-  }, [handleSplitResizePointerMove, setLayoutPanelDragging]);
+  }, [handleSplitResizePointerMove, setLayoutPanelDragging, updateSplitResizeRatio]);
 
   const beginSplitResize = useCallback((
     splitId: string,

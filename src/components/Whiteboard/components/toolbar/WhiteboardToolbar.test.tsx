@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WHITEBOARD_DEFAULT_BRUSH_COLORS, WHITEBOARD_DEFAULT_BRUSH_SIZES } from '@/components/Whiteboard/model/core/whiteboardModel';
 
@@ -39,6 +39,10 @@ function renderToolbar(overrides: Partial<ComponentProps<typeof WhiteboardToolba
 }
 
 describe('WhiteboardToolbar', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('places the text tool between the brush and line tools', () => {
     const { container, onToolChange } = renderToolbar();
 
@@ -633,6 +637,49 @@ describe('WhiteboardToolbar', () => {
     expect(onBrushColorChange).toHaveBeenCalledWith('pen', '#43A555');
   });
 
+  it('coalesces custom color pointer updates to the latest point in a frame', () => {
+    renderToolbar({ tool: 'pen' });
+    fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
+    const field = screen.getByRole('slider', { name: 'whiteboard.saturationAndBrightness' });
+    Object.defineProperties(field, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) },
+    });
+    const measure = vi.spyOn(field, 'getBoundingClientRect').mockReturnValue({
+      bottom: 100,
+      height: 100,
+      left: 0,
+      right: 100,
+      top: 0,
+      width: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    fireEvent.pointerDown(field, { clientX: 0, clientY: 100, pointerId: 1 });
+    measure.mockClear();
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    fireEvent.pointerMove(field, { clientX: 20, clientY: 80, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(field, { clientX: 80, clientY: 20, pointerId: 1 });
+
+    expect(measure).not.toHaveBeenCalled();
+    expect(animationFrames).toHaveLength(1);
+    act(() => animationFrames.shift()?.(0));
+    expect(measure).toHaveBeenCalledOnce();
+    expect(field).toHaveAttribute('aria-valuetext', '80%, 80%');
+
+    fireEvent.pointerMove(field, { clientX: 90, clientY: 10, pointerId: 1 });
+    expect(animationFrames).toHaveLength(1);
+    fireEvent.pointerUp(field, { clientX: 90, clientY: 10, pointerId: 1 });
+    expect(field).toHaveAttribute('aria-valuetext', '90%, 90%');
+  });
+
   it('shows the selected content color in the bottom toolbar', () => {
     const onSelectionColorChange = vi.fn();
     const onSelectionColorPreviewChange = vi.fn();
@@ -775,9 +822,19 @@ describe('WhiteboardToolbar', () => {
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));
 
       expect(screen.getByRole('dialog', { name: 'whiteboard.customColor' })).toHaveAttribute('aria-busy', 'true');
+      const animationFrames: FrameRequestCallback[] = [];
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      });
+      fireEvent.pointerMove(window, { clientX: 5, clientY: 10 });
+      fireEvent.pointerMove(window, { clientX: 15, clientY: 20 });
       fireEvent.pointerMove(window, { clientX: 25, clientY: 40 });
 
+      expect(animationFrames).toHaveLength(1);
+      act(() => animationFrames.shift()?.(0));
       await waitFor(() => expect(capturePage).toHaveBeenCalledWith({ x: 25, y: 40, width: 1, height: 1 }));
+      expect(capturePage).toHaveBeenCalledTimes(1);
       expect(screen.getByRole('dialog', { name: 'whiteboard.customColor' })).toBeInTheDocument();
       expect(document.documentElement).toHaveAttribute('data-whiteboard-color-picking', 'true');
     } finally {
@@ -819,8 +876,14 @@ describe('WhiteboardToolbar', () => {
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.tool.pen' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.customColor' }));
       fireEvent.click(screen.getByRole('button', { name: 'whiteboard.pickColor' }));
+      const animationFrames: FrameRequestCallback[] = [];
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      });
       fireEvent.pointerMove(window, { clientX: 25, clientY: 40 });
 
+      act(() => animationFrames.shift()?.(0));
       await waitFor(() => expect(screen.getByLabelText('HEX')).toHaveValue('#21C45D'));
       expect(document.documentElement).toHaveAttribute('data-whiteboard-color-picking', 'true');
     } finally {
@@ -840,8 +903,8 @@ describe('WhiteboardToolbar', () => {
     const interactionRegion = mainToolbar?.parentElement;
     const placementRegion = interactionRegion?.parentElement;
     expect(mainToolbar?.closest('[data-whiteboard-titlebar-slot="true"]')).not.toBeInTheDocument();
-    expect(interactionRegion).toHaveClass('app-no-drag', 'pointer-events-auto', 'max-w-full');
-    expect(interactionRegion).not.toHaveClass('w-full');
+    expect(interactionRegion).toHaveClass('app-no-drag', 'pointer-events-none', 'relative', 'w-full');
+    expect(mainToolbar).toHaveClass('pointer-events-auto');
     expect(placementRegion).toHaveClass('inset-x-0', 'bottom-4', 'justify-center');
     expect(panel?.parentElement).toHaveClass('w-max', 'max-w-full');
     expect(panel?.parentElement?.parentElement).toHaveClass('bottom-full', 'left-1/2', '-translate-x-1/2', 'w-max');

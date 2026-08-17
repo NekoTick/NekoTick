@@ -58,6 +58,7 @@ function createEditorView() {
     state: {
       doc: {
         content: { size: 20 },
+        descendants: vi.fn(),
         resolve: vi.fn(() => ({ parent: { inlineContent: true } })),
       },
       tr: transaction,
@@ -97,6 +98,57 @@ describe('focusCurrentEditorAtViewportPoint', () => {
     expect(view.posAtCoords).toHaveBeenCalledWith({ left: 130, top: 240 });
     expect(transaction.setSelection).toHaveBeenCalledWith(selection);
     expect(view.dispatch).toHaveBeenCalledWith(transaction);
+  });
+
+  it('uses exact mapped coordinates for preview activation instead of blank-area heuristics', () => {
+    const { selection, transaction, view } = createEditorView();
+    mocks.resolveTextblockLineEndAtPoint.mockReturnValue({ targetPos: 3 });
+
+    expect(focusCurrentEditorAtViewportPoint({
+      clientX: 460,
+      clientY: 491,
+      contentOffset: { left: 30, top: 40 },
+    })).toBe(true);
+
+    expect(mocks.resolveTextblockLineEndAtPoint).not.toHaveBeenCalled();
+    expect(view.posAtCoords).toHaveBeenCalledWith({ left: 130, top: 240 });
+    expect(transaction.setSelection).toHaveBeenCalledWith(selection);
+  });
+
+  it('uses a preview text anchor when theme spacing maps the point to another block', () => {
+    const { selection, transaction, view } = createEditorView();
+    view.posAtCoords.mockReturnValue({ inside: 0, pos: 2 });
+    view.state.doc.descendants.mockImplementation((callback: (node: unknown, pos: number) => unknown) => {
+      callback({ isText: true, text: 'Target paragraph' }, 10);
+    });
+
+    expect(focusCurrentEditorAtViewportPoint({
+      clientX: 460,
+      clientY: 491,
+      contentOffset: { left: 30, top: 40 },
+      contentAnchor: { text: 'Target paragraph', textOffset: 4 },
+    })).toBe(true);
+
+    expect(mocks.textSelectionCreate).toHaveBeenCalledWith(view.state.doc, 14);
+    expect(transaction.setSelection).toHaveBeenCalledWith(selection);
+  });
+
+  it('resolves a preview point that lands on a structural blank node to the nearest text block', () => {
+    const { selection, transaction, view } = createEditorView();
+    view.state.doc.resolve.mockReturnValue({ parent: { inlineContent: false } });
+    const action = { targetPos: 6, bias: -1, blockFrom: 0 };
+    mocks.resolveBlankAreaPlainClickAction.mockReturnValue(action);
+    mocks.applyBlankAreaPlainClickSelection.mockReturnValue({ selection });
+
+    expect(focusCurrentEditorAtViewportPoint({
+      clientX: 460,
+      clientY: 491,
+      contentOffset: { left: 30, top: 40 },
+    })).toBe(true);
+
+    expect(mocks.resolveBlankAreaPlainClickAction).toHaveBeenCalled();
+    expect(view.posAtCoords).toHaveBeenCalledWith({ left: 130, top: 240 });
+    expect(transaction.setSelection).toHaveBeenCalledWith(selection);
   });
 
   it('keeps direct editor viewport coordinates unchanged', () => {

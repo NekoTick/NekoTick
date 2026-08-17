@@ -261,6 +261,16 @@ export function useSelectionInsertState() {
         syncState();
       });
     };
+    const handleViewportChange = () => {
+      if (
+        lastStateSignatureRef.current === "" &&
+        !isSelectingFromChatRef.current &&
+        !lastValidSelectionRef.current
+      ) {
+        return;
+      }
+      scheduleSyncState();
+    };
     const handleSelectionChange = () => {
       if (isSelectingFromChatRef.current) {
         stopSyncStateRaf();
@@ -278,6 +288,7 @@ export function useSelectionInsertState() {
       handleMouseUp,
       handleSelectStart,
       handleSelectionChange,
+      handleViewportChange,
       handleVisibilityChange,
       handleWindowBlur,
       scheduleSyncState,

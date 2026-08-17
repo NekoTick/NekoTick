@@ -5,6 +5,7 @@ export interface SelectionInsertEventHandlers {
   handleMouseUp: () => void;
   handleSelectStart: (event: Event) => void;
   handleSelectionChange: () => void;
+  handleViewportChange: () => void;
   handleVisibilityChange: () => void;
   handleWindowBlur: () => void;
   scheduleSyncState: () => void;
@@ -17,6 +18,7 @@ export function addSelectionInsertEventListeners({
   handleMouseUp,
   handleSelectStart,
   handleSelectionChange,
+  handleViewportChange,
   handleVisibilityChange,
   handleWindowBlur,
   scheduleSyncState,
@@ -28,8 +30,8 @@ export function addSelectionInsertEventListeners({
   document.addEventListener("selectionchange", handleSelectionChange);
   window.addEventListener("mouseup", scheduleSyncState);
   window.addEventListener("keyup", scheduleSyncState);
-  window.addEventListener("resize", scheduleSyncState);
-  window.addEventListener("scroll", scheduleSyncState, true);
+  window.addEventListener("resize", handleViewportChange);
+  window.addEventListener("scroll", handleViewportChange, true);
   window.addEventListener("blur", handleWindowBlur);
   window.addEventListener("pagehide", handleForceReset);
   document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -42,8 +44,8 @@ export function addSelectionInsertEventListeners({
     document.removeEventListener("selectionchange", handleSelectionChange);
     window.removeEventListener("mouseup", scheduleSyncState);
     window.removeEventListener("keyup", scheduleSyncState);
-    window.removeEventListener("resize", scheduleSyncState);
-    window.removeEventListener("scroll", scheduleSyncState, true);
+    window.removeEventListener("resize", handleViewportChange);
+    window.removeEventListener("scroll", handleViewportChange, true);
     window.removeEventListener("blur", handleWindowBlur);
     window.removeEventListener("pagehide", handleForceReset);
     document.removeEventListener("visibilitychange", handleVisibilityChange);

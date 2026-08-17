@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { shouldLockPreviewToolbarPosition } from './floatingToolbarPluginView';
+import { installFloatingToolbarPluginViewCore } from './floatingToolbarPluginViewCore';
 import { installFloatingToolbarPluginViewEventMethods } from './floatingToolbarPluginViewEventMethods';
 import {
   collectToolbarSubmenus,
@@ -9,6 +10,49 @@ import { correctToolbarYToViewportBounds, createToolbarElement } from './floatin
 import type { FloatingToolbarState } from './types';
 
 describe('floatingToolbarPluginView', () => {
+  it('does not schedule hidden toolbar layout work during scrolling', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      });
+    let isVisible = false;
+    const updateToolbar = vi.fn();
+    const ctx: Record<string, any> = {
+      editorView: {
+        dom: document.createElement('div'),
+        state: {},
+      },
+      layoutRaf: null,
+      toolbarKey: {
+        getState: () => ({
+          aiReview: null,
+          aiReviews: [],
+          isVisible,
+        }),
+      },
+      updateToolbar,
+    };
+
+    try {
+      installFloatingToolbarPluginViewCore(ctx as never);
+      ctx.scheduleToolbarUpdate();
+
+      expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+
+      isVisible = true;
+      ctx.scheduleToolbarUpdate();
+
+      expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+      animationFrames[0]?.(0);
+      expect(updateToolbar).toHaveBeenCalledOnce();
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+    }
+  });
+
   it('marks floating toolbar roots as non-editor chrome for blank-area pointer handling', () => {
     const toolbar = createToolbarElement();
 

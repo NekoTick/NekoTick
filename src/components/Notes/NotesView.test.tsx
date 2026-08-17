@@ -770,8 +770,10 @@ describe('NotesView', () => {
       await Promise.resolve();
     });
 
+    await waitFor(() => {
+      expect(document.querySelector('[data-notes-split-drop-overlay="right"]')).toBeInTheDocument();
+    });
     const dropOverlay = document.querySelector('[data-notes-split-drop-overlay="right"]');
-    expect(dropOverlay).toBeInTheDocument();
     expect(dropOverlay?.firstElementChild?.className).toContain('bg-[var(--vlaina-color-editor-block-selection-drag-box)]');
 
     await act(async () => {

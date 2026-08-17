@@ -156,7 +156,7 @@ export function useNotesFloatingChat(args: {
     onSizeChange: handleFloatingChatLiveSizeChange,
     onSizeCommit: handleFloatingChatSizeCommit,
     onDragStateChange: handleChatPanelDragStateChange,
-    liveUpdateMode: 'sync',
+    liveUpdateMode: 'animation-frame',
     allowDoubleClickReset: false,
   });
 

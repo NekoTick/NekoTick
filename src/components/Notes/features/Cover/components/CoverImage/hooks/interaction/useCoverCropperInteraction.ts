@@ -32,6 +32,10 @@ export function useCoverCropperInteraction({
   const wheelTargetRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
   const dragStartRef = useRef<{ x: number; y: number; cropX: number; cropY: number } | null>(null);
+  const cropFrameRef = useRef<number | null>(null);
+  const pendingCropRef = useRef<{ x: number; y: number } | null>(null);
+  const zoomFrameRef = useRef<number | null>(null);
+  const pendingZoomRef = useRef<{ zoom: number; anchor?: { x: number; y: number } } | null>(null);
   const wheelInteractionRef = useRef(false);
   const wheelEndTimerRef = useRef<number | null>(null);
   const latestStateRef = useRef({
@@ -64,6 +68,50 @@ export function useCoverCropperInteraction({
     onInteractionEnd,
   };
 
+  const applyPendingCrop = useCallback(() => {
+    cropFrameRef.current = null;
+    const pendingCrop = pendingCropRef.current;
+    pendingCropRef.current = null;
+    if (pendingCrop) latestStateRef.current.onCropperCropChange(pendingCrop);
+  }, []);
+
+  const flushPendingCrop = useCallback(() => {
+    if (cropFrameRef.current !== null) {
+      window.cancelAnimationFrame(cropFrameRef.current);
+      cropFrameRef.current = null;
+    }
+    applyPendingCrop();
+  }, [applyPendingCrop]);
+
+  const scheduleCropChange = useCallback((nextCrop: { x: number; y: number }) => {
+    pendingCropRef.current = nextCrop;
+    if (cropFrameRef.current !== null) return;
+    cropFrameRef.current = window.requestAnimationFrame(applyPendingCrop);
+  }, [applyPendingCrop]);
+
+  const applyPendingZoom = useCallback(() => {
+    zoomFrameRef.current = null;
+    const pendingZoom = pendingZoomRef.current;
+    pendingZoomRef.current = null;
+    if (pendingZoom) {
+      latestStateRef.current.onCropperZoomChange(pendingZoom.zoom, pendingZoom.anchor);
+    }
+  }, []);
+
+  const flushPendingZoom = useCallback(() => {
+    if (zoomFrameRef.current !== null) {
+      window.cancelAnimationFrame(zoomFrameRef.current);
+      zoomFrameRef.current = null;
+    }
+    applyPendingZoom();
+  }, [applyPendingZoom]);
+
+  const scheduleZoomChange = useCallback((nextZoom: number, anchor?: { x: number; y: number }) => {
+    pendingZoomRef.current = { zoom: nextZoom, anchor };
+    if (zoomFrameRef.current !== null) return;
+    zoomFrameRef.current = window.requestAnimationFrame(applyPendingZoom);
+  }, [applyPendingZoom]);
+
   const clearWheelTimer = useCallback(() => {
     if (wheelEndTimerRef.current == null) return;
     window.clearTimeout(wheelEndTimerRef.current);
@@ -76,6 +124,8 @@ export function useCoverCropperInteraction({
     const activePointer = activePointerId != null;
 
     clearWheelTimer();
+    flushPendingCrop();
+    flushPendingZoom();
 
     if (activePointer && wheelTargetRef.current?.hasPointerCapture?.(activePointerId)) {
       wheelTargetRef.current.releasePointerCapture?.(activePointerId);
@@ -88,14 +138,15 @@ export function useCoverCropperInteraction({
     if (activeWheel || activePointer) {
       latestStateRef.current.onInteractionEnd();
     }
-  }, [clearWheelTimer]);
+  }, [clearWheelTimer, flushPendingCrop, flushPendingZoom]);
 
   const endWheelInteraction = useCallback(() => {
     clearWheelTimer();
     if (!wheelInteractionRef.current) return;
+    flushPendingZoom();
     wheelInteractionRef.current = false;
     latestStateRef.current.onInteractionEnd();
-  }, [clearWheelTimer]);
+  }, [clearWheelTimer, flushPendingZoom]);
 
   const scheduleWheelInteractionEnd = useCallback(() => {
     clearWheelTimer();
@@ -116,7 +167,6 @@ export function useCoverCropperInteraction({
       zoom: currentZoom,
       effectiveMinZoom: currentMinZoom,
       effectiveMaxZoom: currentMaxZoom,
-      onCropperZoomChange: emitZoomChange,
       onNonPointerIntent: markNonPointerIntent,
       onInteractionStart: startInteraction,
     } = latestStateRef.current;
@@ -140,12 +190,12 @@ export function useCoverCropperInteraction({
         }
       : undefined;
     const zoomDelta = Math.exp(-event.deltaY * 0.0015);
-    const nextZoom = currentZoom * zoomDelta;
+    const nextZoom = (pendingZoomRef.current?.zoom ?? currentZoom) * zoomDelta;
     const clampedZoom = Math.min(currentMaxZoom, Math.max(currentMinZoom, nextZoom));
     latestStateRef.current.zoom = clampedZoom;
-    emitZoomChange(clampedZoom, anchor);
+    scheduleZoomChange(clampedZoom, anchor);
     scheduleWheelInteractionEnd();
-  }, [scheduleWheelInteractionEnd]);
+  }, [scheduleWheelInteractionEnd, scheduleZoomChange]);
 
   const bindWheelTarget = useCallback((node: HTMLDivElement | null) => {
     if (wheelTargetRef.current === node) return;
@@ -201,7 +251,6 @@ export function useCoverCropperInteraction({
 
     const {
       onPointerMoveIntent: markPointerMoveIntent,
-      onCropperCropChange: emitCropChange,
     } = latestStateRef.current;
 
     markPointerMoveIntent(event.clientX, event.clientY);
@@ -209,23 +258,24 @@ export function useCoverCropperInteraction({
     const dragStart = dragStartRef.current;
     if (!dragStart || pointerIdRef.current !== event.pointerId) return;
 
-    emitCropChange({
+    scheduleCropChange({
       x: dragStart.cropX + (event.clientX - dragStart.x),
       y: dragStart.cropY + (event.clientY - dragStart.y),
     });
-  }, []);
+  }, [scheduleCropChange]);
 
   const handlePointerEnd = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     event.stopPropagation();
     if (pointerIdRef.current !== event.pointerId) return;
 
+    flushPendingCrop();
     dragStartRef.current = null;
     pointerIdRef.current = null;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
     latestStateRef.current.onInteractionEnd();
-  }, []);
+  }, [flushPendingCrop]);
 
   return {
     bindWheelTarget,

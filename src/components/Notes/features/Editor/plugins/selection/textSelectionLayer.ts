@@ -1,6 +1,9 @@
 import type { EditorState } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { textSelectionOverlayPluginKey } from './textSelectionOverlayState';
+import {
+  isTextSelectionOverlayEligible,
+  textSelectionOverlayPluginKey,
+} from './textSelectionOverlayState';
 import {
   measureTextSelectionLayerRects,
   type TextSelectionLayerRect,
@@ -48,6 +51,7 @@ export function installTextSelectionLayer(view: EditorView) {
   const layer = view.dom.ownerDocument.createElement('div');
   layer.className = TEXT_SELECTION_LAYER_CLASS;
   layer.setAttribute('aria-hidden', 'true');
+  layer.hidden = true;
   parent.insertBefore(layer, view.dom.nextSibling);
   const elements: HTMLElement[] = [];
   let renderedRects: TextSelectionLayerRect[] = [];
@@ -85,6 +89,9 @@ export function installTextSelectionLayer(view: EditorView) {
   };
   const schedule = () => {
     if (frame !== null) return;
+    if (layer.hidden && renderedRects.length === 0 && !isTextSelectionOverlayEligible(view.state)) {
+      return;
+    }
     frame = ownerWindow.requestAnimationFrame(render);
   };
   const update = (immediate = false) => {

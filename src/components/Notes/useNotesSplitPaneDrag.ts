@@ -49,6 +49,9 @@ export function useNotesSplitPaneDrag(args: {
   const setLayoutPanelDragging = useUIStore((s) => s.setLayoutPanelDragging);
   const activeSplitPaneDragRef = useRef<ActiveNotesSplitPaneDrag | null>(null);
   const stopSplitPaneDragRef = useRef<((event?: PointerEvent, commit?: boolean) => void) | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const dragFrameScheduledRef = useRef(false);
+  const pendingDragPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleSplitPaneDragPointerMove = useCallback((event: PointerEvent) => {
     const drag = activeSplitPaneDragRef.current;
@@ -66,12 +69,27 @@ export function useNotesSplitPaneDrag(args: {
     }
 
     drag.hasMoved = true;
-    setSplitDropTarget(resolveSplitDropTarget({
-      path: '',
-      sourceLeafId: drag.sourceLeafId,
-      clientX: event.clientX,
-      clientY: event.clientY,
-    }));
+    pendingDragPointRef.current = { x: event.clientX, y: event.clientY };
+    if (dragFrameScheduledRef.current) return;
+
+    dragFrameScheduledRef.current = true;
+    const frameId = requestAnimationFrame(() => {
+      dragFrameRef.current = null;
+      dragFrameScheduledRef.current = false;
+      const point = pendingDragPointRef.current;
+      pendingDragPointRef.current = null;
+      const activeDrag = activeSplitPaneDragRef.current;
+      if (!point || !activeDrag) return;
+      setSplitDropTarget(resolveSplitDropTarget({
+        path: '',
+        sourceLeafId: activeDrag.sourceLeafId,
+        clientX: point.x,
+        clientY: point.y,
+      }));
+    });
+    if (dragFrameScheduledRef.current) {
+      dragFrameRef.current = frameId;
+    }
   }, [resolveSplitDropTarget, setSplitDropTarget]);
 
   const handleSplitPaneDragPointerUp = useCallback((event: PointerEvent) => {
@@ -91,6 +109,13 @@ export function useNotesSplitPaneDrag(args: {
     if (!drag) {
       return;
     }
+
+    if (dragFrameRef.current !== null) {
+      cancelAnimationFrame(dragFrameRef.current);
+    }
+    dragFrameRef.current = null;
+    dragFrameScheduledRef.current = false;
+    pendingDragPointRef.current = null;
 
     document.removeEventListener('pointermove', handleSplitPaneDragPointerMove, true);
     document.removeEventListener('pointerup', handleSplitPaneDragPointerUp, true);

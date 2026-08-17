@@ -47,6 +47,50 @@ export function useCropperInteraction({
     const [isCtrlPressed, setIsCtrlPressed] = useState(false);
     const lastPercentageCrop = useRef<CropArea | null>(null);
     const autoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const zoomFrameRef = useRef<number | null>(null);
+    const pendingWheelZoomDeltasRef = useRef<number[]>([]);
+    const latestWheelOptionsRef = useRef({ isActive, minZoomLimit, setZoom });
+    const performSaveRef = useRef<() => void>(() => {});
+
+    latestWheelOptionsRef.current = { isActive, minZoomLimit, setZoom };
+
+    const applyPendingWheelZoom = useCallback(() => {
+        zoomFrameRef.current = null;
+        const deltas = pendingWheelZoomDeltasRef.current;
+        pendingWheelZoomDeltasRef.current = [];
+        if (deltas.length === 0) return;
+
+        const options = latestWheelOptionsRef.current;
+        const maxZoomLimit = resolveCropperMaxZoom(options.minZoomLimit);
+        options.setZoom((previousZoom) => deltas.reduce(
+            (nextZoom, delta) => Math.min(
+                maxZoomLimit,
+                Math.max(options.minZoomLimit, nextZoom + delta),
+            ),
+            previousZoom,
+        ));
+    }, []);
+
+    const schedulePendingWheelZoom = useCallback(() => {
+        if (zoomFrameRef.current !== null) return;
+        zoomFrameRef.current = window.requestAnimationFrame(applyPendingWheelZoom);
+    }, [applyPendingWheelZoom]);
+
+    const flushPendingWheelZoom = useCallback(() => {
+        if (zoomFrameRef.current !== null) {
+            window.cancelAnimationFrame(zoomFrameRef.current);
+            zoomFrameRef.current = null;
+        }
+        applyPendingWheelZoom();
+    }, [applyPendingWheelZoom]);
+
+    const cancelPendingWheelZoom = useCallback(() => {
+        if (zoomFrameRef.current !== null) {
+            window.cancelAnimationFrame(zoomFrameRef.current);
+            zoomFrameRef.current = null;
+        }
+        pendingWheelZoomDeltasRef.current = [];
+    }, []);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -70,8 +114,9 @@ export function useCropperInteraction({
             if (autoSaveTimeoutRef.current) {
                 clearTimeout(autoSaveTimeoutRef.current);
             }
+            cancelPendingWheelZoom();
         };
-    }, []);
+    }, [cancelPendingWheelZoom]);
 
     const performSave = useCallback(() => {
         if (isValidCropArea(lastPercentageCrop.current)) {
@@ -90,27 +135,30 @@ export function useCropperInteraction({
         }
     }, [initialCropParams?.ratio, containerSize.width, containerSize.height, onSave, originalAspectRatioRef]);
 
+    performSaveRef.current = performSave;
+
     useEffect(() => {
         const currentRef = containerRef.current;
         if (!currentRef) return;
 
         const onWheel = (e: WheelEvent) => {
-            if (isActive) return;
+            if (latestWheelOptionsRef.current.isActive) return;
 
             if (e.ctrlKey) {
                 e.preventDefault();
                 e.stopPropagation();
 
-                const delta = -e.deltaY / 200;
-                const maxZoomLimit = resolveCropperMaxZoom(minZoomLimit);
-                setZoom(prevZoom => Math.min(maxZoomLimit, Math.max(minZoomLimit, prevZoom + delta)));
+                pendingWheelZoomDeltasRef.current.push(-e.deltaY / 200);
+                schedulePendingWheelZoom();
 
                 if (autoSaveTimeoutRef.current) {
                     clearTimeout(autoSaveTimeoutRef.current);
                 }
 
                 autoSaveTimeoutRef.current = setTimeout(() => {
-                    performSave();
+                    autoSaveTimeoutRef.current = null;
+                    flushPendingWheelZoom();
+                    performSaveRef.current();
                 }, AUTO_SAVE_DELAY_MS);
             }
         };
@@ -122,11 +170,13 @@ export function useCropperInteraction({
                 clearTimeout(autoSaveTimeoutRef.current);
                 autoSaveTimeoutRef.current = null;
             }
+            cancelPendingWheelZoom();
         };
-    }, [isActive, minZoomLimit, performSave, setZoom, containerRef]);
+    }, [cancelPendingWheelZoom, containerRef, flushPendingWheelZoom, schedulePendingWheelZoom]);
 
     const handleInteractionEnd = () => {
         if (!isActive) {
+            flushPendingWheelZoom();
             performSave();
         }
     };
@@ -142,6 +192,11 @@ export function useCropperInteraction({
     const handleCancelClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+        cancelPendingWheelZoom();
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+            autoSaveTimeoutRef.current = null;
+        }
 
         if (initialCropParams) {
             const restoredZoom = 100 / initialCropParams.width;
@@ -159,6 +214,11 @@ export function useCropperInteraction({
     const handleSaveClick = (e?: React.MouseEvent) => {
         e?.preventDefault();
         e?.stopPropagation();
+        flushPendingWheelZoom();
+        if (autoSaveTimeoutRef.current) {
+            clearTimeout(autoSaveTimeoutRef.current);
+            autoSaveTimeoutRef.current = null;
+        }
 
         const pc = isValidCropArea(lastPercentageCrop.current)
             ? lastPercentageCrop.current

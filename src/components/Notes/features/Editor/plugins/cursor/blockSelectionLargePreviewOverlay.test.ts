@@ -1,5 +1,9 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  blankAreaDragBoxPluginKey,
+  EMPTY_BLOCK_SELECTION_PLUGIN_STATE,
+} from './blockSelectionPluginState';
 import {
   getBlockSelectionPreviewElements,
   setBlockSelectionPreviewElements,
@@ -7,6 +11,7 @@ import {
 import { createLargeBlockSelectionPreviewOverlay } from './blockSelectionLargePreviewOverlay';
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -88,6 +93,40 @@ describe('createLargeBlockSelectionPreviewOverlay', () => {
       expect(mutations).toHaveLength(0);
     } finally {
       observer.disconnect();
+      overlay.destroy();
+    }
+  });
+
+  it('skips geometry frames until a large block preview is active', () => {
+    const host = document.createElement('div');
+    const dom = document.createElement('div');
+    host.appendChild(dom);
+    document.body.appendChild(host);
+    const state: Record<string, any> = {
+      doc: { childCount: 64 },
+    };
+    const view = { dom, state } as unknown as EditorView;
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation(() => 1);
+    const overlay = createLargeBlockSelectionPreviewOverlay(view);
+    requestAnimationFrameSpy.mockClear();
+
+    try {
+      window.dispatchEvent(new Event('resize'));
+      expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+
+      state[blankAreaDragBoxPluginKey.key] = {
+        ...EMPTY_BLOCK_SELECTION_PLUGIN_STATE,
+        selectedBlocks: Array.from({ length: 32 }, (_, index) => ({
+          from: index * 2,
+          to: index * 2 + 1,
+        })),
+      };
+      window.dispatchEvent(new Event('resize'));
+
+      expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+    } finally {
       overlay.destroy();
     }
   });

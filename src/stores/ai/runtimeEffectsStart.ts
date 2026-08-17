@@ -34,6 +34,20 @@ export function getAIStoreRuntimeChangeFlags(
   };
 }
 
+export function hasAIStoreRuntimeRelevantChanges(
+  previous: AIStoreRuntimeSnapshot,
+  current: ReturnType<typeof useUnifiedStore.getState>,
+): boolean {
+  const ai = current.data.ai;
+  return previous.loaded !== current.loaded
+    || previous.lastChatSessionId !== current.data.settings.ui?.lastChatSessionId
+    || previous.models !== ai?.models
+    || previous.providers !== ai?.providers
+    || previous.sessions !== ai?.sessions
+    || previous.temporaryChatEnabled !== ai?.temporaryChatEnabled
+    || previous.unreadSessionIds !== ai?.unreadSessionIds;
+}
+
 let didStartAIStoreRuntimeEffects = false;
 
 export function startAIStoreRuntimeEffects(): void {
@@ -168,8 +182,14 @@ export function startAIStoreRuntimeEffects(): void {
     temporaryChatEnabled: initialStore.data.ai?.temporaryChatEnabled,
     unreadSessionIds: initialStore.data.ai?.unreadSessionIds,
   };
-  useUnifiedStore.subscribe(() => {
-    const store = useUnifiedStore.getState();
+  useUnifiedStore.subscribe((store) => {
+    if (!hasAIStoreRuntimeRelevantChanges(previousSnapshot, store)) {
+      if (!store.loaded) {
+        ensureLoaded();
+      }
+      return;
+    }
+
     const currentSnapshot: AIStoreRuntimeSnapshot = {
       loaded: store.loaded,
       lastChatSessionId: store.data.settings.ui?.lastChatSessionId,
@@ -202,7 +222,12 @@ export function startAIStoreRuntimeEffects(): void {
     }
   });
 
-  useAccountSessionStore.subscribe(() => {
+  let previousAccountConnected = useAccountSessionStore.getState().isConnected;
+  useAccountSessionStore.subscribe((accountState) => {
+    if (accountState.isConnected === previousAccountConnected) {
+      return;
+    }
+    previousAccountConnected = accountState.isConnected;
     syncManagedService();
   });
 }

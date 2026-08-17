@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
@@ -34,7 +35,10 @@ export function useNoteMentionState({
 }: UseNoteMentionStateOptions) {
   const [caretIndex, setCaretIndex] = useState(0);
   const [activeMentionIndex, setActiveMentionIndex] = useState(0);
-  const [textareaScrollTop, setTextareaScrollTop] = useState(0);
+  const [textareaScrollTop, setTextareaScrollTopState] = useState(0);
+  const textareaScrollFrameRef = useRef<number | null>(null);
+  const textareaScrollFrameScheduledRef = useRef(false);
+  const pendingTextareaScrollTopRef = useRef(0);
   const {
     allNoteCandidates,
     currentPageCandidates,
@@ -62,6 +66,32 @@ export function useNoteMentionState({
   useEffect(() => {
     setActiveMentionIndex(0);
   }, [mentionTrigger?.query, mentionTrigger?.start]);
+
+  const setTextareaScrollTop = useCallback((nextScrollTop: number) => {
+    pendingTextareaScrollTopRef.current = nextScrollTop;
+    if (textareaScrollFrameScheduledRef.current) return;
+
+    textareaScrollFrameScheduledRef.current = true;
+    const frameId = requestAnimationFrame(() => {
+      textareaScrollFrameRef.current = null;
+      textareaScrollFrameScheduledRef.current = false;
+      const pendingScrollTop = pendingTextareaScrollTopRef.current;
+      setTextareaScrollTopState((current) => (
+        current === pendingScrollTop ? current : pendingScrollTop
+      ));
+    });
+    if (textareaScrollFrameScheduledRef.current) {
+      textareaScrollFrameRef.current = frameId;
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (textareaScrollFrameRef.current !== null) {
+      cancelAnimationFrame(textareaScrollFrameRef.current);
+    }
+    textareaScrollFrameRef.current = null;
+    textareaScrollFrameScheduledRef.current = false;
+  }, []);
 
   const setTextareaCaretIndex = useCallback((nextCaretIndex: number) => {
     setCaretIndex(nextCaretIndex);

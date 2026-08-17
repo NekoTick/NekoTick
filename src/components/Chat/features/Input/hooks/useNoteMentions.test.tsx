@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { useRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useNoteMentions } from './useNoteMentions';
+import { useNoteMentionState } from './useNoteMentionState';
 
 const hoisted = vi.hoisted(() => {
   const loadFileTree = vi.fn();
@@ -115,6 +116,39 @@ describe('useNoteMentions', () => {
     expect(result.current.currentPageCandidates.map((item) => item.title)).toEqual(['Today']);
     expect(result.current.folderCandidates.map((item) => item.title)).toEqual([]);
     expect(result.current.linkedPageCandidates.map((item) => item.title)).toEqual(['Tomorrow']);
+  });
+
+  it('coalesces textarea scroll state updates into one animation frame', () => {
+    const frameCallbacks: FrameRequestCallback[] = [];
+    const requestAnimationFrameMock = vi.mocked(window.requestAnimationFrame);
+    requestAnimationFrameMock.mockImplementation((callback) => {
+      frameCallbacks.push(callback);
+      return frameCallbacks.length;
+    });
+    const textarea = document.createElement('textarea');
+    const { result } = renderHook(() => {
+      const textareaRef = useRef<HTMLTextAreaElement>(textarea);
+      return useNoteMentionState({
+        value: '',
+        onValueChange: vi.fn(),
+        textareaRef,
+        syncMentions: ({ mentions }) => mentions,
+      });
+    });
+    requestAnimationFrameMock.mockClear();
+
+    act(() => {
+      result.current.setTextareaScrollTop(10);
+      result.current.setTextareaScrollTop(20);
+      result.current.setTextareaScrollTop(30);
+    });
+
+    expect(requestAnimationFrameMock).toHaveBeenCalledTimes(1);
+    expect(result.current.textareaScrollTop).toBe(0);
+    act(() => {
+      frameCallbacks[0]?.(0);
+    });
+    expect(result.current.textareaScrollTop).toBe(30);
   });
 
   it('loads the note tree for mentions even before notesPath is initialized', () => {

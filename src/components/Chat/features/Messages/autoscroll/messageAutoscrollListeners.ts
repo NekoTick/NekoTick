@@ -37,27 +37,18 @@ export function attachMessageAutoscrollListeners({
   setProgrammaticScrollTop: (container: HTMLElement, nextScrollTop: number) => number;
   userDetachedFromCurrentTurnRef: MutableValue<boolean>;
 }): () => void {
-  const handleScroll = () => {
-    const currentScrollTop = container.scrollTop;
-    const previousScrollTop = lastObservedScrollTopRef.current;
-    if (
-      programmaticScrollTopRef.current !== null &&
-      Math.abs(currentScrollTop - programmaticScrollTopRef.current) <= 1
-    ) {
-      programmaticScrollTopRef.current = null;
-      lastObservedScrollTopRef.current = currentScrollTop;
-      return;
+  let scrollFrameId: number | null = null;
+  let scrollFrameScheduled = false;
+
+  const cancelPendingScrollFrame = () => {
+    if (scrollFrameId !== null) {
+      window.cancelAnimationFrame(scrollFrameId);
     }
+    scrollFrameId = null;
+    scrollFrameScheduled = false;
+  };
 
-    const userScrolledUp =
-      previousScrollTop !== null && currentScrollTop < previousScrollTop - 1;
-    lastObservedScrollTopRef.current = currentScrollTop;
-
-    if (isStreamingRef.current && userScrolledUp) {
-      detachFromStreamingFollow();
-      return;
-    }
-
+  const processScrollPosition = (currentScrollTop: number) => {
     if (
       isCurrentTurnAnchoredRef.current &&
       isAutoFollowRef.current &&
@@ -111,11 +102,62 @@ export function attachMessageAutoscrollListeners({
     }
   };
 
+  const scheduleScrollProcessing = () => {
+    if (scrollFrameScheduled) {
+      return;
+    }
+
+    scrollFrameScheduled = true;
+    const frameId = window.requestAnimationFrame(() => {
+      scrollFrameId = null;
+      scrollFrameScheduled = false;
+      processScrollPosition(container.scrollTop);
+    });
+    if (scrollFrameScheduled) {
+      scrollFrameId = frameId;
+    }
+  };
+
+  const observeScroll = (deferProcessing: boolean) => {
+    const currentScrollTop = container.scrollTop;
+    const previousScrollTop = lastObservedScrollTopRef.current;
+    if (
+      programmaticScrollTopRef.current !== null &&
+      Math.abs(currentScrollTop - programmaticScrollTopRef.current) <= 1
+    ) {
+      cancelPendingScrollFrame();
+      programmaticScrollTopRef.current = null;
+      lastObservedScrollTopRef.current = currentScrollTop;
+      return;
+    }
+
+    const userScrolledUp =
+      previousScrollTop !== null && currentScrollTop < previousScrollTop - 1;
+    lastObservedScrollTopRef.current = currentScrollTop;
+
+    if (isStreamingRef.current && userScrolledUp) {
+      cancelPendingScrollFrame();
+      detachFromStreamingFollow();
+      return;
+    }
+
+    if (deferProcessing) {
+      scheduleScrollProcessing();
+    } else {
+      processScrollPosition(currentScrollTop);
+    }
+  };
+
+  const handleScroll = () => {
+    observeScroll(true);
+  };
+
   const handleWheel = (event: WheelEvent) => {
     if (!isStreamingRef.current || event.deltaY >= 0) {
       return;
     }
 
+    cancelPendingScrollFrame();
     detachFromStreamingFollow();
   };
 
@@ -137,6 +179,7 @@ export function attachMessageAutoscrollListeners({
     }
 
     if (nextTouchY > previousTouchY + 2) {
+      cancelPendingScrollFrame();
       detachFromStreamingFollow();
     }
   };
@@ -163,6 +206,7 @@ export function attachMessageAutoscrollListeners({
       isEventWithinRoot(container, event.target) ||
       isPointerInsideScrollRootRef.current
     ) {
+      cancelPendingScrollFrame();
       detachFromStreamingFollow();
     }
   };
@@ -174,9 +218,10 @@ export function attachMessageAutoscrollListeners({
   container.addEventListener("pointerenter", handlePointerEnter);
   container.addEventListener("pointerleave", handlePointerLeave);
   document.addEventListener("keydown", handleKeyDown, true);
-  handleScroll();
+  observeScroll(false);
 
   return () => {
+    cancelPendingScrollFrame();
     container.removeEventListener("scroll", handleScroll);
     container.removeEventListener("wheel", handleWheel);
     container.removeEventListener("touchstart", handleTouchStart);

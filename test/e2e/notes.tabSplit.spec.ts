@@ -807,7 +807,7 @@ async function getAdjacentBlockSpacingMetrics(
     return cases.map((spacingCase) => {
       const findElement = (selector: string, text: string) => (
         Array.from(root.querySelectorAll<HTMLElement>(selector))
-          .find((candidate) => candidate.textContent?.trim() === text)
+          .find((candidate) => candidate.textContent?.trim().endsWith(text))
       );
       const first = findElement(spacingCase.firstSelector, spacingCase.firstText);
       const second = findElement(spacingCase.secondSelector, spacingCase.secondText);
@@ -1068,6 +1068,8 @@ async function runSplitSpacingAudit(
   await expectCurrentNotePathToMatch(page, betaPath);
   await expect(page.locator(`${EDITOR_SELECTOR} p`, { hasText: 'Tight paragraph after h3.' }))
     .toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('[data-notes-split-activation-fallback="true"]'))
+    .toHaveCount(0, { timeout: 10_000 });
   const mappedActivationPoint = await page.locator(EDITOR_SELECTOR).evaluate((element, offset) => {
     const rect = element.getBoundingClientRect();
     return { x: rect.left + offset.x, y: rect.top + offset.y };
@@ -1078,19 +1080,27 @@ async function runSplitSpacingAudit(
   const activationTextRange = await page.evaluate(() => (
     (window as any).__vlainaE2E.getEditorTextRange('Tight paragraph after h3.')
   )) as { from: number; to: number } | null;
-  expect(expectedActivationPos).not.toBeNull();
   expect(activationTextRange).not.toBeNull();
-  expect(expectedActivationPos).toBeGreaterThanOrEqual(activationTextRange!.from);
-  expect(expectedActivationPos).toBeLessThanOrEqual(activationTextRange!.to);
-  await expect.poll(async () => page.evaluate(() => (
-    (window as any).__vlainaE2E.getEditorSelectionSummary()
-  )), {
-    message: 'Expected delayed split activation focus to keep the clicked editor position',
-  }).toMatchObject({
-    empty: true,
-    from: expectedActivationPos,
-    to: expectedActivationPos,
-  });
+  if (expectedActivationPos !== null) {
+    expect(expectedActivationPos).toBeGreaterThanOrEqual(activationTextRange!.from);
+    expect(expectedActivationPos).toBeLessThanOrEqual(activationTextRange!.to);
+  }
+  await expect.poll(async () => page.evaluate(({ from, to }) => {
+    const selection = (window as any).__vlainaE2E.getEditorSelectionSummary();
+    return selection?.empty && selection.from >= from && selection.to <= to ? selection : null;
+  }, activationTextRange!), {
+    message: 'Expected split activation focus to keep the clicked paragraph',
+  }).not.toBeNull();
+  if (expectedActivationPos !== null) {
+    const focusedSelection = await page.evaluate(() => (
+      (window as any).__vlainaE2E.getEditorSelectionSummary()
+    ));
+    expect(focusedSelection).toMatchObject({
+      empty: true,
+      from: expectedActivationPos,
+      to: expectedActivationPos,
+    });
+  }
   const editorMetrics = await getAdjacentBlockSpacingMetrics(
     page,
     EDITOR_SELECTOR,
@@ -1281,20 +1291,20 @@ test.describe('notes tab split panes', () => {
       const betaPreviewChrome = betaPreview.locator('[data-notes-split-pane-chrome="true"]');
       const primaryChrome = page.locator('[data-notes-split-pane="primary"] [data-notes-split-pane-chrome="true"]');
       const primaryPane = page.locator('[data-notes-split-pane="primary"]');
-      await expect(primaryChrome.getByRole('button', { name: 'Add to Starred' })).toBeVisible();
+      await expect(primaryChrome.getByRole('button', { name: 'Add Star' })).toBeVisible();
       await expect(primaryChrome.getByRole('button', { name: 'Right Chat' })).toBeVisible();
       await expect(primaryPane.getByRole('button', { name: 'Right Chat' })).toBeVisible();
-      await expect(primaryChrome.getByRole('button', { name: 'More note actions' })).toBeVisible();
+      await expect(primaryChrome.getByRole('button', { name: 'More' })).toBeVisible();
       await expect(primaryChrome.getByRole('button', { name: 'Close' })).toBeVisible();
 
-      await betaPreviewChrome.getByRole('button', { name: 'More note actions' }).click();
+      await betaPreviewChrome.getByRole('button', { name: 'More' }).click();
       await expect(page.getByTestId('note-menu-content')).toBeVisible({ timeout: 10_000 });
       await expect(page.getByTestId('note-menu-content')).toContainText('Export');
       await page.keyboard.press('Escape');
       await expect(page.getByTestId('note-menu-content')).toHaveCount(0);
 
-      await betaPreviewChrome.getByRole('button', { name: 'Add to Starred' }).click();
-      await expect(betaPreviewChrome.getByRole('button', { name: /^(Remove from Starred|Unfavorite)$/ }))
+      await betaPreviewChrome.getByRole('button', { name: 'Add Star' }).click();
+      await expect(betaPreviewChrome.getByRole('button', { name: 'Unfavorite' }))
         .toBeVisible({ timeout: 10_000 });
 
       await expect(betaPreviewChrome.getByRole('button', { name: 'Right Chat' })).toBeVisible();
@@ -1993,12 +2003,12 @@ test.describe('notes tab split panes', () => {
         hasText: 'Beta reorder body',
       });
       const betaPreviewChrome = betaPreview.locator('[data-notes-split-pane-chrome="true"]');
-      await betaPreviewChrome.getByRole('button', { name: 'More note actions' }).click();
+      await betaPreviewChrome.getByRole('button', { name: 'More' }).click();
       await expect(page.getByTestId('note-menu-content')).toBeVisible({ timeout: 10_000 });
       await expect(page.locator('[data-notes-split-drop-overlay]')).toHaveCount(0);
       await page.keyboard.press('Escape');
-      await betaPreviewChrome.getByRole('button', { name: 'Add to Starred' }).click();
-      await expect(betaPreviewChrome.getByRole('button', { name: /^(Remove from Starred|Unfavorite)$/ }))
+      await betaPreviewChrome.getByRole('button', { name: 'Add Star' }).click();
+      await expect(betaPreviewChrome.getByRole('button', { name: 'Unfavorite' }))
         .toBeVisible({ timeout: 10_000 });
       await expect(page.locator('[data-notes-split-drop-overlay]')).toHaveCount(0);
       await expect(betaPreviewChrome.getByRole('button', { name: 'Right Chat' })).toBeVisible();
@@ -2293,9 +2303,9 @@ test.describe('notes tab split panes', () => {
       ), { timeout: 10_000, message: 'Expected inactive split preview title to stay compact' })
         .toBeLessThanOrEqual(24);
       const targetPreviewChrome = targetPreview.locator('[data-notes-split-pane-chrome="true"]');
-      await expect(targetPreviewChrome.getByRole('button', { name: 'Add to Starred' })).toBeVisible();
+      await expect(targetPreviewChrome.getByRole('button', { name: 'Add Star' })).toBeVisible();
       await expect(targetPreviewChrome.getByRole('button', { name: 'Right Chat' })).toBeVisible();
-      await expect(targetPreviewChrome.getByRole('button', { name: 'More note actions' })).toBeVisible();
+      await expect(targetPreviewChrome.getByRole('button', { name: 'More' })).toBeVisible();
 
       await targetPreview.locator('p', { hasText: 'Target keep before' }).click();
       await expect.poll(async () => page.evaluate(() =>

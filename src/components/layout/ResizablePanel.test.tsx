@@ -118,10 +118,14 @@ describe('ResizablePanel', () => {
     expect(container.querySelector('aside')).toHaveStyle({ width: '320px' });
   });
 
-  it('updates the live width during the same drag move', () => {
+  it('coalesces live width updates to the latest drag move in one frame', () => {
+    const animationFrames: FrameRequestCallback[] = [];
     const requestAnimationFrameSpy = vi
       .spyOn(window, 'requestAnimationFrame')
-      .mockImplementation(() => 1);
+      .mockImplementation((callback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      });
 
     const { container } = render(
       <ResizablePanel defaultWidth={320} minWidth={300} maxWidth={500}>
@@ -133,10 +137,18 @@ describe('ResizablePanel', () => {
     const handle = container.querySelector<HTMLElement>('.cursor-col-resize')!;
 
     fireEvent.mouseDown(handle, { clientX: 500 });
+    fireEvent.mouseMove(document, { clientX: 480 });
     fireEvent.mouseMove(document, { clientX: 460 });
+    fireEvent.mouseMove(document, { clientX: 440 });
 
-    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
-    expect(panel).toHaveStyle({ width: '360px' });
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+    expect(panel).toHaveStyle({ width: '320px' });
+
+    act(() => {
+      animationFrames[0]?.(0);
+    });
+
+    expect(panel).toHaveStyle({ width: '380px' });
 
     fireEvent.mouseUp(document);
   });
@@ -184,9 +196,8 @@ describe('ResizablePanel', () => {
 
     fireEvent.mouseDown(handle, { clientX: 500 });
     fireEvent.mouseMove(document, { clientX: 420 });
+    fireEvent.mouseUp(document);
 
     expect(panel).toHaveStyle({ width: '350px' });
-
-    fireEvent.mouseUp(document);
   });
 });

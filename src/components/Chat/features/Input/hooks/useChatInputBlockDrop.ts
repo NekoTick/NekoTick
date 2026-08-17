@@ -28,37 +28,70 @@ export function useChatInputBlockDrop({
       return;
     }
 
-    const isInsideDropTarget = (event: MouseEvent) => {
+    let hasBlockDragPayload = Boolean(getBlockDragComposerPayload());
+    let pointerFrameId = 0;
+    let pointerFrameScheduled = false;
+    let pendingPointer: { x: number; y: number } | null = null;
+
+    const isInsideDropTarget = (point: { x: number; y: number }) => {
       const root = composerRootRef.current?.closest('[data-notes-block-drop-target="true"]') as HTMLElement | null;
-      if (!root || !getBlockDragComposerPayload()) {
+      if (!root) {
         return false;
       }
       const rect = root.getBoundingClientRect();
       return (
-        event.clientX >= rect.left
-        && event.clientX <= rect.right
-        && event.clientY >= rect.top
-        && event.clientY <= rect.bottom
+        point.x >= rect.left
+        && point.x <= rect.right
+        && point.y >= rect.top
+        && point.y <= rect.bottom
       );
     };
 
-    const syncDropActive = (event?: MouseEvent) => {
-      if (!getBlockDragComposerPayload()) {
-        setIsBlockDropActive(false);
-        return;
+    const cancelPointerFrame = () => {
+      if (pointerFrameId !== 0) {
+        window.cancelAnimationFrame(pointerFrameId);
       }
-      if (event) {
-        setIsBlockDropActive(isInsideDropTarget(event));
+      pointerFrameId = 0;
+      pointerFrameScheduled = false;
+      pendingPointer = null;
+    };
+
+    const syncDropActive = () => {
+      hasBlockDragPayload = Boolean(getBlockDragComposerPayload());
+      if (!hasBlockDragPayload) {
+        cancelPointerFrame();
+        setIsBlockDropActive(false);
       }
     };
 
     const handleMouseMove = (event: MouseEvent) => {
-      syncDropActive(event);
+      if (!hasBlockDragPayload) return;
+
+      pendingPointer = { x: event.clientX, y: event.clientY };
+      if (pointerFrameScheduled) return;
+
+      pointerFrameScheduled = true;
+      const frameId = window.requestAnimationFrame(() => {
+        pointerFrameId = 0;
+        pointerFrameScheduled = false;
+        const point = pendingPointer;
+        pendingPointer = null;
+        if (point && hasBlockDragPayload) {
+          setIsBlockDropActive(isInsideDropTarget(point));
+        }
+      });
+      if (pointerFrameScheduled) {
+        pointerFrameId = frameId;
+      }
     };
 
     const handleMouseUp = (event: MouseEvent) => {
+      cancelPointerFrame();
       const payload = getBlockDragComposerPayload();
-      const shouldInsert = Boolean(payload?.text) && isInsideDropTarget(event);
+      const shouldInsert = Boolean(payload?.text) && isInsideDropTarget({
+        x: event.clientX,
+        y: event.clientY,
+      });
       setIsBlockDropActive(false);
       if (!shouldInsert || !payload) {
         return;
@@ -70,11 +103,12 @@ export function useChatInputBlockDrop({
       clearHistoryNavigationOnInput();
     };
 
-    const unsubscribe = subscribeBlockDragVisualState(() => syncDropActive());
+    const unsubscribe = subscribeBlockDragVisualState(syncDropActive);
     window.addEventListener('mousemove', handleMouseMove, true);
     window.addEventListener('mouseup', handleMouseUp, true);
 
     return () => {
+      cancelPointerFrame();
       unsubscribe();
       window.removeEventListener('mousemove', handleMouseMove, true);
       window.removeEventListener('mouseup', handleMouseUp, true);

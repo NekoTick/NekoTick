@@ -114,8 +114,35 @@ export function attachPreviewContextMenu(options: PreviewContextMenuOptions) {
   let menu: HTMLElement | null = null;
   let suppressClickUntil = 0;
   let transientListenersAttached = false;
+  let positionFrameId = 0;
+  let positionFrameScheduled = false;
+
+  const cancelPositionFrame = () => {
+    if (positionFrameId !== 0) {
+      cancelAnimationFrame(positionFrameId);
+    }
+    positionFrameId = 0;
+    positionFrameScheduled = false;
+  };
+
+  const schedulePosition = () => {
+    if (positionFrameScheduled) return;
+
+    positionFrameScheduled = true;
+    const frameId = requestAnimationFrame(() => {
+      positionFrameId = 0;
+      positionFrameScheduled = false;
+      if (menu) {
+        positionMenu(menu, element);
+      }
+    });
+    if (positionFrameScheduled) {
+      positionFrameId = frameId;
+    }
+  };
 
   const closeMenu = () => {
+    cancelPositionFrame();
     menu?.remove();
     menu = null;
     element.classList.remove('editor-preview-context-menu-active');
@@ -271,7 +298,7 @@ export function attachPreviewContextMenu(options: PreviewContextMenuOptions) {
 
   const handleScroll = () => {
     if (menu) {
-      positionMenu(menu, element);
+      schedulePosition();
     }
   };
 

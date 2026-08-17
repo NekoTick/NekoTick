@@ -172,7 +172,14 @@ describe('previewContextMenu', () => {
     session.destroy();
   });
 
-  it('recenters the context menu when the document scrolls', () => {
+  it('coalesces context menu repositioning while the document scrolls', () => {
+    const frameCallbacks: FrameRequestCallback[] = [];
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation((callback) => {
+        frameCallbacks.push(callback);
+        return frameCallbacks.length;
+      });
     const element = document.createElement('div');
     let rect = {
       x: 100,
@@ -209,12 +216,18 @@ describe('previewContextMenu', () => {
       y: 40,
     };
     window.dispatchEvent(new Event('scroll'));
+    window.dispatchEvent(new Event('scroll'));
+    window.dispatchEvent(new Event('scroll'));
 
     const menu = document.querySelector('.editor-preview-context-menu') as HTMLElement;
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+    expect(menu.style.left).toBe('300px');
+    frameCallbacks[0]?.(0);
     expect(menu.style.left).toBe('260px');
     expect(menu.style.top).toBe('140px');
 
     session.destroy();
+    requestAnimationFrameSpy.mockRestore();
   });
 
   it('closes from capture when an outside target stops propagation', () => {

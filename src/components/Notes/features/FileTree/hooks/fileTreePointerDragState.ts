@@ -52,6 +52,9 @@ export {
 const DRAG_THRESHOLD_PX = 4;
 
 let activeSession: FileTreePointerDragSession | null = null;
+let pointerMoveFrame: number | null = null;
+let appliedPointerX: number | null = null;
+let appliedPointerY: number | null = null;
 
 function getScrollRoot() {
   return document.querySelector<HTMLElement>(SIDEBAR_SCROLL_ROOT_SELECTOR);
@@ -93,6 +96,29 @@ function queueAutoScroll() {
   queueFileTreePointerAutoScroll(activeSession, updateDropTarget);
 }
 
+function applyPointerMove() {
+  pointerMoveFrame = null;
+  if (!activeSession?.activated) return;
+
+  dispatchActiveNoteSplitDrag('move');
+  updateDropTarget();
+  updatePreviewPosition(activeSession);
+  queueAutoScroll();
+  appliedPointerX = activeSession.lastClientX;
+  appliedPointerY = activeSession.lastClientY;
+}
+
+function schedulePointerMove() {
+  if (pointerMoveFrame !== null) return;
+  pointerMoveFrame = window.requestAnimationFrame(applyPointerMove);
+}
+
+function cancelPointerMove() {
+  if (pointerMoveFrame === null) return;
+  window.cancelAnimationFrame(pointerMoveFrame);
+  pointerMoveFrame = null;
+}
+
 function handlePointerMove(event: PointerEvent) {
   if (!activeSession) {
     return;
@@ -128,14 +154,15 @@ function handlePointerMove(event: PointerEvent) {
     updateDropTarget();
 
     activeSession.scrollRoot?.addEventListener('scroll', handleScrollRootScroll, true);
+    updatePreviewPosition(activeSession);
+    queueAutoScroll();
+    appliedPointerX = activeSession.lastClientX;
+    appliedPointerY = activeSession.lastClientY;
   } else {
-    dispatchActiveNoteSplitDrag('move');
-    updateDropTarget();
+    schedulePointerMove();
   }
 
   event.preventDefault();
-  updatePreviewPosition(activeSession);
-  queueAutoScroll();
 }
 
 function handlePointerUp(event: PointerEvent) {
@@ -145,6 +172,8 @@ function handlePointerUp(event: PointerEvent) {
 
   if (activeSession.activated) {
     event.preventDefault();
+    activeSession.lastClientX = event.clientX;
+    activeSession.lastClientY = event.clientY;
     finishPointerDrag(true);
     return;
   }
@@ -172,6 +201,7 @@ function handleScrollRootScroll() {
 }
 
 function teardownPointerDrag() {
+  cancelPointerMove();
   stopFileTreePointerAutoScroll(activeSession);
   document.removeEventListener('pointermove', handlePointerMove, true);
   document.removeEventListener('pointerup', handlePointerUp, true);
@@ -197,6 +227,8 @@ function teardownPointerDrag() {
   }
 
   activeSession = null;
+  appliedPointerX = null;
+  appliedPointerY = null;
   setFileTreePointerDragSnapshot({
     activeSourcePath: null,
     dropTargetPath: null,
@@ -207,6 +239,16 @@ function teardownPointerDrag() {
 function finishPointerDrag(shouldCommit: boolean) {
   if (!activeSession) {
     return;
+  }
+
+  const shouldApplyFinalPointer = shouldCommit && (
+    pointerMoveFrame !== null ||
+    appliedPointerX !== activeSession.lastClientX ||
+    appliedPointerY !== activeSession.lastClientY
+  );
+  cancelPointerMove();
+  if (shouldApplyFinalPointer) {
+    applyPointerMove();
   }
 
   const sourcePath = activeSession.sourcePath;

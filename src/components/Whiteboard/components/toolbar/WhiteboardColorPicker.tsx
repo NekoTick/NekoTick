@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/lib/i18n';
 import { getElectronBridge } from '@/lib/electron/bridge';
 import { cn } from '@/lib/utils';
 import { Icon } from '@/components/ui/icons';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { themeWhiteboardTokens } from '@/styles/themeTokens';
-import { clampRgbChannel, hexToRgb, hsvToRgb, rgbToHex, rgbToHsv, type HsvColor } from '@/components/Whiteboard/model/core/whiteboardColor';
+import { clampRgbChannel, hexToRgb, hsvToRgb, rgbToHex, rgbToHsv } from '@/components/Whiteboard/model/core/whiteboardColor';
 import { WhiteboardDockSlot, whiteboardFloatingPanelClassName } from './WhiteboardToolbarPrimitives';
+import { ColorInput, HueField, SaturationValueField } from './WhiteboardColorFields';
+import { sampleAppColor } from './whiteboardColorSampling';
 
 interface WhiteboardColorPickerProps {
   color: string;
@@ -99,8 +100,13 @@ export function WhiteboardColorPicker({ color, onChange, onPreviewChange, onClos
     setAppColorPicking(true);
     let picked = false;
     let samplingPreview = false;
+    let previewFrame: number | null = null;
     let queuedPreviewPoint: { x: number; y: number } | null = null;
     const cleanup = () => {
+      if (previewFrame !== null) {
+        window.cancelAnimationFrame(previewFrame);
+        previewFrame = null;
+      }
       delete document.documentElement.dataset.whiteboardColorPicking;
       window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('pointerdown', handlePointerDown, true);
@@ -130,15 +136,19 @@ export function WhiteboardColorPicker({ color, onChange, onPreviewChange, onClos
       if (event.type === 'pointerup') window.setTimeout(cleanup, 0);
     };
     const sampleQueuedPreview = () => {
-      if (samplingPreview || picked || !queuedPreviewPoint) return;
-      const point = queuedPreviewPoint;
-      queuedPreviewPoint = null;
-      samplingPreview = true;
-      void sampleAppColor(point.x, point.y).then((sampledColor) => {
-        if (requestId === colorPickingRequestRef.current && !picked && sampledColor) chooseSwatch(sampledColor);
-      }).catch(() => {}).finally(() => {
-        samplingPreview = false;
-        if (requestId === colorPickingRequestRef.current && !picked) sampleQueuedPreview();
+      if (samplingPreview || picked || !queuedPreviewPoint || previewFrame !== null) return;
+      previewFrame = window.requestAnimationFrame(() => {
+        previewFrame = null;
+        if (picked || !queuedPreviewPoint) return;
+        const point = queuedPreviewPoint;
+        queuedPreviewPoint = null;
+        samplingPreview = true;
+        void sampleAppColor(point.x, point.y).then((sampledColor) => {
+          if (requestId === colorPickingRequestRef.current && !picked && sampledColor) chooseSwatch(sampledColor);
+        }).catch(() => {}).finally(() => {
+          samplingPreview = false;
+          if (requestId === colorPickingRequestRef.current && !picked) sampleQueuedPreview();
+        });
       });
     };
     const handlePointerMove = (event: globalThis.PointerEvent) => {
@@ -274,76 +284,4 @@ export function WhiteboardColorPicker({ color, onChange, onPreviewChange, onClos
       </PopoverContent>
     </Popover>
   );
-}
-
-function SaturationValueField({ label, hsv, onChange }: { label: string; hsv: HsvColor; onChange: (color: HsvColor) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const hueColor = rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 }));
-  const update = (event: PointerEvent<HTMLDivElement>) => {
-    const rect = ref.current?.getBoundingClientRect();
-    if (!rect) return;
-    onChange({ ...hsv, s: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)), v: Math.min(1, Math.max(0, 1 - (event.clientY - rect.top) / rect.height)) });
-  };
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-    event.preventDefault();
-    const delta = 0.01;
-    const nextSaturation = hsv.s + (event.key === 'ArrowRight' ? delta : event.key === 'ArrowLeft' ? -delta : 0);
-    const nextValue = hsv.v + (event.key === 'ArrowUp' ? delta : event.key === 'ArrowDown' ? -delta : 0);
-    onChange({ ...hsv, s: Math.min(1, Math.max(0, nextSaturation)), v: Math.min(1, Math.max(0, nextValue)) });
-  };
-  return (
-    <div ref={ref} role="slider" tabIndex={0} aria-label={label} aria-valuetext={`${Math.round(hsv.s * 100)}%, ${Math.round(hsv.v * 100)}%`} onKeyDown={handleKeyDown} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); update(event); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) update(event); }} className="relative min-h-[var(--vlaina-size-240px)] touch-none overflow-hidden rounded-[var(--vlaina-radius-8px)] border border-[var(--vlaina-color-subtle-border-strong)] sm:min-h-0" style={{ backgroundColor: hueColor, backgroundImage: themeWhiteboardTokens.colorPickerSaturationValueGradient }}>
-      <span aria-hidden="true" className="pointer-events-none absolute size-[var(--vlaina-size-18px)] -translate-x-1/2 -translate-y-1/2 rounded-[var(--vlaina-radius-circle)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)]" style={{ backgroundColor: rgbToHex(hsvToRgb(hsv)), left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
-    </div>
-  );
-}
-
-function HueField({ label, hsv, onChange }: { label: string; hsv: HsvColor; onChange: (color: HsvColor) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const hueColor = rgbToHex(hsvToRgb({ h: hsv.h, s: 1, v: 1 }));
-  const update = (event: PointerEvent<HTMLDivElement>) => {
-    const rect = ref.current?.getBoundingClientRect();
-    if (rect) onChange({ ...hsv, h: Math.min(359.999, Math.max(0, ((event.clientY - rect.top) / rect.height) * 360)) });
-  };
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
-    event.preventDefault();
-    onChange({ ...hsv, h: (hsv.h + (event.key === 'ArrowDown' ? 2 : 358)) % 360 });
-  };
-  return (
-    <div ref={ref} role="slider" tabIndex={0} aria-label={label} aria-valuenow={Math.round(hsv.h)} aria-valuemin={0} aria-valuemax={360} onKeyDown={handleKeyDown} onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); update(event); }} onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) update(event); }} className="relative min-h-[var(--vlaina-size-48px)] touch-none rounded-[var(--vlaina-radius-8px)]" style={{ backgroundImage: themeWhiteboardTokens.colorPickerHueGradient }}>
-      <span aria-hidden="true" className="pointer-events-none absolute inset-x-[-2px] h-[var(--vlaina-size-6px)] -translate-y-1/2 rounded-[var(--vlaina-radius-pill)] border-2 border-[var(--vlaina-color-picker-white)] shadow-[var(--vlaina-shadow-sm)]" style={{ backgroundColor: hueColor, top: `${hsv.h / 360 * 100}%` }} />
-    </div>
-  );
-}
-
-function ColorInput({ label, onBlur, onChange, type = 'text', value }: { label: string; onBlur?: () => void; onChange: (value: string) => void; type?: 'text' | 'number'; value: string }) {
-  return (
-    <label className="contents">
-      <span className="self-center text-[length:var(--vlaina-font-13)] text-[var(--vlaina-color-text-secondary)]">{label}</span>
-      <input type={type} min={type === 'number' ? 0 : undefined} max={type === 'number' ? 255 : undefined} value={value} onBlur={onBlur} onChange={(event) => onChange(event.target.value)} className="h-9 min-w-0 rounded-[var(--vlaina-radius-8px)] border border-[var(--vlaina-color-subtle-border-strong)] bg-[var(--vlaina-color-control-hover-bg)] px-2 font-mono text-[length:var(--vlaina-font-13)] text-[var(--vlaina-color-text-primary)] outline-none focus:border-[var(--vlaina-color-whiteboard-selected)]" />
-    </label>
-  );
-}
-
-async function sampleAppColor(clientX: number, clientY: number): Promise<string | null> {
-  const capturePage = getElectronBridge()?.media?.capturePage;
-  if (!capturePage) return null;
-  const dataUrl = await capturePage({ x: clientX, y: clientY, width: 1, height: 1 });
-  const image = new Image();
-  image.src = dataUrl;
-  if (typeof image.decode === 'function') await image.decode();
-  else await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error('Captured color pixel could not be decoded.'));
-  });
-  const canvas = document.createElement('canvas');
-  canvas.width = 1;
-  canvas.height = 1;
-  const context = canvas.getContext('2d', { willReadFrequently: true });
-  if (!context) return null;
-  context.drawImage(image, 0, 0, 1, 1);
-  const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-  return rgbToHex({ r, g, b });
 }

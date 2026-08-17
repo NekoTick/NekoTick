@@ -66,6 +66,21 @@ describe("resolveOutsideMoveDecision", () => {
 });
 
 describe("SelectionInsertButton selection lock", () => {
+  it("does not schedule selection layout on viewport changes without an active selection", () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+    const { unmount } = render(React.createElement(SelectionInsertButton));
+    requestAnimationFrameSpy.mockClear();
+
+    window.dispatchEvent(new Event("scroll"));
+    window.dispatchEvent(new Event("resize"));
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    unmount();
+    requestAnimationFrameSpy.mockRestore();
+  });
+
   it("marks its portal as a transient content layer", () => {
     const { unmount } = render(React.createElement(SelectionInsertButton));
 

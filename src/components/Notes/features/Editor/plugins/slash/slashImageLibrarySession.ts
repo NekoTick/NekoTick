@@ -25,6 +25,8 @@ class SlashImageLibrarySession {
   private readonly sourceDoc: EditorView['state']['doc'];
   private readonly sourceSelection: EditorView['state']['selection'];
   private readonly sourceNotePath: string | undefined;
+  private positionFrameId = 0;
+  private positionFrameScheduled = false;
 
   constructor(
     private readonly view: EditorView,
@@ -55,8 +57,8 @@ class SlashImageLibrarySession {
       onSelect: (path: string) => this.insert(path),
     })));
     applySlashMenuPosition(this.view, menuElement, this.positionRoot);
-    window.addEventListener('resize', this.syncPosition);
-    this.scrollRoot?.addEventListener('scroll', this.syncPosition, { passive: true });
+    window.addEventListener('resize', this.schedulePositionSync);
+    this.scrollRoot?.addEventListener('scroll', this.schedulePositionSync, { passive: true });
     window.addEventListener('mousedown', this.handleWindowMouseDown, true);
     document.addEventListener('keydown', this.handleDocumentKeyDown, true);
   }
@@ -65,8 +67,13 @@ class SlashImageLibrarySession {
     if (this.disposed) return;
     this.disposed = true;
     this.unlistenOverlay();
-    window.removeEventListener('resize', this.syncPosition);
-    this.scrollRoot?.removeEventListener('scroll', this.syncPosition);
+    window.removeEventListener('resize', this.schedulePositionSync);
+    this.scrollRoot?.removeEventListener('scroll', this.schedulePositionSync);
+    if (this.positionFrameId !== 0) {
+      cancelAnimationFrame(this.positionFrameId);
+    }
+    this.positionFrameId = 0;
+    this.positionFrameScheduled = false;
     window.removeEventListener('mousedown', this.handleWindowMouseDown, true);
     document.removeEventListener('keydown', this.handleDocumentKeyDown, true);
     const root = this.root;
@@ -104,6 +111,20 @@ class SlashImageLibrarySession {
   private syncPosition = () => {
     if (this.menuElement) {
       applySlashMenuPosition(this.view, this.menuElement, this.positionRoot);
+    }
+  };
+
+  private schedulePositionSync = () => {
+    if (this.positionFrameScheduled) return;
+
+    this.positionFrameScheduled = true;
+    const frameId = requestAnimationFrame(() => {
+      this.positionFrameId = 0;
+      this.positionFrameScheduled = false;
+      this.syncPosition();
+    });
+    if (this.positionFrameScheduled) {
+      this.positionFrameId = frameId;
     }
   };
 

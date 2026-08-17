@@ -115,6 +115,31 @@ describe('installLinkTooltipEvents', () => {
         stateMocks.textSelectionCreate.mockReturnValue({ type: 'text-selection' });
     });
 
+    it('coalesces editing tooltip repositioning while scrolling', () => {
+        const frameCallbacks: FrameRequestCallback[] = [];
+        const requestAnimationFrameSpy = vi
+            .spyOn(window, 'requestAnimationFrame')
+            .mockImplementation((callback) => {
+                frameCallbacks.push(callback);
+                return frameCallbacks.length;
+            });
+        const { handlers } = createHandlers();
+        handlers.dom.setAttribute('data-editing', 'true');
+        const cleanup = installLinkTooltipEvents(handlers);
+
+        window.dispatchEvent(new Event('scroll'));
+        window.dispatchEvent(new Event('scroll'));
+        window.dispatchEvent(new Event('scroll'));
+
+        expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+        expect(handlers.reposition).not.toHaveBeenCalled();
+        frameCallbacks[0]?.(0);
+        expect(handlers.reposition).toHaveBeenCalledTimes(1);
+
+        cleanup();
+        requestAnimationFrameSpy.mockRestore();
+    });
+
     it('opens keyboard-activated editor links through the shared link opener', async () => {
         const { editorDom, handlers } = createHandlers();
         const link = document.createElement('a');

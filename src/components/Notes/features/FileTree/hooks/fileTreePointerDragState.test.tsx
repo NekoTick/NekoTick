@@ -402,6 +402,59 @@ describe('fileTreePointerDragState', () => {
     expect(elementsFromPointMock).toHaveBeenCalledTimes(1);
   });
 
+  it('coalesces active pointer hit tests and commits the final pointer position', async () => {
+    const { source, folderTarget } = setupHarness({
+      path: 'cover.png',
+      kind: 'image',
+      folderTargetPath: 'Archive',
+    });
+    const elementsFromPointMock = vi.fn(() => [folderTarget as Element]);
+    document.elementsFromPoint = elementsFromPointMock;
+
+    fireEvent.pointerDown(source, {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerType: 'mouse',
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 40,
+      clientY: 52,
+      buttons: 1,
+    });
+    elementsFromPointMock.mockClear();
+
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 50,
+      clientY: 70,
+      buttons: 1,
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 60,
+      clientY: 80,
+      buttons: 1,
+    });
+    dispatchDocumentPointerEvent('pointermove', {
+      clientX: 70,
+      clientY: 90,
+      buttons: 1,
+    });
+
+    expect(elementsFromPointMock).not.toHaveBeenCalled();
+
+    dispatchDocumentPointerEvent('pointerup', {
+      clientX: 80,
+      clientY: 100,
+      buttons: 0,
+    });
+
+    await waitFor(() => {
+      expect(moveItemMock).toHaveBeenCalledWith('cover.png', 'Archive');
+    });
+    expect(elementsFromPointMock).toHaveBeenCalledTimes(1);
+    expect(elementsFromPointMock).toHaveBeenCalledWith(80, 100);
+  });
+
   it('closes the image hover preview when an image pointer drag starts', () => {
     showImageFileHoverPreview({
       imagePath: 'cover.png',

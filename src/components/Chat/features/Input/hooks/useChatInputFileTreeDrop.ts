@@ -47,25 +47,54 @@ export function useChatInputFileTreeDrop({
       return;
     }
 
-    const isInsideDropTarget = (event: PointerEvent | MouseEvent) => {
+    let pointerFrameId = 0;
+    let pointerFrameScheduled = false;
+    let pendingPointer: { x: number; y: number } | null = null;
+
+    const isInsideDropTarget = (point: { x: number; y: number }) => {
       const root = composerRootRef.current?.closest(FILE_TREE_CHAT_DROP_TARGET_SELECTOR) as HTMLElement | null;
       if (!root) {
         return false;
       }
       const rect = root.getBoundingClientRect();
       return (
-        event.clientX >= rect.left
-        && event.clientX <= rect.right
-        && event.clientY >= rect.top
-        && event.clientY <= rect.bottom
+        point.x >= rect.left
+        && point.x <= rect.right
+        && point.y >= rect.top
+        && point.y <= rect.bottom
       );
     };
 
+    const cancelPointerFrame = () => {
+      if (pointerFrameId !== 0) {
+        window.cancelAnimationFrame(pointerFrameId);
+      }
+      pointerFrameId = 0;
+      pointerFrameScheduled = false;
+      pendingPointer = null;
+    };
+
     const handlePointerMove = (event: PointerEvent) => {
-      setIsFileTreeDropActive(isFileTreeDragActive && isInsideDropTarget(event));
+      pendingPointer = { x: event.clientX, y: event.clientY };
+      if (pointerFrameScheduled) return;
+
+      pointerFrameScheduled = true;
+      const frameId = window.requestAnimationFrame(() => {
+        pointerFrameId = 0;
+        pointerFrameScheduled = false;
+        const point = pendingPointer;
+        pendingPointer = null;
+        if (point) {
+          setIsFileTreeDropActive(isInsideDropTarget(point));
+        }
+      });
+      if (pointerFrameScheduled) {
+        pointerFrameId = frameId;
+      }
     };
 
     const handlePointerUp = () => {
+      cancelPointerFrame();
       setIsFileTreeDropActive(false);
     };
 
@@ -77,14 +106,18 @@ export function useChatInputFileTreeDrop({
       appendNoteMentions(buildDroppedFileTreeMentions(detail));
       resetHistoryNavigation();
       clearHistoryNavigationOnInput();
+      cancelPointerFrame();
       setIsFileTreeDropActive(false);
     };
 
-    window.addEventListener('pointermove', handlePointerMove, true);
-    window.addEventListener('pointerup', handlePointerUp, true);
+    if (isFileTreeDragActive) {
+      window.addEventListener('pointermove', handlePointerMove, true);
+      window.addEventListener('pointerup', handlePointerUp, true);
+    }
     window.addEventListener(FILE_TREE_CHAT_DROP_EVENT, handleFileTreeChatDrop);
 
     return () => {
+      cancelPointerFrame();
       window.removeEventListener('pointermove', handlePointerMove, true);
       window.removeEventListener('pointerup', handlePointerUp, true);
       window.removeEventListener(FILE_TREE_CHAT_DROP_EVENT, handleFileTreeChatDrop);

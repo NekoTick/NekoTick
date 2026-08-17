@@ -33,6 +33,7 @@ export function useMessageListViewport({
   const [isTailDetached, setIsTailDetached] = useState(false);
   const viewportMetricsRafRef = useRef<number | null>(null);
   const scrollIdleTimeoutRef = useRef<number | null>(null);
+  const scrollIdleDeadlineRef = useRef(0);
   const lastObservedScrollTopRef = useRef<number | null>(null);
   const isScrollActiveRef = useRef(isScrollActive);
   const isTailDetachedRef = useRef(isTailDetached);
@@ -103,6 +104,19 @@ export function useMessageListViewport({
       return;
     }
 
+    const settleScrollActivity = () => {
+      scrollIdleTimeoutRef.current = null;
+      const remainingMs = scrollIdleDeadlineRef.current - Date.now();
+      if (remainingMs > 0) {
+        scrollIdleTimeoutRef.current = window.setTimeout(settleScrollActivity, remainingMs);
+        return;
+      }
+
+      scrollIdleDeadlineRef.current = 0;
+      isScrollActiveRef.current = false;
+      setIsScrollActive(false);
+    };
+
     const handleScroll = (event: Event) => {
       const currentScrollTop = viewport.scrollTop;
       const previousScrollTop = lastObservedScrollTopRef.current;
@@ -128,14 +142,13 @@ export function useMessageListViewport({
         isScrollActiveRef.current = true;
         setIsScrollActive(true);
       }
-      if (scrollIdleTimeoutRef.current !== null) {
-        window.clearTimeout(scrollIdleTimeoutRef.current);
+      scrollIdleDeadlineRef.current = Date.now() + STREAM_SCROLL_IDLE_MS;
+      if (scrollIdleTimeoutRef.current === null) {
+        scrollIdleTimeoutRef.current = window.setTimeout(
+          settleScrollActivity,
+          STREAM_SCROLL_IDLE_MS,
+        );
       }
-      scrollIdleTimeoutRef.current = window.setTimeout(() => {
-        scrollIdleTimeoutRef.current = null;
-        isScrollActiveRef.current = false;
-        setIsScrollActive(false);
-      }, STREAM_SCROLL_IDLE_MS);
     };
 
     commitViewportMetrics();
@@ -162,6 +175,7 @@ export function useMessageListViewport({
         window.clearTimeout(scrollIdleTimeoutRef.current);
         scrollIdleTimeoutRef.current = null;
       }
+      scrollIdleDeadlineRef.current = 0;
     };
   }, [active, commitViewportMetrics, containerRef, isSessionActive, scheduleViewportMetrics, useOverlayScrollbar]);
 
@@ -174,6 +188,7 @@ export function useMessageListViewport({
       window.clearTimeout(scrollIdleTimeoutRef.current);
       scrollIdleTimeoutRef.current = null;
     }
+    scrollIdleDeadlineRef.current = 0;
     isScrollActiveRef.current = false;
     isTailDetachedRef.current = false;
     setIsScrollActive(false);

@@ -61,6 +61,8 @@ export function NotesTabRow() {
   const [activeTabId, setActiveTabId] = React.useState<string | null>(null);
   const activeSplitDragPathRef = React.useRef<string | null>(null);
   const splitDragPointRef = React.useRef<{ clientX: number; clientY: number } | null>(null);
+  const splitDragMoveFrameRef = React.useRef<number | null>(null);
+  const pendingSplitDragPointRef = React.useRef<{ clientX: number; clientY: number } | null>(null);
 
   const getSplitDragPoint = React.useCallback((event: DragMoveEvent | DragEndEvent) => {
     const rect = event.active.rect.current.translated ?? event.active.rect.current.initial;
@@ -72,17 +74,13 @@ export function NotesTabRow() {
       : splitDragPointRef.current;
   }, []);
 
-  const handleSplitDragPointerMove = React.useCallback((event: PointerEvent) => {
+  const applySplitDragMove = React.useCallback(() => {
+    splitDragMoveFrameRef.current = null;
     const path = activeSplitDragPathRef.current;
-    if (!path) {
-      return;
-    }
+    const point = pendingSplitDragPointRef.current;
+    pendingSplitDragPointRef.current = null;
+    if (!path || !point) return;
 
-    const point = {
-      clientX: event.clientX,
-      clientY: event.clientY,
-    };
-    splitDragPointRef.current = point;
     dispatchNotesTabSplitDrag({
       phase: 'move',
       path,
@@ -91,9 +89,45 @@ export function NotesTabRow() {
     });
   }, []);
 
+  const scheduleSplitDragMove = React.useCallback((point: { clientX: number; clientY: number }) => {
+    splitDragPointRef.current = point;
+    pendingSplitDragPointRef.current = point;
+    if (splitDragMoveFrameRef.current !== null) return;
+    splitDragMoveFrameRef.current = window.requestAnimationFrame(applySplitDragMove);
+  }, [applySplitDragMove]);
+
+  const flushSplitDragMove = React.useCallback((point?: { clientX: number; clientY: number }) => {
+    if (point) {
+      splitDragPointRef.current = point;
+      pendingSplitDragPointRef.current = point;
+    }
+    if (splitDragMoveFrameRef.current !== null) {
+      window.cancelAnimationFrame(splitDragMoveFrameRef.current);
+      splitDragMoveFrameRef.current = null;
+    }
+    applySplitDragMove();
+  }, [applySplitDragMove]);
+
+  const cancelSplitDragMove = React.useCallback(() => {
+    if (splitDragMoveFrameRef.current !== null) {
+      window.cancelAnimationFrame(splitDragMoveFrameRef.current);
+      splitDragMoveFrameRef.current = null;
+    }
+    pendingSplitDragPointRef.current = null;
+  }, []);
+
+  const handleSplitDragPointerMove = React.useCallback((event: PointerEvent) => {
+    if (!activeSplitDragPathRef.current) return;
+    scheduleSplitDragMove({
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }, [scheduleSplitDragMove]);
+
   const stopSplitDragTracking = React.useCallback(() => {
+    cancelSplitDragMove();
     window.removeEventListener('pointermove', handleSplitDragPointerMove);
-  }, [handleSplitDragPointerMove]);
+  }, [cancelSplitDragMove, handleSplitDragPointerMove]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -120,6 +154,8 @@ export function NotesTabRow() {
     setActiveTabId(path);
     activeSplitDragPathRef.current = path;
     splitDragPointRef.current = null;
+    pendingSplitDragPointRef.current = null;
+    cancelSplitDragMove();
     window.addEventListener('pointermove', handleSplitDragPointerMove);
     dispatchNotesTabSplitDrag({ phase: 'start', path });
   };
@@ -135,13 +171,7 @@ export function NotesTabRow() {
       return;
     }
 
-    splitDragPointRef.current = point;
-    dispatchNotesTabSplitDrag({
-      phase: 'move',
-      path,
-      source: 'tab',
-      ...point,
-    });
+    scheduleSplitDragMove(point);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -149,6 +179,7 @@ export function NotesTabRow() {
     setActiveTabId(null);
     const path = active.id as string;
     const point = getSplitDragPoint(event);
+    flushSplitDragMove(point ?? undefined);
     activeSplitDragPathRef.current = null;
     splitDragPointRef.current = null;
     stopSplitDragTracking();
@@ -170,6 +201,7 @@ export function NotesTabRow() {
   const handleDragCancel = () => {
     const path = activeSplitDragPathRef.current;
     setActiveTabId(null);
+    cancelSplitDragMove();
     activeSplitDragPathRef.current = null;
     splitDragPointRef.current = null;
     stopSplitDragTracking();

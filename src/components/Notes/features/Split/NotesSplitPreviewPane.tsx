@@ -56,6 +56,20 @@ interface NotesSplitPreviewPaneProps {
 
 const DEFAULT_ICON_SIZE = 60;
 const noopUpdateCover = () => {};
+const PREVIEW_TEXT_BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, blockquote';
+const MAX_PREVIEW_CONTENT_ANCHOR_LENGTH = 512;
+
+function getPreviewTextOffsetAtPoint(element: HTMLElement, clientX: number, clientY: number): number | undefined {
+  const caretRange = document.caretRangeFromPoint?.(clientX, clientY);
+  if (!caretRange || !element.contains(caretRange.startContainer)) {
+    return undefined;
+  }
+
+  const prefixRange = document.createRange();
+  prefixRange.selectNodeContents(element);
+  prefixRange.setEnd(caretRange.startContainer, caretRange.startOffset);
+  return prefixRange.toString().length;
+}
 
 function getMetadataEntryForPath(
   path: string,
@@ -182,6 +196,17 @@ export function NotesSplitPreviewPane({
         const previewContent = target.closest<HTMLElement>('[data-notes-split-preview-content="true"]');
         if (!previewContent) return;
         const previewRect = previewContent.getBoundingClientRect();
+        const textBlock = target.closest<HTMLElement>(PREVIEW_TEXT_BLOCK_SELECTOR);
+        const blockText = textBlock?.textContent?.trim() ?? '';
+        const contentAnchorText = blockText.length <= MAX_PREVIEW_CONTENT_ANCHOR_LENGTH
+          ? blockText
+          : '';
+        const rawTextOffset = textBlock
+          ? getPreviewTextOffsetAtPoint(textBlock, event.clientX, event.clientY)
+          : undefined;
+        const blockLeadingWhitespace = textBlock?.textContent?.length
+          ? textBlock.textContent.length - textBlock.textContent.trimStart().length
+          : 0;
         onActivate({
           clientX: event.clientX,
           clientY: event.clientY,
@@ -189,6 +214,14 @@ export function NotesSplitPreviewPane({
             left: event.clientX - previewRect.left,
             top: event.clientY - previewRect.top,
           },
+          contentAnchor: contentAnchorText
+            ? {
+                text: contentAnchorText,
+                textOffset: rawTextOffset === undefined
+                  ? undefined
+                  : Math.max(0, rawTextOffset - blockLeadingWhitespace),
+              }
+            : undefined,
         });
       }}
     >
@@ -247,6 +280,7 @@ export function NotesSplitPreviewPane({
           imageLoader={loadImage}
           readOnly
           title={title}
+          titleClassName="!text-[length:var(--vlaina-note-title-compact-font-size)] !leading-[var(--vlaina-note-title-compact-line-height)] !py-[var(--vlaina-note-title-padding-y)]"
         />
 
         <div

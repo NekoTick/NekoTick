@@ -133,7 +133,25 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
     let suppressNextClick = false;
     let clearSuppressNextClickTimer: number | null = null;
     let hoveredLink: HTMLElement | null = null;
+    let repositionFrameId = 0;
+    let repositionFrameScheduled = false;
     const scrollRoot = view.dom.closest<HTMLElement>('[data-note-scroll-root="true"]');
+
+    const scheduleReposition = () => {
+        if (repositionFrameScheduled) return;
+
+        repositionFrameScheduled = true;
+        const frameId = window.requestAnimationFrame(() => {
+            repositionFrameId = 0;
+            repositionFrameScheduled = false;
+            if (dom.hasAttribute('data-editing')) {
+                reposition();
+            }
+        });
+        if (repositionFrameScheduled) {
+            repositionFrameId = frameId;
+        }
+    };
 
     const suppressNextEditorClick = () => {
         suppressNextClick = true;
@@ -158,7 +176,7 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
         hoveredLink = null;
         clearShowTimer();
         if (dom.hasAttribute('data-editing')) {
-            reposition();
+            scheduleReposition();
             return;
         }
         if (hasActiveLink()) hide();
@@ -342,6 +360,11 @@ export function installLinkTooltipEvents(handlers: LinkTooltipEventHandlers): ()
     document.addEventListener('keydown', handleGlobalKeyDown, true);
 
     return () => {
+        if (repositionFrameId !== 0) {
+            window.cancelAnimationFrame(repositionFrameId);
+        }
+        repositionFrameId = 0;
+        repositionFrameScheduled = false;
         if (clearSuppressNextClickTimer !== null) {
             window.clearTimeout(clearSuppressNextClickTimer);
         }

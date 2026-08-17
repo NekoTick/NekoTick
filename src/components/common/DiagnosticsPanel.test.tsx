@@ -59,4 +59,26 @@ describe('DiagnosticsPanel', () => {
     expect(screen.getByLabelText('0 diagnostics entries')).toBeInTheDocument();
     expect(getDiagnosticsLogText()).toContain('"entries": []');
   });
+
+  it('does not evaluate throttled diagnostic details', () => {
+    const performanceNowSpy = vi.spyOn(performance, 'now');
+    const acceptedDetails = vi.fn(() => ({ value: 1 }));
+    const throttledDetails = vi.fn(() => ({ value: 2 }));
+    performanceNowSpy.mockReturnValueOnce(1000).mockReturnValueOnce(1100);
+
+    logDiagnostic('test', 'accepted', acceptedDetails, {
+      throttleKey: 'lazy-details',
+      throttleMs: 250,
+    });
+    logDiagnostic('test', 'throttled', throttledDetails, {
+      throttleKey: 'lazy-details',
+      throttleMs: 250,
+    });
+
+    expect(acceptedDetails).toHaveBeenCalledTimes(1);
+    expect(throttledDetails).not.toHaveBeenCalled();
+    expect(getDiagnosticsLogText()).toContain('"event": "accepted"');
+    expect(getDiagnosticsLogText()).not.toContain('"event": "throttled"');
+    performanceNowSpy.mockRestore();
+  });
 });

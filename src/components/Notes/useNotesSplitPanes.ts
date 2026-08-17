@@ -5,9 +5,13 @@ import { openStoredNotePath } from '@/stores/notes/openNotePath';
 import { logNotesSplitDiagnostic } from '@/lib/diagnostics/notesSplitDiagnostics';
 import {
   focusCurrentEditorAtViewportPoint,
+  getCurrentEditorPositionAtViewportPoint,
   type EditorViewportPoint,
 } from './features/Editor/utils/focusEditorAtPoint';
-import { getCurrentEditorNotePath } from './features/Editor/utils/editorViewRegistry';
+import {
+  getCurrentEditorNotePath,
+  getCurrentEditorView,
+} from './features/Editor/utils/editorViewRegistry';
 import {
   countNotesSplitPreviewLeaves,
   createInitialNotesSplitPaneTree,
@@ -23,6 +27,8 @@ import type { NotesSplitDropTarget } from './notesViewSplitTypes';
 import { useNotesSplitResize } from './useNotesSplitResize';
 import { useNotesSplitPaneDrag } from './useNotesSplitPaneDrag';
 import { useNotesSplitDrop } from './useNotesSplitDrop';
+
+const MAX_SPLIT_FOCUS_CORRECTION_FRAMES = 12;
 
 export function useNotesSplitPanes(args: {
   active: boolean;
@@ -55,6 +61,7 @@ export function useNotesSplitPanes(args: {
     path: string;
     point: EditorViewportPoint;
   } | null>(null);
+  const pendingSplitEditorFocusFrameRef = useRef<number | null>(null);
 
   const nextSplitPaneId = useCallback((prefix: 'preview' | 'split') => {
     splitPaneIdSequenceRef.current += 1;
@@ -149,18 +156,94 @@ export function useNotesSplitPanes(args: {
     setPrimaryPreviewLeaf(null);
   }, []);
 
-  const applyPendingSplitEditorFocus = useCallback(() => {
+  const focusPendingSplitEditorPoint = useCallback((): boolean => {
     const pending = pendingSplitEditorFocusRef.current;
     const latestPath = useNotesStore.getState().currentNote?.path ?? null;
     if (!pending || pending.path !== latestPath) {
-      return;
+      return false;
     }
     if (getCurrentEditorNotePath() !== pending.path) {
-      return;
+      return false;
     }
 
-    if (focusCurrentEditorAtViewportPoint(pending.point)) {
-      pendingSplitEditorFocusRef.current = null;
+    return focusCurrentEditorAtViewportPoint(pending.point);
+  }, []);
+
+  const applyPendingSplitEditorFocus = useCallback(() => {
+    if (!pendingSplitEditorFocusRef.current) {
+      return;
+    }
+    if (pendingSplitEditorFocusFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingSplitEditorFocusFrameRef.current);
+    }
+
+    let frameCount = 0;
+    let lastAppliedPosition: number | null = null;
+    let lastAppliedSelection: { from: number; to: number } | null = null;
+    const applyAndVerifyFocus = () => {
+      pendingSplitEditorFocusFrameRef.current = null;
+      const pending = pendingSplitEditorFocusRef.current;
+      if (!pending) {
+        return;
+      }
+
+      frameCount += 1;
+      const latestPath = useNotesStore.getState().currentNote?.path ?? null;
+      const editorPath = getCurrentEditorNotePath();
+      const view = getCurrentEditorView();
+      if (latestPath !== pending.path || editorPath !== pending.path || !view) {
+        if (frameCount < MAX_SPLIT_FOCUS_CORRECTION_FRAMES) {
+          pendingSplitEditorFocusFrameRef.current = window.requestAnimationFrame(applyAndVerifyFocus);
+        }
+        return;
+      }
+
+      if (
+        lastAppliedSelection &&
+        (view.state.selection.from !== lastAppliedSelection.from ||
+          view.state.selection.to !== lastAppliedSelection.to)
+      ) {
+        pendingSplitEditorFocusRef.current = null;
+        return;
+      }
+
+      if (pending.point.contentAnchor && lastAppliedPosition === null) {
+        if (focusPendingSplitEditorPoint()) {
+          pendingSplitEditorFocusRef.current = null;
+          return;
+        }
+      }
+
+      const position = getCurrentEditorPositionAtViewportPoint(pending.point);
+      if (lastAppliedPosition !== null && position === lastAppliedPosition) {
+        pendingSplitEditorFocusRef.current = null;
+        return;
+      }
+
+      if (position !== null && focusPendingSplitEditorPoint()) {
+        const focusedView = getCurrentEditorView();
+        if (focusedView) {
+          lastAppliedPosition = position;
+          lastAppliedSelection = {
+            from: focusedView.state.selection.from,
+            to: focusedView.state.selection.to,
+          };
+        }
+      }
+
+      if (frameCount < MAX_SPLIT_FOCUS_CORRECTION_FRAMES) {
+        pendingSplitEditorFocusFrameRef.current = window.requestAnimationFrame(applyAndVerifyFocus);
+      } else {
+        pendingSplitEditorFocusRef.current = null;
+      }
+    };
+
+    pendingSplitEditorFocusFrameRef.current = window.requestAnimationFrame(applyAndVerifyFocus);
+  }, [focusPendingSplitEditorPoint]);
+
+  useEffect(() => () => {
+    if (pendingSplitEditorFocusFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingSplitEditorFocusFrameRef.current);
     }
   }, []);
 
@@ -195,7 +278,7 @@ export function useNotesSplitPanes(args: {
         path,
         previousPath,
       });
-      window.requestAnimationFrame(applyPendingSplitEditorFocus);
+      applyPendingSplitEditorFocus();
     });
   }, [applyPendingSplitEditorFocus, nextSplitPaneId, openNote, openNoteByAbsolutePath]);
 
@@ -222,7 +305,7 @@ export function useNotesSplitPanes(args: {
         currentPath: useNotesStore.getState().currentNote?.path ?? null,
         path,
       });
-      window.requestAnimationFrame(applyPendingSplitEditorFocus);
+      applyPendingSplitEditorFocus();
     });
   }, [applyPendingSplitEditorFocus, openNote, openNoteByAbsolutePath]);
 

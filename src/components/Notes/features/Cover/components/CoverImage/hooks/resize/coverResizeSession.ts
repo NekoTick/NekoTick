@@ -29,6 +29,9 @@ export function startCoverResizeSession({
   let disposed = false;
   let topPinned = snapshot.maxShiftDown === 0;
   let lastFrame: ResizeFrame | null = null;
+  let resizeFrameId: number | null = null;
+  let resizeFrameScheduled = false;
+  let pendingClientY: number | null = null;
 
   const buildFrame = (clientY: number): ResizeFrame => {
     const delta = clientY - startY;
@@ -55,13 +58,23 @@ export function startCoverResizeSession({
   const dispose = () => {
     if (disposed) return;
     disposed = true;
+    if (resizeFrameId !== null) {
+      window.cancelAnimationFrame(resizeFrameId);
+      resizeFrameId = null;
+    }
+    resizeFrameScheduled = false;
+    pendingClientY = null;
     document.removeEventListener('mousemove', handleMove, true);
     document.removeEventListener('mouseup', handleUp, true);
   };
 
-  const handleMove = (event: MouseEvent) => {
-    if (disposed) return;
-    const frame = buildFrame(event.clientY);
+  const applyPendingMove = () => {
+    resizeFrameId = null;
+    resizeFrameScheduled = false;
+    if (disposed || pendingClientY === null) return;
+    const clientY = pendingClientY;
+    pendingClientY = null;
+    const frame = buildFrame(clientY);
     if (
       lastFrame &&
       lastFrame.effectiveHeight === frame.effectiveHeight &&
@@ -73,8 +86,29 @@ export function startCoverResizeSession({
     onFrame(frame);
   };
 
+  const scheduleMove = (clientY: number) => {
+    pendingClientY = clientY;
+    if (resizeFrameScheduled) return;
+    resizeFrameScheduled = true;
+    const frameId = window.requestAnimationFrame(applyPendingMove);
+    if (resizeFrameScheduled) {
+      resizeFrameId = frameId;
+    }
+  };
+
+  const handleMove = (event: MouseEvent) => {
+    if (disposed) return;
+    scheduleMove(event.clientY);
+  };
+
   const handleUp = (event: MouseEvent) => {
     if (disposed) return;
+    if (resizeFrameId !== null) {
+      window.cancelAnimationFrame(resizeFrameId);
+      resizeFrameId = null;
+    }
+    resizeFrameScheduled = false;
+    pendingClientY = null;
     const frame = buildFrame(event.clientY);
     lastFrame = frame;
     const finalCrop = calculateFinalCropFromResize(

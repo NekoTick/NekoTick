@@ -48,8 +48,8 @@ export function logNoteScrollDiagnostic(
   if (!import.meta.env.DEV) return;
 
   const { includeSnapshot = true, ...logOptions } = options ?? {};
-  logDiagnostic('notes-scroll', event, {
+  logDiagnostic('notes-scroll', event, () => ({
     ...(includeSnapshot ? readNoteScrollSnapshot(scrollRoot) : {}),
     ...details,
-  }, logOptions);
+  }), logOptions);
 }

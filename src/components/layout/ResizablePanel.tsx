@@ -88,7 +88,7 @@ export function ResizablePanel({
     onWidthChange: handleWidthChange,
     onDragStateChange,
     direction: 'reverse',
-    liveUpdateMode: 'sync',
+    liveUpdateMode: 'animation-frame',
     useOverlay: true,
   });
 

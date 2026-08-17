@@ -186,6 +186,9 @@ export class EmojiShortcutMenuView {
   }
 
   private scheduleViewportChange() {
+    if (!this.menuElement) {
+      return;
+    }
     if (this.layoutRaf !== 0) {
       return;
     }

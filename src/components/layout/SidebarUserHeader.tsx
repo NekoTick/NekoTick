@@ -37,18 +37,25 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
     const { t } = useI18n();
     const headerRef = useRef<HTMLDivElement>(null);
     const [isHovered, setIsHovered] = useState(false);
+    const isHoveredRef = useRef(false);
     const devPlatformPreview = useUIStore((state) => state.devPlatformPreview);
     const shouldReserveMacTrafficLightSpace = isMacOS(devPlatformPreview);
     const shouldShowPersistentCapsule = isNativeWindows() && !shouldReserveMacTrafficLightSpace;
 
+    const updateHeaderHover = useCallback((nextHovered: boolean) => {
+        if (isHoveredRef.current === nextHovered) return;
+        isHoveredRef.current = nextHovered;
+        setIsHovered(nextHovered);
+    }, []);
+
     const clearHeaderInteraction = useCallback(() => {
-        setIsHovered(false);
+        updateHeaderHover(false);
 
         const activeElement = document.activeElement;
         if (activeElement instanceof HTMLElement && headerRef.current?.contains(activeElement)) {
             activeElement.blur();
         }
-    }, []);
+    }, [updateHeaderHover]);
 
     const handleOpenSettings = useCallback(() => {
         clearHeaderInteraction();
@@ -68,21 +75,21 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
     useEffect(() => {
         const handleMouseMove = (event: MouseEvent) => {
             if (interactionSuppressed) {
-                setIsHovered(false);
+                updateHeaderHover(false);
                 return;
             }
 
             const header = headerRef.current;
             if (!header) return;
             if (event.target instanceof Node) {
-                setIsHovered(header.contains(event.target));
+                updateHeaderHover(header.contains(event.target));
                 return;
             }
 
             const rect = header.getBoundingClientRect();
             if (!rect) return;
 
-            setIsHovered(
+            updateHeaderHover(
                 event.clientX >= rect.left &&
                 event.clientX <= rect.right &&
                 event.clientY >= rect.top &&
@@ -107,7 +114,7 @@ export function SidebarUserHeader({ toggleSidebar, interactionSuppressed = false
             window.removeEventListener('mouseout', handleMouseOutWindow, true);
             window.removeEventListener('blur', handleMouseLeaveWindow);
         };
-    }, [clearHeaderInteraction, interactionSuppressed]);
+    }, [clearHeaderInteraction, interactionSuppressed, updateHeaderHover]);
 
     return (
         <div

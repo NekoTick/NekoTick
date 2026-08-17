@@ -122,6 +122,11 @@ export function createLargeBlockSelectionPreviewOverlay(view: EditorView) {
   const scheduleGeometryRefresh = () => {
     const win = doc.defaultView;
     if (!win || geometryRafId !== 0) return;
+    const { decorationsDeferred, selectedBlocks } = getBlockSelectionPluginState(currentView.state);
+    if (
+      decorationsDeferred
+      || !shouldRenderBlockSelectionWithPreview(selectedBlocks.length)
+    ) return;
     geometryRafId = win.requestAnimationFrame(() => {
       geometryRafId = 0;
       render(currentView, true);

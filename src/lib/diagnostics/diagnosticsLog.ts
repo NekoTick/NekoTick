@@ -7,6 +7,7 @@ export interface DiagnosticEntry {
 }
 
 type DiagnosticListener = () => void;
+type DiagnosticDetails = Record<string, unknown> | (() => Record<string, unknown>);
 
 declare global {
   interface Window {
@@ -45,7 +46,7 @@ function isDiagnosticsEnabled(): boolean {
 export function logDiagnostic(
   channel: string,
   event: string,
-  details?: Record<string, unknown>,
+  details?: DiagnosticDetails,
   options?: { throttleKey?: string; throttleMs?: number },
 ): void {
   if (!isDiagnosticsEnabled() || typeof window === 'undefined') return;
@@ -58,6 +59,8 @@ export function logDiagnostic(
     lastEntryAtByKey.set(throttleKey, now);
   }
 
+  const resolvedDetails = typeof details === 'function' ? details() : details;
+
   setLog([
     ...getLog(),
     {
@@ -65,7 +68,7 @@ export function logDiagnostic(
       at: new Date().toISOString(),
       channel,
       event,
-      details,
+      details: resolvedDetails,
     },
   ]);
 }

@@ -5,7 +5,7 @@ import {
   hideToolbar
 } from './floatingToolbarDom';
 import type { FloatingToolbarPluginViewContext } from './floatingToolbarPluginViewTypes';
-import { clearFormatPreview } from './previewStyles';
+import { clearFormatPreview, hasActiveAppliedPreview } from './previewStyles';
 import { createToolbarRenderer } from './renderToolbar';
 import { hasUsableTextRange, hasUsableTextSelection } from './selectionValidity';
 import type { FloatingToolbarState } from './types';
@@ -160,6 +160,13 @@ export function installFloatingToolbarPluginViewCore(ctx: FloatingToolbarPluginV
   };
 
   ctx.scheduleToolbarUpdate = () => {
+    const pluginState = ctx.toolbarKey.getState(ctx.editorView.state);
+    const hasReviewPanels = Boolean(
+      pluginState && (pluginState.aiReviews.length > 0 || pluginState.aiReview)
+    );
+    if (!pluginState?.isVisible && !hasReviewPanels && !hasActiveAppliedPreview(ctx.editorView)) {
+      return;
+    }
     if (ctx.layoutRaf !== null) {
       return;
     }

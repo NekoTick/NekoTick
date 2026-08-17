@@ -1,9 +1,14 @@
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useNotesSplitPanes } from './useNotesSplitPanes';
 
 const mocks = vi.hoisted(() => ({
   currentNotePath: 'docs/alpha.md' as string | null,
+  currentEditorNotePath: null as string | null,
+  currentEditorSelection: { empty: true, from: 20, to: 20 },
+  lastMappedEditorPosition: 42 as number | null,
+  focusCurrentEditorAtViewportPoint: vi.fn(() => true),
+  getCurrentEditorPositionAtViewportPoint: vi.fn(() => 42 as number | null),
   openStoredNotePath: vi.fn(),
   setNotesSplitPanesActive: vi.fn(),
 }));
@@ -31,11 +36,17 @@ vi.mock('@/lib/diagnostics/notesSplitDiagnostics', () => ({
 }));
 
 vi.mock('./features/Editor/utils/focusEditorAtPoint', () => ({
-  focusCurrentEditorAtViewportPoint: vi.fn(() => false),
+  focusCurrentEditorAtViewportPoint: mocks.focusCurrentEditorAtViewportPoint,
+  getCurrentEditorPositionAtViewportPoint: mocks.getCurrentEditorPositionAtViewportPoint,
 }));
 
 vi.mock('./features/Editor/utils/editorViewRegistry', () => ({
-  getCurrentEditorNotePath: vi.fn(() => null),
+  getCurrentEditorNotePath: vi.fn(() => mocks.currentEditorNotePath),
+  getCurrentEditorView: vi.fn(() => (
+    mocks.currentEditorNotePath
+      ? { state: { selection: mocks.currentEditorSelection } }
+      : null
+  )),
 }));
 
 vi.mock('./notesViewHelpers', () => ({
@@ -61,8 +72,74 @@ vi.mock('./useNotesSplitDrop', () => ({
 describe('useNotesSplitPanes', () => {
   beforeEach(() => {
     mocks.currentNotePath = 'docs/alpha.md';
+    mocks.currentEditorNotePath = null;
+    mocks.currentEditorSelection = { empty: true, from: 20, to: 20 };
+    mocks.lastMappedEditorPosition = 42;
+    mocks.focusCurrentEditorAtViewportPoint.mockReset();
+    mocks.focusCurrentEditorAtViewportPoint.mockImplementation(() => {
+      const position = mocks.lastMappedEditorPosition;
+      if (position === null) return false;
+      mocks.currentEditorSelection = { empty: true, from: position, to: position };
+      return true;
+    });
+    mocks.getCurrentEditorPositionAtViewportPoint.mockReset();
+    mocks.getCurrentEditorPositionAtViewportPoint.mockImplementation(() => {
+      mocks.lastMappedEditorPosition = 42;
+      return 42;
+    });
     mocks.openStoredNotePath.mockReset();
     mocks.setNotesSplitPanesActive.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('corrects split activation focus after the first selection changes editor layout', async () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    mocks.openStoredNotePath.mockImplementation((path: string) => {
+      mocks.currentNotePath = path;
+      mocks.currentEditorNotePath = path;
+      return Promise.resolve();
+    });
+    const mappedPositions = [116, 142, 142];
+    mocks.getCurrentEditorPositionAtViewportPoint.mockImplementation(() => {
+      const position = mappedPositions.shift() ?? 142;
+      mocks.lastMappedEditorPosition = position;
+      return position;
+    });
+    const point = {
+      clientX: 640,
+      clientY: 480,
+      contentOffset: { left: 120, top: 240 },
+    };
+    const { result } = renderHook(() => useNotesSplitPanes({
+      active: true,
+      currentNotePath: 'docs/alpha.md',
+      openNote: vi.fn(async () => undefined),
+      openNoteByAbsolutePath: vi.fn(async () => undefined),
+      openTabs: [],
+      prefetchNote: vi.fn(async () => undefined),
+    }));
+
+    await act(async () => {
+      await result.current.activateSplitPane('preview:beta', 'docs/beta.md', point);
+    });
+
+    expect(mocks.focusCurrentEditorAtViewportPoint).not.toHaveBeenCalled();
+    act(() => animationFrames.shift()?.(performance.now()));
+    expect(mocks.focusCurrentEditorAtViewportPoint).toHaveBeenCalledTimes(1);
+    act(() => animationFrames.shift()?.(performance.now()));
+    expect(mocks.focusCurrentEditorAtViewportPoint).toHaveBeenCalledTimes(2);
+    act(() => animationFrames.shift()?.(performance.now()));
+    expect(mocks.focusCurrentEditorAtViewportPoint).toHaveBeenCalledTimes(2);
+    expect(mocks.focusCurrentEditorAtViewportPoint).toHaveBeenLastCalledWith(point);
+    expect(mocks.currentEditorSelection.from).toBe(142);
   });
 
   it('ignores a split activation that finishes after another note becomes current', async () => {
