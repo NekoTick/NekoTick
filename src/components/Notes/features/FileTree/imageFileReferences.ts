@@ -1,9 +1,10 @@
 import { findExportMarkdownAssetSourceTokensWithOptions } from '../Export/noteExportMarkdownAssetTokens';
 import { resolveNotesRootAssetPathCandidates } from '@/lib/assets/core/paths';
+import { resolveObsidianImagePath } from '@/lib/notes/markdown/obsidianImagePath';
 import { getStorageAdapter } from '@/lib/storage/adapter';
 import { collectNoteContentScanPaths, MAX_SEARCHABLE_NOTE_BYTES } from '@/stores/notes/slices/featureSliceContentUtils';
 import { resolveNotesRootRelativeFullPath } from '@/stores/notes/utils/fs/notesRootPathContainment';
-import type { NotesStore } from '@/stores/notes/types';
+import type { FileTreeNode, NotesStore } from '@/stores/notes/types';
 
 export interface ImageFileReference {
   path: string;
@@ -25,6 +26,7 @@ interface ReferenceCacheEntry {
   currentNote: NotesStore['currentNote'];
   noteContentsCache: NotesStore['noteContentsCache'];
   noteMetadata: NotesStore['noteMetadata'];
+  rootFolder: NotesStore['rootFolder'];
   result: ImageFileReference[];
   storedAt: number;
 }
@@ -39,7 +41,7 @@ function throwIfAborted(signal?: AbortSignal) {
 
 function getCachedReferences(
   cacheKey: string,
-  input: Pick<NotesStore, 'currentNote' | 'noteContentsCache' | 'noteMetadata'>,
+  input: Pick<NotesStore, 'currentNote' | 'noteContentsCache' | 'noteMetadata' | 'rootFolder'>,
 ) {
   const cached = referenceCache.get(cacheKey);
   if (
@@ -48,6 +50,7 @@ function getCachedReferences(
     || cached.currentNote !== input.currentNote
     || cached.noteContentsCache !== input.noteContentsCache
     || cached.noteMetadata !== input.noteMetadata
+    || cached.rootFolder !== input.rootFolder
   ) {
     referenceCache.delete(cacheKey);
     return null;
@@ -59,7 +62,7 @@ function getCachedReferences(
 
 function cacheReferences(
   cacheKey: string,
-  input: Pick<NotesStore, 'currentNote' | 'noteContentsCache' | 'noteMetadata'>,
+  input: Pick<NotesStore, 'currentNote' | 'noteContentsCache' | 'noteMetadata' | 'rootFolder'>,
   result: ImageFileReference[],
 ) {
   referenceCache.set(cacheKey, { ...input, result, storedAt: Date.now() });
@@ -107,6 +110,8 @@ async function noteReferencesImage(
   notePath: string,
   content: string,
   targetFullPathKey: string,
+  targetImagePath: string,
+  rootNodes: readonly FileTreeNode[],
   signal?: AbortSignal,
 ) {
   const tokens = findExportMarkdownAssetSourceTokensWithOptions(
@@ -116,18 +121,29 @@ async function noteReferencesImage(
   for (let index = 0; index < tokens.length; index += REFERENCE_SOURCE_BATCH_SIZE) {
     throwIfAborted(signal);
     const batch = tokens.slice(index, index + REFERENCE_SOURCE_BATCH_SIZE);
-    const matches = await Promise.all(batch.map((token) => sourceReferencesImage(
-      storage,
-      notesPath,
-      notePath,
-      token.lookupSrc ?? token.src,
-      targetFullPathKey,
-      signal,
-    )));
+    const matches = await Promise.all(batch.map(async (token) => {
+      const obsidianPath = token.obsidianEmbed
+        ? resolveObsidianImagePath(token.lookupSrc ?? token.src, rootNodes, notePath)
+        : null;
+      if (obsidianPath) {
+        return getPathComparisonKey(obsidianPath) === getPathComparisonKey(targetImagePath);
+      }
+      return sourceReferencesImage(
+        storage,
+        notesPath,
+        notePath,
+        token.lookupSrc ?? token.src,
+        targetFullPathKey,
+        signal,
+      );
+    }));
     const matchIndex = matches.findIndex(Boolean);
     if (matchIndex >= 0) {
       const token = batch[matchIndex];
-      return token ? { source: token.src, offset: token.start } : null;
+      return token ? {
+        source: token.referenceSource ?? token.src,
+        offset: token.referenceOffset ?? token.start,
+      } : null;
     }
   }
   return null;
@@ -186,6 +202,8 @@ export async function findImageFileReferences(input: Pick<
         note.path,
         content,
         targetFullPathKey,
+        input.imagePath,
+        input.rootFolder.children,
         signal,
       );
       const coverSource = input.noteMetadata?.notes[note.path]?.cover?.assetPath;

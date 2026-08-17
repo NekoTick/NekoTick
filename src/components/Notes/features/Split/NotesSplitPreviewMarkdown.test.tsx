@@ -20,10 +20,13 @@ vi.mock('@/components/common/markdown/mermaidRenderer', () => ({
   renderMermaid: vi.fn(),
 }));
 
-function renderSplitPreview(markdown: string) {
+function renderSplitPreview(
+  markdown: string,
+  loadImage: (src: string, isObsidianEmbed: boolean) => Promise<string> = () => new Promise(() => undefined),
+) {
   return render(
     <ReactMarkdown
-      components={createSplitPreviewMarkdownComponents(() => new Promise(() => undefined))}
+      components={createSplitPreviewMarkdownComponents(loadImage)}
       remarkPlugins={SPLIT_PREVIEW_REMARK_PLUGINS}
       rehypePlugins={READONLY_MARKDOWN_REHYPE_PLUGINS}
       urlTransform={readonlyMarkdownUrlTransform}
@@ -118,6 +121,30 @@ describe('Notes split preview rich syntax', () => {
     expect(container.querySelector('.wiki-link')?.textContent).toBe('the project');
     expect(container.querySelectorAll('.wiki-link')).toHaveLength(1);
     expect(container.textContent).not.toContain('assets/cover.png');
+  });
+
+  it('renders a bare Obsidian image embed', () => {
+    const { container } = renderSplitPreview('![[1.png]]');
+
+    expect(container.querySelector('.image-block-container img')?.getAttribute('data-src'))
+      .toBe('1.png');
+    expect(container.textContent).not.toContain('![[1.png]]');
+  });
+
+  it('keeps escaped Obsidian image syntax as literal text', () => {
+    const { container } = renderSplitPreview(String.raw`\![[literal.png]]`);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('![[literal.png]]');
+  });
+
+  it('marks only Obsidian embeds for vault-wide filename lookup', async () => {
+    const loadImage = vi.fn(async (src: string) => `blob:${src}`);
+    renderSplitPreview('![[obsidian.png]]\n\n![standard](standard.png)', loadImage);
+
+    await waitFor(() => expect(loadImage).toHaveBeenCalledTimes(2));
+    expect(loadImage).toHaveBeenCalledWith('obsidian.png', true);
+    expect(loadImage).toHaveBeenCalledWith('standard.png', false);
   });
 
   it('preserves generated TOC classes through sanitization', () => {

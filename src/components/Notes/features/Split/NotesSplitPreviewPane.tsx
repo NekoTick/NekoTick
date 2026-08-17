@@ -20,6 +20,7 @@ import {
 import { readNoteMetadataFromMarkdown } from '@/stores/notes/frontmatter';
 import { resolveEffectiveNotesRootPath } from '@/stores/notes/effectiveNotesRootPath';
 import { findStarredEntryByPath } from '@/stores/notes/starred';
+import { resolveObsidianImagePath } from '@/lib/notes/markdown/obsidianImagePath';
 import type { NotesSplitDirection } from './notesSplitLayout';
 import type { EditorViewportPoint } from '@/components/Notes/features/Editor/utils/focusEditorAtPoint';
 import { useImportedMarkdownThemePlatform } from '@/components/markdown-theme/useImportedMarkdownThemePlatform';
@@ -112,6 +113,8 @@ export function NotesSplitPreviewPane({
   sourceLeafId,
 }: NotesSplitPreviewPaneProps) {
   const notesPath = useNotesStore(s => s.notesPath);
+  const rootFolder = useNotesStore(s => s.rootFolder);
+  const rootFolderPath = useNotesStore(s => s.rootFolderPath);
   const starredEntries = useNotesStore(s => s.starredEntries);
   const toggleStarred = useNotesStore(s => s.toggleStarred);
   const defaultIconSize = useNotesStore(s => ('noteIconSize' in s ? s.noteIconSize : DEFAULT_ICON_SIZE));
@@ -142,14 +145,21 @@ export function NotesSplitPreviewPane({
     notesPath,
     currentNotePath: path,
   });
-  const loadImage = useCallback((src: string) => {
-    return resolveCoverAssetUrl({
-      assetPath: src,
+  const loadImage = useCallback((src: string, isObsidianEmbed = false) => {
+    const openedFolderImagePath = isObsidianEmbed && rootFolder && rootFolderPath === notesRootPath
+      ? resolveObsidianImagePath(src, rootFolder.children, path)
+      : null;
+    const resolveImage = (assetPath: string) => resolveCoverAssetUrl({
+      assetPath,
       notesRootPath,
       currentNotePath: path,
       replayAnimated: true,
     });
-  }, [notesRootPath, path]);
+    return resolveImage(src).catch((error) => {
+      if (!openedFolderImagePath || openedFolderImagePath === src) throw error;
+      return resolveImage(openedFolderImagePath);
+    });
+  }, [notesRootPath, path, rootFolder, rootFolderPath]);
   const markdownComponents = useMemo(() => createSplitPreviewMarkdownComponents(loadImage), [loadImage]);
   const typoraRuntimePlatformClasses = useMemo(() => (
     importedMarkdownThemePlatform === 'typora'

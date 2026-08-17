@@ -105,13 +105,17 @@ export function NoteToolbarActions({
 
     try {
       flushCurrentPendingEditorMarkdown();
-      const latestNote = useNotesStore.getState().currentNote;
+      const notesState = useNotesStore.getState();
+      const latestNote = notesState.currentNote;
       const { exportNote } = await import('../Export');
       await exportNote({
         format,
         markdown: latestNote?.path === currentNotePath ? latestNote.content : getCurrentNoteContent(),
         notePath: currentNotePath,
         notesPath,
+        ...(notesState.rootFolder && notesState.rootFolderPath === notesPath
+          ? { rootNodes: notesState.rootFolder.children }
+          : {}),
         title: currentNoteTitle,
       });
     } catch (error) {

@@ -16,24 +16,15 @@ import {
 } from './plugins/image-block/utils/imageSourceFragment';
 import { normalizeImageAlignment } from './plugins/image-block/utils/imageNodeAttrs';
 import { getMarkdownHtmlImageAttrs, normalizeMarkdownHtmlImageTextAttr } from './markdownHtmlImage';
+import {
+    getBoundedImageSrc,
+    getObsidianImageEmbedMetadata,
+    getRestorableObsidianImageSource,
+    getRestorablePersistedImageSrc,
+} from './obsidianImagePersistence';
 import { escapeHtmlAttr, getDomAttrs, mergeDomClassNames, updateSchemaFactory } from './themeSchemaUtils';
 
 const MAX_LIST_ITEM_DOM_ATTR_CHARS = 128;
-const MAX_PERSISTED_IMAGE_SRC_CHARS = 64 * 1024;
-
-function getBoundedImageSrc(value: unknown): string | null {
-    return typeof value === 'string' && value.length > 0 && value.length <= MAX_PERSISTED_IMAGE_SRC_CHARS
-        ? value
-        : null;
-}
-
-function getRestorablePersistedImageSrc(attrs: Record<string, unknown>): string | null {
-    const persistedSrc = getBoundedImageSrc(attrs.persistedSrc);
-    if (!persistedSrc) return null;
-    return sanitizeNoteMediaSrc(persistedSrc) === (sanitizeNoteMediaSrc(attrs.src) ?? null)
-        ? persistedSrc
-        : null;
-}
 
 function canRestoreMarkdownHtmlImageSource(source: unknown, attrs: Record<string, unknown>): source is string {
     if (typeof source !== 'string') return false;
@@ -144,7 +135,8 @@ export function applyListMediaTableSchemaOverrides(ctx: Ctx) {
             width: { default: null },
             crop: { default: null },
             markdownSource: { default: null },
-            persistedSrc: { default: null }
+            persistedSrc: { default: null },
+            obsidianEmbed: { default: null }
         },
         toDOM: (node: any) => {
             const safeSrc = sanitizeNoteMediaSrc(node.attrs.src);
@@ -162,6 +154,9 @@ export function applyListMediaTableSchemaOverrides(ctx: Ctx) {
                 width,
                 'data-src': safeSrc || undefined,
                 'data-vlaina-crop': crop || undefined,
+                'data-obsidian-image-embed': getObsidianImageEmbedMetadata(node.attrs.obsidianEmbed)
+                    ? 'true'
+                    : undefined,
                 referrerpolicy: 'no-referrer',
             }];
         },
@@ -217,9 +212,10 @@ export function applyListMediaTableSchemaOverrides(ctx: Ctx) {
                         ? normalizeMarkdownHtmlImageTextAttr(node.title)
                         : null,
                     align: 'center',
-                    width: null,
+                    width: getObsidianImageEmbedMetadata(node.data?.obsidianImageEmbed)?.width ?? null,
                     crop: null,
                     persistedSrc,
+                    obsidianEmbed: getObsidianImageEmbedMetadata(node.data?.obsidianImageEmbed),
                 });
             }
         },
@@ -227,6 +223,16 @@ export function applyListMediaTableSchemaOverrides(ctx: Ctx) {
             match: (node: any) => node.type.name === 'image',
             runner: (state: any, node: any) => {
                 const { src, alt, title, align, width, crop } = node.attrs;
+                const obsidianImageSource = getRestorableObsidianImageSource(node.attrs);
+                if (obsidianImageSource) {
+                    state.addNode('image', undefined, undefined, {
+                        url: node.attrs.persistedSrc,
+                        alt: normalizeMarkdownHtmlImageTextAttr(node.attrs.alt),
+                        title: null,
+                        data: { obsidianImageEmbedSource: obsidianImageSource },
+                    });
+                    return;
+                }
                 if (canRestoreMarkdownHtmlImageSource(node.attrs.markdownSource, node.attrs)) {
                     state.addNode('html', undefined, node.attrs.markdownSource);
                     return;

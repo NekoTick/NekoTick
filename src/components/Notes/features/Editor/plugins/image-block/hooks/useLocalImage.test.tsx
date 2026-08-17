@@ -102,6 +102,29 @@ describe('useLocalImage', () => {
     expect(hoisted.loadImageAsBlob).toHaveBeenCalledWith('/notesRoot/assets/demo.png');
   });
 
+  it('loads a bare Obsidian image name from a nested opened-folder path', async () => {
+    hoisted.exists
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    hoisted.loadImageAsBlob.mockResolvedValueOnce('blob:obsidian-image');
+
+    const { result } = renderHook(() =>
+      useLocalImage('1.png', '/notesRoot', 'daily/demo.md', true, 'attachments/1.png')
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.resolvedSrc).toBe('blob:obsidian-image');
+    expect(result.current.error).toBeNull();
+    expect(hoisted.exists).toHaveBeenNthCalledWith(1, '/notesRoot/daily/1.png');
+    expect(hoisted.exists).toHaveBeenNthCalledWith(2, '/notesRoot/1.png');
+    expect(hoisted.exists).toHaveBeenNthCalledWith(3, '/notesRoot/attachments/1.png');
+    expect(hoisted.loadImageAsBlob).toHaveBeenCalledWith('/notesRoot/attachments/1.png');
+  });
+
   it('does not read a guessed image path when no local candidate exists', async () => {
     hoisted.exists.mockResolvedValue(false);
 

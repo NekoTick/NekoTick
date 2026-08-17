@@ -164,6 +164,48 @@ describe('findImageFileReferences', () => {
     ]);
   });
 
+  it('finds a bare Obsidian image embed and reports its full source span', async () => {
+    const obsidianRoot = {
+      ...rootFolder,
+      children: [
+        ...rootFolder.children,
+        {
+          id: 'attachments',
+          name: 'attachments',
+          path: 'attachments',
+          isFolder: true as const,
+          expanded: false,
+          children: [{
+            id: 'attachments/cover.png',
+            name: 'cover.png',
+            path: 'attachments/cover.png',
+            isFolder: false as const,
+            kind: 'image' as const,
+          }],
+        },
+      ],
+    };
+    const references = await findImageFileReferences({
+      notesPath: '/notesRoot',
+      rootFolder: obsidianRoot,
+      imagePath: 'attachments/cover.png',
+      currentNote: {
+        path: 'docs/alpha.md',
+        content: 'Before ![[cover.png|Cover image]] after',
+      },
+      noteContentsCache: new Map([['docs/beta.md', { content: '# None', modifiedAt: 1 }]]),
+      noteMetadata: null,
+    });
+
+    expect(references).toEqual([{
+      path: 'docs/alpha.md',
+      name: 'alpha',
+      kind: 'body',
+      source: '![[cover.png|Cover image]]',
+      offset: 7,
+    }]);
+  });
+
   it('ignores unrelated image references', async () => {
     const references = await findImageFileReferences({
       notesPath: '/notesRoot',

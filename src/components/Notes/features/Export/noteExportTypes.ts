@@ -1,3 +1,5 @@
+import type { FileTreeNode } from '@/stores/notes/types';
+
 export type NoteExportFormat = 'docx' | 'html' | 'pdf' | 'png';
 
 export interface NoteExportRequest {
@@ -5,6 +7,7 @@ export interface NoteExportRequest {
   markdown: string;
   notePath: string;
   notesPath: string;
+  rootNodes?: readonly FileTreeNode[];
   title: string;
 }
 

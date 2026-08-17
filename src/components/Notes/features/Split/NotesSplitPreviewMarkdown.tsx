@@ -80,18 +80,25 @@ function isAlreadyRenderableImageSrc(src: string): boolean {
 export type ReactMarkdownImageProps = ReadonlyMarkdownImageProps;
 
 interface SplitPreviewMarkdownImageProps extends ReactMarkdownImageProps {
-  loadImage: (src: string) => Promise<string>;
+  'data-obsidian-image-embed'?: string;
+  dataObsidianImageEmbed?: string | boolean;
+  loadImage: (src: string, isObsidianEmbed: boolean) => Promise<string>;
 }
 
 export function SplitPreviewMarkdownImage({
   alt,
   className,
+  dataObsidianImageEmbed,
   loadImage,
-  node: _node,
+  node,
   src,
   ...props
 }: SplitPreviewMarkdownImageProps) {
   const originalSrc = typeof src === 'string' ? src : '';
+  const obsidianMarker = dataObsidianImageEmbed
+    ?? props['data-obsidian-image-embed']
+    ?? (node as any)?.properties?.dataObsidianImageEmbed;
+  const isObsidianEmbed = obsidianMarker === true || obsidianMarker === 'true';
   const [resolvedSrc, setResolvedSrc] = useState(originalSrc);
 
   useEffect(() => {
@@ -105,7 +112,7 @@ export function SplitPreviewMarkdownImage({
     }
 
     setResolvedSrc('');
-    void loadImage(originalSrc)
+    void loadImage(originalSrc, isObsidianEmbed)
       .then((url) => {
         if (!cancelled) {
           setResolvedSrc(url);
@@ -120,7 +127,7 @@ export function SplitPreviewMarkdownImage({
     return () => {
       cancelled = true;
     };
-  }, [loadImage, originalSrc]);
+  }, [isObsidianEmbed, loadImage, originalSrc]);
 
   const imageBlockAttrs = originalSrc
     ? {
@@ -151,7 +158,7 @@ export function SplitPreviewMarkdownImage({
 }
 
 export function createSplitPreviewMarkdownComponents(
-  loadImage: (src: string) => Promise<string>,
+  loadImage: (src: string, isObsidianEmbed: boolean) => Promise<string>,
 ) {
   return {
     img(props: ReactMarkdownImageProps) {

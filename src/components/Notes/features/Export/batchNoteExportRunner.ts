@@ -2,12 +2,14 @@ import { joinPath } from '@/lib/storage/adapter';
 import { exportNote, exportNoteToFilePath, getNoteExportFileName } from './noteExport';
 import { getUniqueBatchExportFileName, type BatchExportSource } from './batchNoteExportModel';
 import type { NoteExportFormat } from './noteExportTypes';
+import type { FileTreeNode } from '@/stores/notes/types';
 
 interface RunBatchNoteExportsOptions {
   sources: BatchExportSource[];
   formats: NoteExportFormat[];
   notesPath: string;
   outputDirectory: string | null;
+  rootNodes?: readonly FileTreeNode[];
   getContent: (source: BatchExportSource) => Promise<string> | string;
   getTitle: (source: BatchExportSource) => string;
   concurrency?: number;
@@ -31,6 +33,7 @@ export async function runBatchNoteExports({
   formats,
   notesPath,
   outputDirectory,
+  rootNodes,
   getContent,
   getTitle,
   concurrency = 1,
@@ -67,6 +70,7 @@ export async function runBatchNoteExports({
           markdown: content,
           notePath: source.external ? source.name : source.path,
           notesPath: source.external ? '' : notesPath,
+          ...(!source.external && rootNodes ? { rootNodes } : {}),
           title: getTitle(source),
         };
         const result = outputDirectory

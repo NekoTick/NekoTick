@@ -34,6 +34,84 @@ describe('resolveExportMarkdownAssetSources', () => {
     mocks.resolveExistingNotesRootAssetPath.mockReset();
   });
 
+  it('embeds Obsidian image sources and converts them to portable Markdown images', async () => {
+    mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([104, 105]));
+
+    const markdown = await resolveExportMarkdownAssetSources(
+      '![[assets/demo.png|Cover image]]',
+      '/notesRoot',
+      'docs/demo.md',
+    );
+
+    expect(markdown).toBe('![Cover image](<data:image/png;base64,aGk=>)');
+    expect(mocks.resolveExistingNotesRootAssetPath).toHaveBeenCalledWith(
+      '/notesRoot',
+      'assets/demo.png',
+      'docs/demo.md',
+    );
+  });
+
+  it('resolves a bare Obsidian image name from the opened vault tree', async () => {
+    mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/attachments/cover.png');
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([104, 105]));
+    const rootNodes = [{
+      id: 'attachments',
+      name: 'attachments',
+      path: 'attachments',
+      isFolder: true as const,
+      expanded: false,
+      children: [{
+        id: 'attachments/cover.png',
+        name: 'cover.png',
+        path: 'attachments/cover.png',
+        isFolder: false as const,
+        kind: 'image' as const,
+      }],
+    }];
+
+    const markdown = await resolveExportMarkdownAssetSources(
+      '![[cover.png]]',
+      '/notesRoot',
+      'docs/demo.md',
+      { rootNodes },
+    );
+
+    expect(markdown).toBe('![](<data:image/png;base64,aGk=>)');
+    expect(mocks.resolveExistingNotesRootAssetPath).toHaveBeenCalledWith(
+      '/notesRoot',
+      'attachments/cover.png',
+      'docs/demo.md',
+    );
+  });
+
+  it('preserves Obsidian width aliases for visual exports', async () => {
+    mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
+    mocks.readBinaryFile.mockResolvedValue(new Uint8Array([104, 105]));
+
+    const markdown = await resolveExportMarkdownAssetSources(
+      '![[assets/demo.png|300x200]]',
+      '/notesRoot',
+      'docs/demo.md',
+      { preserveObsidianSize: true },
+    );
+
+    expect(markdown).toBe(
+      '<img src="data:image/png;base64,aGk=" alt="" width="300px" />',
+    );
+  });
+
+  it('does not scan Obsidian image syntax inside code', async () => {
+    const markdown = await resolveExportMarkdownAssetSources(
+      '`![[inline.png]]`\n\n```md\n![[fenced.png]]\n```',
+      '/notesRoot',
+      'docs/demo.md',
+    );
+
+    expect(markdown).toBe('`![[inline.png]]`\n\n```md\n![[fenced.png]]\n```');
+    expect(mocks.resolveExistingNotesRootAssetPath).not.toHaveBeenCalled();
+  });
+
   it('embeds local note images as data URLs for portable exports', async () => {
     mocks.resolveExistingNotesRootAssetPath.mockResolvedValue('/notesRoot/docs/assets/demo.png');
     mocks.readBinaryFile.mockResolvedValue(new Uint8Array([104, 105]));

@@ -19,6 +19,7 @@ import { rehypeNotesKatex } from '@/components/common/markdown/rehypeNotesKatex'
 import { rehypeDropUnsafeRawHtmlContent } from '@/components/common/markdown/rawHtmlSanitizer';
 import { normalizeImageWidth, serializeCropValue } from '@/components/common/markdown/imageSourceFragment';
 import { remarkReadonlyWikiLinks } from '@/components/Notes/features/Editor/plugins/links/wiki-link/wikiLinkMarkdown';
+import { remarkObsidianImageEmbeds } from '@/components/common/markdown/theme-compatibility/obsidian/imageEmbed';
 import { hasInternalNoteAssetUrlPathSegment } from '@/lib/assets/core/internalAssetPaths';
 import { parseVideoUrl } from '@/lib/markdown/videoUrl';
 import {
@@ -59,6 +60,7 @@ const NOTE_EXPORT_REHYPE_PLUGINS = [
 
 const NOTE_EXPORT_REMARK_PLUGINS = [
   remarkReadonlyWikiLinks,
+  remarkObsidianImageEmbeds,
   ...READONLY_MARKDOWN_REMARK_PLUGINS,
 ] as any[];
 

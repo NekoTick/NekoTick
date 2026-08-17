@@ -35,6 +35,22 @@ describe('renderNoteExportHtml', () => {
     });
   });
 
+  it('renders unresolved Obsidian image embeds with aliases and widths', async () => {
+    const html = await renderNoteExportHtml([
+      '![[assets/cover.png|Cover image]]',
+      '',
+      '![[assets/wide.png|300]]',
+    ].join('\n'), 'Obsidian Images');
+    const doc = parseExportHtml(html);
+    const images = doc.querySelectorAll('img');
+
+    expect(images).toHaveLength(2);
+    expect(images[0]?.getAttribute('src')).toBe('assets/cover.png');
+    expect(images[0]?.getAttribute('alt')).toBe('Cover image');
+    expect(images[1]?.getAttribute('src')).toBe('assets/wide.png');
+    expect(images[1]?.style.width).toBe('300px');
+  });
+
   it('sanitizes raw HTML, event handlers, and unsafe links', async () => {
     const html = await renderNoteExportHtml(
       [

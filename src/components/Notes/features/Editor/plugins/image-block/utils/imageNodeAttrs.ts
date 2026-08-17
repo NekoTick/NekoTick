@@ -49,8 +49,10 @@ export function mergeImageNodeAttrs(latestAttrs: NodeAttrs, incomingAttrs: NodeA
     const mergedSrc = incomingSrc ?? getSrc(latestAttrs);
 
     const nextAttrs: NodeAttrs = { ...latestAttrs, ...incomingAttrs };
+    const preservesObsidianAlias = latestAttrs.obsidianEmbed != null
+        && Object.keys(incomingAttrs).every((key) => key === 'alt');
     nextAttrs.markdownSource = null;
-    nextAttrs.persistedSrc = null;
+    nextAttrs.persistedSrc = preservesObsidianAlias ? latestAttrs.persistedSrc ?? null : null;
     nextAttrs.src = mergedSrc;
     nextAttrs.align = mergedAlign ?? 'center';
     nextAttrs.width = mergedWidth;

@@ -128,6 +128,20 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('round-trips Obsidian image embeds through the main editor plugin config', async () => {
+    const source = '![[attachments/cover.png|Cover image]]';
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+
+    expect(view.state.doc.firstChild?.firstChild?.attrs).toMatchObject({
+      src: 'attachments/cover.png',
+      obsidianEmbed: { alias: 'Cover image' },
+    });
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), source)).toBe(source);
+    await destroyEditor(editor);
+  });
+
   it('opens a horizontal-rule-only document with a gap cursor without changing Markdown', async () => {
     const source = '---';
     const editor = await createEditor(source);
@@ -1166,7 +1180,7 @@ describe('MarkdownEditor compatibility', () => {
     );
     expect(image).toBeInstanceOf(HTMLElement);
     expect(editor.ctx.get(serializerCtx)(view.state.doc).trim()).toBe(
-      'Before ![Local image](attachments/demo.png) after',
+      'Before ![[attachments/demo.png|Local image]] after',
     );
     await destroyEditor(editor);
   });
