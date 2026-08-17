@@ -4,7 +4,6 @@ import { mathFormulaCategories, mathFormulaItems } from './mathFormulaCatalog';
 import {
   configureMathFormulaPicker,
 } from './mathFormulaPicker';
-import { searchMathFormulaItems } from './mathFormulaPickerSearch';
 
 const PROTOTYPE_ONLY_LATEX = [
   '\\ ', '\\colon', "{}''", 'a^\\ast', 'a^\\star', 'a_0',
@@ -28,16 +27,12 @@ describe('mathFormulaPicker', () => {
     expect(mathFormulaItems.length).toBeGreaterThan(400);
   });
 
-  it('keeps prototype-only LaTeX syntax available to search', () => {
+  it('keeps prototype-only LaTeX syntax available in the catalog', () => {
     const catalogLatex = mathFormulaItems.map((item) => item.latex);
     expect(catalogLatex).toEqual(expect.arrayContaining(PROTOTYPE_ONLY_LATEX));
-
-    PROTOTYPE_ONLY_LATEX.forEach((latex) => {
-      expect(searchMathFormulaItems(latex).map((item) => item.latex)).toContain(latex);
-    });
   });
 
-  it('shows LaTeX search with all category shortcuts below it', () => {
+  it('shows LaTeX categories without a search field', () => {
     document.documentElement.lang = 'zh-CN';
     const elements = createTextEditorPopupElements();
     configureMathFormulaPicker(elements, vi.fn());
@@ -45,6 +40,7 @@ describe('mathFormulaPicker', () => {
 
     expect(document.querySelector('.math-formula-picker-heading')).toHaveTextContent('LaTeX');
     expect(document.querySelector('.math-formula-picker-mode')).toBeNull();
+    expect(document.querySelector('.math-formula-picker-search-input')).toBeNull();
     expect(document.querySelector('.math-formula-picker-shortcuts')).toBeInTheDocument();
     expect(document.querySelectorAll('.math-formula-picker-category')).toHaveLength(23);
     expect(document.querySelectorAll(
@@ -220,19 +216,6 @@ describe('mathFormulaPicker', () => {
     )).toHaveLength(0);
   });
 
-  it('keeps formula search available as a full-width field', () => {
-    document.documentElement.lang = 'zh-CN';
-    const elements = createTextEditorPopupElements();
-    configureMathFormulaPicker(elements, vi.fn());
-    document.body.append(elements.card);
-
-    const field = document.querySelector<HTMLElement>('.math-formula-picker-search-field')!;
-    const input = document.querySelector<HTMLInputElement>('.math-formula-picker-search-input')!;
-
-    expect(field.hidden).toBe(false);
-    expect(input).toBeInTheDocument();
-  });
-
   it('renders the input and live preview in an editor grid', () => {
     const elements = createTextEditorPopupElements();
     configureMathFormulaPicker(elements, vi.fn());
@@ -254,94 +237,6 @@ describe('mathFormulaPicker', () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
 
     expect(document.querySelector('.math-formula-picker-preview .katex')).not.toBeNull();
-  });
-
-  it('searches the complete catalog and inserts a selected formula snippet', async () => {
-    document.documentElement.lang = 'en';
-    const elements = createTextEditorPopupElements();
-    const notifyInput = vi.fn();
-    configureMathFormulaPicker(elements, notifyInput);
-    document.body.append(elements.card);
-
-    const search = document.querySelector<HTMLInputElement>('.math-formula-picker-search-input')!;
-    search.value = '\\sqrt[4]';
-    search.dispatchEvent(new Event('input'));
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    const result = Array.from(document.querySelectorAll<HTMLButtonElement>('.math-formula-picker-item'))
-      .find((button) => button.getAttribute('aria-label') === '\\sqrt[4]{}');
-    expect(result).not.toBeNull();
-
-    elements.textarea.value = 'x';
-    elements.textarea.setSelectionRange(0, 1);
-    result.click();
-
-    expect(elements.textarea.value).toBe('\\sqrt[4]{x}');
-    expect(notifyInput).toHaveBeenCalledTimes(1);
-    expect(elements.textarea.closest('.math-formula-picker')).not.toBeNull();
-  });
-
-  it('matches common Chinese formula search terms', async () => {
-    document.documentElement.lang = 'zh-CN';
-    const elements = createTextEditorPopupElements();
-    configureMathFormulaPicker(elements, vi.fn());
-    document.body.append(elements.card);
-
-    const search = document.querySelector<HTMLInputElement>('.math-formula-picker-search-input')!;
-    search.value = '勾股定理';
-    search.dispatchEvent(new Event('input'));
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
-    expect(Array.from(document.querySelectorAll<HTMLButtonElement>('.math-formula-picker-item'))
-      .some((button) => button.getAttribute('aria-label') === 'a^2+b^2=c^2')).toBe(true);
-  });
-
-  it('coalesces search input within one animation frame', async () => {
-    const elements = createTextEditorPopupElements();
-    configureMathFormulaPicker(elements, vi.fn());
-    document.body.append(elements.card);
-
-    const search = document.querySelector<HTMLInputElement>('.math-formula-picker-search-input')!;
-    search.value = 'operators';
-    search.dispatchEvent(new Event('input'));
-    search.value = '\\sqrt[4]';
-    search.dispatchEvent(new Event('input'));
-
-    expect(document.querySelectorAll('.math-formula-picker-item')).toHaveLength(0);
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
-    const labels = Array.from(document.querySelectorAll('.math-formula-picker-item'))
-      .map((button) => button.getAttribute('aria-label'));
-    expect(labels).toContain('\\sqrt[4]{}');
-    expect(labels).not.toContain('+');
-  });
-
-  it('does not reopen pending search results after focus returns to the formula input', async () => {
-    const elements = createTextEditorPopupElements();
-    configureMathFormulaPicker(elements, vi.fn());
-    document.body.append(elements.card);
-
-    const search = document.querySelector<HTMLInputElement>('.math-formula-picker-search-input')!;
-    search.value = 'operators';
-    search.dispatchEvent(new Event('input'));
-    elements.textarea.focus();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
-    expect(document.querySelector('.math-formula-picker-results')).not.toBeVisible();
-    expect(document.querySelectorAll('.math-formula-picker-item')).toHaveLength(0);
-  });
-
-  it('cancels pending renders when the picker is destroyed', async () => {
-    const elements = createTextEditorPopupElements();
-    const cleanup = configureMathFormulaPicker(elements, vi.fn());
-    document.body.append(elements.card);
-
-    const search = document.querySelector<HTMLInputElement>('.math-formula-picker-search-input')!;
-    search.value = 'operators';
-    search.dispatchEvent(new Event('input'));
-    cleanup();
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
-    expect(document.querySelectorAll('.math-formula-picker-item')).toHaveLength(0);
   });
 
 });

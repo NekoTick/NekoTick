@@ -185,6 +185,20 @@ describe('math hover styles', () => {
     expect(css).toContain('min-width: max-content;');
   });
 
+  it('keeps inline formulas in one hover surface', () => {
+    const css = readMathStyles();
+    const inlineFormulaRule = css.match(
+      /\.milkdown \[data-type='math-inline'\]\.math-inline-wrapper \{(?<body>[\s\S]*?)\n\}/
+    )?.groups?.body ?? '';
+
+    expect(inlineFormulaRule).toContain('display: inline-block;');
+    expect(inlineFormulaRule).toContain('max-width: 100%;');
+    expect(inlineFormulaRule).toContain('overflow-x: auto;');
+    expect(inlineFormulaRule).toContain('overflow-y: hidden;');
+    expect(inlineFormulaRule).toContain('vertical-align: middle;');
+    expect(inlineFormulaRule).toContain('white-space: nowrap;');
+  });
+
   it('uses the app accent blue for the primary math editor action', () => {
     const css = readMathStyles();
 

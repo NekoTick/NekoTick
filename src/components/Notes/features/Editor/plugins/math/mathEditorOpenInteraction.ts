@@ -1,3 +1,4 @@
+import { themeEditorLayoutTokens } from '@/styles/themeTokens';
 import {
   createTextEditorOpenInteraction,
   type TextEditorOpenInteractionView,
@@ -21,7 +22,7 @@ export function isHorizontalScrollbarPointerDown(args: {
   mathElement: HTMLElement;
 }) {
   const { event, mathElement } = args;
-  if (typeof window === 'undefined' || mathElement.dataset.type !== 'math-block') {
+  if (typeof window === 'undefined') {
     return false;
   }
 
@@ -30,18 +31,21 @@ export function isHorizontalScrollbarPointerDown(args: {
 
   while (current) {
     const overflowX = window.getComputedStyle(current).overflowX;
-    const scrollbarHeight = current.offsetHeight - current.clientHeight;
+    const measuredScrollbarHeight = current.offsetHeight - current.clientHeight;
     const hasHorizontalScrollbar =
       (overflowX === 'auto' || overflowX === 'scroll') &&
-      current.scrollWidth > current.clientWidth &&
-      scrollbarHeight > 0;
+      current.scrollWidth > current.clientWidth;
 
     if (hasHorizontalScrollbar) {
       const rect = current.getBoundingClientRect();
+      const scrollbarHitArea = Math.max(
+        measuredScrollbarHeight,
+        themeEditorLayoutTokens.previewHorizontalScrollbarHitAreaPx,
+      );
       const hitHorizontalScrollbar =
         event.clientX >= rect.left &&
         event.clientX <= rect.right &&
-        event.clientY >= rect.bottom - scrollbarHeight &&
+        event.clientY >= rect.bottom - scrollbarHitArea &&
         event.clientY <= rect.bottom;
       if (hitHorizontalScrollbar) return true;
     }

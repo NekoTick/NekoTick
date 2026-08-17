@@ -8,8 +8,6 @@ import {
 import { getMathFormulaPickerCopy } from './mathFormulaPickerCopy';
 import {
   createMathFormulaPickerButton,
-  createMathFormulaSearchIcon,
-  createMathFormulaSearchResults,
   renderMathFormulaPickerCategories,
 } from './mathFormulaPickerDom';
 import {
@@ -18,7 +16,6 @@ import {
 } from './mathFormulaPickerInput';
 import { createMathFormulaPickerPanelCache } from './mathFormulaPickerPanels';
 import { createMathFormulaPickerRenderer } from './mathFormulaPickerRenderer';
-import { searchMathFormulaItems } from './mathFormulaPickerSearch';
 
 export { insertMathFormulaSnippet } from './mathFormulaPickerInput';
 
@@ -31,7 +28,6 @@ export function configureMathFormulaPicker(
   let activeCategoryId = mathFormulaCategories[0]?.id ?? '';
   let hoverCloseTimer: ReturnType<typeof setTimeout> | undefined;
   const formulaItemsByButton = new WeakMap<HTMLElement, MathFormulaItem>();
-  let searchRenderFrame: number | undefined;
 
   const {
     workspace,
@@ -46,18 +42,6 @@ export function configureMathFormulaPicker(
     inputLabel: copy.input,
     previewLabel: copy.preview,
   });
-
-  const searchField = document.createElement('div');
-  searchField.className = 'math-formula-picker-search-field';
-  searchField.append(createMathFormulaSearchIcon());
-  const search = document.createElement('input');
-  search.className = 'math-formula-picker-search-input';
-  search.type = 'search';
-  search.autocomplete = 'off';
-  search.placeholder = copy.search;
-  search.setAttribute('aria-label', copy.search);
-  searchField.append(search);
-  header.append(searchField);
 
   const shortcuts = document.createElement('section');
   shortcuts.className = 'math-formula-picker-shortcuts';
@@ -82,21 +66,14 @@ export function configureMathFormulaPicker(
   inputPane.append(tools);
 
   const formulaRenderer = createMathFormulaPickerRenderer({
-    results,
     preview,
     getPreviewLatex: () => textarea.value,
   });
 
-  const cancelSearchRender = () => {
-    if (searchRenderFrame !== undefined) cancelAnimationFrame(searchRenderFrame);
-    searchRenderFrame = undefined;
-  };
-
   const syncCategoryState = () => {
     categories.querySelectorAll<HTMLButtonElement>('.math-formula-picker-category')
       .forEach((button) => {
-        const isActive = !results.hidden && !search.value.trim()
-          && button.dataset.categoryId === activeCategoryId;
+        const isActive = !results.hidden && button.dataset.categoryId === activeCategoryId;
         button.dataset.active = String(isActive);
         button.setAttribute('aria-expanded', String(isActive));
       });
@@ -108,14 +85,11 @@ export function configureMathFormulaPicker(
 
   const closeResults = () => {
     cancelHoverClose();
-    cancelSearchRender();
-    formulaRenderer.reset();
     results.hidden = true;
     syncCategoryState();
   };
 
   const scheduleHoverClose = () => {
-    if (search.value.trim()) return;
     cancelHoverClose();
     hoverCloseTimer = setTimeout(
       closeResults,
@@ -125,7 +99,6 @@ export function configureMathFormulaPicker(
 
   const insertFormula = (formula: MathFormulaItem) => {
     insertMathFormulaSnippet(textarea, formula.latex);
-    search.value = '';
     closeResults();
     formulaRenderer.schedulePreview();
     notifyInput();
@@ -147,33 +120,11 @@ export function configureMathFormulaPicker(
 
   const getCategoryPanel = createMathFormulaPickerPanelCache(createFormulaButton);
 
-  const renderItems = (formulaItems: MathFormulaItem[]) => {
-    results.hidden = true;
-    formulaRenderer.reset();
-    categories.append(results);
-    results.dataset.layout = 'grid';
-    delete results.dataset.formulaKind;
-    delete results.dataset.categoryId;
-    results.replaceChildren();
-    if (!formulaItems.length) {
-      const empty = document.createElement('p');
-      empty.className = 'math-formula-picker-empty';
-      empty.textContent = copy.noResults;
-      results.append(empty);
-    } else {
-      results.append(createMathFormulaSearchResults(formulaItems, createFormulaButton));
-      formulaRenderer.observeUnrendered(results);
-    }
-    results.hidden = false;
-    syncCategoryState();
-  };
-
   const renderActiveCategory = () => {
     const active = mathFormulaCategories.find((category) => category.id === activeCategoryId);
     if (!active) return;
-    if (!results.hidden && results.dataset.categoryId === active.id && !search.value.trim()) return;
+    if (!results.hidden && results.dataset.categoryId === active.id) return;
     results.hidden = true;
-    formulaRenderer.reset();
     const activeButton = categories.querySelector<HTMLElement>(`[data-category-id="${active.id}"]`);
     activeButton?.closest('.math-formula-picker-category-row')?.after(results);
     results.dataset.layout = 'groups';
@@ -189,28 +140,6 @@ export function configureMathFormulaPicker(
   categories.addEventListener('mouseleave', scheduleHoverClose);
   results.addEventListener('mouseenter', cancelHoverClose);
   results.addEventListener('mouseleave', scheduleHoverClose);
-
-  search.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    search.value = '';
-    closeResults();
-    textarea.focus();
-  });
-  search.addEventListener('input', () => {
-    if (!search.value.trim()) {
-      cancelSearchRender();
-      closeResults();
-      return;
-    }
-    if (searchRenderFrame !== undefined) return;
-    searchRenderFrame = requestAnimationFrame(() => {
-      searchRenderFrame = undefined;
-      const query = search.value.trim();
-      if (query) renderItems(searchMathFormulaItems(query));
-    });
-  });
   clearButton.addEventListener('click', () => {
     textarea.value = '';
     textarea.focus();
@@ -238,9 +167,7 @@ export function configureMathFormulaPicker(
     prepareFormula: formulaRenderer.prepareButton,
     onOpen(categoryId) {
       cancelHoverClose();
-      cancelSearchRender();
       activeCategoryId = categoryId;
-      search.value = '';
       renderActiveCategory();
     },
   });
@@ -249,7 +176,6 @@ export function configureMathFormulaPicker(
 
   return () => {
     cancelHoverClose();
-    cancelSearchRender();
     formulaRenderer.destroy();
   };
 }
