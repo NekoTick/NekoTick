@@ -1,6 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@/lib/ai/types';
+import { refreshManagedBudgetIfNeeded } from '@/lib/ai/managedBudgetRefresh';
 import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
+
+vi.mock('@/lib/ai/managedBudgetRefresh', () => ({
+  refreshManagedBudgetIfNeeded: vi.fn(),
+}));
 
 function buildProvider(overrides: Partial<Provider> = {}): Provider {
   return {
@@ -38,6 +43,10 @@ function buildManagedProvider(): Provider {
 }
 
 describe('sendMessageWithEndpointFallback', () => {
+  beforeEach(() => {
+    vi.mocked(refreshManagedBudgetIfNeeded).mockClear();
+  });
+
   it('uses a verified model endpoint ahead of the provider endpoint', async () => {
     const updateProvider = vi.fn();
     const client = { sendMessage: vi.fn().mockResolvedValue('ok') };
@@ -55,6 +64,7 @@ describe('sendMessageWithEndpointFallback', () => {
     expect(client.sendMessage).toHaveBeenCalledTimes(1);
     expect(client.sendMessage.mock.calls[0][3]).toMatchObject({ endpointType: 'anthropic' });
     expect(updateProvider).not.toHaveBeenCalled();
+    expect(refreshManagedBudgetIfNeeded).not.toHaveBeenCalled();
   });
 
   it('uses a verified provider endpoint when the model has no verified override', async () => {
@@ -271,7 +281,7 @@ describe('sendMessageWithEndpointFallback', () => {
     expect(onChunk).not.toHaveBeenCalled();
   });
 
-  it('sends managed requests once without applying custom-provider endpoint state', async () => {
+  it('sends managed requests once and refreshes budget after success', async () => {
     const updateProvider = vi.fn();
     const client = { sendMessage: vi.fn().mockResolvedValue('managed ok') };
 
@@ -293,6 +303,8 @@ describe('sendMessageWithEndpointFallback', () => {
     expect(client.sendMessage).toHaveBeenCalledTimes(1);
     expect(client.sendMessage.mock.calls[0][3]).toEqual(buildManagedProvider());
     expect(updateProvider).not.toHaveBeenCalled();
+    expect(refreshManagedBudgetIfNeeded).toHaveBeenCalledOnce();
+    expect(refreshManagedBudgetIfNeeded).toHaveBeenCalledWith('vlaina-managed');
   });
 
   it('keeps platform web search enabled for managed requests', async () => {
@@ -316,7 +328,7 @@ describe('sendMessageWithEndpointFallback', () => {
     expect(client.sendMessage.mock.calls[0][6]).toBe(options);
   });
 
-  it('does not replay managed failures', async () => {
+  it('does not replay managed failures or refresh budget', async () => {
     const upstreamError = new Error('UPSTREAM_UNAVAILABLE');
     const client = { sendMessage: vi.fn().mockRejectedValue(upstreamError) };
 
@@ -333,5 +345,6 @@ describe('sendMessageWithEndpointFallback', () => {
     })).rejects.toBe(upstreamError);
 
     expect(client.sendMessage).toHaveBeenCalledTimes(1);
+    expect(refreshManagedBudgetIfNeeded).not.toHaveBeenCalled();
   });
 });

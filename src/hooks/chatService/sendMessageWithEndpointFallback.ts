@@ -2,6 +2,7 @@ import { actions as aiActions } from '@/stores/useAIStore';
 import { openaiClient } from '@/lib/ai/providers/openai';
 import { type AIModel, type ChatMessage, type ChatMessageContent, type ChatSendOptions, type Provider } from '@/lib/ai/types';
 import { isManagedProviderId } from '@/lib/ai/managedService';
+import { refreshManagedBudgetIfNeeded } from '@/lib/ai/managedBudgetRefresh';
 import {
   getVerifiedModelEndpointType,
   getVerifiedProviderEndpointType,
@@ -71,11 +72,13 @@ export async function sendMessageWithEndpointFallback({
   const verifiedModelEndpointType = getVerifiedModelEndpointType(model);
   const verifiedProviderEndpointType = getVerifiedProviderEndpointType(provider);
   if (isManagedProvider) {
-    return sendWithoutReplay(
+    const result = await sendWithoutReplay(
       (trackedOnChunk) => sendWithActiveClient(content, history, model, provider, trackedOnChunk, signal, requestOptions),
       onChunk,
       signal,
     );
+    refreshManagedBudgetIfNeeded(provider.id);
+    return result;
   }
 
   const endpointType = verifiedModelEndpointType ?? verifiedProviderEndpointType ?? 'openai';

@@ -1,4 +1,6 @@
 import type { AIModel, Provider } from '../types';
+import { refreshManagedBudgetIfNeeded } from '../managedBudgetRefresh';
+import { isManagedProviderId } from '../managedService';
 import { benchmarkModels } from './batch';
 
 export interface BenchmarkItemState {
@@ -181,6 +183,10 @@ class BackgroundBenchmarkRunner {
       });
 
       const hasError = Object.values(results).some((result) => result.status === 'error');
+      const hasSuccess = Object.values(results).some((result) => result.status === 'success');
+      if (isManagedProviderId(provider.id) && hasSuccess) {
+        refreshManagedBudgetIfNeeded(provider.id);
+      }
       const current = this.snapshots.get(provider.id);
       if (!current || current.runId !== runId) {
         return;

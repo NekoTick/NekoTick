@@ -3,6 +3,7 @@ import { normalizeDesktopAccountProvider } from './accountCredentialStore.mjs';
 import {
   normalizeDesktopAccountAvatarUrl,
   normalizeDesktopAccountEmail,
+  normalizeDesktopAccountMembershipName,
   normalizeDesktopAccountUsername,
 } from './accountIdentityNormalization.mjs';
 
@@ -15,6 +16,18 @@ export function createDesktopAuthPersistence({
     const rawUsername = normalizeDesktopAccountUsername(result?.username);
     const rawPrimaryEmail = normalizeDesktopAccountEmail(result?.primaryEmail);
     const rawAvatarUrl = normalizeDesktopAccountAvatarUrl(result?.avatarUrl);
+    const rawMembershipTier =
+      result?.membershipTier === 'free' ||
+      result?.membershipTier === 'plus' ||
+      result?.membershipTier === 'pro' ||
+      result?.membershipTier === 'max' ||
+      result?.membershipTier === 'ultra'
+        ? result.membershipTier
+        : null;
+    const rawMembershipName = normalizeDesktopAccountMembershipName(result?.membershipName);
+    const budget = result?.budget && typeof result.budget === 'object' && !Array.isArray(result.budget)
+      ? result.budget
+      : null;
 
     if (!appSessionToken) {
       throw new Error('Account sign-in result missing session token');
@@ -38,8 +51,8 @@ export function createDesktopAuthPersistence({
       const resolvedUsername = sessionIdentity?.username ?? fallbackUsername;
       const resolvedPrimaryEmail = sessionIdentity?.primaryEmail ?? fallbackPrimaryEmail;
       const resolvedAvatarUrl = sessionIdentity?.avatarUrl ?? fallbackAvatarUrl;
-      const resolvedMembershipTier = sessionIdentity?.membershipTier ?? null;
-      const resolvedMembershipName = sessionIdentity?.membershipName ?? null;
+      const resolvedMembershipTier = rawMembershipTier ?? sessionIdentity?.membershipTier ?? null;
+      const resolvedMembershipName = rawMembershipName ?? sessionIdentity?.membershipName ?? null;
 
       if (!resolvedUsername) {
         throw new Error('Account sign-in completed but no desktop account identity could be resolved');
@@ -65,6 +78,7 @@ export function createDesktopAuthPersistence({
         avatarUrl: credentials.avatarUrl,
         membershipTier: credentials.membershipTier,
         membershipName: credentials.membershipName,
+        ...(budget ? { budget } : {}),
         persistent: persistent !== false,
         error: null,
       };
@@ -76,6 +90,8 @@ export function createDesktopAuthPersistence({
       username: fallbackUsername,
       primaryEmail: fallbackPrimaryEmail,
       avatarUrl: fallbackAvatarUrl,
+      membershipTier: rawMembershipTier,
+      membershipName: rawMembershipName,
       authenticatedAt,
     };
     const persistent = await writeStoredAccountCredentials(credentials);
@@ -86,6 +102,9 @@ export function createDesktopAuthPersistence({
       username: fallbackUsername,
       primaryEmail: credentials.primaryEmail,
       avatarUrl: credentials.avatarUrl,
+      membershipTier: credentials.membershipTier,
+      membershipName: credentials.membershipName,
+      ...(budget ? { budget } : {}),
       persistent: persistent !== false,
       error: null,
     };

@@ -25,6 +25,45 @@ afterEach(() => {
 });
 
 describe('useManagedAIStore', () => {
+  it('reuses a fresh budget snapshot for ordinary refresh checks', async () => {
+    useManagedAIStore.setState({
+      ...originalState,
+      budget: {
+        active: true,
+        usedPercent: 20,
+        remainingPercent: 80,
+        status: 'active',
+      },
+      lastBudgetSyncAt: Date.now(),
+      lastBudgetAttemptAt: Date.now(),
+    }, true);
+
+    await useManagedAIStore.getState().refreshBudgetIfStale();
+
+    expect(fetchManagedBudgetMock).not.toHaveBeenCalled();
+  });
+
+  it('coalesces concurrent forced budget refreshes', async () => {
+    const budget = {
+      active: true,
+      usedPercent: 25,
+      remainingPercent: 75,
+      status: 'active',
+    };
+    let resolveBudget!: (value: typeof budget) => void;
+    fetchManagedBudgetMock.mockReturnValueOnce(new Promise((resolve) => {
+      resolveBudget = resolve;
+    }));
+
+    const firstRefresh = useManagedAIStore.getState().refreshBudget();
+    const secondRefresh = useManagedAIStore.getState().refreshBudget();
+
+    expect(fetchManagedBudgetMock).toHaveBeenCalledTimes(1);
+    resolveBudget(budget);
+    await Promise.all([firstRefresh, secondRefresh]);
+    expect(useManagedAIStore.getState().budget).toEqual(budget);
+  });
+
   it('applies the shared exhausted budget snapshot', () => {
     applyManagedQuotaExhaustedSnapshot();
 

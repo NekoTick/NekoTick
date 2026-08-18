@@ -10,7 +10,6 @@ import {
   extractRawErrorMessage,
   markManagedAuthPromptForError,
 } from './errorHandling';
-import { refreshManagedBudgetIfNeeded } from './helpers';
 import {
   canPersistAbortedRequestTranscript,
   createEmptyResponseError,
@@ -142,7 +141,6 @@ export function runSendMessageAssistantStream({
         messageId: assistantMessageId,
         durationMs: Date.now() - requestStartedAt,
       });
-      refreshManagedBudgetIfNeeded(provider.id);
       if (isPersistentCompletion) {
         maybeGenerateAutoTitle(completionSessionId, provider.id, selectedModel.id);
       }

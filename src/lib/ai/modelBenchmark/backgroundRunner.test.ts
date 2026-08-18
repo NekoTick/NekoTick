@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '../types';
+import { refreshManagedBudgetIfNeeded } from '../managedBudgetRefresh';
 import { backgroundBenchmarkRunner } from './backgroundRunner';
 import { benchmarkModels } from './batch';
 
 vi.mock('./batch', () => ({
   benchmarkModels: vi.fn(),
+}));
+
+vi.mock('../managedBudgetRefresh', () => ({
+  refreshManagedBudgetIfNeeded: vi.fn(),
 }));
 
 const provider: Provider = {
@@ -31,6 +36,8 @@ function createModel(id: string): AIModel {
 
 beforeEach(() => {
   backgroundBenchmarkRunner.clear(provider.id);
+  backgroundBenchmarkRunner.clear('vlaina-managed');
+  vi.mocked(refreshManagedBudgetIfNeeded).mockClear();
 });
 
 afterEach(() => {
@@ -83,6 +90,42 @@ describe('backgroundBenchmarkRunner', () => {
     expect(finalSnapshot?.items['m-1']?.status).toBe('success');
     expect(finalSnapshot?.items['m-2']?.status).toBe('success');
     expect(snapshots.length).toBeGreaterThan(0);
+    expect(refreshManagedBudgetIfNeeded).not.toHaveBeenCalled();
+  });
+
+  it('refreshes managed budget once after a successful benchmark batch', async () => {
+    const managedProvider = { ...provider, id: 'vlaina-managed' };
+    const models = [
+      { ...createModel('managed-1'), providerId: managedProvider.id },
+      { ...createModel('managed-2'), providerId: managedProvider.id },
+    ];
+    vi.mocked(benchmarkModels).mockResolvedValue({
+      'managed-1': { status: 'success', latency: 10, endpoint: 'chat' },
+      'managed-2': { status: 'success', latency: 12, endpoint: 'chat' },
+    });
+
+    expect(backgroundBenchmarkRunner.start(managedProvider, models)).toBe(true);
+    await vi.waitFor(() => {
+      expect(backgroundBenchmarkRunner.getSnapshot(managedProvider.id)?.isRunning).toBe(false);
+    });
+
+    expect(refreshManagedBudgetIfNeeded).toHaveBeenCalledOnce();
+    expect(refreshManagedBudgetIfNeeded).toHaveBeenCalledWith(managedProvider.id);
+  });
+
+  it('does not refresh managed budget when every benchmark request fails', async () => {
+    const managedProvider = { ...provider, id: 'vlaina-managed' };
+    const model = { ...createModel('managed-1'), providerId: managedProvider.id };
+    vi.mocked(benchmarkModels).mockResolvedValue({
+      [model.id]: { status: 'error', error: 'Unavailable', endpoint: 'chat' },
+    });
+
+    expect(backgroundBenchmarkRunner.start(managedProvider, [model])).toBe(true);
+    await vi.waitFor(() => {
+      expect(backgroundBenchmarkRunner.getSnapshot(managedProvider.id)?.isRunning).toBe(false);
+    });
+
+    expect(refreshManagedBudgetIfNeeded).not.toHaveBeenCalled();
   });
 
   it('aborts the active benchmark run when stopped', () => {

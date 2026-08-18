@@ -33,4 +33,4 @@ export { normalizeNoteMentions } from './noteMentionNormalize';
 export { collectMentionFolderMarkdownNodes } from './folderScanUtils';
 export { isAllowedChatImageAttachmentPath } from './chatImagePathPolicy';
 export { createChunkScheduler } from './chunkScheduler';
-export { refreshManagedBudgetIfNeeded } from './managedBudgetRefresh';
+export { refreshManagedBudgetIfNeeded } from '@/lib/ai/managedBudgetRefresh';

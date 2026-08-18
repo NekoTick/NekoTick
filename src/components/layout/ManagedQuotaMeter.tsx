@@ -31,27 +31,40 @@ export function ManagedQuotaMeter({ className }: ManagedQuotaMeterProps) {
   const remainingPercent = Number.isFinite(rawRemainingPercent) ? Math.max(0, rawRemainingPercent) : null;
   const progressPercent = remainingPercent == null ? 0 : Math.min(100, remainingPercent);
   const progressWidth = `${progressPercent}%`;
+  const quotaLabel = remainingPercent == null ? null : `${remainingPercent.toFixed(0)}%`;
 
-  if (remainingPercent == null) {
+  if (!accountIsConnected) {
     return null;
   }
-
-  const quotaLabel = `${remainingPercent.toFixed(0)}%`;
 
   return (
     <div
       className={cn('group/quota mt-1 flex items-center gap-2', className)}
-      aria-label={t('billing.managedQuotaRemaining', { quota: quotaLabel })}
+      aria-label={quotaLabel
+        ? t('billing.managedQuotaRemaining', { quota: quotaLabel })
+        : t('billing.managedQuotaLoading')}
     >
       <div className="min-w-0 flex-1">
         <div className="h-1.5 overflow-hidden rounded-full bg-[var(--vlaina-color-quota-track)]">
-          <div
-            className={cn(
-              'h-full rounded-full transition-all',
-              budgetError && !isRefreshingBudget ? 'bg-[var(--vlaina-border)]' : 'bg-[var(--vlaina-color-quota-fill)]'
-            )}
-            style={{ width: progressWidth }}
-          />
+          {remainingPercent == null ? (
+            <div
+              className={cn(
+                'h-full w-full rounded-full opacity-[var(--vlaina-opacity-50)]',
+                budgetError && !isRefreshingBudget
+                  ? 'bg-[var(--vlaina-border)]'
+                  : 'animate-pulse bg-[var(--vlaina-color-quota-fill)]'
+              )}
+              data-testid="managed-quota-loading-bar"
+            />
+          ) : (
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                budgetError && !isRefreshingBudget ? 'bg-[var(--vlaina-border)]' : 'bg-[var(--vlaina-color-quota-fill)]'
+              )}
+              style={{ width: progressWidth }}
+            />
+          )}
         </div>
       </div>
       {quotaLabel ? (

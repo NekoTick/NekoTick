@@ -1,6 +1,6 @@
-import { isManagedProviderId } from '@/lib/ai/managedService';
 import { useAccountSessionStore } from '@/stores/accountSession';
 import { useManagedAIStore } from '@/stores/useManagedAIStore';
+import { isManagedProviderId } from './managedService';
 
 export function refreshManagedBudgetIfNeeded(providerId: string): void {
   if (!isManagedProviderId(providerId)) {
@@ -9,5 +9,5 @@ export function refreshManagedBudgetIfNeeded(providerId: string): void {
   if (!useAccountSessionStore.getState().isConnected) {
     return;
   }
-  void useManagedAIStore.getState().refreshBudgetIfStale().catch(() => undefined);
+  void useManagedAIStore.getState().refreshBudget().catch(() => undefined);
 }

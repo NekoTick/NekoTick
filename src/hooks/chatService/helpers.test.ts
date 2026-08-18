@@ -167,6 +167,7 @@ describe('chat service helpers', () => {
 
     refreshManagedBudgetIfNeeded('provider-1');
 
+    expect(mocks.refreshBudget).not.toHaveBeenCalled();
     expect(mocks.refreshBudgetIfStale).not.toHaveBeenCalled();
   });
 
@@ -175,15 +176,17 @@ describe('chat service helpers', () => {
 
     refreshManagedBudgetIfNeeded('vlaina-managed');
 
+    expect(mocks.refreshBudget).not.toHaveBeenCalled();
     expect(mocks.refreshBudgetIfStale).not.toHaveBeenCalled();
   });
 
-  it('refreshes budget for managed providers while signed in', () => {
+  it('force-refreshes budget after managed usage while signed in', () => {
     mocks.isConnected = true;
 
     refreshManagedBudgetIfNeeded('vlaina-managed');
 
-    expect(mocks.refreshBudgetIfStale).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshBudget).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshBudgetIfStale).not.toHaveBeenCalled();
   });
 
   it('limits combined chat image attachments at the message cap', () => {
@@ -230,12 +233,12 @@ describe('chat service helpers', () => {
 
   it('ignores managed budget refresh failures', async () => {
     mocks.isConnected = true;
-    mocks.refreshBudgetIfStale.mockRejectedValueOnce(new Error('refresh failed'));
+    mocks.refreshBudget.mockRejectedValueOnce(new Error('refresh failed'));
 
     refreshManagedBudgetIfNeeded('vlaina-managed');
     await Promise.resolve();
 
-    expect(mocks.refreshBudgetIfStale).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshBudget).toHaveBeenCalledTimes(1);
   });
 
   it('stores local attachment references without exposing file URLs in chat content', async () => {
