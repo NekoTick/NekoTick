@@ -173,9 +173,13 @@
   position: relative;
 }
 
+[data-markdown-theme-root='true'][data-markdown-theme-platform='vlaina'] .markdown-surface blockquote :is(h1, h2, h3, h4, h5, h6, p, li) {
+  color: var(--vlaina-markdown-color-blockquote-text);
+}
+
 .markdown-surface blockquote::before {
   content: '';
-  width: var(--vlaina-size-2px);
+  width: var(--vlaina-markdown-size-blockquote-border);
   height: calc(100% - var(--vlaina-size-20px));
   position: absolute;
   left: 0;
