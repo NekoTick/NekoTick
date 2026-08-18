@@ -22,6 +22,7 @@ import {
 import {
   buildTextProtocolDecisionMessage,
   containsTextProtocolSearchRequest,
+  createTextProtocolDecisionStreamGate,
   resolveTextProtocolSearchRequest,
   stripTextProtocolDecisionContent,
 } from './openAIToolLoopTextProtocolParsing';
@@ -65,8 +66,12 @@ export async function runOpenAIWebSearchTextProtocolRequest({
       ...withoutTools(body),
       messages: decisionMessages as ChatCompletionRequest['messages'],
     });
-    const decision = await consumeOpenAIStreamWithTools(decisionResponse, () => {}, { signal });
+    const decisionGate = createTextProtocolDecisionStreamGate((content) => {
+      emitChunk(onChunk, signal, content);
+    });
+    const decision = await consumeOpenAIStreamWithTools(decisionResponse, decisionGate.push, { signal });
     throwIfAborted(signal);
+    decisionGate.push(decision.content);
     searchRequest = resolveTextProtocolSearchRequest(
       decision.assistantContent || decision.content,
       latestUserText,
@@ -80,7 +85,7 @@ export async function runOpenAIWebSearchTextProtocolRequest({
       addChatDebugLog('web-search-text-protocol', 'stream decision answered directly', {
         visibleChars: stripThinkingContent(directContent).length,
       });
-      emitChunk(onChunk, signal, directContent);
+      decisionGate.emitDirectContent(directContent);
       emitApiTranscript(onApiTranscript, signal, [
         buildFinalAssistantTranscriptMessage(decision.assistantContent || directContent, decision.reasoningContent),
       ]);

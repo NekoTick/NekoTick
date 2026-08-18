@@ -2058,22 +2058,51 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(body.tool_choice).toBeUndefined();
   });
 
-  it('lets OpenRouter Claude decide whether to use web search tools', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      streamResponse('data: {"choices":[{"delta":{"content":"claude direct answer"}}]}\n\ndata: [DONE]\n\n'),
-    );
+  it('streams OpenRouter Claude direct answers while deciding whether to use web search', async () => {
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(response);
     vi.stubGlobal('fetch', fetchMock);
-    const result = await new OpenAICompatibleClient().sendMessage(
+    const chunks: string[] = [];
+    let settled = false;
+    const request = new OpenAICompatibleClient().sendMessage(
       'hi',
       [],
       buildModel({ apiModelId: 'anthropic/claude-sonnet-4.5', name: 'Claude Sonnet 4.5' }),
       buildProvider({ name: 'OpenRouter', apiHost: 'https://openrouter.ai/api', endpointType: 'openai' }),
-      vi.fn(),
+      (chunk) => chunks.push(chunk),
       undefined,
       { webSearchEnabled: true },
     );
+    request.finally(() => {
+      settled = true;
+    }).catch(() => undefined);
 
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    streamController!.enqueue(new TextEncoder().encode(
+      'data: {"choices":[{"delta":{"content":"claude direct"}}]}\n\n',
+    ));
+
+    await vi.waitFor(() => expect(chunks).toEqual(['claude direct']));
+    expect(settled).toBe(false);
+
+    streamController!.enqueue(new TextEncoder().encode([
+      'data: {"choices":[{"delta":{"content":" answer"}}]}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n')));
+    streamController!.close();
+
+    const result = await request;
     expect(result).toBe('claude direct answer');
+    expect(chunks).toEqual(['claude direct', 'claude direct answer']);
     expect(mocks.webSearchClient.webSearch).not.toHaveBeenCalled();
     expect(mocks.webSearchClient.readWebPages).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls[0][0]).toBe('https://openrouter.ai/api/v1/chat/completions');
@@ -2122,6 +2151,134 @@ describe('OpenAICompatibleClient endpoint detection', () => {
     expect(body.messages[0].role).toBe('system');
     expect(body.messages[0].content).toContain('<web_search_request>');
     expect(body.messages.at(-1)).toEqual({ role: 'user', content: 'hi' });
+  });
+
+  it('streams a managed text-protocol direct answer before the response completes', async () => {
+    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController = controller;
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(response);
+    vi.stubGlobal('fetch', fetchMock);
+    const chunks: string[] = [];
+    let settled = false;
+
+    const request = new OpenAICompatibleClient().sendMessage(
+      'hi',
+      [],
+      buildModel({
+        id: 'vlaina-managed:openai/gpt-oss-20b',
+        apiModelId: 'openai/gpt-oss-20b',
+        name: 'GPT OSS 20B',
+        providerId: 'vlaina-managed',
+      }),
+      buildProvider({ id: 'vlaina-managed', name: 'vlaina managed', endpointType: 'openai' }),
+      (chunk) => chunks.push(chunk),
+      undefined,
+      { webSearchEnabled: true },
+    );
+    request.finally(() => {
+      settled = true;
+    }).catch(() => undefined);
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    streamController!.enqueue(new TextEncoder().encode(
+      'data: {"choices":[{"delta":{"content":"First"}}]}\n\n',
+    ));
+
+    await vi.waitFor(() => expect(chunks).toEqual(['First']));
+    expect(settled).toBe(false);
+
+    streamController!.enqueue(new TextEncoder().encode([
+      'data: {"choices":[{"delta":{"content":" answer."}}]}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n')));
+    streamController!.close();
+
+    await expect(request).resolves.toBe('First answer.');
+    expect(chunks).toEqual(['First', 'First answer.']);
+  });
+
+  it('does not stream managed text-protocol search instructions into the answer', async () => {
+    let decisionController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    const decisionResponse = new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        decisionController = controller;
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(decisionResponse)
+      .mockResolvedValueOnce(streamResponse(
+        'data: {"choices":[{"delta":{"content":"Sourced answer"}}]}\n\ndata: [DONE]\n\n',
+      ));
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.webSearchClient.webSearch.mockResolvedValue({
+      query: 'sample app',
+      results: [{
+        title: 'Sample app',
+        url: 'https://example.com/sample',
+        snippet: 'Sample result.',
+        publishedAt: null,
+        source: null,
+        thumbnail: null,
+      }],
+    });
+    mocks.webSearchClient.readWebPages.mockResolvedValue([{
+      url: 'https://example.com/sample',
+      ok: true,
+      page: {
+        title: 'Sample app',
+        summary: '',
+        siteName: 'example.com',
+        finalUrl: 'https://example.com/sample',
+        content: 'Readable sample app content.',
+        charCount: 28,
+      },
+    }]);
+    const chunks: string[] = [];
+
+    const request = new OpenAICompatibleClient().sendMessage(
+      'tell me about this app',
+      [],
+      buildModel({
+        id: 'vlaina-managed:openai/gpt-oss-20b',
+        apiModelId: 'openai/gpt-oss-20b',
+        name: 'GPT OSS 20B',
+        providerId: 'vlaina-managed',
+      }),
+      buildProvider({ id: 'vlaina-managed', name: 'vlaina managed', endpointType: 'openai' }),
+      (chunk) => chunks.push(chunk),
+      undefined,
+      { webSearchEnabled: true },
+    );
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    decisionController!.enqueue(new TextEncoder().encode(
+      'data: {"choices":[{"delta":{"content":"<web_search"}}]}\n\n',
+    ));
+    await vi.waitFor(() => expect(chunks).toEqual([]));
+
+    decisionController!.enqueue(new TextEncoder().encode([
+      'data: {"choices":[{"delta":{"content":"_request>{\\"query\\":\\"sample app\\"}</web_search_request>"}}]}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n')));
+    decisionController!.close();
+
+    await expect(request).resolves.toContain('Sourced answer');
+    expect(mocks.webSearchClient.webSearch).toHaveBeenCalledWith('sample app', { limit: 5 });
+    expect(chunks).not.toEqual([]);
+    expect(chunks.every((chunk) => !chunk.includes('<web_search_request>'))).toBe(true);
   });
 
   it('handles OpenRouter Claude search requests through the text protocol without tool messages', async () => {

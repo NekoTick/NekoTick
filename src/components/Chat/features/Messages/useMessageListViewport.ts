@@ -35,6 +35,7 @@ export function useMessageListViewport({
   const scrollIdleTimeoutRef = useRef<number | null>(null);
   const scrollIdleDeadlineRef = useRef(0);
   const lastObservedScrollTopRef = useRef<number | null>(null);
+  const programmaticScrollTopRef = useRef<number | null>(null);
   const isScrollActiveRef = useRef(isScrollActive);
   const isTailDetachedRef = useRef(isTailDetached);
   const activeRef = useRef(active);
@@ -123,8 +124,20 @@ export function useMessageListViewport({
       lastObservedScrollTopRef.current = currentScrollTop;
       scheduleViewportMetrics();
       if (event.type !== 'scroll' || !isSessionActive) {
+        if (event.type === 'chat-programmatic-scroll') {
+          programmaticScrollTopRef.current = currentScrollTop;
+        }
         return;
       }
+
+      if (
+        programmaticScrollTopRef.current !== null &&
+        Math.abs(currentScrollTop - programmaticScrollTopRef.current) <= 1
+      ) {
+        programmaticScrollTopRef.current = null;
+        return;
+      }
+      programmaticScrollTopRef.current = null;
 
       const userScrolledUp =
         previousScrollTop !== null && currentScrollTop < previousScrollTop - 1;

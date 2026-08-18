@@ -25,6 +25,37 @@ export function buildTextProtocolDecisionMessage(): OpenAIWireMessage {
   };
 }
 
+export function createTextProtocolDecisionStreamGate(onDirectContent: (content: string) => void) {
+  let mode: 'undecided' | 'direct' | 'search' = 'undecided';
+  let lastEmittedDirectContent = '';
+
+  const emitDirectContent = (content: string) => {
+    if (content === lastEmittedDirectContent) return;
+    lastEmittedDirectContent = content;
+    onDirectContent(content);
+  };
+
+  return {
+    push(content: string) {
+      if (mode === 'search') return;
+
+      if (mode === 'undecided') {
+        const visible = stripThinkingContent(content);
+        if (!visible) return;
+        if (/^<web_search_request\b/i.test(visible)) {
+          mode = 'search';
+          return;
+        }
+        if ('<web_search_request'.startsWith(visible.toLowerCase())) return;
+        mode = 'direct';
+      }
+
+      emitDirectContent(content);
+    },
+    emitDirectContent,
+  };
+}
+
 export function buildTextProtocolAnswerPrompt({
   userText,
   searchContent,
