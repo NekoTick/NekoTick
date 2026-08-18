@@ -730,6 +730,27 @@ describe('CodeBlockNodeView', () => {
     nodeView.destroy();
   });
 
+  it('flushes pending embedded changes before running a history shortcut', () => {
+    const nodeView = new CodeBlockNodeView(createMockNode(false), createMockView(), () => 1);
+    const clearPendingForwardUpdate = vi.spyOn(
+      nodeView as unknown as { clearPendingForwardUpdate: () => void },
+      'clearPendingForwardUpdate',
+    );
+    const forwardFocusedCodeMirrorSnapshot = vi.spyOn(
+      nodeView as unknown as { forwardFocusedCodeMirrorSnapshot: () => void },
+      'forwardFocusedCodeMirrorSnapshot',
+    );
+    const keymap = (
+      nodeView as unknown as { createKeymap: () => Array<{ key: string; run?: () => boolean }> }
+    ).createKeymap();
+
+    keymap.find((binding) => binding.key === 'Mod-z')?.run?.();
+
+    expect(clearPendingForwardUpdate).toHaveBeenCalledTimes(1);
+    expect(forwardFocusedCodeMirrorSnapshot).toHaveBeenCalledTimes(1);
+    nodeView.destroy();
+  });
+
   it('keeps the embedded editor selection when window blur has no next focus target', () => {
     const nodeView = new CodeBlockNodeView(createMockNode(false), createMockView(), () => 1);
     const cm = getCodeMirror(nodeView);

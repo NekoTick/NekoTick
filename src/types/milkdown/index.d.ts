@@ -688,6 +688,12 @@ declare module '@milkdown/ctx' {
 
 declare module '@milkdown/kit/plugin/history' {
   export const history: any;
+  export const historyProviderConfig: MilkdownPlugin & {
+    key: MilkdownCtxToken<{
+      depth?: number;
+      newGroupDelay?: number;
+    }>;
+  };
 }
 
 declare module '@milkdown/kit/plugin/cursor' {

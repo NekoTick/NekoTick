@@ -307,6 +307,10 @@ class CodeBlockNodeViewInitializationMethods {
       view: this.view,
       getNode: () => this.node,
       getPos: this.getPos,
+      flushPendingChanges: () => {
+        this.clearPendingForwardUpdate();
+        this.forwardFocusedCodeMirrorSnapshot();
+      },
     });
   }
 

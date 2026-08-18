@@ -7,4 +7,5 @@ export type CreateCodeBlockKeymapOptions = {
   view: EditorView;
   getNode: () => Node;
   getPos: () => number | undefined;
+  flushPendingChanges?: () => void;
 };

@@ -2,9 +2,9 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { closeHistory } from '@milkdown/kit/prose/history';
 import { EditorState, type Plugin } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { EDITOR_HISTORY_NOTE_CACHE_LIMIT } from './editorHistoryPolicy';
 
 const HISTORY_PLUGIN_KEY = 'history$';
-const MAX_CACHED_NOTE_HISTORIES = 50;
 
 export interface CachedNoteEditorHistory {
   doc: ProseNode;
@@ -58,7 +58,7 @@ export function cacheCurrentNoteEditorHistory(
   });
 
   const oldestPath = session.entries.keys().next().value as string | undefined;
-  if (session.entries.size > MAX_CACHED_NOTE_HISTORIES && oldestPath) {
+  if (session.entries.size > EDITOR_HISTORY_NOTE_CACHE_LIMIT && oldestPath) {
     session.entries.delete(oldestPath);
   }
 }
