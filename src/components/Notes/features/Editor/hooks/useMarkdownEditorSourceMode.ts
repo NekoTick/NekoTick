@@ -1,9 +1,22 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useNotesStore } from '@/stores/useNotesStore';
 import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorMarkdown';
 import { themeEditorLayoutTokens } from '@/styles/themeTokens';
 import { flushCurrentEditorSave } from '../utils/editorSaveRegistry';
 import { NOTE_SOURCE_MODE_TOGGLE_EVENT } from '../sourceMode/sourceModeEvents';
+
+interface EditorSessionTarget {
+  active: boolean;
+  path: string | undefined;
+  revision: number;
+}
+
+function isSameEditorSession(
+  target: EditorSessionTarget | null,
+  session: EditorSessionTarget,
+) {
+  return target?.revision === session.revision;
+}
 
 export function useMarkdownEditorSourceMode({
   currentNotePath,
@@ -20,19 +33,34 @@ export function useMarkdownEditorSourceMode({
   onModeSwitchLayoutReady?: () => void;
   scrollRootRef?: RefObject<HTMLElement | null>;
 }) {
-  const editorSession = useMemo(() => ({
+  const editorSessionRef = useRef<EditorSessionTarget>({
     active: hasActiveNote,
     path: currentNotePath,
-  }), [currentNotePath, hasActiveNote]);
-  const [editorReadyTarget, setEditorReadyTarget] = useState<typeof editorSession | null>(null);
-  const [editorInitTimedOutTarget, setEditorInitTimedOutTarget] = useState<typeof editorSession | null>(null);
+    revision: 0,
+  });
+  if (
+    editorSessionRef.current.active !== hasActiveNote ||
+    editorSessionRef.current.path !== currentNotePath
+  ) {
+    editorSessionRef.current = {
+      active: hasActiveNote,
+      path: currentNotePath,
+      revision: editorSessionRef.current.revision + 1,
+    };
+  }
+  const editorSession = editorSessionRef.current;
+  const [editorReadyTarget, setEditorReadyTarget] = useState<EditorSessionTarget | null>(null);
+  const [editorInitTimedOutTarget, setEditorInitTimedOutTarget] = useState<EditorSessionTarget | null>(null);
   const [isSourceMode, setIsSourceMode] = useState(false);
   const pendingScrollRestoreRef = useRef<{ path: string; progress: number } | null>(null);
   const scrollRestoreTimeoutRef = useRef<number | null>(null);
   const modeSwitchPendingRef = useRef(false);
-  const isEditorViewReady = editorReadyTarget === editorSession;
+  const isEditorViewReady = isSameEditorSession(editorReadyTarget, editorSession);
   const shouldUseSourceFallback =
-    !isSourceMode && hasActiveNote && currentNotePath !== undefined && editorInitTimedOutTarget === editorSession;
+    !isSourceMode &&
+    hasActiveNote &&
+    currentNotePath !== undefined &&
+    isSameEditorSession(editorInitTimedOutTarget, editorSession);
 
   const notifyModeSwitchLayoutReady = useCallback(() => {
     if (modeSwitchPendingRef.current) {
@@ -220,7 +248,6 @@ export function useMarkdownEditorSourceMode({
     handleToggleSourceMode,
     isEditorViewReady,
     isSourceMode,
-    isSourceSurface: isSourceMode || shouldUseSourceFallback,
     shouldUseSourceFallback,
   };
 }

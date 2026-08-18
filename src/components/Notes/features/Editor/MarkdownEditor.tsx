@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { NoteHeader } from './NoteHeader';
 import { EditorTopRightToolbar, MilkdownEditorRuntime } from './MarkdownEditorLazyComponents';
 import { MarkdownSourceEditor } from './MarkdownSourceEditor';
+import { MarkdownSourceFallback } from './MarkdownSourceFallback';
 import { NoteCoverCanvas } from '../Cover';
 import { EDITOR_LAYOUT_CLASS } from '@/lib/layout';
 import { useEditorLayout } from './hooks/useEditorLayout';
@@ -38,7 +39,7 @@ export function MarkdownEditor({
   isPeeking = false,
   peekOffset = 0,
   onEditorViewReady,
-  onSourceSurfaceChange,
+  onEditorModeChange,
   compactHeader = false,
   hideNoteActions = false,
 }: {
@@ -46,7 +47,7 @@ export function MarkdownEditor({
   isPeeking?: boolean;
   peekOffset?: number;
   onEditorViewReady?: () => void;
-  onSourceSurfaceChange?: (isSourceSurface: boolean) => void;
+  onEditorModeChange?: (mode: 'rendered' | 'source' | 'fallback') => void;
   compactHeader?: boolean;
   hideNoteActions?: boolean;
 }) {
@@ -144,7 +145,6 @@ export function MarkdownEditor({
     handleToggleSourceMode,
     isEditorViewReady,
     isSourceMode,
-    isSourceSurface,
     shouldUseSourceFallback,
   } = useMarkdownEditorSourceMode({
     currentNotePath,
@@ -155,8 +155,10 @@ export function MarkdownEditor({
     scrollRootRef,
   });
   useEffect(() => {
-    onSourceSurfaceChange?.(isSourceSurface);
-  }, [isSourceSurface, onSourceSurfaceChange]);
+    onEditorModeChange?.(
+      isSourceMode ? 'source' : shouldUseSourceFallback ? 'fallback' : 'rendered',
+    );
+  }, [isSourceMode, onEditorModeChange, shouldUseSourceFallback]);
   const {
     coverController,
     coverLayoutActive,
@@ -185,8 +187,8 @@ export function MarkdownEditor({
             currentNotePath={currentNotePath}
             currentNoteTitle={currentNoteTitle}
             getCurrentNoteContent={getCurrentNoteContent}
-            isSourceMode={isSourceSurface}
-            onToggleSourceMode={handleToggleSourceMode}
+            isSourceMode={isSourceMode}
+            onToggleSourceMode={shouldUseSourceFallback ? undefined : handleToggleSourceMode}
             notesPath={notesPath}
             starred={starred}
             toggleStarred={toggleStarred}
@@ -261,24 +263,24 @@ export function MarkdownEditor({
                       mode="source"
                     />
                   ) : shouldUseSourceFallback ? (
-                    <MarkdownSourceEditor
+                    <MarkdownSourceFallback
                       active={hasActiveNote}
                       currentNotePath={currentNotePath ?? ''}
                       showBodyLineNumbers={showBodyLineNumbers}
                       saveNote={saveNote}
-                      mode="fallback"
+                      onRetry={handleToggleSourceMode}
                     />
                   ) : (
                     <ErrorBoundary
                       onError={handleRenderedEditorFailure}
                       resetKey={currentNotePath}
                       fallback={(
-                        <MarkdownSourceEditor
+                        <MarkdownSourceFallback
                           active={hasActiveNote}
                           currentNotePath={currentNotePath ?? ''}
                           showBodyLineNumbers={showBodyLineNumbers}
                           saveNote={saveNote}
-                          mode="fallback"
+                          onRetry={handleToggleSourceMode}
                         />
                       )}
                     >

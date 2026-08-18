@@ -180,9 +180,11 @@ vi.mock('./EditorTopRightToolbar', () => ({
       >
         {starred ? 'Unfavorite' : 'Add to Starred'}
       </button>
-      <button type="button" onClick={onToggleSourceMode}>
-        {isSourceMode ? 'Switch to rendered mode' : 'Switch to source mode'}
-      </button>
+      {onToggleSourceMode ? (
+        <button type="button" onClick={onToggleSourceMode}>
+          {isSourceMode ? 'Switch to rendered mode' : 'Switch to source mode'}
+        </button>
+      ) : null}
     </>
   ),
 }));
@@ -834,19 +836,21 @@ describe('MarkdownEditor source fallback', () => {
   });
 
   it('retries the rendered editor in one action after a render error fallback', async () => {
-    const onSourceSurfaceChange = vi.fn();
-    render(<MarkdownEditor onSourceSurfaceChange={onSourceSurfaceChange} />);
+    const onEditorModeChange = vi.fn();
+    render(<MarkdownEditor onEditorModeChange={onEditorModeChange} />);
 
     const fallbackEditor = await screen.findByLabelText('Markdown source editor');
     expect(fallbackEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
-    expect(onSourceSurfaceChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByText('Failed to update view')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(onEditorModeChange).toHaveBeenLastCalledWith('fallback');
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
 
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(await screen.findByTestId('milkdown-live-dom')).toBeInTheDocument();
     expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
-    expect(onSourceSurfaceChange).toHaveBeenLastCalledWith(false);
+    expect(onEditorModeChange).toHaveBeenLastCalledWith('rendered');
   });
 
   it('retries the rendered editor after switching away from a note that triggered the fallback', async () => {
@@ -886,7 +890,7 @@ describe('MarkdownEditor source fallback', () => {
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
 
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(screen.getByTestId('milkdown-live-dom')).toBeInTheDocument();
     expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
@@ -909,7 +913,7 @@ describe('MarkdownEditor source fallback', () => {
     expect(sourceEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
 
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
-    fireEvent.click(screen.getByRole('button', { name: 'Switch to rendered mode' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(screen.getByTestId('milkdown-live-dom')).toBeInTheDocument();
     expect(screen.queryByLabelText('Markdown source editor')).toBeNull();

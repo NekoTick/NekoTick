@@ -90,7 +90,7 @@ export function NotesViewSplitContent({
     const currentNote = useNotesStore.getState().currentNote;
     return currentNote && currentNote.path === currentNotePath ? currentNote.content : '';
   }, [currentNotePath]);
-  const [isPrimarySourceSurface, setIsPrimarySourceSurface] = useState(false);
+  const [primaryEditorMode, setPrimaryEditorMode] = useState<'rendered' | 'source' | 'fallback'>('rendered');
   const currentSplitPaneTitle = currentNotePath ? getDisplayName(currentNotePath) : '';
   const primaryEditorContent = (
     <div
@@ -108,7 +108,7 @@ export function NotesViewSplitContent({
           <MarkdownEditor
             active={active}
             onEditorViewReady={onPrimaryContentReady}
-            onSourceSurfaceChange={setIsPrimarySourceSurface}
+            onEditorModeChange={setPrimaryEditorMode}
             compactHeader={hasSplitPanes}
             hideNoteActions={hasSplitPanes}
           />
@@ -132,8 +132,10 @@ export function NotesViewSplitContent({
               currentNotePath={currentNotePath}
               currentNoteTitle={currentSplitPaneTitle}
               getCurrentNoteContent={getCurrentNoteContent}
-              isSourceMode={isPrimarySourceSurface}
-              onToggleSourceMode={dispatchNoteSourceModeToggleEvent}
+              isSourceMode={primaryEditorMode === 'source'}
+              onToggleSourceMode={primaryEditorMode === 'fallback'
+                ? undefined
+                : dispatchNoteSourceModeToggleEvent}
               notesPath={notesPath}
               starred={currentNoteStarred}
               toggleStarred={toggleStarred}
