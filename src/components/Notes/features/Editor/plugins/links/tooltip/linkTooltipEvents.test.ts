@@ -5,6 +5,7 @@ import { TOOLBAR_ACTIONS } from '../../floating-toolbar/types';
 import { openEditorLinkHref } from '../utils/openEditorLinkHref';
 import { WIKI_LINK_POINTER_SELECTION_META } from '../wiki-link/wikiLinkInteraction';
 import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../../selection/textSelectionOverlayState';
+import { startLinkTextSelectionSession } from './linkTextSelectionSession';
 
 const stateMocks = vi.hoisted(() => ({
     selectionNear: vi.fn(),
@@ -334,6 +335,59 @@ describe('installLinkTooltipEvents', () => {
         expect(openEditorLinkHref).not.toHaveBeenCalled();
 
         cleanup();
+        editorDom.remove();
+    });
+
+    it('replaces an unfinished link selection session before starting another', () => {
+        const { editorDom, handlers } = createHandlers();
+        const firstLink = document.createElement('a');
+        firstLink.href = '#first';
+        firstLink.textContent = 'first';
+        const secondLink = document.createElement('a');
+        secondLink.href = '#second';
+        secondLink.textContent = 'second';
+        editorDom.append(firstLink, secondLink);
+        const { doc } = useTextSelectionCapableView(
+            editorDom,
+            handlers,
+            ({ left }) => left < 30 ? 5 : left < 90 ? 15 : 25,
+        );
+        const createMouseDown = (target: HTMLElement, clientX: number) => {
+            const event = new MouseEvent('mousedown', {
+                button: 0,
+                buttons: 1,
+                cancelable: true,
+                clientX,
+                clientY: 10,
+            });
+            Object.defineProperty(event, 'target', { configurable: true, value: target });
+            return event;
+        };
+
+        expect(startLinkTextSelectionSession(
+            handlers.view,
+            createMouseDown(firstLink, 10),
+            vi.fn(),
+            vi.fn(),
+        )).toBe(true);
+        expect(startLinkTextSelectionSession(
+            handlers.view,
+            createMouseDown(secondLink, 60),
+            vi.fn(),
+            vi.fn(),
+        )).toBe(true);
+        stateMocks.textSelectionCreate.mockClear();
+
+        document.dispatchEvent(new MouseEvent('mousemove', {
+            buttons: 1,
+            cancelable: true,
+            clientX: 120,
+            clientY: 10,
+        }));
+
+        expect(stateMocks.textSelectionCreate).toHaveBeenCalledTimes(1);
+        expect(stateMocks.textSelectionCreate).toHaveBeenCalledWith(doc, 15, 25);
+        window.dispatchEvent(new Event('blur'));
         editorDom.remove();
     });
 

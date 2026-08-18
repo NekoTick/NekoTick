@@ -32,6 +32,7 @@ export function startCoverResizeSession({
   let resizeFrameId: number | null = null;
   let resizeFrameScheduled = false;
   let pendingClientY: number | null = null;
+  const ownerWindow = document.defaultView;
 
   const buildFrame = (clientY: number): ResizeFrame => {
     const delta = clientY - startY;
@@ -66,6 +67,7 @@ export function startCoverResizeSession({
     pendingClientY = null;
     document.removeEventListener('mousemove', handleMove, true);
     document.removeEventListener('mouseup', handleUp, true);
+    ownerWindow?.removeEventListener('blur', handleBlur);
   };
 
   const applyPendingMove = () => {
@@ -98,18 +100,14 @@ export function startCoverResizeSession({
 
   const handleMove = (event: MouseEvent) => {
     if (disposed) return;
+    if ((event.buttons & 1) === 0) {
+      finishWithLastValidFrame();
+      return;
+    }
     scheduleMove(event.clientY);
   };
 
-  const handleUp = (event: MouseEvent) => {
-    if (disposed) return;
-    if (resizeFrameId !== null) {
-      window.cancelAnimationFrame(resizeFrameId);
-      resizeFrameId = null;
-    }
-    resizeFrameScheduled = false;
-    pendingClientY = null;
-    const frame = buildFrame(event.clientY);
+  const commitFrame = (frame: ResizeFrame) => {
     lastFrame = frame;
     const finalCrop = calculateFinalCropFromResize(
       snapshot,
@@ -120,8 +118,30 @@ export function startCoverResizeSession({
     dispose();
   };
 
+  const finishWithLastValidFrame = () => {
+    if (disposed) return;
+    if (resizeFrameId !== null) {
+      window.cancelAnimationFrame(resizeFrameId);
+      resizeFrameId = null;
+    }
+    resizeFrameScheduled = false;
+    const frame = pendingClientY !== null
+      ? buildFrame(pendingClientY)
+      : lastFrame ?? buildFrame(startY);
+    pendingClientY = null;
+    commitFrame(frame);
+  };
+
+  const handleUp = (event: MouseEvent) => {
+    if (disposed) return;
+    commitFrame(buildFrame(event.clientY));
+  };
+
+  const handleBlur = () => finishWithLastValidFrame();
+
   document.addEventListener('mousemove', handleMove, true);
   document.addEventListener('mouseup', handleUp, true);
+  ownerWindow?.addEventListener('blur', handleBlur);
 
   return dispose;
 }

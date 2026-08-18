@@ -25,6 +25,7 @@ export function useNotesSplitResize(args: {
   const resizeFrameRef = useRef<number | null>(null);
   const resizeFrameScheduledRef = useRef(false);
   const pendingResizePointRef = useRef<{ x: number; y: number } | null>(null);
+  const stopSplitResizeRef = useRef<((event?: PointerEvent) => void) | null>(null);
 
   const updateSplitResizeRatio = useCallback((clientX: number, clientY: number) => {
     const resize = activeSplitResizeRef.current;
@@ -48,6 +49,10 @@ export function useNotesSplitResize(args: {
     if (!activeSplitResizeRef.current) {
       return;
     }
+    if (event.pointerType === 'mouse' && (event.buttons & 1) === 0) {
+      stopSplitResizeRef.current?.();
+      return;
+    }
 
     event.preventDefault();
     pendingResizePointRef.current = { x: event.clientX, y: event.clientY };
@@ -68,6 +73,10 @@ export function useNotesSplitResize(args: {
     }
   }, [updateSplitResizeRatio]);
 
+  const handleSplitResizeWindowBlur = useCallback(() => {
+    stopSplitResizeRef.current?.();
+  }, []);
+
   const stopSplitResize = useCallback((event?: PointerEvent) => {
     const resize = activeSplitResizeRef.current;
     if (!resize) {
@@ -81,22 +90,22 @@ export function useNotesSplitResize(args: {
     resizeFrameRef.current = null;
     resizeFrameScheduledRef.current = false;
     pendingResizePointRef.current = null;
-    if (pendingPoint && (event?.type === 'pointerup' || event?.type === 'pointercancel')) {
-      const finalPoint = event.type === 'pointerup'
-        ? { x: event.clientX, y: event.clientY }
-        : pendingPoint;
+    if (pendingPoint && event?.type === 'pointerup') {
+      const finalPoint = { x: event.clientX, y: event.clientY };
       updateSplitResizeRatio(finalPoint.x, finalPoint.y);
     }
 
     document.removeEventListener('pointermove', handleSplitResizePointerMove, true);
     document.removeEventListener('pointerup', stopSplitResize, true);
     document.removeEventListener('pointercancel', stopSplitResize, true);
+    window.removeEventListener('blur', handleSplitResizeWindowBlur);
     document.body.style.cursor = resize.previousBodyCursor;
     document.body.style.userSelect = resize.previousBodyUserSelect;
     activeSplitResizeRef.current = null;
     setLayoutPanelDragging(false);
     requestNativeCaretOverlayRefresh();
-  }, [handleSplitResizePointerMove, setLayoutPanelDragging, updateSplitResizeRatio]);
+  }, [handleSplitResizePointerMove, handleSplitResizeWindowBlur, setLayoutPanelDragging, updateSplitResizeRatio]);
+  stopSplitResizeRef.current = stopSplitResize;
 
   const beginSplitResize = useCallback((
     splitId: string,
@@ -130,7 +139,8 @@ export function useNotesSplitResize(args: {
     document.addEventListener('pointermove', handleSplitResizePointerMove, true);
     document.addEventListener('pointerup', stopSplitResize, true);
     document.addEventListener('pointercancel', stopSplitResize, true);
-  }, [handleSplitResizePointerMove, setLayoutPanelDragging, stopSplitResize, updateSplitResizeRatio]);
+    window.addEventListener('blur', handleSplitResizeWindowBlur);
+  }, [handleSplitResizePointerMove, handleSplitResizeWindowBlur, setLayoutPanelDragging, stopSplitResize, updateSplitResizeRatio]);
 
   useEffect(() => {
     return () => {

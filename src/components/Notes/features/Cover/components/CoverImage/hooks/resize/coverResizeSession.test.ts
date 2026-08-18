@@ -47,7 +47,7 @@ describe('startCoverResizeSession', () => {
     const moveHandler = addSpy.mock.calls.find(([eventName]) => eventName === 'mousemove')?.[1];
     expect(moveHandler).toBeTypeOf('function');
 
-    (moveHandler as EventListener)(new MouseEvent('mousemove', { clientY: 120 }));
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 1, clientY: 120 }));
     expect(onFrame).toHaveBeenCalledTimes(1);
     expect(onCommit).not.toHaveBeenCalled();
   });
@@ -73,8 +73,8 @@ describe('startCoverResizeSession', () => {
     const moveHandler = addSpy.mock.calls.find(([eventName]) => eventName === 'mousemove')?.[1];
     expect(moveHandler).toBeTypeOf('function');
 
-    (moveHandler as EventListener)(new MouseEvent('mousemove', { clientY: 120 }));
-    (moveHandler as EventListener)(new MouseEvent('mousemove', { clientY: 140 }));
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 1, clientY: 120 }));
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 1, clientY: 140 }));
 
     expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
     expect(onFrame).not.toHaveBeenCalled();
@@ -162,8 +162,8 @@ describe('startCoverResizeSession', () => {
     const moveHandler = addSpy.mock.calls.find(([eventName]) => eventName === 'mousemove')?.[1];
     expect(moveHandler).toBeTypeOf('function');
 
-    (moveHandler as EventListener)(new MouseEvent('mousemove', { clientY: 200 }));
-    (moveHandler as EventListener)(new MouseEvent('mousemove', { clientY: 150 }));
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 1, clientY: 200 }));
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 1, clientY: 150 }));
 
     expect(onFrame).toHaveBeenNthCalledWith(1, expect.objectContaining({
       effectiveHeight: 300,
@@ -173,5 +173,31 @@ describe('startCoverResizeSession', () => {
       effectiveHeight: 250,
       shiftY: 20,
     }));
+  });
+
+  it('commits the last pressed position instead of a later hover position', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    }) as typeof requestAnimationFrame;
+    const onCommit = vi.fn();
+    const addSpy = vi.spyOn(document, 'addEventListener');
+
+    startCoverResizeSession({
+      startY: 100,
+      startHeight: 200,
+      snapshot,
+      onFrame: vi.fn(),
+      onCommit,
+    });
+
+    const moveHandler = addSpy.mock.calls.find(([eventName]) => eventName === 'mousemove')?.[1];
+    expect(moveHandler).toBeTypeOf('function');
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 1, clientY: 140 }));
+    (moveHandler as EventListener)(new MouseEvent('mousemove', { buttons: 0, clientY: 260 }));
+
+    expect(onCommit).toHaveBeenCalledWith(expect.objectContaining({ pointerY: 140 }));
+    expect(animationFrames).toHaveLength(1);
   });
 });

@@ -240,9 +240,13 @@ export function useThinkingStreamSelection({
       scheduleClearSelectionFreezeIfIdle();
     };
     document.addEventListener("pointerup", handlePointerUp, true);
+    document.addEventListener("pointercancel", handlePointerUp, true);
+    window.addEventListener("blur", handlePointerUp);
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => {
       document.removeEventListener("pointerup", handlePointerUp, true);
+      document.removeEventListener("pointercancel", handlePointerUp, true);
+      window.removeEventListener("blur", handlePointerUp);
       document.removeEventListener("selectionchange", handleSelectionChange);
       clearUnlockTimeout();
       clearReleaseSelectionFreezeTimeout();

@@ -25,6 +25,7 @@ const MAX_NESTED_LIST_CARET_TEXT_NODES = 512;
 const MAX_NESTED_LIST_CARET_TEXT_CHARS = 100_000;
 const CLICK_MOVE_THRESHOLD_PX = 4;
 const CLICK_SUPPRESSION_MS = 500;
+const activeNestedListPointerSessions = new WeakMap<EditorView, () => void>();
 
 function isPrimaryPlainMouseDown(event: MouseEvent): boolean {
   return event.button === 0 &&
@@ -172,8 +173,10 @@ function resolveNestedListDragHeadAtPoint(
   );
 }
 
-function startNestedListPointerSelection(view: EditorView, event: MouseEvent, pos: number, scanRoot: HTMLElement): void {
+export function startNestedListPointerSelection(view: EditorView, event: MouseEvent, pos: number, scanRoot: HTMLElement): void {
+  activeNestedListPointerSessions.get(view)?.();
   const { ownerDocument } = view.dom;
+  const ownerWindow = ownerDocument.defaultView;
   const sessionDoc = view.state.doc;
   const startX = event.clientX;
   const startY = event.clientY;
@@ -186,6 +189,10 @@ function startNestedListPointerSelection(view: EditorView, event: MouseEvent, po
     stopped = true;
     ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
     ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
+    ownerWindow?.removeEventListener('blur', handleWindowBlur);
+    if (activeNestedListPointerSessions.get(view) === cancelSession) {
+      activeNestedListPointerSessions.delete(view);
+    }
   };
 
   const stopClick = () => {
@@ -197,6 +204,13 @@ function startNestedListPointerSelection(view: EditorView, event: MouseEvent, po
   const scheduleClickStop = () => {
     window.setTimeout(stopClick, CLICK_SUPPRESSION_MS);
   };
+
+  const cancelSession = () => {
+    stop();
+    stopClick();
+  };
+
+  const handleWindowBlur = () => cancelSession();
 
   const handleClick = (clickEvent: MouseEvent) => {
     if (view.state.doc !== sessionDoc) {
@@ -214,10 +228,10 @@ function startNestedListPointerSelection(view: EditorView, event: MouseEvent, po
 
   const handleMouseMove = (moveEvent: MouseEvent) => {
     if (view.state.doc !== sessionDoc) {
-      stop();
-      stopClick();
+      cancelSession();
       return;
     }
+    if ((moveEvent.buttons & 1) === 0) return;
     const hasDragged = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) > CLICK_MOVE_THRESHOLD_PX;
     if (!moved && !hasDragged) return;
 
@@ -262,6 +276,8 @@ function startNestedListPointerSelection(view: EditorView, event: MouseEvent, po
   ownerDocument.addEventListener('mousemove', handleMouseMove, true);
   ownerDocument.addEventListener('mouseup', handleMouseUp, true);
   ownerDocument.addEventListener('click', handleClick, true);
+  ownerWindow?.addEventListener('blur', handleWindowBlur);
+  activeNestedListPointerSessions.set(view, cancelSession);
 }
 
 export const nestedListPointerCaretPlugin = $prose(() => {

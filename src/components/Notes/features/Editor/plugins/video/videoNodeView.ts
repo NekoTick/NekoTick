@@ -124,11 +124,16 @@ export class VideoNodeView implements NodeView {
     };
     window.addEventListener('mousemove', this.handleWindowMouseMove, true);
     window.addEventListener('mouseup', this.handleWindowMouseUp, true);
+    window.addEventListener('blur', this.handleWindowMouseUp);
     this.selectVideoBlockFromPointerHold('mouse-down');
   }
   private handlePointerMove(event: MouseEvent) {
     const state = this.mouseDownState;
     if (!state || state.selected) return;
+    if ((event.buttons & 1) === 0) {
+      this.clearMouseDownState();
+      return;
+    }
     const dx = Math.abs(event.clientX - state.x);
     const dy = Math.abs(event.clientY - state.y);
     if (dx < 4 && dy < 4) return;
@@ -158,6 +163,7 @@ export class VideoNodeView implements NodeView {
     this.hideSelectionShield();
     window.removeEventListener('mousemove', this.handleWindowMouseMove, true);
     window.removeEventListener('mouseup', this.handleWindowMouseUp, true);
+    window.removeEventListener('blur', this.handleWindowMouseUp);
   }
 
   update(node: ProseMirrorNode) {

@@ -8,6 +8,7 @@ import {
   clearTextSelectionForDragSession,
   resolveInsideBlockTrailingPlainClick,
   startInsideBlockTrailingPlainClickSession,
+  startUnclaimedBlankPlainClickSession,
 } from './blankAreaDragBoxPlainClicks';
 
 function createHarness(nextContent: 'paragraph' | 'list' | 'none' = 'paragraph') {
@@ -429,6 +430,36 @@ describe('startInsideBlockTrailingPlainClickSession', () => {
       expect(event.defaultPrevented).toBe(true);
       expect(view.state.selection.from).toBe(emptyPos + 1);
       stop();
+    } finally {
+      await editor.destroy();
+    }
+  });
+});
+
+describe('startUnclaimedBlankPlainClickSession', () => {
+  it('does not clear selection after released-button hover movement', async () => {
+    const editor = Editor.make()
+      .config((ctx) => ctx.set(defaultValueCtx, 'hello world'))
+      .use(commonmark);
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1, 6)));
+      startUnclaimedBlankPlainClickSession(
+        view,
+        new MouseEvent('mousedown', { button: 0, buttons: 1 }),
+      );
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        buttons: 0,
+        clientX: 50,
+        clientY: 50,
+      }));
+      document.dispatchEvent(new MouseEvent('mouseup'));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+      expect(view.state.selection.from).toBe(1);
+      expect(view.state.selection.to).toBe(6);
     } finally {
       await editor.destroy();
     }

@@ -44,13 +44,18 @@ export function useWindowDragGesture({
     const cleanupListeners = () => {
       window.removeEventListener('mousemove', handleWindowMouseMove);
       window.removeEventListener('mouseup', handleWindowMouseUp);
+      window.removeEventListener('blur', handleWindowBlur);
       if (dragCleanupRef.current === cleanupListeners) {
         dragCleanupRef.current = null;
       }
     };
 
     const handleWindowMouseMove = (moveEvent: MouseEvent) => {
-      if (!dragTrackingRef.current || (moveEvent.buttons & 1) !== 1) {
+      if (!dragTrackingRef.current) {
+        return;
+      }
+      if ((moveEvent.buttons & 1) === 0) {
+        stopWindowDragTracking();
         return;
       }
 
@@ -71,9 +76,12 @@ export function useWindowDragGesture({
       }
     };
 
+    const handleWindowBlur = () => stopWindowDragTracking();
+
     dragCleanupRef.current = cleanupListeners;
     window.addEventListener('mousemove', handleWindowMouseMove);
     window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('blur', handleWindowBlur);
   }, [stopWindowDragTracking, threshold]);
 
   const isWindowDragActive = useCallback(() => {

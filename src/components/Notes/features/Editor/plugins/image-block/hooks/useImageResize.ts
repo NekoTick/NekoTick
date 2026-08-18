@@ -35,6 +35,7 @@ export function useImageResize({
     }, []);
 
     const handleResizeStart = useCallback((direction: ResizeDirection) => (e: React.MouseEvent) => {
+        cleanupRef.current?.();
         e.preventDefault();
         e.stopPropagation();
         markImageUserInput();
@@ -54,6 +55,11 @@ export function useImageResize({
         let latestWidthValue = width;
         let pendingPointer: { clientX: number; clientY: number } | null = null;
         let resizeFrame: number | null = null;
+        let finished = false;
+        let invalidated = false;
+
+        const ownerDocument = containerRef.current?.ownerDocument ?? document;
+        const ownerWindow = ownerDocument.defaultView ?? window;
 
         const applyResize = (clientX: number, clientY: number) => {
             if (isProportional) {
@@ -85,45 +91,68 @@ export function useImageResize({
 
         const cancelPendingResize = () => {
             if (resizeFrame !== null) {
-                window.cancelAnimationFrame(resizeFrame);
+                ownerWindow.cancelAnimationFrame(resizeFrame);
                 resizeFrame = null;
             }
         };
 
+        const removeListeners = () => {
+            ownerDocument.removeEventListener('mousemove', onMouseMove);
+            ownerDocument.removeEventListener('mouseup', onMouseUp);
+            ownerWindow.removeEventListener('blur', onWindowBlur);
+        };
+
+        const finishResize = async () => {
+            if (finished) return;
+            finished = true;
+            removeListeners();
+            cancelPendingResize();
+            flushPendingResize();
+
+            setDragDimensions(null);
+            await restoreIfNeeded();
+            if (invalidated) return;
+
+            if (isProportional) {
+                updateNodeAttrs({ width: latestWidthValue });
+                setHeight(undefined);
+            }
+            if (cleanupRef.current === cancelResize) {
+                cleanupRef.current = null;
+            }
+        };
+
+        const cancelResize = () => {
+            invalidated = true;
+            removeListeners();
+            cancelPendingResize();
+            pendingPointer = null;
+            if (cleanupRef.current === cancelResize) {
+                cleanupRef.current = null;
+            }
+        };
+
         const onMouseMove = (moveEvent: MouseEvent) => {
+            if ((moveEvent.buttons & 1) === 0) {
+                void finishResize();
+                return;
+            }
             pendingPointer = {
                 clientX: moveEvent.clientX,
                 clientY: moveEvent.clientY,
             };
 
             if (resizeFrame !== null) return;
-            resizeFrame = window.requestAnimationFrame(flushPendingResize);
+            resizeFrame = ownerWindow.requestAnimationFrame(flushPendingResize);
         };
 
-        const onMouseUp = async () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            cancelPendingResize();
-            flushPendingResize();
-            cleanupRef.current = null;
+        const onMouseUp = () => void finishResize();
+        const onWindowBlur = () => void finishResize();
 
-            setDragDimensions(null);
-            await restoreIfNeeded();
-
-            if (isProportional) {
-                updateNodeAttrs({ width: latestWidthValue });
-                setHeight(undefined);
-            }
-        };
-
-        cleanupRef.current = () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            cancelPendingResize();
-        };
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        cleanupRef.current = cancelResize;
+        ownerDocument.addEventListener('mousemove', onMouseMove);
+        ownerDocument.addEventListener('mouseup', onMouseUp);
+        ownerWindow.addEventListener('blur', onWindowBlur);
     }, [containerRef, width, height, setWidth, setHeight, setDragDimensions, updateNodeAttrs, markImageUserInput, restoreIfNeeded]);
 
     return { handleResizeStart };

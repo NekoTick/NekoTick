@@ -58,6 +58,10 @@ export function useNotesSplitPaneDrag(args: {
     if (!drag) {
       return;
     }
+    if (event.pointerType === 'mouse' && (event.buttons & 1) === 0) {
+      stopSplitPaneDragRef.current?.();
+      return;
+    }
 
     event.preventDefault();
     const distance = Math.hypot(
@@ -120,6 +124,7 @@ export function useNotesSplitPaneDrag(args: {
     document.removeEventListener('pointermove', handleSplitPaneDragPointerMove, true);
     document.removeEventListener('pointerup', handleSplitPaneDragPointerUp, true);
     document.removeEventListener('pointercancel', handleSplitPaneDragPointerCancel, true);
+    window.removeEventListener('blur', handleSplitPaneDragPointerCancel);
     document.body.style.cursor = drag.previousBodyCursor;
     document.body.style.userSelect = drag.previousBodyUserSelect;
     activeSplitPaneDragRef.current = null;
@@ -191,6 +196,7 @@ export function useNotesSplitPaneDrag(args: {
     document.addEventListener('pointermove', handleSplitPaneDragPointerMove, true);
     document.addEventListener('pointerup', handleSplitPaneDragPointerUp, true);
     document.addEventListener('pointercancel', handleSplitPaneDragPointerCancel, true);
+    window.addEventListener('blur', handleSplitPaneDragPointerCancel);
   }, [
     active,
     activeSplitResizeRef,

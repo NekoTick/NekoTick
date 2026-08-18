@@ -155,12 +155,16 @@ export function useOverlayScrollbarDrag(args: {
 
   const handleWindowPointerMove = useCallback((event: PointerEvent) => {
     if (!dragStateRef.current) return;
+    if (event.pointerType === 'mouse' && (event.buttons & 1) === 0) {
+      stopDragging();
+      return;
+    }
     pendingDragClientYRef.current = event.clientY;
     markScrollInteraction();
     if (dragFrameRef.current === null) {
       dragFrameRef.current = window.requestAnimationFrame(applyPendingDragPosition);
     }
-  }, [applyPendingDragPosition, markScrollInteraction]);
+  }, [applyPendingDragPosition, markScrollInteraction, stopDragging]);
 
   const handleThumbPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -203,11 +207,13 @@ export function useOverlayScrollbarWindowDrag(
     window.addEventListener('pointermove', handleWindowPointerMove);
     window.addEventListener('pointerup', stopDragging);
     window.addEventListener('pointercancel', stopDragging);
+    window.addEventListener('blur', stopDragging);
 
     return () => {
       window.removeEventListener('pointermove', handleWindowPointerMove);
       window.removeEventListener('pointerup', stopDragging);
       window.removeEventListener('pointercancel', stopDragging);
+      window.removeEventListener('blur', stopDragging);
     };
   }, [handleWindowPointerMove, isDragging, stopDragging]);
 }

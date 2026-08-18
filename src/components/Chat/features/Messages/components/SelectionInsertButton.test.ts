@@ -107,7 +107,7 @@ describe("SelectionInsertButton selection lock", () => {
     fireEvent.mouseDown(assistantBody, { button: 0 });
     expect(document.body).not.toHaveAttribute("data-chat-selection-lock");
 
-    fireEvent.mouseMove(assistantBody);
+    fireEvent.mouseMove(assistantBody, { buttons: 1 });
     expect(document.body).not.toHaveAttribute("data-chat-selection-lock");
 
     container.remove();
@@ -131,7 +131,11 @@ describe("SelectionInsertButton selection lock", () => {
     const gap = container.querySelector('[data-testid="gap"]')!;
 
     fireEvent.mouseDown(assistantBody, { button: 0 });
-    fireEvent.mouseMove(gap);
+    fireEvent.mouseMove(gap, { buttons: 0 });
+
+    expect(document.body).not.toHaveAttribute("data-chat-selection-lock");
+
+    fireEvent.mouseMove(gap, { buttons: 1 });
 
     expect(document.body).toHaveAttribute("data-chat-selection-lock", "1");
 
@@ -157,7 +161,7 @@ describe("SelectionInsertButton selection lock", () => {
     const assistantRow = container.querySelector('[data-testid="assistant-row"]')!;
 
     fireEvent.mouseDown(assistantBody, { button: 0 });
-    fireEvent.mouseMove(assistantRow);
+    fireEvent.mouseMove(assistantRow, { buttons: 1 });
 
     expect(document.body).not.toHaveAttribute("data-chat-selection-lock");
 
@@ -226,7 +230,7 @@ describe("SelectionInsertButton selection lock", () => {
     fireEvent(document, new Event("selectionchange"));
     expect(selection.toString()).toBe("Answer");
 
-    fireEvent.mouseMove(gap);
+    fireEvent.mouseMove(gap, { buttons: 1 });
     selection.removeAllRanges();
     selection.addRange(invalidRange);
     fireEvent(document, new Event("selectionchange"));

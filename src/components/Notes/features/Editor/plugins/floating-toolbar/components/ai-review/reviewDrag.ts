@@ -18,11 +18,14 @@ export function bindAiReviewDrag({
   dragHandle,
   view,
 }: BindAiReviewDragParams) {
-  dragHandle.addEventListener('mousedown', (event) => {
+  let activeDragCleanup: (() => void) | null = null;
+
+  const handleMouseDown = (event: MouseEvent) => {
     if (event.button !== 0) {
       return;
     }
 
+    activeDragCleanup?.();
     event.preventDefault();
     event.stopPropagation();
 
@@ -34,6 +37,7 @@ export function bindAiReviewDrag({
     const panelHeight = container.offsetHeight;
     let pendingPosition: AiReviewDragPosition | null = null;
     let dragFrame: number | null = null;
+    let stopped = false;
 
     const getDragPosition = (clientX: number, clientY: number): AiReviewDragPosition => {
       const nextLeft = initialLeft + (clientX - startX);
@@ -81,6 +85,10 @@ export function bindAiReviewDrag({
     };
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      if ((moveEvent.buttons & 1) === 0) {
+        finishDrag();
+        return;
+      }
       const position = getDragPosition(moveEvent.clientX, moveEvent.clientY);
       applyDragPosition(position);
       pendingPosition = position;
@@ -89,14 +97,46 @@ export function bindAiReviewDrag({
       dragFrame = window.requestAnimationFrame(flushPendingDrag);
     };
 
-    const handleMouseUp = () => {
+    const removeDragListeners = () => {
       window.removeEventListener('mousemove', handleMouseMove, true);
       window.removeEventListener('mouseup', handleMouseUp, true);
-      cancelPendingDrag();
-      flushPendingDrag();
+      window.removeEventListener('blur', handleWindowBlur);
     };
 
+    const finishDrag = () => {
+      if (stopped) return;
+      stopped = true;
+      removeDragListeners();
+      cancelPendingDrag();
+      flushPendingDrag();
+      if (activeDragCleanup === cancelDrag) {
+        activeDragCleanup = null;
+      }
+    };
+
+    const cancelDrag = () => {
+      if (stopped) return;
+      stopped = true;
+      removeDragListeners();
+      cancelPendingDrag();
+      pendingPosition = null;
+      if (activeDragCleanup === cancelDrag) {
+        activeDragCleanup = null;
+      }
+    };
+
+    const handleMouseUp = () => finishDrag();
+    const handleWindowBlur = () => finishDrag();
+
+    activeDragCleanup = cancelDrag;
     window.addEventListener('mousemove', handleMouseMove, true);
     window.addEventListener('mouseup', handleMouseUp, true);
-  });
+    window.addEventListener('blur', handleWindowBlur);
+  };
+
+  dragHandle.addEventListener('mousedown', handleMouseDown);
+  return () => {
+    dragHandle.removeEventListener('mousedown', handleMouseDown);
+    activeDragCleanup?.();
+  };
 }

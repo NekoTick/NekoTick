@@ -53,7 +53,9 @@ function createStartPointerEvent(args: {
 
 function dispatchDocumentPointerEvent(args: {
   type: 'pointermove' | 'pointerup'
+  buttons?: number
   pointerId: number
+  pointerType?: string
   clientX: number
   clientY: number
 }) {
@@ -63,9 +65,17 @@ function dispatchDocumentPointerEvent(args: {
   })
 
   Object.defineProperties(event, {
+    buttons: {
+      configurable: true,
+      value: args.buttons,
+    },
     pointerId: {
       configurable: true,
       value: args.pointerId,
+    },
+    pointerType: {
+      configurable: true,
+      value: args.pointerType,
     },
     clientX: {
       configurable: true,
@@ -420,6 +430,41 @@ describe('corner create handlers', () => {
 
     expect(next.onAddRow).toHaveBeenCalledTimes(1)
     expect(next.onAddCol).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancels a corner create session on released-button mouse movement', () => {
+    const { handlers, handle, onAddRow, onAddCol } = createHarness()
+
+    handlers.startCornerCreate(
+      createStartPointerEvent({
+        currentTarget: handle,
+        pointerId: 16,
+        clientX: 340,
+        clientY: 200,
+      })
+    )
+    dispatchDocumentPointerEvent({
+      type: 'pointermove',
+      buttons: 0,
+      pointerId: 16,
+      pointerType: 'mouse',
+      clientX: 370,
+      clientY: 230,
+    })
+    dispatchDocumentPointerEvent({
+      type: 'pointermove',
+      buttons: 1,
+      pointerId: 16,
+      pointerType: 'mouse',
+      clientX: 390,
+      clientY: 250,
+    })
+
+    expect(onAddRow).not.toHaveBeenCalled()
+    expect(onAddCol).not.toHaveBeenCalled()
+    expect(
+      document.querySelector('[data-role="table-size-drag-tooltip"]')
+    ).toBeNull()
   })
 
   it('keeps adding rows while a corner drag continues through vertical scrolling', () => {

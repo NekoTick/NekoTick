@@ -152,7 +152,10 @@ export function startMarkdownBlankLineTextSelectionSession(
       stop();
       return;
     }
-    if ((moveEvent.buttons & 1) === 0) return;
+    if ((moveEvent.buttons & 1) === 0) {
+      autoScroll.stop();
+      return;
+    }
     const hasDragged = Math.hypot(
       moveEvent.clientX - startX,
       moveEvent.clientY - startY,
@@ -161,8 +164,8 @@ export function startMarkdownBlankLineTextSelectionSession(
 
     if (!moved) {
       moved = true;
-      autoScroll.start();
     }
+    autoScroll.start();
     lastPointer = { x: moveEvent.clientX, y: moveEvent.clientY };
     moveEvent.preventDefault();
     extendSelection(moveEvent.clientX, moveEvent.clientY);

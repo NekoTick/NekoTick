@@ -94,6 +94,10 @@ export function handleTextSelectionOverlayMouseMove(
 ): void {
   const { session } = context;
   if (!session.isPointerSelectionActive || !session.pointerDownPoint) return;
+  if ((event.buttons & 1) === 0) {
+    session.pointerSelectionAutoScroll.stop();
+    return;
+  }
   session.lastPointerSelectionY = event.clientY;
   if (!session.pointerMovedSinceDown) {
     const deltaX = event.clientX - session.pointerDownPoint.x;
@@ -105,11 +109,11 @@ export function handleTextSelectionOverlayMouseMove(
       session.pendingPointerClickCollapseTarget = null;
       session.setPointerNativeSelection(true);
       session.syncActiveClass();
-      session.pointerSelectionAutoScroll.start();
     }
   }
 
   if (!session.pointerMovedSinceDown) {
     return;
   }
+  session.pointerSelectionAutoScroll.start();
 }
