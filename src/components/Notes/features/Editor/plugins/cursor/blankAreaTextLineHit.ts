@@ -48,7 +48,7 @@ export function isPointInTrailingTextSelectionGutter(
   clientY: number,
   gutterPx = TRAILING_TEXT_SELECTION_GUTTER_PX,
 ): boolean {
-  if (rect.width <= 0 || rect.height <= 0) return false;
+  if (rect.width < 0 || rect.height <= 0) return false;
 
   const verticalSlack = Math.max(2, Math.min(6, rect.height * 0.2));
   const isVerticallyAligned = clientY >= rect.top - verticalSlack && clientY <= rect.bottom + verticalSlack;

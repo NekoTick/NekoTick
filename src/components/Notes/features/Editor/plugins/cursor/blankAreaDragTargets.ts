@@ -29,6 +29,7 @@ import {
   isPointInSameEditorLayoutBlankArea,
 } from './blankAreaExternalTargets';
 import { resolveTaskCheckboxTarget } from '../task-list/taskCheckboxHitArea';
+import { EDITABLE_MARKDOWN_BLANK_LINE_CLASS } from './markdownBlankLineShared';
 
 const pointerEventTextLineHits = new WeakMap<MouseEvent, {
   editor: HTMLElement;
@@ -204,6 +205,7 @@ function isNativeEditableEmptyTextBlockTarget(view: EditorView, target: HTMLElem
   const textBlock = target.closest(TEXT_BLOCK_SURFACE_SELECTOR);
   if (!(textBlock instanceof HTMLElement) || !view.dom.contains(textBlock)) return false;
   if (textBlock.matches(MARKDOWN_BLANK_LINE_SELECTOR)) return false;
+  if (textBlock.classList.contains(EDITABLE_MARKDOWN_BLANK_LINE_CLASS)) return false;
 
   const structuredBlock = target.closest(STRUCTURED_BLOCK_SELECTOR);
   if (structuredBlock && structuredBlock !== textBlock) return false;

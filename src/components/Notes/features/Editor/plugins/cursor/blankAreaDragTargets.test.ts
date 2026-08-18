@@ -98,6 +98,17 @@ describe('blankAreaDragTargets', () => {
     expect(isPointInTrailingTextSelectionGutter(lineRect, 210, 50)).toBe(false);
     expect(isPointInTrailingTextSelectionGutter(lineRect, 310, 50)).toBe(false);
     expect(isPointInTrailingTextSelectionGutter(lineRect, 250, 90)).toBe(false);
+
+    const emptyLineCaretRect = {
+      left: 100,
+      right: 100,
+      top: 40,
+      bottom: 60,
+      width: 0,
+      height: 20,
+    };
+    expect(isPointInTrailingTextSelectionGutter(emptyLineCaretRect, 132, 50)).toBe(true);
+    expect(isPointInTrailingTextSelectionGutter(emptyLineCaretRect, 150, 50)).toBe(false);
   });
 
   it('reuses text-line geometry for the same pointer event', () => {
@@ -830,6 +841,31 @@ describe('blankAreaDragTargets', () => {
     try {
       expect(resolveBlankAreaDragStartZone(view, createMouseDown(paragraph))).toBeNull();
     } finally {
+      cleanup();
+    }
+  });
+
+  it('routes only the trailing text gutter of editable markdown blank lines to text selection', () => {
+    const { view, cleanup } = createView();
+    const paragraph = document.createElement('p');
+    paragraph.className = 'editor-editable-markdown-blank-line';
+    paragraph.textContent = '\u200B';
+    view.dom.append(paragraph);
+    const rangeRects = vi.spyOn(Range.prototype, 'getClientRects').mockReturnValue(
+      rectList(rect(40, 60, 100, 100)),
+    );
+
+    try {
+      expect(resolveBlankAreaDragStartZone(
+        view,
+        createMouseDown(paragraph, { clientX: 132, clientY: 50 }),
+      )).toBeNull();
+      expect(resolveBlankAreaDragStartZone(
+        view,
+        createMouseDown(paragraph, { clientX: 200, clientY: 50 }),
+      )).toBe('outside-editor');
+    } finally {
+      rangeRects.mockRestore();
       cleanup();
     }
   });

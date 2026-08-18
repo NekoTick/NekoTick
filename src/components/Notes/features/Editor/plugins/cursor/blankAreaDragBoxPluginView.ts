@@ -18,7 +18,10 @@ import {
 import { createBlockSelectionLineFillOverlay } from './blockSelectionLineFillOverlay';
 import { createLargeBlockSelectionPreviewOverlay } from './blockSelectionLargePreviewOverlay';
 import { handleListGapPlaceholderPointerDown } from './listGapPlaceholder';
-import { handleMarkdownBlankLinePointerDown } from './markdownBlankLineInteraction';
+import {
+  handleMarkdownBlankLinePointerDown,
+  stopMarkdownBlankLineTextSelectionSession,
+} from './markdownBlankLineInteraction';
 import { clearForcedCaretForOwner } from './forcedLineEdgeCaret';
 import {
   focusEmptyUntitledDraftTitleFromBlankAreaClick,
@@ -189,6 +192,7 @@ export function createBlankAreaDragBoxPluginView(
       options.clearSession();
       options.clearInsideBlockTrailingPlainClickSession();
       options.clearUnclaimedBlankPlainClickSession();
+      stopMarkdownBlankLineTextSelectionSession(view);
       setBlockSelectionVisualState(view, false, false);
       setBlockSelectionEnabled(view, false);
     },

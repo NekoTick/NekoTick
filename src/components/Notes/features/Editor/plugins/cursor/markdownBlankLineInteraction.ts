@@ -26,6 +26,7 @@ export {
   resolveMarkdownBlankLineNodePos,
   resolveMarkdownBlankLineTargetAtCoords,
 } from './markdownBlankLinePointer';
+export { stopMarkdownBlankLineTextSelectionSession } from './markdownBlankLineTextSelectionSession';
 export {
   createEditableMarkdownBlankLineDecorations,
   handleMarkdownBlankLineTextInput,
