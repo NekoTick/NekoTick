@@ -63,6 +63,9 @@ pnpm install
 pnpm dev
 ```
 
+## Project Status
+![Alt](https://repobeats.axiom.co/api/embed/2aba3d4776f4f8a2f60a89e56c09cc1fa624bb03.svg "Repobeats analytics image")
+
 
 ## ✨Acknowledgements
 
@@ -79,7 +82,7 @@ With special appreciation to **湾中WanZhong** for the beautiful icon design.
 <div align="center">
 
 Copyright © 2026 - **vlaina**\
-By vladelaina\
+By [vladelaina](https://github.com/vladelaina)\
 Made with ❤️ & ⌨️
 
 </div>
