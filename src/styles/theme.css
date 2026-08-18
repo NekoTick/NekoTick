@@ -508,7 +508,7 @@
   --vlaina-markdown-color-code-deletion-bg: var(--vlaina-code-syntax-deletion-bg);
   --vlaina-markdown-color-selection: #bedffe;
   --vlaina-markdown-color-selection-layer: var(--vlaina-markdown-color-selection);
-  --vlaina-markdown-color-task-border: var(--vlaina-markdown-color-text-subtle);
+  --vlaina-markdown-color-task-border: #54aeff;
   --vlaina-markdown-color-task-checked-bg: var(--vlaina-markdown-color-link);
   --vlaina-markdown-color-task-checked-text: var(--vlaina-markdown-color-text-subtle);
   --vlaina-markdown-color-highlight-bg: var(--vlaina-color-mark-highlight-surface-bg);
