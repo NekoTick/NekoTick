@@ -366,9 +366,8 @@
   background-repeat: no-repeat;
 }
 
-/* Checked text style - strikethrough */
+/* Checked text style */
 .milkdown li[data-item-type="task"][data-checked="true"]>p {
-  text-decoration: line-through;
   color: var(--vlaina-markdown-color-task-checked-text);
 }
 
