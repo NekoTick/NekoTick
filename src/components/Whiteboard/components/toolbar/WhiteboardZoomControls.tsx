@@ -1,4 +1,4 @@
-import { memo, type WheelEvent } from 'react';
+import { memo, useLayoutEffect, useRef, useState, type WheelEvent } from 'react';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
@@ -25,6 +25,32 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
   onZoomChange,
 }: WhiteboardZoomControlsProps) {
   const { t } = useI18n();
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const [avoidMainToolbar, setAvoidMainToolbar] = useState(false);
+
+  useLayoutEffect(() => {
+    const controls = controlsRef.current;
+    const whiteboard = controls?.closest('[data-whiteboard-active]');
+    const toolbar = whiteboard?.querySelector<HTMLElement>('[data-whiteboard-main-toolbar="true"]');
+    if (!controls || !toolbar) return undefined;
+
+    const updatePosition = () => {
+      const controlsRect = controls.getBoundingClientRect();
+      const toolbarRect = toolbar.getBoundingClientRect();
+      setAvoidMainToolbar(controlsRect.right > toolbarRect.left && controlsRect.left < toolbarRect.right);
+    };
+    updatePosition();
+
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePosition);
+    observer?.observe(controls);
+    observer?.observe(toolbar);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [active]);
+
   if (!active) return null;
 
   const handleZoomWheel = (event: WheelEvent<HTMLButtonElement>) => {
@@ -36,8 +62,12 @@ export const WhiteboardZoomControls = memo(function WhiteboardZoomControls({
 
   return (
     <div
+      ref={controlsRef}
       data-whiteboard-zoom-controls="true"
-      className="app-no-drag pointer-events-auto absolute bottom-4 left-3 z-[var(--vlaina-z-50)]"
+      className={cn(
+        'app-no-drag pointer-events-auto absolute left-3 z-[var(--vlaina-z-50)]',
+        avoidMainToolbar ? 'bottom-[var(--vlaina-space-96px)]' : 'bottom-4',
+      )}
     >
       <WhiteboardToolbarGroup
         className={cn(
