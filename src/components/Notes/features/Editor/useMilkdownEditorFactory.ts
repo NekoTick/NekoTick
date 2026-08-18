@@ -6,6 +6,7 @@ import {
   defaultValueCtx,
   prosePluginsCtx,
   remarkStringifyOptionsCtx,
+  virtualizedBlockHeightEstimatorCtx,
   virtualizeEditorViewCtx,
 } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
@@ -30,6 +31,7 @@ import { logE2EMilkdownTiming } from './milkdownE2ETiming';
 import type { ActiveMilkdownEditor, MilkdownDefaultValue } from './MilkdownEditorInnerTypes';
 import type { MilkdownContext } from './hooks/pendingMarkdownAutosaveTypes';
 import { EDITOR_HISTORY_CONFIG } from './editorHistoryPolicy';
+import { estimateNativeVirtualizedBlockHeight } from './virtualizedBlockHeight';
 
 export function useMilkdownEditorFactory(args: {
   activateEditor: (editor: ActiveMilkdownEditor) => void;
@@ -109,6 +111,7 @@ export function useMilkdownEditorFactory(args: {
         ctx.set(rootCtx, root);
         ctx.set(defaultValueCtx, defaultValue as never);
         ctx.set(virtualizeEditorViewCtx, shouldUseVirtualizedEditorView(defaultMarkdown));
+        ctx.set(virtualizedBlockHeightEstimatorCtx, estimateNativeVirtualizedBlockHeight);
         ctx.update(remarkStringifyOptionsCtx, (prev) => ({
           ...prev,
           ...notesRemarkStringifyOptions,

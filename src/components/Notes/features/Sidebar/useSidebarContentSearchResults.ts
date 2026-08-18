@@ -105,6 +105,9 @@ export function useSidebarContentSearchResults({
         ? liveNoteContent.content
         : noteContentsCache.get(path)?.content,
       structuralSearchResults,
+      (path) => liveNoteContent?.path === path
+        ? liveNoteContent
+        : noteContentsCache.get(path),
     );
     return {
       session,

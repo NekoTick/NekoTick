@@ -155,12 +155,14 @@ export function queryNotesSidebarSearch(
   query: string,
   getNoteContent?: (path: string) => string | undefined,
   structuralResults = queryNotesSidebarStructuralSearch(index, query),
+  getNoteContentIdentity?: (path: string) => object | undefined,
 ): NotesSidebarSearchResult[] {
   const session = createNotesSidebarSearchSession(
     index,
     query,
     getNoteContent,
     structuralResults,
+    getNoteContentIdentity,
   );
   let result = session.runBatch(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
   while (!result.done) {
@@ -174,6 +176,7 @@ export function createNotesSidebarSearchSession(
   query: string,
   getNoteContent?: (path: string) => string | undefined,
   structuralResults = queryNotesSidebarStructuralSearch(index, query),
+  getNoteContentIdentity?: (path: string) => object | undefined,
 ) {
   const trimmedQuery = getBoundedTrimmedSearchQuery(query);
   const boundedStructuralResults = trimmedQuery
@@ -221,7 +224,11 @@ export function createNotesSidebarSearchSession(
         searchedContentChars += scannedChars;
         batchContentChars += scannedChars;
 
-        for (const contentMatch of getNotesSidebarContentMatches(content, lowerQuery)) {
+        for (const contentMatch of getNotesSidebarContentMatches(
+          content,
+          lowerQuery,
+          getNoteContentIdentity?.(entry.path),
+        )) {
           contentResults.push({
             ...entry,
             id: `${entry.path}::content::${contentMatch.ordinal}`,

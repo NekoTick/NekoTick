@@ -129,6 +129,22 @@ interface ContentSearchLine {
   text: string;
 }
 
+interface PreparedContentSearchLine {
+  lowerContent: string;
+  normalizedContent: string;
+}
+
+export interface PreparedNotesSidebarContentSearch {
+  content: string;
+  lines?: PreparedContentSearchLine[];
+  lowerContent?: string;
+}
+
+const preparedContentSearchByIdentity = new WeakMap<
+  object,
+  PreparedNotesSidebarContentSearch
+>();
+
 function* iterateLines(content: string): Iterable<ContentSearchLine> {
   let start = 0;
   for (let index = 0; index < content.length; index += 1) {
@@ -175,22 +191,20 @@ function isLineInRange(line: ContentSearchLine, range: ContentRange | undefined)
   return range.start < lineEnd && range.end > line.start;
 }
 
-export function getNotesSidebarContentMatches(
-  content: string | undefined,
-  lowerQuery: string,
-): NotesSidebarContentMatch[] {
-  if (!content || !lowerQuery) {
-    return [];
+function normalizeSearchText(value: string): string {
+  let text = '';
+  for (const source of value) {
+    text += source.toLocaleLowerCase();
   }
-  if (!content.includes('&') && !content.toLocaleLowerCase().includes(lowerQuery)) {
-    return [];
-  }
+  return text;
+}
 
-  const matches: NotesSidebarContentMatch[] = [];
+function prepareContentSearchLines(content: string): PreparedContentSearchLine[] {
+  const lines: PreparedContentSearchLine[] = [];
   const skippedRanges = getSkippedRangesForContentSearch(content);
   let skippedRangeIndex = 0;
-  let ordinal = 0;
   let scannedChars = 0;
+
   for (const line of iterateLines(content)) {
     if (scannedChars >= MAX_CONTENT_SEARCH_SCANNED_CHARS) {
       break;
@@ -201,27 +215,62 @@ export function getNotesSidebarContentMatches(
     if (rawLine.length > MAX_CONTENT_SEARCH_LINE_CHARS) {
       continue;
     }
-    skippedRangeIndex = advanceRangeIndex(
-      skippedRanges,
-      line.start,
-      skippedRangeIndex,
-    );
+    skippedRangeIndex = advanceRangeIndex(skippedRanges, line.start, skippedRangeIndex);
     if (isLineInRange(line, skippedRanges[skippedRangeIndex])) {
       continue;
     }
 
-    const plainLine = toPlainTextLine(rawLine);
-    if (!plainLine) {
-      continue;
-    }
-
-    const normalizedContent = normalizeContentForSearch(plainLine);
+    const normalizedContent = normalizeContentForSearch(toPlainTextLine(rawLine));
     if (!normalizedContent) {
       continue;
     }
+    lines.push({
+      lowerContent: normalizeSearchText(normalizedContent),
+      normalizedContent,
+    });
+  }
 
-    const normalizedSearchContent = normalizeSearchTextWithOffsets(normalizedContent);
-    const lowerContent = normalizedSearchContent.text;
+  return lines;
+}
+
+export function prepareNotesSidebarContentSearch(
+  content: string,
+  contentIdentity?: object,
+): PreparedNotesSidebarContentSearch {
+  if (!contentIdentity) {
+    return { content };
+  }
+
+  const cached = preparedContentSearchByIdentity.get(contentIdentity);
+  if (cached?.content === content) {
+    return cached;
+  }
+
+  const prepared = { content };
+  preparedContentSearchByIdentity.set(contentIdentity, prepared);
+  return prepared;
+}
+
+export function getNotesSidebarContentMatches(
+  content: string | undefined,
+  lowerQuery: string,
+  contentIdentity?: object,
+): NotesSidebarContentMatch[] {
+  if (!content || !lowerQuery) {
+    return [];
+  }
+  const prepared = prepareNotesSidebarContentSearch(content, contentIdentity);
+  prepared.lowerContent ??= content.toLocaleLowerCase();
+  if (!content.includes('&') && !prepared.lowerContent.includes(lowerQuery)) {
+    return [];
+  }
+
+  const matches: NotesSidebarContentMatch[] = [];
+  prepared.lines ??= prepareContentSearchLines(content);
+  let ordinal = 0;
+  for (const line of prepared.lines) {
+    const { lowerContent, normalizedContent } = line;
+    let normalizedSearchContent: ReturnType<typeof normalizeSearchTextWithOffsets> | null = null;
     let searchFrom = 0;
 
     while (searchFrom <= lowerContent.length - lowerQuery.length) {
@@ -230,6 +279,7 @@ export function getNotesSidebarContentMatches(
         break;
       }
 
+      normalizedSearchContent ??= normalizeSearchTextWithOffsets(normalizedContent);
       const sourceMatchIndex = normalizedSearchContent.startOffsets[matchIndex] ?? matchIndex;
       const sourceMatchEnd = normalizedSearchContent.endOffsets[matchIndex + lowerQuery.length] ?? normalizedContent.length;
       const start = Math.max(0, sourceMatchIndex - CONTENT_SNIPPET_RADIUS);

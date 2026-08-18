@@ -1,11 +1,14 @@
 import { themeWhiteboardTokens } from '@/styles/themeTokens';
 import type { WhiteboardElement, WhiteboardPoint } from '@/components/Whiteboard/model/core/whiteboardModel';
+import { getGraphemeOffsets } from '@/lib/text-segmentation';
 
 export interface WhiteboardTextMetrics {
   height: number;
   lines: string[];
   width: number;
 }
+
+let measurementContext: CanvasRenderingContext2D | null | undefined;
 
 export function createWhiteboardTextElement(
   point: WhiteboardPoint,
@@ -86,11 +89,13 @@ export function loadWhiteboardTextFonts(
 
 function getMeasurementContext(fontSize: number): CanvasRenderingContext2D | null {
   if (typeof document === 'undefined') return null;
-  const context = document.createElement('canvas').getContext('2d');
-  if (context) {
-    context.font = `${fontSize}px ${themeWhiteboardTokens.whiteboardTextFontFamily}`;
+  if (measurementContext === undefined) {
+    measurementContext = document.createElement('canvas').getContext('2d');
   }
-  return context;
+  if (measurementContext) {
+    measurementContext.font = `${fontSize}px ${themeWhiteboardTokens.whiteboardTextFontFamily}`;
+  }
+  return measurementContext;
 }
 
 function getWhiteboardTextLocalPoint(element: WhiteboardElement, point: WhiteboardPoint): WhiteboardPoint {
@@ -187,16 +192,7 @@ function getClosestCaretOffset(offsets: number[], positions: number[], targetX: 
 }
 
 function getCaretOffsets(text: string): number[] {
-  if (typeof Intl.Segmenter === 'function') {
-    const offsets = [0];
-    for (const segment of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
-      offsets.push(segment.index + segment.segment.length);
-    }
-    return offsets;
-  }
-  const offsets = [0];
-  for (const character of Array.from(text)) offsets.push(offsets.at(-1)! + character.length);
-  return offsets;
+  return getGraphemeOffsets(text);
 }
 
 function getWhiteboardTextDirection(text: string): 'ltr' | 'rtl' {

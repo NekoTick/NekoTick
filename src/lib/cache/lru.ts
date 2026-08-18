@@ -1,4 +1,7 @@
-export function touchCacheEntry<Value>(cache: Map<string, Value>, key: string): Value | undefined {
+export function touchCacheEntry<Key, Value>(
+  cache: Map<Key, Value>,
+  key: Key,
+): Value | undefined {
   const cached = cache.get(key);
   if (cached === undefined) {
     return undefined;
@@ -9,9 +12,9 @@ export function touchCacheEntry<Value>(cache: Map<string, Value>, key: string): 
   return cached;
 }
 
-export function setCacheEntry<Value>(
-  cache: Map<string, Value>,
-  key: string,
+export function setCacheEntry<Key, Value>(
+  cache: Map<Key, Value>,
+  key: Key,
   value: Value,
   limit: number,
 ): void {

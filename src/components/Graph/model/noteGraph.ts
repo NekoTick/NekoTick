@@ -1,7 +1,7 @@
 import { stripSupportedMarkdownExtension } from '@/lib/notes/markdownFile';
 import { getNoteTitleFromPath } from '@/lib/notes/displayName';
+import { getNoteGraphLinkReferences } from '@/lib/notes/noteTextAnalysis';
 import type { FileTreeNode, NoteContentCacheEntry } from '@/stores/notes/types';
-import { getGraphLinkReferences } from './graphLinkReferences';
 import { collectNotePaths } from './graphNotePaths';
 import { buildVisibleNoteGraph } from './graphNoteVisibility';
 
@@ -186,7 +186,7 @@ export function buildNoteGraph(
       const entry = noteContentsCache.get(source);
       if (!entry) continue;
 
-      for (const rawTarget of getGraphLinkReferences(entry)) {
+      for (const rawTarget of getNoteGraphLinkReferences(entry, entry.content)) {
         const target = resolveTargetForPath(source, rawTarget);
         if (!target || target === source || !candidatePathSet.has(target)) continue;
         const [left, right] = source < target ? [source, target] : [target, source];

@@ -640,3 +640,19 @@
   padding: var(--vlaina-space-0375rem) var(--vlaina-space-0625rem);
   font-size: var(--vlaina-font-0875rem);
 }
+
+[data-notes-split-preview-content='true'] > :is(
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  blockquote,
+  ul,
+  ol
+) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--vlaina-height-block-intrinsic);
+}

@@ -20,9 +20,14 @@ import {
   createVirtualizedEditorViewPlugin,
   createVirtualizedNodeViews,
   destroyVirtualizedViewController,
+  type VirtualizedBlockHeightEstimator,
 } from './virtualized-editor-view'
 
 export { materializeVirtualizedBlockAtPos } from './virtualized-editor-view'
+export type {
+  VirtualizedBlockHeightEstimator,
+  VirtualizedBlockTextMetrics,
+} from './virtualized-editor-view'
 
 type EditorOptions = Omit<DirectEditorProps, 'state'>
 
@@ -62,6 +67,12 @@ export const rootAttrsCtx = createSlice(
 /// Whether large documents should progressively materialize top-level block DOM.
 export const virtualizeEditorViewCtx = createSlice(false, 'virtualizeEditorView')
 
+/// An optional estimator for virtualized top-level block placeholder heights.
+export const virtualizedBlockHeightEstimatorCtx = createSlice(
+  null as VirtualizedBlockHeightEstimator | null,
+  'virtualizedBlockHeightEstimator'
+)
+
 function createViewContainer(root: Node, ctx: Ctx) {
   const container = document.createElement('div')
   container.className = 'milkdown'
@@ -95,6 +106,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
     .inject(rootDOMCtx, null as unknown as HTMLElement)
     .inject(rootAttrsCtx, {})
     .inject(virtualizeEditorViewCtx, false)
+    .inject(virtualizedBlockHeightEstimatorCtx, null)
     .inject(editorViewTimerCtx, [EditorStateReady, PasteRulesReady])
     .record(EditorViewReady)
 
@@ -105,6 +117,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
     const el = typeof root === 'string' ? document.querySelector(root) : root
 
     const virtualize = ctx.get(virtualizeEditorViewCtx)
+    const estimateVirtualizedBlockHeight = ctx.get(virtualizedBlockHeightEstimatorCtx)
     ctx.update(prosePluginsCtx, (xs) => [
       new Plugin({
         key,
@@ -143,7 +156,8 @@ export const editorView: MilkdownPlugin = (ctx) => {
       ? createVirtualizedNodeViews(
           state,
           options.nodeViews ?? baseNodeViews,
-          el
+          el,
+          estimateVirtualizedBlockHeight
         )
       : baseNodeViews
     const appliedOptions = virtualize ? { ...options, nodeViews } : options
@@ -178,6 +192,7 @@ export const editorView: MilkdownPlugin = (ctx) => {
         .remove(rootDOMCtx)
         .remove(rootAttrsCtx)
         .remove(virtualizeEditorViewCtx)
+        .remove(virtualizedBlockHeightEstimatorCtx)
         .remove(editorViewTimerCtx)
         .clearTimer(EditorViewReady)
     }

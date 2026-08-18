@@ -1,4 +1,5 @@
 import { themeGraphTokens } from '@/styles/themeTokens';
+import { iterateGraphemes } from '@/lib/text-segmentation';
 import { getGraphLabelWidth, getGraphNodeVisualRadius } from './graphLabelMetrics';
 import type { PositionedGraphNode } from './graphLayout';
 
@@ -12,12 +13,8 @@ export interface GraphLabelPlacement {
 export function truncateGraphLabel(label: string, maximumWidth: number): string {
   if (getGraphLabelWidth(label) <= maximumWidth) return label;
   const suffix = '\u2026';
-  const segments = typeof Intl.Segmenter === 'function'
-    ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(label)]
-      .map((part) => part.segment)
-    : Array.from(label);
   let text = '';
-  for (const segment of segments) {
+  for (const segment of iterateGraphemes(label)) {
     if (getGraphLabelWidth(`${text}${segment}${suffix}`) > maximumWidth) break;
     text += segment;
   }

@@ -28,8 +28,8 @@ import {
 } from './globalSearchResults';
 import {
   prepareGlobalChatSearch,
+  prepareGlobalWhiteboardSearch,
   sortDefaultGlobalGraphNodes,
-  sortGlobalWhiteboards,
 } from './globalSearchSources';
 
 interface GlobalSearchDialogProps {
@@ -103,13 +103,13 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   );
   const chatSearch = useMemo(() => prepareGlobalChatSearch(sessions), [sessions]);
   const defaultGraphNodes = useMemo(() => sortDefaultGlobalGraphNodes(graphNodes), [graphNodes]);
-  const sortedWhiteboards = useMemo(() => sortGlobalWhiteboards(boards), [boards]);
+  const preparedWhiteboards = useMemo(() => prepareGlobalWhiteboardSearch(boards), [boards]);
   const searchSources = useMemo(() => ({
     ...chatSearch,
     defaultGraphNodes,
     graphNodes,
-    whiteboards: sortedWhiteboards,
-  }), [chatSearch, defaultGraphNodes, graphNodes, sortedWhiteboards]);
+    whiteboards: preparedWhiteboards,
+  }), [chatSearch, defaultGraphNodes, graphNodes, preparedWhiteboards]);
   const noteResults = deferredQuery.trim() ? noteSearchResults : defaultNoteResults;
   const groups = useMemo(() => buildGlobalSearchGroups({
     appViewMode,

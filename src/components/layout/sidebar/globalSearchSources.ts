@@ -12,7 +12,12 @@ export interface GlobalSearchSources {
   chatSessions: ChatSession[];
   defaultGraphNodes: NoteGraphNode[];
   graphNodes: NoteGraphNode[];
-  whiteboards: WhiteboardIndexEntry[];
+  whiteboards: GlobalWhiteboardSearchEntry[];
+}
+
+export interface GlobalWhiteboardSearchEntry {
+  board: WhiteboardIndexEntry;
+  searchText: string;
 }
 
 export function prepareGlobalChatSearch(sessions: ChatSession[]) {
@@ -31,6 +36,11 @@ export function sortDefaultGlobalGraphNodes(graphNodes: NoteGraphNode[]) {
   ));
 }
 
-export function sortGlobalWhiteboards(boards: WhiteboardIndexEntry[]) {
-  return [...boards].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+export function prepareGlobalWhiteboardSearch(boards: WhiteboardIndexEntry[]) {
+  return [...boards]
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .map((board) => ({
+      board,
+      searchText: board.title.toLocaleLowerCase(),
+    }));
 }

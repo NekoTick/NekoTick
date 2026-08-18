@@ -2,6 +2,7 @@ import {
   measureTextLineCount,
   measureTextWrapStats,
 } from '@/lib/text-layout';
+import { setCacheEntry, touchCacheEntry } from '@/lib/cache/lru';
 import {
   MARKDOWN_BODY_FONT_SIZE,
   MARKDOWN_BODY_FONT,
@@ -15,19 +16,6 @@ const USER_BUBBLE_MAX_RATIO = 0.9;
 const USER_BUBBLE_PADDING_X = 32;
 const widthCache = new Map<string, number>();
 const WIDTH_CACHE_LIMIT = 800;
-
-function setWidthCacheEntry(key: string, width: number): void {
-  if (widthCache.has(key)) {
-    widthCache.delete(key);
-  } else if (widthCache.size >= WIDTH_CACHE_LIMIT) {
-    const oldestKey = widthCache.keys().next().value;
-    if (oldestKey !== undefined) {
-      widthCache.delete(oldestKey);
-    }
-  }
-
-  widthCache.set(key, width);
-}
 
 export function resolveUserMessageBubbleWidth(
   text: string,
@@ -53,10 +41,8 @@ export function resolveUserMessageBubbleWidth(
     return maxBubbleWidth;
   }
   const cacheKey = `${normalizedWidth}\u0000${bodyFont}\u0000${text}`;
-  const cachedWidth = widthCache.get(cacheKey);
+  const cachedWidth = touchCacheEntry(widthCache, cacheKey);
   if (cachedWidth !== undefined) {
-    widthCache.delete(cacheKey);
-    widthCache.set(cacheKey, cachedWidth);
     return cachedWidth;
   }
 
@@ -88,6 +74,6 @@ export function resolveUserMessageBubbleWidth(
 
   const tightMetrics = measureTextWrapStats(text, low, measurementOptions);
   const width = Math.min(maxBubbleWidth, Math.ceil(tightMetrics.maxLineWidth) + USER_BUBBLE_PADDING_X);
-  setWidthCacheEntry(cacheKey, width);
+  setCacheEntry(widthCache, cacheKey, width, WIDTH_CACHE_LIMIT);
   return width;
 }

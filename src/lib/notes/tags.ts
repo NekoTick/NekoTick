@@ -39,8 +39,10 @@ function addTokenPrefixes(prefixCounts: Map<string, number>, normalizedToken: st
   }
 }
 
-export function extractNoteTagOccurrences(content: string): NoteTagOccurrence[] {
-  const excludedRanges = getNoteMarkdownExcludedRanges(content);
+export function extractNoteTagOccurrences(
+  content: string,
+  excludedRanges = getNoteMarkdownExcludedRanges(content),
+): NoteTagOccurrence[] {
   const occurrences: NoteTagOccurrence[] = [];
   const tokenPrefixCounts = new Map<string, number>();
   let excludedRangeCursor = 0;

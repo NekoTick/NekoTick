@@ -15,7 +15,7 @@ import {
   MARKDOWN_LIST_ITEM_MARGIN_Y,
   MARKDOWN_LIST_MARGIN_Y,
 } from '@/components/common/markdown/markdownMetrics';
-import { setCacheEntry, touchCacheEntry } from './chatLayoutCache';
+import { setCacheEntry, touchCacheEntry } from '@/lib/cache/lru';
 import { stripChatMessageImageTokens } from '@/lib/ai/chatImageSourcePolicy';
 import {
   collectMarkdownSectionLines,

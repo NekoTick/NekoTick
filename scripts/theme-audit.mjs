@@ -78,6 +78,8 @@ function collectUndefinedThemeReferences() {
   const defined = collectDefinedCssVariables();
   const runtimeProtocolVars = new Set([
     '--vlaina-bg-color-mark-bg',
+    '--vlaina-editor-virtual-block-height',
+    '--vlaina-editor-virtual-block-lines',
     '--vlaina-hero-icon-header-size',
     '--vlaina-imported-app-background',
     '--vlaina-imported-app-background-attachment',

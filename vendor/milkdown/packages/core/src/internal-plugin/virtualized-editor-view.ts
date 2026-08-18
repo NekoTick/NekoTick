@@ -12,7 +12,15 @@ import { Decoration, DecorationSet } from '@milkdown/prose/view'
 import {
   destroyVirtualizedViewController,
   getVirtualizedViewController,
+  type VirtualizedBlockTextMetrics,
 } from './virtualized-editor-view-controller'
+
+export type { VirtualizedBlockTextMetrics } from './virtualized-editor-view-controller'
+
+export type VirtualizedBlockHeightEstimator = (
+  node: ProseNode,
+  metrics: VirtualizedBlockTextMetrics
+) => number | null | undefined
 
 const INITIAL_RENDERED_BLOCKS = 40
 const MIN_VIRTUALIZED_BLOCKS = 200
@@ -185,7 +193,8 @@ function createPlaceholderNodeView(
   node: ProseNode,
   view: EditorView,
   getPos: () => number | undefined,
-  placementRoot: Node | null
+  placementRoot: Node | null,
+  estimateHeight: VirtualizedBlockHeightEstimator | null
 ): NodeView {
   const dom = view.dom.ownerDocument.createElement('div')
   let currentNode = node
@@ -194,11 +203,24 @@ function createPlaceholderNodeView(
   dom.dataset.editorVirtualNodeType = node.type.name
   const controller = getVirtualizedViewController(view, placementRoot, showBlocks)
 
-  const sync = () => {
+  const sync = (metrics: VirtualizedBlockTextMetrics | null = null) => {
     dom.style.setProperty('--vlaina-editor-virtual-block-lines', String(estimateBlockLines(currentNode)))
+    let estimatedHeight: number | null | undefined
+    if (estimateHeight && metrics) {
+      try {
+        estimatedHeight = estimateHeight(currentNode, metrics)
+      } catch {
+        estimatedHeight = null
+      }
+    }
+    if (estimatedHeight && Number.isFinite(estimatedHeight) && estimatedHeight > 0) {
+      dom.style.setProperty('--vlaina-editor-virtual-block-height', `${Math.ceil(estimatedHeight)}px`)
+    } else {
+      dom.style.removeProperty('--vlaina-editor-virtual-block-height')
+    }
   }
   sync()
-  const unobserve = controller.observe({ element: dom, getPos })
+  const unobserve = controller.observe({ element: dom, getPos, refresh: sync })
 
   return {
     dom,
@@ -210,6 +232,7 @@ function createPlaceholderNodeView(
       if (pos === undefined || state?.visible.has(pos) || nextNode.type !== currentNode.type) return false
       currentNode = nextNode
       sync()
+      controller.requestRefresh(dom)
       return true
     },
   }
@@ -224,7 +247,8 @@ function isTopLevelPosition(view: EditorView, getPos: () => number | undefined):
 export function createVirtualizedNodeViews(
   state: EditorState,
   directNodeViews: Record<string, NodeViewConstructor>,
-  placementRoot: Node | null
+  placementRoot: Node | null,
+  estimateHeight: VirtualizedBlockHeightEstimator | null = null
 ): Record<string, NodeViewConstructor> {
   const baseNodeViews = { ...directNodeViews }
   for (const plugin of state.plugins) {
@@ -246,7 +270,7 @@ export function createVirtualizedNodeViews(
       if (pos !== undefined && state.visible.has(pos)) {
         return base?.(node, view, getPos, decorations, innerDecorations)
       }
-      return createPlaceholderNodeView(node, view, getPos, placementRoot)
+      return createPlaceholderNodeView(node, view, getPos, placementRoot, estimateHeight)
     }) as NodeViewConstructor
     return [name, nodeView]
   }))

@@ -35,9 +35,11 @@ function createDocument(schema: Schema, count: number): ProseNode {
 
 describe('virtualized editor view', () => {
   const originalIntersectionObserver = window.IntersectionObserver
+  const originalResizeObserver = window.ResizeObserver
 
   afterEach(() => {
     window.IntersectionObserver = originalIntersectionObserver
+    window.ResizeObserver = originalResizeObserver
     document.body.replaceChildren()
   })
 
@@ -142,6 +144,56 @@ describe('virtualized editor view', () => {
     expect(view.dom.lastElementChild).toBeInstanceOf(HTMLParagraphElement)
     expect(view.state.selection.eq(selectionBefore)).toBe(true)
     expect(materializeVirtualizedBlockAtPos(view, blockPos)).toBe(false)
+    view.destroy()
+  })
+
+  test('refreshes estimated placeholder heights when the editor width changes', async () => {
+    let resizeCallback: ResizeObserverCallback | undefined
+    class MockIntersectionObserver {
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    }
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback
+      }
+
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    }
+    window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+    window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+
+    const schema = createSchema()
+    const state = EditorState.create({
+      schema,
+      doc: createDocument(schema, 200),
+      plugins: [createVirtualizedEditorViewPlugin(true)],
+    })
+    const widths = [320, 160]
+    const estimateHeight = (_node: ProseNode, metrics: { availableWidth: number }) =>
+      metrics.availableWidth / 2
+    const view = new EditorView(document.body, {
+      state,
+      nodeViews: createVirtualizedNodeViews(state, {}, document.body, estimateHeight),
+    })
+    view.dom.style.fontSize = '16px'
+    view.dom.style.lineHeight = '24px'
+    Object.defineProperty(view.dom, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ width: widths[0] }),
+    })
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const placeholder = view.dom.querySelector<HTMLElement>('.editor-virtual-block-placeholder')
+    expect(placeholder?.style.getPropertyValue('--vlaina-editor-virtual-block-height')).toBe('160px')
+
+    widths[0] = 160
+    resizeCallback?.([], {} as ResizeObserver)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    expect(placeholder?.style.getPropertyValue('--vlaina-editor-virtual-block-height')).toBe('80px')
     view.destroy()
   })
 

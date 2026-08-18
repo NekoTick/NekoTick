@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@/lib/ai/types';
+import { setCacheEntry } from '@/lib/cache/lru';
 import { estimateChatMessageHeight } from './chatMessageLayout';
 import { normalizeChatContainerWidth } from './chatWidthBuckets';
 import {
@@ -69,38 +70,6 @@ function countLineBreaks(value: string): number {
     }
   }
   return count;
-}
-
-function setEstimatedFrameLayoutCacheEntry(
-  key: string,
-  entry: CachedFrameLayoutEntry,
-): void {
-  if (estimatedFrameLayoutCache.has(key)) {
-    estimatedFrameLayoutCache.delete(key);
-  } else if (estimatedFrameLayoutCache.size >= FRAME_LAYOUT_CACHE_LIMIT) {
-    const oldestKey = estimatedFrameLayoutCache.keys().next().value;
-    if (oldestKey !== undefined) {
-      estimatedFrameLayoutCache.delete(oldestKey);
-    }
-  }
-
-  estimatedFrameLayoutCache.set(key, entry);
-}
-
-function setMeasuredHeightCacheEntry(
-  key: string,
-  entry: CachedMeasuredHeightEntry,
-): void {
-  if (measuredHeightCache.has(key)) {
-    measuredHeightCache.delete(key);
-  } else if (measuredHeightCache.size >= MEASURED_HEIGHT_CACHE_LIMIT) {
-    const oldestKey = measuredHeightCache.keys().next().value;
-    if (oldestKey !== undefined) {
-      measuredHeightCache.delete(oldestKey);
-    }
-  }
-
-  measuredHeightCache.set(key, entry);
 }
 
 function getFrameLayoutCacheKey(
@@ -225,12 +194,14 @@ export function rememberMeasuredChatMessageHeight(
   const normalizedWidth = normalizeChatContainerWidth(containerWidth);
   const normalizedFontSize = normalizeMarkdownBodyFontSize(fontSize);
   const normalizedHeight = Math.max(1, Math.ceil(height));
-  setMeasuredHeightCacheEntry(
+  setCacheEntry(
+    measuredHeightCache,
     getMeasuredHeightCacheKey(cacheKey, normalizedWidth, normalizedFontSize, isSessionActive, message.id),
     {
       height: normalizedHeight,
       signature: getMessageSignature(message),
     },
+    MEASURED_HEIGHT_CACHE_LIMIT,
   );
 }
 
@@ -291,6 +262,11 @@ export function buildEstimatedChatMessageFrameLayout(
     endOffset: offset,
     items,
   };
-  setEstimatedFrameLayoutCacheEntry(key, { layout, messageSignatures });
+  setCacheEntry(
+    estimatedFrameLayoutCache,
+    key,
+    { layout, messageSignatures },
+    FRAME_LAYOUT_CACHE_LIMIT,
+  );
   return layout;
 }

@@ -25,10 +25,6 @@ export const NOTE_CONTENT_SCAN_FRESH_MS = 1000;
 
 const searchableNoteUtf8Encoder = new TextEncoder();
 
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export function canReadBoundedMarkdownFile(
   fileInfo: { isFile?: boolean; isDirectory?: boolean; size?: number | null } | null | undefined,
   maxBytes: number,

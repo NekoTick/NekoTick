@@ -427,6 +427,20 @@ declare module '@milkdown/kit/core' {
   export const editorStateOptionsCtx: MilkdownCtxToken<(prev: AnyRecord) => AnyRecord>;
   export const editorStateTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const editorViewCtx: MilkdownCtxToken<import('@milkdown/kit/prose/view').EditorView>;
+  export interface VirtualizedBlockTextMetrics {
+    availableWidth: number;
+    editor: HTMLElement;
+    font: string;
+    letterSpacing: number;
+    lineHeight: number;
+    whiteSpace: string;
+    wordBreak: string;
+  }
+  export type VirtualizedBlockHeightEstimator = (
+    node: import('@milkdown/kit/prose/model').Node,
+    metrics: VirtualizedBlockTextMetrics,
+  ) => number | null | undefined;
+  export const virtualizedBlockHeightEstimatorCtx: MilkdownCtxToken<VirtualizedBlockHeightEstimator | null>;
   export const virtualizeEditorViewCtx: MilkdownCtxToken<boolean>;
   export function materializeVirtualizedBlockAtPos(
     view: import('@milkdown/kit/prose/view').EditorView,
@@ -570,6 +584,20 @@ declare module '@milkdown/core' {
   export const editorStateOptionsCtx: MilkdownCtxToken<(prev: AnyRecord) => AnyRecord>;
   export const editorStateTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const editorViewCtx: MilkdownCtxToken<import('@milkdown/prose/view').EditorView>;
+  export interface VirtualizedBlockTextMetrics {
+    availableWidth: number;
+    editor: HTMLElement;
+    font: string;
+    letterSpacing: number;
+    lineHeight: number;
+    whiteSpace: string;
+    wordBreak: string;
+  }
+  export type VirtualizedBlockHeightEstimator = (
+    node: import('@milkdown/prose/model').Node,
+    metrics: VirtualizedBlockTextMetrics,
+  ) => number | null | undefined;
+  export const virtualizedBlockHeightEstimatorCtx: MilkdownCtxToken<VirtualizedBlockHeightEstimator | null>;
   export const virtualizeEditorViewCtx: MilkdownCtxToken<boolean>;
   export const editorViewOptionsCtx: MilkdownCtxToken<AnyRecord>;
   export const editorViewTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;

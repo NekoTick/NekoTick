@@ -94,7 +94,7 @@ export function buildGlobalSearchGroups({
     ? queryChatSidebarSessions(sources.chatEntries, trimmedQuery)
     : sources.chatSessions;
   const whiteboards = sources.whiteboards
-    .filter((board) => !trimmedQuery || board.title.toLocaleLowerCase().includes(trimmedQuery));
+    .filter((entry) => !trimmedQuery || entry.searchText.includes(trimmedQuery));
   const matchingGraphNodes = trimmedQuery
     ? rankGraphNodes(sources.graphNodes, trimmedQuery)
     : sources.defaultGraphNodes;
@@ -113,7 +113,7 @@ export function buildGlobalSearchGroups({
       subtitle: '',
       title: node.label,
     })),
-    whiteboard: whiteboards.slice(0, MAX_RESULTS_PER_GROUP).map((board) => ({
+    whiteboard: whiteboards.slice(0, MAX_RESULTS_PER_GROUP).map(({ board }) => ({
       board,
       id: `whiteboard:${board.id}`,
       kind: 'whiteboard',

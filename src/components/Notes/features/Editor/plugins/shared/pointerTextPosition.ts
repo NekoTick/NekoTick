@@ -1,4 +1,5 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
+import { iterateGraphemes } from '@/lib/text-segmentation';
 
 export interface TextOffsetResolution {
   offset: number;
@@ -7,15 +8,12 @@ export interface TextOffsetResolution {
 
 export const MAX_POINTER_TEXT_GRAPHEME_MEASUREMENTS = 2048;
 
-let pointerGraphemeSegmenter: Intl.Segmenter | null = null;
-
 export function* iterateTextGraphemeRanges(text: string): Generator<{ from: number; to: number }> {
-  pointerGraphemeSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  for (const segment of pointerGraphemeSegmenter.segment(text)) {
-    yield {
-      from: segment.index,
-      to: segment.index + segment.segment.length,
-    };
+  let from = 0;
+  for (const grapheme of iterateGraphemes(text)) {
+    const to = from + grapheme.length;
+    yield { from, to };
+    from = to;
   }
 }
 

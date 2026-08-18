@@ -17,7 +17,7 @@ import type { TextBlockVariant } from './chatAssistantMarkdownTypes';
 import {
   setCacheEntry,
   touchCacheEntry,
-} from './chatLayoutCache';
+} from '@/lib/cache/lru';
 
 const LINK_TOKEN_RE = /\[([^\]]+)\]\(([^)]+)\)/;
 const INLINE_CODE_TOKEN_RE = /`([^`]+)`/;

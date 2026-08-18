@@ -1,9 +1,5 @@
 import { getNoteTitleFromPath } from '@/lib/notes/displayName';
-import {
-  extractNoteTags,
-  getNoteMarkdownExcludedRanges,
-  isNoteMarkdownIndexExcluded,
-} from '@/lib/notes/tags';
+import { getNoteTags, getNoteWikiLinkReferences } from '@/lib/notes/noteTextAnalysis';
 import type { NotesStore } from '../types';
 import {
   MAX_ALL_TAGS,
@@ -14,7 +10,6 @@ import {
   MAX_SEARCHABLE_NOTE_BYTES,
   MAX_TAG_CACHE_SCAN_CHARS,
   MAX_TAG_CACHE_SCAN_ENTRIES,
-  escapeRegExp,
   isSafeStoredNotePath,
 } from './featureSliceContentUtils';
 
@@ -31,12 +26,6 @@ export function getBacklinksFromCache(
   if (noteName.length > MAX_BACKLINK_TARGET_TITLE_CHARS) {
     return [];
   }
-
-  const escapedNoteName = escapeRegExp(noteName);
-  const patterns = [
-    new RegExp(`\\[\\[${escapedNoteName}\\]\\]`, 'gi'),
-    new RegExp(`\\[\\[${escapedNoteName}\\|[^\\]]+\\]\\]`, 'gi'),
-  ];
 
   let scannedEntries = 0;
   let scannedChars = 0;
@@ -57,37 +46,22 @@ export function getBacklinksFromCache(
     scannedChars += content.length;
 
     if (path === notePath || !content.includes('[[')) continue;
-    const excludedRanges = getNoteMarkdownExcludedRanges(content);
+    const references = getNoteWikiLinkReferences(entry, content);
+    const directReference = references.find(
+      (reference) => !reference.aliased && reference.target.toLowerCase() === noteName,
+    );
+    const reference = directReference ?? references.find(
+      (candidate) => candidate.target.toLowerCase() === noteName,
+    );
+    if (reference) {
+      const start = Math.max(0, reference.from - 50);
+      const end = Math.min(content.length, reference.to + 50);
+      let context = content.substring(start, end).replace(/\n/g, ' ').trim();
+      if (start > 0) context = '...' + context;
+      if (end < content.length) context = context + '...';
 
-    for (const pattern of patterns) {
-      let excludedRangeCursor = 0;
-      pattern.lastIndex = 0;
-      let match: RegExpExecArray | null;
-      while ((match = pattern.exec(content)) !== null) {
-        while (
-          excludedRangeCursor < excludedRanges.length &&
-          excludedRanges[excludedRangeCursor].to <= match.index
-        ) {
-          excludedRangeCursor += 1;
-        }
-        if (isNoteMarkdownIndexExcluded(match.index, excludedRanges, excludedRangeCursor)) {
-          continue;
-        }
-
-        break;
-      }
-      if (match) {
-        const index = match.index;
-        const start = Math.max(0, index - 50);
-        const end = Math.min(content.length, index + match[0].length + 50);
-        let context = content.substring(start, end).replace(/\n/g, ' ').trim();
-        if (start > 0) context = '...' + context;
-        if (end < content.length) context = context + '...';
-
-        const fileName = getNoteTitleFromPath(path);
-        results.push({ path, name: fileName, context });
-        break;
-      }
+      const fileName = getNoteTitleFromPath(path);
+      results.push({ path, name: fileName, context });
     }
   }
 
@@ -116,7 +90,7 @@ export function getAllTagsFromCache(
     scannedEntries += 1;
     scannedChars += content.length;
 
-    for (const tag of extractNoteTags(content)) {
+    for (const tag of getNoteTags(entry, content)) {
       if (tagCounts.size >= MAX_ALL_TAGS && !tagCounts.has(tag)) {
         continue;
       }

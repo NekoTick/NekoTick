@@ -9,8 +9,8 @@ import {
 } from './globalSearchResults';
 import {
   prepareGlobalChatSearch,
+  prepareGlobalWhiteboardSearch,
   sortDefaultGlobalGraphNodes,
-  sortGlobalWhiteboards,
 } from './globalSearchSources';
 
 const note: NotesSidebarSearchResult = {
@@ -66,7 +66,7 @@ function buildGroups({
       ...chatSearch,
       defaultGraphNodes: sortDefaultGlobalGraphNodes(graphNodes),
       graphNodes,
-      whiteboards: sortGlobalWhiteboards(boards),
+      whiteboards: prepareGlobalWhiteboardSearch(boards),
     },
   });
 }
@@ -235,7 +235,7 @@ describe('globalSearchResults', () => {
       ...chatSearch,
       defaultGraphNodes: sortDefaultGlobalGraphNodes(graphNodes),
       graphNodes,
-      whiteboards: sortGlobalWhiteboards([board]),
+      whiteboards: prepareGlobalWhiteboardSearch([board]),
     };
     const localeCompare = vi.spyOn(String.prototype, 'localeCompare');
 

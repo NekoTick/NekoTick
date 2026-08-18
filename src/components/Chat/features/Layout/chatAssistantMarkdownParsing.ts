@@ -8,7 +8,7 @@ import {
 import {
   setCacheEntry,
   touchCacheEntry,
-} from './chatLayoutCache';
+} from '@/lib/cache/lru';
 
 const THINK_OPEN_TAG = '<think>';
 const PARSED_ASSISTANT_MARKDOWN_CACHE_LIMIT = 200;

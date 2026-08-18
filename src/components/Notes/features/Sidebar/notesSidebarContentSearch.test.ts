@@ -5,9 +5,19 @@ import {
   getNotesSidebarContentMatches,
   MAX_CONTENT_SEARCH_HTML_RANGES,
   MAX_CONTENT_SEARCH_SCANNED_CHARS,
+  prepareNotesSidebarContentSearch,
 } from './notesSidebarContentSearch';
 
 describe('notesSidebarContentSearch', () => {
+  it('reuses prepared search text by content identity and invalidates changed content', () => {
+    const identity = {};
+
+    expect(prepareNotesSidebarContentSearch('alpha', identity))
+      .toBe(prepareNotesSidebarContentSearch('alpha', identity));
+    expect(prepareNotesSidebarContentSearch('beta', identity))
+      .not.toBe(prepareNotesSidebarContentSearch('alpha', identity));
+  });
+
   it('does not report content matches for an empty normalized query', () => {
     expect(getNotesSidebarContentMatches('visible target', '')).toEqual([]);
   });

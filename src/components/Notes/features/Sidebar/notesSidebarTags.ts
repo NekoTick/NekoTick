@@ -1,4 +1,5 @@
 import { extractNoteTagOccurrences, extractNoteTags } from '@/lib/notes/tags';
+import { getNoteTagOccurrences } from '@/lib/notes/noteTextAnalysis';
 import { stripManagedFrontmatter } from '@/stores/notes/frontmatter';
 import type { NotesSidebarTagScopeEntry } from './notesSidebarTagScope';
 export {
@@ -67,7 +68,10 @@ export function buildNotesSidebarTagPathIndexEntry(
 ): NotesSidebarTagPathIndexEntry {
   const tags = new Map<string, NotesSidebarTagPath>();
 
-  for (const occurrence of extractNoteTagOccurrences(content)) {
+  const occurrences = contentIdentity
+    ? getNoteTagOccurrences(contentIdentity, content)
+    : extractNoteTagOccurrences(content);
+  for (const occurrence of occurrences) {
     if (!tags.has(occurrence.tag)) {
       tags.set(occurrence.tag, {
         path,
