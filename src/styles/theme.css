@@ -842,6 +842,8 @@
   --vlaina-color-secondary-panel-bg: color-mix(in srgb, var(--vlaina-bg-secondary) 30%, transparent);
   --vlaina-color-brand-wordmark: #54aeff;
   --vlaina-color-brand-wordmark-hover: #f77daa;
+  --vlaina-color-about-wordmark: #f77daa;
+  --vlaina-color-about-version: #54aeff;
   --vlaina-color-brand-pink: #f08aa6;
   --vlaina-color-notes-markdown-emphasis: #f77daa;
   --vlaina-color-brand-pink-soft: rgb(240 138 166 / 0.12);

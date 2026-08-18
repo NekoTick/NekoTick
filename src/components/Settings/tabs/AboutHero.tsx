@@ -27,7 +27,7 @@ export function AboutHero({ version }: { version: string }) {
               'cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[var(--vlaina-accent)]'
             )}
           >
-            <span>vlaina</span>
+            <span className="text-[var(--vlaina-color-about-wordmark)]">vlaina</span>
           </button>
         </div>
 
@@ -63,7 +63,7 @@ export function AboutHero({ version }: { version: string }) {
 
         <div className="flex min-w-0 justify-start">
           <span className={cn(aboutHeroBadgeClassName, 'select-none')}>
-            <span>v{version}</span>
+            <span className="text-[var(--vlaina-color-about-version)]">v{version}</span>
           </span>
         </div>
       </div>
