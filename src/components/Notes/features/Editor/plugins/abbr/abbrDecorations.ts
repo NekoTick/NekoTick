@@ -18,6 +18,7 @@ import {
   findAbbrUsages,
   findAbbrUsagesInRange,
 } from './abbrScanning';
+import { createAbbrDefinitionDecorations } from './abbrDefinitionDecorations';
 
 export const abbrPluginKey = new PluginKey('abbr');
 
@@ -39,14 +40,11 @@ function mapAbbrDecorations(
 }
 
 function createAbbrDecorations(doc: any): DecorationSet {
-  const decorations: Decoration[] = [];
+  const decorations = createAbbrDefinitionDecorations(doc);
   const definitions = extractAbbrDefinitions(doc);
   const usages = findAbbrUsages(doc, definitions);
 
   for (const usage of usages) {
-    if (decorations.length >= MAX_ABBR_DECORATIONS) {
-      break;
-    }
     decorations.push(
       Decoration.inline(usage.start, usage.end, {
         nodeName: 'abbr',
@@ -253,7 +251,9 @@ function updateAbbrUsageDecorationsForTransaction(
     next = next.remove(decorationsToRemove);
   }
 
-  let remainingBudget = MAX_ABBR_DECORATIONS - next.find().length;
+  let remainingBudget = MAX_ABBR_DECORATIONS - next.find().filter((decoration) => (
+    (decoration.type as any).attrs?.nodeName === 'abbr'
+  )).length;
   for (const range of ranges) {
     if (remainingBudget <= 0) break;
     const usages = findAbbrUsagesInRange(doc, definitions, range.from, range.to);
