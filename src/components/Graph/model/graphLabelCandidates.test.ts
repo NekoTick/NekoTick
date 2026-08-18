@@ -53,9 +53,34 @@ describe('graph label candidates', () => {
 
     expect(getGraphLabelCandidates({
       connectedToHighlighted: new Set(['neighbor']),
+      currentPath: null,
       highlightedPath: 'focus',
       nodes,
       overviewLabelNodes: nodes,
+    })).toEqual([nodes[0], nodes[1]]);
+  });
+
+  it('keeps the current note alongside another highlighted branch', () => {
+    const nodes = [node('focus', 3), node('neighbor', 2), node('current', 1)];
+
+    expect(getGraphLabelCandidates({
+      connectedToHighlighted: new Set(['neighbor']),
+      currentPath: 'current',
+      highlightedPath: 'focus',
+      nodes,
+      overviewLabelNodes: nodes,
+    })).toEqual(nodes);
+  });
+
+  it('keeps the current note in a filtered low-zoom overview', () => {
+    const nodes = [node('current', 1), node('parent', 3), node('leaf', 1)];
+
+    expect(getGraphLabelCandidates({
+      connectedToHighlighted: new Set(),
+      currentPath: 'current',
+      highlightedPath: null,
+      nodes,
+      overviewLabelNodes: [nodes[1]!],
     })).toEqual([nodes[0], nodes[1]]);
   });
 });

@@ -160,15 +160,24 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
   const labelCandidates = useMemo(
     () => getGraphLabelCandidates({
       connectedToHighlighted,
+      currentPath: props.currentPath,
       highlightedPath,
       nodes: props.nodes,
       overviewLabelNodes,
     }),
     [
       connectedToHighlighted,
+      props.currentPath,
       highlightedPath,
       overviewLabelNodes,
     ],
+  );
+  const requiredLabelIds = useMemo(
+    () => activePath
+      ? [activePath, ...connectedToHighlighted, props.currentPath]
+        .filter((id): id is string => Boolean(id))
+      : props.currentPath ? [props.currentPath] : EMPTY_LABEL_IDS,
+    [activePath, connectedToHighlighted, props.currentPath],
   );
   const labelPlacements = useMemo(
     () => props.labelsReady
@@ -181,6 +190,7 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
         getGraphLabelExclusionBounds(props.viewportSize, props.topOverlayVisible ?? false),
         props.maxVisibleLabels,
         useFastAllLabelLayout,
+        requiredLabelIds,
       )
       : EMPTY_LABEL_PLACEMENTS,
     [
@@ -190,6 +200,7 @@ const GraphSceneContent = memo(function GraphSceneContent(props: GraphSceneConte
       props.labelLayoutRevision,
       props.maxVisibleLabels,
       props.nodes,
+      requiredLabelIds,
       props.showAllLabels,
       props.topOverlayVisible,
       props.viewport.x,
@@ -281,4 +292,5 @@ export function getGraphLabelExclusionBounds(
 }
 
 const EMPTY_NEIGHBORS = new Set<string>();
+const EMPTY_LABEL_IDS: readonly string[] = [];
 const EMPTY_LABEL_PLACEMENTS: ReadonlyMap<string, GraphLabelPlacement> = new Map();

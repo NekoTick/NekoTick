@@ -272,6 +272,52 @@ describe('layoutGraphLabels', () => {
     expect(placements.has('Focused.md')).toBe(true);
   });
 
+  it('keeps every required connected label with its full name', () => {
+    const nodes = Array.from({ length: 12 }, (_, index) => (
+      node(`Connected note ${index} with a full name`, 120 + index * 4, 100, index)
+    ));
+    const placements = layoutGraphLabels(
+      nodes,
+      { x: 0, y: 0, zoom: 1 },
+      [nodes[0]!.id],
+      { x: 800, y: 240 },
+      nodes,
+      [],
+      3,
+      false,
+      nodes.map((item) => item.id),
+    );
+
+    expect(placements.size).toBe(nodes.length);
+    for (const placement of placements.values()) expect(placement.text).toBeUndefined();
+  });
+
+  it('keeps a required current-note label close to its ring in a dense area', () => {
+    const current = node('Current', 100, 100);
+    const ring = Array.from({ length: 16 }, (_, index) => {
+      const angle = index * Math.PI * 2 / 16;
+      return node(
+        `Background ${index}`,
+        100 + Math.cos(angle) * 36,
+        100 + Math.sin(angle) * 36,
+      );
+    });
+    const placement = layoutGraphLabels(
+      [current],
+      { x: 0, y: 0, zoom: 1 },
+      [current.id],
+      { x: 240, y: 200 },
+      [current, ...ring],
+      [],
+      Number.POSITIVE_INFINITY,
+      false,
+      [current.id],
+    ).get(current.id);
+
+    expect(placement).toBeDefined();
+    expect(Math.max(Math.abs(placement!.x), Math.abs(placement!.y))).toBeLessThan(40);
+  });
+
   it('keeps a priority label visible inside a dense ring', () => {
     const focused = node('Focused', 100, 100);
     const ring = Array.from({ length: 16 }, (_, index) => {

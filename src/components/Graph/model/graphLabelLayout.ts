@@ -93,6 +93,7 @@ export function layoutGraphLabels(
   exclusionBounds: readonly GraphScreenBounds[] = [],
   maximumPlacements = Number.POSITIVE_INFINITY,
   fastLayout = false,
+  requiredIds: readonly string[] = [],
 ): ReadonlyMap<string, GraphLabelPlacement> {
   const placements = new Map<string, GraphLabelPlacement>();
   if (nodes.length === 0) return placements;
@@ -111,6 +112,7 @@ export function layoutGraphLabels(
   const labelWidths: number[] = [];
   const collisionIndex = new GraphLabelBoundsIndex();
   const priorityIdSet = new Set(priorityIds);
+  const requiredIdSet = new Set(requiredIds);
   const forceAllPlacements = fastLayout && nodes.length <= FORCE_ALL_LABEL_NODE_LIMIT;
   for (let index = 0; index < nodes.length; index += 1) {
     const node = nodes[index]!;
@@ -137,8 +139,18 @@ export function layoutGraphLabels(
       priorityNodes.push(node);
     }
   }
+  const requiredNodes: PositionedGraphNode[] = [];
+  for (const id of requiredIds) {
+    if (priorityIdSet.has(id)) continue;
+    const index = nodeIndexById.get(id);
+    if (index === undefined) continue;
+    const node = nodes[index]!;
+    if (canNodeLabelReachViewport(node, viewport, viewportSize, labelWidths[index]!, false)) {
+      requiredNodes.push(node);
+    }
+  }
   const remainingNodes = nodes.filter((node) => {
-    if (priorityIdSet.has(node.id)) return false;
+    if (priorityIdSet.has(node.id) || requiredIdSet.has(node.id)) return false;
     const index = nodeIndexById.get(node.id)!;
     return canNodeLabelReachViewport(
       node,
@@ -158,6 +170,7 @@ export function layoutGraphLabels(
     node: PositionedGraphNode,
     isPriority: boolean,
     forcePlacement = false,
+    required = false,
   ): void => {
     const owner = nodeIndexById.get(node.id) ?? -1;
     const maximumPriorityWidth = viewportSize
@@ -172,7 +185,9 @@ export function layoutGraphLabels(
       : node.label;
     const labelWidth = text === node.label ? labelWidths[owner] : getGraphLabelWidth(text);
     const options = getGraphLabelPlacementOptions(node, center, isPriority);
-    const optionCount = options.length * (isPriority || expandRemainingPlacements ? 2 : 1);
+    const expandPlacements = required ? !isPriority : isPriority || expandRemainingPlacements;
+    const optionCount = options.length
+      * (expandPlacements ? 2 : 1);
     let fallback: {
       bounds: GraphScreenBounds;
       option: GraphLabelPlacement;
@@ -195,7 +210,7 @@ export function layoutGraphLabels(
         return;
       }
       if (collisionIndex.intersects(bounds, owner)) {
-        if (isPriority) {
+        if (isPriority || required) {
           const overlapArea = collisionIndex.getIntersectionArea(bounds, owner);
           if (!fallback || overlapArea < fallback.overlapArea) {
             fallback = { bounds, option, overlapArea };
@@ -217,8 +232,11 @@ export function layoutGraphLabels(
   };
 
   for (const node of priorityNodes) {
-    if (placements.size >= maximumPlacements) break;
-    place(node, true, forceAllPlacements);
+    if (placements.size >= maximumPlacements && !requiredIdSet.has(node.id)) continue;
+    place(node, true, forceAllPlacements, requiredIdSet.has(node.id));
+  }
+  for (const node of requiredNodes) {
+    place(node, false, false, true);
   }
   for (const node of remainingNodes) {
     if (placements.size >= maximumPlacements) break;

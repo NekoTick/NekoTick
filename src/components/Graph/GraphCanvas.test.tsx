@@ -607,7 +607,7 @@ describe('GraphCanvas', () => {
       .toHaveClass('fill-[var(--vlaina-color-graph-node)]');
   });
 
-  it('shows hovered and directly connected labels while zoomed out', () => {
+  it('shows the current, hovered, and directly connected labels while zoomed out', () => {
     render(
       <svg>
         <GraphCanvasScene
@@ -618,6 +618,7 @@ describe('GraphCanvas', () => {
           hoveredPath="Alpha.md"
           labelLayoutRevision={0}
           labelsReady
+          maxVisibleLabels={1}
           nodes={graph.nodes}
           onHoverChange={vi.fn()}
           onFocusChange={vi.fn()}
@@ -636,7 +637,7 @@ describe('GraphCanvas', () => {
 
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('Beta')).toBeInTheDocument();
-    expect(screen.queryByText('Gamma')).not.toBeInTheDocument();
+    expect(screen.getByText('Gamma')).toBeInTheDocument();
   });
 
   it('shows only parent labels in a low-zoom all-notes overview', () => {
@@ -727,7 +728,7 @@ describe('GraphCanvas', () => {
     expect(intersectionArea).not.toHaveBeenCalled();
   });
 
-  it('limits context labels without dropping highlighted edges for a high-degree node', () => {
+  it('shows every connected name without dropping highlighted edges for a hovered node', () => {
     const hub = { id: 'Hub.md', label: 'Hub', degree: 24, x: 0, y: 0 };
     const neighbors = Array.from({ length: 24 }, (_, index) => ({
       id: `Neighbor-${index}.md`,
@@ -764,8 +765,8 @@ describe('GraphCanvas', () => {
     );
 
     const labelCount = view.container.querySelectorAll('[data-graph-node-label="true"]').length;
-    expect(labelCount).toBeGreaterThan(1);
-    expect(labelCount).toBeLessThan(8);
+    expect(labelCount).toBe(nodes.length);
+    for (const node of nodes) expect(screen.getByText(node.label)).toBeInTheDocument();
     const activePath = view.container.querySelector('[data-graph-edge-layer="active"]')
       ?.getAttribute('d') ?? '';
     expect(activePath.match(/M/g)).toHaveLength(edges.length);

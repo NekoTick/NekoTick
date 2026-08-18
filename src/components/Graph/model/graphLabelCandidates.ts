@@ -52,12 +52,20 @@ export function getGraphLabelPriorityIds(args: {
 
 export function getGraphLabelCandidates(args: {
   connectedToHighlighted: ReadonlySet<string>;
+  currentPath: string | null;
   highlightedPath: string | null;
   nodes: readonly PositionedGraphNode[];
   overviewLabelNodes: readonly PositionedGraphNode[];
 }): readonly PositionedGraphNode[] {
-  if (!args.highlightedPath) return args.overviewLabelNodes;
+  if (!args.highlightedPath) {
+    const overviewIds = new Set(args.overviewLabelNodes.map((node) => node.id));
+    return args.nodes.filter((node) => (
+      node.id === args.currentPath || overviewIds.has(node.id)
+    ));
+  }
   return args.nodes.filter((node) => (
-    node.id === args.highlightedPath || args.connectedToHighlighted.has(node.id)
+    node.id === args.currentPath
+    || node.id === args.highlightedPath
+    || args.connectedToHighlighted.has(node.id)
   ));
 }
