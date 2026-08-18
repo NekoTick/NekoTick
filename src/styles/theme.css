@@ -486,6 +486,8 @@
   --vlaina-markdown-size-blockquote-border: var(--vlaina-size-2px);
   --vlaina-markdown-color-code-inline-bg: var(--vlaina-code-inline-background);
   --vlaina-markdown-color-syntax: #b8c0c9;
+  --vlaina-markdown-color-abbr-definition-term: #54aeff;
+  --vlaina-markdown-color-abbr-definition-text: #f77daa;
   --vlaina-markdown-color-code-inline-fg: var(--vlaina-code-inline-foreground);
   --vlaina-markdown-color-code-block-bg: var(--vlaina-code-block-background);
   --vlaina-markdown-color-code-text: var(--vlaina-code-syntax-foreground);

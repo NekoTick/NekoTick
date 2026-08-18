@@ -64,6 +64,12 @@ function findTextPosition(doc: ProseMirrorNode, text: string, edge: 'start' | 'e
   return result;
 }
 
+function findUsageDecorations(view: { state: { doc: ProseMirrorNode } }): Decoration[] {
+  return (abbrPluginKey.getState(view.state)?.find() ?? []).filter((decoration: Decoration) => (
+    (decoration.type as any).attrs?.nodeName === 'abbr'
+  ));
+}
+
 describe('abbrPlugin', () => {
   it('bounds abbreviation title metadata', () => {
     expect(normalizeAbbrTitle('HyperText Markup Language')).toBe('HyperText Markup Language');
@@ -197,7 +203,7 @@ describe('abbrPlugin', () => {
 
     await editor.create();
     const view = editor.ctx.get(editorViewCtx);
-    const decorations = abbrPluginKey.getState(view.state)?.find() ?? [];
+    const decorations = findUsageDecorations(view);
 
     expect(decorations.map((decoration: Decoration) => ({
       text: view.state.doc.textBetween(decoration.from, decoration.to),
@@ -234,7 +240,7 @@ describe('abbrPlugin', () => {
 
     view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, [escapedDefinition, usage]));
 
-    const decorations = abbrPluginKey.getState(view.state)?.find() ?? [];
+    const decorations = findUsageDecorations(view);
     expect(decorations).toEqual([]);
 
     await editor.destroy();
@@ -257,7 +263,7 @@ describe('abbrPlugin', () => {
 
     await editor.create();
     const view = editor.ctx.get(editorViewCtx);
-    const decorations = abbrPluginKey.getState(view.state)?.find() ?? [];
+    const decorations = findUsageDecorations(view);
 
     expect(decorations).toHaveLength(1000);
 
@@ -284,7 +290,7 @@ describe('abbrPlugin', () => {
     await editor.create();
     const view = editor.ctx.get(editorViewCtx);
     const previous = abbrPluginKey.getState(view.state);
-    expect(previous?.find()).toHaveLength(1);
+    expect(findUsageDecorations(view)).toHaveLength(1);
 
     const tr = view.state.tr.insertText(
       ' smooth input',
@@ -322,7 +328,7 @@ describe('abbrPlugin', () => {
     expect(transactionMayAffectAbbrDecorations(previous!, tr, view.state.doc, tr.doc)).toBe(true);
     view.dispatch(tr);
 
-    const decorations = abbrPluginKey.getState(view.state)?.find() ?? [];
+    const decorations = findUsageDecorations(view);
     expect(decorations.map((decoration: Decoration) => (
       view.state.doc.textBetween(decoration.from, decoration.to)
     ))).toEqual(['HTML']);

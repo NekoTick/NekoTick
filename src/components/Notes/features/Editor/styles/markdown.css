@@ -86,6 +86,24 @@
   font-size: inherit !important;
 }
 
+.milkdown .ProseMirror .abbr-definition-line {
+  color: var(--vlaina-markdown-color-abbr-definition-text);
+  -webkit-text-fill-color: var(--vlaina-markdown-color-abbr-definition-text);
+  font-style: italic;
+}
+
+.milkdown .ProseMirror .abbr-definition-term {
+  color: var(--vlaina-markdown-color-abbr-definition-term);
+  -webkit-text-fill-color: var(--vlaina-markdown-color-abbr-definition-term);
+  text-decoration-line: underline;
+  text-underline-offset: var(--vlaina-space-018em);
+}
+
+.milkdown .ProseMirror .abbr-definition-syntax.markdown-syntax {
+  color: var(--vlaina-markdown-color-abbr-definition-text) !important;
+  -webkit-text-fill-color: var(--vlaina-markdown-color-abbr-definition-text) !important;
+}
+
 .milkdown .ProseMirror.editor-text-selection-inline-paint:not(.toolbar-selection-hidden-preview) :is(
   h1,
   h2,
