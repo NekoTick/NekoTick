@@ -483,6 +483,7 @@
   --vlaina-markdown-color-surface-muted: var(--vlaina-color-surface-secondary);
   --vlaina-markdown-color-blockquote-text: var(--vlaina-markdown-color-text-muted);
   --vlaina-markdown-color-blockquote-border: var(--vlaina-markdown-color-text-subtle);
+  --vlaina-markdown-size-blockquote-border: var(--vlaina-size-2px);
   --vlaina-markdown-color-code-inline-bg: var(--vlaina-code-inline-background);
   --vlaina-markdown-color-syntax: #b8c0c9;
   --vlaina-markdown-color-code-inline-fg: var(--vlaina-code-inline-foreground);
@@ -1361,6 +1362,12 @@ html[data-whiteboard-color-picking='true'] * {
 
 .app-focus-ring-offset-2:focus {
   --tw-ring-offset-width: var(--vlaina-ring-offset-2);
+}
+
+[data-markdown-theme-root='true'][data-markdown-theme-platform='vlaina'] {
+  --vlaina-markdown-color-blockquote-text: #3eb4bf;
+  --vlaina-markdown-color-blockquote-border: #54aeff;
+  --vlaina-markdown-size-blockquote-border: var(--vlaina-size-4px);
 }
 
 .dark {
