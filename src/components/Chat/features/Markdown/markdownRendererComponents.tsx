@@ -213,7 +213,7 @@ export function createMarkdownComponents({
     audio() {
       return null;
     },
-    a({ href, children, ...props }: MarkdownAnchorProps) {
+    a({ href, children, title: _title, ...props }: MarkdownAnchorProps) {
       if (isInternalHashHref(href)) {
         return (
           <a

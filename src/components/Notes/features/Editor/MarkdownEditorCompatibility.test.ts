@@ -840,6 +840,17 @@ describe('MarkdownEditor compatibility', () => {
     await destroyEditor(editor);
   });
 
+  it('preserves markdown link titles without native hover text', async () => {
+    const markdown = '[Docs](https://example.com "Docs title")';
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+
+    expect(view.dom.querySelector('a')?.hasAttribute('title')).toBe(false);
+    expect(editor.ctx.get(serializerCtx)(view.state.doc).trim()).toBe(markdown);
+
+    await destroyEditor(editor);
+  });
+
   it('adds VLOOK inline semantic classes for Typora theme reuse', async () => {
     const editor = await createEditor([
       '*`rd tag`*',

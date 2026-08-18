@@ -170,6 +170,7 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
             const safeHref = sanitizeNoteLinkHref(node.attrs.href);
             if (!safeHref) return ['span', 0];
             const attrs = getDomAttrs({ ...node.attrs, href: safeHref ?? undefined });
+            delete attrs.title;
             const isExternalLink = isExternalLinkHref(safeHref);
             const className = mergeDomClassNames(
                 attrs.class,

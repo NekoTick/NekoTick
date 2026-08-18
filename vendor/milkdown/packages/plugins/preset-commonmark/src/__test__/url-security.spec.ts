@@ -368,6 +368,27 @@ it('bounds link title attrs consistently', () => {
   expect(normalizeLinkTitle(null)).toBeNull()
 })
 
+it('preserves markdown link titles without rendering native hover text', async () => {
+  const editor = createEditor('[Docs](https://example.com "Docs title")')
+
+  await editor.create()
+
+  const view = editor.ctx.get(editorViewCtx)
+  expect(view.dom.querySelector('a')?.hasAttribute('title')).toBe(false)
+
+  const doc = editor.ctx.get(parserCtx)(editor.ctx.get(defaultValueCtx))
+  let linkTitle: string | null = null
+  doc.descendants((node) => {
+    const link = node.marks.find((mark) => mark.type.name === 'link')
+    if (!link) return true
+    linkTitle = link.attrs.title
+    return false
+  })
+  expect(linkTitle).toBe('Docs title')
+
+  await editor.destroy()
+})
+
 it('does not add or update links with unsafe command hrefs', async () => {
   const editor = createEditor('link')
 

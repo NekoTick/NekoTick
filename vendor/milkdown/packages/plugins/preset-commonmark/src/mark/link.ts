@@ -101,7 +101,7 @@ export const linkSchema = $markSchema('link', (ctx) => ({
         ...ctx.get(linkAttr.key)(mark),
         ...mark.attrs,
         href: href ?? undefined,
-        title: normalizeLinkTitle(mark.attrs.title),
+        title: undefined,
       },
     ]
   },

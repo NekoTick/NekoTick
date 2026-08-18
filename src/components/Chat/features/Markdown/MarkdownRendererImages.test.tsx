@@ -30,6 +30,12 @@ describe('MarkdownRenderer images', () => {
     );
   });
 
+  it('renders markdown link titles without native hover text', () => {
+    render(<MarkdownRenderer content={'[Docs](https://example.com "Docs title")'} />);
+
+    expect(screen.getByRole('link', { name: 'Docs' })).not.toHaveAttribute('title');
+  });
+
   it('removes KaTeX source annotations from read-only markdown output', () => {
     const { container } = render(<MarkdownRenderer content={'Before $x% hidden_secret_marker$ after'} />);
 
