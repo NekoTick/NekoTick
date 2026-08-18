@@ -79,6 +79,13 @@ function createDesktopApi(deps) {
           ipcRenderer.removeListener('desktop:window:close-requested', handler);
         };
       },
+      onBoundsChanged(callback) {
+        const handler = (_event, bounds) => callIpcCallback(callback, bounds);
+        ipcRenderer.on('desktop:window:bounds-changed', handler);
+        return () => {
+          ipcRenderer.removeListener('desktop:window:bounds-changed', handler);
+        };
+      },
     },
     shortcuts: {
       onOpenMarkdownFile(callback) {

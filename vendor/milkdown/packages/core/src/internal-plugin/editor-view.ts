@@ -22,6 +22,8 @@ import {
   destroyVirtualizedViewController,
 } from './virtualized-editor-view'
 
+export { materializeVirtualizedBlockAtPos } from './virtualized-editor-view'
+
 type EditorOptions = Omit<DirectEditorProps, 'state'>
 
 type RootType = Node | undefined | null | string

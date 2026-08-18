@@ -154,6 +154,15 @@ function showBlocks(view: EditorView, positions: readonly number[]): void {
   )
 }
 
+export function materializeVirtualizedBlockAtPos(view: EditorView, pos: number): boolean {
+  const blockPos = getTopLevelBlockPos(view.state, pos)
+  if (blockPos === null) return false
+  const state = virtualizedEditorViewKey.getState(view.state)
+  if (!state?.enabled || state.visible.has(blockPos)) return false
+  showBlocks(view, [blockPos])
+  return true
+}
+
 function estimateTextLines(text: string): number {
   let lines = 1
   for (let index = 0; index < text.length; index += 1) {

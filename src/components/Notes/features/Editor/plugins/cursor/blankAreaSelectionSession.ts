@@ -392,7 +392,7 @@ export function startBlankAreaSelectionSession(
     cursorRoot: scrollRoot,
     onActivate() {
       autoScroll.start();
-      dragBox = createDragBox(doc, dragBoxColor, !useSelectionPreview);
+      dragBox = createDragBox(doc, dragBoxColor);
       doc.body.appendChild(dragBox);
       if (useSelectionPreview) {
         selectionPreviewLayer = createBlockSelectionPreviewLayer(doc, selectionPreviewColor);

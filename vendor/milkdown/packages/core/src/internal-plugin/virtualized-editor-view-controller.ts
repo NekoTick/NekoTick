@@ -13,7 +13,6 @@ type VirtualizedViewController = {
 type ShowBlocks = (view: EditorView, positions: readonly number[]) => void
 
 const MAX_BLOCKS_MATERIALIZED_PER_FRAME = 8
-const SCROLL_QUIET_PERIOD_MS = 100
 const controllers = new WeakMap<EditorView, VirtualizedViewController>()
 
 function createController(view: EditorView, placementRoot: Node | null, showBlocks: ShowBlocks): VirtualizedViewController {
@@ -22,8 +21,6 @@ function createController(view: EditorView, placementRoot: Node | null, showBloc
   const pendingShow = new Set<number>()
   let flushScheduled = false
   let showFrame: number | null = null
-  let scrollQuietTimer: number | null = null
-  let scrolling = false
   const ownerWindow = view.dom.ownerDocument.defaultView
   const Observer = ownerWindow?.IntersectionObserver
   const scrollRoot = placementRoot instanceof Element
@@ -32,7 +29,6 @@ function createController(view: EditorView, placementRoot: Node | null, showBloc
 
   const flushShows = () => {
     showFrame = null
-    if (scrolling) return
     if (view.isDestroyed || pendingShow.size === 0) return
     const positions = Array.from(pendingShow).slice(0, MAX_BLOCKS_MATERIALIZED_PER_FRAME)
     for (const pos of positions) pendingShow.delete(pos)
@@ -42,27 +38,12 @@ function createController(view: EditorView, placementRoot: Node | null, showBloc
 
   const scheduleShowFlush = () => {
     if (showFrame !== null) return
-    if (scrolling) return
     if (ownerWindow?.requestAnimationFrame) {
       showFrame = ownerWindow.requestAnimationFrame(flushShows)
     } else {
       showFrame = globalThis.setTimeout(flushShows, 16) as unknown as number
     }
   }
-
-  const handleScroll = () => {
-    scrolling = true
-    if (scrollQuietTimer !== null) ownerWindow?.clearTimeout(scrollQuietTimer)
-    const clearScrolling = () => {
-      scrollQuietTimer = null
-      scrolling = false
-      scheduleShowFlush()
-    }
-    scrollQuietTimer = ownerWindow?.setTimeout(clearScrolling, SCROLL_QUIET_PERIOD_MS)
-      ?? globalThis.setTimeout(clearScrolling, SCROLL_QUIET_PERIOD_MS)
-  }
-
-  scrollRoot?.addEventListener('scroll', handleScroll, { passive: true })
 
   const observer = Observer
     ? new Observer((entries) => {
@@ -93,12 +74,6 @@ function createController(view: EditorView, placementRoot: Node | null, showBloc
       blocks.clear()
       pending.clear()
       pendingShow.clear()
-      scrollRoot?.removeEventListener('scroll', handleScroll)
-      if (scrollQuietTimer !== null) {
-        ownerWindow?.clearTimeout(scrollQuietTimer)
-        globalThis.clearTimeout(scrollQuietTimer)
-        scrollQuietTimer = null
-      }
       if (showFrame !== null) {
         if (ownerWindow?.cancelAnimationFrame) ownerWindow.cancelAnimationFrame(showFrame)
         else globalThis.clearTimeout(showFrame)

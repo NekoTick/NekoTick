@@ -6,6 +6,8 @@ import { afterEach, describe, expect, test } from 'vitest'
 import {
   createVirtualizedEditorViewPlugin,
   createVirtualizedNodeViews,
+  destroyVirtualizedViewController,
+  materializeVirtualizedBlockAtPos,
   virtualizedEditorViewKey,
 } from './virtualized-editor-view'
 
@@ -120,6 +122,76 @@ describe('virtualized editor view', () => {
     expect(view.dom.querySelectorAll('p')).toHaveLength(41)
     expect(view.dom.lastElementChild).toBeInstanceOf(HTMLParagraphElement)
     view.destroy()
+  })
+
+  test('materializes an explicit block position without changing the selection', () => {
+    const schema = createSchema()
+    const state = EditorState.create({
+      schema,
+      doc: createDocument(schema, 500),
+      plugins: [createVirtualizedEditorViewPlugin(true)],
+    })
+    const view = new EditorView(document.body, {
+      state,
+      nodeViews: createVirtualizedNodeViews(state, {}, document.body),
+    })
+    const selectionBefore = view.state.selection
+    const blockPos = view.state.doc.content.size - view.state.doc.lastChild!.nodeSize
+
+    expect(materializeVirtualizedBlockAtPos(view, blockPos)).toBe(true)
+    expect(view.dom.lastElementChild).toBeInstanceOf(HTMLParagraphElement)
+    expect(view.state.selection.eq(selectionBefore)).toBe(true)
+    expect(materializeVirtualizedBlockAtPos(view, blockPos)).toBe(false)
+    view.destroy()
+  })
+
+  test('materializes observed blocks while the scroll root is moving', async () => {
+    let observeCallback: IntersectionObserverCallback | undefined
+    const observed = new Set<Element>()
+    class MockIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observeCallback = callback
+      }
+
+      disconnect() {}
+      observe(element: Element) {
+        observed.add(element)
+      }
+      unobserve() {}
+    }
+    window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+
+    const scrollRoot = document.createElement('div')
+    scrollRoot.setAttribute('data-note-scroll-root', 'true')
+    const editorHost = document.createElement('div')
+    scrollRoot.append(editorHost)
+    document.body.append(scrollRoot)
+    const schema = createSchema()
+    const state = EditorState.create({
+      schema,
+      doc: createDocument(schema, 500),
+      plugins: [createVirtualizedEditorViewPlugin(true)],
+    })
+    const view = new EditorView(editorHost, {
+      state,
+      nodeViews: createVirtualizedNodeViews(state, {}, editorHost),
+    })
+
+    try {
+      await Promise.resolve()
+      const placeholders = view.dom.querySelectorAll<HTMLElement>('.editor-virtual-block-placeholder')
+      expect(observed.size).toBe(460)
+      scrollRoot.dispatchEvent(new Event('scroll'))
+      observeCallback?.([
+        { target: placeholders[300], isIntersecting: true } as IntersectionObserverEntry,
+      ], {} as IntersectionObserver)
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+      expect(view.dom.querySelectorAll('p')).toHaveLength(41)
+    } finally {
+      destroyVirtualizedViewController(view)
+      view.destroy()
+    }
   })
 
   test('does not enable virtualization for small documents', () => {

@@ -120,10 +120,6 @@ export function createWindowManager({
       },
     });
 
-    if (label === 'main' && persistedWindowState?.isMaximized) {
-      window.maximize();
-    }
-
     windowLabels.set(window.id, label);
     const { scheduleDevRendererReload } = attachWindowLifecycle({
       window,
@@ -146,6 +142,10 @@ export function createWindowManager({
         persistedWindowState = state;
       },
     });
+
+    if (label === 'main' && persistedWindowState?.isMaximized) {
+      window.maximize();
+    }
 
     loadRenderer(window, windowOptions).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);

@@ -111,6 +111,10 @@ const hoisted = vi.hoisted(() => {
       return this.bounds;
     }
 
+    getContentBounds() {
+      return { x: 0, y: 0, ...this.bounds };
+    }
+
     getNormalBounds() {
       return this.normalBounds;
     }

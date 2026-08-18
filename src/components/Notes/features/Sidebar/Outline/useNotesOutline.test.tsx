@@ -5,11 +5,21 @@ import type { EditorBlockPositionSnapshot } from '@/components/Notes/features/Ed
 
 const hoisted = vi.hoisted(() => ({
   currentSnapshot: null as EditorBlockPositionSnapshot | null,
+  expandCollapsedHeading: vi.fn(() => false),
+  materializeVirtualizedBlock: vi.fn(() => false),
+  refreshSnapshot: vi.fn(() => null as EditorBlockPositionSnapshot | null),
 }));
 
 vi.mock('@/components/Notes/features/Editor/utils/editorBlockPositionCache', () => ({
   getCurrentEditorBlockPositionSnapshot: () => hoisted.currentSnapshot,
+  refreshCurrentEditorBlockPositionSnapshot: hoisted.refreshSnapshot,
   subscribeCurrentEditorBlockPositionSnapshot: vi.fn(() => vi.fn()),
+}));
+vi.mock('@/components/Notes/features/Editor/plugins/heading/collapse', () => ({
+  expandCollapsedHeadingSectionAtPos: hoisted.expandCollapsedHeading,
+}));
+vi.mock('@milkdown/kit/core', () => ({
+  materializeVirtualizedBlockAtPos: hoisted.materializeVirtualizedBlock,
 }));
 
 function createRect(top: number, bottom = top + 24): DOMRect {
@@ -75,12 +85,15 @@ function createOutlineSnapshot() {
     }],
   } as unknown as EditorBlockPositionSnapshot;
 
-  return { scrollTo };
+  return { editorRoot, headingElement, scrollRoot, scrollTo, view };
 }
 
 describe('useNotesOutline', () => {
   beforeEach(() => {
     hoisted.currentSnapshot = null;
+    hoisted.expandCollapsedHeading.mockClear();
+    hoisted.materializeVirtualizedBlock.mockClear();
+    hoisted.refreshSnapshot.mockClear();
   });
 
   afterEach(() => {
@@ -100,5 +113,50 @@ describe('useNotesOutline', () => {
       top: 228,
       behavior: 'auto',
     });
+  });
+
+  it('lists headings with inexact geometry without using them as active-position metrics', () => {
+    createOutlineSnapshot();
+    const placeholder = document.createElement('div');
+    hoisted.currentSnapshot!.headings.push({
+      id: 'deferred-heading',
+      level: 3,
+      text: 'Deferred',
+      from: 20,
+      to: 30,
+      element: placeholder,
+      hasExactGeometry: false,
+      top: 0,
+      bottom: 0,
+    });
+
+    const { result } = renderHook(() => useNotesOutline(true));
+
+    expect(result.current.headings.map((heading) => heading.text)).toEqual(['Target', 'Deferred']);
+    expect(result.current.activeId).toBe('target-heading');
+  });
+
+  it('expands and materializes a hidden heading before measuring its jump target', async () => {
+    const { headingElement, scrollTo, view } = createOutlineSnapshot();
+    hoisted.currentSnapshot!.headings[0]!.hasExactGeometry = false;
+    hoisted.expandCollapsedHeading.mockReturnValue(true);
+    hoisted.materializeVirtualizedBlock.mockReturnValue(true);
+    hoisted.refreshSnapshot.mockImplementation(() => hoisted.currentSnapshot);
+    view.nodeDOM = vi.fn(() => headingElement);
+
+    const { result } = renderHook(() => useNotesOutline(true));
+    act(() => {
+      result.current.jumpToHeading('target-heading');
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    });
+
+    expect(hoisted.expandCollapsedHeading).toHaveBeenCalledWith(view, 1);
+    expect(hoisted.materializeVirtualizedBlock).toHaveBeenCalledWith(view, 1);
+    expect(hoisted.refreshSnapshot).toHaveBeenCalledWith(view);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 228, behavior: 'auto' });
   });
 });

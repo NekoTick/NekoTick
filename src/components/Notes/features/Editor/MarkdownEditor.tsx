@@ -227,7 +227,7 @@ export function MarkdownEditor({
         ) : null}
 
         <div
-          className="w-full flex flex-col items-center relative"
+          className="w-full flex flex-col items-center relative translate-x-[var(--vlaina-window-resize-content-compensation-x)]"
           onClick={hasActiveNote ? focusEditorFromNoteUpperBlankArea : undefined}
           style={{
             marginLeft: contentOffset,

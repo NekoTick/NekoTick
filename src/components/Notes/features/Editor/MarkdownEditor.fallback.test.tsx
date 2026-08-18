@@ -308,6 +308,9 @@ describe('MarkdownEditor source fallback', () => {
       .closest('[data-note-content-root="true"]');
 
     expect(sourceRoot?.parentElement).toHaveClass('flex', 'flex-col', 'items-center');
+    expect(sourceRoot?.parentElement?.parentElement).toHaveClass(
+      'translate-x-[var(--vlaina-window-resize-content-compensation-x)]',
+    );
   });
 
   it('focuses the source textarea when source mode opens', () => {

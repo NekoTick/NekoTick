@@ -86,7 +86,7 @@ describe('useNearViewport', () => {
         });
     });
 
-    it('keeps offscreen images deferred in a lazy-layout editor', () => {
+    it('preloads offscreen images in a lazy-layout editor through the background queue', () => {
         const editor = document.createElement('div');
         editor.dataset.noteLazyBlockVisibility = 'true';
         const element = document.createElement('div');
@@ -96,18 +96,7 @@ describe('useNearViewport', () => {
         const { result } = renderHook(() => useNearViewport(ref));
 
         act(() => {
-            vi.advanceTimersByTime(
-                nearViewportTesting.BACKGROUND_LOAD_START_DELAY_MS
-                + nearViewportTesting.BACKGROUND_LOAD_INTERVAL_MS,
-            );
-        });
-        expect(result.current).toEqual({
-            isNearViewport: false,
-            shouldLoadImage: false,
-        });
-
-        act(() => {
-            callbacks[0]?.([{ target: element, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+            vi.advanceTimersByTime(nearViewportTesting.BACKGROUND_LOAD_START_DELAY_MS);
         });
         expect(result.current).toEqual({
             isNearViewport: true,

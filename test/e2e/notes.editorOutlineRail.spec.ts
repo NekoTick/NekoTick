@@ -1,8 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import {
   EDITOR_SELECTOR,
   NOTE_SCROLL_ROOT_SELECTOR,
   cleanupIsolatedElectron,
+  collectEditorDomMetrics,
   getBlankAreaDragTarget,
   getOpenBridgePages,
   launchIsolatedElectron,
@@ -10,6 +11,14 @@ import {
 } from './notesE2E';
 
 const OUTLINE_RAIL_SELECTOR = '[data-editor-outline-rail="true"]';
+
+async function expandOutlineRail(page: Page): Promise<void> {
+  const rail = page.locator(OUTLINE_RAIL_SELECTOR);
+  const box = await rail.boundingBox();
+  if (!box) throw new Error('Outline rail is not visible');
+  await page.mouse.move(box.x + box.width - 2, box.y + Math.min(10, box.height / 2));
+  await expect(rail).toHaveAttribute('data-expanded', 'true');
+}
 
 test.describe('notes editor outline rail', () => {
   test('expands from the right-edge markers and tracks the active heading', async () => {
@@ -252,6 +261,306 @@ test.describe('notes editor outline rail', () => {
       expect(narrowGeometry).not.toBeNull();
       expect(narrowGeometry!.panelRight).toBeLessThanOrEqual(narrowGeometry!.viewportWidth);
       expect(narrowGeometry!.panelWidth).toBe(240);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('includes headings nested after raw HTML in lists, quotes, and footnotes', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-editor-outline-nested-headings');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      await openMarkdownFixture(page, {
+        filename: 'editor-outline-nested-headings.md',
+        content: [
+          '# Root heading',
+          '',
+          '- <textarea>',
+          '  List raw HTML',
+          '  </textarea>',
+          '  ## List heading',
+          '7. > <textarea>',
+          '   > Quoted raw HTML',
+          '   > </textarea>',
+          '   > ## Quoted heading',
+          'Footnote reference[^nested-heading].',
+          '[^nested-heading]: <textarea>',
+          '    Footnote raw HTML',
+          '    </textarea>',
+          '    ## Footnote heading',
+          '',
+          '## Ending heading',
+        ].join('\n'),
+      });
+
+      const editorHeadings = page.locator(`${EDITOR_SELECTOR} h1, ${EDITOR_SELECTOR} h2`);
+      await expect(editorHeadings).toHaveCount(5);
+
+      const outlineRows = page.locator(`${OUTLINE_RAIL_SELECTOR} .editor-outline-row`);
+      await expect(outlineRows).toHaveText([
+        'Root heading',
+        'List heading',
+        'Quoted heading',
+        'Footnote heading',
+        'Ending heading',
+      ]);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('keeps nested Markdown headings complete in source mode', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-source-outline-structure');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      await openMarkdownFixture(page, {
+        filename: 'source-outline-structure.md',
+        content: [
+          '---',
+          'title: Metadata',
+          '---',
+          '# Root',
+          '- example',
+          '  ```markdown',
+          '  # Fenced code',
+          '  ```',
+          '  ## List heading',
+          '> ## Quote heading',
+          'Reference[^outline].',
+          '[^outline]: Footnote',
+          '    ### Footnote heading',
+          '## Ending heading',
+          '#',
+        ].join('\n'),
+      });
+
+      await page.keyboard.press('Control+/');
+      await expect(page.locator('[data-note-source-editor="true"]')).toBeVisible();
+      const outline = page.locator(OUTLINE_RAIL_SELECTOR).getByRole('navigation', { name: 'Outline' });
+      await expect(outline.getByRole('button')).toHaveText([
+        'Root',
+        'List heading',
+        'Quote heading',
+        'Footnote heading',
+        'Ending heading',
+        'Untitled',
+      ]);
+
+      await expandOutlineRail(page);
+      await outline.getByRole('button', { name: 'Footnote heading' }).click();
+      expect(await page.locator('[data-note-source-editor="true"]').evaluate((textarea) => {
+        const source = textarea as HTMLTextAreaElement;
+        return source.value.slice(source.selectionStart, source.selectionEnd);
+      })).toContain('### Footnote heading');
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('lists and jumps to headings that are still virtualized', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-virtualized-outline');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      const sectionCount = 260;
+      const content = Array.from({ length: sectionCount }, (_, index) => [
+        `## Virtual section ${index + 1}`,
+        `${'Deferred body text. '.repeat(55)} ${index + 1}`,
+      ]).flat().join('\n\n');
+      expect(content.length).toBeGreaterThan(250_000);
+      await openMarkdownFixture(page, {
+        filename: 'virtualized-outline.md',
+        content,
+      });
+
+      await expect.poll(() => page.locator(`${EDITOR_SELECTOR} .editor-virtual-block-placeholder`).count())
+        .toBeGreaterThan(0);
+      const outline = page.locator(OUTLINE_RAIL_SELECTOR).getByRole('navigation', { name: 'Outline' });
+      await expect(outline.getByRole('button')).toHaveCount(sectionCount);
+      await expect(outline.getByRole('button').last()).toHaveText(`Virtual section ${sectionCount}`);
+
+      await expandOutlineRail(page);
+      await outline.getByRole('button').last().click();
+      await expect(page.locator(`${EDITOR_SELECTOR} h2`, { hasText: `Virtual section ${sectionCount}` }))
+        .toBeVisible();
+      await expect(outline.locator('.editor-outline-row-active'))
+        .toHaveText(`Virtual section ${sectionCount}`);
+      await expect.poll(() => page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate((element) => element.scrollTop))
+        .toBeGreaterThan(0);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('keeps collapsed child headings listed and expands them on jump', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-collapsed-outline');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      await openMarkdownFixture(page, {
+        filename: 'collapsed-outline.md',
+        content: [
+          '# Parent heading',
+          'Parent body.',
+          '## Collapsed child',
+          'Child body.',
+          '# Ending heading',
+        ].join('\n\n'),
+      });
+
+      const parentToggle = page.locator(`${EDITOR_SELECTOR} .heading-toggle-btn`).first();
+      await parentToggle.click();
+      await expect(parentToggle).toHaveAttribute('data-collapsed', 'true');
+      await expect(page.locator(`${EDITOR_SELECTOR} h2`, { hasText: 'Collapsed child' })).toBeHidden();
+      const outline = page.locator(OUTLINE_RAIL_SELECTOR).getByRole('navigation', { name: 'Outline' });
+      await expect(outline.getByRole('button')).toHaveText([
+        'Parent heading',
+        'Collapsed child',
+        'Ending heading',
+      ]);
+
+      await expandOutlineRail(page);
+      await outline.getByRole('button', { name: 'Collapsed child' }).click();
+      await expect(page.locator(`${EDITOR_SELECTOR} h2`, { hasText: 'Collapsed child' })).toBeVisible();
+      await expect(page.locator(`${EDITOR_SELECTOR} .heading-toggle-btn`).first())
+        .toHaveAttribute('data-collapsed', 'false');
+      await expect(outline.locator('.editor-outline-row-active')).toHaveText('Collapsed child');
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('aligns a deferred block selection preview with a transformed editor host', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-block-selection-preview-alignment');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+
+      await openMarkdownFixture(page, {
+        filename: 'block-selection-preview-alignment.md',
+        content: Array.from(
+          { length: 280 },
+          (_, index) => `Large document paragraph ${index + 1}.`,
+        ).join('\n\n'),
+      });
+      await page.locator('.milkdown').evaluate((host) => {
+        host.style.transform = 'translateX(0px)';
+      });
+
+      const dragTarget = await getBlankAreaDragTarget(page, 'Large document paragraph 1.');
+      expect(dragTarget, 'blank-area drag target').not.toBeNull();
+      if (!dragTarget) return;
+
+      await page.mouse.move(dragTarget.startX, dragTarget.startY);
+      await page.mouse.down();
+      await page.mouse.move(dragTarget.endX, dragTarget.endY, { steps: 8 });
+
+      const selectionPreviewPath = page.locator(
+        '[data-editor-block-selection-preview="true"] path',
+      );
+      await expect(selectionPreviewPath).toHaveAttribute('d', /M/);
+      const stacking = await selectionPreviewPath.evaluate((path) => {
+        const layer = path.closest<SVGSVGElement>('[data-editor-block-selection-preview="true"]');
+        const editor = layer?.parentElement?.querySelector<HTMLElement>('.ProseMirror');
+        return {
+          sameHost: Boolean(layer && editor && layer.parentElement === editor.parentElement),
+          layerZIndex: Number.parseInt(layer ? getComputedStyle(layer).zIndex : '', 10),
+          editorZIndex: Number.parseInt(editor ? getComputedStyle(editor).zIndex : '', 10),
+        };
+      });
+      expect(stacking.sameHost).toBe(true);
+      expect(stacking.editorZIndex).toBeGreaterThan(stacking.layerZIndex);
+      const dragBox = page.locator('[data-editor-drag-box="true"]');
+      expect(await dragBox.evaluate((element) => (
+        getComputedStyle(element).backgroundColor
+      ))).not.toBe('rgba(0, 0, 0, 0)');
+      const [editorBox, selectionPreviewBox, dragBoxBounds] = await Promise.all([
+        page.locator('.milkdown .ProseMirror').boundingBox(),
+        selectionPreviewPath.boundingBox(),
+        dragBox.boundingBox(),
+      ]);
+      expect(editorBox).not.toBeNull();
+      expect(selectionPreviewBox).not.toBeNull();
+      expect(dragBoxBounds?.width).toBeGreaterThan(0);
+      expect(dragBoxBounds?.height).toBeGreaterThan(0);
+      expect(Math.abs(
+        (selectionPreviewBox!.x + selectionPreviewBox!.width / 2)
+        - (editorBox!.x + editorBox!.width / 2),
+      )).toBeLessThanOrEqual(2);
+
+      await page.mouse.up();
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
+  test('renders medium block-rich notes without deferred placeholders while scrolling', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-medium-block-rendering');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      const finalSentinel = 'Medium section 520 final sentinel';
+      const content = [
+        '# Medium block-rich note',
+        '',
+        ...Array.from(
+          { length: 520 },
+          (_, index) => `## Medium section ${index + 1} with **mixed syntax**${index === 519 ? ` ${finalSentinel}` : ''}`,
+        ),
+      ].join('\n\n');
+      expect(content.length).toBeGreaterThan(12_000);
+      expect(content.length).toBeLessThan(60_000);
+
+      await openMarkdownFixture(page, {
+        filename: 'medium-block-rich-note.md',
+        content,
+      });
+
+      const metrics = await collectEditorDomMetrics(page);
+      expect(metrics.virtualizedPlaceholderCount).toBe(0);
+      expect(metrics.countsBySelector.headings).toBe(521);
+
+      const bottomState = await page.locator(NOTE_SCROLL_ROOT_SELECTOR).evaluate(
+        (scrollRoot, expectedText) => {
+          scrollRoot.scrollTop = scrollRoot.scrollHeight;
+          const target = Array.from(scrollRoot.querySelectorAll<HTMLElement>('h2'))
+            .find((heading) => heading.textContent?.includes(expectedText));
+          const scrollRect = scrollRoot.getBoundingClientRect();
+          const targetRect = target?.getBoundingClientRect();
+          return {
+            hasTarget: Boolean(target),
+            targetVisible: Boolean(
+              targetRect
+              && targetRect.bottom > scrollRect.top
+              && targetRect.top < scrollRect.bottom
+            ),
+            virtualizedPlaceholderCount: scrollRoot.querySelectorAll(
+              '.editor-virtual-block-placeholder',
+            ).length,
+          };
+        },
+        finalSentinel,
+      );
+      expect(bottomState).toEqual({
+        hasTarget: true,
+        targetVisible: true,
+        virtualizedPlaceholderCount: 0,
+      });
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

@@ -24,10 +24,6 @@ import {
   NoteToolbarMoreMenuStats,
   type PreloadedBacklinkCount,
 } from './NoteToolbarMoreMenuStats';
-import {
-  findNoteScrollRoot,
-  logNoteScrollDiagnostic,
-} from './utils/notesScrollDiagnostics';
 
 type NoteMetadata =
   | {
@@ -113,14 +109,7 @@ export function NoteToolbarMoreMenu({
     <DropdownMenu
       modal={false}
       open={open}
-      onOpenChange={(nextOpen) => {
-        logNoteScrollDiagnostic(
-          'more-menu-open-change',
-          findNoteScrollRoot(moreButtonRef.current),
-          { open: nextOpen },
-        );
-        onOpenChange(nextOpen);
-      }}
+      onOpenChange={onOpenChange}
     >
       <Tooltip>
         <DropdownMenuTrigger asChild>
@@ -130,22 +119,7 @@ export function NoteToolbarMoreMenu({
               type="button"
               aria-label={t('notes.moreActions')}
               onPointerEnter={preloadBacklinkCount}
-              onPointerDown={(event) => {
-                logNoteScrollDiagnostic(
-                  'more-button-pointer-down',
-                  findNoteScrollRoot(event.currentTarget),
-                  {
-                    button: event.button,
-                    pointerType: event.pointerType,
-                  },
-                );
-              }}
               onClick={(event) => {
-                logNoteScrollDiagnostic(
-                  'more-button-click',
-                  findNoteScrollRoot(event.currentTarget),
-                  { defaultPrevented: event.defaultPrevented },
-                );
                 event.stopPropagation();
               }}
               className={cn(
@@ -173,33 +147,15 @@ export function NoteToolbarMoreMenu({
       <DropdownMenuContent
         align="end"
         sideOffset={4}
-        onOpenAutoFocus={(event) => {
-          logNoteScrollDiagnostic(
-            'more-menu-open-auto-focus',
-            findNoteScrollRoot(moreButtonRef.current),
-            { defaultPrevented: event.defaultPrevented },
-          );
-        }}
         onCloseAutoFocus={(event) => {
-          const scrollRoot = findNoteScrollRoot(moreButtonRef.current);
-          logNoteScrollDiagnostic(
-            'more-menu-close-auto-focus',
-            scrollRoot,
-            { defaultPrevented: event.defaultPrevented },
-          );
           event.preventDefault();
           moreButtonRef.current?.blur();
           window.requestAnimationFrame(() => {
             moreButtonRef.current?.blur();
-            const nextScrollRoot = findNoteScrollRoot(moreButtonRef.current);
-            nextScrollRoot
+            moreButtonRef.current
+              ?.closest<HTMLElement>('[data-note-toolbar-root="true"]')
               ?.querySelector<HTMLTextAreaElement>('[data-note-source-editor="true"]')
               ?.focus({ preventScroll: true });
-            logNoteScrollDiagnostic(
-              'more-menu-close-auto-focus-raf',
-              nextScrollRoot,
-              { defaultPrevented: event.defaultPrevented },
-            );
           });
         }}
         className={cn(

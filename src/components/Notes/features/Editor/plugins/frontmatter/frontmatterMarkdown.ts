@@ -28,6 +28,7 @@ interface FrontmatterSections {
   frontmatterLines: string[];
   body: string;
   hasBodySeparator: boolean;
+  sourceEnd: number;
 }
 
 interface ReadLineResult {
@@ -141,6 +142,7 @@ function splitLeadingDelimitedBlock(
         frontmatterLines,
         body: normalizeLineEndings(markdown.slice(line.nextStart)),
         hasBodySeparator: line.nextStart > line.contentEnd,
+        sourceEnd: line.nextStart,
       };
     }
 
@@ -149,6 +151,13 @@ function splitLeadingDelimitedBlock(
   }
 
   return null;
+}
+
+export function maskLeadingFrontmatterMarkdown(markdown: string): string {
+  const sections = splitLeadingFrontmatter(markdown);
+  if (!sections) return markdown;
+  return markdown.slice(0, sections.sourceEnd).replace(/[^\r\n]/g, ' ')
+    + markdown.slice(sections.sourceEnd);
 }
 
 function splitLeadingFrontmatter(markdown: string): FrontmatterSections | null {

@@ -247,15 +247,16 @@ describe('startBlankAreaSelectionSession', () => {
     view.dom.focus();
     rectResolverMockState.currentRects = [blockRect(1, 6, 100, 160)];
     const scrollRoot = view.dom.parentElement as HTMLElement;
+    scrollRoot.style.transform = 'translateX(240px)';
     scrollRoot.getBoundingClientRect = () => ({
-      left: 0,
-      top: 0,
-      right: 800,
-      bottom: 600,
+      left: 240,
+      top: 60,
+      right: 1040,
+      bottom: 660,
       width: 800,
       height: 600,
-      x: 0,
-      y: 0,
+      x: 240,
+      y: 60,
       toJSON: () => ({}),
     });
     const event = new MouseEvent('mousedown', {
@@ -300,13 +301,17 @@ describe('startBlankAreaSelectionSession', () => {
     expect(preview).not.toBeNull();
     expect(preview?.children).toHaveLength(1);
     expect(preview?.parentElement).toBe(view.dom.parentElement);
+    expect(preview?.style.position).toBe('absolute');
+    expect(preview?.style.transform).toBe('translate3d(-240px, -60px, 0)');
+    expect(preview?.style.width).toBe(`${window.innerWidth}px`);
+    expect(preview?.style.height).toBe(`${window.innerHeight}px`);
     expect(preview?.style.zIndex).toBe('0');
     expect(view.dom.querySelector('[data-editor-block-selection-preview="true"]')).toBeNull();
     expect(view.dom).toHaveClass('editor-block-selection-drag-preview-active');
     expect(onPreviewSurfaceRangesChange).toHaveBeenLastCalledWith([{ from: 1, to: 6 }]);
     expect(document.activeElement).toBe(view.dom);
     expect(document.querySelector<HTMLElement>('[data-editor-drag-box="true"]')?.style.background)
-      .toBe('transparent');
+      .toBe('rgba(0, 0, 0, 0.1)');
     const previewPath = preview?.firstElementChild as SVGPathElement | null;
     expect(previewPath?.style.fill).toBe('rgb(190, 223, 254)');
     const initialPathData = previewPath?.getAttribute('d');

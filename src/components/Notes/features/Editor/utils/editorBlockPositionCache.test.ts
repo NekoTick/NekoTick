@@ -180,30 +180,113 @@ describe('editorBlockPositionCache', () => {
     }
   });
 
-  it('skips expensive block snapshots for very large documents', () => {
+  it('publishes headings without scanning blocks for very large documents', async () => {
     const dom = document.createElement('div');
+    const heading = document.createElement('h2');
+    heading.getBoundingClientRect = () => rect(24, 56);
+    dom.append(heading);
     document.body.appendChild(dom);
 
+    const headingNode = {
+      attrs: { level: 2 },
+      child: () => ({ marks: [], text: 'Large document heading' }),
+      childCount: 1,
+      nodeSize: 24,
+      type: { name: 'heading' },
+    };
     const doc = {
       childCount: MAX_BLOCK_POSITION_SNAPSHOT_BLOCKS + 1,
       content: { size: MAX_BLOCK_POSITION_SNAPSHOT_BLOCKS + 1 },
+      descendants(callback: (node: typeof headingNode, pos: number) => void) {
+        callback(headingNode, 0);
+      },
       forEach() {
         throw new Error('large documents should not be scanned');
       },
+      resolve: () => ({ depth: 0 }),
     };
     const view = {
       dom,
+      nodeDOM: () => heading,
       state: { doc },
     };
 
     const controller = createCurrentEditorBlockPositionController(view as any);
+    await waitForNextFrame();
     const snapshot = getCurrentEditorBlockPositionSnapshot();
 
     expect(snapshot?.blocks).toEqual([]);
-    expect(snapshot?.headings).toEqual([]);
+    expect(snapshot?.headings).toEqual([
+      expect.objectContaining({ level: 2, text: 'Large document heading' }),
+    ]);
 
     controller.destroy();
     dom.remove();
+  });
+
+  it('publishes nested headings from a toolbar-applied preview', async () => {
+    const host = document.createElement('div');
+    const preview = document.createElement('div');
+    const quote = document.createElement('blockquote');
+    const heading = document.createElement('h3');
+    const hiddenHeading = document.createElement('h4');
+    const dom = document.createElement('div');
+    preview.className = 'toolbar-applied-preview-overlay';
+    heading.textContent = 'Nested preview heading';
+    hiddenHeading.textContent = 'Hidden preview heading';
+    heading.getBoundingClientRect = () => rect(80, 112);
+    hiddenHeading.getBoundingClientRect = () => rect(0, 0, 0);
+    quote.getBoundingClientRect = () => rect(60, 132);
+    quote.append(heading, hiddenHeading);
+    preview.append(quote);
+    dom.setAttribute('data-toolbar-preview-hidden', 'true');
+    host.append(preview, dom);
+    document.body.append(host);
+
+    const headingNode = {
+      attrs: { level: 3 },
+      child: () => ({ marks: [], text: 'Nested preview heading' }),
+      childCount: 1,
+      nodeSize: 24,
+      type: { name: 'heading' },
+    };
+    const hiddenHeadingNode = {
+      ...headingNode,
+      attrs: { level: 4 },
+      child: () => ({ marks: [], text: 'Hidden preview heading' }),
+    };
+    const doc = {
+      childCount: 1,
+      content: { size: 30 },
+      descendants(callback: (node: typeof headingNode, pos: number) => void) {
+        callback(headingNode, 3);
+        callback(hiddenHeadingNode, 15);
+      },
+      forEach(callback: (node: { nodeSize: number }, offset: number) => void) {
+        callback({ nodeSize: 30 }, 0);
+      },
+    };
+    const controller = createCurrentEditorBlockPositionController({ dom, state: { doc } } as any);
+    await waitForNextFrame();
+
+    expect(getCurrentEditorBlockPositionSnapshot()?.headings).toEqual([
+      expect.objectContaining({
+        element: heading,
+        from: 3,
+        level: 3,
+        text: 'Nested preview heading',
+      }),
+      expect.objectContaining({
+        element: hiddenHeading,
+        from: 15,
+        hasExactGeometry: false,
+        level: 4,
+        text: 'Hidden preview heading',
+      }),
+    ]);
+
+    controller.destroy();
+    host.remove();
   });
 
   it('can refresh an initially empty opening snapshot on demand', () => {

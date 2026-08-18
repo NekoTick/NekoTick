@@ -21,7 +21,8 @@ export interface EditorHeadingPositionEntry {
   text: string;
   from: number;
   to: number;
-  element: HTMLElement;
+  element: HTMLElement | null;
+  hasExactGeometry?: boolean;
   top: number;
   bottom: number;
 }
