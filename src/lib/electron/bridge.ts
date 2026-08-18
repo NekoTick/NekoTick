@@ -357,6 +357,13 @@ export interface ElectronSecretsApi {
   deleteAIProviderSecret(providerId: string): Promise<void>;
 }
 
+interface ElectronManagedBudgetPayload {
+  active?: unknown;
+  usedPercent?: unknown;
+  remainingPercent?: unknown;
+  status?: unknown;
+}
+
 export interface ElectronAccountApi {
   getSessionStatus(): Promise<{
     connected: boolean;
@@ -369,12 +376,7 @@ export interface ElectronAccountApi {
     sessionInvalidated?: boolean;
     sessionInvalidationReason?: 'device_limit';
     persistent?: boolean;
-    budget?: {
-      active?: unknown;
-      usedPercent?: unknown;
-      remainingPercent?: unknown;
-      status?: unknown;
-    } | null;
+    budget?: ElectronManagedBudgetPayload | null;
   }>;
   startAuth(provider: string): Promise<{
     success: boolean;
@@ -382,6 +384,9 @@ export interface ElectronAccountApi {
     username: string | null;
     primaryEmail: string | null;
     avatarUrl: string | null;
+    membershipTier?: string | null;
+    membershipName?: string | null;
+    budget?: ElectronManagedBudgetPayload | null;
     persistent?: boolean;
     error: string | null;
   }>;
@@ -393,6 +398,9 @@ export interface ElectronAccountApi {
     username: string | null;
     primaryEmail: string | null;
     avatarUrl: string | null;
+    membershipTier?: string | null;
+    membershipName?: string | null;
+    budget?: ElectronManagedBudgetPayload | null;
     persistent?: boolean;
     error: string | null;
   }>;

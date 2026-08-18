@@ -7,10 +7,7 @@ import { isManagedProviderId } from '@/lib/ai/managedService';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { requestManager } from '@/lib/ai/requestManager';
 import { runWithSessionMutationLock } from '@/lib/ai/sessionMutationLock';
-import {
-  buildStoredUserMessageContent,
-  refreshManagedBudgetIfNeeded,
-} from './helpers';
+import { buildStoredUserMessageContent } from './helpers';
 import { runStreamedAssistantMessage } from './runStreamedAssistantMessage';
 import { sendMessageWithEndpointFallback } from './sendMessageWithEndpointFallback';
 import { hydrateSessionMessagesFromDisk } from '@/stores/ai/sessionConsistency';
@@ -235,7 +232,6 @@ export function useRegenerateMessage({
               messageId,
               durationMs: Date.now() - requestStartedAt,
             });
-            refreshManagedBudgetIfNeeded(provider.id);
             maybeGenerateAutoTitle(resolvedSessionId, provider.id, selectedModel.id);
           },
         }).then((status) => {

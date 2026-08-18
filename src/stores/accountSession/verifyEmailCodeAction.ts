@@ -17,6 +17,7 @@ import {
   isCurrentAccountAuthAttempt,
   startAccountAuthAttempt,
 } from './authFlowState';
+import { applyDesktopAuthBudget } from './desktopAuthBudget';
 
 type Set = StoreApi<AccountSessionState & AccountSessionActions>['setState'];
 type Get = StoreApi<AccountSessionState & AccountSessionActions>['getState'];
@@ -81,13 +82,15 @@ async function verifyEmailCode(set: Set, get: Get, email: string, code: string):
           username: result.username ?? null,
           primaryEmail: result.primaryEmail ?? email,
           avatarUrl: result.avatarUrl ?? null,
-          membershipTier: null,
-          membershipName: null,
+          membershipTier: result.membershipTier ?? null,
+          membershipName: result.membershipName ?? null,
         });
         const provider = normalizeAccountProvider(normalizedIdentity.provider);
         const username = normalizedIdentity.username ?? null;
         const primaryEmail = normalizedIdentity.primaryEmail ?? null;
         const avatarUrl = normalizedIdentity.avatarUrl ?? null;
+        const membershipTier = normalizedIdentity.membershipTier ?? null;
+        const membershipName = normalizedIdentity.membershipName ?? null;
         if (!provider || !username) {
           set({ error: normalizeAuthError('Email sign-in failed') });
           return false;
@@ -100,8 +103,8 @@ async function verifyEmailCode(set: Set, get: Get, email: string, code: string):
           username,
           primaryEmail,
           avatarUrl,
-          membershipTier: null,
-          membershipName: null,
+          membershipTier,
+          membershipName,
           isConnecting: false,
           isLoading: false,
           hasCheckedStatus: true,
@@ -116,10 +119,11 @@ async function verifyEmailCode(set: Set, get: Get, email: string, code: string):
             username,
             primaryEmail,
             avatarUrl,
-            membershipTier: null,
-            membershipName: null,
+            membershipTier,
+            membershipName,
           });
         }
+        applyDesktopAuthBudget(result.budget);
         void get().checkStatus({ force: true }).catch(() => undefined);
         void refreshAvatar(set, get, username, avatarUrl);
         return true;

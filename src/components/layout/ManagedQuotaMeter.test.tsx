@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe('ManagedQuotaMeter', () => {
-  it('stays hidden and refreshes when budget is missing', async () => {
+  it('shows a loading meter and refreshes when budget is missing', async () => {
     const refreshBudgetIfStale = vi.fn().mockResolvedValue(undefined);
     act(() => {
       useManagedAIStore.setState({
@@ -37,8 +37,8 @@ describe('ManagedQuotaMeter', () => {
 
     render(<ManagedQuotaMeter />);
 
-    expect(screen.queryByLabelText('Managed AI quota loading')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('managed-quota-loading-bar')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Managed AI quota loading')).toBeInTheDocument();
+    expect(screen.getByTestId('managed-quota-loading-bar')).toBeInTheDocument();
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
     await waitFor(() => expect(refreshBudgetIfStale).toHaveBeenCalledTimes(1));
   });
@@ -72,7 +72,7 @@ describe('ManagedQuotaMeter', () => {
   it.each([
     ['NaN', Number.NaN],
     ['null', null],
-  ])('stays hidden when the budget remaining percentage is %s', async (_label, remainingPercent) => {
+  ])('shows a loading meter when the budget remaining percentage is %s', async (_label, remainingPercent) => {
     const refreshBudgetIfStale = vi.fn().mockResolvedValue(undefined);
     act(() => {
       useManagedAIStore.setState({
@@ -100,7 +100,8 @@ describe('ManagedQuotaMeter', () => {
     render(<ManagedQuotaMeter />);
 
     expect(screen.queryByText(/%/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Managed AI quota/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Managed AI quota loading')).toBeInTheDocument();
+    expect(screen.getByTestId('managed-quota-loading-bar')).toBeInTheDocument();
     await waitFor(() => expect(refreshBudgetIfStale).toHaveBeenCalledTimes(1));
   });
 

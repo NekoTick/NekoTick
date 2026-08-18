@@ -16,12 +16,28 @@ describe('desktop account auth persistence', () => {
       username: ' alice ',
       primaryEmail: ' alice@example.com ',
       avatarUrl: 'http://127.0.0.1/avatar.png',
+      membershipTier: 'pro',
+      membershipName: ' Pro ',
+      budget: {
+        active: true,
+        usedPercent: 25,
+        remainingPercent: 75,
+        status: 'normal',
+      },
     })).resolves.toMatchObject({
       success: true,
       provider: 'google',
       username: 'alice',
       primaryEmail: 'alice@example.com',
       avatarUrl: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
+      budget: {
+        active: true,
+        usedPercent: 25,
+        remainingPercent: 75,
+        status: 'normal',
+      },
     });
 
     expect(writeStoredAccountCredentials).toHaveBeenCalledWith(expect.objectContaining({
@@ -30,6 +46,8 @@ describe('desktop account auth persistence', () => {
       username: 'alice',
       primaryEmail: 'alice@example.com',
       avatarUrl: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
     }));
   });
 

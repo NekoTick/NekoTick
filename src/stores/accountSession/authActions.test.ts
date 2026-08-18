@@ -830,6 +830,14 @@ describe('accountSession auth actions', () => {
       username: 'vla',
       primaryEmail: 'vla@example.com',
       avatarUrl: 'https://example.com/avatar.png',
+      membershipTier: 'pro',
+      membershipName: 'Pro',
+      budget: {
+        active: true,
+        usedPercent: 25,
+        remainingPercent: 75,
+        status: 'normal',
+      },
       error: null,
     });
     let resolveStatus!: () => void;
@@ -844,14 +852,20 @@ describe('accountSession auth actions', () => {
 
     expect(result).toBe(true);
     expect(checkStatus).toHaveBeenCalledWith({ force: true });
+    expect(mocks.applyBudgetSnapshot).toHaveBeenCalledWith({
+      active: true,
+      usedPercent: 25,
+      remainingPercent: 75,
+      status: 'normal',
+    });
     expect(set).toHaveBeenLastCalledWith({
       isConnected: true,
       provider: 'google',
       username: 'vla',
       primaryEmail: 'vla@example.com',
       avatarUrl: 'https://example.com/avatar.png',
-      membershipTier: null,
-      membershipName: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
       isConnecting: false,
       isLoading: false,
       hasCheckedStatus: true,
@@ -863,8 +877,8 @@ describe('accountSession auth actions', () => {
       username: 'vla',
       primaryEmail: 'vla@example.com',
       avatarUrl: 'https://example.com/avatar.png',
-      membershipTier: null,
-      membershipName: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
     });
 
     resolveStatus();
@@ -1147,6 +1161,14 @@ describe('accountSession auth actions', () => {
       username: 'vla',
       primaryEmail: 'vla@example.com',
       avatarUrl: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
+      budget: {
+        active: true,
+        usedPercent: 20,
+        remainingPercent: 80,
+        status: 'normal',
+      },
       error: null,
     });
     let resolveStatus!: () => void;
@@ -1165,14 +1187,20 @@ describe('accountSession auth actions', () => {
     expect(result).toBe(true);
     expect(mocks.accountCommands.verifyEmailAuthCode).toHaveBeenCalledWith('vla@example.com', '123456');
     expect(checkStatus).toHaveBeenCalledWith({ force: true });
+    expect(mocks.applyBudgetSnapshot).toHaveBeenCalledWith({
+      active: true,
+      usedPercent: 20,
+      remainingPercent: 80,
+      status: 'normal',
+    });
     expect(set).toHaveBeenLastCalledWith({
       isConnected: true,
       provider: 'email',
       username: 'vla',
       primaryEmail: 'vla@example.com',
       avatarUrl: null,
-      membershipTier: null,
-      membershipName: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
       isConnecting: false,
       isLoading: false,
       hasCheckedStatus: true,
@@ -1184,8 +1212,8 @@ describe('accountSession auth actions', () => {
       username: 'vla',
       primaryEmail: 'vla@example.com',
       avatarUrl: null,
-      membershipTier: null,
-      membershipName: null,
+      membershipTier: 'pro',
+      membershipName: 'Pro',
     });
 
     resolveStatus();

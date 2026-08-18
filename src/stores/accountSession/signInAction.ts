@@ -23,6 +23,7 @@ import {
   normalizeWebAuthRedirectUrl,
 } from './authInput';
 import type { AccountProvider, AccountSessionActions, AccountSessionState } from './state';
+import { applyDesktopAuthBudget } from './desktopAuthBudget';
 
 type Set = StoreApi<AccountSessionState & AccountSessionActions>['setState'];
 type Get = StoreApi<AccountSessionState & AccountSessionActions>['getState'];
@@ -67,8 +68,8 @@ export function createSignIn(
             username: result.username ?? null,
             primaryEmail: result.primaryEmail ?? null,
             avatarUrl: result.avatarUrl ?? null,
-            membershipTier: null,
-            membershipName: null,
+            membershipTier: result.membershipTier ?? null,
+            membershipName: result.membershipName ?? null,
           });
           const providerFromResult = normalizeAccountProvider(normalizedIdentity.provider);
           const username = normalizedIdentity.username ?? null;
@@ -104,6 +105,7 @@ export function createSignIn(
               membershipName,
             });
           }
+          applyDesktopAuthBudget(result.budget);
           void get().checkStatus({ force: true }).catch(() => undefined);
           void refreshAvatar(set, get, username, avatarUrl);
           return true;
