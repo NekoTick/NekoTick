@@ -149,6 +149,9 @@ export function useSelectionInsertState() {
       if (!isSelectingFromChatRef.current) {
         return;
       }
+      if ((event.buttons & 1) === 0) {
+        return;
+      }
       const target = event.target;
       isPointerInsideSelectionSurfaceRef.current =
         target instanceof Element && isInsideSelectionSurface(target);

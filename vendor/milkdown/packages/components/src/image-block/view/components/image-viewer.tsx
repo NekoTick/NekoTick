@@ -1,4 +1,4 @@
-import { defineComponent, ref, h, Fragment } from 'vue'
+import { defineComponent, ref, h, Fragment, onBeforeUnmount } from 'vue'
 
 import type { MilkdownImageBlockProps } from './image-block'
 
@@ -44,6 +44,9 @@ export const ImageViewer = defineComponent<MilkdownImageBlockProps>({
     const resizeHandle = ref<HTMLDivElement>()
     const showCaption = ref(Boolean(caption.value?.length))
     const timer = ref(0)
+    let resizePointerId: number | null = null
+    let resizeStartHeight = ''
+    let resizeStartDataHeight: string | undefined
 
     const onImageLoad = () => {
       const image = imageRef.value
@@ -93,6 +96,11 @@ export const ImageViewer = defineComponent<MilkdownImageBlockProps>({
     }
 
     const onResizeHandlePointerMove = (e: PointerEvent) => {
+      if (e.pointerId !== resizePointerId) return
+      if (e.pointerType === 'mouse' && (e.buttons & 1) === 0) {
+        finishResize()
+        return
+      }
       e.preventDefault()
       const image = imageRef.value
       if (!image) return
@@ -103,9 +111,17 @@ export const ImageViewer = defineComponent<MilkdownImageBlockProps>({
       image.style.height = `${h}px`
     }
 
-    const onResizeHandlePointerUp = () => {
+    const removeResizeListeners = () => {
       window.removeEventListener('pointermove', onResizeHandlePointerMove)
       window.removeEventListener('pointerup', onResizeHandlePointerUp)
+      window.removeEventListener('pointercancel', onResizeHandlePointerCancel)
+      window.removeEventListener('blur', onResizeWindowBlur)
+    }
+
+    const finishResize = () => {
+      if (resizePointerId == null) return
+      resizePointerId = null
+      removeResizeListeners()
 
       const image = imageRef.value
       if (!image) return
@@ -120,13 +136,50 @@ export const ImageViewer = defineComponent<MilkdownImageBlockProps>({
       setAttr('ratio', ratio)
     }
 
+    const cancelResize = () => {
+      if (resizePointerId == null) return
+      resizePointerId = null
+      removeResizeListeners()
+      const image = imageRef.value
+      if (!image) return
+      image.style.height = resizeStartHeight
+      if (resizeStartDataHeight === undefined) {
+        delete image.dataset.height
+      } else {
+        image.dataset.height = resizeStartDataHeight
+      }
+    }
+
+    const onResizeHandlePointerUp = (e: PointerEvent) => {
+      if (e.pointerId !== resizePointerId) return
+      finishResize()
+    }
+
+    const onResizeHandlePointerCancel = (e: PointerEvent) => {
+      if (e.pointerId !== resizePointerId) return
+      cancelResize()
+    }
+
+    const onResizeWindowBlur = () => finishResize()
+
     const onResizeHandlePointerDown = (e: PointerEvent) => {
       if (readonly.value) return
+      if (e.button !== 0) return
       e.preventDefault()
       e.stopPropagation()
+      cancelResize()
+      const image = imageRef.value
+      if (!image) return
+      resizePointerId = e.pointerId
+      resizeStartHeight = image.style.height
+      resizeStartDataHeight = image.dataset.height
       window.addEventListener('pointermove', onResizeHandlePointerMove)
       window.addEventListener('pointerup', onResizeHandlePointerUp)
+      window.addEventListener('pointercancel', onResizeHandlePointerCancel)
+      window.addEventListener('blur', onResizeWindowBlur)
     }
+
+    onBeforeUnmount(cancelResize)
 
     return () => {
       return (

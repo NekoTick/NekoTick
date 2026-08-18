@@ -8,6 +8,7 @@ export function installExternalLinkDragClickSuppression(
     suppressNextClick: () => void,
 ): () => void {
     const ownerDocument = view.dom.ownerDocument;
+    const ownerWindow = ownerDocument.defaultView;
     let start: { x: number; y: number } | null = null;
     let moved = false;
 
@@ -38,12 +39,19 @@ export function installExternalLinkDragClickSuppression(
         if (shouldSuppress) suppressNextClick();
     };
 
+    const handleWindowBlur = () => {
+        start = null;
+        moved = false;
+    };
+
     ownerDocument.addEventListener('mousedown', handleMouseDown, true);
     ownerDocument.addEventListener('mousemove', handleMouseMove, true);
     ownerDocument.addEventListener('mouseup', handleMouseUp, true);
+    ownerWindow?.addEventListener('blur', handleWindowBlur);
     return () => {
         ownerDocument.removeEventListener('mousedown', handleMouseDown, true);
         ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
         ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
+        ownerWindow?.removeEventListener('blur', handleWindowBlur);
     };
 }

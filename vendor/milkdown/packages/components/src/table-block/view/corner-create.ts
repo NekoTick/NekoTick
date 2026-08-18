@@ -416,6 +416,13 @@ function handleMove(event: DragSessionEvent) {
   const runtime = activeRuntime
   if (!session || !runtime) return
   if (!canHandleDragSessionEvent(session, event)) return
+  if (
+    event.buttons === 0 &&
+    (session.source === 'mouse' || ('pointerType' in event && event.pointerType === 'mouse'))
+  ) {
+    clearSession(session)
+    return
+  }
 
   session.manualScrollHoldUntil = 0
   const rowClientCoord = readEdgeCreateClientCoord(event, 'row')

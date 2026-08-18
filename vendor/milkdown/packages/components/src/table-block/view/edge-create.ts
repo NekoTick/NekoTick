@@ -341,6 +341,13 @@ function handleMove(e: DragSessionEvent) {
   const runtime = activeRuntime
   if (!session || !runtime) return
   if (!canHandleDragSessionEvent(session, e)) return
+  if (
+    e.buttons === 0 &&
+    (session.source === 'mouse' || ('pointerType' in e && e.pointerType === 'mouse'))
+  ) {
+    clearSession(session)
+    return
+  }
 
   session.manualScrollHoldUntil = 0
   session.pointerClientX = e.clientX

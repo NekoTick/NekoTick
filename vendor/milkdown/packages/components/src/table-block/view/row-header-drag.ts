@@ -78,6 +78,7 @@ export function useRowHeaderDrag({
     window.addEventListener('pointermove', handleWindowPointerMove)
     window.addEventListener('pointerup', handleWindowPointerEnd)
     window.addEventListener('pointercancel', handleWindowPointerEnd)
+    window.addEventListener('blur', handleWindowBlur)
     pointerListenersBound = true
   }
 
@@ -86,6 +87,7 @@ export function useRowHeaderDrag({
     window.removeEventListener('pointermove', handleWindowPointerMove)
     window.removeEventListener('pointerup', handleWindowPointerEnd)
     window.removeEventListener('pointercancel', handleWindowPointerEnd)
+    window.removeEventListener('blur', handleWindowBlur)
     pointerListenersBound = false
   }
 
@@ -149,6 +151,21 @@ export function useRowHeaderDrag({
     syncGlobalListeners,
   })
 
+  const cancelPointerSession = () => {
+    if (!pressSession && !dragSession) return
+    const hadDragSession = dragSession != null
+    pressSession = null
+    dragSession = null
+    if (hadDragSession) {
+      releaseTableDragCursor()
+    }
+    activeRowIndex.value = null
+    syncGlobalListeners()
+    syncControls()
+  }
+
+  const handleWindowBlur = () => cancelPointerSession()
+
   const startPendingClickHighlight = (index: number) => {
     clearPendingClickHighlightTimer()
     pendingClickHighlightIndex = index
@@ -192,6 +209,15 @@ export function useRowHeaderDrag({
   }
 
   const handleWindowPointerMove = (event: PointerEvent) => {
+    const activePointerId = pressSession?.pointerId ?? dragSession?.pointerId
+    if (
+      event.pointerType === 'mouse' &&
+      (event.buttons & 1) === 0 &&
+      event.pointerId === activePointerId
+    ) {
+      cancelPointerSession()
+      return
+    }
     rememberPointerPosition(event.clientX, event.clientY)
 
     if (pressSession && event.pointerId === pressSession.pointerId) {
@@ -242,6 +268,13 @@ export function useRowHeaderDrag({
   }
 
   const handleWindowPointerEnd = (event: PointerEvent) => {
+    if (event.type === 'pointercancel') {
+      const activePointerId = pressSession?.pointerId ?? dragSession?.pointerId
+      if (event.pointerId === activePointerId) {
+        cancelPointerSession()
+      }
+      return
+    }
     rememberPointerPosition(event.clientX, event.clientY)
 
     if (pressSession && event.pointerId === pressSession.pointerId) {
@@ -291,6 +324,8 @@ export function useRowHeaderDrag({
     const view = ctx.get(editorViewCtx)
     if (event.button !== 0) return
     if (!view.editable) return
+
+    cancelPointerSession()
 
     if (suppressNextClick) {
       suppressNextClick = false

@@ -52,12 +52,13 @@ describe('textSelectionOverlayPlugin', () => {
         pointerClickCollapseTimeout: null,
         pointerDownPoint: { x: 0, y: 0 },
         pointerMovedSinceDown: false,
-        pointerSelectionAutoScroll: { start: vi.fn() },
+        pointerSelectionAutoScroll: { start: vi.fn(), stop: vi.fn() },
         setPointerNativeSelection: vi.fn(),
         syncActiveClass: vi.fn(),
       },
     } as never;
     const move = new MouseEvent('mousemove', {
+      buttons: 1,
       cancelable: true,
       clientX: 40,
       clientY: 10,
@@ -69,6 +70,31 @@ describe('textSelectionOverlayPlugin', () => {
     expect(dispatch).not.toHaveBeenCalled();
     expect(context.session.setPointerNativeSelection).toHaveBeenCalledWith(true);
     expect(context.session.pointerSelectionAutoScroll.start).toHaveBeenCalledOnce();
+  });
+
+  it('ignores pointer movement after the primary mouse button is released', () => {
+    const context = {
+      session: {
+        isPointerSelectionActive: true,
+        lastPointerSelectionY: 10,
+        pointerDownPoint: { x: 0, y: 0 },
+        pointerMovedSinceDown: false,
+        pointerSelectionAutoScroll: { start: vi.fn(), stop: vi.fn() },
+        setPointerNativeSelection: vi.fn(),
+        syncActiveClass: vi.fn(),
+      },
+    } as never;
+
+    handleTextSelectionOverlayMouseMove(context, new MouseEvent('mousemove', {
+      buttons: 0,
+      clientX: 40,
+      clientY: 80,
+    }));
+
+    expect(context.session.lastPointerSelectionY).toBe(10);
+    expect(context.session.pointerMovedSinceDown).toBe(false);
+    expect(context.session.pointerSelectionAutoScroll.start).not.toHaveBeenCalled();
+    expect(context.session.pointerSelectionAutoScroll.stop).toHaveBeenCalledOnce();
   });
 
   it('switches from native drag paint to the independent layer on release', async () => {

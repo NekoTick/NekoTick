@@ -91,6 +91,35 @@ describe('OverlayScrollArea', () => {
     expect(document.body.classList.contains('app-overlay-scrollbar-dragging')).toBe(false);
   });
 
+  it('stops thumb dragging when mouse movement reports no pressed button', () => {
+    render(
+      <div style={{ height: 120 }}>
+        <OverlayScrollArea draggingBodyClassName="app-overlay-scrollbar-dragging">
+          <div style={{ height: 480 }}>content</div>
+        </OverlayScrollArea>
+      </div>
+    );
+    const viewport = screen.getByText('content').parentElement as HTMLDivElement;
+    setViewportMetrics(viewport, { clientHeight: 120, scrollHeight: 480 });
+    fireEvent.scroll(viewport);
+    const thumb = viewport.parentElement?.querySelector('[data-overlay-scrollbar-thumb="true"]') as HTMLDivElement;
+    Object.defineProperty(thumb, 'setPointerCapture', {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    fireEvent.pointerDown(thumb, { button: 0, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(window, {
+      buttons: 0,
+      clientY: 90,
+      pointerId: 1,
+      pointerType: 'mouse',
+    });
+
+    expect(document.body.classList.contains('app-overlay-scrollbar-dragging')).toBe(false);
+    expect(viewport.scrollTop).toBe(0);
+  });
+
   it('supports a compact scrollbar variant without changing the default sizing', () => {
     const { rerender } = render(
       <div style={{ height: 120 }}>

@@ -18,6 +18,7 @@ export const LINK_TEXT_POSITION_SELECTOR = [
     '.wiki-link-expanded[data-wiki-link-expanded]',
 ].join(', ');
 const GENERATED_TOC_LINK_SELECTOR = '.toc-link[data-heading-pos]';
+const activeLinkTextSelectionSessions = new WeakMap<EditorView, () => void>();
 const LINK_TEXT_SCAN_ROOT_SELECTOR = [
     'li',
     'p',
@@ -204,6 +205,7 @@ export function startLinkTextSelectionSession(
     ) === true;
     const anchor = resolveLinkTextPositionAtPointer(view, event, selectionRoot);
     if (anchor === null) return false;
+    activeLinkTextSelectionSessions.get(view)?.();
     const sessionDoc = view.state.doc;
 
     const ownerDocument = view.dom.ownerDocument;
@@ -223,6 +225,9 @@ export function startLinkTextSelectionSession(
         ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
         ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
         ownerWindow?.removeEventListener('blur', handleWindowBlur);
+        if (activeLinkTextSelectionSessions.get(view) === stop) {
+            activeLinkTextSelectionSessions.delete(view);
+        }
         if (clearPointerState) clearPointerSelectionState();
     };
     const handleWindowBlur = () => stop();
@@ -295,5 +300,6 @@ export function startLinkTextSelectionSession(
     ownerDocument.addEventListener('mousemove', handleMouseMove, true);
     ownerDocument.addEventListener('mouseup', handleMouseUp, true);
     ownerWindow?.addEventListener('blur', handleWindowBlur);
+    activeLinkTextSelectionSessions.set(view, stop);
     return true;
 }

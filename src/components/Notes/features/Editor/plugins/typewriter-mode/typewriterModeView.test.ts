@@ -247,6 +247,27 @@ describe('TypewriterModeView', () => {
     }
   });
 
+  it('clears pointer-down state when the window loses focus', () => {
+    const harness = createTypewriterHarness({ enabled: true });
+
+    try {
+      harness.dom.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      harness.input();
+      harness.pluginView.update(harness.view, harness.prevState);
+      expect(animationFrame.requestAnimationFrame).not.toHaveBeenCalled();
+
+      window.dispatchEvent(new Event('blur'));
+      harness.input();
+      harness.pluginView.update(harness.view, harness.prevState);
+      animationFrame.flush();
+
+      expect(harness.scrollRoot.scrollTop).toBe(190);
+      expect(harness.view.coordsAtPos).toHaveBeenCalledTimes(1);
+    } finally {
+      harness.cleanup();
+    }
+  });
+
   it('centers after Enter key edits even without a beforeinput event', () => {
     const harness = createTypewriterHarness({ enabled: true });
 

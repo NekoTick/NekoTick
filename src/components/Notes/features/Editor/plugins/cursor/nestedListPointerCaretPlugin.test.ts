@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { resolveNestedListPointerScanRoot } from './nestedListPointerCaretPlugin';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  resolveNestedListPointerScanRoot,
+  startNestedListPointerSelection,
+} from './nestedListPointerCaretPlugin';
 
 describe('resolveNestedListPointerScanRoot', () => {
   it('does not map pointer coordinates for a top-level paragraph', () => {
@@ -53,5 +56,51 @@ describe('resolveNestedListPointerScanRoot', () => {
     expect(resolveNestedListPointerScanRoot(view, nestedParagraph ?? null, 100, 20)).toBe(nestedListItem);
     expect(resolveNestedListPointerScanRoot(view, nestedList, 100, 20)).toBe(outerListItem);
     expect(resolveNestedListPointerScanRoot(view, outerListItem, 100, 20)).toBe(outerListItem);
+  });
+
+  it('ignores released-button movement and cleans up the session on blur', () => {
+    const editor = document.createElement('div');
+    editor.innerHTML = '<ul><li><ul><li>Nested item</li></ul></li></ul>';
+    document.body.appendChild(editor);
+    const tr = {
+      setSelection: vi.fn(() => tr),
+      scrollIntoView: vi.fn(() => tr),
+    };
+    const doc = {
+      content: { size: 20 },
+      resolve: vi.fn(() => ({ parent: { inlineContent: true } })),
+    };
+    const view = {
+      dom: editor,
+      state: { doc, tr },
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+      posAtCoords: vi.fn(() => ({ pos: 8 })),
+    } as any;
+    const removeSpy = vi.spyOn(document, 'removeEventListener');
+
+    startNestedListPointerSelection(
+      view,
+      new MouseEvent('mousedown', { button: 0, buttons: 1, clientX: 10, clientY: 10 }),
+      5,
+      editor,
+    );
+    const hoverMove = new MouseEvent('mousemove', {
+      bubbles: true,
+      buttons: 0,
+      cancelable: true,
+      clientX: 80,
+      clientY: 40,
+    });
+    document.dispatchEvent(hoverMove);
+
+    expect(hoverMove.defaultPrevented).toBe(false);
+    expect(view.posAtCoords).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new Event('blur'));
+    expect(removeSpy).toHaveBeenCalledWith('mousemove', expect.any(Function), true);
+
+    editor.remove();
+    removeSpy.mockRestore();
   });
 });

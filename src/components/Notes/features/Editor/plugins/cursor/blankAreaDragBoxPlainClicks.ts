@@ -178,16 +178,22 @@ export function startInsideBlockTrailingPlainClickSession(
   const startY = event.clientY;
   const pointerDownDoc = view.state.doc;
   const pointerDownSelection = snapshotSelection(view.state);
+  const ownerWindow = view.dom.ownerDocument.defaultView ?? window;
   let didDrag = false;
   let isStopped = false;
   const stop = () => {
     if (isStopped) return;
     isStopped = true;
-    window.removeEventListener('mousemove', handleMouseMove, true);
-    window.removeEventListener('mouseup', handleMouseUp, true);
+    ownerWindow.removeEventListener('mousemove', handleMouseMove, true);
+    ownerWindow.removeEventListener('mouseup', handleMouseUp, true);
+    ownerWindow.removeEventListener('blur', stop);
   };
 
   const handleMouseMove = (moveEvent: MouseEvent) => {
+    if ((moveEvent.buttons & 1) === 0) {
+      stop();
+      return;
+    }
     const movedPastThreshold =
       Math.abs(moveEvent.clientX - startX) >= dragThreshold ||
       Math.abs(moveEvent.clientY - startY) >= dragThreshold;
@@ -213,8 +219,9 @@ export function startInsideBlockTrailingPlainClickSession(
     });
   };
 
-  window.addEventListener('mousemove', handleMouseMove, true);
-  window.addEventListener('mouseup', handleMouseUp, true);
+  ownerWindow.addEventListener('mousemove', handleMouseMove, true);
+  ownerWindow.addEventListener('mouseup', handleMouseUp, true);
+  ownerWindow.addEventListener('blur', stop);
   return stop;
 }
 
@@ -256,17 +263,24 @@ export function startUnclaimedBlankPlainClickSession(
   const startX = event.clientX;
   const startY = event.clientY;
   const startSelection = snapshotSelection(view.state);
+  const ownerDocument = view.dom.ownerDocument;
+  const ownerWindow = ownerDocument.defaultView;
   let didDrag = false;
   let isStopped = false;
 
   const stop = () => {
     if (isStopped) return;
     isStopped = true;
-    view.dom.ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
-    view.dom.ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
+    ownerDocument.removeEventListener('mousemove', handleMouseMove, true);
+    ownerDocument.removeEventListener('mouseup', handleMouseUp, true);
+    ownerWindow?.removeEventListener('blur', stop);
   };
 
   const handleMouseMove = (moveEvent: MouseEvent) => {
+    if ((moveEvent.buttons & 1) === 0) {
+      stop();
+      return;
+    }
     const movedPastThreshold =
       Math.abs(moveEvent.clientX - startX) >= dragThreshold ||
       Math.abs(moveEvent.clientY - startY) >= dragThreshold;
@@ -286,7 +300,8 @@ export function startUnclaimedBlankPlainClickSession(
     });
   };
 
-  view.dom.ownerDocument.addEventListener('mousemove', handleMouseMove, true);
-  view.dom.ownerDocument.addEventListener('mouseup', handleMouseUp, true);
+  ownerDocument.addEventListener('mousemove', handleMouseMove, true);
+  ownerDocument.addEventListener('mouseup', handleMouseUp, true);
+  ownerWindow?.addEventListener('blur', stop);
   return stop;
 }

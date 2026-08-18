@@ -97,6 +97,10 @@ describe('floatingToolbarPluginView', () => {
       editorBody.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 
       expect(interactionState.isMouseDown).toBe(false);
+
+      interactionState.isMouseDown = true;
+      window.dispatchEvent(new Event('blur'));
+      expect(interactionState.isMouseDown).toBe(false);
     } finally {
       ctx.unbindGlobalListeners(null);
       editorBody.remove();

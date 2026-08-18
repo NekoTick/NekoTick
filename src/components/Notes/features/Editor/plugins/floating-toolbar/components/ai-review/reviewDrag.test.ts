@@ -56,6 +56,7 @@ describe('bindAiReviewDrag', () => {
       cancelable: true,
     }));
     window.dispatchEvent(new MouseEvent('mousemove', {
+      buttons: 1,
       clientX: 72,
       clientY: 92,
     }));
@@ -108,6 +109,7 @@ describe('bindAiReviewDrag', () => {
       cancelable: true,
     }));
     window.dispatchEvent(new MouseEvent('mousemove', {
+      buttons: 1,
       clientX: 72,
       clientY: 92,
     }));
@@ -123,5 +125,47 @@ describe('bindAiReviewDrag', () => {
       },
     });
     expect(view.dispatch).toHaveBeenCalledWith(view.state.tr);
+  });
+
+  it('does not apply a hover position after the mouse button is released', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 });
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const container = document.createElement('div');
+    const dragHandle = document.createElement('button');
+    container.style.left = '100px';
+    container.style.top = '120px';
+    Object.defineProperty(container, 'offsetWidth', { configurable: true, value: 240 });
+    Object.defineProperty(container, 'offsetHeight', { configurable: true, value: 180 });
+    container.append(dragHandle);
+    document.body.append(container);
+    const view = createEditorView();
+
+    bindAiReviewDrag({ container, dragHandle, view });
+    dragHandle.dispatchEvent(new MouseEvent('mousedown', {
+      button: 0,
+      clientX: 40,
+      clientY: 50,
+      bubbles: true,
+      cancelable: true,
+    }));
+    window.dispatchEvent(new MouseEvent('mousemove', {
+      buttons: 1,
+      clientX: 72,
+      clientY: 92,
+    }));
+    window.dispatchEvent(new MouseEvent('mousemove', {
+      buttons: 0,
+      clientX: 300,
+      clientY: 300,
+    }));
+
+    expect(container.style.left).toBe('132px');
+    expect(container.style.top).toBe('162px');
+    expect(view.state.tr.setMeta).toHaveBeenLastCalledWith(expect.anything(), {
+      type: TOOLBAR_ACTIONS.UPDATE_POSITION,
+      payload: { dragPosition: { x: 132, y: 162 } },
+    });
   });
 });

@@ -63,6 +63,7 @@ export class TypewriterModeView {
     this.view.dom.removeEventListener('keydown', this.handleKeyDown, INPUT_EVENT_LISTENER_OPTIONS);
     this.view.dom.ownerDocument.defaultView?.removeEventListener('pointerup', this.handlePointerUp);
     this.view.dom.ownerDocument.defaultView?.removeEventListener('pointercancel', this.handlePointerUp);
+    this.view.dom.ownerDocument.defaultView?.removeEventListener('blur', this.handlePointerUp);
   }
 
   private handleBeforeInput = (event: Event): void => {
@@ -86,6 +87,7 @@ export class TypewriterModeView {
     const ownerWindow = this.view.dom.ownerDocument.defaultView;
     ownerWindow?.addEventListener('pointerup', this.handlePointerUp, { once: true });
     ownerWindow?.addEventListener('pointercancel', this.handlePointerUp, { once: true });
+    ownerWindow?.addEventListener('blur', this.handlePointerUp, { once: true });
   };
 
   private handlePointerUp = (): void => {
@@ -93,6 +95,7 @@ export class TypewriterModeView {
     const ownerWindow = this.view.dom.ownerDocument.defaultView;
     ownerWindow?.removeEventListener('pointerup', this.handlePointerUp);
     ownerWindow?.removeEventListener('pointercancel', this.handlePointerUp);
+    ownerWindow?.removeEventListener('blur', this.handlePointerUp);
   };
 
   private scheduleCenter(): void {

@@ -96,9 +96,11 @@ function createKeyboardEvent(key: string) {
 }
 
 function dispatchWindowPointerEvent(
-  type: 'pointermove' | 'pointerup' | 'pointerdown',
+  type: 'pointermove' | 'pointerup' | 'pointerdown' | 'pointercancel',
   init: {
+    buttons?: number;
     pointerId?: number;
+    pointerType?: string;
     clientX: number;
     clientY: number;
   },
@@ -109,9 +111,17 @@ function dispatchWindowPointerEvent(
   });
 
   Object.defineProperties(event, {
+    buttons: {
+      configurable: true,
+      value: init.buttons ?? (type === 'pointermove' ? 1 : 0),
+    },
     pointerId: {
       configurable: true,
       value: init.pointerId ?? 1,
+    },
+    pointerType: {
+      configurable: true,
+      value: init.pointerType ?? 'mouse',
     },
     clientX: {
       configurable: true,
@@ -260,6 +270,7 @@ describe('column header drag', () => {
       expect(addSpy).toHaveBeenCalledWith('pointermove', expect.any(Function));
       expect(addSpy).toHaveBeenCalledWith('pointerup', expect.any(Function));
       expect(addSpy).toHaveBeenCalledWith('pointercancel', expect.any(Function));
+      expect(addSpy).toHaveBeenCalledWith('blur', expect.any(Function));
 
       dispatchWindowPointerEvent('pointerup', {
         pointerId: 11,
@@ -270,6 +281,7 @@ describe('column header drag', () => {
       expect(removeSpy).toHaveBeenCalledWith('pointermove', expect.any(Function));
       expect(removeSpy).toHaveBeenCalledWith('pointerup', expect.any(Function));
       expect(removeSpy).toHaveBeenCalledWith('pointercancel', expect.any(Function));
+      expect(removeSpy).toHaveBeenCalledWith('blur', expect.any(Function));
 
       api.onControlClick(1, createMouseEvent());
 
@@ -403,6 +415,60 @@ describe('column header drag', () => {
     api.onControlClick(0, createMouseEvent());
 
     expect(api.menuState.value).toBeNull();
+  });
+
+  it('cancels an active column drag when mouse movement reports no pressed button', () => {
+    const { api, moveCol } = createHarness();
+
+    api.onControlPointerDown(0, createControlPointerEvent({
+      pointerId: 13,
+      clientX: 130,
+      clientY: 108,
+    }));
+    dispatchWindowPointerEvent('pointermove', {
+      pointerId: 13,
+      clientX: 340,
+      clientY: 108,
+    });
+    dispatchWindowPointerEvent('pointermove', {
+      buttons: 0,
+      pointerId: 13,
+      clientX: 360,
+      clientY: 108,
+    });
+    dispatchWindowPointerEvent('pointerup', {
+      pointerId: 13,
+      clientX: 360,
+      clientY: 108,
+    });
+
+    expect(moveCol).not.toHaveBeenCalled();
+    expect(releaseTableDragCursorMock).toHaveBeenCalledTimes(1);
+    expect(api.dragIndicator.value).toBeNull();
+  });
+
+  it('does not move a column when the pointer session is cancelled', () => {
+    const { api, moveCol } = createHarness();
+
+    api.onControlPointerDown(0, createControlPointerEvent({
+      pointerId: 14,
+      clientX: 130,
+      clientY: 108,
+    }));
+    dispatchWindowPointerEvent('pointermove', {
+      pointerId: 14,
+      clientX: 340,
+      clientY: 108,
+    });
+    dispatchWindowPointerEvent('pointercancel', {
+      pointerId: 14,
+      clientX: 340,
+      clientY: 108,
+    });
+
+    expect(moveCol).not.toHaveBeenCalled();
+    expect(releaseTableDragCursorMock).toHaveBeenCalledTimes(1);
+    expect(api.dragIndicator.value).toBeNull();
   });
 
   it('opens the menu from keyboard and routes menu actions to the selected column', () => {

@@ -36,11 +36,18 @@ function installAnimationFrameQueue() {
   return { callbacks, requestAnimationFrame };
 }
 
-function dispatchPointer(type: 'pointermove' | 'pointerup' | 'pointercancel', clientX: number, clientY: number) {
+function dispatchPointer(
+  type: 'pointermove' | 'pointerup' | 'pointercancel',
+  clientX: number,
+  clientY: number,
+  options: { buttons?: number; pointerType?: string } = {},
+) {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperties(event, {
+    buttons: { configurable: true, value: options.buttons ?? (type === 'pointermove' ? 1 : 0) },
     clientX: { configurable: true, value: clientX },
     clientY: { configurable: true, value: clientY },
+    pointerType: { configurable: true, value: options.pointerType ?? 'mouse' },
   });
   document.dispatchEvent(event);
 }
@@ -103,7 +110,7 @@ describe('Notes split interactions', () => {
   });
 
   it.each(['pointerup', 'pointercancel'] as const)(
-    'preserves the latest scheduled resize point on %s',
+    'handles the latest scheduled resize point on %s',
     (endType) => {
       installAnimationFrameQueue();
       const container = document.createElement('div');
@@ -137,6 +144,11 @@ describe('Notes split interactions', () => {
       dispatchPointer('pointermove', 360, 0);
       dispatchPointer(endType, 400, 0);
 
+      if (endType === 'pointercancel') {
+        expect(setSplitPaneTree).not.toHaveBeenCalled();
+        unmount();
+        return;
+      }
       expect(setSplitPaneTree).toHaveBeenCalledTimes(1);
       const update = setSplitPaneTree.mock.calls[0]?.[0] as ((tree: NotesSplitPaneTree) => NotesSplitPaneTree);
       const initialTree = splitNotesPaneTree(
@@ -149,11 +161,51 @@ describe('Notes split interactions', () => {
       const nextTree = update(initialTree);
       expect(nextTree.type).toBe('split');
       if (nextTree.type === 'split') {
-        expect(nextTree.ratio).toBe(endType === 'pointerup' ? 0.5 : 0.45);
+        expect(nextTree.ratio).toBe(0.5);
       }
       unmount();
     },
   );
+
+  it('stops split resize without using a released-button hover point', () => {
+    const frames = installAnimationFrameQueue();
+    const container = document.createElement('div');
+    const handle = document.createElement('div');
+    container.appendChild(handle);
+    document.body.appendChild(container);
+    vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+      bottom: 400,
+      height: 400,
+      left: 0,
+      right: 800,
+      top: 0,
+      width: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const setSplitPaneTree = vi.fn();
+    const { result, unmount } = renderHook(() => useNotesSplitResize({ setSplitPaneTree }));
+    act(() => {
+      result.current.beginSplitResize('split-1', 'horizontal', {
+        clientX: 200,
+        clientY: 0,
+        currentTarget: handle,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      } as never);
+    });
+    setSplitPaneTree.mockClear();
+    frames.requestAnimationFrame.mockClear();
+
+    dispatchPointer('pointermove', 700, 0, { buttons: 0 });
+    dispatchPointer('pointermove', 750, 0);
+
+    expect(result.current.activeSplitResizeRef.current).toBeNull();
+    expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
+    expect(setSplitPaneTree).not.toHaveBeenCalled();
+    unmount();
+  });
 
   it('coalesces split-pane drop target resolution into one animation frame', () => {
     const frames = installAnimationFrameQueue();
@@ -193,6 +245,39 @@ describe('Notes split interactions', () => {
     expect(resolveSplitDropTarget).toHaveBeenCalledTimes(1);
     expect(setSplitDropTarget).toHaveBeenCalledTimes(1);
     dispatchPointer('pointerup', 50, 20);
+    unmount();
+  });
+
+  it('cancels split-pane dragging on released-button movement', () => {
+    const frames = installAnimationFrameQueue();
+    const resolveSplitDropTarget = vi.fn(() => ({ leafId: 'leaf-2', direction: 'right' as const }));
+    const setSplitDropTarget = vi.fn();
+    const setSplitPaneTree = vi.fn();
+    const { result, unmount } = renderHook(() => useNotesSplitPaneDrag({
+      active: true,
+      activeSplitResizeRef: { current: null },
+      hasSplitPanes: true,
+      nextSplitPaneId: () => 'split-next',
+      resolveSplitDropTarget,
+      setSplitDropTarget,
+      setSplitPaneTree,
+      stopSplitResize: vi.fn(),
+    }));
+    act(() => {
+      result.current.beginSplitPaneDrag({
+        clientX: 10,
+        clientY: 10,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      } as never, 'leaf-1');
+    });
+
+    dispatchPointer('pointermove', 300, 200, { buttons: 0 });
+    dispatchPointer('pointerup', 300, 200);
+
+    expect(frames.requestAnimationFrame).not.toHaveBeenCalled();
+    expect(resolveSplitDropTarget).not.toHaveBeenCalled();
+    expect(setSplitPaneTree).not.toHaveBeenCalled();
     unmount();
   });
 
