@@ -10,8 +10,11 @@ import {
   getSelectionViewportBounds,
   getVisibleSelectionWindowChildren,
 } from './visibleSelectionWindow';
+import {
+  getSelectedEmptyLineSelectionRect,
+  TEXT_SELECTION_TEXTBLOCK_SELECTOR,
+} from './textSelectionEmptyLineRects';
 
-const TEXTBLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, td, th, dt, dd';
 const MAX_VISIBLE_SELECTION_RECTS = 300;
 const RECT_MERGE_TOLERANCE_PX = 0.75;
 
@@ -66,8 +69,10 @@ function getSelectedDomRange(
 }
 
 function getTextblocks(child: HTMLElement): HTMLElement[] {
-  const blocks = Array.from(child.querySelectorAll<HTMLElement>(TEXTBLOCK_SELECTOR));
-  if (child.matches(TEXTBLOCK_SELECTOR)) blocks.unshift(child);
+  const blocks = Array.from(
+    child.querySelectorAll<HTMLElement>(TEXT_SELECTION_TEXTBLOCK_SELECTOR),
+  );
+  if (child.matches(TEXT_SELECTION_TEXTBLOCK_SELECTOR)) blocks.unshift(child);
   return blocks;
 }
 
@@ -166,18 +171,32 @@ export function measureTextSelectionLayerRects(
     const textblocks = getTextblocks(child);
     for (const textblock of textblocks) {
       const range = getSelectedDomRange(view, textblock);
-      if (!range) continue;
-      const metrics = getCachedTextblockLineMetrics(textblock, lineMetricsByTextblock);
-      try {
-        appendClientRects(rawRects, range.getClientRects(), metrics);
-      } finally {
-        range.detach();
+      const previousRectCount = rawRects.length;
+      if (range) {
+        const metrics = getCachedTextblockLineMetrics(textblock, lineMetricsByTextblock);
+        try {
+          appendClientRects(rawRects, range.getClientRects(), metrics);
+        } finally {
+          if (rawRects.length === previousRectCount) {
+            const emptyLineRect = getSelectedEmptyLineSelectionRect(view, textblock, range);
+            if (emptyLineRect) rawRects.push(emptyLineRect);
+          }
+          range.detach();
+        }
+      } else {
+        const emptyLineRect = getSelectedEmptyLineSelectionRect(view, textblock);
+        if (emptyLineRect) rawRects.push(emptyLineRect);
       }
       if (rawRects.length >= MAX_VISIBLE_SELECTION_RECTS) break;
     }
     if (rawRects.length >= MAX_VISIBLE_SELECTION_RECTS) break;
-    if (textblocks.length === 0 && view.state.selection instanceof AllSelection) {
-      rawRects.push(child.getBoundingClientRect());
+    if (textblocks.length === 0) {
+      const emptyLineRect = getSelectedEmptyLineSelectionRect(view, child);
+      if (emptyLineRect) {
+        rawRects.push(emptyLineRect);
+      } else if (view.state.selection instanceof AllSelection) {
+        rawRects.push(child.getBoundingClientRect());
+      }
     }
   }
 

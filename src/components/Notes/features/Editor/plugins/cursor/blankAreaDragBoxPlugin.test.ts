@@ -1176,7 +1176,7 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
       });
 
       const mouseDown = createMouseEvent('mousedown', {
-        clientX: 120,
+        clientX: 32,
         clientY: 48,
       });
       Object.defineProperty(mouseDown, 'target', {
@@ -1219,6 +1219,256 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
       rectSpy?.mockRestore();
       debugSpy?.mockRestore();
       delete (globalThis as typeof globalThis & { __debugMarkdownBlankLine?: boolean }).__debugMarkdownBlankLine;
+      await editor.destroy();
+    }
+  });
+
+  it.each([
+    { direction: 'down', targetText: 'Beta', targetY: 72 },
+    { direction: 'up', targetText: 'Alpha', targetY: 0 },
+  ])('starts a text selection when dragging $direction from a markdown blank line', async ({
+    targetText,
+    targetY,
+  }) => {
+    const { editor, view } = await createBlockSelectionEditor([
+      'Alpha',
+      '<!--vlaina-markdown-blank-line-->',
+      'Beta',
+    ].join('\n'));
+
+    try {
+      const blankLine = view.dom.querySelector(
+        '[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]',
+      );
+      expect(blankLine).toBeInstanceOf(HTMLElement);
+
+      blankLine?.dispatchEvent(createMouseEvent('mousedown', {
+        clientX: 16,
+        clientY: 36,
+      }));
+
+      const blankLinePos = findNodePosition(
+        view,
+        'paragraph',
+        (node) => node.textContent === EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      );
+      const target = findTextRange(view.state.doc, targetText);
+      const targetPos = targetText === 'Alpha' ? target.from : target.to;
+      vi.spyOn(view, 'posAtCoords').mockReturnValue({ pos: targetPos, inside: target.from - 1 });
+
+      document.dispatchEvent(createMouseEvent('mousemove', {
+        buttons: 1,
+        clientX: 48,
+        clientY: targetY,
+      }));
+
+      const selectionFrom = targetText === 'Alpha' ? target.from : blankLinePos + 1;
+      const selectionTo = targetText === 'Alpha' ? blankLinePos + 2 : target.to;
+      expect(view.state.selection).toBeInstanceOf(TextSelection);
+      expect(view.state.selection.from).toBe(selectionFrom);
+      expect(view.state.selection.to).toBe(selectionTo);
+      expect(view.state.doc.textBetween(
+        view.state.selection.from,
+        view.state.selection.to,
+        '',
+      )).toContain(EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER);
+
+      document.dispatchEvent(createMouseEvent('mouseup', {
+        clientX: 48,
+        clientY: targetY,
+      }));
+      expect(view.dom).not.toHaveAttribute('data-editor-pointer-selecting');
+    } finally {
+      vi.restoreAllMocks();
+      await editor.destroy();
+    }
+  });
+
+  it('starts text selection from the trailing gutter of an editable markdown blank line', async () => {
+    const { editor, view } = await createBlockSelectionEditor([
+      'Alpha',
+      '<!--vlaina-markdown-blank-line-->',
+      'Beta',
+    ].join('\n'));
+
+    try {
+      const blankLine = view.dom.querySelector(
+        '[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]',
+      );
+      expect(blankLine).toBeInstanceOf(HTMLElement);
+      blankLine?.dispatchEvent(createMouseEvent('mousedown', {
+        clientX: 16,
+        clientY: 36,
+      }));
+      document.dispatchEvent(createMouseEvent('mouseup', {
+        clientX: 16,
+        clientY: 36,
+      }));
+
+      const editableBlankLine = view.dom.querySelector('p.editor-editable-markdown-blank-line');
+      expect(editableBlankLine).toBeInstanceOf(HTMLParagraphElement);
+      vi.spyOn(editableBlankLine as HTMLElement, 'getBoundingClientRect').mockReturnValue(
+        domRect(16, 24, 480, 48),
+      );
+
+      editableBlankLine?.dispatchEvent(createMouseEvent('mousedown', {
+        clientX: 48,
+        clientY: 36,
+      }));
+
+      const blankLinePos = findNodePosition(
+        view,
+        'paragraph',
+        (node) => node.textContent === EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      );
+      const target = findTextRange(view.state.doc, 'Beta');
+      vi.spyOn(view, 'posAtCoords').mockReturnValue({ pos: target.to, inside: target.from - 1 });
+
+      document.dispatchEvent(createMouseEvent('mousemove', {
+        buttons: 1,
+        clientX: 64,
+        clientY: 72,
+      }));
+
+      expect(view.state.selection).toBeInstanceOf(TextSelection);
+      expect(view.state.selection.from).toBe(blankLinePos + 1);
+      expect(view.state.selection.to).toBe(target.to);
+
+      document.dispatchEvent(createMouseEvent('mouseup', {
+        clientX: 64,
+        clientY: 72,
+      }));
+    } finally {
+      vi.restoreAllMocks();
+      await editor.destroy();
+    }
+  });
+
+  it('keeps the markdown blank-line trailing gutter selectable when the next line overlaps it', async () => {
+    const { editor, view } = await createBlockSelectionEditor([
+      'Alpha',
+      '<!--vlaina-markdown-blank-line-->',
+      'Beta',
+    ].join('\n'));
+    let measuredNode: Node | null = null;
+
+    try {
+      const blankLine = view.dom.querySelector(
+        '[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]',
+      );
+      const alphaBlock = Array.from(view.dom.children).find((child) => child.textContent === 'Alpha');
+      const betaBlock = Array.from(view.dom.children).find((child) => child.textContent === 'Beta');
+      expect(blankLine).toBeInstanceOf(HTMLElement);
+
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
+        if (this === view.dom) return domRect(0, 0, 480, 72);
+        if (this === alphaBlock) return domRect(0, 0, 480, 24);
+        if (this === blankLine) return domRect(0, 24, 480, 48);
+        if (this === betaBlock) return domRect(0, 48, 480, 72);
+        return domRect(0, 0, 0, 0);
+      });
+      vi.spyOn(document, 'createRange').mockImplementation(() => ({
+        selectNodeContents(node: Node) {
+          measuredNode = node;
+        },
+        getClientRects() {
+          if (measuredNode?.textContent === 'Alpha') return domRectList(domRect(40, 2, 100, 20));
+          if (measuredNode?.textContent === 'Beta') return domRectList(domRect(40, 30, 180, 44));
+          return domRectList();
+        },
+        detach: vi.fn(),
+      }) as any);
+
+      blankLine?.dispatchEvent(createMouseEvent('mousedown', {
+        clientX: 32,
+        clientY: 36,
+      }));
+      const blankLinePos = findNodePosition(
+        view,
+        'paragraph',
+        (node) => node.textContent === EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      );
+      const target = findTextRange(view.state.doc, 'Beta');
+      vi.spyOn(view, 'posAtCoords').mockReturnValue({ pos: target.to, inside: target.from - 1 });
+
+      document.dispatchEvent(createMouseEvent('mousemove', {
+        buttons: 1,
+        clientX: 64,
+        clientY: 72,
+      }));
+
+      expect(view.state.selection.from).toBe(blankLinePos + 1);
+      expect(view.state.selection.to).toBe(target.to);
+      document.dispatchEvent(createMouseEvent('mouseup', {
+        clientX: 64,
+        clientY: 72,
+      }));
+    } finally {
+      vi.restoreAllMocks();
+      await editor.destroy();
+    }
+  });
+
+  it('starts block selection from the blank area after a markdown blank-line text gutter', async () => {
+    const { editor, view } = await createBlockSelectionEditor([
+      'Alpha',
+      '<!--vlaina-markdown-blank-line-->',
+      'Beta',
+    ].join('\n'));
+    let measuredNode: Node | null = null;
+
+    try {
+      attachNoteScrollRoot(view);
+      dispatchBlockSelectionAction(view, CLEAR_BLOCKS_ACTION);
+      const blankLine = view.dom.querySelector(
+        '[data-type="html-block"][data-value="<!--vlaina-markdown-blank-line-->"]',
+      );
+      const alphaBlock = Array.from(view.dom.children).find((child) => child.textContent === 'Alpha');
+      const betaBlock = Array.from(view.dom.children).find((child) => child.textContent === 'Beta');
+      expect(blankLine).toBeInstanceOf(HTMLElement);
+
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect(this: HTMLElement) {
+        if (this === view.dom) return domRect(0, 0, 480, 72);
+        if (this === alphaBlock) return domRect(0, 0, 480, 24);
+        if (this === blankLine) return domRect(0, 24, 480, 48);
+        if (this === betaBlock) return domRect(0, 48, 480, 72);
+        return domRect(0, 0, 0, 0);
+      });
+      vi.spyOn(document, 'createRange').mockImplementation(() => ({
+        selectNodeContents(node: Node) {
+          measuredNode = node;
+        },
+        getClientRects() {
+          if (measuredNode?.textContent === 'Alpha') return domRectList(domRect(40, 2, 100, 20));
+          if (measuredNode?.textContent === 'Beta') return domRectList(domRect(40, 50, 100, 68));
+          return domRectList();
+        },
+        detach: vi.fn(),
+      }) as any);
+      const beta = findTextRange(view.state.doc, 'Beta');
+      vi.spyOn(view, 'posAtCoords').mockReturnValue({ pos: beta.to, inside: beta.from - 1 });
+
+      blankLine?.dispatchEvent(createMouseEvent('mousedown', {
+        clientX: 320,
+        clientY: 36,
+      }));
+
+      expect(view.dom).toHaveAttribute('data-editor-block-selection-pending', 'true');
+      expect(view.dom).not.toHaveAttribute('data-editor-pointer-selecting');
+
+      document.dispatchEvent(createMouseEvent('mousemove', {
+        buttons: 1,
+        clientX: 280,
+        clientY: 60,
+      }));
+      expect(getBlockSelectionPluginState(view.state).selectedBlocks.length).toBeGreaterThan(0);
+
+      document.dispatchEvent(createMouseEvent('mouseup', {
+        clientX: 280,
+        clientY: 60,
+      }));
+    } finally {
+      vi.restoreAllMocks();
       await editor.destroy();
     }
   });
@@ -1362,7 +1612,7 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
       expect(betaBlock).toBeInstanceOf(HTMLElement);
 
       const mouseDown = createMouseEvent('mousedown', {
-        clientX: 120,
+        clientX: 32,
         clientY: 36,
       });
       Object.defineProperty(mouseDown, 'target', {
