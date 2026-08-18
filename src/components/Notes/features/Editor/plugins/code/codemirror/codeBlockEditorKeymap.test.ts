@@ -8,6 +8,11 @@ const blockSelectionMocks = vi.hoisted(() => ({
   clearBlocksAction: { type: 'clear-blocks' },
 }));
 
+const historyMocks = vi.hoisted(() => ({
+  redo: vi.fn(() => true),
+  undo: vi.fn(() => true),
+}));
+
 vi.mock('@milkdown/kit/prose/state', () => ({
   TextSelection: {
     near: vi.fn(() => 'text-selection'),
@@ -25,6 +30,8 @@ vi.mock('../../cursor/blockSelectionCommands', () => ({
 vi.mock('@/lib/clipboard', () => ({
   tryWriteTextToClipboardSynchronously: blockSelectionMocks.tryWriteTextToClipboardSynchronously,
 }));
+
+vi.mock('@milkdown/kit/prose/history', () => historyMocks);
 
 vi.mock('../../cursor/blockSelectionPluginState', () => ({
   blankAreaDragBoxPluginKey: blockSelectionMocks.blankAreaDragBoxPluginKey,
@@ -272,6 +279,37 @@ describe('createCodeBlockEditorKeymap', () => {
     const selectAll = keymaps.find((binding) => binding.key === 'Mod-a');
 
     expect(selectAll?.run?.({} as never)).toBe(false);
+  });
+
+  it('flushes pending CodeMirror changes before undoing the outer editor', () => {
+    const order: string[] = [];
+    let state = { id: 'before-flush' };
+    const view = {
+      dispatch: vi.fn(),
+      get state() {
+        return state;
+      },
+    };
+    historyMocks.undo.mockImplementationOnce((receivedState) => {
+      order.push(`undo:${(receivedState as { id: string }).id}`);
+      return true;
+    });
+    const options = {
+      getCodeMirror: () => ({}) as never,
+      view: view as never,
+      getNode: () => ({}) as never,
+      getPos: () => 0,
+      flushPendingChanges: () => {
+        order.push('flush');
+        state = { id: 'after-flush' };
+      },
+    };
+    const keymaps = createCodeBlockEditorKeymap(options);
+
+    const undo = keymaps.find((binding) => binding.key === 'Mod-z');
+
+    expect(undo?.run?.({} as never)).toBe(true);
+    expect(order).toEqual(['flush', 'undo:after-flush']);
   });
 
   it('escalates to editor-wide selection on the second Mod-a', () => {

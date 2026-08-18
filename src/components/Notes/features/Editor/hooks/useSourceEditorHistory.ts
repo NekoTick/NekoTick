@@ -1,5 +1,10 @@
 import { useCallback, useRef, type RefObject } from 'react';
 import { resolveDocumentHistoryShortcut } from '../plugins/floating-toolbar/floatingToolbarPluginViewUtils';
+import {
+  EDITOR_HISTORY_DEPTH,
+  EDITOR_HISTORY_GROUP_DELAY_MS,
+  EDITOR_HISTORY_NOTE_CACHE_LIMIT,
+} from '../editorHistoryPolicy';
 
 type SourceSelectionDirection = 'forward' | 'backward' | 'none';
 
@@ -12,13 +17,11 @@ export interface SourceEditorSnapshot {
 
 interface SourceEditorHistoryEntry {
   current: SourceEditorSnapshot;
-  lastInput: { inputType: string; recordedAt: number } | null;
+  lastInput: { hadSelection: boolean; inputType: string; recordedAt: number } | null;
   redo: SourceEditorSnapshot[];
   undo: SourceEditorSnapshot[];
 }
 
-const HISTORY_LIMIT = 100;
-const INPUT_GROUP_DELAY_MS = 1_000;
 const GROUPABLE_INPUT_TYPES = new Set([
   'deleteContentBackward',
   'deleteContentForward',
@@ -49,6 +52,19 @@ function createEntry(value: string): SourceEditorHistoryEntry {
   };
 }
 
+function setHistoryEntry(
+  histories: Map<string, SourceEditorHistoryEntry>,
+  path: string,
+  entry: SourceEditorHistoryEntry,
+): void {
+  histories.delete(path);
+  histories.set(path, entry);
+  if (histories.size <= EDITOR_HISTORY_NOTE_CACHE_LIMIT) return;
+
+  const oldestPath = histories.keys().next().value as string | undefined;
+  if (oldestPath) histories.delete(oldestPath);
+}
+
 function applySnapshot(textarea: HTMLTextAreaElement, snapshot: SourceEditorSnapshot): void {
   textarea.value = snapshot.value;
   textarea.setSelectionRange(
@@ -76,7 +92,7 @@ export function useSourceEditorHistory({
     let entry = historiesRef.current.get(currentNotePath);
     if (!entry || entry.current.value !== fallbackValue) {
       entry = createEntry(fallbackValue);
-      historiesRef.current.set(currentNotePath, entry);
+      setHistoryEntry(historiesRef.current, currentNotePath, entry);
     }
     return entry;
   }, [currentNotePath]);
@@ -86,7 +102,9 @@ export function useSourceEditorHistory({
     const canRestoreSelection = activePathRef.current !== currentNotePath
       && existing?.current.value === currentNoteContent;
     if (!existing || existing.current.value !== currentNoteContent) {
-      historiesRef.current.set(currentNotePath, createEntry(currentNoteContent));
+      setHistoryEntry(historiesRef.current, currentNotePath, createEntry(currentNoteContent));
+    } else if (activePathRef.current !== currentNotePath) {
+      setHistoryEntry(historiesRef.current, currentNotePath, existing);
     }
     activePathRef.current = currentNotePath;
     beforeInputRef.current = null;
@@ -113,22 +131,30 @@ export function useSourceEditorHistory({
       ? pendingBeforeInput.snapshot
       : { ...entry.current, value: previousValue };
     const next = snapshotTextarea(textarea);
+    if (previousValue === next.value) {
+      entry.current = next;
+      beforeInputRef.current = null;
+      return;
+    }
     const now = Date.now();
+    const hadSelection = previous.selectionStart !== previous.selectionEnd;
     const continuesInputGroup = GROUPABLE_INPUT_TYPES.has(inputType)
       && entry.lastInput?.inputType === inputType
-      && now - entry.lastInput.recordedAt <= INPUT_GROUP_DELAY_MS
+      && !entry.lastInput.hadSelection
+      && !hadSelection
+      && now - entry.lastInput.recordedAt <= EDITOR_HISTORY_GROUP_DELAY_MS
       && previous.selectionStart === entry.current.selectionStart
       && previous.selectionEnd === entry.current.selectionEnd;
 
     if (!continuesInputGroup) {
       entry.undo.push(previous);
-      if (entry.undo.length > HISTORY_LIMIT) {
+      if (entry.undo.length > EDITOR_HISTORY_DEPTH) {
         entry.undo.shift();
       }
     }
     entry.current = next;
     entry.redo = [];
-    entry.lastInput = { inputType, recordedAt: now };
+    entry.lastInput = { hadSelection, inputType, recordedAt: now };
     beforeInputRef.current = null;
   }, [currentNotePath, getCurrentEntry]);
 

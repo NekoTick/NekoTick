@@ -141,7 +141,13 @@ export function createCodeBlockEditorKeymap({
   view,
   getNode,
   getPos,
+  flushPendingChanges,
 }: CreateCodeBlockKeymapOptions): KeyBinding[] {
+  const runHistoryCommand = (command: typeof undo) => {
+    flushPendingChanges?.();
+    return command(view.state, view.dispatch);
+  };
+
   return [
     {
       key: 'Backspace',
@@ -197,9 +203,9 @@ export function createCodeBlockEditorKeymap({
         return true;
       },
     },
-    { key: 'Mod-z', run: () => undo(view.state, view.dispatch) },
-    { key: 'Shift-Mod-z', run: () => redo(view.state, view.dispatch) },
-    { key: 'Mod-y', run: () => redo(view.state, view.dispatch) },
+    { key: 'Mod-z', run: () => runHistoryCommand(undo) },
+    { key: 'Shift-Mod-z', run: () => runHistoryCommand(redo) },
+    { key: 'Mod-y', run: () => runHistoryCommand(redo) },
     {
       key: 'Backspace',
       run: () => {

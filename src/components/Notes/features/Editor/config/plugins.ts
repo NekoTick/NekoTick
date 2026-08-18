@@ -64,6 +64,7 @@ import { tagTokenPlugin } from '../plugins/tags/tagTokenPlugin';
 import { structuralStyleDecorationsPlugin } from '../plugins/structural/structuralStyleDecorations';
 import { typoraCompatibilityDomClassesPlugin } from '../theme-compatibility/typora/domClassesPlugin';
 import { themeCompatibilityDecorationsPlugin } from '../theme-compatibility/typora/decorationsPlugin';
+import { historyBoundaryPlugin } from '../plugins/history/historyBoundaryPlugin';
 
 export const customPluginGroups = [
   {
@@ -167,6 +168,7 @@ export const customPluginGroups = [
       titleNavigationPlugin,
       typewriterModePlugin,
       editorShortcutsPlugin,
+      historyBoundaryPlugin,
       gapCursorPlugin,
     ],
   },

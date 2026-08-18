@@ -10,7 +10,7 @@ import {
 } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm, remarkGFMPlugin } from '@milkdown/kit/preset/gfm';
-import { history } from '@milkdown/kit/plugin/history';
+import { history, historyProviderConfig } from '@milkdown/kit/plugin/history';
 import { tableBlock } from '@milkdown/kit/component/table-block';
 import { clipboardPlugin } from './plugins/clipboard/clipboardPlugin';
 import { configureTheme } from './theme';
@@ -29,6 +29,7 @@ import {
 import { logE2EMilkdownTiming } from './milkdownE2ETiming';
 import type { ActiveMilkdownEditor, MilkdownDefaultValue } from './MilkdownEditorInnerTypes';
 import type { MilkdownContext } from './hooks/pendingMarkdownAutosaveTypes';
+import { EDITOR_HISTORY_CONFIG } from './editorHistoryPolicy';
 
 export function useMilkdownEditorFactory(args: {
   activateEditor: (editor: ActiveMilkdownEditor) => void;
@@ -113,6 +114,7 @@ export function useMilkdownEditorFactory(args: {
           ...notesRemarkStringifyOptions,
         }));
         ctx.set(remarkGFMPlugin.options.key, notesRemarkGfmOptions);
+        ctx.set(historyProviderConfig.key, EDITOR_HISTORY_CONFIG);
 
         milkdownContextRef.current = ctx;
         markdownListenerRef.current = configureMarkdownListenerRef.current(ctx, normalizedMath);
