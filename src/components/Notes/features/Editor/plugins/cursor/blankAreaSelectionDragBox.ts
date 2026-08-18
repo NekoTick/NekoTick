@@ -9,7 +9,6 @@ export const DRAG_SELECTION_PREVIEW_ACTIVE_CLASS = 'editor-block-selection-drag-
 export function createDragBox(
   doc: Document,
   dragBoxColor: string,
-  showFill = true,
 ): HTMLDivElement {
   const box = doc.createElement('div');
   box.setAttribute('data-editor-drag-box', 'true');
@@ -17,7 +16,7 @@ export function createDragBox(
   box.style.pointerEvents = themeStyleResetTokens.pointerEventsNone;
   box.style.zIndex = themeDomStyleTokens.zIndexBase;
   box.style.border = themeDomStyleTokens.borderNone;
-  box.style.background = showFill ? dragBoxColor : themeStyleResetTokens.backgroundTransparent;
+  box.style.background = dragBoxColor;
   box.style.borderRadius = themeStyleResetTokens.borderRadiusNone;
   box.style.left = themeDomStyleTokens.sizeZeroPx;
   box.style.top = themeDomStyleTokens.sizeZeroPx;
@@ -45,7 +44,7 @@ export function createBlockSelectionPreviewLayer(
 ): SVGSVGElement {
   const layer = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
   layer.setAttribute('data-editor-block-selection-preview', 'true');
-  layer.style.position = themeDomStyleTokens.positionFixed;
+  layer.style.position = themeDomStyleTokens.positionAbsolute;
   layer.style.pointerEvents = themeStyleResetTokens.pointerEventsNone;
   layer.style.zIndex = themeDomStyleTokens.zIndexBase;
   layer.style.left = themeDomStyleTokens.sizeZeroPx;
@@ -80,6 +79,19 @@ export function updateBlockSelectionPreviewLayer(
   };
   const viewportWidth = win?.innerWidth ?? visibleBounds.right;
   const viewportHeight = win?.innerHeight ?? visibleBounds.bottom;
+  const hostRect = layer.parentElement?.getBoundingClientRect();
+  const layerTransform = `translate3d(${-(hostRect?.left ?? 0)}px, ${-(hostRect?.top ?? 0)}px, 0)`;
+  if (layer.style.transform !== layerTransform) {
+    layer.style.transform = layerTransform;
+  }
+  const layerWidth = `${viewportWidth}px`;
+  if (layer.style.width !== layerWidth) {
+    layer.style.width = layerWidth;
+  }
+  const layerHeight = `${viewportHeight}px`;
+  if (layer.style.height !== layerHeight) {
+    layer.style.height = layerHeight;
+  }
   const clipPath = viewportBounds
     ? `inset(${Math.max(0, viewportBounds.top)}px ${Math.max(0, viewportWidth - viewportBounds.right)}px ${Math.max(0, viewportHeight - viewportBounds.bottom)}px ${Math.max(0, viewportBounds.left)}px)`
     : themeStyleResetTokens.clipPathNone;

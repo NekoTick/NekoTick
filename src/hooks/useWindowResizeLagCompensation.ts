@@ -1,24 +1,26 @@
 import { useEffect } from 'react';
 import { isNativeWindows } from '@/lib/desktop/platform';
-import { isElectronRuntime } from '@/lib/electron/bridge';
+import {
+  getElectronBridge,
+  isElectronRuntime,
+} from '@/lib/electron/bridge';
 
 const COMPENSATION_CSS_VARIABLE = '--vlaina-window-resize-compensation-x';
+const CONTENT_COMPENSATION_CSS_VARIABLE = '--vlaina-window-resize-content-compensation-x';
 const MAX_COMPENSATION_PX = 4096;
 
 export function calculateWindowResizeCompensationPx({
-  baselineGap,
   innerWidth,
-  outerWidth,
+  targetContentWidth,
 }: {
-  baselineGap: number;
   innerWidth: number;
-  outerWidth: number;
+  targetContentWidth: number;
 }) {
-  if (!Number.isFinite(baselineGap) || !Number.isFinite(innerWidth) || !Number.isFinite(outerWidth)) {
+  if (!Number.isFinite(innerWidth) || !Number.isFinite(targetContentWidth)) {
     return 0;
   }
 
-  const compensation = Math.round(outerWidth - innerWidth - baselineGap);
+  const compensation = Math.round(targetContentWidth - innerWidth);
   if (Math.abs(compensation) < 1) {
     return 0;
   }
@@ -35,30 +37,42 @@ export function useWindowResizeLagCompensation() {
     const baselineGap = window.outerWidth - window.innerWidth;
     let frameId: number | null = null;
     let lastCompensation = Number.NaN;
+    let nativeContentWidth = window.innerWidth;
+    let hasNativeBoundsSignal = false;
 
     const applyCompensation = () => {
+      if (!hasNativeBoundsSignal) {
+        nativeContentWidth = window.outerWidth - baselineGap;
+      }
       const compensation = calculateWindowResizeCompensationPx({
-        baselineGap,
         innerWidth: window.innerWidth,
-        outerWidth: window.outerWidth,
+        targetContentWidth: nativeContentWidth,
       });
 
       if (compensation !== lastCompensation) {
         lastCompensation = compensation;
         root.style.setProperty(COMPENSATION_CSS_VARIABLE, `${compensation}px`);
+        root.style.setProperty(CONTENT_COMPENSATION_CSS_VARIABLE, `${compensation / 2}px`);
       }
     };
 
     const scheduleCompensation = () => {
       applyCompensation();
-      if (frameId !== null) {
-        return;
-      }
+      if (frameId !== null) return;
       frameId = window.requestAnimationFrame(() => {
         frameId = null;
         applyCompensation();
       });
     };
+
+    const removeBoundsChangedListener = getElectronBridge()?.window.onBoundsChanged?.((bounds) => {
+      if (!Number.isFinite(bounds?.width)) return;
+      hasNativeBoundsSignal = true;
+      nativeContentWidth = Number.isFinite(bounds.contentWidth)
+        ? bounds.contentWidth!
+        : bounds.width - baselineGap;
+      scheduleCompensation();
+    });
 
     applyCompensation();
     window.addEventListener('resize', scheduleCompensation, true);
@@ -73,7 +87,9 @@ export function useWindowResizeLagCompensation() {
       window.removeEventListener('resize', scheduleCompensation, true);
       window.visualViewport?.removeEventListener('resize', scheduleCompensation, true);
       window.visualViewport?.removeEventListener('scroll', scheduleCompensation, true);
+      removeBoundsChangedListener?.();
       root.style.removeProperty(COMPENSATION_CSS_VARIABLE);
+      root.style.removeProperty(CONTENT_COMPENSATION_CSS_VARIABLE);
     };
   }, []);
 }

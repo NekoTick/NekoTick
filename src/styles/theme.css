@@ -421,6 +421,7 @@
   --vlaina-shadow-hr-selected: 0 0 0 2px var(--vlaina-accent-light);
   --vlaina-width-window-controls: var(--vlaina-size-144px);
   --vlaina-window-resize-compensation-x: 0px;
+  --vlaina-window-resize-content-compensation-x: 0px;
   --vlaina-app-view-mode-option-count: 2;
   --vlaina-width-view-mode-thumb: calc((100% - var(--vlaina-space-075rem)) / var(--vlaina-app-view-mode-option-count));
   --vlaina-width-sidebar-floating-icon-gap: calc(var(--sidebar-width-icon) + var(--vlaina-space-1rem));

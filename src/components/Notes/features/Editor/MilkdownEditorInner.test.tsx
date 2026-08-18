@@ -13,6 +13,7 @@ import {
   normalizeInitialEditorSelection,
   replaceEditorMarkdown,
   shouldUseLazyBlockVisibility,
+  shouldUseVirtualizedEditorView,
 } from './MilkdownEditorInner';
 import {
   createDocumentFirstLineEndTextSelection,
@@ -1460,6 +1461,7 @@ describe('createLargePlainMarkdownDocJSON', () => {
     const doc = createLargePlainMarkdownDocJSON(markdown);
 
     expect(markdown.length).toBeGreaterThan(1_000_000);
+    expect(shouldUseVirtualizedEditorView(markdown)).toBe(true);
     expect(doc?.content?.[0]).toEqual({
       type: 'heading',
       attrs: { level: 1 },
@@ -1536,6 +1538,7 @@ describe('shouldUseLazyBlockVisibility', () => {
     expect(markdown.length).toBeGreaterThan(12_000);
     expect(markdown.length).toBeLessThan(60_000);
     expect(shouldUseLazyBlockVisibility(markdown)).toBe(false);
+    expect(shouldUseVirtualizedEditorView(markdown)).toBe(false);
   });
 
   it('enables lazy block visibility for syntax notes with multiple Mermaid blocks', () => {

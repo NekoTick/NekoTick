@@ -27,6 +27,7 @@ export function attachWindowLifecycle({
   shouldFocusOnReveal,
   onPersistedWindowState,
   rendererDevUrl,
+  platform = process.platform,
 }) {
   const webContentsId = window.webContents.id;
   let externalOpenModifierActive = false;
@@ -39,6 +40,10 @@ export function attachWindowLifecycle({
   let startupRevealHardDeadlineTimer = null;
   let windowStateWriteTimer = null;
   let rendererReloadPending = false;
+  const initialWindowBounds = window.getBounds();
+  const initialContentBounds = window.getContentBounds();
+  const contentFrameWidth = Math.max(0, initialWindowBounds.width - initialContentBounds.width);
+  const contentFrameHeight = Math.max(0, initialWindowBounds.height - initialContentBounds.height);
 
   const clearDevRendererReloadTimer = () => {
     if (devRendererReloadTimer === null) return;
@@ -82,6 +87,73 @@ export function attachWindowLifecycle({
       windowStateWriteTimer = null;
       persistWindowState();
     }, WINDOW_STATE_WRITE_DELAY_MS);
+  };
+
+  const readContentViewBounds = () => {
+    const contentView = window.contentView;
+    if (!contentView || typeof contentView.getBounds !== 'function') return null;
+    try {
+      return contentView.getBounds();
+    } catch {
+      // The view may be torn down while the native window is closing.
+      return null;
+    }
+  };
+
+  const synchronizeLinuxContentView = (targetBounds) => {
+    const contentView = window.contentView;
+    const contentViewBounds = readContentViewBounds();
+    if (
+      platform !== 'linux'
+      || !contentViewBounds
+      || !contentView
+      || typeof contentView.setBounds !== 'function'
+      || (
+        contentViewBounds.x === targetBounds.x
+        && contentViewBounds.y === targetBounds.y
+        && contentViewBounds.width === targetBounds.width
+        && contentViewBounds.height === targetBounds.height
+      )
+    ) {
+      return;
+    }
+
+    try {
+      contentView.setBounds(targetBounds);
+    } catch {
+      // The view may be torn down while the native window is closing.
+    }
+  };
+
+  const sendWindowBounds = (bounds = window.getBounds()) => {
+    const fillsNativeBounds = window.isMaximized?.() || window.isFullScreen?.();
+    const contentWidth = Math.max(
+      1,
+      Math.round(bounds.width - (fillsNativeBounds ? 0 : contentFrameWidth)),
+    );
+    const contentHeight = Math.max(
+      1,
+      Math.round(bounds.height - (fillsNativeBounds ? 0 : contentFrameHeight)),
+    );
+    synchronizeLinuxContentView({
+      x: 0,
+      y: 0,
+      width: contentWidth,
+      height: contentHeight,
+    });
+    const payload = {
+      width: bounds.width,
+      height: bounds.height,
+      contentWidth,
+      contentHeight,
+    };
+
+    safeSend(window, 'desktop:window:bounds-changed', payload);
+  };
+
+  const handleWindowResize = () => {
+    sendWindowBounds();
+    scheduleWindowStateWrite();
   };
 
   const scheduleDevRendererReload = (reason) => {
@@ -206,9 +278,10 @@ export function attachWindowLifecycle({
     windowLabels.delete(window.id);
   });
 
-  window.on('resize', scheduleWindowStateWrite);
-  window.on('maximize', scheduleWindowStateWrite);
-  window.on('unmaximize', scheduleWindowStateWrite);
+  window.on('will-resize', (_event, newBounds) => sendWindowBounds(newBounds));
+  window.on('resize', handleWindowResize);
+  window.on('maximize', handleWindowResize);
+  window.on('unmaximize', handleWindowResize);
   window.on('close', persistWindowState);
 
   window.webContents.on('before-input-event', (event, input) => {

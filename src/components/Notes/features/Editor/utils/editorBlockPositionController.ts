@@ -13,7 +13,6 @@ import {
 import {
   createEmptySnapshot,
   createSnapshot,
-  isTooLargeForBlockPositionSnapshot,
 } from './editorBlockPositionSnapshotFactory';
 import type {
   EditorBlockPositionController,
@@ -271,9 +270,7 @@ export function createCurrentEditorBlockPositionControllerWithState({
   window.addEventListener('resize', scheduleRefresh);
 
   publishSnapshot(createEmptySnapshot(view, nextVersion()));
-  if (!isTooLargeForBlockPositionSnapshot(view.state.doc)) {
-    scheduleRefresh();
-  }
+  scheduleRefresh();
 
   return {
     refresh,

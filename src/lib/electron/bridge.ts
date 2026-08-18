@@ -1,3 +1,10 @@
+export interface ElectronWindowBoundsChanged {
+  width: number;
+  height: number;
+  contentWidth?: number;
+  contentHeight?: number;
+}
+
 export interface ElectronWindowApi {
   minimize(): Promise<void>;
   toggleMaximize(): Promise<boolean>;
@@ -21,6 +28,7 @@ export interface ElectronWindowApi {
   toggleFullscreen(): Promise<boolean>;
   create(options?: Record<string, unknown>): Promise<void>;
   onCloseRequested(callback: () => void): () => void;
+  onBoundsChanged?(callback: (bounds: ElectronWindowBoundsChanged) => void): () => void;
 }
 
 export interface ElectronShortcutsApi {

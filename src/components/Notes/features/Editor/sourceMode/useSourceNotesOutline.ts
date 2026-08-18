@@ -1,72 +1,58 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { stripMarkdownInline } from '@/components/common/markdown/plainText';
+import type { Heading, PhrasingContent, Root } from 'mdast';
+import remarkGfm from 'remark-gfm';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
+import { visit } from 'unist-util-visit';
 import { useNotesStore } from '@/stores/useNotesStore';
 import type { NotesOutlineHeading } from '../../Sidebar/Outline/types';
-import { createOutlineHeadingId } from '../../Sidebar/Outline/outlineUtils';
+import {
+  createOutlineHeadingId,
+  normalizeHeadingText,
+} from '../../Sidebar/Outline/outlineUtils';
+import { maskLeadingFrontmatterMarkdown } from '../plugins/frontmatter/frontmatterMarkdown';
 
-const ATX_HEADING_PATTERN = /^ {0,3}(#{1,6})(?:[ \t]+(.*?)\s*|[ \t]*)$/;
-const ATX_CLOSING_SEQUENCE_PATTERN = /[ \t]+#+[ \t]*$/;
-const SETEXT_HEADING_PATTERN = /^ {0,3}(=+|-+)[ \t]*$/;
-const FENCE_PATTERN = /^ {0,3}(`{3,}|~{3,})/;
+const sourceOutlineProcessor = unified().use(remarkParse).use(remarkGfm);
+
+function readHeadingText(nodes: readonly PhrasingContent[]): string {
+  let text = '';
+  const append = (node: PhrasingContent) => {
+    if (node.type === 'text' || node.type === 'inlineCode') {
+      text += node.value;
+      return;
+    }
+    if (node.type === 'break') {
+      text += ' ';
+      return;
+    }
+    if (node.type === 'image' || node.type === 'imageReference') {
+      text += node.alt ?? '';
+      return;
+    }
+    if ('children' in node) {
+      node.children.forEach(append);
+    }
+  };
+  nodes.forEach(append);
+  return normalizeHeadingText(text);
+}
 
 export function parseSourceOutline(markdown: string): NotesOutlineHeading[] {
-  const lines = markdown.split(/\r?\n/);
   const headings: NotesOutlineHeading[] = [];
-  let offset = 0;
-  let fence: { marker: string; length: number } | null = null;
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? '';
-    const fenceMatch = line.match(FENCE_PATTERN);
-    if (fenceMatch) {
-      const sequence = fenceMatch[1] ?? '';
-      if (!fence) {
-        fence = { marker: sequence[0] ?? '', length: sequence.length };
-      } else if (sequence[0] === fence.marker && sequence.length >= fence.length) {
-        fence = null;
-      }
-      offset += line.length + 1;
-      continue;
-    }
-
-    if (fence) {
-      offset += line.length + 1;
-      continue;
-    }
-
-    const atxMatch = line.match(ATX_HEADING_PATTERN);
-    if (atxMatch) {
-      const level = atxMatch[1]?.length ?? 1;
-      const rawText = (atxMatch[2] ?? '').replace(ATX_CLOSING_SEQUENCE_PATTERN, '').trim();
-      const text = stripMarkdownInline(rawText).trim();
-      headings.push({
-        id: createOutlineHeadingId(headings.length, level, text),
-        level,
-        text,
-        from: offset,
-        to: offset + line.length,
-      });
-      offset += line.length + 1;
-      continue;
-    }
-
-    const setextMatch = line.match(SETEXT_HEADING_PATTERN);
-    const previousLine = lines[index - 1] ?? '';
-    if (setextMatch && previousLine.trim() && !/^ {4}/.test(previousLine)) {
-      const text = stripMarkdownInline(previousLine.trim()).trim();
-      const from = offset - previousLine.length - 1;
-      const level = setextMatch[1]?.startsWith('=') ? 1 : 2;
-      headings.push({
-        id: createOutlineHeadingId(headings.length, level, text),
-        level,
-        text,
-        from,
-        to: offset + line.length,
-      });
-    }
-
-    offset += line.length + 1;
-  }
+  const tree = sourceOutlineProcessor.parse(maskLeadingFrontmatterMarkdown(markdown)) as Root;
+  visit(tree, 'heading', (node: Heading) => {
+    const from = node.position?.start.offset;
+    const to = node.position?.end.offset;
+    if (from === undefined || to === undefined) return;
+    const text = readHeadingText(node.children);
+    headings.push({
+      id: createOutlineHeadingId(headings.length, node.depth, text),
+      level: node.depth,
+      text,
+      from,
+      to,
+    });
+  });
 
   return headings;
 }

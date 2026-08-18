@@ -428,6 +428,10 @@ declare module '@milkdown/kit/core' {
   export const editorStateTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const editorViewCtx: MilkdownCtxToken<import('@milkdown/kit/prose/view').EditorView>;
   export const virtualizeEditorViewCtx: MilkdownCtxToken<boolean>;
+  export function materializeVirtualizedBlockAtPos(
+    view: import('@milkdown/kit/prose/view').EditorView,
+    pos: number,
+  ): boolean;
   export const editorViewOptionsCtx: MilkdownCtxToken<AnyRecord>;
   export const editorViewTimerCtx: MilkdownCtxToken<MilkdownTimerType[]>;
   export const inputRulesCtx: MilkdownCtxToken<import('@milkdown/kit/prose/inputrules').InputRule[]>;

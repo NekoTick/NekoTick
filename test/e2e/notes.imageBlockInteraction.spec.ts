@@ -452,6 +452,62 @@ async function waitForCropperToolbarInteractive(page: Page) {
 test.describe('notes image block interaction', () => {
   test.setTimeout(120_000);
 
+  test('preloads an offscreen image in a lazy-layout note before scrolling to it', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-lazy-layout-image-preload');
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 720 });
+      const imageAlt = 'Lazy layout offscreen image sentinel';
+      const content = [
+        '# Lazy layout image preload',
+        '',
+        ...Array.from(
+          { length: 120 },
+          (_, index) => `Offscreen spacing paragraph ${index + 1}. ${'Context '.repeat(12)}`,
+        ),
+        '',
+        `![${imageAlt}](${TINY_PNG_DATA_URL})`,
+        '',
+        ...Array.from({ length: 4 }, (_, index) => [
+          '```mermaid',
+          'flowchart TD',
+          `  A${index} --> B${index}`,
+          '```',
+        ].join('\n')),
+      ].join('\n\n');
+
+      await openMarkdownFixture(page, {
+        filename: 'lazy-layout-image-preload.md',
+        content,
+      });
+
+      const editorShell = page.locator('.milkdown-editor');
+      await expect(editorShell).toHaveAttribute('data-note-lazy-block-visibility', 'true');
+      const imageBlock = page.locator(`${NOTE_IMAGE_BLOCK_SELECTOR}[data-alt="${imageAlt}"]`);
+      await expect(imageBlock).toHaveCount(1);
+      const initialGeometry = await imageBlock.evaluate((element) => {
+        const scrollRoot = element.closest<HTMLElement>('[data-note-scroll-root="true"]');
+        const elementRect = element.getBoundingClientRect();
+        const scrollRect = scrollRoot?.getBoundingClientRect();
+        return {
+          distanceBelowViewport: scrollRect ? elementRect.top - scrollRect.bottom : 0,
+          scrollTop: scrollRoot?.scrollTop ?? -1,
+        };
+      });
+      expect(initialGeometry.scrollTop).toBe(0);
+      expect(initialGeometry.distanceBelowViewport).toBeGreaterThan(900);
+
+      await expect(imageBlock.locator('[data-testid="deferred-image-placeholder"]')).toHaveCount(0);
+      await expect(imageBlock.locator('img')).toHaveAttribute('src', TINY_PNG_DATA_URL);
+      expect(await page.locator('[data-note-scroll-root="true"]').evaluate((element) => element.scrollTop))
+        .toBe(0);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('copies a remote HTML image with presentation fragment as an image', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-remote-image-copy');
 

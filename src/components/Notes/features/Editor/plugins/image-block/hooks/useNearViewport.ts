@@ -124,12 +124,7 @@ export function useNearViewport(targetRef: RefObject<Element | null>): NearViewp
         });
 
         observer.observe(target);
-        const usesLazyBlockVisibility = Boolean(
-            target.closest('[data-note-lazy-block-visibility="true"]'),
-        );
-        if (!usesLazyBlockVisibility) {
-            cancelBackgroundLoad = enqueueBackgroundLoad(resolveNearViewport);
-        }
+        cancelBackgroundLoad = enqueueBackgroundLoad(resolveNearViewport);
 
         return () => {
             hasResolvedViewport = true;

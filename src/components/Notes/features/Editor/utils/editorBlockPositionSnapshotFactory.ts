@@ -2,7 +2,6 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { collectSelectableBlockTargets } from '../plugins/cursor/blockUnitResolver';
 import {
   createOutlineHeadingId,
-  getHeadingLevelFromTagName,
   readBoundedHeadingText,
 } from '../../Sidebar/Outline/outlineUtils';
 import {
@@ -11,13 +10,14 @@ import {
   TOOLBAR_PREVIEW_OVERLAY_CLASS,
 } from './editorBlockPositionConstants';
 import {
-  collectTopLevelBlockRanges,
   createBlockIndex,
   resolveDocumentBottom,
   resolveDocumentLeft,
   resolveDocumentRight,
   resolveDocumentTop,
 } from './editorBlockPositionGeometry';
+import { collectDocumentHeadingPositions } from './editorHeadingPositionCollection';
+import { createPreviewSnapshot } from './editorBlockPositionPreviewSnapshot';
 import type {
   EditorBlockPositionEntry,
   EditorBlockPositionSnapshot,
@@ -73,102 +73,20 @@ export function createEmptySnapshot(
   };
 }
 
-function createPreviewSnapshot(
+function createHeadingOnlySnapshot(
   view: EditorView,
-  previewRoot: HTMLElement,
   version: number,
 ): EditorBlockPositionSnapshot | null {
-  if (!previewRoot.isConnected) {
-    return null;
-  }
-
-  const scrollRoot = view.dom.closest('[data-note-scroll-root="true"]') as HTMLElement | null;
-  const scrollLeft = scrollRoot?.scrollLeft ?? 0;
-  const scrollTop = scrollRoot?.scrollTop ?? 0;
-  const scrollRootRect = scrollRoot?.getBoundingClientRect() ?? null;
-  const scrollRootLeft = scrollRootRect?.left ?? null;
-  const scrollRootTop = scrollRootRect?.top ?? null;
-  const topLevelRanges = collectTopLevelBlockRanges(view.state.doc);
-  const blocks: EditorBlockPositionEntry[] = [];
-  const headings: EditorHeadingPositionEntry[] = [];
-
-  for (
-    let index = 0;
-    index < previewRoot.children.length && index < topLevelRanges.length && blocks.length < MAX_BLOCK_POSITION_SNAPSHOT_BLOCKS;
-    index += 1
-  ) {
-    const element = previewRoot.children.item(index);
-    if (!(element instanceof HTMLElement)) {
-      continue;
-    }
-
-    const range = topLevelRanges[index];
-    if (!range) {
-      continue;
-    }
-
-    const rect = element.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) {
-      continue;
-    }
-
-    const tagName = element.tagName.toUpperCase();
-    const headingLevel = getHeadingLevelFromTagName(tagName);
-    const headingText = headingLevel ? readBoundedHeadingText(element) : null;
-    const documentLeft = resolveDocumentLeft(rect, scrollRootLeft, scrollLeft);
-    const documentRight = resolveDocumentRight(rect, scrollRootLeft, scrollLeft);
-    const documentTop = resolveDocumentTop(rect, scrollRootTop, scrollTop);
-    const documentBottom = resolveDocumentBottom(rect, scrollRootTop, scrollTop);
-    const headingId = headingLevel
-      ? createOutlineHeadingId(headings.length, headingLevel, headingText ?? '')
-      : null;
-
-    blocks.push({
-      from: range.from,
-      to: range.to,
-      element,
-      rect,
-      documentLeft,
-      documentRight,
-      documentTop,
-      documentBottom,
-      tagName,
-      headingLevel,
-      headingId,
-      headingText,
-    });
-
-    if (!headingLevel || !headingId || !headingText) {
-      continue;
-    }
-
-    headings.push({
-      id: headingId,
-      level: headingLevel,
-      text: headingText,
-      from: range.from,
-      to: range.to,
-      element,
-      top: documentTop,
-      bottom: documentBottom,
-    });
-  }
-
+  const snapshot = createEmptySnapshot(view, version);
+  if (!snapshot) return null;
+  const scrollRootTop = snapshot.scrollRoot?.getBoundingClientRect().top ?? null;
   return {
-    version,
-    view,
-    doc: view.state.doc,
-    editorRoot: view.dom,
-    editorRect: previewRoot.getBoundingClientRect(),
-    scrollRoot,
-    scrollRootRect,
-    scrollLeft,
-    scrollTop,
-    geometryValidationScrollLeft: scrollLeft,
-    geometryValidationScrollTop: scrollTop,
-    blocks,
-    blockIndex: createBlockIndex(blocks),
-    headings,
+    ...snapshot,
+    headings: collectDocumentHeadingPositions(
+      view,
+      scrollRootTop,
+      snapshot.scrollTop,
+    ) ?? [],
   };
 }
 
@@ -182,7 +100,7 @@ export function createSnapshot(
   }
 
   if (isTooLargeForBlockPositionSnapshot(view.state.doc)) {
-    return createEmptySnapshot(view, nextVersion());
+    return createHeadingOnlySnapshot(view, nextVersion());
   }
 
   const previewRoot = resolveToolbarPreviewRoot(view);
@@ -240,10 +158,28 @@ export function createSnapshot(
       from: target.range.from,
       to: target.range.to,
       element: target.element,
+      hasExactGeometry: true,
       top: documentTop,
       bottom: documentBottom,
     });
   });
+
+  const documentHeadings = collectDocumentHeadingPositions(
+    view,
+    scrollRootTop,
+    scrollTop,
+  );
+  if (documentHeadings) {
+    headings.splice(0, headings.length, ...documentHeadings);
+    const headingByElement = new Map(headings.map((heading) => [heading.element, heading]));
+    blocks.forEach((block) => {
+      const heading = headingByElement.get(block.element);
+      if (!heading) return;
+      block.headingLevel = heading.level;
+      block.headingId = heading.id;
+      block.headingText = heading.text;
+    });
+  }
 
   return {
     version: nextVersion(),
