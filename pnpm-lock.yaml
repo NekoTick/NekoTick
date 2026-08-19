@@ -28,10 +28,6 @@ overrides:
 importers:
 
   .:
-    dependencies:
-      roughjs:
-        specifier: 4.6.6
-        version: 4.6.6
     devDependencies:
       '@codemirror/language':
         specifier: 6.12.3
@@ -288,6 +284,9 @@ importers:
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
+      roughjs:
+        specifier: 4.6.6
+        version: 4.6.6
       shiki:
         specifier: 4.2.0
         version: 4.2.0

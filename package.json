@@ -142,6 +142,7 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
+    "roughjs": "4.6.6",
     "shiki": "4.2.0",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.1",
@@ -155,8 +156,5 @@
     "wait-on": "^9.0.10",
     "yaml": "^2.9.0",
     "zustand": "^5.0.14"
-  },
-  "dependencies": {
-    "roughjs": "4.6.6"
   }
 }
