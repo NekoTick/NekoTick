@@ -41,6 +41,7 @@ export function EditorTopRightToolbar({
   return (
     <div
       className="absolute top-0 right-3 z-[var(--vlaina-z-30)] flex translate-x-[var(--vlaina-window-resize-compensation-x)] items-start gap-2"
+      data-layout-resize-right-anchor="true"
       data-no-editor-drag-box="true"
       data-note-top-toolbar="true"
     >

@@ -1,9 +1,8 @@
-import React, { memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useMemo, useRef } from 'react';
 import { ThinkingBlock } from '@/components/Chat/features/Messages/components/ThinkingBlock';
 import { extractThinkingSections } from '@/components/Chat/features/Layout/chatAssistantMarkdownParsing';
 import { createMarkdownComponents } from './markdownRendererComponents';
 import { canAnimateChatStreamContent, useChatStreamBlocks } from './chatStreamTextAnimation';
-import { getChatContentWidth } from '@/components/Chat/features/Layout/chatWidthBuckets';
 import 'katex/dist/katex.min.css';
 import '@/components/common/markdown/markdownSurface.css';
 import { compactLargeDataImageMarkdown, scrubChatInlineDataImageSyntax } from './chatInlineImageTokens';
@@ -44,8 +43,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
     suspendStreamAnimation = false,
   }) => {
     const markdownSurfaceRef = useRef<HTMLDivElement | null>(null);
-    const [contentWidth, setContentWidth] = useState(0);
-    const contentWidthMeasureRafRef = useRef<number | null>(null);
     const {
       handleSelectionMouseDown,
       handleSelectionPointerDown,
@@ -95,60 +92,8 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = memo(
       onCopyCodeBlock,
     ]);
 
-    const hasMarkdownSurface = markdown.length > 0;
     const shouldAnimateStream = isStreaming && canAnimateChatStreamContent(markdown);
-
-    useLayoutEffect(() => {
-      const surface = markdownSurfaceRef.current;
-      if (!surface) {
-        return;
-      }
-
-      const measure = () => {
-        if (surface.clientWidth <= 0) {
-          return;
-        }
-
-        const nextWidth = getChatContentWidth(surface.clientWidth);
-        setContentWidth((current) => (current === nextWidth ? current : nextWidth));
-      };
-      const scheduleMeasure = () => {
-        if (contentWidthMeasureRafRef.current !== null) {
-          return;
-        }
-
-        contentWidthMeasureRafRef.current = requestAnimationFrame(() => {
-          contentWidthMeasureRafRef.current = null;
-          measure();
-        });
-      };
-
-      measure();
-
-      if (typeof ResizeObserver === 'undefined') {
-        return;
-      }
-
-      const observer = new ResizeObserver(scheduleMeasure);
-      observer.observe(surface);
-
-      return () => {
-        if (contentWidthMeasureRafRef.current !== null) {
-          cancelAnimationFrame(contentWidthMeasureRafRef.current);
-          contentWidthMeasureRafRef.current = null;
-        }
-        observer.disconnect();
-      };
-    }, [hasMarkdownSurface]);
-
-    const streamBlocks = useChatStreamBlocks(
-      markdown,
-      shouldAnimateStream,
-      contentWidth,
-      startTime,
-      suspendStreamAnimation,
-      selectionStreamClockPausedRef,
-    );
+    const streamBlocks = useChatStreamBlocks(markdown, shouldAnimateStream);
 
     return (
       <div

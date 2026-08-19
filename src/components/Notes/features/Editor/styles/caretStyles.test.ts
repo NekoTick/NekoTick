@@ -148,6 +148,24 @@ describe('caret styles', () => {
     expect(rule).toContain('visibility: hidden !important;');
   });
 
+  it('hides native and custom carets while a layout panel is being dragged', () => {
+    const css = readIndexStyles();
+    const selector = "html[data-layout-panel-dragging='true'] :is(";
+    const rulesStart = css.indexOf(selector);
+
+    expect(rulesStart).toBeGreaterThanOrEqual(0);
+    const rules = css.slice(rulesStart, css.indexOf('.appearance-font-size-slider', rulesStart));
+    expect(rules).toContain('.ProseMirror');
+    expect(rules).toContain('textarea');
+    expect(rules).toContain('caret-color: transparent !important;');
+    expect(rules).toContain('.native-caret-overlay');
+    expect(rules).toContain('.editor-textblock-caret-overlay');
+    expect(rules).toContain('.editor-forced-line-end-caret');
+    expect(rules).toContain('.ProseMirror-gapcursor');
+    expect(rules).toContain('.cm-cursor');
+    expect(rules).toContain('visibility: hidden !important;');
+  });
+
   it('keeps the collapsed sidebar hotzone clear of the chat selection insert layer', () => {
     const css = readIndexStyles();
 

@@ -606,6 +606,62 @@ describe("MessageList", () => {
     expect(ResizeObserverMock.instances.every((observer) => observer.disconnect.mock.calls.length === 1)).toBe(true);
   });
 
+  it("defers observed row height commits while scrolling", () => {
+    vi.useFakeTimers();
+    class ResizeObserverMock {
+      static instances: ResizeObserverMock[] = [];
+
+      callback: ResizeObserverCallback;
+      observed = new Set<Element>();
+      observe = vi.fn((target: Element) => this.observed.add(target));
+      unobserve = vi.fn((target: Element) => this.observed.delete(target));
+      disconnect = vi.fn(() => this.observed.clear());
+
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+        ResizeObserverMock.instances.push(this);
+      }
+    }
+    vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+
+    render(
+      <MessageList
+        messages={[createMessage("u1", "user"), createMessage("a1", "assistant")]}
+        getImageGallery={() => []}
+        isSessionActive={false}
+        showLoading={false}
+        spacerHeight={0}
+        containerRef={createRef<HTMLDivElement>()}
+        onCopy={() => {}}
+        onRegenerate={() => {}}
+        onSwitchVersion={() => {}}
+      />,
+    );
+
+    const row = document.querySelector('[data-message-index="0"]')!;
+    const rowObserver = ResizeObserverMock.instances.find((observer) => observer.observed.has(row));
+    expect(rowObserver).toBeDefined();
+
+    fireEvent.scroll(document.querySelector('[data-chat-scrollable="true"]')!);
+    requestAnimationFrameSpy.mockClear();
+
+    act(() => {
+      rowObserver!.callback([{
+        target: row,
+        contentRect: { height: 144 },
+      } as unknown as ResizeObserverEntry], rowObserver as unknown as ResizeObserver);
+    });
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(181);
+    });
+    expect(requestAnimationFrameSpy).toHaveBeenCalledOnce();
+  });
+
   it("suspends the active assistant stream animation while the user is scrolling", () => {
     vi.useFakeTimers();
     const messages = [createMessage("u1", "user"), createMessage("a1", "assistant")];

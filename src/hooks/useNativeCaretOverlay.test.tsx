@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { useUIStore } from '@/stores/uiSlice';
 import { NATIVE_CARET_OVERLAY_REFRESH_EVENT, useNativeCaretOverlay } from './useNativeCaretOverlay';
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
@@ -23,6 +24,8 @@ describe('useNativeCaretOverlay', () => {
   let originalElementFromPoint: typeof document.elementFromPoint | undefined;
 
   beforeEach(() => {
+    useUIStore.setState({ layoutPanelDragging: false });
+    document.documentElement.removeAttribute('data-layout-panel-dragging');
     originalElementFromPoint = document.elementFromPoint;
     elementFromPoint = vi.fn();
     Object.defineProperty(document, 'elementFromPoint', {
@@ -41,7 +44,9 @@ describe('useNativeCaretOverlay', () => {
   });
 
   afterEach(() => {
+    useUIStore.setState({ layoutPanelDragging: false });
     document.body.innerHTML = '';
+    document.documentElement.removeAttribute('data-layout-panel-dragging');
     document.head.querySelector('#native-caret-overlay-style')?.remove();
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
@@ -96,6 +101,47 @@ describe('useNativeCaretOverlay', () => {
     });
 
     expect(document.querySelector<HTMLElement>('.native-caret-overlay')?.style.height).toBe('24px');
+
+    hook.unmount();
+  });
+
+  it('hides the caret throughout a layout drag and restores it without moving focus', () => {
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    document.body.appendChild(textarea);
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+
+    act(() => useUIStore.getState().setLayoutPanelDragging(true));
+
+    expect(document.documentElement).toHaveAttribute('data-layout-panel-dragging', 'true');
+    expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
+    expect(textarea).not.toHaveAttribute('data-native-caret-overlay-active');
+    expect(textarea).toHaveFocus();
+    expect(textarea.selectionStart).toBe(2);
+
+    act(() => {
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
+
+    act(() => useUIStore.getState().setLayoutPanelDragging(false));
+
+    expect(document.documentElement).not.toHaveAttribute('data-layout-panel-dragging');
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveFocus();
+    expect(textarea.selectionStart).toBe(2);
 
     hook.unmount();
   });
@@ -215,6 +261,29 @@ describe('useNativeCaretOverlay', () => {
     });
 
     expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    hook.unmount();
+  });
+
+  it('ignores sibling scrolls while refreshing scrolls that move the focused control', () => {
+    const scroller = document.createElement('div');
+    const textarea = document.createElement('textarea');
+    const siblingScroller = document.createElement('div');
+    scroller.appendChild(textarea);
+    document.body.append(scroller, siblingScroller);
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+    requestAnimationFrameSpy.mockClear();
+
+    act(() => siblingScroller.dispatchEvent(new Event('scroll', { bubbles: true })));
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+
+    act(() => scroller.dispatchEvent(new Event('scroll', { bubbles: true })));
+    expect(requestAnimationFrameSpy).toHaveBeenCalledOnce();
+
     hook.unmount();
   });
 

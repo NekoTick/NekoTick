@@ -1,11 +1,23 @@
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { forwardRef, type ReactNode, type Ref } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppShell } from './AppShell';
 
 const mocks = vi.hoisted(() => ({
+  beginSidebarResizeDiagnostic: vi.fn(),
+  finishSidebarResizeDiagnostic: vi.fn(),
   setLayoutPanelDragging: vi.fn(),
   setLayoutPanelTransitioning: vi.fn(),
+}));
+
+vi.mock('@/lib/diagnostics/sidebarResizeDiagnostics', () => ({
+  beginSidebarResizeDiagnostic: mocks.beginSidebarResizeDiagnostic,
+  finishSidebarResizeDiagnostic: mocks.finishSidebarResizeDiagnostic,
+  runSidebarResizeDiagnosticWork: (
+    _source: string,
+    _phase: string,
+    work: () => unknown,
+  ) => work(),
 }));
 
 vi.mock('@/stores/uiSlice', () => ({
@@ -88,6 +100,7 @@ vi.mock('./UnifiedSidebarContainer', () => ({
 describe('AppShell', () => {
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.clearAllMocks();
   });
 
@@ -310,6 +323,7 @@ describe('AppShell', () => {
   });
 
   it('freezes the main layout width and marks the shell while resizing the sidebar', () => {
+    vi.useFakeTimers();
     const { container, getByTestId } = render(
       <AppShell
         sidebarWidth={300}
@@ -338,13 +352,24 @@ describe('AppShell', () => {
     fireEvent.mouseUp(dragHandle);
 
     expect(shell).not.toHaveAttribute('data-layout-panel-dragging');
+    expect(main?.style.overflow).toBe('hidden');
+    expect(mainContent.style.width).toBe('0px');
+    expect(mainContent.style.minWidth).toBe('0px');
+    expect(mocks.setLayoutPanelDragging).toHaveBeenLastCalledWith(true);
+
+    act(() => vi.advanceTimersByTime(32));
+
     expect(main?.style.overflow).toBe('');
     expect(mainContent.style.width).toBe('75%');
     expect(mainContent.style.minWidth).toBe('12px');
+
+    act(() => vi.advanceTimersByTime(16));
+
     expect(mocks.setLayoutPanelDragging).toHaveBeenLastCalledWith(false);
   });
 
-  it('keeps the frozen main layout width aligned during live sidebar resizing', () => {
+  it('keeps the frozen main layout aligned and records live width diagnostics', () => {
+    vi.useFakeTimers();
     const { container, getByTestId } = render(
       <AppShell
         sidebarWidth={300}
@@ -353,26 +378,72 @@ describe('AppShell', () => {
         onSidebarWidthChange={() => {}}
         onSidebarToggle={() => {}}
       >
-        <div data-testid="main-content">Main</div>
+        <div data-testid="main-content">
+          Main
+          <div
+            data-testid="right-anchor"
+            data-layout-resize-right-anchor="true"
+            style={{ translate: '2px' }}
+          >
+            Actions
+          </div>
+        </div>
       </AppShell>,
     );
 
     const main = container.querySelector<HTMLElement>('main');
     const mainContent = getByTestId('main-content');
+    const rightAnchor = getByTestId('right-anchor');
+    vi.spyOn(rightAnchor, 'getBoundingClientRect').mockReturnValue({
+      bottom: 72,
+      height: 32,
+      left: 796,
+      right: 900,
+      top: 40,
+      width: 104,
+      x: 796,
+      y: 40,
+      toJSON: () => ({}),
+    });
     let mainClientWidth = 640;
     Object.defineProperty(main, 'clientWidth', {
       configurable: true,
       get: () => mainClientWidth,
     });
-
     fireEvent.mouseDown(getByTestId('sidebar-drag-start'));
     expect(mainContent.style.width).toBe('640px');
+    expect(rightAnchor.style.position).toBe('fixed');
+    expect(rightAnchor.style.right).toBe('124px');
+    expect(rightAnchor.style.top).toBe('40px');
+    expect(rightAnchor.style.translate).toBe('none');
+    expect(mocks.beginSidebarResizeDiagnostic).toHaveBeenCalledWith({
+      mainWidth: 640,
+      setupDurationMs: expect.any(Number),
+      sidebarWidth: 300,
+    });
 
     mainClientWidth = 580;
     fireEvent.click(getByTestId('sidebar-live-width-change'));
-    expect(mainContent.style.width).toBe('580px');
-    expect(mainContent.style.minWidth).toBe('580px');
+    expect(mainContent.style.width).toBe('640px');
+    expect(mainContent.style.minWidth).toBe('640px');
+    expect(mainContent.style.translate).toBe('');
+    expect(rightAnchor.style.position).toBe('fixed');
+    expect(rightAnchor.style.right).toBe('124px');
+    expect(rightAnchor.style.translate).toBe('none');
 
     fireEvent.mouseUp(getByTestId('sidebar-drag-start'));
+    expect(mainContent.style.width).toBe('640px');
+    expect(mainContent.style.minWidth).toBe('640px');
+    expect(mocks.finishSidebarResizeDiagnostic).toHaveBeenCalledWith(expect.any(Number));
+
+    act(() => vi.advanceTimersByTime(32));
+
+    expect(mainContent.style.width).toBe('');
+    expect(mainContent.style.minWidth).toBe('');
+    expect(mainContent.style.translate).toBe('');
+    expect(rightAnchor.style.position).toBe('');
+    expect(rightAnchor.style.right).toBe('');
+    expect(rightAnchor.style.top).toBe('');
+    expect(rightAnchor.style.translate).toBe('2px');
   });
 });

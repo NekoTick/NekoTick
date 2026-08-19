@@ -691,7 +691,7 @@
   --vlaina-chat-outline-rail-top: var(--vlaina-size-80px);
   --vlaina-chat-outline-rail-compact-width: var(--vlaina-size-24px);
   --vlaina-chat-outline-rail-panel-width: var(--vlaina-size-240px);
-  --vlaina-chat-outline-rail-max-height: min(var(--vlaina-size-420px), calc(100% - var(--vlaina-size-200px)));
+  --vlaina-chat-outline-rail-max-height: min(var(--vlaina-size-420px), calc(100vh - var(--vlaina-size-240px)));
   --vlaina-chat-outline-rail-compact-row-height: var(--vlaina-size-14px);
   --vlaina-chat-outline-rail-row-height: var(--vlaina-size-28px);
   --vlaina-chat-outline-rail-marker-width: var(--vlaina-size-16px);

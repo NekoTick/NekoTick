@@ -79,6 +79,7 @@ export const MessageList = memo(function MessageList({
     activeRef,
     chatId,
     fontSize,
+    isScrollActive,
     isSessionActive,
     lastStreamingMessageId,
     layoutWidth,

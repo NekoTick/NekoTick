@@ -7,6 +7,7 @@ import {
   releaseCaretBlink,
   resolveElementLineHeight,
 } from '@/lib/ui/caretOverlayStyles';
+import { useUIStore } from '@/stores/uiSlice';
 import {
   getControlCaretRect,
   isCaretOverlayVisuallyVisible,
@@ -16,6 +17,7 @@ import {
 const STYLE_ID = 'native-caret-overlay-style';
 const CARET_CLASS = 'native-caret-overlay';
 const ACTIVE_ATTR = 'data-native-caret-overlay-active';
+const LAYOUT_PANEL_DRAGGING_ATTR = 'data-layout-panel-dragging';
 export const NATIVE_CARET_OVERLAY_REFRESH_EVENT = 'vlaina:native-caret-overlay-refresh';
 
 function ensureStyle(doc: Document): void {
@@ -46,6 +48,7 @@ export function useNativeCaretOverlay(): void {
     let caret: HTMLElement | null = null;
     let frameId: number | null = null;
     let keyboardCaretNavigationActive = false;
+    let layoutPanelDragging = useUIStore.getState().layoutPanelDragging;
 
     const hide = () => {
       keyboardCaretNavigationActive = false;
@@ -59,6 +62,11 @@ export function useNativeCaretOverlay(): void {
 
     const render = () => {
       frameId = null;
+
+      if (layoutPanelDragging) {
+        hide();
+        return;
+      }
 
       const activeElement = doc.activeElement;
       if (
@@ -100,6 +108,15 @@ export function useNativeCaretOverlay(): void {
     };
 
     const schedule = () => {
+      if (layoutPanelDragging) {
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId);
+          frameId = null;
+        }
+        hide();
+        return;
+      }
+
       const activeElement = doc.activeElement;
       if (!isTextControl(activeElement)) {
         if (caret) hide();
@@ -128,6 +145,21 @@ export function useNativeCaretOverlay(): void {
     const handleFocusIn = () => schedule();
     const handleFocusOut = () => hide();
     const handleUpdate = () => schedule();
+    const handleScroll = (event: Event) => {
+      const activeElement = doc.activeElement;
+      if (!isTextControl(activeElement)) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target === doc ||
+        target === activeElement ||
+        (target instanceof Element && target.contains(activeElement))
+      ) {
+        schedule();
+      }
+    };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing) return;
 
@@ -149,6 +181,25 @@ export function useNativeCaretOverlay(): void {
     const handleExplicitRefresh = () => flush();
     const handleCompositionStart = () => hide();
     const handleCompositionEnd = () => schedule();
+    const syncLayoutPanelDragging = (dragging: boolean) => {
+      layoutPanelDragging = dragging;
+      if (dragging) {
+        doc.documentElement.setAttribute(LAYOUT_PANEL_DRAGGING_ATTR, 'true');
+        schedule();
+        return;
+      }
+
+      doc.documentElement.removeAttribute(LAYOUT_PANEL_DRAGGING_ATTR);
+      schedule();
+    };
+
+    const unsubscribeLayoutPanelDragging = useUIStore.subscribe((state, previousState) => {
+      if (state.layoutPanelDragging !== previousState.layoutPanelDragging) {
+        syncLayoutPanelDragging(state.layoutPanelDragging);
+      }
+    });
+
+    syncLayoutPanelDragging(layoutPanelDragging);
 
     doc.addEventListener('focusin', handleFocusIn);
     doc.addEventListener('focusout', handleFocusOut);
@@ -162,7 +213,7 @@ export function useNativeCaretOverlay(): void {
     doc.addEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleExplicitRefresh);
     doc.addEventListener('animationend', handleUpdate, true);
     doc.addEventListener('transitionend', handleUpdate, true);
-    doc.addEventListener('scroll', handleUpdate, true);
+    doc.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', handleUpdate);
 
     return () => {
@@ -170,6 +221,8 @@ export function useNativeCaretOverlay(): void {
         window.cancelAnimationFrame(frameId);
       }
       hide();
+      unsubscribeLayoutPanelDragging();
+      doc.documentElement.removeAttribute(LAYOUT_PANEL_DRAGGING_ATTR);
       doc.removeEventListener('focusin', handleFocusIn);
       doc.removeEventListener('focusout', handleFocusOut);
       doc.removeEventListener('input', handleUpdate);
@@ -182,7 +235,7 @@ export function useNativeCaretOverlay(): void {
       doc.removeEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleExplicitRefresh);
       doc.removeEventListener('animationend', handleUpdate, true);
       doc.removeEventListener('transitionend', handleUpdate, true);
-      doc.removeEventListener('scroll', handleUpdate, true);
+      doc.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', handleUpdate);
     };
   }, []);

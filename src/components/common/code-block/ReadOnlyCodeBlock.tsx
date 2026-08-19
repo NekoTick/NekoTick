@@ -3,7 +3,7 @@ import { writeTextToClipboard } from '@/lib/clipboard';
 import { selectCodeBlockLineNumbersEnabled } from '@/stores/unified/settings/markdownSettings';
 import { useUnifiedStore } from '@/stores/unified/useUnifiedStore';
 import { CodeBlockHeader } from './CodeBlockHeader';
-import { markdownHighlighter } from './highlighter';
+import { highlightMarkdownCode } from './highlighter';
 
 interface ReadOnlyCodeBlockProps {
   className?: string;
@@ -93,10 +93,7 @@ export const ReadOnlyCodeBlock = memo(function ReadOnlyCodeBlock({
       if (codeText.length > MAX_HIGHLIGHT_CHARS) {
         return escapeHtml(codeText);
       }
-      if (language && markdownHighlighter.getLanguage(language)) {
-        return markdownHighlighter.highlight(codeText, { language }).value;
-      }
-      return markdownHighlighter.highlightAuto(codeText).value;
+      return highlightMarkdownCode(codeText, language);
     } catch {
       return escapeHtml(codeText);
     }

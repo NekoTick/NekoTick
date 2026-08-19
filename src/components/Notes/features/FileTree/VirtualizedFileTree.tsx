@@ -1,4 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useLayoutPanelDragDeferredCallback } from '@/hooks/useLayoutPanelDragDeferredCallback';
+import { runSidebarResizeDiagnosticWork } from '@/lib/diagnostics/sidebarResizeDiagnostics';
 import type { FileTreeNode } from '@/stores/useNotesStore';
 import { FileTreeItem } from './FileTreeItem';
 import {
@@ -41,7 +43,11 @@ export function VirtualizedFileTree({
   );
   const [containerWidth, setContainerWidth] = useState(0);
   const rowHeights = useMemo(
-    () => rows.map((row) => estimateVirtualFileTreeRowHeight(row, containerWidth)),
+    () => runSidebarResizeDiagnosticWork(
+      'notes-file-tree-row-heights',
+      'render',
+      () => rows.map((row) => estimateVirtualFileTreeRowHeight(row, containerWidth)),
+    ),
     [containerWidth, rows],
   );
   const rowOffsets = useMemo(() => buildVirtualFileTreeRowOffsets(rowHeights), [rowHeights]);
@@ -101,9 +107,13 @@ export function VirtualizedFileTree({
     setContainerWidth((previous) => previous === nextContainerWidth ? previous : nextContainerWidth);
     commitViewport();
   }, [commitViewport, measureContainerTopInScroll]);
+  const updateViewportWhenLayoutIdle = useLayoutPanelDragDeferredCallback(
+    updateViewportNow,
+    'notes-file-tree-viewport',
+  );
 
   useLayoutEffect(() => {
-    updateViewportNow();
+    updateViewportWhenLayoutIdle();
 
     const scrollRoot = scrollRootRef.current;
     if (!scrollRoot) {
@@ -111,11 +121,11 @@ export function VirtualizedFileTree({
     }
 
     scrollRoot.addEventListener('scroll', updateViewport, { passive: true });
-    window.addEventListener('resize', updateViewportNow);
+    window.addEventListener('resize', updateViewportWhenLayoutIdle);
 
     const resizeObserver = typeof ResizeObserver === 'undefined'
       ? null
-      : new ResizeObserver(updateViewportNow);
+      : new ResizeObserver(updateViewportWhenLayoutIdle);
     resizeObserver?.observe(scrollRoot);
     if (containerRef.current) {
       resizeObserver?.observe(containerRef.current);
@@ -127,14 +137,14 @@ export function VirtualizedFileTree({
         viewportFrameRef.current = null;
       }
       scrollRoot.removeEventListener('scroll', updateViewport);
-      window.removeEventListener('resize', updateViewportNow);
+      window.removeEventListener('resize', updateViewportWhenLayoutIdle);
       resizeObserver?.disconnect();
     };
-  }, [scrollRootRef, updateViewport, updateViewportNow]);
+  }, [scrollRootRef, updateViewport, updateViewportWhenLayoutIdle]);
 
   useLayoutEffect(() => {
-    updateViewportNow();
-  }, [rowOffsets, updateViewportNow]);
+    updateViewportWhenLayoutIdle();
+  }, [rowOffsets, updateViewportWhenLayoutIdle]);
 
   useLayoutEffect(() => {
     const scrollRoot = scrollRootRef.current;

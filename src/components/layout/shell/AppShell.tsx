@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import * as sidebarResizeDiagnostics from '@/lib/diagnostics/sidebarResizeDiagnostics';
 import { useUIStore } from '@/stores/uiSlice';
 import { themeDomStyleTokens } from '@/styles/themeTokens';
+import { useFrozenMainLayout } from './useFrozenMainLayout';
 import { UnifiedSidebarContainer } from './UnifiedSidebarContainer';
 import { UnifiedTitleBar } from './UnifiedTitleBar';
 
@@ -27,16 +29,6 @@ interface AppShellProps {
   isDragging?: boolean;
 }
 
-interface FrozenMainLayout {
-  main: HTMLElement;
-  overflow: string;
-  children: Array<{
-    element: HTMLElement;
-    width: string;
-    minWidth: string;
-  }>;
-}
-
 export function AppShell({
   children,
   
@@ -59,7 +51,7 @@ export function AppShell({
   const titleBarWidthScopeRef = useRef<HTMLDivElement>(null);
   const sidebarWidthScopeRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLElement>(null);
-  const frozenMainLayoutRef = useRef<FrozenMainLayout | null>(null);
+  const sidebarReleaseFrameRef = useRef<number | null>(null);
   const previousSidebarCollapsedRef = useRef(sidebarCollapsed);
   const sidebarPeekCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSidebarDragging, setIsSidebarDragging] = useState(false);
@@ -67,6 +59,7 @@ export function AppShell({
   const setLayoutPanelDragging = useUIStore((state) => state.setLayoutPanelDragging);
   const setLayoutPanelTransitioning = useUIStore((state) => state.setLayoutPanelTransitioning);
   const hasSidebar = Boolean(sidebarContent);
+  const { freeze: freezeMainLayout, restore: restoreMainLayout } = useFrozenMainLayout(mainRef);
 
   const clearSidebarPeekCloseTimer = useCallback(() => {
     if (!sidebarPeekCloseTimerRef.current) return;
@@ -113,58 +106,66 @@ export function AppShell({
       target.style.setProperty('--vlaina-shell-sidebar-width', sidebarWidthValue);
       target.style.setProperty('--vlaina-width-sidebar-content-inner', sidebarContentInnerValue);
     }
+  }, []);
 
-    // Keep the temporary main-layout freeze aligned with the live main width.
-    // Otherwise right-anchored content stays at the drag-start boundary until release.
-    const frozenMainLayout = frozenMainLayoutRef.current;
-    if (!frozenMainLayout) return;
-    const mainWidth = `${frozenMainLayout.main.clientWidth}px`;
-    for (const child of frozenMainLayout.children) {
-      child.element.style.width = mainWidth;
-      child.element.style.minWidth = mainWidth;
+  const applyLiveTitleBarWidth = useCallback((width: number) => {
+    const target = titleBarWidthScopeRef.current;
+    if (target) {
+      const sidebarWidthValue = `${width}px`;
+      target.style.setProperty('--vlaina-shell-sidebar-width', sidebarWidthValue);
+      target.style.setProperty(
+        '--vlaina-width-sidebar-content-inner',
+        `calc(${sidebarWidthValue} - var(--vlaina-size-32px))`,
+      );
     }
   }, []);
 
-  const restoreFrozenMainLayout = useCallback(() => {
-    const frozenMainLayout = frozenMainLayoutRef.current;
-    if (!frozenMainLayout) return;
-
-    frozenMainLayout.main.style.overflow = frozenMainLayout.overflow;
-    for (const child of frozenMainLayout.children) {
-      child.element.style.width = child.width;
-      child.element.style.minWidth = child.minWidth;
-    }
-    frozenMainLayoutRef.current = null;
+  const cancelSidebarRelease = useCallback(() => {
+    if (sidebarReleaseFrameRef.current === null) return;
+    cancelAnimationFrame(sidebarReleaseFrameRef.current);
+    sidebarReleaseFrameRef.current = null;
   }, []);
+
+  const scheduleSidebarRelease = useCallback(() => {
+    cancelSidebarRelease();
+    sidebarReleaseFrameRef.current = requestAnimationFrame(() => {
+      sidebarReleaseFrameRef.current = requestAnimationFrame(() => {
+        sidebarResizeDiagnostics.runSidebarResizeDiagnosticWork(
+          'shell-main-layout-restore',
+          'release',
+          restoreMainLayout,
+        );
+        sidebarReleaseFrameRef.current = requestAnimationFrame(() => {
+          sidebarReleaseFrameRef.current = null;
+          sidebarResizeDiagnostics.runSidebarResizeDiagnosticWork(
+            'shell-deferred-layout-flush',
+            'release',
+            () => setLayoutPanelDragging(false),
+          );
+        });
+      });
+    });
+  }, [cancelSidebarRelease, restoreMainLayout, setLayoutPanelDragging]);
 
   const handleSidebarDragStateChange = useCallback((dragging: boolean) => {
-    if (dragging && !frozenMainLayoutRef.current) {
-      const main = mainRef.current;
-      if (main) {
-        const width = `${main.clientWidth}px`;
-        const overflow = main.style.overflow;
-        const children = Array.from(main.children)
-          .filter((child): child is HTMLElement => child instanceof HTMLElement)
-          .map((element) => ({
-            element,
-            width: element.style.width,
-            minWidth: element.style.minWidth,
-          }));
+    const stateChangeStartedAt = performance.now();
 
-        main.style.overflow = 'hidden';
-        for (const child of children) {
-          child.element.style.width = width;
-          child.element.style.minWidth = width;
-        }
-        frozenMainLayoutRef.current = { main, overflow, children };
-      }
-    } else if (!dragging) {
-      restoreFrozenMainLayout();
+    if (dragging) {
+      cancelSidebarRelease();
+      const mainWidth = freezeMainLayout();
+      sidebarResizeDiagnostics.beginSidebarResizeDiagnostic({
+        mainWidth,
+        setupDurationMs: performance.now() - stateChangeStartedAt,
+        sidebarWidth,
+      });
+      setLayoutPanelDragging(true);
+    } else {
+      scheduleSidebarRelease();
     }
 
     setIsSidebarDragging(dragging);
-    setLayoutPanelDragging(dragging);
-  }, [restoreFrozenMainLayout, setLayoutPanelDragging]);
+    if (!dragging) sidebarResizeDiagnostics.finishSidebarResizeDiagnostic(stateChangeStartedAt);
+  }, [cancelSidebarRelease, freezeMainLayout, scheduleSidebarRelease, setLayoutPanelDragging, sidebarWidth]);
 
   const handleSidebarLayoutAnimationComplete = useCallback(() => {
     setLayoutPanelTransitioning('shell-sidebar', false);
@@ -206,10 +207,12 @@ export function AppShell({
   useEffect(() => clearSidebarPeekCloseTimer, [clearSidebarPeekCloseTimer]);
   useEffect(
     () => () => {
-      restoreFrozenMainLayout();
+      cancelSidebarRelease();
+      restoreMainLayout();
+      setLayoutPanelDragging(false);
       setLayoutPanelTransitioning('shell-sidebar', false);
     },
-    [restoreFrozenMainLayout, setLayoutPanelTransitioning],
+    [cancelSidebarRelease, restoreMainLayout, setLayoutPanelDragging, setLayoutPanelTransitioning],
   );
 
   return (
@@ -258,7 +261,7 @@ export function AppShell({
             peeking={sidebarHoverPeekEnabled && isSidebarPeeking}
             onPeekChange={handleSidebarPeekChange}
             onWidthChange={onSidebarWidthChange}
-            onLiveWidthChange={applySidebarWidth}
+            onLiveWidthChange={applyLiveTitleBarWidth}
             onDragStateChange={handleSidebarDragStateChange}
             onLayoutAnimationComplete={handleSidebarLayoutAnimationComplete}
             widthScopeRef={sidebarWidthScopeRef}
