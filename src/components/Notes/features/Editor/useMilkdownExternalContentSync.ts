@@ -72,7 +72,8 @@ export function useMilkdownExternalContentSync(args: {
     let restoreTimeout = 0;
     let syncRetryFrame = 0;
     const isCurrentSyncTarget = (target: typeof failedSyncTargetRef.current) => (
-      target?.path === currentNotePath &&
+      target !== null &&
+      target.path === currentNotePath &&
       target.diskRevision === currentNoteDiskRevision &&
       target.content === currentNoteContent
     );

@@ -12,6 +12,10 @@ export type ActiveMilkdownEditor = {
 export type ProseMirrorJSONNode = {
   type: string;
   attrs?: Record<string, unknown>;
+  marks?: Array<{
+    type: string;
+    attrs?: Record<string, unknown>;
+  }>;
   text?: string;
   content?: ProseMirrorJSONNode[];
 };

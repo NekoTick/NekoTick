@@ -144,18 +144,35 @@ interface MilkdownMapping {
   map(pos: number, assoc?: number): number;
 }
 
+interface MilkdownStepMap {
+  forEach(
+    callback: (oldStart: number, oldEnd: number, newStart: number, newEnd: number) => void,
+  ): void;
+}
+
+interface MilkdownStep {
+  getMap(): MilkdownStepMap;
+}
+
 interface MilkdownSelectionInstance {
+  anchor: number;
   from: number;
+  head: number;
   to: number;
   empty: boolean;
+  $anchor: MilkdownResolvedPos;
   $from: MilkdownResolvedPos;
+  $head: MilkdownResolvedPos;
   $to: MilkdownResolvedPos;
   eq(other: MilkdownSelectionInstance): boolean;
   [key: string]: any;
 }
 
 interface MilkdownTransactionLike {
+  before: MilkdownNode;
   doc: MilkdownNode;
+  docs: readonly MilkdownNode[];
+  steps: readonly MilkdownStep[];
   selection: MilkdownSelectionInstance;
   schema: MilkdownSchema;
   mapping: MilkdownMapping;
@@ -190,7 +207,7 @@ interface MilkdownEditorStateLike {
   selection: MilkdownSelectionInstance;
   schema: MilkdownSchema;
   tr: MilkdownTransactionLike;
-  storedMarks?: readonly MilkdownMark[] | null;
+  storedMarks: readonly MilkdownMark[] | null;
   [key: string]: any;
 }
 
@@ -270,6 +287,7 @@ interface MilkdownParseDOMRule {
 }
 
 interface MilkdownMarkdownState {
+  readonly schema: MilkdownSchema;
   openNode(type: any, attrs?: AnyRecord): this;
   closeNode(): this;
   openMark(type: any, attrs?: AnyRecord): this;
@@ -934,10 +952,14 @@ declare module '@milkdown/prose/keymap' {
 
 declare module '@milkdown/kit/prose/gapcursor' {
   export class GapCursor extends import('@milkdown/kit/prose/state').Selection {
+    anchor: number;
     from: number;
+    head: number;
     to: number;
     empty: boolean;
+    $anchor: import('@milkdown/kit/prose/model').ResolvedPos;
     $from: import('@milkdown/kit/prose/model').ResolvedPos;
+    $head: import('@milkdown/kit/prose/model').ResolvedPos;
     $to: import('@milkdown/kit/prose/model').ResolvedPos;
     constructor($pos: import('@milkdown/kit/prose/model').ResolvedPos);
     eq(other: import('@milkdown/kit/prose/state').Selection): boolean;
@@ -1085,6 +1107,7 @@ declare module '@milkdown/kit/prose/state' {
     doc: MilkdownNode;
     selection: Selection;
     schema: MilkdownSchema;
+    storedMarks: readonly MilkdownMark[] | null;
     tr: Transaction;
     [key: string]: any;
   }
@@ -1104,10 +1127,14 @@ declare module '@milkdown/kit/prose/state' {
   }
 
   export class Selection implements MilkdownSelectionInstance {
+    anchor: number;
     from: number;
+    head: number;
     to: number;
     empty: boolean;
+    $anchor: MilkdownResolvedPos;
     $from: MilkdownResolvedPos;
+    $head: MilkdownResolvedPos;
     $to: MilkdownResolvedPos;
     eq(other: Selection): boolean;
     static findFrom(
@@ -1406,15 +1433,20 @@ declare module '@milkdown/prose/state' {
     doc: MilkdownNode;
     selection: Selection;
     schema: MilkdownSchema;
+    storedMarks: readonly MilkdownMark[] | null;
     tr: Transaction;
     [key: string]: any;
   }
 
   export class Selection implements MilkdownSelectionInstance {
+    anchor: number;
     from: number;
+    head: number;
     to: number;
     empty: boolean;
+    $anchor: MilkdownResolvedPos;
     $from: MilkdownResolvedPos;
+    $head: MilkdownResolvedPos;
     $to: MilkdownResolvedPos;
     eq(other: Selection): boolean;
     static findFrom(
