@@ -15,6 +15,7 @@ import {
   collapsePointerNativeSelectionAt,
 } from './textSelectionOverlayPointerClick';
 import type { TextSelectionOverlayViewContext } from './textSelectionOverlayViewTypes';
+import { logDiagnostic } from '@/lib/diagnostics/diagnosticsLog';
 
 const POINTER_TEXT_SELECTION_MOVE_THRESHOLD_PX = 4;
 
@@ -22,8 +23,20 @@ export function handleTextSelectionOverlayMouseDown(
   context: TextSelectionOverlayViewContext,
   event: MouseEvent,
 ): void {
-  const { ownerWindow, session, view } = context;
   if (event.button !== 0) return;
+  if (
+    event.target instanceof Element
+    && event.target.closest('.callout-content')
+  ) {
+    logDiagnostic('notes-callout-selection', 'overlay-bypass', {
+      editorHasFocus: context.view.hasFocus(),
+      pointerSelectingBeforeBypass: context.view.dom.hasAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE),
+      targetTag: event.target.tagName.toLowerCase(),
+    });
+    return;
+  }
+
+  const { ownerWindow, session, view } = context;
   if (session.pointerNativeReleaseFrame !== null) {
     ownerWindow.cancelAnimationFrame(session.pointerNativeReleaseFrame);
     session.pointerNativeReleaseFrame = null;

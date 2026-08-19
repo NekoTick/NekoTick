@@ -81,7 +81,7 @@ export function CalloutIconControl({ icon, onChange }: CalloutIconControlProps) 
           setIsOpen(true);
         }}
       >
-        <AppIcon icon={displayedIcon} size={themeIconTokens.sizeMd} />
+        <AppIcon icon={displayedIcon} size={themeIconTokens.sizeRow} />
       </button>
 
       {isOpen && (

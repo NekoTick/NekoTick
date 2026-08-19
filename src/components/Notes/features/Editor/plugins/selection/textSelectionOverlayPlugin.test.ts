@@ -6,7 +6,10 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import type { MilkdownPlugin } from '@milkdown/kit/ctx';
 import { blankAreaDragBoxPlugin } from '../cursor/blankAreaDragBoxPlugin';
 import { dispatchBlockSelectionAction } from '../cursor/blockSelectionPluginState';
-import { handleTextSelectionOverlayMouseMove } from './textSelectionOverlayPointerHandlers';
+import {
+  handleTextSelectionOverlayMouseDown,
+  handleTextSelectionOverlayMouseMove,
+} from './textSelectionOverlayPointerHandlers';
 import {
   setTextSelectionInlineDecorationsForTransaction,
   TEXT_SELECTION_OVERLAY_CLASS,
@@ -38,6 +41,19 @@ async function createEditor(
 }
 
 describe('textSelectionOverlayPlugin', () => {
+  it('leaves callout content pointer selection to the callout node view', async () => {
+    const view = await createEditor('hello world');
+    const calloutContent = document.createElement('div');
+    calloutContent.className = 'callout-content';
+    view.dom.appendChild(calloutContent);
+    const pointerDown = new MouseEvent('mousedown', { button: 0 });
+    Object.defineProperty(pointerDown, 'target', { value: calloutContent });
+
+    handleTextSelectionOverlayMouseDown({ view } as never, pointerDown);
+
+    expect(view.dom).not.toHaveAttribute(POINTER_SELECTION_ACTIVE_ATTRIBUTE);
+  });
+
   it('keeps pointer movement on the native selection path without dispatching', async () => {
     const view = await createEditor('hello world');
     const dispatch = vi.spyOn(view, 'dispatch');
