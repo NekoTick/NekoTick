@@ -503,11 +503,10 @@ body.editor-block-drag-active .milkdown .video-block video {
 /* Callouts */
 .milkdown .callout {
   display: flex;
-  gap: var(--vlaina-space-075rem);
-  padding: var(--vlaina-space-1rem);
+  gap: var(--vlaina-markdown-space-callout-icon-gap);
+  padding: var(--vlaina-markdown-space-callout-padding);
   margin: var(--vlaina-space-1rem) var(--vlaina-space-0);
-  border-radius: var(--vlaina-radius-05rem);
-  font-size: var(--vlaina-font-095rem);
+  border-radius: var(--vlaina-markdown-radius-callout);
 }
 
 .milkdown .callout-title {
@@ -523,7 +522,7 @@ body.editor-block-drag-active .milkdown .video-block video {
 
 .milkdown .callout-icon {
   flex-shrink: 0;
-  font-size: var(--vlaina-font-125em);
+  font-size: var(--vlaina-markdown-size-callout-icon);
   line-height: var(--vlaina-leading-15);
   position: relative;
   z-index: var(--vlaina-z-2);
@@ -532,15 +531,15 @@ body.editor-block-drag-active .milkdown .video-block video {
 .milkdown .callout-icon-control {
   display: inline-flex;
   position: relative;
-  width: var(--vlaina-size-175rem);
-  height: var(--vlaina-size-175rem);
+  width: var(--vlaina-markdown-size-callout-icon);
+  height: var(--vlaina-markdown-size-callout-icon);
   line-height: var(--vlaina-leading-1);
   vertical-align: top;
 }
 
 .milkdown .callout-icon-button {
-  width: var(--vlaina-size-175rem);
-  height: var(--vlaina-size-175rem);
+  width: var(--vlaina-markdown-size-callout-icon);
+  height: var(--vlaina-markdown-size-callout-icon);
   padding: var(--vlaina-space-0);
   border: var(--vlaina-border-width-0);
   background: transparent;
@@ -569,8 +568,11 @@ body.editor-block-drag-active .milkdown .video-block video {
 }
 
 .milkdown .callout-content {
+  color: var(--vlaina-markdown-color-blockquote-text);
   flex: 1;
   min-width: var(--vlaina-size-0);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .milkdown .callout-content>*:first-child {
@@ -582,7 +584,7 @@ body.editor-block-drag-active .milkdown .video-block video {
 }
 
 .milkdown .callout-yellow {
-  background-color: var(--vlaina-markdown-color-callout-warning-bg);
+  background-color: var(--vlaina-markdown-color-callout-default-bg);
 }
 
 .milkdown .callout-blue {

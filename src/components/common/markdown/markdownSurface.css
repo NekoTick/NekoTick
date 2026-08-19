@@ -520,16 +520,23 @@
 .markdown-surface .callout {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--vlaina-space-075rem);
+  gap: var(--vlaina-markdown-space-callout-icon-gap);
   margin: var(--vlaina-markdown-space-block) 0;
   padding: var(--vlaina-markdown-space-callout-padding);
-  border: var(--vlaina-border-width-1) solid var(--vlaina-markdown-color-border);
   border-radius: var(--vlaina-markdown-radius-callout);
   background: var(--vlaina-markdown-color-surface-muted);
 }
 
 .markdown-surface .callout-icon {
+  width: var(--vlaina-markdown-size-callout-icon);
+  font-size: var(--vlaina-markdown-size-callout-icon);
   line-height: var(--vlaina-markdown-line-height-body);
+}
+
+.markdown-surface .callout-content {
+  color: var(--vlaina-markdown-color-blockquote-text);
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .markdown-surface .callout-content > :first-child {
@@ -540,8 +547,12 @@
   margin-bottom: 0;
 }
 
+.markdown-surface .callout-content > p + p {
+  margin-top: var(--vlaina-markdown-space-callout-paragraph-gap);
+}
+
 .markdown-surface .callout-yellow {
-  background: var(--vlaina-markdown-color-callout-warning-bg);
+  background: var(--vlaina-markdown-color-callout-default-bg);
 }
 
 .markdown-surface .callout-blue {

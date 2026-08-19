@@ -83,6 +83,110 @@ async function getTrailingGutterDragPoints(page: Page, text: string) {
 }
 
 test.describe('notes block and text selection handoff', () => {
+  test('allows text dragging within a callout body', async () => {
+    const { app, userDataRoot } = await launchIsolatedElectron('notes-callout-text-selection');
+    const text = 'Callout body text remains selectable like an ordinary paragraph.';
+
+    try {
+      await app.firstWindow();
+      const [page] = await getOpenBridgePages(app, 1);
+      await page.setViewportSize({ width: 1280, height: 860 });
+      await openMarkdownFixture(page, {
+        filename: 'callout-text-selection.md',
+        content: `> 💡 ${text}\n\n> Quote color reference`,
+      });
+
+      await expect(page.locator(`${EDITOR_SELECTOR} .callout-title`)).toHaveAttribute('contenteditable', 'false');
+      await expect(page.locator(`${EDITOR_SELECTOR} .callout-icon`)).toHaveAttribute('contenteditable', 'false');
+      await expect(page.locator(`${EDITOR_SELECTOR} .callout-content`)).toHaveCSS('user-select', 'text');
+      const calloutColor = await page.locator(`${EDITOR_SELECTOR} .callout-content`).evaluate((element) => (
+        getComputedStyle(element).color
+      ));
+      const quoteColor = await page.locator(`${EDITOR_SELECTOR} blockquote`).evaluate((element) => (
+        getComputedStyle(element).color
+      ));
+      expect(calloutColor).toBe(quoteColor);
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      const points = await getTextDragPoints(page, text);
+      await page.mouse.move(points.start.x, points.start.y);
+      await page.mouse.down();
+      await page.mouse.move(points.end.x, points.end.y, { steps: 18 });
+      await page.mouse.up();
+      await waitForEditorAnimationFrame(page);
+
+      await expect.poll(async () => page.evaluate(() => (
+        (window as any).__vlainaE2E.getEditorSelectionSummary()
+      ))).toMatchObject({
+        empty: false,
+        selectedText: expect.stringContaining('body text remains selectable'),
+      });
+      await expect.poll(async () => page.evaluate(({ editorSelector }) => {
+        const editor = document.querySelector<HTMLElement>('.milkdown .ProseMirror');
+        const inlineDecorations = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            `${editorSelector} .callout-content .editor-text-selection-overlay`
+          )
+        );
+        return {
+          inlineDecorationCount: inlineDecorations.length,
+          inlinePaint: editor?.classList.contains('editor-text-selection-inline-paint') ?? false,
+          pointerSelecting: editor?.hasAttribute('data-editor-pointer-selecting') ?? true,
+          visiblyPaintedCount: inlineDecorations.filter((decoration) => {
+            const backgroundColor = getComputedStyle(decoration).backgroundColor;
+            return decoration.getBoundingClientRect().width > 0
+              && backgroundColor !== 'transparent'
+              && backgroundColor !== 'rgba(0, 0, 0, 0)';
+          }).length,
+        };
+      }, { editorSelector: EDITOR_SELECTOR })).toMatchObject({
+        inlineDecorationCount: expect.any(Number),
+        inlinePaint: true,
+        pointerSelecting: false,
+        visiblyPaintedCount: expect.any(Number),
+      });
+      await expect(page.locator(
+        `${EDITOR_SELECTOR} .callout-content .editor-text-selection-overlay`
+      )).not.toHaveCount(0);
+      expect(await page.locator(
+        `${EDITOR_SELECTOR} .callout-content .editor-text-selection-overlay`
+      ).evaluateAll((decorations) => decorations.filter((decoration) => {
+        const backgroundColor = getComputedStyle(decoration).backgroundColor;
+        return decoration.getBoundingClientRect().width > 0
+          && backgroundColor !== 'transparent'
+          && backgroundColor !== 'rgba(0, 0, 0, 0)';
+      }).length)).toBeGreaterThan(0);
+      await app.evaluate(({ clipboard }) => clipboard.writeText('stale callout selection'));
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+C' : 'Control+C');
+      await expect.poll(async () => app.evaluate(({ clipboard }) => clipboard.readText()))
+        .toContain('body text remains selectable');
+      const diagnostics = await page.evaluate(() => {
+        const entries = window.__vlainaDiagnosticsLog
+          ?.filter((entry) => entry.channel === 'notes-callout-selection') ?? [];
+        return {
+          events: entries.map((entry) => entry.event),
+          postReleaseDetails: entries.findLast((entry) => entry.event === 'post-release-frame')
+            ?.details ?? null,
+        };
+      });
+      expect(diagnostics.events).toEqual(expect.arrayContaining([
+        'overlay-bypass',
+        'pointer-down',
+        'session-start',
+        'drag-start',
+        'pointer-up',
+        'post-release-frame',
+      ]));
+      expect(diagnostics.postReleaseDetails).toMatchObject({
+        inlinePaint: true,
+        overlayActive: true,
+      });
+      expect((diagnostics.postReleaseDetails as { calloutInlineDecorationCount: number })
+        .calloutInlineDecorationCount).toBeGreaterThan(0);
+    } finally {
+      await cleanupIsolatedElectron(app, userDataRoot);
+    }
+  });
+
   test('allows a text drag from the middle of a line after block selection', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-block-to-text-selection');
     const heading = 'Block selection source';

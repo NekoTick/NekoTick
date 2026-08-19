@@ -26,6 +26,7 @@ import {
 import { updateSchemaFactory } from '../../themeSchemaUtils';
 import { markEditorUserInput } from '../shared/userInputEvents';
 import { handleCalloutShortcutEnter } from './calloutShortcutEnter';
+import { handleCalloutPointerSelection } from './calloutPointerSelection';
 
 export { serializeCalloutToMarkdown } from './calloutMarkdown';
 
@@ -180,6 +181,11 @@ export function handleCalloutModEnterExit(view: EditorView): boolean {
 export const calloutKeymapPlugin = $prose(() => {
   return new Plugin({
     props: {
+      handleDOMEvents: {
+        mousedown(view, event) {
+          return event instanceof MouseEvent && handleCalloutPointerSelection(view, event);
+        },
+      },
       handleKeyDown(view, event) {
         if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && !event.isComposing) {
           if (!handleCalloutModEnterExit(view)) {

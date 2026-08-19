@@ -512,6 +512,7 @@
   --vlaina-markdown-color-task-checked-bg: var(--vlaina-markdown-color-link);
   --vlaina-markdown-color-task-checked-text: var(--vlaina-markdown-color-text-subtle);
   --vlaina-markdown-color-highlight-bg: var(--vlaina-color-mark-highlight-surface-bg);
+  --vlaina-markdown-color-callout-default-bg: var(--vlaina-color-callout-default-bg);
   --vlaina-markdown-color-callout-warning-bg: var(--vlaina-color-status-warning-bg);
   --vlaina-markdown-color-callout-info-bg: var(--vlaina-color-status-info-bg);
   --vlaina-markdown-color-callout-success-bg: var(--vlaina-color-status-success-bg);
@@ -553,11 +554,14 @@
   --vlaina-markdown-space-blockquote-padding: var(--vlaina-space-10px) var(--vlaina-space-0) var(--vlaina-space-10px) var(--vlaina-space-17px);
   --vlaina-markdown-space-code-inline-padding: var(--vlaina-space-0125rem) var(--vlaina-space-025rem);
   --vlaina-markdown-space-table-cell-padding: var(--vlaina-space-05rem) var(--vlaina-space-075rem);
-  --vlaina-markdown-space-callout-padding: var(--vlaina-space-0875rem) var(--vlaina-space-1rem);
+  --vlaina-markdown-space-callout-padding: var(--vlaina-space-125rem);
+  --vlaina-markdown-space-callout-icon-gap: var(--vlaina-space-05rem);
+  --vlaina-markdown-space-callout-paragraph-gap: var(--vlaina-space-1rem);
+  --vlaina-markdown-size-callout-icon: var(--vlaina-size-16px);
   --vlaina-markdown-radius-inline-code: var(--vlaina-radius-025rem);
   --vlaina-markdown-radius-image: var(--vlaina-radius-05rem);
   --vlaina-markdown-radius-table: var(--vlaina-radius-05rem);
-  --vlaina-markdown-radius-callout: var(--vlaina-radius-075rem);
+  --vlaina-markdown-radius-callout: var(--vlaina-radius-10px);
   --vlaina-markdown-radius-media: var(--vlaina-radius-075rem);
   --vlaina-markdown-radius-action: var(--vlaina-radius-0375rem);
 
@@ -798,6 +802,7 @@
   --vlaina-color-surface-sidebar: var(--vlaina-color-surface-main);
   --vlaina-color-surface-menu: var(--vlaina-color-surface-main);
   --vlaina-color-surface-secondary: #fbfbfc;
+  --vlaina-color-callout-default-bg: #f9f8f7;
   --vlaina-color-surface-tertiary: #f4f5f7;
   --vlaina-color-surface-hover: rgba(0, 0, 0, 0.04);
   --vlaina-color-surface-active: rgba(0, 0, 0, 0.08);
@@ -1381,6 +1386,7 @@ html[data-whiteboard-color-picking='true'] * {
   --vlaina-color-surface-sidebar: var(--vlaina-color-surface-main);
   --vlaina-color-surface-menu: #171719;
   --vlaina-color-surface-secondary: #0d0d0e;
+  --vlaina-color-callout-default-bg: #171717;
   --vlaina-color-surface-tertiary: #1a1a1c;
   --vlaina-color-surface-hover: rgb(255 255 255 / 0.07);
   --vlaina-color-surface-active: rgb(255 255 255 / 0.12);
