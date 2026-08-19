@@ -911,6 +911,27 @@ describe('MilkdownEditorInner external content sync', () => {
     });
   });
 
+  it('retries readiness reporting when the first callback does not complete', async () => {
+    createMockActiveEditor();
+    const onEditorContentSyncFailure = vi.fn();
+    const onEditorViewReady = vi.fn()
+      .mockImplementationOnce(() => {
+        throw new Error('Readiness observer did not complete');
+      });
+
+    render(
+      <MilkdownEditorInner
+        onEditorContentSyncFailure={onEditorContentSyncFailure}
+        onEditorViewReady={onEditorViewReady}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onEditorViewReady).toHaveBeenCalledTimes(2);
+    });
+    expect(onEditorContentSyncFailure).not.toHaveBeenCalled();
+  });
+
   it('replaces a stale empty editor document before reporting a non-empty note ready', async () => {
     mocks.editorState.serializedMarkdown = '';
     const editor = createMockActiveEditor();

@@ -63,6 +63,7 @@ export function useMilkdownExternalContentSync(args: {
 
   useEffect(() => {
     if (!canSyncContent) {
+      failedSyncTargetRef.current = null;
       return;
     }
 
@@ -97,7 +98,8 @@ export function useMilkdownExternalContentSync(args: {
     try {
       const editor = get?.() as ActiveMilkdownEditor | undefined;
       const runEditorAction = editor?.action;
-      if (!editor || !runEditorAction) {
+      if (!editor || editor.status !== 'Created' || !runEditorAction) {
+        clearSyncFailure();
         return;
       }
 

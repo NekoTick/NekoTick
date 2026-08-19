@@ -65,17 +65,17 @@ export function useMilkdownEditorActivation(args: {
       return;
     }
 
+    const view = editor.ctx.get(editorViewCtx) as EditorView;
+    if (getCurrentEditorView() === view) {
+      setCurrentEditorView(view, currentNotePath);
+    }
+    onEditorViewReadyRef.current?.();
     readyReportedRef.current = {
       editor,
       path: currentNotePath,
       diskRevision: currentNoteDiskRevision,
       content: currentNoteContentRef.current,
     };
-    const view = editor.ctx.get(editorViewCtx) as EditorView;
-    if (getCurrentEditorView() === view) {
-      setCurrentEditorView(view, currentNotePath);
-    }
-    onEditorViewReadyRef.current?.();
   }, [currentNoteDiskRevision, currentNotePath]);
 
   const activateEditor = useCallback((editor: ActiveMilkdownEditor) => {
