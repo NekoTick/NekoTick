@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEventHandler } from 'react';
+import { forwardRef, type CSSProperties, type MouseEventHandler } from 'react';
 import { cn } from '@/lib/utils';
 import { ResizeDividerVisual, RESIZE_HANDLE_HIT_WIDTH } from './ResizeDividerVisual';
 
@@ -13,7 +13,7 @@ interface ResizeHandleProps {
   dataResizeHandleScope?: string;
 }
 
-export function ResizeHandle({
+export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(function ResizeHandle({
   onMouseDown,
   onDoubleClick,
   isDragging,
@@ -22,9 +22,10 @@ export function ResizeHandle({
   zIndexClassName = 'z-[var(--vlaina-z-30)]',
   className,
   dataResizeHandleScope,
-}: ResizeHandleProps) {
+}: ResizeHandleProps, ref) {
   return (
     <div
+      ref={ref}
       data-resize-handle={dataResizeHandleScope ?? 'true'}
       onMouseDown={onMouseDown}
       onDoubleClick={onDoubleClick}
@@ -40,4 +41,4 @@ export function ResizeHandle({
       <ResizeDividerVisual isVisible={isDragging} />
     </div>
   );
-}
+});

@@ -70,6 +70,16 @@ describe('virtualFileTree', () => {
     );
   });
 
+  it('updates cached row height after renaming the same node', () => {
+    const node = file('a-very-long-file-name-that-wraps-across-lines');
+    const row = { node, depth: 1, parentFolderPath: '' };
+    const originalHeight = estimateVirtualFileTreeRowHeight(row, 270);
+
+    node.name = 'short';
+
+    expect(estimateVirtualFileTreeRowHeight(row, 270)).toBeLessThan(originalHeight);
+  });
+
   it('uses variable row offsets for virtual windows', () => {
     const rowHeights = [38, 98, 38];
     const rowOffsets = buildVirtualFileTreeRowOffsets(rowHeights);

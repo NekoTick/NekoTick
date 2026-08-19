@@ -123,7 +123,7 @@ export function useMessageListViewport({
       const previousScrollTop = lastObservedScrollTopRef.current;
       lastObservedScrollTopRef.current = currentScrollTop;
       scheduleViewportMetrics();
-      if (event.type !== 'scroll' || !isSessionActive) {
+      if (event.type !== 'scroll') {
         if (event.type === 'chat-programmatic-scroll') {
           programmaticScrollTopRef.current = currentScrollTop;
         }
@@ -139,16 +139,18 @@ export function useMessageListViewport({
       }
       programmaticScrollTopRef.current = null;
 
-      const userScrolledUp =
-        previousScrollTop !== null && currentScrollTop < previousScrollTop - 1;
-      const distanceToBottom =
-        viewport.scrollHeight - (currentScrollTop + viewport.clientHeight);
-      if (userScrolledUp && !isTailDetachedRef.current) {
-        isTailDetachedRef.current = true;
-        setIsTailDetached(true);
-      } else if (distanceToBottom <= TAIL_ANCHOR_THRESHOLD && isTailDetachedRef.current) {
-        isTailDetachedRef.current = false;
-        setIsTailDetached(false);
+      if (isSessionActive) {
+        const userScrolledUp =
+          previousScrollTop !== null && currentScrollTop < previousScrollTop - 1;
+        const distanceToBottom =
+          viewport.scrollHeight - (currentScrollTop + viewport.clientHeight);
+        if (userScrolledUp && !isTailDetachedRef.current) {
+          isTailDetachedRef.current = true;
+          setIsTailDetached(true);
+        } else if (distanceToBottom <= TAIL_ANCHOR_THRESHOLD && isTailDetachedRef.current) {
+          isTailDetachedRef.current = false;
+          setIsTailDetached(false);
+        }
       }
 
       if (!isScrollActiveRef.current) {

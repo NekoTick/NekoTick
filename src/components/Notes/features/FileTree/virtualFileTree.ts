@@ -13,9 +13,20 @@ export const VIRTUAL_FILE_TREE_ROW_BASE_VISIBLE_CHARS = 8;
 export const VIRTUAL_FILE_TREE_OVERSCAN_ROWS = 10;
 export const VIRTUAL_FILE_TREE_MIN_ROWS = 180;
 const MAX_DERIVED_FILE_TREE_ROWS = 20_000;
+const visibleCharacterCountCache = new WeakMap<
+  FileTreeNode,
+  { name: string; count: number }
+>();
 
-function getVisibleCharacterCount(value: string): number {
-  return Array.from(value).length;
+function getVisibleCharacterCount(node: FileTreeNode): number {
+  const cached = visibleCharacterCountCache.get(node);
+  if (cached?.name === node.name) {
+    return cached.count;
+  }
+
+  const count = Array.from(node.name).length;
+  visibleCharacterCountCache.set(node, { name: node.name, count });
+  return count;
 }
 
 export function estimateVirtualFileTreeRowHeight(
@@ -36,7 +47,7 @@ export function estimateVirtualFileTreeRowHeight(
     : Math.max(4, VIRTUAL_FILE_TREE_ROW_BASE_VISIBLE_CHARS - row.depth * 2);
   const lineCount = Math.max(
     1,
-    Math.ceil(getVisibleCharacterCount(row.node.name) / availableCharactersPerLine),
+    Math.ceil(getVisibleCharacterCount(row.node) / availableCharactersPerLine),
   );
 
   return VIRTUAL_FILE_TREE_ROW_HEIGHT + (lineCount - 1) * VIRTUAL_FILE_TREE_ROW_LINE_HEIGHT;

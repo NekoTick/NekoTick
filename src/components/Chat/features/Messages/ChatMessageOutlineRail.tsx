@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   getSidebarIdleRowSurfaceClass,
   getSidebarLabelClass,
@@ -8,7 +9,7 @@ import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { useI18n } from '@/lib/i18n';
 import type { ChatMessage } from '@/lib/ai/types';
 import { cn } from '@/lib/utils';
-import { themeChatLayoutTokens } from '@/styles/themeTokens';
+import { themeChatLayoutTokens, themeDomStyleTokens } from '@/styles/themeTokens';
 import { parseUserMessageContentWithKnownImages } from './components/userMessageContent';
 import './chat-message-outline.css';
 
@@ -20,6 +21,32 @@ interface ChatMessageOutlineRailProps {
 }
 
 const outlineTextByMessage = new WeakMap<ChatMessage, string>();
+const CHAT_MESSAGE_OUTLINE_VIRTUALIZATION_THRESHOLD = 80;
+const CHAT_MESSAGE_OUTLINE_VIRTUAL_OVERSCAN_ROWS = 6;
+
+function getNormalizedOutlinePrefix(value: string): string {
+  let normalized = '';
+  let pendingSpace = false;
+  let length = 0;
+
+  for (const char of value) {
+    if (/\s/.test(char)) {
+      if (length > 0) pendingSpace = true;
+      continue;
+    }
+    if (pendingSpace) {
+      normalized += ' ';
+      length += 1;
+      pendingSpace = false;
+      if (length >= themeChatLayoutTokens.messageOutlineLabelChars) break;
+    }
+    normalized += char;
+    length += 1;
+    if (length >= themeChatLayoutTokens.messageOutlineLabelChars) break;
+  }
+
+  return normalized;
+}
 
 export function getChatMessageOutlineLabel(
   message: ChatMessage,
@@ -27,14 +54,16 @@ export function getChatMessageOutlineLabel(
 ): string {
   let outlineText = outlineTextByMessage.get(message);
   if (outlineText === undefined) {
-    const parsed = parseUserMessageContentWithKnownImages(message.content, message.imageSources);
-    outlineText = parsed.text.replace(/\s+/g, ' ').trim();
+    const content = message.content || '';
+    outlineText = !content.includes('![') && !/<img\b/i.test(content)
+      ? getNormalizedOutlinePrefix(content)
+      : getNormalizedOutlinePrefix(
+        parseUserMessageContentWithKnownImages(content, message.imageSources).text,
+      );
     outlineTextByMessage.set(message, outlineText);
   }
 
-  return Array.from(outlineText || fallback)
-    .slice(0, themeChatLayoutTokens.messageOutlineLabelChars)
-    .join('');
+  return outlineText || getNormalizedOutlinePrefix(fallback);
 }
 
 export function ChatMessageOutlineRail({
@@ -48,17 +77,27 @@ export function ChatMessageOutlineRail({
   const [hasFocus, setHasFocus] = useState(false);
   const activeRowRef = useRef<HTMLButtonElement | null>(null);
   const isPointerFocusRef = useRef(false);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const isExpanded = isHovered || hasFocus;
-  const items = useMemo(() => messages.flatMap((message) => {
-    if (message.role !== 'user') {
-      return [];
-    }
-
-    return [{
-      id: message.id,
-      label: getChatMessageOutlineLabel(message, t('chat.attachment')),
-    }];
-  }), [messages, t]);
+  const items = useMemo(
+    () => messages.filter((message) => message.role === 'user'),
+    [messages],
+  );
+  const shouldVirtualize = items.length >= CHAT_MESSAGE_OUTLINE_VIRTUALIZATION_THRESHOLD;
+  const activeIndex = useMemo(
+    () => items.findIndex((message) => message.id === activeMessageId),
+    [activeMessageId, items],
+  );
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    enabled: shouldVirtualize,
+    estimateSize: () => isExpanded
+      ? themeChatLayoutTokens.messageOutlineExpandedRowHeightPx
+      : themeChatLayoutTokens.messageOutlineCompactRowHeightPx,
+    getItemKey: (index) => items[index]?.id ?? index,
+    getScrollElement: () => scrollAreaRef.current,
+    overscan: CHAT_MESSAGE_OUTLINE_VIRTUAL_OVERSCAN_ROWS,
+  });
 
   useEffect(() => {
     if (!enabled || items.length === 0) {
@@ -69,20 +108,60 @@ export function ChatMessageOutlineRail({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      activeRowRef.current?.scrollIntoView?.({ block: 'nearest' });
+      if (shouldVirtualize && activeIndex >= 0) {
+        virtualizer.scrollToIndex(activeIndex, { align: 'auto' });
+      } else {
+        activeRowRef.current?.scrollIntoView?.({ block: 'nearest' });
+      }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeMessageId]);
+  }, [activeIndex, activeMessageId, shouldVirtualize, virtualizer]);
+
+  useLayoutEffect(() => {
+    if (shouldVirtualize) virtualizer.measure();
+  }, [isExpanded, shouldVirtualize, virtualizer]);
 
   if (!enabled || items.length === 0) {
     return null;
   }
+
+  const renderItem = (message: ChatMessage) => {
+    const isActive = message.id === activeMessageId;
+    return (
+      <button
+        key={message.id}
+        ref={isActive ? activeRowRef : undefined}
+        type="button"
+        aria-current={isActive ? 'location' : undefined}
+        className={cn(
+          'chat-message-outline-row group/sidebar-row',
+          isActive && 'chat-message-outline-row-active',
+          isExpanded && (
+            isActive
+              ? getSidebarSelectedRowSurfaceClass('chat')
+              : getSidebarIdleRowSurfaceClass('chat')
+          ),
+        )}
+        onClick={() => onSelect(message.id)}
+      >
+        <span
+          className={cn(
+            'chat-message-outline-row-text',
+            isExpanded && getSidebarLabelClass('chat', { selected: isActive }),
+          )}
+        >
+          {getChatMessageOutlineLabel(message, t('chat.attachment'))}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <aside
       className="chat-message-outline-rail"
       data-chat-message-outline="true"
       data-expanded={isExpanded ? 'true' : 'false'}
+      data-layout-resize-right-anchor="true"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         isPointerFocusRef.current = false;
@@ -111,39 +190,38 @@ export function ChatMessageOutlineRail({
       }}
     >
       <div className={cn('chat-message-outline-panel', isExpanded && raisedPillSurfaceClass)}>
-        <div className="chat-message-outline-scroll-area scrollbar-hidden">
+        <div ref={scrollAreaRef} className="chat-message-outline-scroll-area scrollbar-hidden">
           <div className="chat-message-outline-list">
             <nav aria-label={t('sidebar.outline')}>
-              {items.map((item) => {
-                const isActive = item.id === activeMessageId;
-                return (
-                  <button
-                    key={item.id}
-                    ref={isActive ? activeRowRef : undefined}
-                    type="button"
-                    aria-current={isActive ? 'location' : undefined}
-                    className={cn(
-                      'chat-message-outline-row group/sidebar-row',
-                      isActive && 'chat-message-outline-row-active',
-                      isExpanded && (
-                        isActive
-                          ? getSidebarSelectedRowSurfaceClass('chat')
-                          : getSidebarIdleRowSurfaceClass('chat')
-                      ),
-                    )}
-                    onClick={() => onSelect(item.id)}
-                  >
-                    <span
-                      className={cn(
-                        'chat-message-outline-row-text',
-                        isExpanded && getSidebarLabelClass('chat', { selected: isActive }),
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
+              {shouldVirtualize ? (
+                <div
+                  data-chat-message-outline-virtual-list="true"
+                  style={{
+                    height: virtualizer.getTotalSize(),
+                    position: themeDomStyleTokens.positionRelative,
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const message = items[virtualRow.index];
+                    if (!message) return null;
+                    return (
+                      <div
+                        key={message.id}
+                        data-index={virtualRow.index}
+                        style={{
+                          left: themeDomStyleTokens.numericZero,
+                          position: themeDomStyleTokens.positionAbsolute,
+                          top: themeDomStyleTokens.numericZero,
+                          transform: `translateY(${virtualRow.start}px)`,
+                          width: '100%',
+                        }}
+                      >
+                        {renderItem(message)}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : items.map(renderItem)}
             </nav>
           </div>
         </div>

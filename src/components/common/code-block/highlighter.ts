@@ -17,6 +17,10 @@ import xml from 'highlight.js/lib/languages/xml';
 import yaml from 'highlight.js/lib/languages/yaml';
 
 let registered = false;
+const HIGHLIGHT_CACHE_ENTRY_LIMIT = 200;
+const HIGHLIGHT_CACHE_CHAR_LIMIT = 2 * 1024 * 1024;
+const highlightedCodeCache = new Map<string, { html: string; weight: number }>();
+let highlightedCodeCacheChars = 0;
 
 function registerLanguages() {
   if (registered) return;
@@ -54,3 +58,59 @@ registerLanguages();
 
 export const markdownHighlighter = hljs;
 export const chatHighlighter = markdownHighlighter;
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function rememberHighlightedCode(key: string, html: string): string {
+  const weight = key.length + html.length;
+  if (weight > HIGHLIGHT_CACHE_CHAR_LIMIT) {
+    return html;
+  }
+
+  while (
+    highlightedCodeCache.size >= HIGHLIGHT_CACHE_ENTRY_LIMIT ||
+    highlightedCodeCacheChars + weight > HIGHLIGHT_CACHE_CHAR_LIMIT
+  ) {
+    const oldestKey = highlightedCodeCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    const oldest = highlightedCodeCache.get(oldestKey);
+    highlightedCodeCache.delete(oldestKey);
+    highlightedCodeCacheChars -= oldest?.weight ?? 0;
+  }
+
+  highlightedCodeCache.set(key, { html, weight });
+  highlightedCodeCacheChars += weight;
+  return html;
+}
+
+export function highlightMarkdownCode(codeText: string, language: string): string {
+  const supportedLanguage = language && markdownHighlighter.getLanguage(language)
+    ? language
+    : '';
+  const mode = language ? `language:${supportedLanguage || 'plain'}` : 'auto';
+  const key = `${mode}\u0000${codeText}`;
+  const cached = highlightedCodeCache.get(key);
+  if (cached !== undefined) {
+    highlightedCodeCache.delete(key);
+    highlightedCodeCache.set(key, cached);
+    return cached.html;
+  }
+
+  try {
+    const html = supportedLanguage
+      ? markdownHighlighter.highlight(codeText, { language: supportedLanguage }).value
+      : language
+        ? escapeHtml(codeText)
+        : markdownHighlighter.highlightAuto(codeText).value;
+    return rememberHighlightedCode(key, html);
+  } catch {
+    return rememberHighlightedCode(key, escapeHtml(codeText));
+  }
+}

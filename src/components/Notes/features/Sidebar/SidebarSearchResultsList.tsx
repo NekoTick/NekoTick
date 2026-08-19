@@ -1,5 +1,7 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useLayoutPanelDragDeferredCallback } from '@/hooks/useLayoutPanelDragDeferredCallback';
+import { runSidebarResizeDiagnosticWork } from '@/lib/diagnostics/sidebarResizeDiagnostics';
 import { cn } from '@/lib/utils';
 import { NotesSidebarRow } from './NotesSidebarRow';
 import { useI18n } from '@/lib/i18n';
@@ -116,7 +118,11 @@ export function SidebarSearchResultsList({
     [results],
   );
   const estimates = useMemo(
-    () => items.map((item) => estimateNotesSidebarSearchRowHeight(item, containerWidth)),
+    () => runSidebarResizeDiagnosticWork(
+      'notes-search-result-row-heights',
+      'render',
+      () => items.map((item) => estimateNotesSidebarSearchRowHeight(item, containerWidth)),
+    ),
     [containerWidth, items],
   );
   const virtualizer = useVirtualizer({
@@ -125,6 +131,23 @@ export function SidebarSearchResultsList({
     estimateSize: (index) => estimates[index] ?? 40,
     overscan: 6,
   });
+  const commitWidth = useCallback(() => {
+    const nextWidth = scrollRootRef.current?.clientWidth;
+    if (nextWidth === undefined) return;
+    setContainerWidth((current) => (current === nextWidth ? current : nextWidth));
+  }, [scrollRootRef]);
+  const scheduleWidthCommit = useCallback(() => {
+    if (widthFrameRef.current !== null) return;
+
+    widthFrameRef.current = requestAnimationFrame(() => {
+      widthFrameRef.current = null;
+      commitWidth();
+    });
+  }, [commitWidth]);
+  const scheduleWidthCommitWhenLayoutIdle = useLayoutPanelDragDeferredCallback(
+    scheduleWidthCommit,
+    'notes-search-result-width',
+  );
 
   useEffect(() => {
     const scrollRoot = scrollRootRef.current;
@@ -132,28 +155,13 @@ export function SidebarSearchResultsList({
       return;
     }
 
-    const commitWidth = () => {
-      const nextWidth = scrollRoot.clientWidth;
-      setContainerWidth((current) => (current === nextWidth ? current : nextWidth));
-    };
-    const scheduleWidthCommit = () => {
-      if (widthFrameRef.current !== null) {
-        return;
-      }
-
-      widthFrameRef.current = requestAnimationFrame(() => {
-        widthFrameRef.current = null;
-        commitWidth();
-      });
-    };
-
-    commitWidth();
+    scheduleWidthCommitWhenLayoutIdle();
 
     if (typeof ResizeObserver === 'undefined') {
       return;
     }
 
-    const resizeObserver = new ResizeObserver(scheduleWidthCommit);
+    const resizeObserver = new ResizeObserver(scheduleWidthCommitWhenLayoutIdle);
     resizeObserver.observe(scrollRoot);
 
     return () => {
@@ -163,7 +171,7 @@ export function SidebarSearchResultsList({
       }
       resizeObserver.disconnect();
     };
-  }, [scrollRootRef]);
+  }, [scheduleWidthCommitWhenLayoutIdle, scrollRootRef]);
 
   useEffect(() => {
     const trimmedQuery = deferredQuery.trim();

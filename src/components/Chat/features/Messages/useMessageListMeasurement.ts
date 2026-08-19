@@ -19,6 +19,7 @@ interface UseMessageListMeasurementOptions {
   activeRef: React.MutableRefObject<boolean>;
   chatId?: string | null;
   fontSize: number;
+  isScrollActive: boolean;
   isSessionActive: boolean;
   lastStreamingMessageId: string | null;
   layoutWidth: number;
@@ -32,6 +33,7 @@ export function useMessageListMeasurement({
   activeRef,
   chatId,
   fontSize,
+  isScrollActive,
   isSessionActive,
   lastStreamingMessageId,
   layoutWidth,
@@ -43,6 +45,7 @@ export function useMessageListMeasurement({
   const visibleRowRefCallbacksRef = useRef(new Map<string, (node: HTMLDivElement | null) => void>());
   const rowResizeObserverRef = useRef<ResizeObserver | null>(null);
   const measuredHeightsRafRef = useRef<number | null>(null);
+  const isScrollActiveRef = useRef(isScrollActive);
   const pendingMeasuredHeightsRef = useRef(new Map<string, number>());
   const measuredHeightsRef = useRef(measuredHeights);
   const renderedMessagesRef = useRef(renderedMessages);
@@ -87,6 +90,7 @@ export function useMessageListMeasurement({
     : renderedMessages;
 
   measuredHeightsRef.current = measuredHeights;
+  isScrollActiveRef.current = isScrollActive;
   renderedMessagesRef.current = renderedMessages;
   lastStreamingMessageIdRef.current = lastStreamingMessageId;
 
@@ -188,7 +192,7 @@ export function useMessageListMeasurement({
     }
 
     pendingMeasuredHeightsRef.current.set(messageId, normalizedHeight);
-    if (measuredHeightsRafRef.current !== null) {
+    if (isScrollActiveRef.current || measuredHeightsRafRef.current !== null) {
       return;
     }
 
@@ -196,6 +200,24 @@ export function useMessageListMeasurement({
       flushMeasuredHeights();
     });
   }, [flushMeasuredHeights]);
+
+  useLayoutEffect(() => {
+    if (isScrollActive) {
+      if (measuredHeightsRafRef.current !== null) {
+        cancelAnimationFrame(measuredHeightsRafRef.current);
+        measuredHeightsRafRef.current = null;
+      }
+      return;
+    }
+
+    if (pendingMeasuredHeightsRef.current.size === 0 || measuredHeightsRafRef.current !== null) {
+      return;
+    }
+
+    measuredHeightsRafRef.current = requestAnimationFrame(() => {
+      flushMeasuredHeights();
+    });
+  }, [flushMeasuredHeights, isScrollActive]);
 
   const remeasureVisibleRow = useCallback((messageId: string) => {
     const node = observedRowsRef.current.get(messageId);
@@ -222,7 +244,7 @@ export function useMessageListMeasurement({
       return true;
     }
 
-    return !measuredHeightsRef.current.has(messageId);
+    return !isScrollActiveRef.current && !measuredHeightsRef.current.has(messageId);
   }, []);
 
   useEffect(() => {

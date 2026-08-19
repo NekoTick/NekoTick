@@ -929,6 +929,8 @@ export const themeEmojiPickerTokens = {
 export const themeChatLayoutTokens = {
   embeddedSidebarWidth: 'min(clamp(16rem, 80%, 21rem), 86vw)',
   messageNavigationThresholdPx: 30,
+  messageOutlineCompactRowHeightPx: 14,
+  messageOutlineExpandedRowHeightPx: 28,
   messageOutlineLabelChars: 15,
   messageScrollOffsetPx: 20,
   userMessageContentGapPx: 8,
@@ -1077,6 +1079,7 @@ export const themeCropperTokens = {
 } as const;
 
 export const themeDomStyleTokens = {
+  overflowHidden: 'hidden',
   positionAbsolute: 'absolute',
   positionFixed: 'fixed',
   positionRelative: 'relative',
