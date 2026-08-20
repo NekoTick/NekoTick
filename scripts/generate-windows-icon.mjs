@@ -12,6 +12,11 @@ const targetPngPath = path.join(buildDir, 'icon.png');
 const targetIcoPath = path.join(buildDir, 'icon.ico');
 const targetIcnsPath = path.join(buildDir, 'icon.icns');
 const appxAssetsDir = path.join(buildDir, 'appx');
+// Tiny icon slots lose character outlines with ImageMagick's default filter.
+const iconDownscaleArgs = [
+  '-filter',
+  'LanczosSharp',
+];
 
 function runImageMagick(args) {
   const missingCommandErrors = [];
@@ -120,6 +125,7 @@ async function createWindowsIcon(sourcePath, targetPath, pngBytes) {
       sourcePath,
       '-background',
       'none',
+      ...iconDownscaleArgs,
       '-define',
       'icon:auto-resize=256,128,64,48,32,16',
       targetPath,
@@ -176,6 +182,7 @@ async function createAppxAssets(sourcePath) {
         sourcePath,
         '-background',
         'none',
+        ...iconDownscaleArgs,
         '-resize',
         `${iconSize}x${iconSize}`,
         '-gravity',
