@@ -89,6 +89,7 @@ export function usePendingMarkdownUserInputMarker({
     return (event: Event) => {
       if (
         event instanceof KeyboardEvent &&
+        !isCompositionActiveRef.current &&
         !event.isComposing &&
         !view.composing &&
         view.hasFocus?.() === true

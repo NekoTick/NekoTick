@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => {
   const flushCurrentPendingEditorMarkdown = vi.fn(() => false);
   const flushSave = vi.fn();
   const focusCurrentEditorAtViewportPoint = vi.fn(() => true);
+  const syncEditorSelectionFromDOM = vi.fn(() => true);
 
   return {
     debouncedSave,
@@ -57,6 +58,7 @@ const mocks = vi.hoisted(() => {
     focusCurrentEditorAtViewportPoint,
     notesState,
     pendingMarkdownAutosaveState,
+    syncEditorSelectionFromDOM,
   };
 });
 
@@ -112,6 +114,11 @@ vi.mock('@/components/markdown-theme/useImportedMarkdownThemePlatform', () => ({
 
 vi.mock('./utils/focusEditorAtPoint', () => ({
   focusCurrentEditorAtViewportPoint: mocks.focusCurrentEditorAtViewportPoint,
+}));
+
+vi.mock('./utils/editorSelection', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./utils/editorSelection')>(),
+  syncEditorSelectionFromDOM: mocks.syncEditorSelectionFromDOM,
 }));
 
 vi.mock('./hooks/useEditorSave', () => ({
@@ -226,6 +233,7 @@ function createMockActiveEditor() {
     return { content: { type: 'parsed-doc-content', markdown } };
   });
   const view = {
+    composing: false,
     dom: document.createElement('div'),
     dispatch,
     state: {
@@ -261,6 +269,7 @@ beforeEach(() => {
   mocks.flushCurrentPendingEditorMarkdown.mockClear();
   mocks.flushSave.mockClear();
   mocks.focusCurrentEditorAtViewportPoint.mockClear();
+  mocks.syncEditorSelectionFromDOM.mockClear();
   mocks.pendingMarkdownAutosaveState.shouldSerialize = false;
   mocks.pendingMarkdownAutosaveState.options = null;
 });
@@ -876,6 +885,19 @@ describe('MilkdownEditorInner shell focus', () => {
 });
 
 describe('MilkdownEditorInner external content sync', () => {
+  it('does not sync a transient DOM selection when the window blurs during composition', () => {
+    const { view } = createMockActiveEditor();
+    view.composing = true;
+    render(<MilkdownEditorInner />);
+    mocks.syncEditorSelectionFromDOM.mockClear();
+
+    fireEvent(window, new Event('blur'));
+
+    expect(mocks.syncEditorSelectionFromDOM).not.toHaveBeenCalled();
+    expect(mocks.flushCurrentPendingEditorMarkdown).toHaveBeenCalledTimes(1);
+    expect(mocks.flushSave).toHaveBeenCalledTimes(1);
+  });
+
   it('flushes pending body input and its save before deactivating the editor', () => {
     createMockActiveEditor();
     const { rerender } = render(<MilkdownEditorInner active />);

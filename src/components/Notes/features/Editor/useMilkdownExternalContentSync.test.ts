@@ -3,11 +3,119 @@ import { editorViewCtx, serializerCtx } from '@milkdown/kit/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMilkdownExternalContentSync } from './useMilkdownExternalContentSync';
 
+const mocks = vi.hoisted(() => ({
+  replaceEditorMarkdown: vi.fn(() => true),
+}));
+
+vi.mock('./milkdownEditorMarkdownReplacement', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./milkdownEditorMarkdownReplacement')>(),
+  replaceEditorMarkdown: mocks.replaceEditorMarkdown,
+}));
+
+function createEditorHarness(serializedMarkdown: string) {
+  const transaction = {
+    setMeta: vi.fn(() => transaction),
+  };
+  const view = {
+    composing: true,
+    dispatch: vi.fn(),
+    dom: document.createElement('div'),
+    state: {
+      doc: {},
+      plugins: [],
+      tr: transaction,
+    },
+  };
+  const ctx = {
+    get: vi.fn((token: unknown) => {
+      if (token === editorViewCtx) return view;
+      if (token === serializerCtx) return () => serializedMarkdown;
+      throw new Error('Unexpected token');
+    }),
+  };
+  const editor = {
+    action: vi.fn((action: (activeCtx: typeof ctx) => unknown) => action(ctx)),
+    ctx,
+    status: 'Created',
+  };
+  return { editor, view };
+}
+
 afterEach(() => {
   vi.useRealTimers();
+  mocks.replaceEditorMarkdown.mockClear();
+  mocks.replaceEditorMarkdown.mockReturnValue(true);
 });
 
 describe('useMilkdownExternalContentSync', () => {
+  it('defers a same-note external replacement until composition ends', () => {
+    vi.useFakeTimers();
+    const content = '# Disk edit';
+    const { editor, view } = createEditorHarness('# nihao');
+    const reportEditorReady = vi.fn();
+    const lastAppliedNoteRef = {
+      current: {
+        path: 'small.md',
+        diskRevision: 1,
+        content: '# Previous disk content',
+      },
+    };
+
+    renderHook(() => useMilkdownExternalContentSync({
+      activatedRevision: 1,
+      canSyncContent: true,
+      currentNoteContent: content,
+      currentNoteDiskRevision: 2,
+      currentNotePath: 'small.md',
+      get: () => editor,
+      lastAppliedNoteRef,
+      reportEditorReady,
+      shouldPreserveLiveEditorContent: () => false,
+    }));
+
+    expect(mocks.replaceEditorMarkdown).not.toHaveBeenCalled();
+    expect(reportEditorReady).not.toHaveBeenCalled();
+
+    act(() => {
+      view.composing = false;
+      view.dom.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+      vi.advanceTimersToNextTimer();
+    });
+
+    expect(mocks.replaceEditorMarkdown).toHaveBeenCalledTimes(1);
+    expect(lastAppliedNoteRef.current).toEqual({
+      path: 'small.md',
+      diskRevision: 2,
+      content,
+    });
+    expect(reportEditorReady).toHaveBeenCalledWith(editor);
+  });
+
+  it('still replaces a different note while the previous editor is composing', () => {
+    const { editor } = createEditorHarness('# Previous note');
+    const lastAppliedNoteRef = {
+      current: {
+        path: 'previous.md',
+        diskRevision: 1,
+        content: '# Previous note',
+      },
+    };
+
+    renderHook(() => useMilkdownExternalContentSync({
+      activatedRevision: 1,
+      canSyncContent: true,
+      currentNoteContent: '# Next note',
+      currentNoteDiskRevision: 1,
+      currentNotePath: 'next.md',
+      get: () => editor,
+      lastAppliedNoteRef,
+      reportEditorReady: vi.fn(),
+      shouldPreserveLiveEditorContent: () => false,
+    }));
+
+    expect(mocks.replaceEditorMarkdown).toHaveBeenCalledTimes(1);
+  });
+
   it('waits for editor creation before reading its context', () => {
     const content = '# Small';
     const view = {

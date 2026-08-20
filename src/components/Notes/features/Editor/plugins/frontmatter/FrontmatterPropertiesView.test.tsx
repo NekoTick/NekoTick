@@ -180,21 +180,82 @@ describe('FrontmatterPropertiesView', () => {
 
     const titleKey = screen.getByDisplayValue('title');
     titleKey.focus();
-    fireEvent.keyDown(titleKey, { key: 'Enter', keyCode: 229, isComposing: true });
+    fireEvent.compositionStart(titleKey);
+    fireEvent.keyDown(titleKey, { key: 'Enter' });
     expect(titleKey).toHaveFocus();
+    fireEvent.compositionEnd(titleKey);
 
     const tagInput = screen.getByLabelText('tags');
-    fireEvent.change(tagInput, { target: { value: '笔记' } });
-    fireEvent.keyDown(tagInput, { key: 'Enter', keyCode: 229, isComposing: true });
-    expect(screen.queryByText('笔记')).not.toBeInTheDocument();
+    fireEvent.compositionStart(tagInput);
+    fireEvent.change(tagInput, { target: { value: 'draft-tag' } });
+    fireEvent.keyDown(tagInput, { key: 'Enter', ctrlKey: true });
+    expect(screen.queryByText('draft-tag')).not.toBeInTheDocument();
+    fireEvent.compositionEnd(tagInput);
     fireEvent.change(tagInput, { target: { value: '' } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     const newKeyInput = screen.getByPlaceholderText('Property name');
-    fireEvent.change(newKeyInput, { target: { value: '主题' } });
-    fireEvent.keyDown(newKeyInput, { key: 'Enter', keyCode: 229, isComposing: true });
+    fireEvent.compositionStart(newKeyInput);
+    fireEvent.change(newKeyInput, { target: { value: 'draft-key' } });
+    fireEvent.keyDown(newKeyInput, { key: 'Enter' });
     expect(newKeyInput).toHaveFocus();
     expect(onChange).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(newKeyInput);
+  });
+
+  it('defers scalar value blur commits until composition ends', () => {
+    const onChange = vi.fn();
+    render(<StatefulView onChange={onChange} />);
+    const title = screen.getByDisplayValue('Notes syntax');
+
+    fireEvent.compositionStart(title);
+    fireEvent.change(title, { target: { value: 'romanized draft' } });
+    fireEvent.blur(title);
+
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(title, { target: { value: 'committed title' } });
+    fireEvent.compositionEnd(title);
+
+    expect(parse(onChange.mock.lastCall?.[0])).toMatchObject({ title: 'committed title' });
+    expect(onChange.mock.lastCall?.[0]).not.toContain('romanized draft');
+  });
+
+  it('defers existing property name blur commits until composition ends', () => {
+    const onChange = vi.fn();
+    render(<StatefulView onChange={onChange} />);
+    const titleKey = screen.getByDisplayValue('title');
+
+    fireEvent.compositionStart(titleKey);
+    fireEvent.change(titleKey, { target: { value: 'draft_key' } });
+    fireEvent.blur(titleKey);
+
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(titleKey, { target: { value: 'final_title' } });
+    fireEvent.compositionEnd(titleKey);
+
+    expect(parse(onChange.mock.lastCall?.[0])).toMatchObject({ final_title: 'Notes syntax' });
+    expect(onChange.mock.lastCall?.[0]).not.toContain('draft_key');
+  });
+
+  it('defers new property blur commits until composition ends', () => {
+    const onChange = vi.fn();
+    render(<StatefulView onChange={onChange} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    const keyInput = screen.getByPlaceholderText('Property name');
+    fireEvent.compositionStart(keyInput);
+    fireEvent.change(keyInput, { target: { value: 'draft_key' } });
+    fireEvent.blur(keyInput);
+
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.change(keyInput, { target: { value: 'final_key' } });
+    fireEvent.compositionEnd(keyInput);
+
+    expect(parse(onChange.mock.lastCall?.[0])).toMatchObject({ final_key: '' });
+    expect(onChange.mock.lastCall?.[0]).not.toContain('draft_key');
   });
 
   it('moves from a new property name to its value and builds a list with Ctrl+Enter', () => {

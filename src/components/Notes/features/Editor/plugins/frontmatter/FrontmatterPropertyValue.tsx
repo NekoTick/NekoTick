@@ -20,15 +20,15 @@ type FrontmatterPropertyValueProps = {
 };
 
 function commitTextInput(
-  event: React.FocusEvent<HTMLInputElement>,
+  input: HTMLInputElement,
   property: FrontmatterProperty,
   rawText: string,
   onChange: (rawText: string) => void,
 ) {
-  const value = event.currentTarget.value;
+  const value = input.value;
   const nextValue = property.kind === 'number' ? Number(value) : value;
   if (property.kind === 'number' && (!value.trim() || !Number.isFinite(nextValue))) {
-    event.currentTarget.value = String(property.value);
+    input.value = String(property.value);
     return;
   }
   if (nextValue === property.value) return;
@@ -47,6 +47,18 @@ export function FrontmatterPropertyValue({
   const { t } = useI18n();
   const [focusListInput, setFocusListInput] = useState(false);
   const listInputRef = useRef<HTMLInputElement>(null);
+  const isComposingRef = useRef(false);
+  const pendingBlurInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleCompositionStart = () => {
+    isComposingRef.current = true;
+  };
+  const handleCompositionEnd = (event: React.CompositionEvent<HTMLInputElement>) => {
+    isComposingRef.current = false;
+    if (pendingBlurInputRef.current !== event.currentTarget) return;
+    pendingBlurInputRef.current = null;
+    commitTextInput(event.currentTarget, property, rawText, onChange);
+  };
 
   useEffect(() => {
     if (!focusListInput || property.kind !== 'list') return;
@@ -98,8 +110,10 @@ export function FrontmatterPropertyValue({
             ref={listInputRef}
             aria-label={property.key}
             autoFocus={autoFocus}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onKeyDown={(event) => {
-              if (isFrontmatterInputComposing(event)) return;
+              if (isComposingRef.current || isFrontmatterInputComposing(event)) return;
               if (
                 event.key !== 'Enter'
                 || (!event.ctrlKey && !event.metaKey)
@@ -139,9 +153,17 @@ export function FrontmatterPropertyValue({
       defaultValue={String(property.value)}
       readOnly={!editable}
       type={property.kind === 'number' ? 'number' : 'text'}
-      onBlur={(event) => commitTextInput(event, property, rawText, onChange)}
+      onBlur={(event) => {
+        if (isComposingRef.current) {
+          pendingBlurInputRef.current = event.currentTarget;
+          return;
+        }
+        commitTextInput(event.currentTarget, property, rawText, onChange);
+      }}
+      onCompositionStart={handleCompositionStart}
+      onCompositionEnd={handleCompositionEnd}
       onKeyDown={(event) => {
-        if (isFrontmatterInputComposing(event)) return;
+        if (isComposingRef.current || isFrontmatterInputComposing(event)) return;
         if (
           event.key === 'Enter'
           && (event.ctrlKey || event.metaKey)

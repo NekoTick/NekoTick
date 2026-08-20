@@ -105,11 +105,24 @@ export function useMilkdownExternalContentSync(args: {
       }
 
       const view = editor.ctx.get(editorViewCtx) as EditorView;
+      const isSameNotePath = lastAppliedNote.path === currentNotePath;
+      if (isSameNotePath && view.composing) {
+        const retryAfterComposition = () => {
+          syncRetryFrame = window.requestAnimationFrame(() => {
+            setRetryRevision((revision) => revision + 1);
+          });
+        };
+        view.dom.addEventListener('compositionend', retryAfterComposition, { once: true });
+        return () => {
+          view.dom.removeEventListener('compositionend', retryAfterComposition);
+          cancelAnimationFrame(syncRetryFrame);
+        };
+      }
+
       const historySession = historySessionRef.current
         ?? createNoteEditorHistorySession(view);
       historySessionRef.current = historySession;
 
-      const isSameNotePath = lastAppliedNote.path === currentNotePath;
       if (!isSameNotePath) {
         clearFormatPreview(view);
         view.dispatch(

@@ -38,6 +38,29 @@ export function FrontmatterPropertiesView({
   const [newKeyInvalid, setNewKeyInvalid] = useState(false);
   const [pendingValueFocusKey, setPendingValueFocusKey] = useState<string | null>(null);
   const newKeyRef = useRef<HTMLInputElement>(null);
+  const composingInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingCompositionBlurCommitRef = useRef<{
+    input: HTMLInputElement;
+    commit: () => void;
+  } | null>(null);
+
+  const handleInputCompositionStart = (event: React.CompositionEvent<HTMLInputElement>) => {
+    composingInputRef.current = event.currentTarget;
+  };
+  const handleInputCompositionEnd = (event: React.CompositionEvent<HTMLInputElement>) => {
+    if (composingInputRef.current !== event.currentTarget) return;
+    composingInputRef.current = null;
+    const pendingCommit = pendingCompositionBlurCommitRef.current;
+    pendingCompositionBlurCommitRef.current = null;
+    if (pendingCommit?.input === event.currentTarget) pendingCommit.commit();
+  };
+  const commitInputBlur = (input: HTMLInputElement, commit: () => void) => {
+    if (composingInputRef.current === input) {
+      pendingCompositionBlurCommitRef.current = { input, commit };
+      return;
+    }
+    commit();
+  };
 
   useLayoutEffect(() => {
     if (adding) newKeyRef.current?.focus();
@@ -133,12 +156,20 @@ export function FrontmatterPropertiesView({
                 defaultValue={property.key}
                 readOnly={!editable}
                 onBlur={(event) => {
-                  const next = renameFrontmatterProperty(rawText, property.key, event.currentTarget.value);
-                  if (next === null || next === rawText) event.currentTarget.value = property.key;
-                  else onChange(next);
+                  const input = event.currentTarget;
+                  commitInputBlur(input, () => {
+                    const next = renameFrontmatterProperty(rawText, property.key, input.value);
+                    if (next === null || next === rawText) input.value = property.key;
+                    else onChange(next);
+                  });
                 }}
+                onCompositionStart={handleInputCompositionStart}
+                onCompositionEnd={handleInputCompositionEnd}
                 onKeyDown={(event) => {
-                  if (isFrontmatterInputComposing(event)) return;
+                  if (
+                    composingInputRef.current === event.currentTarget
+                    || isFrontmatterInputComposing(event)
+                  ) return;
                   if (event.key === 'Enter') event.currentTarget.blur();
                   if (event.key === 'Escape') {
                     event.currentTarget.value = property.key;
@@ -174,10 +205,17 @@ export function FrontmatterPropertiesView({
                 aria-invalid={newKeyInvalid}
                 className="frontmatter-property-key-input"
                 placeholder={t('editor.frontmatterPropertyName')}
-                onBlur={() => commitNewProperty()}
+                onBlur={(event) => {
+                  commitInputBlur(event.currentTarget, () => commitNewProperty());
+                }}
                 onChange={() => setNewKeyInvalid(false)}
+                onCompositionStart={handleInputCompositionStart}
+                onCompositionEnd={handleInputCompositionEnd}
                 onKeyDown={(event) => {
-                  if (isFrontmatterInputComposing(event)) return;
+                  if (
+                    composingInputRef.current === event.currentTarget
+                    || isFrontmatterInputComposing(event)
+                  ) return;
                   if (event.key === 'Enter') {
                     event.preventDefault();
                     commitNewProperty(true);

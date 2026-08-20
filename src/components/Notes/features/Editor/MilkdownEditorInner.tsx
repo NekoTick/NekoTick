@@ -209,7 +209,9 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
         const editor = activatedEditorRef.current;
         if (editor?.status === 'Created') {
           const view = editor.ctx.get(editorViewCtx) as EditorView;
-          syncEditorSelectionFromDOM(view);
+          if (!view.composing) {
+            syncEditorSelectionFromDOM(view);
+          }
         }
       } catch {
         // Selection sync is best-effort during window deactivation.

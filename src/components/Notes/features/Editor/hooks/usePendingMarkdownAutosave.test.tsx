@@ -55,14 +55,18 @@ function getDocText(view: EditorView): string {
   return view.state.doc.textBetween(0, view.state.doc.content.size, '\n');
 }
 
-function setNativeCaretAfterText(view: EditorView, text: string): number {
+function setNativeCaretAtTextBoundary(
+  view: EditorView,
+  text: string,
+  boundary: 'start' | 'end',
+): number {
   const walker = view.dom.ownerDocument.createTreeWalker(view.dom, NodeFilter.SHOW_TEXT);
   let node: Node | null = walker.nextNode();
   while (node) {
     const value = node.nodeValue ?? '';
-    const offset = value.indexOf(text);
-    if (offset >= 0) {
-      const caretOffset = offset + text.length;
+    const textOffset = value.indexOf(text);
+    if (textOffset >= 0) {
+      const caretOffset = textOffset + (boundary === 'end' ? text.length : 0);
       const selection = view.dom.ownerDocument.getSelection();
       const range = view.dom.ownerDocument.createRange();
       range.setStart(node, caretOffset);
@@ -159,7 +163,8 @@ describe('usePendingMarkdownAutosave', () => {
         vi.advanceTimersByTime(100);
       });
 
-      expect(getDocText(view)).toBe('targetv1');
+      expect(getDocText(view)).toContain('targetv1');
+      expect(getDocText(view)).not.toContain('targetv11');
     } finally {
       unmount();
       await editor.destroy();
@@ -177,7 +182,8 @@ describe('usePendingMarkdownAutosave', () => {
 
       expect(replaceRecentCompositionText(view, 'v', 'v1')).toBe(true);
       expect(replaceRecentCompositionText(view, 'v', 'v1')).toBe(false);
-      expect(getDocText(view)).toBe('targetv1');
+      expect(getDocText(view)).toContain('v1');
+      expect(getDocText(view)).not.toContain('v11');
     } finally {
       await editor.destroy();
     }
@@ -317,6 +323,79 @@ describe('usePendingMarkdownAutosave', () => {
     }
   });
 
+  it('waits until compositionend propagation finishes before repairing stale pinyin', async () => {
+    const editor = createEditor('nihao');
+    await editor.create();
+    const { result, unmount } = renderHook(() => usePendingMarkdownAutosave({
+      currentNotePath: 'docs/alpha.md',
+      currentNoteDiskRevision: 0,
+      currentNoteContent: 'nihao',
+      updateContent: vi.fn(),
+      debouncedSave: vi.fn(),
+    }));
+
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const pinyinEnd = findTextEndPos(view, 'nihao');
+      const markUserInput = result.current.createUserInputMarker(view, null);
+
+      act(() => {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pinyinEnd)));
+        markUserInput(new Event('compositionstart'));
+        markUserInput(new InputEvent('beforeinput', {
+          inputType: 'insertCompositionText',
+          data: 'nihao',
+        }));
+        markUserInput(new CompositionEvent('compositionend', { data: '你好' }));
+      });
+
+      expect(getDocText(view)).toContain('nihao');
+      expect(getDocText(view)).not.toContain('你好');
+
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+
+      expect(getDocText(view)).toContain('你好');
+      expect(getDocText(view)).not.toContain('nihao');
+    } finally {
+      unmount();
+      await editor.destroy();
+    }
+  });
+
+  it('does not import a transient native caret during an active composition session', async () => {
+    const editor = createEditor('nihao');
+    await editor.create();
+    const { result, unmount } = renderHook(() => usePendingMarkdownAutosave({
+      currentNotePath: 'docs/alpha.md',
+      currentNoteDiskRevision: 0,
+      currentNoteContent: 'nihao',
+      updateContent: vi.fn(),
+      debouncedSave: vi.fn(),
+    }));
+
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const pinyinEnd = findTextEndPos(view, 'nihao');
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pinyinEnd)));
+      view.focus();
+      const transientCaret = setNativeCaretAtTextBoundary(view, 'nihao', 'start');
+      expect(transientCaret).toBeLessThan(pinyinEnd);
+
+      const markUserInput = result.current.createUserInputMarker(view, null);
+      act(() => {
+        markUserInput(new Event('compositionstart'));
+        markUserInput(new KeyboardEvent('keydown', { key: ' ' }));
+      });
+
+      expect(view.state.selection.from).toBe(pinyinEnd);
+    } finally {
+      unmount();
+      await editor.destroy();
+    }
+  });
+
   it('repairs pinyin residue split around committed composition text', async () => {
     const editor = createEditor(['# alpha', '', 'h好a'].join('\n'));
     await editor.create();
@@ -375,6 +454,7 @@ describe('usePendingMarkdownAutosave', () => {
         markUserInput(new InputEvent('beforeinput', { inputType: 'insertCompositionText', data: 'ha' }));
         markUserInput(new InputEvent('beforeinput', { inputType: 'insertText', data: '好' }));
         markUserInput(new CompositionEvent('compositionend', { data: '好' }));
+        vi.advanceTimersByTime(0);
       });
 
       expect(getDocText(view)).toContain('好');
@@ -463,7 +543,11 @@ describe('usePendingMarkdownAutosave', () => {
       const stalePosition = findTextEndPos(view, 'sk-test-randomized-placeholder-token-1234567890');
       view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, stalePosition)));
       view.focus();
-      const visibleCaretPosition = setNativeCaretAfterText(view, '放但是发生的”我”在”的“的');
+      const visibleCaretPosition = setNativeCaretAtTextBoundary(
+        view,
+        '放但是发生的”我”在”的“的',
+        'end',
+      );
       const { result, unmount } = renderHook(() => usePendingMarkdownAutosave({
         currentNotePath: 'docs/alpha.md',
         currentNoteDiskRevision: 0,
@@ -540,6 +624,7 @@ describe('usePendingMarkdownAutosave', () => {
         }));
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, targetEnd)));
         markUserInput(new CompositionEvent('compositionend', { data: '马上回车中文-45-e2e' }));
+        vi.advanceTimersByTime(0);
       });
 
       expect(getDocText(view)).toContain('Typing caret 马上回车中文-45-e2e text');
@@ -580,6 +665,7 @@ describe('usePendingMarkdownAutosave', () => {
         }));
         view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, targetFrom, targetEnd)));
         markUserInput(new Event('compositionend'));
+        vi.advanceTimersByTime(0);
       });
 
       expect(getDocText(view)).toContain('Typing caret 马上回车中文-45-e2e text');

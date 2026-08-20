@@ -47,7 +47,7 @@ export function scheduleCompositionCommitFinalization(
     );
   };
 
-  finalize();
+  // The marker runs during document capture, before ProseMirror handles compositionend.
   setTimeout(finalize, 0);
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(() => {
