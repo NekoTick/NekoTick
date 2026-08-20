@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ 點我登入一下喔~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ 腦袋轉不過來啦，等我緩一緩或者先換個模型試試~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ 腦袋轉不過來啦，等我緩一緩或者先換個模型試試~",
-  "chat.error.network": "網路連線錯誤，請檢查連線後再試。",
+  "chat.error.network": "目前沒有網路連線，請檢查網路後再試。",
   "chat.error.customProviderConnectionFailed": "無法連接到自訂頻道。請檢查網路或上游服務後再試。",
   "chat.retryTestButton": "測試重試",
   "chat.error.timeout": "請求逾時，請稍後再試。",

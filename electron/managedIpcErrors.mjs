@@ -14,16 +14,35 @@ const MANAGED_PUBLIC_ERROR_MESSAGES = new Map([
   ['invalid_request', 'INVALID_REQUEST'],
   ['web_search_monthly_quota_exceeded', 'WEB_SEARCH_QUOTA_EXHAUSTED'],
 ]);
+export const MANAGED_NETWORK_ERROR_MESSAGE = 'MANAGED_NETWORK_ERROR';
 const SAFE_MANAGED_JSON_ERROR_MESSAGES = new Set([
   ...MANAGED_PUBLIC_ERROR_MESSAGES.values(),
   'Invalid managed JSON request body.',
   'Managed API request timed out.',
+  MANAGED_NETWORK_ERROR_MESSAGE,
   'Managed JSON request body is too large.',
   'vlaina session is still activating',
   'vlaina session is temporarily unavailable',
   'vlaina sign-in required',
 ]);
 export const MANAGED_BACKEND_STREAM_ERROR = Symbol('managedBackendStreamError');
+
+export function isManagedNetworkErrorMessage(value) {
+  if (typeof value !== 'string') return false;
+
+  const message = value.toLowerCase();
+  return (
+    message.includes('managed_network_error')
+    || message.includes('failed to fetch')
+    || message.includes('fetch failed')
+    || message.includes('load failed')
+    || message.includes('networkerror')
+    || message.includes('network error')
+    || message.includes('network request failed')
+    || message.includes('error sending request')
+    || /(?:net::)?err_(?:address_unreachable|connection_(?:aborted|closed|refused|reset|timed_out)|internet_disconnected|name_not_resolved|network_changed|proxy_connection_failed|socket_not_connected|timed_out|tunnel_connection_failed)/.test(message)
+  );
+}
 
 export function normalizeManagedStreamErrorCode(value) {
   if (typeof value !== 'string' || value.length > MAX_MANAGED_STREAM_ERROR_CODE_CHARS) {
@@ -99,6 +118,9 @@ export function sanitizeManagedJsonIpcError(error) {
       statusCode,
       errorCode,
     );
+  }
+  if (statusCode === null && isManagedNetworkErrorMessage(message)) {
+    return createManagedJsonError(MANAGED_NETWORK_ERROR_MESSAGE, statusCode, null);
   }
   if (typeof message === 'string' && SAFE_MANAGED_JSON_ERROR_MESSAGES.has(message)) {
     return createManagedJsonError(message, statusCode, null);

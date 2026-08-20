@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Clicca per accedere~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ La mia testa ha bisogno di una pausa. Riprova tra poco oppure prova prima un altro modello~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ La mia testa ha bisogno di una pausa. Riprova tra poco oppure prova prima un altro modello~",
-  "chat.error.network": "Errore di connessione di rete. Controlla la connessione e riprova.",
+  "chat.error.network": "Nessuna connessione Internet. Controlla la connessione e riprova.",
   "chat.error.customProviderConnectionFailed": "Impossibile raggiungere il canale personalizzato. Controlla la rete o il servizio upstream e riprova.",
   "chat.retryTestButton": "Test retry",
   "chat.error.timeout": "La richiesta è scaduta. Riprova più tardi.",

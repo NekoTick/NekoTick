@@ -99,14 +99,12 @@ export const ChatInput = memo(function ChatInput({
   });
   const {
     scheduleComposerFocus,
-    scheduleComposerRefocus,
     scheduleFocusOnWindowFocus,
   } = useChatInputFocus(textareaRef);
   useChatInputCaretLayoutSync({
     composerRootRef,
     isComposing,
     message,
-    scheduleComposerRefocus,
     textareaRef,
   });
   const handleRemoveAttachment = useCallback((attachmentId: string) => {

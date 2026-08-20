@@ -12,7 +12,10 @@ import {
   getControlCaretRect,
   isCaretOverlayVisuallyVisible,
   isTextControl,
+  type TextControl,
 } from './nativeCaretOverlayGeometry';
+import { createNativeCaretOverlayMotionTracker } from './nativeCaretOverlayMotion';
+import { hasUnsupportedCaretOverlayTransform } from './nativeCaretOverlayTransforms';
 
 const STYLE_ID = 'native-caret-overlay-style';
 const CARET_CLASS = 'native-caret-overlay';
@@ -49,6 +52,7 @@ export function useNativeCaretOverlay(): void {
     let frameId: number | null = null;
     let keyboardCaretNavigationActive = false;
     let layoutPanelDragging = useUIStore.getState().layoutPanelDragging;
+    const motionTracker = createNativeCaretOverlayMotionTracker();
 
     const hide = () => {
       keyboardCaretNavigationActive = false;
@@ -60,6 +64,13 @@ export function useNativeCaretOverlay(): void {
       });
     };
 
+    const canRenderOverlayFor = (element: Element | null): element is TextControl => (
+      isTextControl(element) &&
+      !element.matches('[readonly], [disabled], [data-native-caret-overlay-disabled="true"]') &&
+      !motionTracker.contains(element) &&
+      !hasUnsupportedCaretOverlayTransform(element)
+    );
+
     const render = () => {
       frameId = null;
 
@@ -69,10 +80,7 @@ export function useNativeCaretOverlay(): void {
       }
 
       const activeElement = doc.activeElement;
-      if (
-        !isTextControl(activeElement) ||
-        activeElement.matches('[readonly], [disabled], [data-native-caret-overlay-disabled="true"]')
-      ) {
+      if (!canRenderOverlayFor(activeElement)) {
         hide();
         return;
       }
@@ -118,11 +126,7 @@ export function useNativeCaretOverlay(): void {
       }
 
       const activeElement = doc.activeElement;
-      if (!isTextControl(activeElement)) {
-        if (caret) hide();
-        return;
-      }
-      if (activeElement.matches('[readonly], [disabled], [data-native-caret-overlay-disabled="true"]')) {
+      if (!canRenderOverlayFor(activeElement)) {
         if (frameId !== null) {
           window.cancelAnimationFrame(frameId);
           frameId = null;
@@ -181,6 +185,46 @@ export function useNativeCaretOverlay(): void {
     const handleExplicitRefresh = () => flush();
     const handleCompositionStart = () => hide();
     const handleCompositionEnd = () => schedule();
+    const handleMotionStart = (event: Event) => {
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof Element) || eventTarget.classList.contains(CARET_CLASS)) {
+        return;
+      }
+      const activeElement = doc.activeElement;
+      const affectsFocusedControl = isTextControl(activeElement) && (
+        eventTarget === activeElement || eventTarget.contains(activeElement)
+      );
+      const containsTextControl = eventTarget.matches('input, textarea') ||
+        eventTarget.querySelector('input, textarea') !== null;
+      if (!affectsFocusedControl && !containsTextControl) {
+        return;
+      }
+
+      const target = motionTracker.start(event);
+      if (!target) return;
+      if (isTextControl(activeElement) && (target === activeElement || target.contains(activeElement))) {
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId);
+          frameId = null;
+        }
+        hide();
+      }
+    };
+    const handleMotionEnd = (event: Event) => {
+      const tracked = motionTracker.end(event);
+      if (!tracked) {
+        const activeElement = doc.activeElement;
+        const target = event.target;
+        if (
+          !isTextControl(activeElement) ||
+          !(target instanceof Element) ||
+          (target !== activeElement && !target.contains(activeElement))
+        ) {
+          return;
+        }
+      }
+      schedule();
+    };
     const syncLayoutPanelDragging = (dragging: boolean) => {
       layoutPanelDragging = dragging;
       if (dragging) {
@@ -211,8 +255,12 @@ export function useNativeCaretOverlay(): void {
     doc.addEventListener('compositionstart', handleCompositionStart);
     doc.addEventListener('compositionend', handleCompositionEnd);
     doc.addEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleExplicitRefresh);
-    doc.addEventListener('animationend', handleUpdate, true);
-    doc.addEventListener('transitionend', handleUpdate, true);
+    doc.addEventListener('animationstart', handleMotionStart, true);
+    doc.addEventListener('animationcancel', handleMotionEnd, true);
+    doc.addEventListener('transitionrun', handleMotionStart, true);
+    doc.addEventListener('transitioncancel', handleMotionEnd, true);
+    doc.addEventListener('animationend', handleMotionEnd, true);
+    doc.addEventListener('transitionend', handleMotionEnd, true);
     doc.addEventListener('scroll', handleScroll, true);
     window.addEventListener('resize', handleUpdate);
 
@@ -221,6 +269,7 @@ export function useNativeCaretOverlay(): void {
         window.cancelAnimationFrame(frameId);
       }
       hide();
+      motionTracker.clear();
       unsubscribeLayoutPanelDragging();
       doc.documentElement.removeAttribute(LAYOUT_PANEL_DRAGGING_ATTR);
       doc.removeEventListener('focusin', handleFocusIn);
@@ -233,8 +282,12 @@ export function useNativeCaretOverlay(): void {
       doc.removeEventListener('compositionstart', handleCompositionStart);
       doc.removeEventListener('compositionend', handleCompositionEnd);
       doc.removeEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleExplicitRefresh);
-      doc.removeEventListener('animationend', handleUpdate, true);
-      doc.removeEventListener('transitionend', handleUpdate, true);
+      doc.removeEventListener('animationstart', handleMotionStart, true);
+      doc.removeEventListener('animationcancel', handleMotionEnd, true);
+      doc.removeEventListener('transitionrun', handleMotionStart, true);
+      doc.removeEventListener('transitioncancel', handleMotionEnd, true);
+      doc.removeEventListener('animationend', handleMotionEnd, true);
+      doc.removeEventListener('transitionend', handleMotionEnd, true);
       doc.removeEventListener('scroll', handleScroll, true);
       window.removeEventListener('resize', handleUpdate);
     };

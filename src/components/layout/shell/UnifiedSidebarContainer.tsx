@@ -10,6 +10,7 @@ import {
 import { useShellSidebarResize } from './useShellSidebarResize';
 import { RESIZE_HANDLE_HALF_WIDTH } from './ResizeDividerVisual';
 import { ResizeHandle } from './ResizeHandle';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 interface UnifiedSidebarContainerProps {
   children: ReactNode;
@@ -254,6 +255,7 @@ export function UnifiedSidebarContainer({
           initial={false}
           animate={collapsed && !peeking ? 'hidden' : 'visible'}
           transition={SIDEBAR_SLIDE_TRANSITION}
+          onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
           onAnimationComplete={onLayoutAnimationComplete}
           onMouseEnter={collapsed ? handleMouseEnter : undefined}
           onMouseLeave={collapsed ? handleMouseLeave : undefined}

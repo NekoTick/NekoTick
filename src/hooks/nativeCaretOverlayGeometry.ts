@@ -9,9 +9,6 @@ const CARET_VISIBILITY_SCOPE_SELECTOR = '[data-chat-input="true"]';
 
 const TEXT_INPUT_TYPES = new Set([
   '',
-  'email',
-  'number',
-  'password',
   'search',
   'tel',
   'text',
@@ -33,8 +30,13 @@ const COPIED_STYLE_PROPERTIES = [
   'fontStyle',
   'fontVariant',
   'fontVariantNumeric',
+  'fontKerning',
+  'fontFeatureSettings',
+  'fontVariationSettings',
+  'fontSynthesis',
   'fontWeight',
   'fontStretch',
+  'textRendering',
   'letterSpacing',
   'lineHeight',
   'textTransform',
@@ -42,6 +44,8 @@ const COPIED_STYLE_PROPERTIES = [
   'textAlign',
   'direction',
   'wordSpacing',
+  'wordBreak',
+  'hyphens',
   'tabSize',
 ] as const;
 
@@ -81,30 +85,37 @@ function getCollapsedSelectionStart(control: TextControl): number | null {
       return selectionStart === selectionEnd ? selectionStart : null;
     }
   } catch {
-    // Some text-like input types, such as email and number, do not expose text selection APIs.
+    // Browsers do not expose collapsed text selection APIs for every input type.
   }
-
-  if (control instanceof HTMLInputElement) {
-    return control.value.length;
-  }
-
   return null;
 }
 
-function createMirror(control: TextControl, styles: CSSStyleDeclaration): HTMLDivElement {
+function createMirror(
+  control: TextControl,
+  styles: CSSStyleDeclaration,
+  controlRect: DOMRect,
+): HTMLDivElement {
   const mirror = control.ownerDocument.createElement('div');
   copyTextMetrics(styles, mirror);
   mirror.style.position = themeDomStyleTokens.positionFixed;
   mirror.style.visibility = themeRenderingTokens.visibilityHidden;
   mirror.style.pointerEvents = themeStyleResetTokens.pointerEventsNone;
   mirror.style.whiteSpace = control instanceof HTMLTextAreaElement
-    ? themeRenderingTokens.whiteSpacePreWrap
+    ? styles.whiteSpace || themeRenderingTokens.whiteSpacePreWrap
     : themeRenderingTokens.whiteSpacePre;
   mirror.style.overflowWrap = control instanceof HTMLTextAreaElement
-    ? themeRenderingTokens.overflowWrapBreakWord
+    ? styles.overflowWrap || themeRenderingTokens.overflowWrapBreakWord
     : themeRenderingTokens.overflowWrapNormal;
   mirror.style.overflow = themeTextAreaTokens.overflowHidden;
-  mirror.style.width = `${control.getBoundingClientRect().width}px`;
+  const borderWidth = parsePx(styles.borderLeftWidth) + parsePx(styles.borderRightWidth);
+  const paddingWidth = parsePx(styles.paddingLeft) + parsePx(styles.paddingRight);
+  const borderBoxWidth = control.clientWidth > 0
+    ? control.clientWidth + borderWidth
+    : controlRect.width;
+  const mirrorWidth = styles.boxSizing === 'content-box'
+    ? borderBoxWidth - borderWidth - paddingWidth
+    : borderBoxWidth;
+  mirror.style.width = `${Math.max(0, mirrorWidth)}px`;
   mirror.style.top = themeDomStyleTokens.sizeZero;
   mirror.style.left = themeDomStyleTokens.sizeZero;
   mirror.style.zIndex = themeDomStyleTokens.zIndexBehindString;
@@ -230,7 +241,7 @@ export function getControlCaretRect(control: TextControl): { left: number; top: 
   if (controlRect.width <= 0 || controlRect.height <= 0) return null;
   const lineHeight = resolveLineHeight(styles);
 
-  const mirror = createMirror(control, styles);
+  const mirror = createMirror(control, styles, controlRect);
   const textBeforeCaret = control.value.slice(0, selectionStart);
   const textAfterCaret = control.value.slice(selectionStart);
   if (textBeforeCaret.length > 0) {

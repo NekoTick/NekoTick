@@ -140,6 +140,18 @@ describe('getUserFacingAIError', () => {
     });
   });
 
+  it('maps sanitized managed transport failures to the network message', () => {
+    const result = getUserFacingAIError(new Error(
+      "Error invoking remote method 'desktop:managed:chat-completion': Error: MANAGED_NETWORK_ERROR",
+    ), { managed: true });
+
+    expect(result).toEqual({
+      type: AIErrorType.NETWORK_ERROR,
+      code: 'managed_network_error',
+      message: 'No internet connection. Please check your connection and try again.',
+    });
+  });
+
   it('preserves custom provider rate limit responses', () => {
     const result = getUserFacingAIError({ statusCode: 429, message: 'Too many requests' });
 

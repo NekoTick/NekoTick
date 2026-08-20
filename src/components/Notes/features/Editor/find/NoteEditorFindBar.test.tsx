@@ -8,8 +8,9 @@ vi.mock('framer-motion', async () => {
   const React = await import('react');
 
   const MotionDiv = React.forwardRef(function MotionDiv(props: any, ref: React.ForwardedRef<HTMLDivElement>) {
-    const { children, onAnimationComplete, ...rest } = props;
+    const { children, onAnimationComplete, onUpdate, ...rest } = props;
     void onAnimationComplete;
+    void onUpdate;
     return React.createElement('div', { ...rest, ref }, children);
   });
 

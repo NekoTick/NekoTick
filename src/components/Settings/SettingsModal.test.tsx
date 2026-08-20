@@ -18,6 +18,8 @@ vi.mock('framer-motion', () => ({
       initial: _initial,
       animate: _animate,
       exit: _exit,
+      onAnimationComplete: _onAnimationComplete,
+      onUpdate: _onUpdate,
       transition: _transition,
       ...props
     }: {
@@ -25,6 +27,8 @@ vi.mock('framer-motion', () => ({
       initial?: unknown;
       animate?: unknown;
       exit?: unknown;
+      onAnimationComplete?: unknown;
+      onUpdate?: unknown;
       transition?: unknown;
       [key: string]: unknown;
     }) => <div {...props}>{children}</div>,

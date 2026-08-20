@@ -10,8 +10,10 @@ import {
   createAbortError,
   createManagedBackendStreamError,
   createManagedStreamTimeoutError,
+  isManagedNetworkErrorMessage,
   isManagedStreamTimeoutError,
   MANAGED_BACKEND_STREAM_ERROR,
+  MANAGED_NETWORK_ERROR_MESSAGE,
   normalizeManagedPublicErrorCode,
   raceWithAbort,
   readManagedErrorPayload,
@@ -65,6 +67,12 @@ function readManagedStreamErrorProperty(error, key) {
 
 function getPublicManagedStreamErrorMessage(error) {
   const message = getManagedErrorMessage(error);
+  const statusCode = readManagedStreamErrorProperty(error, 'statusCode')
+    ?? readManagedStreamErrorProperty(error, 'status');
+  const hasHttpStatus = Number.isInteger(statusCode) && statusCode >= 100 && statusCode <= 599;
+  if (!hasHttpStatus && isManagedNetworkErrorMessage(message)) {
+    return MANAGED_NETWORK_ERROR_MESSAGE;
+  }
   if (
     readManagedStreamErrorProperty(error, MANAGED_BACKEND_STREAM_ERROR)
     || SAFE_MANAGED_STREAM_ERROR_MESSAGES.has(message)

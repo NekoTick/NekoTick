@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Haz clic para iniciar sesión~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ Mi cabecita necesita un respiro. Inténtalo en un momento o prueba primero con otro modelo~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ Mi cabecita necesita un respiro. Inténtalo en un momento o prueba primero con otro modelo~",
-  "chat.error.network": "Error de conexión de red. Comprueba la conexión e inténtalo de nuevo.",
+  "chat.error.network": "No hay conexión a Internet. Comprueba tu conexión e inténtalo de nuevo.",
   "chat.error.customProviderConnectionFailed": "No se pudo conectar con el canal personalizado. Comprueba la red o el servicio ascendente e inténtalo de nuevo.",
   "chat.retryTestButton": "Probar reintento",
   "chat.error.timeout": "La solicitud agotó el tiempo de espera. Inténtalo más tarde.",

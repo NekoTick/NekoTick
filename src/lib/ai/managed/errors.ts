@@ -4,6 +4,7 @@ const MAX_MANAGED_ERROR_BODY_BYTES = 64 * 1024;
 export const MAX_MANAGED_SERVICE_ERROR_MESSAGE_CHARS = 8192;
 const MAX_MANAGED_SERVICE_ERROR_CODE_CHARS = 512;
 const MANAGED_SERVICE_ERROR_CODE_PATTERN = /^[A-Za-z0-9._:-]+$/;
+export const MANAGED_NETWORK_ERROR = 'MANAGED_NETWORK_ERROR';
 const MANAGED_PUBLIC_ERROR_CODES = new Set([
   'points_exhausted',
   'inactive_points',
@@ -131,6 +132,31 @@ export function normalizeManagedPublicErrorCode(value: unknown): string {
     : '';
 }
 
+function isManagedNetworkErrorMessage(message: string): boolean {
+  return (
+    message.includes('managed_network_error') ||
+    message.includes('failed to fetch') ||
+    message.includes('fetch failed') ||
+    message.includes('load failed') ||
+    message.includes('networkerror') ||
+    message.includes('network error') ||
+    message.includes('network request failed') ||
+    message.includes('error sending request') ||
+    /(?:net::)?err_(?:address_unreachable|connection_(?:aborted|closed|refused|reset|timed_out)|internet_disconnected|name_not_resolved|network_changed|proxy_connection_failed|socket_not_connected|timed_out|tunnel_connection_failed)/.test(message)
+  );
+}
+
+function hasManagedHttpStatus(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  try {
+    const status = (error as { statusCode?: unknown; status?: unknown }).statusCode
+      ?? (error as { status?: unknown }).status;
+    return Number.isInteger(status) && Number(status) >= 100 && Number(status) <= 599;
+  } catch {
+    return false;
+  }
+}
+
 export function isManagedServiceRecoverableError(error: unknown): boolean {
   const message = getManagedServiceErrorMessage(error);
   if (!message) return false;
@@ -141,15 +167,19 @@ export function isManagedServiceRecoverableError(error: unknown): boolean {
 
   const normalized = message.toLowerCase();
   return (
-    normalized.includes('failed to fetch') ||
-    normalized.includes('fetch failed') ||
-    normalized.includes('networkerror') ||
-    normalized.includes('load failed') ||
-    normalized.includes('error sending request') ||
+    isManagedNetworkErrorMessage(normalized) ||
     normalized.includes('timed out') ||
     normalized.includes('etimedout') ||
     normalized.includes('aborterror')
   );
+}
+
+export function normalizeManagedNetworkError(error: unknown): never {
+  const message = getManagedServiceErrorMessage(error).toLowerCase();
+  if (!hasManagedHttpStatus(error) && isManagedNetworkErrorMessage(message)) {
+    throw new Error(MANAGED_NETWORK_ERROR);
+  }
+  throw error;
 }
 
 function extractManagedErrorPayloadMessage(payload: Record<string, unknown>): string {

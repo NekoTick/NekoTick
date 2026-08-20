@@ -796,7 +796,9 @@ describe('useChatService session context isolation', () => {
 
   it('shows managed network failures as network errors', async () => {
     seedManagedConnectedState();
-    mocked.sendMessageWithEndpointFallback.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    mocked.sendMessageWithEndpointFallback.mockRejectedValueOnce(new Error(
+      "Error invoking remote method 'desktop:managed:chat-completion': Error: MANAGED_NETWORK_ERROR",
+    ));
     const { result } = renderHook(() => useChatService());
 
     await act(async () => {
@@ -809,7 +811,7 @@ describe('useChatService session context isolation', () => {
 
     const messages = useUnifiedStore.getState().data.ai?.messages['session-2'] || [];
     expect(messages.at(-1)?.content).toBe(
-      '<error type="NETWORK_ERROR" code="">Network connection error. Please check your connection and try again.</error>',
+      '<error type="NETWORK_ERROR" code="managed_network_error">Network connection error. Please check your connection and try again.</error>',
     );
     expect(JSON.stringify(messages)).not.toContain('upstream_unavailable');
     expect(JSON.stringify(messages)).not.toContain('My brain needs a breather');

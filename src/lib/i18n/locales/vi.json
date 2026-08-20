@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Bấm để đăng nhập nhé~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ Đầu mình đang hơi quá tải. Đợi mình một chút hoặc thử đổi sang mô hình khác trước nhé~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ Đầu mình đang hơi quá tải. Đợi mình một chút hoặc thử đổi sang mô hình khác trước nhé~",
-  "chat.error.network": "Lỗi kết nối mạng. Hãy kiểm tra kết nối rồi thử lại.",
+  "chat.error.network": "Hiện không có kết nối Internet. Hãy kiểm tra kết nối rồi thử lại.",
   "chat.error.customProviderConnectionFailed": "Không thể kết nối tới kênh tùy chỉnh. Hãy kiểm tra mạng hoặc dịch vụ upstream rồi thử lại.",
   "chat.retryTestButton": "Kiểm tra thử lại",
   "chat.error.timeout": "Yêu cầu đã hết thời gian chờ. Vui lòng thử lại sau.",

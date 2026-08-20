@@ -28,6 +28,7 @@ import { themeBackdropTokens, themeMotionTokens } from '@/styles/themeTokens';
 import { useDesktopUpdateIndicatorVersion } from '@/components/desktop/DesktopUpdateIndicator';
 import { useNativeTitleBarOverlayHidden } from '@/hooks/useNativeTitleBarOverlayHidden';
 import { flushPendingSave } from '@/lib/storage/unifiedStorage';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 interface SettingsModalProps {
   open: boolean;
@@ -150,6 +151,8 @@ export function SettingsModal({ open, communitySettings, requestedTab, onClose }
                 duration: themeMotionTokens.settingsModalDuration,
                 ease: themeMotionTokens.settingsModalEase,
               }}
+              onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
+              onAnimationComplete={requestNativeCaretOverlayRefresh}
               className={cn(
                 "relative flex h-[var(--vlaina-size-720px)] max-h-[var(--vlaina-height-settings-modal-max)] w-[var(--vlaina-size-1080px)] max-w-full min-w-0 overflow-hidden rounded-[var(--vlaina-ui-radius-panel)] pointer-events-auto select-none transition-[background-color,box-shadow] duration-[var(--vlaina-duration-100)] max-[900px]:flex-col max-[640px]:max-h-[var(--vlaina-height-settings-modal-compact-max)]",
                 isAppearanceFontPreviewing

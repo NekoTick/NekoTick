@@ -218,6 +218,221 @@ describe('useNativeCaretOverlay', () => {
     },
   );
 
+  it.each([
+    ['animationstart', 'animationend'],
+    ['transitionrun', 'transitionend'],
+  ] as const)('falls back to the native caret for the duration of a %s motion', (startEvent, endEvent) => {
+    const shell = document.createElement('div');
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    shell.appendChild(textarea);
+    document.body.appendChild(shell);
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+
+    shell.style.transform = 'matrix(1, 0, 0, 1, 48, 0)';
+    act(() => shell.dispatchEvent(new Event(startEvent, { bubbles: true })));
+
+    expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
+    expect(textarea).not.toHaveAttribute('data-native-caret-overlay-active');
+    expect(textarea).toHaveFocus();
+
+    shell.style.transform = 'none';
+    act(() => shell.dispatchEvent(new Event(endEvent, { bubbles: true })));
+
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveAttribute('data-native-caret-overlay-active', 'true');
+
+    hook.unmount();
+  });
+
+  it('remembers a CSS motion that starts before the text control receives focus', () => {
+    const shell = document.createElement('div');
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    shell.appendChild(textarea);
+    document.body.appendChild(shell);
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    shell.style.transform = 'matrix(1, 0, 0, 1, 48, 0)';
+    act(() => shell.dispatchEvent(new Event('transitionrun', { bubbles: true })));
+    act(() => textarea.focus());
+
+    expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
+
+    shell.style.transform = 'none';
+    act(() => shell.dispatchEvent(new Event('transitionend', { bubbles: true })));
+
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveAttribute('data-native-caret-overlay-active', 'true');
+
+    hook.unmount();
+  });
+
+  it('keeps the overlay visible for transitions that cannot move the caret', () => {
+    const shell = document.createElement('div');
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    shell.appendChild(textarea);
+    document.body.appendChild(shell);
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+
+    const start = new Event('transitionrun', { bubbles: true });
+    Object.defineProperty(start, 'propertyName', { value: 'box-shadow' });
+    const end = new Event('transitionend', { bubbles: true });
+    Object.defineProperty(end, 'propertyName', { value: 'box-shadow' });
+    act(() => shell.dispatchEvent(start));
+
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveAttribute('data-native-caret-overlay-active', 'true');
+
+    act(() => shell.dispatchEvent(end));
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+
+    hook.unmount();
+  });
+
+  it('does not let unrelated animated decorations hide the focused caret', () => {
+    const shell = document.createElement('div');
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    const decoration = document.createElement('span');
+    shell.append(textarea, decoration);
+    document.body.appendChild(shell);
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+
+    act(() => decoration.dispatchEvent(new Event('animationstart', { bubbles: true })));
+
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveAttribute('data-native-caret-overlay-active', 'true');
+
+    hook.unmount();
+  });
+
+  it('ignores unrelated motion completion events for the focused caret', () => {
+    const shell = document.createElement('div');
+    const textarea = document.createElement('textarea');
+    const decoration = document.createElement('span');
+    shell.append(textarea, decoration);
+    document.body.appendChild(shell);
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+    requestAnimationFrameSpy.mockClear();
+
+    act(() => decoration.dispatchEvent(new Event('animationend', { bubbles: true })));
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+
+    hook.unmount();
+  });
+
+  it('keeps the overlay on a pure-translation ancestor', () => {
+    const shell = document.createElement('div');
+    shell.style.transform = 'matrix(1, 0, 0, 1, 48, 0)';
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    shell.appendChild(textarea);
+    document.body.appendChild(shell);
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveAttribute('data-native-caret-overlay-active', 'true');
+
+    hook.unmount();
+  });
+
+  it.each([
+    'matrix(0.95, 0, 0, 0.95, 0, 0)',
+    'matrix(0, 1, -1, 0, 0, 0)',
+  ])('uses the native caret for a non-translation ancestor transform (%s)', (transform) => {
+    const shell = document.createElement('div');
+    shell.style.transform = transform;
+    const textarea = document.createElement('textarea');
+    textarea.value = 'hello';
+    textarea.selectionStart = 2;
+    textarea.selectionEnd = 2;
+    vi.spyOn(textarea, 'getBoundingClientRect').mockReturnValue(rect(120, 180, 240, 48));
+    shell.appendChild(textarea);
+    document.body.appendChild(shell);
+    elementFromPoint.mockReturnValue(textarea);
+
+    const hook = renderHook(() => useNativeCaretOverlay());
+
+    act(() => {
+      textarea.focus();
+      document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+    });
+
+    expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
+    expect(textarea).not.toHaveAttribute('data-native-caret-overlay-active');
+    expect(textarea.selectionStart).toBe(2);
+
+    shell.style.transform = 'matrix(1, 0, 0, 1, 0, 0)';
+    act(() => shell.dispatchEvent(new Event('transitionend', { bubbles: true })));
+
+    expect(document.querySelector('.native-caret-overlay')).toBeInTheDocument();
+    expect(textarea).toHaveAttribute('data-native-caret-overlay-active', 'true');
+
+    hook.unmount();
+  });
+
   it('does not refresh the caret overlay during IME composition keydown', () => {
     const root = document.createElement('div');
     root.dataset.chatInput = 'true';
@@ -319,6 +534,29 @@ describe('useNativeCaretOverlay', () => {
 
     hook.unmount();
   });
+
+  it.each(['email', 'number', 'password'])(
+    'leaves input type %s on the native caret because its visual metrics are not reliable',
+    (type) => {
+      const input = document.createElement('input');
+      input.type = type;
+      input.value = '1234';
+      document.body.appendChild(input);
+      elementFromPoint.mockReturnValue(input);
+
+      const hook = renderHook(() => useNativeCaretOverlay());
+
+      act(() => {
+        input.focus();
+        document.dispatchEvent(new Event(NATIVE_CARET_OVERLAY_REFRESH_EVENT));
+      });
+
+      expect(document.querySelector('.native-caret-overlay')).not.toBeInTheDocument();
+      expect(input).not.toHaveAttribute('data-native-caret-overlay-active');
+
+      hook.unmount();
+    },
+  );
 
   it('cancels a queued caret measurement when focus moves to an opted-out textarea', () => {
     requestAnimationFrameSpy.mockImplementation(() => 7);

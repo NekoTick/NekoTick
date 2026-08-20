@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Giriş yapmak için tıkla~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ Kafam biraz yetişemedi. Biraz bekleyip tekrar dene ya da önce başka bir model dene~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ Kafam biraz yetişemedi. Biraz bekleyip tekrar dene ya da önce başka bir model dene~",
-  "chat.error.network": "Ağ bağlantısı hatası. Bağlantını kontrol edip tekrar dene.",
+  "chat.error.network": "İnternet bağlantısı yok. Bağlantınızı kontrol edip tekrar deneyin.",
   "chat.error.customProviderConnectionFailed": "Özel kanala ulaşılamadı. Ağını veya upstream hizmetini kontrol edip tekrar dene.",
   "chat.retryTestButton": "Yeniden denemeyi test et",
   "chat.error.timeout": "İstek zaman aşımına uğradı. Lütfen daha sonra tekrar dene.",

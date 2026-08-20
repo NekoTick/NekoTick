@@ -7,6 +7,7 @@ import { BlurBackdrop } from '@/components/common/BlurBackdrop';
 import { useI18n } from '@/lib/i18n';
 import { normalizeUserFacingErrorMessage } from '@/lib/i18n/userFacingErrors';
 import { themeBackdropTokens, themeDomStyleTokens, themeMotionTokens } from '@/styles/themeTokens';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 interface CreateNotesRootModalProps {
   isOpen: boolean;
@@ -124,6 +125,8 @@ export function CreateNotesRootModal({ isOpen, onClose }: CreateNotesRootModalPr
                 duration: themeMotionTokens.notesRootModalDuration,
                 ease: themeMotionTokens.notesRootModalEase,
               }}
+              onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
+              onAnimationComplete={requestNativeCaretOverlayRefresh}
             >
               <h2 className="notes-root-modal__title">{t('notesRoot.createNewNotesRoot')}</h2>
 

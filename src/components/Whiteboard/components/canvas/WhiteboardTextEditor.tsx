@@ -50,6 +50,7 @@ export function WhiteboardTextEditor({ editing, onChange, onCommit }: Whiteboard
       ref={textareaRef}
       aria-label={t('whiteboard.tool.text')}
       data-whiteboard-text-editor="true"
+      data-native-caret-overlay-disabled="true"
       dir="auto"
       spellCheck
       value={value}

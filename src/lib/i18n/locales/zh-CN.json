@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ 戳我登录一下哦~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ 脑袋转不过来啦，等我缓一缓或者先换个模型试试~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ 脑袋转不过来啦，等我缓一缓或者先换个模型试试~",
-  "chat.error.network": "网络连接错误，请检查连接后重试。",
+  "chat.error.network": "当前没有网络连接，请检查网络后重试。",
   "chat.error.customProviderConnectionFailed": "无法连接到自定义渠道。请检查网络或上游服务后重试。",
   "chat.retryTestButton": "测试重试",
   "chat.error.timeout": "请求超时，请稍后重试。",

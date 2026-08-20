@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Klik untuk masuk ya~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ Kepalaku perlu jeda sebentar. Coba lagi nanti atau coba model lain dulu~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ Kepalaku perlu jeda sebentar. Coba lagi nanti atau coba model lain dulu~",
-  "chat.error.network": "Koneksi jaringan bermasalah. Periksa koneksi lalu coba lagi.",
+  "chat.error.network": "Tidak ada koneksi internet. Periksa koneksi Anda lalu coba lagi.",
   "chat.error.customProviderConnectionFailed": "Channel kustom tidak dapat dijangkau. Periksa jaringan atau layanan upstream lalu coba lagi.",
   "chat.retryTestButton": "Uji coba ulang",
   "chat.error.timeout": "Permintaan kehabisan waktu. Coba lagi nanti.",

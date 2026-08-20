@@ -7,7 +7,7 @@ describe('useChatInputFocus', () => {
     document.body.replaceChildren();
   });
 
-  it('blurs an already focused textarea before restoring focus when a layout change requires repainting the caret', async () => {
+  it('keeps an explicit caret position when scheduling focus', async () => {
     const textarea = document.createElement('textarea');
     textarea.value = 'draft';
     textarea.getClientRects = () => [{ width: 100, height: 24 }] as unknown as DOMRectList;
@@ -18,13 +18,13 @@ describe('useChatInputFocus', () => {
     const { result } = renderHook(() => useChatInputFocus({ current: textarea }));
 
     act(() => {
-      result.current.scheduleComposerRefocus();
+      result.current.scheduleComposerFocus(0);
     });
 
     await waitFor(() => {
-      expect(blur).toHaveBeenCalledTimes(1);
+      expect(blur).not.toHaveBeenCalled();
       expect(document.activeElement).toBe(textarea);
-      expect(textarea.selectionStart).toBe(textarea.value.length);
+      expect(textarea.selectionStart).toBe(0);
     });
   });
 });

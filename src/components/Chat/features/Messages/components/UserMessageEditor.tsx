@@ -13,6 +13,7 @@ import type { ChatMessage } from '@/lib/ai/types';
 import { NoteMentionPicker } from '@/components/Chat/features/Input/components/NoteMentionPicker';
 import { usePredictedTextareaHeight } from '@/hooks/usePredictedTextareaHeight';
 import { focusVisibleTextareaAt } from '@/lib/ui/composerFocusRegistry';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 import {
   limitChatComposerText,
   MAX_CHAT_COMPOSER_INTERACTIVE_TEXT_CHARS,
@@ -165,6 +166,8 @@ export function UserMessageEditor({
         duration: themeMotionTokens.chatUserEditDuration,
         ease: themeMotionTokens.standardEase,
       }}
+      onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
+      onAnimationComplete={requestNativeCaretOverlayRefresh}
       data-chat-message-editor="true"
       className="w-full flex justify-end pb-4"
       style={{ willChange: themeRenderingTokens.transformOpacityWillChange }}

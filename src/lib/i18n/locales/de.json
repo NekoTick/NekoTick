@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Klick hier zum Anmelden~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ Mein Kopf braucht kurz eine Pause. Versuch es gleich noch einmal oder probiere erst ein anderes Modell~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ Mein Kopf braucht kurz eine Pause. Versuch es gleich noch einmal oder probiere erst ein anderes Modell~",
-  "chat.error.network": "Netzwerkverbindungsfehler. Prüfe deine Verbindung und versuche es erneut.",
+  "chat.error.network": "Keine Internetverbindung. Prüfe deine Verbindung und versuche es erneut.",
   "chat.error.customProviderConnectionFailed": "Der benutzerdefinierte Kanal konnte nicht erreicht werden. Prüfe dein Netzwerk oder den Upstream-Dienst und versuche es erneut.",
   "chat.retryTestButton": "Wiederholung testen",
   "chat.error.timeout": "Die Anfrage ist abgelaufen. Versuche es später erneut.",

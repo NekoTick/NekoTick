@@ -139,6 +139,30 @@ describe('managed ipc stream bridge', () => {
     expect((result as Error).message).not.toContain('fake-upstream');
   });
 
+  it('maps managed JSON network failures to a stable public error', async () => {
+    const { handlers, options } = registerHarness();
+    options.requestManagedJson.mockRejectedValueOnce(
+      new TypeError('fetch failed with fake-network-secret'),
+    );
+
+    await expect(handlers.get('desktop:managed:chat-completion')?.({}, {})).rejects.toMatchObject({
+      message: 'MANAGED_NETWORK_ERROR',
+    });
+  });
+
+  it('does not mislabel an HTTP error message as a client network failure', async () => {
+    const { handlers, options } = registerHarness();
+    options.requestManagedJson.mockRejectedValueOnce(Object.assign(
+      new Error('network error from upstream'),
+      { statusCode: 502 },
+    ));
+
+    await expect(handlers.get('desktop:managed:chat-completion')?.({}, {})).rejects.toMatchObject({
+      message: 'Managed API request failed: HTTP 502',
+      statusCode: 502,
+    });
+  });
+
   it('maps known managed JSON business codes without exposing upstream messages', async () => {
     const { handlers, options } = registerHarness();
     options.requestManagedJson.mockRejectedValueOnce(Object.assign(
@@ -1198,6 +1222,56 @@ describe('managed ipc stream bridge', () => {
       errorCode: undefined,
     });
     expect(JSON.stringify(sender.send.mock.calls)).not.toContain('fake-native-transport-secret');
+  });
+
+  it('maps managed stream network failures without exposing transport details', async () => {
+    const fetchWithStoredSession = vi.fn(async () => {
+      throw new TypeError('fetch failed with fake-network-secret');
+    });
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-network-error',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-network-error:error'
+    );
+
+    expect(sender.send).toHaveBeenCalledWith('desktop:managed:stream:managed-network-error:error', {
+      message: 'MANAGED_NETWORK_ERROR',
+      statusCode: undefined,
+      errorCode: undefined,
+    });
+    expect(JSON.stringify(sender.send.mock.calls)).not.toContain('fake-network-secret');
+  });
+
+  it('does not mislabel an HTTP stream failure as a client network failure', async () => {
+    const fetchWithStoredSession = vi.fn(async () => {
+      throw Object.assign(new Error('network error from upstream'), { statusCode: 502 });
+    });
+    const { handlers } = registerHarness({ fetchWithStoredSession });
+    const sender = { isDestroyed: () => false, send: vi.fn() };
+
+    await handlers.get('desktop:managed:chat-completion-stream:start')?.(
+      { sender },
+      'managed-http-network-message',
+      {},
+    );
+    await waitForSenderCall(sender, ([channel]) =>
+      channel === 'desktop:managed:stream:managed-http-network-message:error'
+    );
+
+    expect(sender.send).toHaveBeenCalledWith(
+      'desktop:managed:stream:managed-http-network-message:error',
+      {
+        message: 'Managed API response stream failed.',
+        statusCode: 502,
+        errorCode: undefined,
+      },
+    );
   });
 
   it('summarizes non-primitive managed stream errors without coercion', async () => {

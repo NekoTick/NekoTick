@@ -20,7 +20,9 @@ describe('WhiteboardTextEditor', () => {
   it('edits text with the same handwritten family used on the canvas', () => {
     render(<WhiteboardTextEditor editing={editing} onChange={vi.fn()} onCommit={vi.fn()} />);
 
-    expect(screen.getByRole('textbox')).toHaveStyle({
+    const editor = screen.getByRole('textbox');
+    expect(editor).toHaveAttribute('data-native-caret-overlay-disabled', 'true');
+    expect(editor).toHaveStyle({
       fontFamily: themeWhiteboardTokens.whiteboardTextFontFamily,
     });
   });

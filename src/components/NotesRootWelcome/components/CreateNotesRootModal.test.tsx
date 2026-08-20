@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NATIVE_CARET_OVERLAY_REFRESH_EVENT } from '@/hooks/useNativeCaretOverlay';
 import { CreateNotesRootModal } from './CreateNotesRootModal';
 
 const mocks = vi.hoisted(() => ({
@@ -37,6 +38,18 @@ describe('CreateNotesRootModal', () => {
   beforeEach(() => {
     mocks.createNotesRoot.mockClear();
     mocks.clearError.mockClear();
+  });
+
+  it('refreshes the visual caret while the auto-focused input enters', async () => {
+    const handleRefresh = vi.fn();
+    document.addEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleRefresh);
+
+    try {
+      render(<CreateNotesRootModal isOpen onClose={vi.fn()} />);
+      await waitFor(() => expect(handleRefresh).toHaveBeenCalled());
+    } finally {
+      document.removeEventListener(NATIVE_CARET_OVERLAY_REFRESH_EVENT, handleRefresh);
+    }
   });
 
   it('does not create a notes root while the name input is composing text', async () => {

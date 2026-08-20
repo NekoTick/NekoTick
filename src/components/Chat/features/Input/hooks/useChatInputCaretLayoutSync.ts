@@ -12,7 +12,6 @@ interface UseChatInputCaretLayoutSyncOptions {
   composerRootRef: RefObject<HTMLElement | null>;
   isComposing: boolean;
   message: string;
-  scheduleComposerRefocus: (position?: number) => void;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -28,7 +27,7 @@ function measureCaretLayout(element: HTMLElement): CaretLayoutRect {
   };
 }
 
-export function shouldRefocusMovedCaret(
+export function shouldRefreshMovedCaret(
   previous: CaretLayoutRect,
   current: CaretLayoutRect,
   textareaActive: boolean,
@@ -57,7 +56,6 @@ export function useChatInputCaretLayoutSync({
   composerRootRef,
   isComposing,
   message,
-  scheduleComposerRefocus,
   textareaRef,
 }: UseChatInputCaretLayoutSyncOptions): void {
   const previousMessageRef = useRef(message);
@@ -91,15 +89,15 @@ export function useChatInputCaretLayoutSync({
       frameId = requestAnimationFrame(() => {
         frameId = null;
         const current = measureCaretLayout(textarea);
-        const shouldRefocus = shouldRefocusMovedCaret(
+        const shouldRefresh = shouldRefreshMovedCaret(
           previous,
           current,
           document.activeElement === textarea,
           isComposing,
         );
         previous = current;
-        if (shouldRefocus) {
-          scheduleComposerRefocus();
+        if (shouldRefresh) {
+          requestNativeCaretOverlayRefresh();
         }
       });
     });
@@ -115,5 +113,5 @@ export function useChatInputCaretLayoutSync({
         cancelAnimationFrame(frameId);
       }
     };
-  }, [composerRootRef, isComposing, scheduleComposerRefocus, textareaRef]);
+  }, [composerRootRef, isComposing, textareaRef]);
 }

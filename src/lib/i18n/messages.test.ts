@@ -171,6 +171,32 @@ describe('i18n messages', () => {
     expectLocalizedOutsideEnglish(userFacingErrorKeys);
   });
 
+  it('uses a direct offline message for chat errors in every supported language', () => {
+    const directOfflineMessages = {
+      en: 'No internet connection. Please check your connection and try again.',
+      'zh-CN': '当前没有网络连接，请检查网络后重试。',
+      'zh-Hant': '目前沒有網路連線，請檢查網路後再試。',
+      ja: '現在インターネットに接続されていません。接続を確認して、もう一度お試しください。',
+      ko: '현재 인터넷에 연결되어 있지 않습니다. 네트워크를 확인한 후 다시 시도하세요.',
+      fr: 'Aucune connexion Internet. Vérifiez votre connexion, puis réessayez.',
+      de: 'Keine Internetverbindung. Prüfe deine Verbindung und versuche es erneut.',
+      es: 'No hay conexión a Internet. Comprueba tu conexión e inténtalo de nuevo.',
+      'pt-BR': 'Sem conexão com a internet. Verifique sua conexão e tente novamente.',
+      it: 'Nessuna connessione Internet. Controlla la connessione e riprova.',
+      ru: 'Нет подключения к Интернету. Проверьте соединение и повторите попытку.',
+      tr: 'İnternet bağlantısı yok. Bağlantınızı kontrol edip tekrar deneyin.',
+      vi: 'Hiện không có kết nối Internet. Hãy kiểm tra kết nối rồi thử lại.',
+      id: 'Tidak ada koneksi internet. Periksa koneksi Anda lalu coba lagi.',
+      th: 'ขณะนี้ไม่มีการเชื่อมต่ออินเทอร์เน็ต โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง',
+    } as const;
+
+    for (const language of APP_LANGUAGES) {
+      expect(getMessages(language.code)['chat.error.network'], language.code).toBe(
+        directOfflineMessages[language.code],
+      );
+    }
+  });
+
   it('keeps accessibility labels localized outside English', () => {
     const accessibilityKeys = [
       'common.closeWindow',

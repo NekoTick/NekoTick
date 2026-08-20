@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Click to sign in~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ My brain needs a breather. Try again in a moment, or switch models first~",
-  "chat.error.network": "Network connection error. Please check your connection and try again.",
+  "chat.error.network": "No internet connection. Please check your connection and try again.",
   "chat.error.customProviderConnectionFailed": "The custom channel could not be reached. Check your network or the upstream service, then try again.",
   "chat.retryTestButton": "Test retry",
   "chat.error.timeout": "The request timed out. Please try again later.",

@@ -192,6 +192,7 @@ export const LinkEditor = ({
                 y: themeMotionTokens.linkEditorVisibleY,
                 scale: themeMotionTokens.linkEditorVisibleScale,
             }}
+            onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
             onAnimationComplete={requestNativeCaretOverlayRefresh}
             style={{
                 width: `${editorWidth}px`,

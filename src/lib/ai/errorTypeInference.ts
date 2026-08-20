@@ -59,6 +59,7 @@ export function inferErrorTypeByMessage(message: string): AIErrorType {
       'failed to fetch',
       'fetch failed',
       'load failed',
+      'managed_network_error',
       'error sending request',
       'sending request for url',
       'networkerror',

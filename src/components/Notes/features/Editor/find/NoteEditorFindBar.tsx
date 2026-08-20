@@ -110,6 +110,7 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
           damping: themeMotionTokens.noteFindSpringDamping,
         },
       }}
+      onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
       onAnimationComplete={requestNativeCaretOverlayRefresh}
       className="w-[var(--vlaina-width-note-find-bar)] max-w-full rounded-[var(--vlaina-notes-ui-radius-panel)] bg-[var(--vlaina-color-setting-field)] border border-[var(--vlaina-color-panel-border)] backdrop-blur-[var(--vlaina-backdrop-blur-3xl)] p-1.5"
     >
@@ -190,6 +191,7 @@ export function NoteEditorFindBar({ controller }: NoteEditorFindBarProps) {
               height: themeMotionTokens.noteFindReplaceCollapsedHeight,
               opacity: themeMotionTokens.opacityHidden,
             }}
+            onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
             className="overflow-hidden"
           >
             <div className="flex items-center gap-3 px-2 py-3 border-t border-[var(--vlaina-border)] mt-1">

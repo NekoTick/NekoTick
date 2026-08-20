@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ 눌러서 로그인해 주세요~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ 머리가 잠깐 따라오지 못하고 있어요. 조금 기다리거나 먼저 다른 모델로 시도해 보세요~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ 머리가 잠깐 따라오지 못하고 있어요. 조금 기다리거나 먼저 다른 모델로 시도해 보세요~",
-  "chat.error.network": "네트워크 연결 오류입니다. 연결을 확인한 뒤 다시 시도하세요.",
+  "chat.error.network": "현재 인터넷에 연결되어 있지 않습니다. 네트워크를 확인한 후 다시 시도하세요.",
   "chat.error.customProviderConnectionFailed": "사용자 지정 채널에 연결할 수 없습니다. 네트워크나 상위 서비스를 확인한 뒤 다시 시도하세요.",
   "chat.retryTestButton": "재시도 테스트",
   "chat.error.timeout": "요청 시간이 초과되었습니다. 잠시 후 다시 시도하세요.",

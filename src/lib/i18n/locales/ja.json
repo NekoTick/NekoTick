@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ クリックしてログインしてね~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ 頭がちょっと追いつかないみたい。少し待つか、先に別のモデルで試してみてね~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ 頭がちょっと追いつかないみたい。少し待つか、先に別のモデルで試してみてね~",
-  "chat.error.network": "ネットワーク接続エラーです。接続を確認してもう一度お試しください。",
+  "chat.error.network": "現在インターネットに接続されていません。接続を確認して、もう一度お試しください。",
   "chat.error.customProviderConnectionFailed": "カスタムチャネルに接続できませんでした。ネットワークまたは上流サービスを確認してから、もう一度お試しください。",
   "chat.retryTestButton": "再試行テスト",
   "chat.error.timeout": "リクエストがタイムアウトしました。後でもう一度お試しください。",

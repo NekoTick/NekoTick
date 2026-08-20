@@ -1,5 +1,9 @@
 import { MANAGED_API_BASE } from './constants';
-import { normalizeManagedPublicErrorCode, parseManagedError } from './errors';
+import {
+  normalizeManagedNetworkError,
+  normalizeManagedPublicErrorCode,
+  parseManagedError,
+} from './errors';
 import {
   fetchManagedJsonWithRetry,
   MANAGED_JSON_TIMEOUT_MS,
@@ -101,7 +105,11 @@ export async function requestManagedWebJson<T>(path: string, init?: ManagedJsonR
 
     return await readManagedJson<T>(response, timeoutController, externalSignal);
   } catch (error) {
-    return normalizeManagedAbortError(error, timeoutController, externalSignal);
+    try {
+      return normalizeManagedAbortError(error, timeoutController, externalSignal);
+    } catch (normalizedError) {
+      return normalizeManagedNetworkError(normalizedError);
+    }
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -146,7 +154,11 @@ export async function requestManagedWebBinaryJson<T>(
 
     return await readManagedJson<T>(response, timeoutController, signal);
   } catch (error) {
-    return normalizeManagedAbortError(error, timeoutController, signal);
+    try {
+      return normalizeManagedAbortError(error, timeoutController, signal);
+    } catch (normalizedError) {
+      return normalizeManagedNetworkError(normalizedError);
+    }
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -205,7 +217,11 @@ export async function requestManagedWebStream(
     throwIfManagedRequestAborted(timeoutController, signal);
     return result;
   } catch (error) {
-    return normalizeManagedAbortError(error, timeoutController, signal);
+    try {
+      return normalizeManagedAbortError(error, timeoutController, signal);
+    } catch (normalizedError) {
+      return normalizeManagedNetworkError(normalizedError);
+    }
   } finally {
     clearTimeout(timer);
   }

@@ -5,6 +5,7 @@ import { useChatModalFocus } from '@/components/Chat/hooks/useChatModalFocus';
 import { useI18n } from '@/lib/i18n';
 import { SIDEBAR_SLIDE_TRANSITION, SIDEBAR_SLIDE_VARIANTS } from '@/lib/animations';
 import { themeChatLayoutTokens, themeMotionTokens } from '@/styles/themeTokens';
+import { requestNativeCaretOverlayRefresh } from '@/hooks/useNativeCaretOverlay';
 
 export function ChatEmbeddedSidebarOverlay(props: {
   isOpen: boolean;
@@ -55,6 +56,8 @@ export function ChatEmbeddedSidebarOverlay(props: {
         animate="visible"
         exit="hidden"
         transition={SIDEBAR_SLIDE_TRANSITION}
+        onUpdate={() => queueMicrotask(requestNativeCaretOverlayRefresh)}
+        onAnimationComplete={requestNativeCaretOverlayRefresh}
       >
         <ChatSidebar embedded onRequestClose={onClose} />
       </motion.div>

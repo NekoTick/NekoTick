@@ -261,8 +261,24 @@ describe('managedService', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const { requestManagedChatCompletion } = await import('./managedService');
-    await expect(requestManagedChatCompletion({ model: 'gpt-4o-mini' })).rejects.toThrow('fetch failed');
+    await expect(requestManagedChatCompletion({ model: 'gpt-4o-mini' })).rejects.toThrow('MANAGED_NETWORK_ERROR');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not normalize HTTP failures with network-looking text as client network errors', async () => {
+    hasElectronDesktopBridgeMock.mockReturnValue(false);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(managedJsonResponse(
+      { error: 'network error from upstream' },
+      { status: 502 },
+    )));
+
+    const { requestManagedChatCompletion } = await import('./managedService');
+
+    await expect(requestManagedChatCompletion({ model: 'gpt-4o-mini' }))
+      .rejects.toMatchObject({
+        message: 'Managed API request failed: HTTP 502',
+        statusCode: 502,
+      });
   });
 
   it('reports managed web JSON timeouts without treating them as user aborts', async () => {
@@ -641,6 +657,11 @@ describe('managedService', () => {
         new Error("Error invoking remote method 'desktop:managed:get-models': TypeError: fetch failed")
       )
     ).toBe(true);
+    expect(
+      isManagedServiceRecoverableError(
+        new Error("Error invoking remote method 'desktop:managed:get-models': Error: MANAGED_NETWORK_ERROR")
+      )
+    ).toBe(true);
     expect(isManagedServiceRecoverableError(new Error('Unexpected JSON shape'))).toBe(false);
   });
 
@@ -914,6 +935,22 @@ describe('managedService', () => {
 
     expect(content).toBe('message body');
     expect(chunks).toEqual(['message body']);
+  });
+
+  it('normalizes managed web stream network failures', async () => {
+    hasElectronDesktopBridgeMock.mockReturnValue(false);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+
+    const { requestManagedChatCompletionStream } = await import('./managedService');
+
+    await expect(requestManagedChatCompletionStream(
+      {
+        model: 'gpt-5.4',
+        messages: [{ role: 'user', content: 'hello' }],
+        stream: true,
+      },
+      vi.fn(),
+    )).rejects.toThrow('MANAGED_NETWORK_ERROR');
   });
 
   it('sanitizes managed web stream error payloads', async () => {

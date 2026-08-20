@@ -340,7 +340,7 @@ describe('caret styles', () => {
 
     expect(source).toContain('createCaretOverlayStyle({');
     expect(source).toContain('function getCollapsedSelectionStart');
-    expect(source).toContain('return control.value.length;');
+    expect(source).not.toContain('return control.value.length;');
     expect(source).toContain('const SINGLE_LINE_INPUT_CARET_HEIGHT_RATIO = 0.56;');
     expect(source).toContain('function resolveSingleLineInputCaretHeight');
     expect(source).toContain('function createCaretMarker');

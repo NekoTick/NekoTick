@@ -637,7 +637,7 @@
   "chat.signInPrompt": "ヾ(๑╹ヮ╹๑)ﾉ Clique ici pour te connecter~",
   "chat.error.upstreamUnavailable": "๑ᵒᯅᵒ๑ Mon cerveau a besoin d’une pause. Réessaie dans un instant, ou essaie d’abord un autre modèle~",
   "chat.error.upstreamRateLimited": "๑ᵒᯅᵒ๑ Mon cerveau a besoin d’une pause. Réessaie dans un instant, ou essaie d’abord un autre modèle~",
-  "chat.error.network": "Erreur de connexion réseau. Vérifiez votre connexion puis réessayez.",
+  "chat.error.network": "Aucune connexion Internet. Vérifiez votre connexion, puis réessayez.",
   "chat.error.customProviderConnectionFailed": "Impossible de joindre le canal personnalisé. Vérifiez votre réseau ou le service en amont, puis réessayez.",
   "chat.retryTestButton": "Tester la reprise",
   "chat.error.timeout": "La requête a expiré. Réessayez plus tard.",
