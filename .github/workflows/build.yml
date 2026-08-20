@@ -657,7 +657,15 @@ jobs:
         shell: bash
         run: |
           shopt -s nullglob
-          artifacts=(release-artifacts/*)
+          artifacts=(
+            release-artifacts/vlaina-*-windows-*-setup.exe
+            release-artifacts/vlaina-*-windows-*-portable.exe
+            release-artifacts/vlaina-*-mac-*.dmg
+            release-artifacts/vlaina-*-mac-*.zip
+            release-artifacts/vlaina-*-linux-*.AppImage
+            release-artifacts/vlaina-*-linux-*.deb
+            release-artifacts/vlaina-*-linux-*.tar.gz
+          )
 
           if (( ${#artifacts[@]} == 0 )); then
             echo "No release artifacts found." >&2

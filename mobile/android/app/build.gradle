@@ -1,7 +1,9 @@
+import groovy.json.JsonSlurper
+
 apply plugin: 'com.android.application'
 
 def mobileVersionCode = (System.getenv('VLAINA_ANDROID_VERSION_CODE') ?: '1').toInteger()
-def mobileVersionName = System.getenv('VLAINA_ANDROID_VERSION_NAME') ?: '0.9.0'
+def mobileVersionName = new JsonSlurper().parse(file('../../../package.json')).version.toString()
 def uploadStoreFilePath = System.getenv('VLAINA_ANDROID_KEYSTORE_PATH')
 def uploadStorePassword = System.getenv('VLAINA_ANDROID_STORE_PASSWORD')
 def uploadKeyAlias = System.getenv('VLAINA_ANDROID_KEY_ALIAS')
