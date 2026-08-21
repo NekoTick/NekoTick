@@ -225,26 +225,50 @@ async function toggleSourceModeWithShortcut(page: Page, targetMode: 'source' | '
   await expect(page.locator(SOURCE_EDITOR_SELECTOR)).toHaveCount(0);
 }
 
-async function toggleSourceModeWithScrollSamples(page: Page, targetMode: 'source' | 'rendered'): Promise<number[]> {
-  const samplesPromise = page.evaluate(() => new Promise<number[]>((resolve) => {
-    const scrollRoot = document.querySelector<HTMLElement>('[data-note-scroll-root="true"]');
-    if (!scrollRoot) {
-      resolve([]);
-      return;
-    }
-
+async function toggleSourceModeWithVisibleTargetSamples(
+  page: Page,
+  targetMode: 'source' | 'rendered',
+  targetText: string,
+): Promise<number[]> {
+  const samplesPromise = page.evaluate(({ mode, text }) => new Promise<number[]>((resolve) => {
     const samples: number[] = [];
     const startedAt = performance.now();
     const sample = () => {
-      samples.push(scrollRoot.scrollTop);
-      if (performance.now() - startedAt >= 700) {
-        resolve(samples);
-        return;
+      const scrollRoot = document.querySelector<HTMLElement>('[data-note-scroll-root="true"]');
+      const scrollRootStyle = scrollRoot ? getComputedStyle(scrollRoot) : null;
+      const rootIsVisible = Boolean(
+        scrollRoot
+        && scrollRootStyle?.visibility !== 'hidden'
+        && scrollRootStyle?.display !== 'none'
+      );
+      if (scrollRoot && rootIsVisible) {
+        const rootTop = scrollRoot.getBoundingClientRect().top;
+        if (mode === 'source') {
+          const textarea = document.querySelector<HTMLTextAreaElement>('[data-note-source-editor="true"]');
+          const sourceOffset = textarea?.value.indexOf(text) ?? -1;
+          if (textarea && sourceOffset >= 0) {
+            const style = getComputedStyle(textarea);
+            const lineIndex = textarea.value.slice(0, sourceOffset).split('\n').length - 1;
+            samples.push(
+              textarea.getBoundingClientRect().top
+              + Number.parseFloat(style.paddingTop)
+              + lineIndex * Number.parseFloat(style.lineHeight)
+              - rootTop,
+            );
+          }
+        } else {
+          const paragraphs = Array.from(document.querySelectorAll<HTMLElement>(
+            '.milkdown .ProseMirror[contenteditable="true"] p',
+          ));
+          const target = paragraphs.find((paragraph) => paragraph.textContent?.includes(text));
+          if (target) samples.push(target.getBoundingClientRect().top - rootTop);
+        }
       }
-      requestAnimationFrame(sample);
+      if (performance.now() - startedAt >= 700) resolve(samples);
+      else requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
-  }));
+  }), { mode: targetMode, text: targetText });
 
   await toggleSourceModeWithShortcut(page, targetMode);
   return samplesPromise;
@@ -354,7 +378,7 @@ async function measureSourceToRenderedSwitchMs(page: Page, expectedRenderedText:
 test.describe('notes source mode layout', () => {
   test.setTimeout(120_000);
 
-  test('preserves scroll progress when entering and leaving source mode', async () => {
+  test('keeps the same Markdown content at the viewport when switching modes', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('notes-source-scroll-progress');
 
     try {
@@ -364,32 +388,75 @@ test.describe('notes source mode layout', () => {
       await openMarkdownFixture(page, {
         filename: 'source-scroll-progress.md',
         content: [
-          '# Source Scroll Progress',
-          ...Array.from({ length: 80 }, (_, index) =>
-            `Paragraph ${String(index + 1).padStart(2, '0')} keeps this note taller than the viewport.`
-          ),
+          '# Source Position',
+          ...Array.from({ length: 80 }, (_, index) => [
+            `## Section ${String(index + 1).padStart(2, '0')}`,
+            '',
+            `Paragraph ${String(index + 1).padStart(2, '0')} is the semantic position sentinel.`,
+          ]).flat(),
         ].join('\n\n'),
       });
 
-      const setScrollProgress = (progress: number) => page.locator('[data-note-scroll-root="true"]')
-        .evaluate((element, nextProgress) => {
-          element.scrollTop = nextProgress * (element.scrollHeight - element.clientHeight);
-        }, progress);
-      const getScrollProgress = () => page.locator('[data-note-scroll-root="true"]')
-        .evaluate((element) => element.scrollTop / (element.scrollHeight - element.clientHeight));
+      const renderedViewportOffset = (text: string) => page.locator(`${EDITOR_SELECTOR} p`, { hasText: text })
+        .evaluate((element) => {
+          const scrollRoot = element.closest<HTMLElement>('[data-note-scroll-root="true"]');
+          if (!scrollRoot) throw new Error('Note scroll root was not found');
+          return element.getBoundingClientRect().top - scrollRoot.getBoundingClientRect().top;
+        });
+      const sourceViewportOffset = (text: string) => page.locator(SOURCE_EDITOR_SELECTOR)
+        .evaluate((element, targetText) => {
+          const textarea = element as HTMLTextAreaElement;
+          const scrollRoot = textarea.closest<HTMLElement>('[data-note-scroll-root="true"]');
+          if (!scrollRoot) throw new Error('Note scroll root was not found');
+          const sourceOffset = textarea.value.indexOf(targetText);
+          if (sourceOffset < 0) throw new Error(`Source target was not found: ${targetText}`);
+          const lineIndex = textarea.value.slice(0, sourceOffset).split('\n').length - 1;
+          const style = getComputedStyle(textarea);
+          const lineHeight = Number.parseFloat(style.lineHeight);
+          const paddingTop = Number.parseFloat(style.paddingTop);
+          return textarea.getBoundingClientRect().top
+            + paddingTop
+            + lineIndex * lineHeight
+            - scrollRoot.getBoundingClientRect().top;
+        }, text);
+      const alignRenderedText = async (text: string) => {
+        await page.locator(`${EDITOR_SELECTOR} p`, { hasText: text }).evaluate((element) => {
+          const scrollRoot = element.closest<HTMLElement>('[data-note-scroll-root="true"]');
+          if (!scrollRoot) throw new Error('Note scroll root was not found');
+          scrollRoot.scrollTop += element.getBoundingClientRect().top
+            - scrollRoot.getBoundingClientRect().top;
+        });
+      };
+      const alignSourceText = async (text: string) => {
+        const offset = await sourceViewportOffset(text);
+        await page.locator('[data-note-scroll-root="true"]')
+          .evaluate((element, viewportOffset) => {
+            element.scrollTop += viewportOffset;
+          }, offset);
+      };
 
-      await setScrollProgress(0.55);
-      const enteringSamples = await toggleSourceModeWithScrollSamples(page, 'source');
+      const enteringTarget = 'Paragraph 36 is the semantic position sentinel.';
+      await alignRenderedText(enteringTarget);
+      const enteringSamples = await toggleSourceModeWithVisibleTargetSamples(
+        page,
+        'source',
+        enteringTarget,
+      );
       expect(enteringSamples.length).toBeGreaterThan(0);
-      expect(Math.min(...enteringSamples)).toBeGreaterThan(1);
-      await expect.poll(getScrollProgress).toBeCloseTo(0.55, 1);
+      expect(Math.max(...enteringSamples.map(Math.abs))).toBeLessThan(48);
+      await expect.poll(async () => Math.abs(await sourceViewportOffset(enteringTarget))).toBeLessThan(48);
 
-      await setScrollProgress(0.72);
-      const leavingSamples = await toggleSourceModeWithScrollSamples(page, 'rendered');
+      const leavingTarget = 'Paragraph 64 is the semantic position sentinel.';
+      await alignSourceText(leavingTarget);
+      const leavingSamples = await toggleSourceModeWithVisibleTargetSamples(
+        page,
+        'rendered',
+        leavingTarget,
+      );
       expect(leavingSamples.length).toBeGreaterThan(0);
-      expect(Math.min(...leavingSamples)).toBeGreaterThan(1);
+      expect(Math.max(...leavingSamples.map(Math.abs))).toBeLessThan(48);
       await expect(page.locator(EDITOR_SELECTOR)).toContainText('Paragraph 80', { timeout: 30_000 });
-      await expect.poll(getScrollProgress).toBeCloseTo(0.72, 1);
+      await expect.poll(async () => Math.abs(await renderedViewportOffset(leavingTarget))).toBeLessThan(48);
     } finally {
       await cleanupIsolatedElectron(app, userDataRoot);
     }

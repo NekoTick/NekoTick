@@ -124,16 +124,37 @@ export function MarkdownEditor({
   });
   const handleEditorClick = useMarkdownEditorFocus({ active, hasActiveNote });
   const editorModeShellRef = useRef<HTMLDivElement | null>(null);
+  const modeSwitchVisibilityTimeoutRef = useRef<number | null>(null);
   const [editorModeShellMinHeight, setEditorModeShellMinHeight] = useState<number | null>(null);
+  const [isModeSwitchLayoutPending, setIsModeSwitchLayoutPending] = useState(false);
+  const handleModeSwitchLayoutReady = useCallback(() => {
+    if (modeSwitchVisibilityTimeoutRef.current !== null) {
+      window.clearTimeout(modeSwitchVisibilityTimeoutRef.current);
+      modeSwitchVisibilityTimeoutRef.current = null;
+    }
+    setIsModeSwitchLayoutPending(false);
+    setEditorModeShellMinHeight(null);
+  }, []);
   const handleModeSwitchStart = useCallback(() => {
+    setIsModeSwitchLayoutPending(true);
     const editorModeShell = editorModeShellRef.current;
     if (editorModeShell) {
       setEditorModeShellMinHeight(Math.ceil(editorModeShell.getBoundingClientRect().height));
     }
   }, []);
-  const handleModeSwitchLayoutReady = useCallback(() => {
-    setEditorModeShellMinHeight(null);
-  }, []);
+  useEffect(() => {
+    if (!isModeSwitchLayoutPending) return;
+    modeSwitchVisibilityTimeoutRef.current = window.setTimeout(
+      handleModeSwitchLayoutReady,
+      themeEditorLayoutTokens.scrollRestoreTimeoutFallbackDelayMs,
+    );
+    return () => {
+      if (modeSwitchVisibilityTimeoutRef.current !== null) {
+        window.clearTimeout(modeSwitchVisibilityTimeoutRef.current);
+        modeSwitchVisibilityTimeoutRef.current = null;
+      }
+    };
+  }, [handleModeSwitchLayoutReady, isModeSwitchLayoutPending]);
   const editorFind = useNoteEditorFind(currentNotePath);
   useHeldPageScroll(scrollRootRef, {
     enabled: active,
@@ -221,12 +242,14 @@ export function MarkdownEditor({
         ref={scrollRootRef}
         className={cn(
           'flex-1 relative transition-opacity duration-[var(--vlaina-duration-75)]',
+          isModeSwitchLayoutPending && 'invisible',
           isSidebarSearchJumpPending && 'opacity-[var(--vlaina-opacity-0)] pointer-events-none',
         )}
         viewportClassName="flex flex-col items-center relative"
         draggingBodyClassName="app-overlay-scrollbar-dragging"
         preserveWheelIntentKey={currentNotePath}
         scrollbarVariant="compact"
+        data-note-mode-switch-pending={isModeSwitchLayoutPending ? 'true' : undefined}
         data-note-scroll-root="true"
         data-note-cover-viewport="true"
       >
