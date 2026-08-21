@@ -14,6 +14,16 @@ export interface BlockSelectionDecorationContext {
   hasPreviousDisplayRangeKeys: ReadonlySet<string>;
 }
 
+export interface BlockSelectionDecorationRangeKind {
+  isNodeRange: boolean;
+  isTextLike: boolean;
+}
+
+const decorationRangeKindCache = new WeakMap<
+  EditorState['doc'],
+  Map<string, BlockSelectionDecorationRangeKind>
+>();
+
 export const LARGE_BLOCK_SELECTION_DECORATION_CLASS = 'editor-block-selected md-focus editor-block-selected-large-item';
 export const LARGE_TEXTLIKE_BLOCK_SELECTION_DECORATION_CLASS =
   `${LARGE_BLOCK_SELECTION_DECORATION_CLASS} editor-block-selected-large-textlike`;
@@ -137,13 +147,40 @@ export function getBlockSelectionDecorationClass(
 }
 
 export function isNodeDecorationRange(doc: EditorState['doc'], range: BlockRange): boolean {
+  return resolveBlockSelectionDecorationRangeKind(doc, range).isNodeRange;
+}
+
+export function resolveBlockSelectionDecorationRangeKind(
+  doc: EditorState['doc'],
+  range: BlockRange,
+): BlockSelectionDecorationRangeKind {
+  const cacheKey = getBlockRangeKey(range.from, range.to);
+  let docCache = decorationRangeKindCache.get(doc);
+  if (!docCache) {
+    docCache = new Map();
+    decorationRangeKindCache.set(doc, docCache);
+  }
+  const cached = docCache.get(cacheKey);
+  if (cached) return cached;
+
   const safeFrom = Math.max(0, Math.min(range.from, doc.content.size));
+  let result: BlockSelectionDecorationRangeKind;
   try {
     const nodeAfter = doc.resolve(safeFrom).nodeAfter;
-    return Boolean(nodeAfter && !nodeAfter.isText && safeFrom + nodeAfter.nodeSize === range.to);
+    const isNodeRange = Boolean(
+      nodeAfter
+      && !nodeAfter.isText
+      && safeFrom + nodeAfter.nodeSize === range.to,
+    );
+    result = {
+      isNodeRange,
+      isTextLike: !isNodeRange || !nodeAfter || !isRichBlockSelectionNode(nodeAfter),
+    };
   } catch {
-    return false;
+    result = { isNodeRange: false, isTextLike: true };
   }
+  docCache.set(cacheKey, result);
+  return result;
 }
 
 export function isBlockSelectionPreviewSurfaceRange(
@@ -230,15 +267,7 @@ function isListItemHeadSelection(
 
 export function isTextLikeDecorationRange(doc: EditorState['doc'], range: BlockRange, isNodeRange: boolean): boolean {
   if (!isNodeRange) return true;
-
-  const safeFrom = Math.max(0, Math.min(range.from, doc.content.size));
-  try {
-    const nodeAfter = doc.resolve(safeFrom).nodeAfter;
-    if (!nodeAfter) return true;
-    return !isRichBlockSelectionNode(nodeAfter);
-  } catch {
-    return true;
-  }
+  return resolveBlockSelectionDecorationRangeKind(doc, range).isTextLike;
 }
 
 function isRichBlockSelectionNode(node: EditorState['doc']): boolean {

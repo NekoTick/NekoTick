@@ -106,10 +106,15 @@ function resolveInteractionTargetElements(
 export function getInteractionCachedEditorBlockTargets(
   view: EditorView,
   ranges?: readonly { from: number; to: number }[],
+  options?: { resolveCurrentElements?: boolean },
 ): SelectableBlockTarget[] | null {
   const targets = getCachedEditorBlockTargetsFromSnapshot(currentSnapshot, view, ranges, false);
   if (!targets) return null;
-  return resolveInteractionTargetElements(view, targets, ranges !== undefined);
+  return resolveInteractionTargetElements(
+    view,
+    targets,
+    options?.resolveCurrentElements ?? ranges !== undefined,
+  );
 }
 
 export function getFreshCachedEditorBlockTargets(

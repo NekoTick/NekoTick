@@ -5,7 +5,7 @@ import { RAW_MARKDOWN_LINK_TEXT_CLASS } from '../links/markdown-link/markdownLin
 import { shouldUseLargeBlockSelectionRendering, type BlockRange } from './blockSelectionTypes';
 import {
   getBlockRangeKey,
-  getDisplayBlockRangesForDecorations,
+  resolveBlockSelectionDisplayRanges,
 } from './blockSelectionRanges';
 import {
   LARGE_INLINE_LINE_SELECTION_MARKER_CLASS,
@@ -96,7 +96,7 @@ function createInlineSelectionLinkTextDecorations(doc: EditorState['doc'], range
 export function createBlockSelectionDecorations(doc: EditorState['doc'], blocks: readonly BlockRange[]): DecorationSet {
   if (blocks.length === 0) return DecorationSet.empty;
 
-  const displayRanges = getDisplayBlockRangesForDecorations(doc, blocks);
+  const displayRanges = resolveBlockSelectionDisplayRanges(doc, blocks);
   const useLargeSelectionRendering = shouldUseLargeBlockSelectionRendering(doc, displayRanges.length);
   const displayRangeKeys = new Set(displayRanges.map((range) => getBlockRangeKey(range.from, range.to)));
   const hasNextDisplayRangeKeys = new Set<string>();
@@ -229,7 +229,7 @@ export function createBlockSelectionPreviewSurfaceDecorations(
 ): DecorationSet {
   if (blocks.length === 0) return DecorationSet.empty;
 
-  const displayRanges = getDisplayBlockRangesForDecorations(doc, blocks);
+  const displayRanges = resolveBlockSelectionDisplayRanges(doc, blocks);
   const decorations = displayRanges.flatMap((range) => {
     if (!isNodeDecorationRange(doc, range) || !isBlockSelectionPreviewSurfaceRange(doc, range)) {
       return [];

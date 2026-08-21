@@ -20,12 +20,12 @@ export {
 export {
   getBlockRangeKey,
   getBlockRangesKey,
-  getDisplayBlockRangesForDecorations,
   mapBlockRangesThroughTransaction,
   normalizeBlockRanges,
   preferNestedBlockRanges,
   preferNestedBlockRangesUnlessHeaderIntersects,
   pruneContainedBlockRanges,
+  resolveBlockSelectionDisplayRanges,
   resolveStandaloneImageBlockRange,
 } from './blockSelectionRanges';
 export {

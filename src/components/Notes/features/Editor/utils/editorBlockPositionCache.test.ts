@@ -1116,6 +1116,57 @@ describe('editorBlockPositionCache', () => {
     }
   });
 
+  it('can retain connected ranged snapshot elements for geometry-only refreshes', () => {
+    const dom = document.createElement('div');
+    const snapshotBlock = document.createElement('p');
+    const currentBlock = document.createElement('p');
+    dom.append(snapshotBlock, currentBlock);
+    document.body.appendChild(dom);
+    const doc = { content: { size: 4 } };
+    const view = {
+      dom,
+      nodeDOM: vi.fn(() => currentBlock),
+      state: { doc },
+    };
+
+    setCurrentEditorBlockPositionSnapshot(withBlockIndex({
+      version: 1,
+      view: view as any,
+      doc: doc as any,
+      editorRoot: dom,
+      scrollRoot: null,
+      scrollLeft: 0,
+      scrollTop: 0,
+      blocks: [{
+        from: 0,
+        to: 4,
+        element: snapshotBlock,
+        rect: rect(20, 44),
+        documentTop: 20,
+        documentBottom: 44,
+        tagName: 'P',
+        headingLevel: null,
+        headingId: null,
+        headingText: null,
+      }],
+      headings: [],
+    }));
+
+    try {
+      const target = getInteractionCachedEditorBlockTargets(
+        view as any,
+        [{ from: 0, to: 4 }],
+        { resolveCurrentElements: false },
+      )?.[0];
+
+      expect(target?.element).toBe(snapshotBlock);
+      expect(view.nodeDOM).not.toHaveBeenCalled();
+    } finally {
+      clearCurrentEditorBlockPositionSnapshot();
+      dom.remove();
+    }
+  });
+
   it('resolves the nearest fresh cached block target by viewport y without mapping every block', () => {
     const scrollRoot = document.createElement('div');
     scrollRoot.setAttribute('data-note-scroll-root', 'true');

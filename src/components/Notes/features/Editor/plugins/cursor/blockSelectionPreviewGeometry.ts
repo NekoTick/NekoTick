@@ -2,8 +2,7 @@ import type { EditorState } from '@milkdown/kit/prose/state';
 import { themeBlockSelectionPreviewTokens } from '@/styles/themeTokens';
 import { areBlockSelectionDisplayRangesVisuallyAdjacent } from './blockSelectionDecorationAdjacency';
 import {
-  isNodeDecorationRange,
-  isTextLikeDecorationRange,
+  resolveBlockSelectionDecorationRangeKind,
 } from './blockSelectionDecorationClasses';
 import type { BlockRect, RectBounds } from './blockSelectionTypes';
 
@@ -49,27 +48,29 @@ export function resolveBlockSelectionPreviewRects(
   blocks: readonly BlockRect[],
   metrics: BlockSelectionPreviewMetrics,
 ): RectBounds[] {
-  return blocks.map((block, index) => {
-    const previous = blocks[index - 1];
+  const rects: RectBounds[] = [];
+  let hasPrevious = false;
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+    if (!block) continue;
     const next = blocks[index + 1];
-    const hasPrevious = Boolean(
-      previous && areBlockSelectionDisplayRangesVisuallyAdjacent(doc, previous, block),
-    );
     const hasNext = Boolean(
       next && areBlockSelectionDisplayRangesVisuallyAdjacent(doc, block, next),
     );
-    const isNodeRange = isNodeDecorationRange(doc, block);
-    const verticalBleedPx = isTextLikeDecorationRange(doc, block, isNodeRange)
+    const { isTextLike } = resolveBlockSelectionDecorationRangeKind(doc, block);
+    const verticalBleedPx = isTextLike
       ? metrics.compactVerticalBleedPx
       : metrics.richVerticalBleedPx;
 
-    return {
+    rects.push({
       left: block.left - metrics.horizontalBleedPx,
       top: block.top + (hasPrevious ? metrics.gapPx : -verticalBleedPx),
       right: block.right + metrics.horizontalBleedPx,
       bottom: block.bottom - (hasNext ? metrics.gapPx : -verticalBleedPx),
-    };
-  });
+    });
+    hasPrevious = hasNext;
+  }
+  return rects;
 }
 
 export function createRoundedBlockSelectionPreviewPath(

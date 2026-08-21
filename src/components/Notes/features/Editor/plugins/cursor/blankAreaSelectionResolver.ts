@@ -15,11 +15,8 @@ import {
 } from './blockSelectionUtils';
 import { expandDragRectPointerEdgeY, areRectBoundsEqual } from './blankAreaSelectionDragBox';
 import { filterExternalBlankAreaSelectionEdgeGrazes } from './blankAreaSelectionGeometry';
-import {
-  createRoundedBlockSelectionPreviewPath,
-  resolveBlockSelectionPreviewMetrics,
-  resolveBlockSelectionPreviewRects,
-} from './blockSelectionPreviewGeometry';
+import { resolveBlockSelectionPreviewMetrics } from './blockSelectionPreviewGeometry';
+import { resolveBlockSelectionPreviewLayout } from './blockSelectionPreviewLayout';
 import { isBlockSelectionPreviewSurfaceRange } from './blockSelectionDecorationClasses';
 
 interface BlankAreaSelectionRectResolver {
@@ -62,6 +59,7 @@ export function createBlankAreaSelectionResolver(args: {
   let selectedPreviewSurfaceRangesKey = '';
   let resolvedSelectionBlocks: BlockRange[] = [...args.initialSelectedBlocks];
   let selectedPreviewPath = '';
+  let previewLayoutDoc: EditorView['state']['doc'] | null = null;
   const previewMetrics = resolveBlockSelectionPreviewMetrics(args.view.dom);
 
   const getDocSpaceBlockRectIndex = (
@@ -108,6 +106,7 @@ export function createBlankAreaSelectionResolver(args: {
     selectedPreviewSurfaceRanges = [];
     selectedPreviewSurfaceRangesKey = '';
     selectedPreviewPath = '';
+    previewLayoutDoc = null;
     cachedSelectionResolutionKey = '';
     cachedSelectionResolutionBlocks = [];
     cachedSelectionResolutionExpandedKey = '';
@@ -164,10 +163,10 @@ export function createBlankAreaSelectionResolver(args: {
       cachedSelectionResolutionExpandedKey = nextKey;
     }
 
-    const previewBlocks = expandedBlocks
+    const previewSourceBlocks = expandedBlocks
       .map((range) => cachedDocSpaceBlocksByRange?.get(`${range.from}:${range.to}`))
       .filter((block): block is BlockRect => Boolean(block));
-    selectedPreviewRanges = previewBlocks.map((block) => ({
+    selectedPreviewRanges = previewSourceBlocks.map((block) => ({
       from: block.from,
       to: block.to,
     }));
@@ -177,17 +176,20 @@ export function createBlankAreaSelectionResolver(args: {
         isBlockSelectionPreviewSurfaceRange(args.view.state.doc, range));
       selectedPreviewSurfaceRangesKey = nextKey;
     }
-    selectedPreviewDocSpaceBlocks = previewBlocks;
-    selectedPreviewDocSpaceRects = resolveBlockSelectionPreviewRects(
-      args.view.state.doc,
-      previewBlocks,
-      previewMetrics,
-    );
-    selectedPreviewPath = createRoundedBlockSelectionPreviewPath(
-      selectedPreviewDocSpaceRects,
-      previewMetrics.radiusPx,
-    );
     resolvedSelectionBlocks = expandedBlocks;
+    if (!selectionChanged && previewLayoutDoc === args.view.state.doc) return;
+
+    const previewLayout = resolveBlockSelectionPreviewLayout({
+      doc: args.view.state.doc,
+      selectedBlocks: expandedBlocks,
+      sourceBlocks: previewSourceBlocks,
+      allSourceBlocks: docSpaceBlockRects,
+      metrics: previewMetrics,
+    });
+    selectedPreviewDocSpaceBlocks = previewLayout.blocks;
+    selectedPreviewDocSpaceRects = previewLayout.rects;
+    selectedPreviewPath = previewLayout.pathData;
+    previewLayoutDoc = args.view.state.doc;
     if (!selectionChanged) return;
 
     selectedBlocksKey = nextKey;
@@ -271,24 +273,25 @@ export function createBlankAreaSelectionResolver(args: {
       `${block.from}:${block.to}`,
       block,
     ]));
-    const nextSelectedBlocks = selectedPreviewRanges
+    const nextPreviewSourceBlocks = selectedPreviewRanges
       .map((range) => nextBlocksByRange.get(`${range.from}:${range.to}`))
       .filter((block): block is BlockRect => Boolean(block));
-    if (nextSelectedBlocks.length !== selectedPreviewRanges.length) return false;
+    if (nextPreviewSourceBlocks.length !== selectedPreviewRanges.length) return false;
+    const nextPreviewLayout = resolveBlockSelectionPreviewLayout({
+      doc: args.view.state.doc,
+      selectedBlocks: resolvedSelectionBlocks,
+      sourceBlocks: nextPreviewSourceBlocks,
+      allSourceBlocks: nextCachedBlocks,
+      metrics: previewMetrics,
+    });
+    if (nextPreviewLayout.blocks.length !== selectedPreviewDocSpaceBlocks.length) return false;
 
     cachedDocSpaceBlockRects = nextCachedBlocks;
     cachedDocSpaceBlockIndex = createBlockRectYIndex(nextCachedBlocks);
     cachedDocSpaceBlocksByRange = nextBlocksByRange;
-    selectedPreviewDocSpaceBlocks = nextSelectedBlocks;
-    selectedPreviewDocSpaceRects = resolveBlockSelectionPreviewRects(
-      args.view.state.doc,
-      selectedPreviewDocSpaceBlocks,
-      previewMetrics,
-    );
-    selectedPreviewPath = createRoundedBlockSelectionPreviewPath(
-      selectedPreviewDocSpaceRects,
-      previewMetrics.radiusPx,
-    );
+    selectedPreviewDocSpaceBlocks = nextPreviewLayout.blocks;
+    selectedPreviewDocSpaceRects = nextPreviewLayout.rects;
+    selectedPreviewPath = nextPreviewLayout.pathData;
     return true;
   };
 

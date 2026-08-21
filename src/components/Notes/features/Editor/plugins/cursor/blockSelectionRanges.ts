@@ -1,8 +1,35 @@
 import type { EditorState, Transaction } from '@milkdown/kit/prose/state';
 import type { BlockRange, BlockRect, RectBounds } from './blockSelectionTypes';
 
+export interface BlockSelectionDisplayRangeInfo {
+  range: BlockRange;
+  isFullListItem: boolean;
+}
+
+const displayBlockRangeCache = new WeakMap<
+  EditorState['doc'],
+  Map<string, BlockSelectionDisplayRangeInfo>
+>();
+
 export function normalizeBlockRanges(ranges: readonly BlockRange[]): BlockRange[] {
   if (ranges.length === 0) return [];
+
+  let isAlreadyNormalized = true;
+  for (let index = 0; index < ranges.length; index += 1) {
+    const range = ranges[index];
+    const previous = ranges[index - 1];
+    if (
+      range.to <= range.from
+      || (previous && (
+        range.from < previous.from
+        || (range.from === previous.from && range.to <= previous.to)
+      ))
+    ) {
+      isAlreadyNormalized = false;
+      break;
+    }
+  }
+  if (isAlreadyNormalized) return [...ranges];
 
   const sorted = [...ranges]
     .filter((range) => range.to > range.from)
@@ -134,50 +161,94 @@ export function resolveStandaloneImageBlockRange(
   const safeTo = Math.max(0, Math.min(block.to, doc.content.size));
 
   try {
-    const $from = doc.resolve(safeFrom);
-    const nodeAfter = $from.nodeAfter;
-    if (!nodeAfter || nodeAfter.type.name !== 'paragraph') return null;
-    if (safeTo !== safeFrom + nodeAfter.nodeSize) return null;
-    if (nodeAfter.childCount !== 1 || nodeAfter.firstChild?.type.name !== 'image') return null;
-
-    const imageFrom = safeFrom + 1;
-    return {
-      from: imageFrom,
-      to: imageFrom + nodeAfter.firstChild.nodeSize,
-    };
+    return resolveStandaloneImageBlockRangeFromNode(
+      safeFrom,
+      safeTo,
+      doc.resolve(safeFrom).nodeAfter,
+    );
   } catch {
     return null;
   }
 }
 
-export function getDisplayBlockRangesForDecorations(
+function resolveStandaloneImageBlockRangeFromNode(
+  safeFrom: number,
+  safeTo: number,
+  nodeAfter: EditorState['doc'] | null,
+): BlockRange | null {
+  if (!nodeAfter || nodeAfter.type.name !== 'paragraph') return null;
+  if (safeTo !== safeFrom + nodeAfter.nodeSize) return null;
+  if (nodeAfter.childCount !== 1 || nodeAfter.firstChild?.type.name !== 'image') return null;
+
+  const imageFrom = safeFrom + 1;
+  return {
+    from: imageFrom,
+    to: imageFrom + nodeAfter.firstChild.nodeSize,
+  };
+}
+
+export function resolveBlockSelectionDisplayRangeInfo(
+  doc: EditorState['doc'],
+  block: BlockRange,
+): BlockSelectionDisplayRangeInfo {
+  const cacheKey = getBlockRangeKey(block.from, block.to);
+  let docCache = displayBlockRangeCache.get(doc);
+  if (!docCache) {
+    docCache = new Map();
+    displayBlockRangeCache.set(doc, docCache);
+  }
+  const cached = docCache.get(cacheKey);
+  if (cached) return cached;
+
+  const safeFrom = Math.max(0, Math.min(block.from, doc.content.size));
+  const safeTo = Math.max(safeFrom, Math.min(block.to, doc.content.size));
+  let from = block.from;
+  let to = block.to;
+  let isFullListItem = false;
+
+  try {
+    const $from = doc.resolve(safeFrom);
+    const nodeAfter = $from.nodeAfter;
+    if (nodeAfter?.type.name === 'list_item' && to > from) {
+      from = safeFrom;
+      to = safeFrom + nodeAfter.nodeSize;
+      isFullListItem = true;
+    } else {
+      const imageRange = resolveStandaloneImageBlockRangeFromNode(
+        safeFrom,
+        safeTo,
+        nodeAfter,
+      );
+      if (imageRange) {
+        from = imageRange.from;
+        to = imageRange.to;
+      }
+    }
+  } catch {
+  }
+
+  const resolved = {
+    range: { from, to },
+    isFullListItem,
+  };
+  docCache.set(cacheKey, resolved);
+  return resolved;
+}
+
+export function resolveBlockSelectionDisplayRange(
+  doc: EditorState['doc'],
+  block: BlockRange,
+): BlockRange {
+  return resolveBlockSelectionDisplayRangeInfo(doc, block).range;
+}
+
+export function resolveBlockSelectionDisplayRanges(
   doc: EditorState['doc'],
   blocks: readonly BlockRange[],
 ): BlockRange[] {
-  const result = normalizeBlockRanges(blocks.map((block) => {
-    const safeFrom = Math.max(0, Math.min(block.from, doc.content.size));
-    let from = block.from;
-    let to = block.to;
-
-    try {
-      const $from = doc.resolve(safeFrom);
-      const nodeAfter = $from.nodeAfter;
-      if (nodeAfter?.type.name === 'list_item' && to > from) {
-        from = safeFrom;
-        to = safeFrom + nodeAfter.nodeSize;
-      } else {
-        const imageRange = resolveStandaloneImageBlockRange(doc, block);
-        if (imageRange) {
-          from = imageRange.from;
-          to = imageRange.to;
-        }
-      }
-    } catch {
-    }
-
-    return { from, to };
-  }));
-  return result;
+  return normalizeBlockRanges(blocks.map((block) => (
+    resolveBlockSelectionDisplayRange(doc, block)
+  )));
 }
 
 export function mapBlockRangesThroughTransaction(blocks: readonly BlockRange[], tr: Transaction): BlockRange[] {

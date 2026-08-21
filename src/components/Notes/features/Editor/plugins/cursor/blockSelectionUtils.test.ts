@@ -15,7 +15,6 @@ import {
   createBlockSelectionPreviewSurfaceDecorations,
   createDragSelectionRect,
   getBlockSelectionDecorationClass,
-  getDisplayBlockRangesForDecorations,
   getBlockRangesKey,
   isRectIntersecting,
   LARGE_BLOCK_SELECTION_RENDERING_THRESHOLD,
@@ -23,6 +22,7 @@ import {
   preferNestedBlockRanges,
   preferNestedBlockRangesUnlessHeaderIntersects,
   pruneContainedBlockRanges,
+  resolveBlockSelectionDisplayRanges,
   resolveDisplayedDragViewportRect,
   resolveIntersectedBlockRanges,
   resolveIntersectedBlockRangesFromYIndex,
@@ -204,6 +204,16 @@ describe('blockSelectionUtils', () => {
       { from: 4, to: 8 },
       { from: 10, to: 20 },
     ]);
+  });
+
+  it('preserves already normalized block-range order', () => {
+    const ranges = [
+      { from: 4, to: 8 },
+      { from: 10, to: 20 },
+      { from: 22, to: 24 },
+    ];
+
+    expect(normalizeBlockRanges(ranges)).toEqual(ranges);
   });
 
   it('drops ranges fully contained by an outer selected block', () => {
@@ -461,7 +471,7 @@ describe('blockSelectionUtils', () => {
   it('renders standalone image paragraphs using the image node range', async () => {
     const editor = await createEditor('![](./demo.png)');
     const view = editor.ctx.get(editorViewCtx);
-    const displayRanges = getDisplayBlockRangesForDecorations(view.state.doc, [{ from: 0, to: 3 }]);
+    const displayRanges = resolveBlockSelectionDisplayRanges(view.state.doc, [{ from: 0, to: 3 }]);
 
     expect(displayRanges).toEqual([{ from: 1, to: 2 }]);
 
@@ -1106,7 +1116,7 @@ describe('blockSelectionUtils', () => {
   // doc: bullet_list(14)[ list_item(12)[ paragraph(4), code_block(6) ] ]
   // Range A: { from:1, to:13 } — whole list item; pos=1 resolves to list_item
   // Range B: { from:6, to:12 } — code block alone; pos=6 resolves to code_block (not list_item)
-  it('expands whole-item range (Range A) to full list_item decoration', () => {
+  it('resolves a whole-item selection to the full list_item display range', () => {
     const listItemNode = { type: { name: 'list_item' }, nodeSize: 12 };
     const codeBlockNode = { type: { name: 'code_block' }, nodeSize: 6 };
 
@@ -1123,12 +1133,12 @@ describe('blockSelectionUtils', () => {
 
     // Range A: from=1, to=13; nodeAfter at pos=1 is list_item → should expand to [1, 1+12=13]
     const docA = makeDoc({ nodeAfter: listItemNode });
-    const rangesA = getDisplayBlockRangesForDecorations(docA, [{ from: 1, to: 13 }]);
+    const rangesA = resolveBlockSelectionDisplayRanges(docA, [{ from: 1, to: 13 }]);
     expect(rangesA).toEqual([{ from: 1, to: 13 }]);
 
     // Range B: from=6, to=12; nodeAfter at pos=6 is code_block (not list_item) → no expansion
     const docB = makeDoc({ nodeAfter: codeBlockNode });
-    const rangesB = getDisplayBlockRangesForDecorations(docB, [{ from: 6, to: 12 }]);
+    const rangesB = resolveBlockSelectionDisplayRanges(docB, [{ from: 6, to: 12 }]);
     expect(rangesB).toEqual([{ from: 6, to: 12 }]);
   });
 
