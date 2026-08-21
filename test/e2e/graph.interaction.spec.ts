@@ -21,7 +21,7 @@ function readGraphNodePosition(node: Locator) {
 test.describe('graph interactions', () => {
   test.setTimeout(120_000);
 
-  test('opens the corresponding note with a single node click', async () => {
+  test('shows empty-label Markdown links and opens the corresponding note', async () => {
     const { app, userDataRoot } = await launchIsolatedElectron('graph-node-open');
 
     try {
@@ -30,8 +30,8 @@ test.describe('graph interactions', () => {
       const fixture = await createNotesRootFilesFixture(page, {
         name: 'graph-node-open',
         files: [
-          { filename: 'Open Me.md', content: '# Open Me\n\n[[Linked Note]]' },
-          { filename: 'Linked Note.md', content: '# Linked Note\n\n[[Open Me]]' },
+          { filename: 'Open Me.md', content: '# Open Me\n\n[](Linked%20Note.md)' },
+          { filename: 'Linked Note.md', content: '# Linked Note' },
         ],
       });
       await openNotesRootInNotes(page, {
@@ -43,6 +43,10 @@ test.describe('graph interactions', () => {
       const graphView = page.locator(GRAPH_VIEW_SELECTOR);
       const zoomPercentage = graphView.locator('[data-whiteboard-zoom-percentage="true"]');
       await expect(zoomPercentage).toBeVisible();
+      await expect(graphView.locator('[data-graph-edge-layer="base"]')).toHaveAttribute(
+        'data-graph-edge-count',
+        '1',
+      );
       const nodeTarget = graphView.locator('[data-graph-node-hit-target="Linked Note.md"]');
       await expect(nodeTarget).toBeVisible({ timeout: 30_000 });
       await nodeTarget.click();

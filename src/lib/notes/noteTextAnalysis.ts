@@ -1,8 +1,10 @@
+import type { Root, RootContent } from 'mdast';
+import remarkParse from 'remark-parse';
+import { unified } from 'unified';
 import {
   getMarkdownLinkHref,
-  MARKDOWN_LINK_PATTERN_GLOBAL,
+  MARKDOWN_LINK_PATTERN_ALLOW_EMPTY_LABEL_GLOBAL,
 } from './markdown/markdownLinkParser';
-import { collectMarkdownReferenceLinkDestinations } from './markdown/markdownReferenceLinkStyle';
 import {
   extractNoteTagOccurrences,
   getNoteMarkdownExcludedRanges,
@@ -12,6 +14,7 @@ import {
 } from './tags';
 
 const WIKI_LINK_PATTERN = /\[\[([^\]\n]{1,512})\]\]/g;
+const commonMarkLinkParser = unified().use(remarkParse);
 
 export interface NoteWikiLinkReference {
   aliased: boolean;
@@ -90,6 +93,35 @@ function collectWikiLinkReferences(
   return references;
 }
 
+function collectCommonMarkLinkReferences(content: string): string[] {
+  const root = commonMarkLinkParser.parse(content) as Root;
+  const definitions = new Map<string, string>();
+  const references: Array<{ identifier?: string; target?: string }> = [];
+  const stack: RootContent[] = [...root.children].reverse();
+
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node.type === 'definition' && !definitions.has(node.identifier)) {
+      definitions.set(node.identifier, node.url);
+    } else if (node.type === 'link') {
+      references.push({ target: node.url });
+    } else if (node.type === 'linkReference') {
+      references.push({ identifier: node.identifier });
+    }
+
+    if ('children' in node) {
+      for (let index = node.children.length - 1; index >= 0; index -= 1) {
+        stack.push(node.children[index] as RootContent);
+      }
+    }
+  }
+
+  return references.flatMap(({ identifier, target }) => {
+    const resolved = target ?? (identifier ? definitions.get(identifier) : undefined);
+    return resolved ? [resolved] : [];
+  });
+}
+
 export function getNoteWikiLinkReferences(
   identity: object,
   content: string,
@@ -123,15 +155,23 @@ export function getNoteGraphLinkReferences(
 
   if (
     content.includes('](')
+    || content.includes('][')
+    || content.includes(']:')
+  ) {
+    references.push(...collectCommonMarkLinkReferences(content));
+  }
+
+  if (
+    content.includes('](')
     || content.includes(']（')
     || content.includes('】(')
     || content.includes('】（')
   ) {
     const excludedRanges = getGraphExcludedRanges(analysis);
     let excludedRangeCursor = 0;
-    MARKDOWN_LINK_PATTERN_GLOBAL.lastIndex = 0;
+    MARKDOWN_LINK_PATTERN_ALLOW_EMPTY_LABEL_GLOBAL.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = MARKDOWN_LINK_PATTERN_GLOBAL.exec(content)) !== null) {
+    while ((match = MARKDOWN_LINK_PATTERN_ALLOW_EMPTY_LABEL_GLOBAL.exec(content)) !== null) {
       while (
         excludedRangeCursor < excludedRanges.length
         && excludedRanges[excludedRangeCursor]!.to <= match.index
@@ -146,10 +186,6 @@ export function getNoteGraphLinkReferences(
       }
       references.push(getMarkdownLinkHref(match[2] ?? ''));
     }
-  }
-
-  if (content.includes(']:')) {
-    references.push(...collectMarkdownReferenceLinkDestinations(content));
   }
 
   analysis.graphLinkReferences = references;

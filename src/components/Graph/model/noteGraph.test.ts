@@ -98,6 +98,50 @@ describe('buildNoteGraph', () => {
     ]);
   });
 
+  it('builds edges from Markdown links with empty labels', () => {
+    const graph = buildNoteGraph(
+      [note('Alpha.md'), note('Beta.md')],
+      cache([
+        ['Alpha.md', '[](Beta.md)'],
+        ['Beta.md', 'No links'],
+      ]),
+    );
+
+    expect(graph.edges).toEqual([
+      { source: 'Alpha.md', target: 'Beta.md' },
+    ]);
+  });
+
+  it('builds edges from CommonMark links with escaped or nested syntax', () => {
+    const graph = buildNoteGraph(
+      [
+        note('Alpha.md'),
+        note('Beta.md'),
+        note('Gamma.md'),
+        note('docs/Deep(a(b)).md'),
+      ],
+      cache([
+        [
+          'Alpha.md',
+          [
+            String.raw`[Beta \] note](Beta.md)`,
+            '[Gamma [nested]](Gamma.md)',
+            '[Deep](docs/Deep(a(b)).md)',
+          ].join('\n'),
+        ],
+        ['Beta.md', 'No links'],
+        ['Gamma.md', 'No links'],
+        ['docs/Deep(a(b)).md', 'No links'],
+      ]),
+    );
+
+    expect(graph.edges).toEqual([
+      { source: 'Alpha.md', target: 'Beta.md' },
+      { source: 'Alpha.md', target: 'Gamma.md' },
+      { source: 'Alpha.md', target: 'docs/Deep(a(b)).md' },
+    ]);
+  });
+
   it('keeps supported full-width Markdown links during syntax prefiltering', () => {
     const graph = buildNoteGraph(
       [note('Alpha.md'), note('Beta.md')],
@@ -161,6 +205,51 @@ describe('buildNoteGraph', () => {
       { source: 'Alpha.md', target: 'Gamma.md' },
       { source: 'Alpha.md', target: 'Delta.md' },
     ]);
+  });
+
+  it('builds edges from empty-label and escaped reference links', () => {
+    const graph = buildNoteGraph(
+      [note('Alpha.md'), note('Beta.md'), note('Gamma.md')],
+      cache([
+        [
+          'Alpha.md',
+          [
+            '[][beta]',
+            String.raw`[Gamma \] note][gamma]`,
+            '',
+            '[beta]: Beta.md',
+            '[gamma]: Gamma.md',
+          ].join('\n'),
+        ],
+        ['Beta.md', 'No links'],
+        ['Gamma.md', 'No links'],
+      ]),
+    );
+
+    expect(graph.edges).toEqual([
+      { source: 'Alpha.md', target: 'Beta.md' },
+      { source: 'Alpha.md', target: 'Gamma.md' },
+    ]);
+  });
+
+  it('does not treat encoded external URLs as local note links', () => {
+    const graph = buildNoteGraph(
+      [note('Alpha.md'), note('Beta.md')],
+      cache([
+        [
+          'Alpha.md',
+          [
+            '[Encoded URL](https%3A%2F%2Fexample.test%2FBeta.md)',
+            '[Encoded protocol-relative URL](%2F%2Fexample.test%2FBeta.md)',
+            '[Partially encoded URL](https%3A%2F%2Fexample.test/%ZZ/Beta.md)',
+            '[Encoded control character](folder%00/Beta.md)',
+          ].join('\n'),
+        ],
+        ['Beta.md', 'No links'],
+      ]),
+    );
+
+    expect(graph.edges).toEqual([]);
   });
 
   it('shares a revision-keyed graph between the main view and sidebar', () => {

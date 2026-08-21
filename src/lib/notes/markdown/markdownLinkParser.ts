@@ -8,6 +8,10 @@ export const MARKDOWN_LINK_SOURCE = String.raw`(?:\[|【)([^】\]]+)(?:\]|】)(?
 
 export const MARKDOWN_LINK_REGEX = new RegExp(MARKDOWN_LINK_SOURCE, 'g');
 export const MARKDOWN_LINK_PATTERN_GLOBAL = new RegExp(MARKDOWN_LINK_SOURCE, 'g');
+export const MARKDOWN_LINK_PATTERN_ALLOW_EMPTY_LABEL_GLOBAL = new RegExp(
+  String.raw`(?:\[|【)([^】\]]*)(?:\]|】)(?:\(|（)(${MARKDOWN_LINK_TARGET_SOURCE})(?:\)|）)`,
+  'g',
+);
 
 const LINK_DESTINATION_WITH_TITLE_PATTERN = new RegExp(
   String.raw`^(${MARKDOWN_LINK_DESTINATION_SOURCE})${MARKDOWN_LINK_TITLE_SOURCE}\s*$`,
