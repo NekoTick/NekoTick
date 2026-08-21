@@ -1,7 +1,10 @@
 import { translate } from '@/lib/i18n';
 import { createDefaultMermaidThemeConfig } from '@/lib/notes/mermaid/mermaidTheme';
 import { getFirstMermaidDirective } from './mermaidDirective';
-import { waitForMermaidInteractionIdle } from './mermaidRenderScheduler';
+import {
+  waitForMermaidInteractionIdle,
+  type MermaidRenderPriority,
+} from './mermaidRenderScheduler';
 
 let mermaidInstance: any = null;
 let mermaidPromise: Promise<any> | null = null;
@@ -168,12 +171,12 @@ function createMermaidRenderContainer(): HTMLElement | undefined {
   return container;
 }
 
-async function acquireMermaidWarmup() {
+async function acquireMermaidWarmup(priority: MermaidRenderPriority) {
   if (mermaidWarmupComplete) return null;
   if (mermaidWarmupPromise) {
     await mermaidWarmupPromise;
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    await waitForMermaidInteractionIdle();
+    await waitForMermaidInteractionIdle(priority);
     return null;
   }
 
@@ -187,7 +190,11 @@ async function acquireMermaidWarmup() {
   };
 }
 
-export async function renderMermaid(code: string, id: string): Promise<string> {
+export async function renderMermaid(
+  code: string,
+  id: string,
+  priority: MermaidRenderPriority = 'background',
+): Promise<string> {
   if (code.length > MAX_MERMAID_CODE_CHARS) {
     return `<div class="mermaid-error">${escapeHtmlText(translate('editor.mermaidRenderTooLarge'))}</div>`;
   }
@@ -198,7 +205,7 @@ export async function renderMermaid(code: string, id: string): Promise<string> {
     return `<div class="mermaid-error">${escapeHtmlText(translate('editor.mermaidNotAvailable'))}</div>`;
   }
 
-  const releaseWarmup = await acquireMermaidWarmup();
+  const releaseWarmup = await acquireMermaidWarmup(priority);
   try {
     mermaid.initialize(createMermaidRenderConfig());
     if (isZenumlDiagram(code) && !(await ensureZenumlExternalDiagram(mermaid))) {

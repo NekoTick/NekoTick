@@ -246,7 +246,8 @@ export const ImageBlockView = ({ node, view, getPos }: ImageBlockProps) => {
                         sourceAlt={nodeAlt}
                         resolvedSrc={resolvedSrc}
                         isRemoteImageSource={isRemoteImageSource}
-                        isDeferred={!imageLoadGate.isNearViewport}
+                        isDeferred={!imageLoadGate.shouldLoadImage}
+                        isNearViewport={imageLoadGate.isNearViewport}
                         cropParams={cropParams}
                         containerSize={activeContainerSize}
                         isSaving={isSaving}

@@ -72,9 +72,13 @@ function isMermaidErrorMarkup(markup: string): boolean {
   return /class=(["'])[^"']*\bmermaid-error\b[^"']*\1/.test(markup);
 }
 
-async function defaultRenderMermaid(code: string, id: string) {
+async function defaultRenderMermaid(
+  code: string,
+  id: string,
+  priority: MermaidRenderPriority,
+) {
   const { renderMermaid } = await import('./mermaidRenderer');
-  return renderMermaid(code, id);
+  return renderMermaid(code, id, priority);
 }
 
 export function getMermaidRenderCode(sourceCode: string) {
@@ -142,12 +146,17 @@ async function renderMermaidHtml(
   }
 }
 
-async function renderDefaultMermaidHtmlWithRetry(code: string) {
-  const markup = await renderMermaidHtml(code, defaultRenderMermaid);
+async function renderDefaultMermaidHtmlWithRetry(
+  code: string,
+  priority: MermaidRenderPriority,
+) {
+  const render = (sourceCode: string, id: string) =>
+    defaultRenderMermaid(sourceCode, id, priority);
+  const markup = await renderMermaidHtml(code, render);
   if (!isMermaidErrorMarkup(markup)) return markup;
 
   await new Promise<void>((resume) => setTimeout(resume, 0));
-  return renderMermaidHtml(code, defaultRenderMermaid);
+  return renderMermaidHtml(code, render);
 }
 
 export function readCachedMermaidMarkup(code: string) {
@@ -190,7 +199,7 @@ export async function resolveMermaidMarkup(
     group: EDITOR_MERMAID_RENDER_GROUP,
     priority,
     render: async () => sanitizeMermaidMarkup(
-      await renderDefaultMermaidHtmlWithRetry(code),
+      await renderDefaultMermaidHtmlWithRetry(code, priority),
     ),
   });
 }

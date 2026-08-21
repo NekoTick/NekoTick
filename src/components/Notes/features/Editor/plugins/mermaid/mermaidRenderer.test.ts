@@ -127,6 +127,35 @@ describe('mermaidRenderer', () => {
     expect(render).toHaveBeenCalledTimes(2);
   });
 
+  it('resumes an interactive cold-start render while scrolling remains active', async () => {
+    let resolveFirstRender = (_value: { svg: string }) => {};
+    render
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveFirstRender = resolve;
+      }))
+      .mockResolvedValueOnce({ svg: '<svg data-testid="second"></svg>' });
+    const interactionRoot = document.createElement('div');
+    const { renderMermaid } = await import('./mermaidRenderer');
+
+    const first = renderMermaid('flowchart TD\nA --> B', 'diagram-first');
+    const second = renderMermaid(
+      'flowchart TD\nB --> C',
+      'diagram-second',
+      'interactive',
+    );
+    await vi.waitFor(() => {
+      expect(render).toHaveBeenCalledTimes(1);
+    });
+    interactionRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(interactionRoot);
+    resolveFirstRender({ svg: '<svg data-testid="first"></svg>' });
+
+    await expect(first).resolves.toContain('data-testid="first"');
+    await expect(second).resolves.toContain('data-testid="second"');
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(interactionRoot.dataset.overlayScrollbarInteracting).toBe('true');
+  });
+
   it('renders in a measurable offscreen host for diagrams that use SVG layout metrics', async () => {
     const { renderMermaid } = await import('./mermaidRenderer');
 

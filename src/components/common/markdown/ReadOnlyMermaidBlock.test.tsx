@@ -99,8 +99,10 @@ describe('ReadOnlyMermaidBlock', () => {
     const block = container.querySelector('.mermaid-block')!;
     expect(renderMermaid).not.toHaveBeenCalled();
 
-    observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
-    observerCallback([{ target: block, isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+    act(() => {
+      observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+      observerCallback([{ target: block, isIntersecting: false } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
     delete scrollRoot.dataset.overlayScrollbarInteracting;
     window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
 
@@ -109,11 +111,49 @@ describe('ReadOnlyMermaidBlock', () => {
     });
     expect(renderMermaid).not.toHaveBeenCalled();
 
-    observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    act(() => {
+      observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
     await waitFor(() => {
-      expect(renderMermaid).toHaveBeenCalledWith(code, expect.any(String));
+      expect(renderMermaid).toHaveBeenCalledWith(code, expect.any(String), 'interactive');
       expect(screen.getByText('rendered')).toBeInTheDocument();
     });
+  });
+
+  it('renders a near-viewport diagram before active scrolling settles', async () => {
+    let observerCallback: IntersectionObserverCallback = () => undefined;
+    class TestIntersectionObserver {
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+      takeRecords = vi.fn(() => []);
+      root = null;
+      rootMargin = '0px';
+      thresholds = [];
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    const scrollRoot = document.createElement('div');
+    scrollRoot.dataset.overlayScrollbarInteracting = 'true';
+    document.body.appendChild(scrollRoot);
+    const code = 'sequenceDiagram\nAlice->Bob: readonly during scroll';
+    vi.mocked(renderMermaid).mockResolvedValue('<svg><text>rendered during scroll</text></svg>');
+
+    const { container } = render(<ReadOnlyMermaidBlock code={code} />);
+    const block = container.querySelector('.mermaid-block')!;
+    act(() => {
+      observerCallback([{ target: block, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('rendered during scroll')).toBeInTheDocument();
+    });
+    expect(scrollRoot.dataset.overlayScrollbarInteracting).toBe('true');
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
   });
 
   it('defers rendered markup commits while a layout panel is dragging', async () => {
@@ -229,6 +269,7 @@ describe('ReadOnlyMermaidBlock', () => {
       expect(renderMermaid, `${fixture.label} should reach the read-only renderer`).toHaveBeenCalledWith(
         code,
         expect.any(String),
+        'background',
       );
       expect(markup, `${fixture.label} should return SVG markup`).toContain('data-readonly-rendered');
       expect(markup, `${fixture.label} should not render an error`).not.toContain('mermaid-error');
@@ -393,7 +434,7 @@ describe('ReadOnlyMermaidBlock', () => {
 
     const markup = await resolveReadOnlyMermaidMarkup(code);
 
-    expect(renderMermaid).toHaveBeenCalledWith(code, expect.any(String));
+    expect(renderMermaid).toHaveBeenCalledWith(code, expect.any(String), 'background');
     expect(markup).toContain('rendered');
   });
 });

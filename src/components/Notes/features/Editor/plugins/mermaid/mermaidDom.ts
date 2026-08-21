@@ -167,15 +167,26 @@ function renderMermaidElementAsync(
   renderKey: string | undefined,
   priority: MermaidRenderPriority = 'background',
   releaseExisting = true,
+  shouldCommit: () => boolean = () => true,
 ) {
   const renderCodeSnapshot = getMermaidRenderCode(codeSnapshot);
   if (releaseExisting) {
     releaseMermaidRenderConsumer(anchor);
   }
   return resolveMermaidMarkup(renderCodeSnapshot, undefined, priority, anchor).then(async (markup) => {
-    await waitForMermaidInteractionIdle();
+    if (
+      !markup ||
+      !shouldCommit() ||
+      disposedMermaidElements.has(anchor) ||
+      getMermaidElementCode(anchor) !== codeSnapshot ||
+      anchor.dataset.renderKey !== renderKey
+    ) {
+      return;
+    }
+    await waitForMermaidInteractionIdle(priority);
     if (
       disposedMermaidElements.has(anchor) ||
+      !shouldCommit() ||
       getMermaidElementCode(anchor) !== codeSnapshot ||
       anchor.dataset.renderKey !== renderKey
     ) {
@@ -229,14 +240,6 @@ function queueMermaidBackgroundPreload(
   drainMermaidBackgroundPreloads();
 }
 
-function isMermaidElementVisible(anchor: HTMLElement) {
-  const rect = anchor.getBoundingClientRect();
-  return rect.bottom > 0
-    && rect.right > 0
-    && rect.top < window.innerHeight
-    && rect.left < window.innerWidth;
-}
-
 function installLazyMermaidRender(
   anchor: HTMLElement,
   codeSnapshot: string,
@@ -247,36 +250,41 @@ function installLazyMermaidRender(
   setMermaidPendingMarkup(anchor);
 
   let isIntersecting = false;
-  let waitingForIdle = false;
+  let renderPending = false;
 
-  const renderIfStillIntersecting = async () => {
-    if (!isIntersecting || waitingForIdle) return;
-    waitingForIdle = true;
-    await waitForMermaidInteractionIdle();
-    waitingForIdle = false;
-    if (!isIntersecting || disposedMermaidElements.has(anchor)) return;
-
-    disconnectLazyMermaidRender(anchor);
+  const renderIfStillIntersecting = () => {
+    if (!isIntersecting || renderPending || disposedMermaidElements.has(anchor)) return;
+    renderPending = true;
     const preload = mermaidBackgroundPreloads.get(anchor);
-    const renderPriority = priority
-      ?? (isMermaidElementVisible(anchor) ? 'interactive' : 'background');
-    if (preload?.started) {
-      void renderMermaidElementAsync(anchor, codeSnapshot, renderKey, renderPriority, false);
-      return;
-    }
-    cancelMermaidBackgroundPreload(anchor);
-    renderMermaidElementAsync(
+    const renderPriority = priority ?? 'interactive';
+    const renderPromise = renderMermaidElementAsync(
       anchor,
       codeSnapshot,
       renderKey,
       renderPriority,
+      !preload?.started,
+      () => isIntersecting,
     );
+    if (!preload?.started) {
+      cancelMermaidBackgroundPreload(anchor);
+    }
+    const finish = () => {
+      renderPending = false;
+      if (isIntersecting && anchor.dataset.mermaidLazy === 'true') {
+        renderIfStillIntersecting();
+      }
+    };
+    void renderPromise.then(finish, finish);
   };
 
   const observer = new IntersectionObserver((entries) => {
     const entry = entries.find((candidate) => candidate.target === anchor) ?? entries.at(-1);
     isIntersecting = entry?.isIntersecting ?? false;
-    void renderIfStillIntersecting();
+    if (!isIntersecting) {
+      releaseMermaidRenderConsumer(anchor);
+      return;
+    }
+    renderIfStillIntersecting();
   }, {
     scrollMargin: themeLazyLoadTokens.mermaidPreloadMargin,
   });
