@@ -199,6 +199,78 @@ describe('filterExternalBlankAreaSelectionEdgeGrazes', () => {
 });
 
 describe('startBlankAreaSelectionSession', () => {
+  it('scrolls the note viewport with the wheel while block selection is active', () => {
+    const view = createView();
+    const scrollRoot = view.dom.parentElement as HTMLElement;
+    rectResolverMockState.currentRects = [
+      blockRect(1, 6, 100, 160),
+      blockRect(7, 12, 180, 240),
+    ];
+    Object.defineProperties(scrollRoot, {
+      clientHeight: { configurable: true, value: 600 },
+      scrollHeight: { configurable: true, value: 1200 },
+    });
+    const onSelectionChange = vi.fn();
+    const event = new MouseEvent('mousedown', {
+      bubbles: true,
+      clientX: 80,
+      clientY: 90,
+      button: 0,
+      buttons: 1,
+    });
+    Object.defineProperty(event, 'target', {
+      configurable: true,
+      value: view.dom,
+    });
+    const session = startBlankAreaSelectionSession({
+      view,
+      event,
+      startZone: 'outside-editor',
+      dragThreshold: 0,
+      cursor: 'crosshair',
+      dragBoxColor: 'rgba(0, 0, 0, 0.1)',
+      scrollRootSelector: '[data-note-scroll-root="true"]',
+      initialSelectedBlocks: [],
+      onSelectionChange,
+      onPlainClick: vi.fn(),
+      onActivateSelectionState: vi.fn(),
+      onSyncSelectionState: vi.fn(),
+    });
+
+    document.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      clientX: 220,
+      clientY: 170,
+      buttons: 1,
+    }));
+    const shield = document.querySelector('.editor-block-selection-interaction-shield');
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120,
+    });
+    shield?.dispatchEvent(wheelEvent);
+
+    expect(wheelEvent.defaultPrevented).toBe(true);
+    expect(scrollRoot.scrollTop).toBe(120);
+    expect(onSelectionChange).toHaveBeenLastCalledWith([
+      { from: 1, to: 6 },
+      { from: 7, to: 12 },
+    ]);
+
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    const wheelAfterTeardown = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120,
+    });
+    document.body.dispatchEvent(wheelAfterTeardown);
+
+    expect(wheelAfterTeardown.defaultPrevented).toBe(false);
+    expect(scrollRoot.scrollTop).toBe(120);
+    session.stop();
+  });
+
   it('enables cached block positions for drag hit testing', () => {
     const view = createView();
     const event = new MouseEvent('mousedown', {
