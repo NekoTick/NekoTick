@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { useI18n } from '@/lib/i18n';
 import { useToastStore } from '@/stores/useToastStore';
+import { getErrorDiagnosticDetails } from '@/lib/diagnostics/errorDetails';
+import { logDiagnostic } from '@/lib/diagnostics/diagnosticsLog';
 import { writeImageBlobToClipboard, writeTextToClipboard } from '@/lib/clipboard';
 import { writeDesktopBinaryFile } from '@/lib/desktop/fs';
 import { fetchBoundedImageBlobResult, MAX_FETCHED_IMAGE_BYTES } from '@/lib/markdown/fetchBoundedImageBlob';
@@ -108,6 +110,10 @@ export function useImageActions({
             setIsActive(false);
             setHeight(undefined);
         } catch (error) {
+            logDiagnostic('notes-editor', 'failure-image-update', {
+                operation: 'image-crop',
+                ...getErrorDiagnosticDetails(error),
+            });
             addToast(t('editor.updateViewFailed'), 'error');
         } finally {
             setIsSaving(false);

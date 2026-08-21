@@ -4,6 +4,9 @@ import { flushCurrentPendingEditorMarkdown } from '@/stores/notes/pendingEditorM
 import { themeEditorLayoutTokens } from '@/styles/themeTokens';
 import { flushCurrentEditorSave } from '../utils/editorSaveRegistry';
 import { NOTE_SOURCE_MODE_TOGGLE_EVENT } from '../sourceMode/sourceModeEvents';
+import type { NotesEditorFailure } from '../editorFailureDiagnostics';
+
+type RenderedEditorFailure = Pick<NotesEditorFailure, 'reason' | 'error' | 'componentStack'>;
 
 interface EditorSessionTarget {
   active: boolean;
@@ -21,6 +24,7 @@ function isSameEditorSession(
 export function useMarkdownEditorSourceMode({
   currentNotePath,
   hasActiveNote,
+  onEditorFailure,
   onEditorViewReady,
   onModeSwitchStart,
   onModeSwitchLayoutReady,
@@ -28,6 +32,7 @@ export function useMarkdownEditorSourceMode({
 }: {
   currentNotePath: string | undefined;
   hasActiveNote: boolean;
+  onEditorFailure?: (failure: NotesEditorFailure) => void;
   onEditorViewReady?: () => void;
   onModeSwitchStart?: () => void;
   onModeSwitchLayoutReady?: () => void;
@@ -99,6 +104,13 @@ export function useMarkdownEditorSourceMode({
   }, [restorePendingScrollPosition]);
 
   const handleEditorViewReady = useCallback(() => {
+    if (
+      !editorSession.active ||
+      editorSessionRef.current.revision !== editorSession.revision
+    ) {
+      return;
+    }
+
     restorePendingScrollPosition();
     notifyModeSwitchLayoutReady();
     scheduleFinalScrollRestore();
@@ -113,11 +125,20 @@ export function useMarkdownEditorSourceMode({
     scheduleFinalScrollRestore,
   ]);
 
-  const handleRenderedEditorFailure = useCallback(() => {
-    if (!currentNotePath) {
+  const handleRenderedEditorFailure = useCallback((failure: RenderedEditorFailure = { reason: 'render-error' }) => {
+    if (
+      !editorSession.active
+      || !currentNotePath
+      || editorSessionRef.current.revision !== editorSession.revision
+    ) {
       return;
     }
 
+    onEditorFailure?.({
+      ...failure,
+      contentLength: useNotesStore.getState().currentNote?.content.length,
+      diskRevision: useNotesStore.getState().currentNoteDiskRevision,
+    });
     restorePendingScrollPosition();
     notifyModeSwitchLayoutReady();
     scheduleFinalScrollRestore();
@@ -127,6 +148,7 @@ export function useMarkdownEditorSourceMode({
   }, [
     currentNotePath,
     editorSession,
+    onEditorFailure,
     onEditorViewReady,
     notifyModeSwitchLayoutReady,
     restorePendingScrollPosition,
@@ -212,6 +234,18 @@ export function useMarkdownEditorSourceMode({
     }
 
     const timeoutId = window.setTimeout(() => {
+      if (
+        editorSessionRef.current.revision !== editorSession.revision ||
+        !editorSessionRef.current.active
+      ) {
+        return;
+      }
+
+      onEditorFailure?.({
+        reason: 'init-timeout',
+        contentLength: useNotesStore.getState().currentNote?.content.length,
+        diskRevision: useNotesStore.getState().currentNoteDiskRevision,
+      });
       restorePendingScrollPosition();
       notifyModeSwitchLayoutReady();
       scheduleFinalScrollRestore();
@@ -228,6 +262,7 @@ export function useMarkdownEditorSourceMode({
     hasActiveNote,
     isEditorViewReady,
     isSourceMode,
+    onEditorFailure,
     onEditorViewReady,
     notifyModeSwitchLayoutReady,
     restorePendingScrollPosition,

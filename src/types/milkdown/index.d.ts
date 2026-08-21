@@ -1864,6 +1864,7 @@ declare module '@milkdown/react' {
   export const Milkdown: (props?: any) => React.ReactElement | null;
   export const MilkdownProvider: (props: {
     children?: React.ReactNode;
+    onError?: (error: unknown) => void;
   }) => React.ReactElement | null;
   export function useEditor(
     factory: (root: HTMLElement) => any,

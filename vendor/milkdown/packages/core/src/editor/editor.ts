@@ -237,20 +237,39 @@ export class Editor {
 
     if (this.#status === EditorStatus.Created) await this.destroy()
 
-    this.#setStatus(EditorStatus.OnCreate)
+    let loaders: Promise<void>[] = []
+    try {
+      this.#setStatus(EditorStatus.OnCreate)
+      this.#loadInternal()
+      this.#prepare([...this.#usrPluginStore.keys()], this.#usrPluginStore)
 
-    this.#loadInternal()
-    this.#prepare([...this.#usrPluginStore.keys()], this.#usrPluginStore)
-
-    await Promise.all(
-      [
+      loaders = [
         this.#loadPluginInStore(this.#sysPluginStore),
         this.#loadPluginInStore(this.#usrPluginStore),
       ].flat()
-    )
+      await Promise.all(loaders)
 
-    this.#setStatus(EditorStatus.Created)
-    return this
+      this.#setStatus(EditorStatus.Created)
+      return this
+    } catch (error) {
+      await Promise.allSettled(loaders)
+      try {
+        await this.#cleanup([...this.#usrPluginStore.keys()])
+      } catch {
+        // Preserve the editor creation error.
+      }
+      try {
+        await this.#cleanupInternal()
+      } catch {
+        // Preserve the editor creation error.
+      }
+      try {
+        this.#setStatus(EditorStatus.Destroyed)
+      } catch {
+        // Preserve the editor creation error.
+      }
+      throw error
+    }
   }
 
   /// Destroy the editor.

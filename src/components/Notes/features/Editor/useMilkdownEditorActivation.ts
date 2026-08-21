@@ -27,6 +27,7 @@ export function useMilkdownEditorActivation(args: {
   currentNoteDiskRevision: number;
   currentNotePath: string | undefined;
   onEditorViewReadyRef: React.MutableRefObject<(() => void) | undefined>;
+  onEditorActivationFailure?: (error: unknown) => void;
   readyReportedRef: React.MutableRefObject<{
     content: string;
     diskRevision: number;
@@ -43,6 +44,7 @@ export function useMilkdownEditorActivation(args: {
     currentNoteContentRef,
     currentNoteDiskRevision,
     currentNotePath,
+    onEditorActivationFailure,
     onEditorViewReadyRef,
     readyReportedRef,
     setActivatedRevision,
@@ -55,6 +57,14 @@ export function useMilkdownEditorActivation(args: {
   }, []);
 
   const reportEditorReady = useCallback((editor: ActiveMilkdownEditor) => {
+    if (
+      !activeRef.current
+      || editor.status !== 'Created'
+      || activatedEditorRef.current !== editor
+    ) {
+      return;
+    }
+
     const readyReported = readyReportedRef.current;
     if (
       readyReported?.editor === editor &&
@@ -65,10 +75,17 @@ export function useMilkdownEditorActivation(args: {
       return;
     }
 
-    const view = editor.ctx.get(editorViewCtx) as EditorView;
-    if (getCurrentEditorView() === view) {
-      setCurrentEditorView(view, currentNotePath);
+    let view: EditorView;
+    try {
+      view = editor.ctx.get(editorViewCtx) as EditorView;
+    } catch {
+      // The provider can invalidate its context while a stale readiness callback is in flight.
+      return;
     }
+    if (getCurrentEditorView() !== view) {
+      return;
+    }
+    setCurrentEditorView(view, currentNotePath);
     onEditorViewReadyRef.current?.();
     readyReportedRef.current = {
       editor,
@@ -79,12 +96,17 @@ export function useMilkdownEditorActivation(args: {
   }, [currentNoteDiskRevision, currentNotePath]);
 
   const activateEditor = useCallback((editor: ActiveMilkdownEditor) => {
-    if (activatedEditorRef.current === editor) {
+    if (
+      !activeRef.current
+      || editor.status !== 'Created'
+      || activatedEditorRef.current === editor
+    ) {
       return;
     }
 
     cleanupActivatedEditor();
     let activatedView: EditorView | null = null;
+    let cleanupPartialActivation: (() => void) | null = null;
     try {
       const view = editor.ctx.get(editorViewCtx) as EditorView;
       activatedView = view;
@@ -99,10 +121,6 @@ export function useMilkdownEditorActivation(args: {
         liveSerializer = editor.ctx.get(serializerCtx) as (doc: unknown) => string;
       } catch {
         liveSerializer = null;
-      }
-
-      if (!activeRef.current) {
-        return;
       }
 
       setCurrentEditorView(view, currentNotePath);
@@ -126,21 +144,8 @@ export function useMilkdownEditorActivation(args: {
         }
         markUserInput(event);
       };
-      document.addEventListener('beforeinput', markScopedUserInput, { capture: true });
-      document.addEventListener('keydown', markScopedUserInput, { capture: true });
-      document.addEventListener('compositionstart', markScopedUserInput, { capture: true });
-      document.addEventListener('compositionend', markScopedUserInput, { capture: true });
-      document.addEventListener('pointerdown', markScopedUserInput, { capture: true });
-      document.addEventListener('mousedown', markScopedUserInput, { capture: true });
-      view.dom.addEventListener('editor:image-user-input', markUserInput);
-      view.dom.addEventListener('editor:block-user-input', markUserInput);
-      document.addEventListener('paste', markScopedUserInput, { capture: true });
-      document.addEventListener('cut', markScopedUserInput, { capture: true });
-      document.addEventListener('drop', markScopedUserInput, { capture: true });
-      const blockPositionController = createCurrentEditorBlockPositionController(view);
-      setCurrentMarkdownRuntime({ parser, serializer: liveSerializer });
-      activatedEditorRef.current = editor;
-      activationCleanupRef.current = () => {
+      let blockPositionController: ReturnType<typeof createCurrentEditorBlockPositionController> | null = null;
+      cleanupPartialActivation = () => {
         document.removeEventListener('beforeinput', markScopedUserInput, { capture: true });
         document.removeEventListener('keydown', markScopedUserInput, { capture: true });
         document.removeEventListener('compositionstart', markScopedUserInput, { capture: true });
@@ -152,7 +157,7 @@ export function useMilkdownEditorActivation(args: {
         document.removeEventListener('paste', markScopedUserInput, { capture: true });
         document.removeEventListener('cut', markScopedUserInput, { capture: true });
         document.removeEventListener('drop', markScopedUserInput, { capture: true });
-        blockPositionController.destroy();
+        blockPositionController?.destroy();
         if (getCurrentEditorView() === view) {
           setCurrentEditorView(null);
           setCurrentEditorBlockSelectionClearer(null);
@@ -160,18 +165,41 @@ export function useMilkdownEditorActivation(args: {
           clearCurrentMarkdownRuntime();
         }
       };
-    } catch {
+      document.addEventListener('beforeinput', markScopedUserInput, { capture: true });
+      document.addEventListener('keydown', markScopedUserInput, { capture: true });
+      document.addEventListener('compositionstart', markScopedUserInput, { capture: true });
+      document.addEventListener('compositionend', markScopedUserInput, { capture: true });
+      document.addEventListener('pointerdown', markScopedUserInput, { capture: true });
+      document.addEventListener('mousedown', markScopedUserInput, { capture: true });
+      view.dom.addEventListener('editor:image-user-input', markUserInput);
+      view.dom.addEventListener('editor:block-user-input', markUserInput);
+      document.addEventListener('paste', markScopedUserInput, { capture: true });
+      document.addEventListener('cut', markScopedUserInput, { capture: true });
+      document.addEventListener('drop', markScopedUserInput, { capture: true });
+      blockPositionController = createCurrentEditorBlockPositionController(view);
+      setCurrentMarkdownRuntime({ parser, serializer: liveSerializer });
+      activatedEditorRef.current = editor;
+      activationCleanupRef.current = cleanupPartialActivation;
+      cleanupPartialActivation = null;
+    } catch (error) {
+      try {
+        cleanupPartialActivation?.();
+      } catch {
+        // Preserve the activation error.
+      }
       if (activatedView && getCurrentEditorView() === activatedView) {
         setCurrentEditorView(null);
         setCurrentEditorBlockSelectionClearer(null);
         clearCurrentEditorBlockPositionSnapshot();
         clearCurrentMarkdownRuntime();
       }
+      onEditorActivationFailure?.(error);
     }
   }, [
     cleanupActivatedEditor,
     createUserInputMarker,
     currentNotePath,
+    onEditorActivationFailure,
   ]);
 
 

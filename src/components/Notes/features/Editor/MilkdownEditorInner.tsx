@@ -41,8 +41,13 @@ export {
 interface MilkdownEditorInnerProps {
   active?: boolean;
   showBodyLineNumbers?: boolean;
-  onEditorContentSyncFailure?: () => void;
+  onEditorContentSyncFailure?: (error?: unknown) => void;
+  onEditorActivationFailure?: (error: unknown) => void;
   onEditorViewReady?: () => void;
+}
+
+interface MilkdownEditorRuntimeProps extends MilkdownEditorInnerProps {
+  onEditorCreationFailure?: (error: unknown) => void;
 }
 
 const NOTE_SCROLL_ROOT_SELECTOR = '[data-note-scroll-root="true"]';
@@ -60,14 +65,17 @@ export function MilkdownEditorRuntime({
   active = true,
   showBodyLineNumbers = false,
   onEditorContentSyncFailure,
+  onEditorCreationFailure,
+  onEditorActivationFailure,
   onEditorViewReady,
-}: MilkdownEditorInnerProps) {
+}: MilkdownEditorRuntimeProps) {
   return (
-    <MilkdownProvider>
+    <MilkdownProvider onError={onEditorCreationFailure}>
       <MilkdownEditorInner
         active={active}
         showBodyLineNumbers={showBodyLineNumbers}
         onEditorContentSyncFailure={onEditorContentSyncFailure}
+        onEditorActivationFailure={onEditorActivationFailure}
         onEditorViewReady={onEditorViewReady}
       />
     </MilkdownProvider>
@@ -78,6 +86,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   active = true,
   showBodyLineNumbers = false,
   onEditorContentSyncFailure,
+  onEditorActivationFailure,
   onEditorViewReady,
 }: MilkdownEditorInnerProps) {
   const updateContent = useNotesStore(s => s.updateContent);
@@ -105,6 +114,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
   const isDraftNote = isDraftNotePath(currentNotePath);
   const onEditorViewReadyRef = useRef(onEditorViewReady);
   const activeRef = useRef(active);
+  activeRef.current = active;
   const readyReportedRef = useRef<{
     content: string;
     diskRevision: number;
@@ -173,6 +183,9 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
 
   useEffect(() => {
     activeRef.current = active;
+    return () => {
+      activeRef.current = false;
+    };
   }, [active]);
 
   useEffect(() => {
@@ -232,6 +245,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     currentNoteDiskRevision,
     currentNotePath,
     onEditorViewReadyRef,
+    onEditorActivationFailure,
     readyReportedRef,
     setActivatedRevision,
   });

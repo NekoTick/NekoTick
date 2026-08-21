@@ -221,4 +221,38 @@ describe('useMilkdownExternalContentSync', () => {
     });
     expect(reportEditorContentSyncFailure).toHaveBeenCalledTimes(1);
   });
+
+  it('reports the actual synchronization error after the retry fails', () => {
+    vi.useFakeTimers();
+    const failure = new Error('Unsupported markdown node');
+    const { editor, view } = createEditorHarness('# Previous');
+    view.composing = false;
+    editor.action.mockImplementation(() => {
+      throw failure;
+    });
+    const reportEditorContentSyncFailure = vi.fn();
+    const lastAppliedNoteRef = {
+      current: { path: 'small.md', diskRevision: 1, content: '# Previous' },
+    };
+
+    renderHook(() => useMilkdownExternalContentSync({
+      activatedRevision: 1,
+      canSyncContent: true,
+      currentNoteContent: '# Broken',
+      currentNoteDiskRevision: 2,
+      currentNotePath: 'small.md',
+      get: () => editor,
+      lastAppliedNoteRef,
+      reportEditorContentSyncFailure,
+      reportEditorReady: vi.fn(),
+      shouldPreserveLiveEditorContent: () => false,
+    }));
+
+    expect(reportEditorContentSyncFailure).not.toHaveBeenCalled();
+    act(() => {
+      vi.advanceTimersToNextTimer();
+    });
+
+    expect(reportEditorContentSyncFailure).toHaveBeenCalledWith(failure);
+  });
 });

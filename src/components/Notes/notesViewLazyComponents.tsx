@@ -1,4 +1,5 @@
 import { lazy } from 'react';
+import { retryDynamicImport } from '@/lib/retryDynamicImport';
 import { preloadMarkdownEditor } from './features/Editor/preloadMarkdownEditor';
 
 let embeddedChatViewModulePromise: Promise<typeof import('@/components/Chat/ChatView')> | null = null;
@@ -22,6 +23,6 @@ export const EmbeddedChatView = lazy(async () => {
 });
 
 export const MarkdownEditor = lazy(async () => {
-  const mod = await preloadMarkdownEditor();
+  const mod = await retryDynamicImport(preloadMarkdownEditor);
   return { default: mod.MarkdownEditor };
 });

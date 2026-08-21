@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ErrorInfo } from 'react';
 import { OverlayScrollArea } from '@/components/ui/overlay-scroll-area';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { useNotesStore } from '@/stores/useNotesStore';
@@ -29,6 +29,7 @@ import {
 import { getNoteMetadataEntry } from '@/stores/notes/noteMetadataState';
 import { themeEditorLayoutTokens, themeRenderingTokens } from '@/styles/themeTokens';
 import { focusEditorFromNoteUpperBlankArea } from './utils/focusEditorFromNoteUpperBlankArea';
+import { reportNotesEditorFailure } from './editorFailureDiagnostics';
 import 'katex/dist/katex.min.css';
 import './styles/index.css';
 
@@ -149,11 +150,28 @@ export function MarkdownEditor({
   } = useMarkdownEditorSourceMode({
     currentNotePath,
     hasActiveNote,
+    onEditorFailure: reportNotesEditorFailure,
     onEditorViewReady,
     onModeSwitchStart: handleModeSwitchStart,
     onModeSwitchLayoutReady: handleModeSwitchLayoutReady,
     scrollRootRef,
   });
+  const handleEditorRenderError = useCallback((error: Error, info: ErrorInfo) => {
+    handleRenderedEditorFailure({
+      reason: 'render-error',
+      error,
+      componentStack: info.componentStack ?? undefined,
+    });
+  }, [handleRenderedEditorFailure]);
+  const handleEditorContentSyncFailure = useCallback((error?: unknown) => {
+    handleRenderedEditorFailure({ reason: 'content-sync', error });
+  }, [handleRenderedEditorFailure]);
+  const handleEditorCreationFailure = useCallback((error: unknown) => {
+    handleRenderedEditorFailure({ reason: 'creation-error', error });
+  }, [handleRenderedEditorFailure]);
+  const handleEditorActivationFailure = useCallback((error: unknown) => {
+    handleRenderedEditorFailure({ reason: 'activation-error', error });
+  }, [handleRenderedEditorFailure]);
   useEffect(() => {
     onEditorModeChange?.(
       isSourceMode ? 'source' : shouldUseSourceFallback ? 'fallback' : 'rendered',
@@ -272,7 +290,7 @@ export function MarkdownEditor({
                     />
                   ) : (
                     <ErrorBoundary
-                      onError={handleRenderedEditorFailure}
+                      onError={handleEditorRenderError}
                       resetKey={currentNotePath}
                       fallback={(
                         <MarkdownSourceFallback
@@ -287,7 +305,9 @@ export function MarkdownEditor({
                       <MilkdownEditorRuntime
                         active={active}
                         showBodyLineNumbers={showBodyLineNumbers}
-                        onEditorContentSyncFailure={handleRenderedEditorFailure}
+                        onEditorContentSyncFailure={handleEditorContentSyncFailure}
+                        onEditorCreationFailure={handleEditorCreationFailure}
+                        onEditorActivationFailure={handleEditorActivationFailure}
                         onEditorViewReady={handleEditorViewReady}
                       />
                     </ErrorBoundary>
