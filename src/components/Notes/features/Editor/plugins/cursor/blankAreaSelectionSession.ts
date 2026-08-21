@@ -1,3 +1,4 @@
+import { normalizeWheelDelta } from '@/lib/scroll/wheelScroll';
 import {
   resolveBlankAreaPlainClickAction,
 } from './blankAreaPlainClick';
@@ -358,6 +359,29 @@ export function startBlankAreaSelectionSession(
     renderSelectionPreview();
   };
   const handleNativeScrollWhileDragging = () => handleScrollWhileDragging();
+  const handleWheelWhileDragging = (wheelEvent: WheelEvent) => {
+    if (!scrollRoot) return;
+    const canScrollY = scrollRoot.scrollHeight > scrollRoot.clientHeight;
+    const canScrollX = scrollRoot.scrollWidth > scrollRoot.clientWidth;
+    if (!canScrollY && !canScrollX) return;
+
+    const deltaY = normalizeWheelDelta(
+      wheelEvent.deltaY,
+      wheelEvent.deltaMode,
+      scrollRoot.clientHeight,
+    );
+    const deltaX = normalizeWheelDelta(
+      wheelEvent.deltaX,
+      wheelEvent.deltaMode,
+      scrollRoot.clientWidth,
+    );
+    if (deltaY === 0 && deltaX === 0) return;
+
+    wheelEvent.preventDefault();
+    if (canScrollY && deltaY !== 0) scrollRoot.scrollTop += deltaY;
+    if (canScrollX && deltaX !== 0) scrollRoot.scrollLeft += deltaX;
+    handleScrollWhileDragging();
+  };
 
   const initialScrollRootRect = getInteractionCachedEditorGeometry(view)?.scrollRootRect;
   const autoScroll = createVerticalEdgeAutoScroll({
@@ -391,6 +415,7 @@ export function startBlankAreaSelectionSession(
     cursor,
     cursorRoot: scrollRoot,
     onActivate() {
+      doc.addEventListener('wheel', handleWheelWhileDragging, { capture: true, passive: false });
       autoScroll.start();
       dragBox = createDragBox(doc, dragBoxColor);
       doc.body.appendChild(dragBox);
@@ -479,6 +504,7 @@ export function startBlankAreaSelectionSession(
       resizeObserver = null;
       observedPreviewSurfaceElements.clear();
       previewSurfaceRangesByElement.clear();
+      doc.removeEventListener('wheel', handleWheelWhileDragging, true);
       scrollRoot?.removeEventListener('scroll', handleNativeScrollWhileDragging);
       autoScroll.stop();
       selectionResolver.invalidateGeometryCache();
