@@ -23,6 +23,7 @@ function renderImageContent(overrides: Partial<Parameters<typeof ImageContent>[0
     resolvedSrc: 'https://example.com/image.png',
     isRemoteImageSource: true,
     isDeferred: false,
+    isNearViewport: true,
     cropParams: null,
     containerSize: { width: 320, height: 180 },
     isSaving: false,
@@ -78,8 +79,8 @@ describe('ImageContent', () => {
     expect(image).toHaveClass('opacity-[var(--vlaina-opacity-100)]');
   });
 
-  it('keeps a newly loaded remote image out of layout until scrolling settles', () => {
-    const { container, props } = renderImageContent();
+  it('keeps a newly loaded offscreen remote image out of layout until scrolling settles', () => {
+    const { container, props } = renderImageContent({ isNearViewport: false });
     container.dataset.noteScrollRoot = 'true';
     container.dataset.overlayScrollbarInteracting = 'true';
     const image = container.querySelector('img');
@@ -98,6 +99,38 @@ describe('ImageContent', () => {
     expect(screen.queryByTestId('remote-image-placeholder')).toBeNull();
     expect(image).toHaveClass('block', 'h-auto');
     expect(props.onMediaLoaded).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a newly loaded near-viewport remote image before scrolling settles', () => {
+    const { container, props } = renderImageContent();
+    container.dataset.noteScrollRoot = 'true';
+    container.dataset.overlayScrollbarInteracting = 'true';
+    const image = container.querySelector('img');
+
+    fireEvent.load(image!);
+
+    expect(screen.queryByTestId('remote-image-placeholder')).toBeNull();
+    expect(image).toHaveClass('block', 'h-auto');
+    expect(props.onMediaLoaded).toHaveBeenCalledTimes(1);
+    expect(container.dataset.overlayScrollbarInteracting).toBe('true');
+  });
+
+  it('shows a loaded remote image when it reaches the viewport during scrolling', () => {
+    const { container, props, rerender } = renderImageContent({ isNearViewport: false });
+    container.dataset.noteScrollRoot = 'true';
+    container.dataset.overlayScrollbarInteracting = 'true';
+    const image = container.querySelector('img');
+
+    fireEvent.load(image!);
+    expect(screen.getByTestId('remote-image-placeholder')).toBeInTheDocument();
+    expect(props.onMediaLoaded).not.toHaveBeenCalled();
+
+    rerender(<ImageContent {...props} isNearViewport />);
+
+    expect(screen.queryByTestId('remote-image-placeholder')).toBeNull();
+    expect(image).toHaveClass('block', 'h-auto');
+    expect(props.onMediaLoaded).toHaveBeenCalledTimes(1);
+    expect(container.dataset.overlayScrollbarInteracting).toBe('true');
   });
 
   it('shows the localized not found state when a plain remote image fails to load', () => {

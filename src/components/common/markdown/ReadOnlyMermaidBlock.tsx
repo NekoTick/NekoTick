@@ -90,13 +90,13 @@ export async function resolveReadOnlyMermaidMarkup(
     consumer,
     group: READONLY_MERMAID_RENDER_GROUP,
     priority,
-    render: () => renderReadOnlyMermaid(code),
+    render: () => renderReadOnlyMermaid(code, priority),
   });
 }
 
-async function renderReadOnlyMermaid(code: string) {
+async function renderReadOnlyMermaid(code: string, priority: MermaidRenderPriority) {
   try {
-    const markup = await renderMermaidMarkup(code, generateMermaidId());
+    const markup = await renderMermaidMarkup(code, generateMermaidId(), priority);
     return sanitizeMermaidMarkup(markup);
   } catch {
     return sanitizeMermaidMarkup(mermaidRenderErrorMarkup());
@@ -113,18 +113,23 @@ export function ReadOnlyMermaidBlock({ code }: ReadOnlyMermaidBlockProps) {
   const diagramType = useMemo(() => getMermaidDiagramType(normalizedCode), [normalizedCode]);
   const renderConsumer = useMemo(() => ({}), []);
   const blockRef = useRef<HTMLDivElement>(null);
+  const canObserveViewport = typeof window !== 'undefined'
+    && typeof IntersectionObserver !== 'undefined';
   const [renderPriority, setRenderPriority] = useState<MermaidRenderPriority>('background');
-  const [shouldRender, setShouldRender] = useState(
-    () => typeof window === 'undefined' || typeof IntersectionObserver === 'undefined',
-  );
+  const [isNearViewport, setIsNearViewport] = useState(() => !canObserveViewport);
   const [markup, setMarkup] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
     setMarkup(null);
     setFailed(false);
-    if (!normalizedCode || !shouldRender) {
+    setRenderPriority('background');
+    setIsNearViewport(!canObserveViewport);
+  }, [canObserveViewport, language, normalizedCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!normalizedCode || !isNearViewport || markup || failed) {
       return;
     }
 
@@ -134,7 +139,7 @@ export function ReadOnlyMermaidBlock({ code }: ReadOnlyMermaidBlockProps) {
       renderConsumer,
       renderPriority,
     ).then(async (nextMarkup) => {
-      await waitForMermaidInteractionIdle();
+      await waitForMermaidInteractionIdle(renderPriority);
       if (cancelled) return;
       if (!nextMarkup) {
         setFailed(true);
@@ -151,46 +156,30 @@ export function ReadOnlyMermaidBlock({ code }: ReadOnlyMermaidBlockProps) {
       cancelled = true;
       releaseMermaidMarkupConsumer(renderConsumer);
     };
-  }, [language, normalizedCode, renderConsumer, renderPriority, shouldRender]);
+  }, [failed, isNearViewport, language, markup, normalizedCode, renderConsumer, renderPriority]);
 
   useEffect(() => {
     const block = blockRef.current;
     if (
       !block
       || !normalizedCode
-      || shouldRender
+      || markup
+      || failed
       || typeof IntersectionObserver === 'undefined'
     ) {
       return;
     }
-    let isIntersecting = false;
-    let waitingForIdle = false;
-    let cancelled = false;
-
-    const renderIfStillIntersecting = async () => {
-      if (!isIntersecting || waitingForIdle) return;
-      waitingForIdle = true;
-      await waitForMermaidInteractionIdle();
-      waitingForIdle = false;
-      if (cancelled || !isIntersecting) return;
-
-      observer.disconnect();
-      setRenderPriority('interactive');
-      setShouldRender(true);
-    };
     const observer = new IntersectionObserver((entries) => {
       const entry = entries.find((candidate) => candidate.target === block) ?? entries.at(-1);
-      isIntersecting = entry?.isIntersecting ?? false;
-      void renderIfStillIntersecting();
+      const isIntersecting = entry?.isIntersecting ?? false;
+      if (isIntersecting) setRenderPriority('interactive');
+      setIsNearViewport(isIntersecting);
     }, {
       scrollMargin: themeLazyLoadTokens.mermaidPreloadMargin,
     });
     observer.observe(block);
-    return () => {
-      cancelled = true;
-      observer.disconnect();
-    };
-  }, [normalizedCode, shouldRender]);
+    return () => observer.disconnect();
+  }, [failed, markup, normalizedCode]);
 
   if (!normalizedCode) {
     return (

@@ -81,6 +81,14 @@ describe('useNearViewport', () => {
             vi.advanceTimersByTime(1);
         });
         expect(result.current).toEqual({
+            isNearViewport: false,
+            shouldLoadImage: true,
+        });
+
+        act(() => {
+            callbacks[0]?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+        });
+        expect(result.current).toEqual({
             isNearViewport: true,
             shouldLoadImage: true,
         });
@@ -99,7 +107,7 @@ describe('useNearViewport', () => {
             vi.advanceTimersByTime(nearViewportTesting.BACKGROUND_LOAD_START_DELAY_MS);
         });
         expect(result.current).toEqual({
-            isNearViewport: true,
+            isNearViewport: false,
             shouldLoadImage: true,
         });
     });
@@ -116,7 +124,7 @@ describe('useNearViewport', () => {
         });
 
         expect(hooks.slice(0, nearViewportTesting.BACKGROUND_LOAD_BATCH_SIZE).every((hook) => (
-            hook.result.current.shouldLoadImage && hook.result.current.isNearViewport
+            hook.result.current.shouldLoadImage && !hook.result.current.isNearViewport
         ))).toBe(true);
         expect(hooks[hookCount - 1].result.current).toEqual({
             isNearViewport: false,
@@ -128,7 +136,7 @@ describe('useNearViewport', () => {
         });
 
         expect(hooks[hookCount - 1].result.current).toEqual({
-            isNearViewport: true,
+            isNearViewport: false,
             shouldLoadImage: true,
         });
     });

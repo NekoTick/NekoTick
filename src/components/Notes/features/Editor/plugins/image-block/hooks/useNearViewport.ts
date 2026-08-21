@@ -124,7 +124,7 @@ export function useNearViewport(targetRef: RefObject<Element | null>): NearViewp
         });
 
         observer.observe(target);
-        cancelBackgroundLoad = enqueueBackgroundLoad(resolveNearViewport);
+        cancelBackgroundLoad = enqueueBackgroundLoad(resolveImageLoad);
 
         return () => {
             hasResolvedViewport = true;

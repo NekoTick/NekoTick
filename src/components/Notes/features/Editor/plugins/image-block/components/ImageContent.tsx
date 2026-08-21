@@ -42,6 +42,7 @@ interface ImageContentProps {
     resolvedSrc?: string;
     isRemoteImageSource: boolean;
     isDeferred: boolean;
+    isNearViewport: boolean;
     cropParams: CropParams | null;
     containerSize: { width: number; height: number };
     isSaving: boolean;
@@ -62,6 +63,7 @@ export const ImageContent = ({
     resolvedSrc,
     isRemoteImageSource,
     isDeferred,
+    isNearViewport,
     cropParams,
     containerSize,
     isSaving,
@@ -76,28 +78,42 @@ export const ImageContent = ({
     const { t } = useI18n();
     const [mediaError, setMediaError] = useState(false);
     const [isImageLoaded, setIsImageLoaded] = useState(() => hasLoadedImageSrc(resolvedSrc));
-    const pendingRemoteLoadCleanupRef = useRef<(() => void) | null>(null);
+    const pendingRemoteLoadRef = useRef<{
+        cleanup: () => void;
+        commit: () => void;
+    } | null>(null);
 
     useEffect(() => {
-        pendingRemoteLoadCleanupRef.current?.();
-        pendingRemoteLoadCleanupRef.current = null;
+        pendingRemoteLoadRef.current?.cleanup();
+        pendingRemoteLoadRef.current = null;
         setMediaError(false);
         setIsImageLoaded(hasLoadedImageSrc(resolvedSrc));
         onMediaErrorChange?.(false);
         return () => {
-            pendingRemoteLoadCleanupRef.current?.();
-            pendingRemoteLoadCleanupRef.current = null;
+            pendingRemoteLoadRef.current?.cleanup();
+            pendingRemoteLoadRef.current = null;
         };
     }, [onMediaErrorChange, resolvedSrc]);
 
+    useEffect(() => {
+        if (!isNearViewport) return;
+        const pendingLoad = pendingRemoteLoadRef.current;
+        if (!pendingLoad) return;
+        pendingRemoteLoadRef.current = null;
+        pendingLoad.cleanup();
+        pendingLoad.commit();
+    }, [isNearViewport]);
+
     const handleMediaError = useCallback(() => {
-        pendingRemoteLoadCleanupRef.current?.();
-        pendingRemoteLoadCleanupRef.current = null;
+        pendingRemoteLoadRef.current?.cleanup();
+        pendingRemoteLoadRef.current = null;
         setMediaError(true);
         onMediaErrorChange?.(true);
     }, [onMediaErrorChange]);
 
     const handleRemoteMediaLoaded = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+        pendingRemoteLoadRef.current?.cleanup();
+        pendingRemoteLoadRef.current = null;
         const image = event.currentTarget;
         const media = {
             width: image.width,
@@ -106,29 +122,37 @@ export const ImageContent = ({
             naturalHeight: image.naturalHeight,
         };
         const commit = () => {
-            pendingRemoteLoadCleanupRef.current = null;
             rememberLoadedImageSrc(resolvedSrc);
             setIsImageLoaded(true);
             onMediaLoaded(media);
         };
         const scrollRoot = image.closest<HTMLElement>('[data-note-scroll-root="true"]');
         const ownerWindow = image.ownerDocument.defaultView;
-        if (scrollRoot?.dataset.overlayScrollbarInteracting !== 'true' || !ownerWindow) {
+        if (
+            isNearViewport
+            || scrollRoot?.dataset.overlayScrollbarInteracting !== 'true'
+            || !ownerWindow
+        ) {
             commit();
             return;
         }
 
         const handleScrollIdle = () => {
             if (scrollRoot.dataset.overlayScrollbarInteracting === 'true') return;
-            ownerWindow.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
-            commit();
+            const pendingLoad = pendingRemoteLoadRef.current;
+            if (!pendingLoad) return;
+            pendingRemoteLoadRef.current = null;
+            pendingLoad.cleanup();
+            pendingLoad.commit();
         };
-        pendingRemoteLoadCleanupRef.current?.();
-        pendingRemoteLoadCleanupRef.current = () => {
-            ownerWindow.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
+        pendingRemoteLoadRef.current = {
+            cleanup: () => {
+                ownerWindow.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
+            },
+            commit,
         };
         ownerWindow.addEventListener(OVERLAY_SCROLL_IDLE_EVENT, handleScrollIdle);
-    }, [onMediaLoaded, resolvedSrc]);
+    }, [isNearViewport, onMediaLoaded, resolvedSrc]);
 
     const shouldRenderPlainRemoteImage = isRemoteImageSource && !isActive && !cropParams;
     const shouldRenderCropPreview = !isActive && !!cropParams;

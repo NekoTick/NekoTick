@@ -24,7 +24,19 @@ vi.mock('@/components/Chat/features/Markdown/components/ChatImageViewer', () => 
 }));
 
 vi.mock('./components/ImageContent', () => ({
-    ImageContent: () => <div data-testid="notes-image-content" />,
+    ImageContent: ({
+        isDeferred,
+        isNearViewport,
+    }: {
+        isDeferred: boolean;
+        isNearViewport: boolean;
+    }) => (
+        <div
+            data-testid="notes-image-content"
+            data-deferred={isDeferred ? 'true' : 'false'}
+            data-near-viewport={isNearViewport ? 'true' : 'false'}
+        />
+    ),
 }));
 
 vi.mock('./components/ImageDragOverlay', () => ({
@@ -138,6 +150,18 @@ function renderImageBlock(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ImageBlockView', () => {
+    it('renders a background-preloaded image while retaining its viewport priority', () => {
+        mocks.useNearViewport.mockReturnValueOnce({
+            isNearViewport: false,
+            shouldLoadImage: true,
+        });
+
+        renderImageBlock();
+
+        expect(screen.getByTestId('notes-image-content')).toHaveAttribute('data-deferred', 'false');
+        expect(screen.getByTestId('notes-image-content')).toHaveAttribute('data-near-viewport', 'false');
+    });
+
     it('marks the outer wrapper as the selected-image background layer', () => {
         renderImageBlock();
 

@@ -22,18 +22,36 @@ const queue: MermaidRenderQueueEntry[] = [];
 const activeByGroup = new Map<string, number>();
 let activeCount = 0;
 let activeBackgroundCount = 0;
+let activeInteractiveCount = 0;
 let drainTimer: ReturnType<typeof setTimeout> | null = null;
 let waitingForInteractionEnd = false;
-let interactionIdlePromise: Promise<void> | null = null;
+const interactionIdlePromises = new Map<MermaidRenderPriority, Promise<void>>();
+const scrollInteractionSelector = '[data-overlay-scrollbar-interacting="true"]';
+const blockingInteractionSelector = [
+  '[data-editor-pointer-selecting="true"]',
+  '[data-layout-panel-dragging="true"]',
+  '.editor-block-selection-pending',
+  '[data-editor-block-selection-pending="true"]',
+].join(', ');
+const allInteractionSelector = `${scrollInteractionSelector}, ${blockingInteractionSelector}`;
 
-function isInteractionActive() {
-  return typeof document !== 'undefined' && Boolean(document.querySelector([
-    '[data-overlay-scrollbar-interacting="true"]',
-    '[data-editor-pointer-selecting="true"]',
-    '[data-layout-panel-dragging="true"]',
-    '.editor-block-selection-pending',
-    '[data-editor-block-selection-pending="true"]',
-  ].join(', ')));
+function getInteractionState() {
+  if (typeof document === 'undefined') {
+    return { blocking: false, scrolling: false };
+  }
+  const activeElement = document.querySelector(allInteractionSelector);
+  if (!activeElement) return { blocking: false, scrolling: false };
+  const isBlocking = activeElement.matches(blockingInteractionSelector);
+  const isScrolling = activeElement.matches(scrollInteractionSelector);
+  return {
+    blocking: isBlocking || document.querySelector(blockingInteractionSelector) !== null,
+    scrolling: isScrolling || document.querySelector(scrollInteractionSelector) !== null,
+  };
+}
+
+function isInteractionActive(priority: MermaidRenderPriority) {
+  const interaction = getInteractionState();
+  return interaction.blocking || (priority === 'background' && interaction.scrolling);
 }
 
 function stopWaitingForInteractionEnd() {
@@ -47,8 +65,10 @@ function stopWaitingForInteractionEnd() {
 
 function handleInteractionEnd() {
   setTimeout(() => {
-    if (isInteractionActive()) return;
-    stopWaitingForInteractionEnd();
+    const interaction = getInteractionState();
+    if (!interaction.blocking && !interaction.scrolling) {
+      stopWaitingForInteractionEnd();
+    }
     drain();
   }, 0);
 }
@@ -62,19 +82,22 @@ function waitForInteractionEnd() {
   waitingForInteractionEnd = true;
 }
 
-export function waitForMermaidInteractionIdle() {
-  if (!isInteractionActive()) return Promise.resolve();
-  if (interactionIdlePromise) return interactionIdlePromise;
+export function waitForMermaidInteractionIdle(
+  priority: MermaidRenderPriority = 'background',
+) {
+  if (!isInteractionActive(priority)) return Promise.resolve();
+  const existingPromise = interactionIdlePromises.get(priority);
+  if (existingPromise) return existingPromise;
 
-  interactionIdlePromise = new Promise<void>((resolve) => {
+  const idlePromise = new Promise<void>((resolve) => {
     const finish = () => {
       setTimeout(() => {
-        if (isInteractionActive()) return;
+        if (isInteractionActive(priority)) return;
         window.removeEventListener(OVERLAY_SCROLL_IDLE_EVENT, finish);
         window.removeEventListener('mouseup', finish);
         window.removeEventListener('pointerup', finish);
         window.removeEventListener('blur', finish);
-        interactionIdlePromise = null;
+        interactionIdlePromises.delete(priority);
         resolve();
       }, 0);
     };
@@ -83,7 +106,8 @@ export function waitForMermaidInteractionIdle() {
     window.addEventListener('pointerup', finish);
     window.addEventListener('blur', finish);
   });
-  return interactionIdlePromise;
+  interactionIdlePromises.set(priority, idlePromise);
+  return idlePromise;
 }
 
 function canStart(entry: MermaidRenderQueueEntry | undefined) {
@@ -106,28 +130,42 @@ function drain() {
     stopWaitingForInteractionEnd();
     return;
   }
-  if (drainTimer !== null || !canStart(queue[0]) || waitingForInteractionEnd) return;
+  if (drainTimer !== null || !canStart(queue[0])) return;
 
   drainTimer = setTimeout(() => {
     drainTimer = null;
-    if (isInteractionActive()) {
+    const entry = queue[0];
+    const interaction = getInteractionState();
+    if (
+      interaction.blocking
+      || (entry?.priority === 'background' && interaction.scrolling)
+    ) {
+      waitForInteractionEnd();
+      return;
+    }
+    if (
+      entry?.priority === 'interactive'
+      && interaction.scrolling
+      && activeInteractiveCount > 0
+    ) {
       waitForInteractionEnd();
       return;
     }
 
-    const entry = queue[0];
     if (!canStart(entry)) return;
     queue.shift();
     entry.state = 'active';
     activeCount += 1;
     activeByGroup.set(entry.group, (activeByGroup.get(entry.group) ?? 0) + 1);
     if (entry.priority === 'background') activeBackgroundCount += 1;
+    else activeInteractiveCount += 1;
 
     void entry.run().finally(() => {
       entry.state = 'settled';
       activeCount -= 1;
       activeByGroup.set(entry.group, Math.max(0, (activeByGroup.get(entry.group) ?? 1) - 1));
       if (entry.priority === 'background') activeBackgroundCount -= 1;
+      else activeInteractiveCount -= 1;
       drain();
     });
     drain();

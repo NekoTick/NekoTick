@@ -125,13 +125,15 @@ describe('mermaidEditorLivePreview', () => {
 
     await waitFor(() => {
       expect(renderMermaid).toHaveBeenCalledTimes(1);
-      expect(disconnect).toHaveBeenCalled();
     });
-    expect(element.dataset.mermaidLazy).toBeUndefined();
+    expect(disconnect).not.toHaveBeenCalled();
+    expect(element.dataset.mermaidLazy).toBe('true');
     finishRender('<svg data-rendered="preloaded"></svg>');
     await waitFor(() => {
       expect(element.querySelector('svg, .mermaid-error')).not.toBeNull();
+      expect(disconnect).toHaveBeenCalled();
     });
+    expect(element.dataset.mermaidLazy).toBeUndefined();
   });
 
   it('defers background markup commits while a layout panel is dragging', async () => {
@@ -212,7 +214,7 @@ describe('mermaidEditorLivePreview', () => {
     }
   });
 
-  it('waits for active note scrolling before starting a visible lazy render', async () => {
+  it('renders a near-viewport Mermaid block before active note scrolling settles', async () => {
     let observerCallback: IntersectionObserverCallback = () => undefined;
     class TestIntersectionObserver {
       constructor(callback: IntersectionObserverCallback) {
@@ -234,16 +236,16 @@ describe('mermaidEditorLivePreview', () => {
     document.body.appendChild(scrollRoot);
     vi.mocked(renderMermaid).mockClear();
 
-    createMermaidElement('sequenceDiagram\nAlice->Bob: wait for scroll');
+    const element = createMermaidElement('sequenceDiagram\nAlice->Bob: render during scroll');
     observerCallback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
-
-    expect(renderMermaid).not.toHaveBeenCalled();
-    delete scrollRoot.dataset.overlayScrollbarInteracting;
-    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
 
     await waitFor(() => {
       expect(renderMermaid).toHaveBeenCalledTimes(1);
+      expect(element.querySelector('svg')).not.toBeNull();
     });
+    expect(scrollRoot.dataset.overlayScrollbarInteracting).toBe('true');
+    delete scrollRoot.dataset.overlayScrollbarInteracting;
+    window.dispatchEvent(new Event(OVERLAY_SCROLL_IDLE_EVENT));
   });
 
   it('does not render an offscreen diagram passed during active scrolling', async () => {
