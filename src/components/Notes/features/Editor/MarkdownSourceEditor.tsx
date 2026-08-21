@@ -52,6 +52,7 @@ export function MarkdownSourceEditor({
   const draftRef = useRef(currentNoteContent);
   const committedDraftRef = useRef(currentNoteContent);
   const draftBaseContentRef = useRef(currentNoteContent);
+  const hasSyncedCurrentContentRef = useRef(false);
   const lastFlushedSourceDraftRef = useRef<{ path: string; markdown: string }>({
     path: currentNotePath,
     markdown: currentNoteContent,
@@ -185,7 +186,11 @@ export function MarkdownSourceEditor({
       path: currentNotePath,
       markdown: currentNoteContent,
     };
-    scheduleTextareaResize();
+    if (hasSyncedCurrentContentRef.current) {
+      scheduleTextareaResize();
+    } else {
+      hasSyncedCurrentContentRef.current = true;
+    }
   }, [currentNoteContent, currentNotePath, scheduleTextareaResize, syncSourceHistoryContent]);
 
   useEffect(() => {

@@ -5,19 +5,20 @@ import { themeEditorLayoutTokens } from '@/styles/themeTokens';
 import { flushCurrentEditorSave } from '../utils/editorSaveRegistry';
 import { NOTE_SOURCE_MODE_TOGGLE_EVENT } from '../sourceMode/sourceModeEvents';
 import type { NotesEditorFailure } from '../editorFailureDiagnostics';
+import {
+  captureSourceModeScrollAnchor,
+  restoreSourceModeScrollAnchor,
+  type MarkdownScrollAnchor,
+} from '../sourceMode/sourceModeScrollAnchor';
 
 type RenderedEditorFailure = Pick<NotesEditorFailure, 'reason' | 'error' | 'componentStack'>;
-
+type PendingScrollRestore = { anchor: MarkdownScrollAnchor | null; path: string; progress: number };
 interface EditorSessionTarget {
   active: boolean;
   path: string | undefined;
   revision: number;
 }
-
-function isSameEditorSession(
-  target: EditorSessionTarget | null,
-  session: EditorSessionTarget,
-) {
+function isSameEditorSession(target: EditorSessionTarget | null, session: EditorSessionTarget) {
   return target?.revision === session.revision;
 }
 
@@ -57,7 +58,7 @@ export function useMarkdownEditorSourceMode({
   const [editorReadyTarget, setEditorReadyTarget] = useState<EditorSessionTarget | null>(null);
   const [editorInitTimedOutTarget, setEditorInitTimedOutTarget] = useState<EditorSessionTarget | null>(null);
   const [isSourceMode, setIsSourceMode] = useState(false);
-  const pendingScrollRestoreRef = useRef<{ path: string; progress: number } | null>(null);
+  const pendingScrollRestoreRef = useRef<PendingScrollRestore | null>(null);
   const scrollRestoreTimeoutRef = useRef<number | null>(null);
   const modeSwitchPendingRef = useRef(false);
   const isEditorViewReady = isSameEditorSession(editorReadyTarget, editorSession);
@@ -80,14 +81,17 @@ export function useMarkdownEditorSourceMode({
       return;
     }
 
+    const didRestoreAnchor = pending.anchor
+      ? restoreSourceModeScrollAnchor(scrollRoot, isSourceMode ? 'source' : 'rendered', pending.anchor)
+      : false;
     const maxScrollTop = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
-    if (maxScrollTop > 0) {
+    if (!didRestoreAnchor && maxScrollTop > 0) {
       scrollRoot.scrollTop = pending.progress * maxScrollTop;
     }
     if (finish) {
       pendingScrollRestoreRef.current = null;
     }
-  }, [currentNotePath, scrollRootRef]);
+  }, [currentNotePath, isSourceMode, scrollRootRef]);
 
   const scheduleFinalScrollRestore = useCallback(() => {
     if (!modeSwitchPendingRef.current) {
@@ -182,6 +186,10 @@ export function useMarkdownEditorSourceMode({
       : 0;
     pendingScrollRestoreRef.current = currentNotePath && scrollRoot && maxScrollTop > 0
       ? {
+          anchor: captureSourceModeScrollAnchor(
+            scrollRoot,
+            isSourceMode ? 'source' : 'rendered',
+          ),
           path: currentNotePath,
           progress: Math.min(1, Math.max(0, scrollRoot.scrollTop / maxScrollTop)),
         }
@@ -194,22 +202,26 @@ export function useMarkdownEditorSourceMode({
       return;
     }
     setIsSourceMode((nextSourceMode) => !nextSourceMode);
-  }, [currentNotePath, onModeSwitchStart, scrollRootRef, shouldUseSourceFallback]);
+  }, [currentNotePath, isSourceMode, onModeSwitchStart, scrollRootRef, shouldUseSourceFallback]);
 
   useLayoutEffect(() => {
-    if (!pendingScrollRestoreRef.current) {
+    if (!modeSwitchPendingRef.current) {
       return;
     }
 
-    restorePendingScrollPosition();
+    if (pendingScrollRestoreRef.current) {
+      restorePendingScrollPosition();
+    }
+    if (isSourceMode) {
+      notifyModeSwitchLayoutReady();
+    }
     const frameId = window.requestAnimationFrame(() => {
       restorePendingScrollPosition();
     });
-
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [isSourceMode, restorePendingScrollPosition]);
+  }, [isSourceMode, notifyModeSwitchLayoutReady, restorePendingScrollPosition]);
 
   useEffect(() => () => {
     if (scrollRestoreTimeoutRef.current !== null) {
