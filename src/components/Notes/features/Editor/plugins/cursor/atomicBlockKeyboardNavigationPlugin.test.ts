@@ -2151,7 +2151,7 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.selection).toBeInstanceOf(TextSelection);
     expect(view.state.selection.$from.parent.type.name).toBe('heading');
-    expect(view.state.selection.$from.parentOffset).toBe('1'.length);
+    expect(view.state.selection.$from.parentOffset).toBe(view.state.selection.$from.parent.content.size);
 
     await editor.destroy();
   });
@@ -2351,6 +2351,35 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
     await editor.destroy();
   });
 
+  it.each(['Backspace', 'Delete'] as const)(
+    'places the cursor at the previous paragraph end after deleting a middle plain empty paragraph on %s',
+    async (key) => {
+      const editor = createEditor();
+      await editor.create();
+      const view = editor.ctx.get(editorViewCtx);
+      const { schema } = view.state;
+      replaceDocument(view, [
+        schema.nodes.paragraph.create(null, schema.text('1.2')),
+        schema.nodes.paragraph.create(),
+        schema.nodes.paragraph.create(null, schema.text('3.4')),
+      ]);
+
+      const emptyParagraphPos = view.state.doc.child(0).nodeSize;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, emptyParagraphPos + 1)));
+      const event = pressKey(view, key);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.childCount).toBe(2);
+      expect(view.state.doc.child(0).textContent).toBe('1.2');
+      expect(view.state.doc.child(1).textContent).toBe('3.4');
+      expect(view.state.selection).toBeInstanceOf(TextSelection);
+      expect(view.state.selection.$from.parent).toBe(view.state.doc.child(0));
+      expect(view.state.selection.$from.parentOffset).toBe('1.2'.length);
+
+      await editor.destroy();
+    },
+  );
+
   it('deletes an empty paragraph between ordered and task lists on Delete', async () => {
     const editor = createEditor();
     await editor.create();
@@ -2396,6 +2425,29 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
 
     await editor.destroy();
   });
+
+  it.each(['Backspace', 'Delete'] as const)(
+    'places the cursor at the preceding ordered-list item end when deleting the gap on %s',
+    async (key) => {
+      const editor = createEditor();
+      await editor.create();
+      const view = editor.ctx.get(editorViewCtx);
+      replaceWithOrderedListGapAndOrderedList(view);
+
+      const emptyParagraphPos = topLevelNodePos(view, 'paragraph');
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, emptyParagraphPos + 1)));
+      const event = pressKey(view, key);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.childCount).toBe(1);
+      expect(view.state.selection).toBeInstanceOf(TextSelection);
+      expect(view.state.selection.$from.parent.type.name).toBe('paragraph');
+      expect(view.state.selection.$from.parent.textContent).toBe('one');
+      expect(view.state.selection.$from.parentOffset).toBe('one'.length);
+
+      await editor.destroy();
+    },
+  );
 
   it('deletes an empty paragraph between ordered and task lists on Backspace', async () => {
     const editor = createEditor();

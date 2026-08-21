@@ -7,6 +7,7 @@ import {
 import {
   handleBackspaceAtParagraphStartAfterStructuralGap,
   handleDocumentBoundaryAtomicBlockDelete,
+  handleEmptyParagraphBetweenPlainParagraphsDelete,
   handleEmptyCodeBlockDelete,
   handleEmptyParagraphNearStructuralBlockDelete,
   shouldPreserveParagraphAfterCodeBlockOnBackspace,
@@ -101,6 +102,10 @@ export const atomicBlockKeyboardNavigationPlugin = $prose(() => {
         }
 
         if (handleDeleteAtLeadingHardBreakAfterHeading(view, event)) {
+          return true;
+        }
+
+        if (handleEmptyParagraphBetweenPlainParagraphsDelete(view, event)) {
           return true;
         }
 

@@ -137,17 +137,16 @@ function mergeAdjacentOrderedListsAcrossDeletedGap(
   };
 }
 
-function dispatchMergedOrderedListDelete(view: EditorView, tr: Transaction, secondListStart: number): void {
-  const selection = Selection.findFrom(
-    tr.doc.resolve(Math.min(secondListStart, tr.doc.content.size)),
-    1,
-    true
-  ) ?? Selection.findFrom(
-    tr.doc.resolve(Math.max(0, Math.min(secondListStart, tr.doc.content.size))),
-    -1,
-    true
-  );
-  view.dispatch((selection ? tr.setSelection(selection) : tr).scrollIntoView());
+function dispatchMergedOrderedListDelete(
+  view: EditorView,
+  tr: Transaction,
+  secondListStart: number,
+): void {
+  const boundary = Math.max(0, Math.min(secondListStart, tr.doc.content.size));
+  const cursorPos = Selection.findFrom(tr.doc.resolve(boundary), -1, true)?.$from.end();
+  view.dispatch((cursorPos === undefined
+    ? tr
+    : tr.setSelection(TextSelection.create(tr.doc, cursorPos))).scrollIntoView());
   view.focus();
 }
 
@@ -159,7 +158,11 @@ export function dispatchDeleteEmptyParagraphNearStructuralBlock(
   let tr = view.state.tr.delete(range.from, range.to);
   const mergedOrderedList = mergeAdjacentOrderedListsAcrossDeletedGap(tr, range.from);
   if (mergedOrderedList) {
-    dispatchMergedOrderedListDelete(view, mergedOrderedList.tr, mergedOrderedList.secondListStart);
+    dispatchMergedOrderedListDelete(
+      view,
+      mergedOrderedList.tr,
+      mergedOrderedList.secondListStart,
+    );
     return;
   }
 

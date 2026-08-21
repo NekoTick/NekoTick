@@ -63,6 +63,21 @@ function pressEnter(view: EditorView): boolean {
   return handled;
 }
 
+function pressDelete(view: EditorView): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', {
+    key: 'Delete',
+    bubbles: true,
+    cancelable: true,
+  });
+  let handled = false;
+  view.someProp('handleKeyDown', (handleKeyDown: any) => {
+    if (handled) return handled;
+    handled = handleKeyDown(view, event) || handled;
+    return handled;
+  });
+  return event;
+}
+
 function prepareEditorMarkdown(markdown: string): string {
   return preserveMarkdownBlankLinesForEditor(
     normalizeLeadingFrontmatterMarkdown(
@@ -128,6 +143,33 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('places the cursor at the previous paragraph end after deleting a middle blank line', async () => {
+    const editor = await createEditor('1.2\n\n3.4');
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const { schema } = view.state;
+      view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, [
+        schema.nodes.paragraph.create(null, schema.text('1.2')),
+        schema.nodes.paragraph.create(),
+        schema.nodes.paragraph.create(null, schema.text('3.4')),
+      ]));
+      const emptyParagraphPos = view.state.doc.child(0).nodeSize;
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, emptyParagraphPos + 1)));
+
+      const event = pressDelete(view);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.childCount).toBe(2);
+      expect(view.state.doc.child(0).textContent).toBe('1.2');
+      expect(view.state.doc.child(1).textContent).toBe('3.4');
+      expect(view.state.selection.$from.parent).toBe(view.state.doc.child(0));
+      expect(view.state.selection.$from.parentOffset).toBe('1.2'.length);
+    } finally {
+      await destroyEditor(editor);
+    }
+  });
+
   it('round-trips Obsidian image embeds through the main editor plugin config', async () => {
     const source = '![[attachments/cover.png|Cover image]]';
     const editor = await createEditor(source);

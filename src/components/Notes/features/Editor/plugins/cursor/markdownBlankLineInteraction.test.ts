@@ -1243,6 +1243,46 @@ describe('markdownBlankLineInteraction', () => {
     }
   });
 
+  it.each([
+    ['Backspace', 0],
+    ['Backspace', EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER.length],
+    ['Delete', 0],
+    ['Delete', EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER.length],
+  ] as const)('places the cursor at the previous paragraph end after %s deletes a middle blank line at offset %s', async (key, offset) => {
+    const editor = await createEditor('1.2\n\n3.4');
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const { schema } = view.state;
+      replaceDocument(view, [
+        schema.nodes.paragraph.create(null, schema.text('1.2')),
+        createEditableBlankLineParagraph(view),
+        schema.nodes.paragraph.create(null, schema.text('3.4')),
+      ]);
+      const blankLinePos = topLevelNodePos(
+        view,
+        (node) => node.type.name === 'paragraph' && node.textContent === EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      );
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(
+        view.state.doc,
+        blankLinePos + 1 + offset,
+      )));
+
+      const event = createDeleteEvent(key);
+      const handled = handleMarkdownBlankLineDeletion(view, event);
+
+      expect(handled).toBe(true);
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.childCount).toBe(2);
+      expect(view.state.doc.child(0).textContent).toBe('1.2');
+      expect(view.state.doc.child(1).textContent).toBe('3.4');
+      expect(view.state.selection.$from.parent).toBe(view.state.doc.child(0));
+      expect(view.state.selection.$from.parentOffset).toBe('1.2'.length);
+    } finally {
+      await editor.destroy();
+    }
+  });
+
   it('keeps terminal editable blank-line deletion from consuming adjacent paragraph text', async () => {
     const editor = await createEditor('Alpha');
     const view = editor.ctx.get(editorViewCtx);
@@ -1315,6 +1355,38 @@ describe('markdownBlankLineInteraction', () => {
       expect(view.state.doc.childCount).toBe(2);
       expect(view.state.doc.child(0).textContent).toBe('Alpha');
       expect(view.state.doc.child(1).textContent).toBe('Beta');
+    } finally {
+      await editor.destroy();
+    }
+  });
+
+  it('places the cursor at the previous paragraph end after deleting a selected middle markdown blank line', async () => {
+    const editor = await createEditor('1.2\n\n3.4');
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const { schema } = view.state;
+      replaceDocument(view, [
+        schema.nodes.paragraph.create(null, schema.text('1.2')),
+        schema.nodes.html_block.create({ value: MARKDOWN_BLANK_LINE_VALUE }),
+        schema.nodes.paragraph.create(null, schema.text('3.4')),
+      ]);
+      const blankLinePos = topLevelNodePos(view, (node) => (
+        node.type.name === 'html_block' && node.attrs.value === MARKDOWN_BLANK_LINE_VALUE
+      ));
+      view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, blankLinePos)));
+
+      const event = createDeleteEvent('Delete');
+      const handled = handleMarkdownBlankLineDeletion(view, event);
+
+      expect(handled).toBe(true);
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.childCount).toBe(2);
+      expect(view.state.doc.child(0).textContent).toBe('1.2');
+      expect(view.state.doc.child(1).textContent).toBe('3.4');
+      expect(view.state.selection).toBeInstanceOf(TextSelection);
+      expect(view.state.selection.$from.parent).toBe(view.state.doc.child(0));
+      expect(view.state.selection.$from.parentOffset).toBe('1.2'.length);
     } finally {
       await editor.destroy();
     }

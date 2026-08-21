@@ -1,4 +1,5 @@
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
+import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import {
   findAdjacentEmptyParagraphNearBlockDeleteRange,
@@ -24,6 +25,61 @@ function getPlainDeleteDirection(event: KeyboardEvent): -1 | 1 | null {
   if (event.key === 'Backspace') return -1;
   if (event.key === 'Delete') return 1;
   return null;
+}
+
+function isNonEmptyPlainParagraph(node: ProseNode | null | undefined): node is ProseNode {
+  if (!node || node.type.name !== 'paragraph' || node.content.size === 0) {
+    return false;
+  }
+
+  let containsOnlyText = true;
+  node.forEach((child) => {
+    if (!child.isText) containsOnlyText = false;
+  });
+  return containsOnlyText;
+}
+
+export function handleEmptyParagraphBetweenPlainParagraphsDelete(
+  view: EditorView,
+  event: KeyboardEvent,
+): boolean {
+  if (getPlainDeleteDirection(event) === null) return false;
+
+  const { selection, doc } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const { $from } = selection;
+  if (
+    $from.depth !== 1
+    || $from.parent.type.name !== 'paragraph'
+    || $from.parent.content.size !== 0
+  ) {
+    return false;
+  }
+
+  const blockFrom = $from.before(1);
+  const blockTo = $from.after(1);
+  const previous = findTopLevelBlockBefore(doc, blockFrom);
+  const next = findTopLevelBlockAfter(doc, blockTo);
+  if (
+    !previous
+    || !next
+    || !isNonEmptyPlainParagraph(previous.node)
+    || !isNonEmptyPlainParagraph(next.node)
+  ) {
+    return false;
+  }
+
+  const tr = view.state.tr.delete(blockFrom, blockTo);
+  tr.setSelection(TextSelection.create(
+    tr.doc,
+    previous.from + 1 + previous.node.content.size,
+  ));
+
+  event.preventDefault();
+  view.dispatch(tr.scrollIntoView());
+  view.focus();
+  return true;
 }
 
 export function shouldPreserveParagraphAfterCodeBlockOnBackspace(view: EditorView, event: KeyboardEvent): boolean {
