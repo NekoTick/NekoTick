@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core';
 import { GapCursor } from '@milkdown/kit/prose/gapcursor';
@@ -24,6 +24,7 @@ import {
   CLEAR_BLOCKS_ACTION,
 } from './plugins/cursor/blockSelectionPluginState';
 import { setBlockSelectionInteractionPending } from './plugins/cursor/blockSelectionInteractionState';
+import { getCurrentEditorView } from './utils/editorViewRegistry';
 
 const mocks = vi.hoisted(() => {
   const notesState = {
@@ -930,6 +931,38 @@ describe('MilkdownEditorInner external content sync', () => {
 
     await waitFor(() => {
       expect(onEditorViewReady).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('does not activate a destroyed editor left in the provider ref', () => {
+    const contextFailure = new Error('Context "editorView" not found');
+    const getContext = vi.fn(() => {
+      throw contextFailure;
+    });
+    mocks.editorState.activeEditor = {
+      action: vi.fn(),
+      ctx: { get: getContext },
+      status: 'Destroyed',
+    };
+    const onEditorActivationFailure = vi.fn();
+
+    render(<MilkdownEditorInner onEditorActivationFailure={onEditorActivationFailure} />);
+
+    expect(getContext).not.toHaveBeenCalled();
+    expect(onEditorActivationFailure).not.toHaveBeenCalled();
+  });
+
+  it('keeps the created editor active after StrictMode replays effects', async () => {
+    const { view } = createMockActiveEditor();
+
+    render(
+      <StrictMode>
+        <MilkdownEditorInner />
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      expect(getCurrentEditorView()).toBe(view);
     });
   });
 

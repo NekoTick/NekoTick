@@ -1,6 +1,10 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  clearDiagnosticsLog,
+  getDiagnosticsLogText,
+} from '@/lib/diagnostics/diagnosticsLog';
 import { MarkdownEditor } from './MarkdownEditor';
 import { MarkdownSourceEditor } from './MarkdownSourceEditor';
 
@@ -68,7 +72,13 @@ const mocks = vi.hoisted(() => {
     notifyNotesStoreListeners,
     notesState,
     milkdownRuntimeMode: {
-      value: 'throw' as 'throw' | 'never-ready' | 'live-dom-never-ready' | 'sync-failure',
+      value: 'throw' as
+        | 'throw'
+        | 'never-ready'
+        | 'live-dom-never-ready'
+        | 'sync-failure'
+        | 'creation-failure'
+        | 'activation-failure',
     },
   };
 });
@@ -235,15 +245,25 @@ vi.mock('./find/useNoteEditorFind', () => ({
 
 vi.mock('./MilkdownEditorInner', () => ({
   MilkdownEditorRuntime: ({
+    onEditorActivationFailure,
     onEditorContentSyncFailure,
+    onEditorCreationFailure,
   }: {
-    onEditorContentSyncFailure?: () => void;
+    onEditorActivationFailure?: (error: unknown) => void;
+    onEditorContentSyncFailure?: (error?: unknown) => void;
+    onEditorCreationFailure?: (error: unknown) => void;
   }) => {
     useEffect(() => {
       if (mocks.milkdownRuntimeMode.value === 'sync-failure') {
-        onEditorContentSyncFailure?.();
+        onEditorContentSyncFailure?.(new Error('Editor content synchronization failed'));
       }
-    }, [onEditorContentSyncFailure]);
+      if (mocks.milkdownRuntimeMode.value === 'creation-failure') {
+        onEditorCreationFailure?.(new Error('Editor creation failed'));
+      }
+      if (mocks.milkdownRuntimeMode.value === 'activation-failure') {
+        onEditorActivationFailure?.(new Error('Editor activation failed'));
+      }
+    }, [onEditorActivationFailure, onEditorContentSyncFailure, onEditorCreationFailure]);
 
     if (mocks.milkdownRuntimeMode.value === 'throw') {
       throw new Error('Milkdown failed to create');
@@ -263,6 +283,7 @@ vi.mock('./MilkdownEditorInner', () => ({
 
 describe('MarkdownEditor source fallback', () => {
   beforeEach(() => {
+    clearDiagnosticsLog();
     delete (window as Window & { vlainaDesktop?: unknown }).vlainaDesktop;
     mocks.notesState.currentNote = { path: 'alpha.md', content: '# Alpha\n\nInitial body' };
     mocks.notesState.currentNoteRevision = 0;
@@ -283,6 +304,7 @@ describe('MarkdownEditor source fallback', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    clearDiagnosticsLog();
     delete (window as Window & { vlainaDesktop?: unknown }).vlainaDesktop;
   });
 
@@ -770,6 +792,14 @@ describe('MarkdownEditor source fallback', () => {
 
     const sourceEditor = await screen.findByLabelText('Markdown source editor');
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
+    expect(JSON.parse(getDiagnosticsLogText()).entries).toContainEqual(expect.objectContaining({
+      channel: 'notes-editor',
+      event: 'failure-render-error',
+      details: expect.objectContaining({
+        reason: 'render-error',
+        errorMessage: 'Milkdown failed to create',
+      }),
+    }));
 
     fireEvent.change(sourceEditor, { target: { value: '# Alpha\n\nEdited body' } });
 
@@ -891,6 +921,15 @@ describe('MarkdownEditor source fallback', () => {
 
     const sourceEditor = screen.getByLabelText('Markdown source editor');
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
+    expect(JSON.parse(getDiagnosticsLogText()).entries).toContainEqual(expect.objectContaining({
+      channel: 'notes-editor',
+      event: 'failure-init-timeout',
+      details: expect.objectContaining({
+        reason: 'init-timeout',
+        contentLength: '# Alpha\n\nInitial body'.length,
+        diskRevision: 0,
+      }),
+    }));
 
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -914,12 +953,41 @@ describe('MarkdownEditor source fallback', () => {
     const sourceEditor = await screen.findByLabelText('Markdown source editor');
     expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
     expect(sourceEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
+    expect(JSON.parse(getDiagnosticsLogText()).entries).toContainEqual(expect.objectContaining({
+      channel: 'notes-editor',
+      event: 'failure-content-sync',
+      details: expect.objectContaining({
+        reason: 'content-sync',
+        errorMessage: 'Editor content synchronization failed',
+      }),
+    }));
 
     mocks.milkdownRuntimeMode.value = 'live-dom-never-ready';
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
 
     expect(screen.getByTestId('milkdown-live-dom')).toBeInTheDocument();
     expect(screen.queryByLabelText('Markdown source editor')).toBeNull();
+  });
+
+  it.each([
+    ['creation-failure', 'creation-error', 'Editor creation failed'],
+    ['activation-failure', 'activation-error', 'Editor activation failed'],
+  ] as const)('falls back after an asynchronous editor %s callback', async (mode, reason, message) => {
+    mocks.milkdownRuntimeMode.value = mode;
+
+    render(<MarkdownEditor />);
+
+    const sourceEditor = await screen.findByLabelText('Markdown source editor');
+    expect(sourceEditor).toHaveValue('# Alpha\n\nInitial body');
+    expect(sourceEditor.closest('[data-note-source-fallback="true"]')).toBeInstanceOf(HTMLElement);
+    expect(JSON.parse(getDiagnosticsLogText()).entries).toContainEqual(expect.objectContaining({
+      channel: 'notes-editor',
+      event: `failure-${reason}`,
+      details: expect.objectContaining({
+        reason,
+        errorMessage: message,
+      }),
+    }));
   });
 
   it('does not treat a live ProseMirror DOM as proof that note content synchronized', async () => {

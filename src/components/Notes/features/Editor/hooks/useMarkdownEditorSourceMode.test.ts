@@ -20,6 +20,7 @@ vi.mock('@/stores/useNotesStore', () => ({
   useNotesStore: {
     getState: () => ({
       currentNote: { path: 'alpha.md', content: '# Alpha' },
+      currentNoteDiskRevision: 7,
       noteContentsCache: new Map(),
     }),
   },
@@ -192,5 +193,88 @@ describe('useMarkdownEditorSourceMode', () => {
     });
 
     expect(result.current.shouldUseSourceFallback).toBe(true);
+  });
+
+  it('reports an initialization timeout with note metadata', () => {
+    vi.useFakeTimers();
+    const onEditorFailure = vi.fn();
+    const { result } = renderHook(() => useMarkdownEditorSourceMode({
+      currentNotePath: 'alpha.md',
+      hasActiveNote: true,
+      onEditorFailure,
+    }));
+
+    act(() => {
+      vi.advanceTimersByTime(themeEditorLayoutTokens.editorInitFallbackDelayMs);
+    });
+
+    expect(result.current.shouldUseSourceFallback).toBe(true);
+    expect(onEditorFailure).toHaveBeenCalledWith({
+      reason: 'init-timeout',
+      contentLength: '# Alpha'.length,
+      diskRevision: 7,
+    });
+  });
+
+  it('ignores a failure callback from the previous note session', () => {
+    const onEditorFailure = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ currentNotePath }) => useMarkdownEditorSourceMode({
+        currentNotePath,
+        hasActiveNote: true,
+        onEditorFailure,
+      }),
+      { initialProps: { currentNotePath: 'alpha.md' } },
+    );
+    const staleFailureHandler = result.current.handleRenderedEditorFailure;
+
+    rerender({ currentNotePath: 'beta.md' });
+    act(() => {
+      staleFailureHandler({ reason: 'creation-error', error: new Error('stale editor') });
+    });
+
+    expect(onEditorFailure).not.toHaveBeenCalled();
+    expect(result.current.shouldUseSourceFallback).toBe(false);
+  });
+
+  it('ignores a readiness callback from the previous note session', () => {
+    const onEditorViewReady = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ currentNotePath }) => useMarkdownEditorSourceMode({
+        currentNotePath,
+        hasActiveNote: true,
+        onEditorViewReady,
+      }),
+      { initialProps: { currentNotePath: 'alpha.md' } },
+    );
+    const staleReadyHandler = result.current.handleEditorViewReady;
+
+    rerender({ currentNotePath: 'beta.md' });
+    act(() => {
+      staleReadyHandler();
+    });
+
+    expect(onEditorViewReady).not.toHaveBeenCalled();
+    expect(result.current.isEditorViewReady).toBe(false);
+  });
+
+  it('does not report a timeout after the editor session is deactivated', () => {
+    vi.useFakeTimers();
+    const onEditorFailure = vi.fn();
+    const { rerender } = renderHook(
+      ({ hasActiveNote }) => useMarkdownEditorSourceMode({
+        currentNotePath: 'alpha.md',
+        hasActiveNote,
+        onEditorFailure,
+      }),
+      { initialProps: { hasActiveNote: true } },
+    );
+
+    rerender({ hasActiveNote: false });
+    act(() => {
+      vi.advanceTimersByTime(themeEditorLayoutTokens.editorInitFallbackDelayMs);
+    });
+
+    expect(onEditorFailure).not.toHaveBeenCalled();
   });
 });

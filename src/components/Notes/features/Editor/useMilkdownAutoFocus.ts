@@ -68,7 +68,7 @@ export function useMilkdownAutoFocus(args: {
   const focusEditorBody = useCallback(() => {
     try {
       const editor = get?.();
-      if (!editor) {
+      if (!editor || editor.status !== 'Created') {
         return false;
       }
 

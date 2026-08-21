@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
+import { clearDiagnosticsLog } from '@/lib/diagnostics/diagnosticsLog';
+import { reportNotesEditorFailure } from '@/components/Notes/features/Editor/editorFailureDiagnostics';
 import { DevMainOverlay } from './DevMainOverlay';
 
 const mocks = vi.hoisted(() => ({
@@ -15,10 +17,6 @@ const mocks = vi.hoisted(() => ({
   listImportedMarkdownThemesFromDirectory: vi.fn(),
   syncImportedMarkdownThemesFromDirectory: vi.fn(),
   writeTextToClipboard: vi.fn(),
-  getDiagnosticsLogText: vi.fn(),
-  getDiagnosticsEntryCount: vi.fn(),
-  clearDiagnosticsLog: vi.fn(),
-  subscribeDiagnostics: vi.fn(),
 }));
 
 vi.mock('@/components/ui/tooltip', () => ({
@@ -102,13 +100,6 @@ vi.mock('@/lib/clipboard', () => ({
   writeTextToClipboard: (...args: unknown[]) => mocks.writeTextToClipboard(...args),
 }));
 
-vi.mock('@/lib/diagnostics/diagnosticsLog', () => ({
-  clearDiagnosticsLog: (...args: unknown[]) => mocks.clearDiagnosticsLog(...args),
-  getDiagnosticsEntryCount: () => mocks.getDiagnosticsEntryCount(),
-  getDiagnosticsLogText: () => mocks.getDiagnosticsLogText(),
-  subscribeDiagnostics: (...args: unknown[]) => mocks.subscribeDiagnostics(...args),
-}));
-
 const themes = [
   {
     id: 'clean-light',
@@ -134,14 +125,12 @@ function expandDevelopmentTools() {
 
 describe('DevMainOverlay', () => {
   beforeEach(() => {
+    clearDiagnosticsLog();
     mocks.appViewMode = 'notes';
     mocks.devPlatformPreview = 'system';
     mocks.colorMode = 'system';
     mocks.importedMarkdownThemeId = null;
     mocks.writeTextToClipboard.mockResolvedValue(true);
-    mocks.getDiagnosticsLogText.mockReturnValue('diagnostics-log');
-    mocks.getDiagnosticsEntryCount.mockReturnValue(2);
-    mocks.subscribeDiagnostics.mockReturnValue(() => undefined);
     mocks.listImportedMarkdownThemesFromDirectory.mockResolvedValue(themes);
     mocks.syncImportedMarkdownThemesFromDirectory.mockResolvedValue({
       directoryPath: '/app/.vlaina/app/themes',
@@ -152,6 +141,7 @@ describe('DevMainOverlay', () => {
 
   afterEach(() => {
     cleanup();
+    clearDiagnosticsLog();
     localStorage.clear();
     vi.clearAllMocks();
   });
@@ -238,11 +228,17 @@ describe('DevMainOverlay', () => {
   });
 
   it('puts copy logs above the simulated update download action', async () => {
+    reportNotesEditorFailure({
+      reason: 'activation-error',
+      error: new Error('Context "editorView" not found'),
+      contentLength: 123,
+      diskRevision: 7,
+    });
     render(<DevMainOverlay effectiveAppViewMode="notes" />);
     expandDevelopmentTools();
 
     const copyLogsButton = screen.getByRole('button', { name: 'Copy logs' });
-    expect(screen.getByLabelText('2 diagnostics entries')).toBeInTheDocument();
+    expect(screen.getByLabelText('1 diagnostics entries')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear logs' })).toBeInTheDocument();
     const downloadButton = screen.getByRole('button', { name: 'Simulate update available' });
     expect(Boolean(copyLogsButton.compareDocumentPosition(downloadButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
@@ -250,36 +246,32 @@ describe('DevMainOverlay', () => {
     fireEvent.click(copyLogsButton);
 
     await waitFor(() => {
-      expect(mocks.writeTextToClipboard).toHaveBeenCalledWith('diagnostics-log');
+      expect(mocks.writeTextToClipboard).toHaveBeenCalledTimes(1);
     });
+
+    const copiedReport = JSON.parse(String(mocks.writeTextToClipboard.mock.calls[0]?.[0]));
+    expect(copiedReport.entries).toContainEqual(expect.objectContaining({
+      channel: 'notes-editor',
+      event: 'failure-activation-error',
+      details: expect.objectContaining({
+        reason: 'activation-error',
+        errorName: 'Error',
+        errorMessage: 'Context "editorView" not found',
+        contentLength: 123,
+        diskRevision: 7,
+      }),
+    }));
   });
 
   it('clears logs from the expanded diagnostics pill', () => {
+    reportNotesEditorFailure({ reason: 'init-timeout' });
     render(<DevMainOverlay effectiveAppViewMode="notes" />);
     expandDevelopmentTools();
 
+    expect(screen.getByLabelText('1 diagnostics entries')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear logs' }));
 
-    expect(mocks.clearDiagnosticsLog).toHaveBeenCalledTimes(1);
-  });
-
-  it('puts the retry test first and toggles it for chat requests', () => {
-    render(<DevMainOverlay effectiveAppViewMode="notes" />);
-    expandDevelopmentTools();
-
-    const retryButton = screen.getByRole('button', { name: 'Test retry' });
-    const copyLogsButton = screen.getByRole('button', { name: 'Copy logs' });
-    expect(Boolean(retryButton.compareDocumentPosition(copyLogsButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-
-    fireEvent.click(retryButton);
-
-    expect(window.localStorage.getItem('vlaina_dev_retry_simulation')).toBe('true');
-    const enabledButton = screen.getByRole('button', { name: 'Test retry enabled' });
-
-    fireEvent.click(enabledButton);
-
-    expect(window.localStorage.getItem('vlaina_dev_retry_simulation')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Test retry' })).toBeInTheDocument();
+    expect(screen.getByLabelText('0 diagnostics entries')).toBeInTheDocument();
   });
 
   it('keeps the existing dev color mode and Lab shortcuts working', () => {

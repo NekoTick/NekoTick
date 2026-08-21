@@ -37,7 +37,7 @@ export function useMilkdownExternalContentSync(args: {
     diskRevision: number;
     content: string;
   }>;
-  reportEditorContentSyncFailure?: () => void;
+  reportEditorContentSyncFailure?: (error?: unknown) => void;
   reportEditorReady: (editor: ActiveMilkdownEditor) => void;
   shouldPreserveLiveEditorContent: () => boolean;
 }) {
@@ -80,9 +80,9 @@ export function useMilkdownExternalContentSync(args: {
     const clearSyncFailure = () => {
       failedSyncTargetRef.current = null;
     };
-    const handleSyncFailure = () => {
+    const handleSyncFailure = (error?: unknown) => {
       if (isCurrentSyncTarget(failedSyncTargetRef.current)) {
-        reportEditorContentSyncFailure?.();
+        reportEditorContentSyncFailure?.(error);
         return;
       }
 
@@ -229,7 +229,7 @@ export function useMilkdownExternalContentSync(args: {
         durationMs: Math.round(performance.now() - replaceStartedAt),
       });
       if (!replaced) {
-        handleSyncFailure();
+        handleSyncFailure(new Error('Editor markdown replacement returned false.'));
         return;
       }
 
@@ -251,8 +251,8 @@ export function useMilkdownExternalContentSync(args: {
           themeEditorLayoutTokens.restoreScrollFallbackDelayMs
         );
       }
-    } catch {
-      handleSyncFailure();
+    } catch (error) {
+      handleSyncFailure(error);
     }
 
     return () => {

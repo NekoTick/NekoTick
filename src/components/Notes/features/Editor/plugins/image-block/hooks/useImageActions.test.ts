@@ -1,5 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearDiagnosticsLog, getDiagnosticsLogText } from '@/lib/diagnostics/diagnosticsLog';
 import { MAX_FETCHED_IMAGE_BYTES } from '@/lib/markdown/fetchBoundedImageBlob';
 import { createImageDownloadDefaultName, useImageActions } from './useImageActions';
 
@@ -131,6 +132,7 @@ describe('createImageDownloadDefaultName', () => {
 describe('useImageActions', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        clearDiagnosticsLog();
         vi.unstubAllGlobals();
         mocks.ensureImageFileExists.mockResolvedValue(undefined);
         mocks.rasterizeSvgBlobToPngBlob.mockImplementation(async (blob: Blob) => blob);
@@ -142,6 +144,27 @@ describe('useImageActions', () => {
             configurable: true,
             value: undefined,
         });
+    });
+
+    it('records image crop failures in the shared diagnostics log', async () => {
+        const failure = new Error('image restore failed');
+        mocks.ensureImageFileExists.mockRejectedValueOnce(failure);
+        const { result } = renderImageActions();
+
+        await act(async () => {
+            await result.current.handleSave({ x: 10, y: 10, width: 80, height: 80 }, 1);
+        });
+
+        const report = JSON.parse(getDiagnosticsLogText());
+        expect(report.entries).toContainEqual(expect.objectContaining({
+            channel: 'notes-editor',
+            event: 'failure-image-update',
+            details: {
+                operation: 'image-crop',
+                errorName: 'Error',
+                errorMessage: 'image restore failed',
+            },
+        }));
     });
 
     it('does not save crop attributes when the editor document changes during image restore', async () => {

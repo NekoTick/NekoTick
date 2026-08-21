@@ -13,13 +13,18 @@ export const Milkdown: FC = () => {
   return <div data-milkdown-root ref={domRef} />
 }
 
-export const MilkdownProvider: FC<{ children: ReactNode }> = ({ children }) => {
+export const MilkdownProvider: FC<{
+  children: ReactNode
+  onError?: (error: unknown) => void
+}> = ({ children, onError }) => {
   const dom = useRef<HTMLDivElement | undefined>(undefined)
   const [editorFactory, setEditorFactory] = useState<GetEditor | undefined>(
     undefined
   )
   const editor = useRef<Editor | undefined>(undefined)
+  const onErrorRef = useRef(onError)
   const [loading, setLoading] = useState(true)
+  onErrorRef.current = onError
 
   const editorInfoCtx = useMemo<EditorInfoCtx>(
     () => ({
@@ -29,6 +34,7 @@ export const MilkdownProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setLoading,
       editorFactory,
       setEditorFactory,
+      onError: onErrorRef,
     }),
     [loading, editorFactory]
   )

@@ -17,4 +17,5 @@ export interface EditorInfoCtx {
   editor: RefObject<Editor | undefined>
   editorFactory: GetEditor | undefined
   setEditorFactory: Dispatch<SetStateAction<GetEditor | undefined>>
+  onError: RefObject<((error: unknown) => void) | undefined>
 }
