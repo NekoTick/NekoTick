@@ -10,6 +10,8 @@ export const MAX_GRAPH_EDGES = 4_000;
 export const MAX_GRAPH_CANDIDATE_NODES = 5_000;
 
 const EXTERNAL_LINK_TARGET_PATTERN = /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu;
+const ENCODED_LINK_TARGET_SEGMENT_PATTERN = /(?:%[\da-f]{2})+/giu;
+const UNSAFE_LINK_TARGET_PATTERN = /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069\ufffd]/u;
 
 export interface NoteGraphNode {
   id: string;
@@ -91,11 +93,17 @@ function decodeLinkTarget(value: string): string {
   const rawTarget = value.split('#', 1)[0]?.split('?', 1)[0]?.trim() ?? '';
   if (EXTERNAL_LINK_TARGET_PATTERN.test(rawTarget)) return '';
   if (!rawTarget) return '';
-  try {
-    return decodeURIComponent(rawTarget);
-  } catch {
-    return rawTarget;
-  }
+  const decodedTarget = rawTarget.replace(ENCODED_LINK_TARGET_SEGMENT_PATTERN, (encoded) => {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      return encoded;
+    }
+  }).trim();
+  return EXTERNAL_LINK_TARGET_PATTERN.test(decodedTarget)
+    || UNSAFE_LINK_TARGET_PATTERN.test(decodedTarget)
+    ? ''
+    : decodedTarget;
 }
 
 function createTargetResolver(paths: readonly string[]) {
