@@ -21,21 +21,21 @@ function findTextSelectionFromBoundary(
   pos: number,
   direction: -1 | 1
 ): TextSelection | null {
-  const selection = Selection.findFrom(
-    doc.resolve(Math.max(0, Math.min(pos, doc.content.size))),
-    direction,
-    true
-  );
-  if (!(selection instanceof TextSelection)) {
-    return null;
-  }
+  let searchPos = Math.max(0, Math.min(pos, doc.content.size));
+  while (true) {
+    const selection = Selection.findFrom(doc.resolve(searchPos), direction, true);
+    if (!(selection instanceof TextSelection)) return null;
 
-  const selectedBlock = findTopLevelBlockAt(doc, selection.from);
-  if (isNavigableAtomicBlock(selectedBlock?.node)) {
-    return null;
+    const selectedBlock = findTopLevelBlockAt(doc, selection.from);
+    if (selectedBlock?.node.type.name === 'hr') {
+      const boundary = direction > 0 ? selectedBlock.to : selectedBlock.from;
+      if (boundary === searchPos) return null;
+      searchPos = boundary;
+      continue;
+    }
+    if (isNavigableAtomicBlock(selectedBlock?.node)) return null;
+    return selection;
   }
-
-  return selection;
 }
 
 function createSafeSelectionAfterStructuralGapDelete(
@@ -50,7 +50,11 @@ function createSafeSelectionAfterStructuralGapDelete(
   const intoBlockDir = range.searchDir < 0 ? -1 : 1;
   const awayFromBlockDir = range.searchDir < 0 ? 1 : -1;
 
-  const textSelection = (isNavigableAtomicBlock(block) ? null : findTextSelectionFromBoundary(tr.doc, boundaryPos, intoBlockDir))
+  const textSelection = (
+    isNavigableAtomicBlock(block) || block.type.name === 'hr'
+      ? null
+      : findTextSelectionFromBoundary(tr.doc, boundaryPos, intoBlockDir)
+  )
     ?? findTextSelectionFromBoundary(tr.doc, boundaryPos, awayFromBlockDir);
   if (textSelection) {
     return tr.setSelection(textSelection);
@@ -177,6 +181,21 @@ export function dispatchDeleteEmptyParagraphNearStructuralBlock(
 
   if (nextNode?.type.name === 'heading') {
     const safeSelectionTr = createSafeSelectionAfterHeadingGapDelete(view.state, tr, range, mappedBlockFrom, nextNode);
+    if (safeSelectionTr) {
+      view.dispatch(safeSelectionTr.scrollIntoView());
+      view.focus();
+      return;
+    }
+  }
+
+  if (nextNode?.type.name === 'hr') {
+    const safeSelectionTr = createSafeSelectionAfterStructuralGapDelete(
+      view.state,
+      tr,
+      range,
+      mappedBlockFrom,
+      nextNode,
+    );
     if (safeSelectionTr) {
       view.dispatch(safeSelectionTr.scrollIntoView());
       view.focus();

@@ -312,7 +312,6 @@ describe('block insertion content boundaries', () => {
     ['math shortcut', '$$', 'math_block', handleMathBlockShortcutEnter],
     ['Mermaid shortcut', '```mermaid', 'mermaid', handleMermaidFenceEnter],
     ['table of contents shortcut', '[TOC]', 'toc', handleTocShortcutEnter],
-    ['thematic break shortcut', '---', 'hr', handleHorizontalRuleShortcutEnter],
     ['footnote definition shortcut', '[^1]:', 'footnote_definition', handleFootnoteDefinitionShortcutEnter],
   ] as const)('does not add a paragraph after the %s', async (_label, input, expectedType, runShortcut) => {
     const { editor, view } = await createEditorWithMiddleEmptyParagraph();
@@ -324,6 +323,22 @@ describe('block insertion content boundaries', () => {
         { length: view.state.doc.childCount },
         (_, index) => view.state.doc.child(index).type.name,
       )).toEqual(['heading', expectedType, 'code_block']);
+    } finally {
+      await editor.destroy();
+    }
+  });
+
+  it('adds an empty paragraph after the thematic break shortcut when content follows', async () => {
+    const { editor, view } = await createEditorWithMiddleEmptyParagraph();
+
+    try {
+      setMiddleParagraphText(view, '---');
+      expect(handleHorizontalRuleShortcutEnter(view)).toBe(true);
+      expect(Array.from(
+        { length: view.state.doc.childCount },
+        (_, index) => view.state.doc.child(index).type.name,
+      )).toEqual(['heading', 'hr', 'paragraph', 'code_block']);
+      expect(view.state.selection.$from.parent).toBe(view.state.doc.child(2));
     } finally {
       await editor.destroy();
     }

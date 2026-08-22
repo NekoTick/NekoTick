@@ -121,6 +121,9 @@ describe("editor text selection and link styles", () => {
       '  font-size: inherit !important;',
       '}',
     ].join('\n'));
+    expect(markdownCss).toContain('.milkdown .ProseMirror .md-hr-source {');
+    expect(markdownCss).toContain('.milkdown .ProseMirror .md-hr.markdown-source-expanded .md-hr-source {');
+    expect(markdownCss).toContain('.milkdown .ProseMirror .md-hr.markdown-source-expanded > hr {');
     expect(css).toContain('padding-block: max(0px, calc((1lh - 1em) / 2));');
     expect(css).not.toContain('background-color: var(--vlaina-block-selection-color-default);');
     expect(css).not.toContain('vlaina-ai-review-selection');

@@ -10,7 +10,11 @@ import {
 import { markEditorUserInput } from '../shared/userInputEvents';
 
 function isCursorTextblock(node: { isTextblock: boolean; type: { name: string } } | null | undefined): boolean {
-  return Boolean(node?.isTextblock && node.type.name !== 'code_block');
+  return Boolean(
+    node?.isTextblock
+    && node.type.name !== 'code_block'
+    && node.type.name !== 'hr'
+  );
 }
 
 function isInsideTable($pos: ResolvedPos): boolean {
@@ -24,15 +28,23 @@ function isInsideTable($pos: ResolvedPos): boolean {
 }
 
 function findCursorTextSelectionFrom($pos: ResolvedPos, dir: 1 | -1): Selection | null {
-  const selection = Selection.findFrom($pos, dir, true);
-  if (
-    selection instanceof TextSelection
-    && isCursorTextblock(selection.$from.parent)
-    && !isInsideTable(selection.$from)
-  ) {
-    return selection;
+  let searchPos = $pos;
+  while (true) {
+    const selection = Selection.findFrom(searchPos, dir, true);
+    if (!(selection instanceof TextSelection)) return null;
+    if (isCursorTextblock(selection.$from.parent) && !isInsideTable(selection.$from)) {
+      return selection;
+    }
+    if (selection.$from.depth !== 1 || selection.$from.parent.type.name !== 'hr') {
+      return null;
+    }
+
+    const boundary = dir > 0 ? selection.$from.after(1) : selection.$from.before(1);
+    if (boundary === searchPos.pos || boundary < 0 || boundary > searchPos.doc.content.size) {
+      return null;
+    }
+    searchPos = searchPos.doc.resolve(boundary);
   }
-  return null;
 }
 
 function isInSameTopLevelBlock(left: ResolvedPos, right: ResolvedPos): boolean {
