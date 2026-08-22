@@ -195,7 +195,9 @@ export function applyListMediaTableSchemaOverrides(ctx: Ctx) {
                     const attrs = getMarkdownHtmlImageAttrs(node.value as string);
                     if (attrs) {
                         const { wrapInParagraph, ...imageAttrs } = attrs;
-                        const shouldWrapInParagraph = wrapInParagraph && state.top()?.type?.name !== 'paragraph';
+                        const parentType = state.top()?.type;
+                        const shouldWrapInParagraph = parentType?.inlineContent === false
+                            || (wrapInParagraph && parentType?.inlineContent !== true);
                         if (shouldWrapInParagraph) state.openNode(state.schema.nodes.paragraph);
                         state.addNode(type, { ...imageAttrs, markdownSource: node.value });
                         if (shouldWrapInParagraph) state.closeNode();

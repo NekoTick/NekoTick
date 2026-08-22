@@ -169,11 +169,7 @@ export class ParserState extends Stack<Node, ParserStackElement> {
 
   /// Close the current node and push it into the parent node.
   closeNode = () => {
-    try {
-      this.#closeNodeAndPush()
-    } catch (e) {
-      console.error(e)
-    }
+    this.#closeNodeAndPush()
     return this
   }
 
@@ -193,11 +189,7 @@ export class ParserState extends Stack<Node, ParserStackElement> {
 
   /// Add a node into current node.
   addNode = (nodeType: NodeType, attrs?: Attrs, content?: Node[]) => {
-    try {
-      this.#addNodeAndPush(nodeType, attrs, content)
-    } catch (e) {
-      console.error(e)
-    }
+    this.#addNodeAndPush(nodeType, attrs, content)
     return this
   }
 
@@ -217,29 +209,24 @@ export class ParserState extends Stack<Node, ParserStackElement> {
 
   /// Add a text node into current node.
   addText = (text: string) => {
-    try {
-      const topElement = this.top()
-      if (!topElement) throw stackOverFlow()
+    const topElement = this.top()
+    if (!topElement) throw stackOverFlow()
 
-      const prevNode = topElement.pop()
-      const currNode = this.schema.text(text, this.#marks)
+    const prevNode = topElement.pop()
+    const currNode = this.schema.text(text, this.#marks)
 
-      if (!prevNode) {
-        topElement.push(currNode)
-        return this
-      }
-
-      const merged = this.#maybeMerge(prevNode, currNode)
-      if (merged) {
-        topElement.push(merged)
-        return this
-      }
-      topElement.push(prevNode, currNode)
-      return this
-    } catch (e) {
-      console.error(e)
+    if (!prevNode) {
+      topElement.push(currNode)
       return this
     }
+
+    const merged = this.#maybeMerge(prevNode, currNode)
+    if (merged) {
+      topElement.push(merged)
+      return this
+    }
+    topElement.push(prevNode, currNode)
+    return this
   }
 
   /// @internal

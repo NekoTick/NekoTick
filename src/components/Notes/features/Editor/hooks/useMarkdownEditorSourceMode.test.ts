@@ -234,6 +234,30 @@ describe('useMarkdownEditorSourceMode', () => {
     });
 
     expect(onEditorFailure).not.toHaveBeenCalled();
+    expect(result.current.editorRuntimeRevision).toBe(1);
+    expect(result.current.shouldUseSourceFallback).toBe(false);
+  });
+
+  it('ignores a failure callback from before the current note was reloaded', () => {
+    const onEditorFailure = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ currentNoteDiskRevision }) => useMarkdownEditorSourceMode({
+        currentNotePath: 'alpha.md',
+        currentNoteDiskRevision,
+        hasActiveNote: true,
+        onEditorFailure,
+      }),
+      { initialProps: { currentNoteDiskRevision: 7 } },
+    );
+    const staleFailureHandler = result.current.handleRenderedEditorFailure;
+
+    rerender({ currentNoteDiskRevision: 8 });
+    act(() => {
+      staleFailureHandler({ reason: 'creation-error', error: new Error('stale editor') });
+    });
+
+    expect(onEditorFailure).not.toHaveBeenCalled();
+    expect(result.current.editorRuntimeRevision).toBe(1);
     expect(result.current.shouldUseSourceFallback).toBe(false);
   });
 

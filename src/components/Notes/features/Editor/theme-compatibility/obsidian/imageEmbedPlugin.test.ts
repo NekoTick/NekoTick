@@ -75,6 +75,17 @@ describe('Obsidian image embed input', () => {
     await sizeEditor.destroy();
   });
 
+  it('keeps standard Markdown image destinations and titles unchanged', async () => {
+    const editor = createEditor('![Image](image.png "Title")');
+    await editor.create();
+
+    expect(editor.ctx.get(serializerCtx)(editor.ctx.get(editorViewCtx).state.doc).trim()).toBe(
+      '![Image](image.png "Title")',
+    );
+
+    await editor.destroy();
+  });
+
   it('updates an Obsidian alias without changing the embed syntax', async () => {
     const editor = createEditor('![[demo.png|Old caption]]');
     await editor.create();
