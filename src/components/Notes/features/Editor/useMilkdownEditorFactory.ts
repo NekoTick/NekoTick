@@ -39,6 +39,7 @@ export function useMilkdownEditorFactory(args: {
   configureMarkdownListener: (ctx: MilkdownContext, initialContent: string) => (markdown: string) => void;
   currentNotePath: string | undefined;
   currentNoteContent: string;
+  deferInitialDocument: boolean;
   initialContent: string;
   shouldSerializeEditorMarkdown: () => boolean;
   activatedEditorRef: React.MutableRefObject<ActiveMilkdownEditor | null>;
@@ -49,6 +50,7 @@ export function useMilkdownEditorFactory(args: {
     configureMarkdownListener,
     currentNoteContent,
     currentNotePath,
+    deferInitialDocument,
     initialContent,
     shouldSerializeEditorMarkdown,
     activatedEditorRef,
@@ -88,10 +90,14 @@ export function useMilkdownEditorFactory(args: {
           normalizedFrontmatter
         );
         const defaultJsonStartedAt = performance.now();
-        const defaultJson = createLargePlainMarkdownDocJSON(defaultMarkdown);
-        const defaultValue: MilkdownDefaultValue = defaultJson
-          ? { type: 'json', value: defaultJson }
-          : defaultMarkdown;
+        const defaultJson = deferInitialDocument
+          ? null
+          : createLargePlainMarkdownDocJSON(defaultMarkdown);
+        const defaultValue: MilkdownDefaultValue = deferInitialDocument
+          ? ''
+          : defaultJson
+            ? { type: 'json', value: defaultJson }
+            : defaultMarkdown;
         if (defaultJson) {
           logE2EMilkdownTiming('default-json', {
             notePath: currentNotePath,
@@ -104,6 +110,7 @@ export function useMilkdownEditorFactory(args: {
           notePath: currentNotePath,
           inputLength: initialContent.length,
           outputLength: defaultMarkdown.length,
+          deferred: deferInitialDocument,
           valueType: typeof defaultValue === 'string' ? 'markdown' : defaultValue.type,
           durationMs: Math.round(performance.now() - blankLineStartedAt),
         });

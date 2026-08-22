@@ -1510,6 +1510,32 @@ describe('MarkdownEditor compatibility', () => {
     await destroyEditor(editor);
   });
 
+  it('replaces an empty editor with standalone linked HTML images', async () => {
+    const source = [
+      '# Large note',
+      '',
+      '<a href="https://example.test/program">',
+      '  <img src="https://images.example.test/program.svg" alt="Program badge" />',
+      '</a>',
+      '',
+      'Final paragraph.',
+    ].join('\n');
+    const editor = await createEditor('');
+    const view = editor.ctx.get(editorViewCtx);
+    let imageParentType: string | null = null;
+
+    await act(async () => {
+      expect(replaceEditorMarkdown(editor.ctx, prepareEditorMarkdown(source))).toBe(true);
+    });
+    view.state.doc.descendants((node, _pos, parent) => {
+      if (node.type.name === 'image') imageParentType = parent?.type.name ?? null;
+    });
+    expect(imageParentType).toBe('paragraph');
+    expect(view.state.doc.textContent).toContain('Final paragraph.');
+
+    await destroyEditor(editor);
+  });
+
   it.each([
     {
       name: 'definition list',

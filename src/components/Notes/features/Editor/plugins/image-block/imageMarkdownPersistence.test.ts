@@ -404,6 +404,18 @@ describe('image markdown persistence', () => {
         alt: 'fallback',
       },
     ]);
+
+    await expect(parseImageAttrs([
+      '<a href="https://example.com">',
+      '  <img src="https://example.com/standalone.png" alt="standalone">',
+      '</a>',
+    ].join('\n'))).resolves.toMatchObject([
+      {
+        src: 'https://example.com/standalone.png',
+        alt: 'standalone',
+        align: 'center',
+      },
+    ]);
   });
 
   it('drops unsafe image sources during markdown serialization', async () => {

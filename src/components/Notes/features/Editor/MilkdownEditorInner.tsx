@@ -257,6 +257,7 @@ export const MilkdownEditorInner = React.memo(function MilkdownEditorInner({
     configureMarkdownListener,
     currentNoteContent,
     currentNotePath,
+    deferInitialDocument: currentNoteNeedsFirstPaint,
     initialContent,
     shouldSerializeEditorMarkdown,
   });
