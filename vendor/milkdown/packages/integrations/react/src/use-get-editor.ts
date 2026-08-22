@@ -25,14 +25,15 @@ export function useGetEditor() {
 
     dom.current = div
     let disposed = false
+    const creationErrorHandler = onError.current
     const reportCreationError = (error: unknown) => {
-      if (!onError.current) {
+      if (!creationErrorHandler) {
         console.error(error)
         return
       }
 
       try {
-        onError.current(error)
+        creationErrorHandler(error)
       } catch (callbackError) {
         console.error(callbackError)
       }

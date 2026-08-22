@@ -342,6 +342,12 @@ describe('MarkdownEditor compatibility', () => {
     const view = editor.ctx.get(editorViewCtx);
     const serializer = editor.ctx.get(serializerCtx);
 
+    expect(view.state.doc.firstChild?.firstChild?.attrs).toMatchObject({
+      src: 'image.png',
+      persistedSrc: 'image.png',
+      title: 'Title',
+    });
+
     expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), markdown)).toBe(markdown);
     await destroyEditor(editor);
 
@@ -352,6 +358,29 @@ describe('MarkdownEditor compatibility', () => {
     expect(serializeEditorMarkdownSnapshot(reopenedSerializer(reopenedView.state.doc), markdown))
       .toBe(markdown);
     await destroyEditor(reopenedEditor);
+  });
+
+  it('opens a linked HTML image inside a heading without dropping heading content', async () => {
+    const markdown = '# <span><a href="https://example.test"><img src="./assets/a.png" alt="A"></a></span>';
+    const editor = await createEditor(markdown);
+    const view = editor.ctx.get(editorViewCtx);
+    const heading = view.state.doc.firstChild;
+    const images: ProseNode[] = [];
+    heading?.descendants((node) => {
+      if (node.type.name === 'image') images.push(node);
+      return true;
+    });
+
+    expect(heading?.type.name).toBe('heading');
+    expect(images).toHaveLength(1);
+    expect(images[0]?.attrs).toMatchObject({
+      src: './assets/a.png',
+      alt: 'A',
+    });
+    expect(serializeEditorMarkdownSnapshot(editor.ctx.get(serializerCtx)(view.state.doc), markdown))
+      .toBe(markdown);
+
+    await destroyEditor(editor);
   });
 
   it.each([

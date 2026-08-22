@@ -2,6 +2,7 @@ import { remarkPluginsCtx, remarkStringifyOptionsCtx, schemaTimerCtx } from '@mi
 import { createTimer, type MilkdownPlugin } from '@milkdown/ctx';
 import { Plugin } from '@milkdown/kit/prose/state';
 import { $prose } from '@milkdown/kit/utils';
+import { defaultHandlers } from 'mdast-util-to-markdown';
 import {
   parseObsidianImageEmbedTarget,
   remarkObsidianImageEmbeds,
@@ -27,7 +28,7 @@ export const obsidianImageEmbedPlugin: MilkdownPlugin = (ctx) => {
           }
           return typeof imageHandler === 'function'
             ? imageHandler(node, parent, state, info)
-            : `![${node.alt ?? ''}](<${node.url ?? ''}>)`;
+            : defaultHandlers.image(node, parent, state, info);
         },
       },
     };
