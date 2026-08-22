@@ -99,6 +99,44 @@ test('does not report an editor creation failure after unmount', async () => {
   expect(editor.destroy).toHaveBeenCalledOnce()
 })
 
+test('reports a pending creation failure to the callback that started it', async () => {
+  let rejectCreation: ((error: Error) => void) | undefined
+  const firstOnError = vi.fn()
+  const nextOnError = vi.fn()
+  const editor = {
+    create: () => new Promise((_resolve, reject) => {
+      rejectCreation = reject
+    }),
+    destroy: vi.fn().mockResolvedValue(undefined),
+  }
+  const FailingEditor: FC = () => {
+    useEditor(() => editor as unknown as Editor)
+    return <Milkdown />
+  }
+
+  const { rerender } = render(
+    <MilkdownProvider onError={firstOnError}>
+      <FailingEditor />
+    </MilkdownProvider>
+  )
+
+  await waitFor(() => {
+    expect(rejectCreation).toBeTypeOf('function')
+  })
+  rerender(
+    <MilkdownProvider onError={nextOnError}>
+      <FailingEditor />
+    </MilkdownProvider>
+  )
+  const failure = new Error('Pending editor creation failed')
+  rejectCreation?.(failure)
+
+  await waitFor(() => {
+    expect(firstOnError).toHaveBeenCalledWith(failure)
+  })
+  expect(nextOnError).not.toHaveBeenCalled()
+})
+
 test('waits for pending creation before destroying an unmounted editor', async () => {
   let resolveCreation: ((editor: Editor) => void) | undefined
   const editor = {

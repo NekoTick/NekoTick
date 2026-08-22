@@ -10,6 +10,7 @@ type RenderedEditorFailure = Pick<NotesEditorFailure, 'reason' | 'error' | 'comp
 
 interface EditorSessionTarget {
   active: boolean;
+  diskRevision: number;
   path: string | undefined;
   revision: number;
 }
@@ -22,6 +23,7 @@ function isSameEditorSession(
 }
 
 export function useMarkdownEditorSourceMode({
+  currentNoteDiskRevision = 0,
   currentNotePath,
   hasActiveNote,
   onEditorFailure,
@@ -30,6 +32,7 @@ export function useMarkdownEditorSourceMode({
   onModeSwitchLayoutReady,
   scrollRootRef,
 }: {
+  currentNoteDiskRevision?: number;
   currentNotePath: string | undefined;
   hasActiveNote: boolean;
   onEditorFailure?: (failure: NotesEditorFailure) => void;
@@ -40,20 +43,24 @@ export function useMarkdownEditorSourceMode({
 }) {
   const editorSessionRef = useRef<EditorSessionTarget>({
     active: hasActiveNote,
+    diskRevision: currentNoteDiskRevision,
     path: currentNotePath,
     revision: 0,
   });
   if (
     editorSessionRef.current.active !== hasActiveNote ||
+    editorSessionRef.current.diskRevision !== currentNoteDiskRevision ||
     editorSessionRef.current.path !== currentNotePath
   ) {
     editorSessionRef.current = {
       active: hasActiveNote,
+      diskRevision: currentNoteDiskRevision,
       path: currentNotePath,
       revision: editorSessionRef.current.revision + 1,
     };
   }
   const editorSession = editorSessionRef.current;
+  const [editorRuntimeRevision, setEditorRuntimeRevision] = useState(0);
   const [editorReadyTarget, setEditorReadyTarget] = useState<EditorSessionTarget | null>(null);
   const [editorInitTimedOutTarget, setEditorInitTimedOutTarget] = useState<EditorSessionTarget | null>(null);
   const [isSourceMode, setIsSourceMode] = useState(false);
@@ -131,6 +138,13 @@ export function useMarkdownEditorSourceMode({
       || !currentNotePath
       || editorSessionRef.current.revision !== editorSession.revision
     ) {
+      if (
+        failure.reason === 'creation-error' &&
+        editorSessionRef.current.active &&
+        editorSessionRef.current.path
+      ) {
+        setEditorRuntimeRevision((revision) => revision + 1);
+      }
       return;
     }
 
@@ -277,6 +291,7 @@ export function useMarkdownEditorSourceMode({
   }, [handleEditorViewReady, hasActiveNote, isSourceMode]);
 
   return {
+    editorRuntimeRevision,
     getCurrentNoteContent,
     handleRenderedEditorFailure,
     handleEditorViewReady,

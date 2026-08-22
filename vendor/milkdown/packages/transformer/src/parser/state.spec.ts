@@ -151,6 +151,34 @@ describe('parser-state', () => {
     })
   })
 
+  it('propagates node creation failures instead of dropping content', () => {
+    const invalidNodeType = {
+      name: 'invalidNode',
+      createAndFill: vi.fn().mockReturnValue(null),
+    } as unknown as NodeType
+    const state = new ParserState(schema)
+    state.openNode(docNodeType)
+
+    expect(() => state.addNode(invalidNodeType)).toThrow('Cannot create node for invalidNode')
+
+    state.openNode(invalidNodeType).addText('nested content')
+    expect(() => state.closeNode()).toThrow('Cannot create node for invalidNode')
+  })
+
+  it('propagates text creation failures instead of dropping content', () => {
+    const textError = new Error('Cannot create text node')
+    const invalidTextSchema = {
+      ...schema,
+      text: vi.fn().mockImplementation(() => {
+        throw textError
+      }),
+    } as unknown as Schema
+    const state = new ParserState(invalidTextSchema)
+    state.openNode(docNodeType)
+
+    expect(() => state.addText('content')).toThrow(textError)
+  })
+
   it('mark', () => {
     const state = new ParserState(schema)
     state.openNode(docNodeType)

@@ -56,6 +56,7 @@ export function MarkdownEditor({
 
   const currentNotePath = useNotesStore(s => s.currentNote?.path);
   const currentNoteRevision = useNotesStore(s => s.currentNoteRevision);
+  const currentNoteDiskRevision = useNotesStore(s => s.currentNoteDiskRevision);
   const workspaceRestoredNote = useNotesStore(s => s.workspaceRestoredNote);
   const showBodyLineNumbers = useUnifiedStore(selectMarkdownBodyLineNumbersEnabled);
   const saveNote = useNotesStore(s => s.saveNote);
@@ -140,6 +141,7 @@ export function MarkdownEditor({
     ignoreEditableTargets: true,
   });
   const {
+    editorRuntimeRevision,
     getCurrentNoteContent,
     handleRenderedEditorFailure,
     handleEditorViewReady,
@@ -148,6 +150,7 @@ export function MarkdownEditor({
     isSourceMode,
     shouldUseSourceFallback,
   } = useMarkdownEditorSourceMode({
+    currentNoteDiskRevision,
     currentNotePath,
     hasActiveNote,
     onEditorFailure: reportNotesEditorFailure,
@@ -303,6 +306,7 @@ export function MarkdownEditor({
                       )}
                     >
                       <MilkdownEditorRuntime
+                        key={editorRuntimeRevision}
                         active={active}
                         showBodyLineNumbers={showBodyLineNumbers}
                         onEditorContentSyncFailure={handleEditorContentSyncFailure}

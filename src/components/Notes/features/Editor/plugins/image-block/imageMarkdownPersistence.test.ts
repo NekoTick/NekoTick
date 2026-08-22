@@ -406,6 +406,21 @@ describe('image markdown persistence', () => {
     ]);
   });
 
+  it('reopens a root linked html image inside a paragraph', async () => {
+    const markdown = [
+      '<a href="https://example.com/sponsor">',
+      '  <img src="https://example.com/sponsor.svg" alt="Sponsor" />',
+      '</a>',
+    ].join('\n');
+
+    const attrs = await parseImageAttrs(markdown);
+    expect(attrs).toMatchObject([{
+      src: 'https://example.com/sponsor.svg',
+      alt: 'Sponsor',
+    }]);
+    await expect(serializeImageAttrs(attrs[0]!)).resolves.toBe(markdown);
+  });
+
   it('drops unsafe image sources during markdown serialization', async () => {
     await expect(serializeImageAttrs({
       src: 'javascript:alert(1)',
