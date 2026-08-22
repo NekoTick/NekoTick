@@ -86,6 +86,21 @@
   font-size: inherit !important;
 }
 
+.milkdown .ProseMirror .md-hr-source {
+  display: block;
+  height: 0;
+  overflow: hidden;
+}
+
+.milkdown .ProseMirror .md-hr.markdown-source-expanded .md-hr-source {
+  height: auto;
+  overflow: visible;
+}
+
+.milkdown .ProseMirror .md-hr.markdown-source-expanded > hr {
+  display: none;
+}
+
 .milkdown .ProseMirror .abbr-definition-line {
   color: var(--vlaina-markdown-color-abbr-definition-text);
   -webkit-text-fill-color: var(--vlaina-markdown-color-abbr-definition-text);

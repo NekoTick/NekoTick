@@ -3,7 +3,10 @@ import { NodeSelection, Selection } from '@milkdown/prose/state'
 import { $command, $inputRule, $nodeAttr, $nodeSchema } from '@milkdown/utils'
 
 import { withMeta } from '../__internal__'
+import { addMarkdownSyntax, markdownSyntaxSchema } from '../mark/markdown-syntax'
 import { paragraphSchema } from './paragraph'
+
+const HR_MARKDOWN_SOURCE = '---'
 
 /// HTML attributes for the hr node.
 export const hrAttr = $nodeAttr('hr')
@@ -15,13 +18,29 @@ withMeta(hrAttr, {
 
 /// Hr node schema.
 export const hrSchema = $nodeSchema('hr', (ctx) => ({
+  content: 'text*',
   group: 'block',
-  parseDOM: [{ tag: 'hr' }],
-  toDOM: (node) => ['hr', ctx.get(hrAttr.key)(node)],
+  parseDOM: [
+    { tag: 'div[data-type="hr"]', contentElement: '[data-hr-source]' },
+    { tag: 'hr' },
+  ],
+  toDOM: (node) => [
+    'div',
+    { ...ctx.get(hrAttr.key)(node), 'data-type': 'hr' },
+    ['span', { 'data-hr-source': 'true' }, 0],
+    ['hr', { contenteditable: 'false' }],
+  ],
   parseMarkdown: {
     match: ({ type }) => type === 'thematicBreak',
     runner: (state, _, type) => {
-      state.addNode(type)
+      state.openNode(type)
+      addMarkdownSyntax(
+        state,
+        markdownSyntaxSchema.type(ctx),
+        HR_MARKDOWN_SOURCE,
+        { edge: 'prefix', kind: 'hr' }
+      )
+      state.closeNode()
     },
   },
   toMarkdown: {
@@ -42,6 +61,17 @@ withMeta(hrSchema.ctx, {
   group: 'Hr',
 })
 
+function createHrNode(ctx: Parameters<typeof hrSchema.type>[0]) {
+  const type = hrSchema.type(ctx)
+  const syntax = markdownSyntaxSchema.type(ctx)
+  return type.create(
+    null,
+    type.schema.text(HR_MARKDOWN_SOURCE, [
+      syntax.create({ edge: 'prefix', kind: 'hr' }),
+    ])
+  )
+}
+
 /// Input rule to insert a hr.
 /// For example, `---` will be converted to a hr.
 export const insertHrInputRule = $inputRule(
@@ -51,7 +81,7 @@ export const insertHrInputRule = $inputRule(
       (state, match, start, end) => {
       const { tr } = state
 
-      if (match[0]) tr.replaceWith(start - 1, end, hrSchema.type(ctx).create())
+      if (match[0]) tr.replaceWith(start - 1, end, createHrNode(ctx))
 
       return tr
       }
@@ -71,7 +101,7 @@ export const insertHrCommand = $command(
 
     const { tr, selection } = state
     const { from } = selection
-    const node = hrSchema.type(ctx).create()
+    const node = createHrNode(ctx)
     if (!node) return true
 
     const _tr = tr.replaceSelectionWith(node)

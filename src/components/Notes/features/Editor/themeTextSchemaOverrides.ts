@@ -265,9 +265,9 @@ export function applyTextSchemaOverrides(ctx: Ctx) {
             {
                 class: 'md-hr',
                 'data-type': 'hr',
-                contenteditable: 'false',
             },
-            ['hr']
+            ['span', { class: 'md-hr-source', 'data-hr-source': 'true' }, 0],
+            ['hr', { contenteditable: 'false' }]
         ],
     }));
 

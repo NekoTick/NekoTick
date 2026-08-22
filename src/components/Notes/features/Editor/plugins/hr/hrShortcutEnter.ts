@@ -1,9 +1,62 @@
 import { createSetextHeadingFromDelimiter } from '@milkdown/kit/preset/commonmark';
+import { TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import { shouldConvertParagraphToThematicBreak } from './hrAutoParagraphUtils';
 import { moveSelectionAfterInsertedNode } from '../shared/insertedNodeSelection';
 
 const MAX_HR_SHORTCUT_TEXT_CHARS = 256;
+const EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER = '\u200B';
+const MARKDOWN_BLANK_LINE_VALUES = new Set([
+  '<!--vlaina-markdown-blank-line-->',
+  '<!--vlaina-rendered-html-boundary-blank-line-->',
+]);
+
+function createEditableHorizontalRule(view: EditorView) {
+  const { schema } = view.state;
+  const syntax = schema.marks.markdownSyntax;
+  const content = syntax
+    ? schema.text('---', [syntax.create({ edge: 'prefix', kind: 'hr' })])
+    : undefined;
+  return schema.nodes.hr.create(null, content);
+}
+
+export function moveSelectionAfterHorizontalRule(
+  view: EditorView,
+  tr: EditorView['state']['tr'],
+  hrPos: number,
+  hrNode: { nodeSize: number },
+) {
+  const paragraphType = view.state.schema.nodes.paragraph;
+  const afterHrPos = hrPos + hrNode.nodeSize;
+  const nextNode = tr.doc.nodeAt(afterHrPos);
+  const hasEditableEmptyParagraph = nextNode?.type.name === 'paragraph'
+    && (
+      nextNode.content.size === 0
+      || nextNode.textContent === EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER
+    );
+  const hasMarkdownBlankLine = nextNode?.type.name === 'html_block'
+    && MARKDOWN_BLANK_LINE_VALUES.has(nextNode.attrs?.value);
+
+  if (hasEditableEmptyParagraph) {
+    return tr.setSelection(TextSelection.create(
+      tr.doc,
+      afterHrPos + 1 + nextNode.content.size,
+    ));
+  }
+
+  if (nextNode && paragraphType && !hasMarkdownBlankLine) {
+    return tr
+      .insert(afterHrPos, paragraphType.create())
+      .setSelection(TextSelection.create(tr.doc, afterHrPos + 1));
+  }
+
+  return moveSelectionAfterInsertedNode({
+    tr,
+    nodePos: hrPos,
+    insertedNodeFallback: hrNode,
+    paragraphType,
+  });
+}
 
 function shouldPreserveLeadingFrontmatterShortcut(view: EditorView): boolean {
   const { selection } = view.state;
@@ -33,18 +86,13 @@ export function handleHorizontalRuleShortcutEnter(view: EditorView): boolean {
 
   const { $from } = selection;
   const paragraphPos = $from.before();
-  const hrNode = hrType.create();
+  const hrNode = createEditableHorizontalRule(view);
   const tr = state.tr.replaceWith(
     paragraphPos,
     paragraphPos + $from.parent.nodeSize,
     hrNode,
   );
-  const movedTr = moveSelectionAfterInsertedNode({
-    tr,
-    nodePos: paragraphPos,
-    insertedNodeFallback: hrNode,
-    paragraphType,
-  });
+  const movedTr = moveSelectionAfterHorizontalRule(view, tr, paragraphPos, hrNode);
   view.dispatch(movedTr.scrollIntoView());
   return true;
 }

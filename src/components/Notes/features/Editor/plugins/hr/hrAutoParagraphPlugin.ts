@@ -7,18 +7,20 @@ import {
   TextSelection,
 } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { focusNoteTitleInputAtEnd } from '../../utils/titleInputDom';
 import {
+  focusHorizontalRuleSource,
   resolveHorizontalRuleNodePos,
-  selectHorizontalRuleBlock,
 } from './hrBlockSelection';
-import { handleMarkdownBlockShortcutEnter } from './hrShortcutEnter';
+import {
+  handleMarkdownBlockShortcutEnter,
+  moveSelectionAfterHorizontalRule,
+} from './hrShortcutEnter';
 
 export { handleHorizontalRuleShortcutEnter } from './hrShortcutEnter';
 
 export const hrAutoParagraphPluginKey = new PluginKey('hrAutoParagraph');
 
-function isArrowUpSkipHrScenario(view: EditorView): boolean {
+function isArrowUpEnterHrScenario(view: EditorView): boolean {
   const { state } = view;
   const { selection } = state;
   if (!selection.empty) return false;
@@ -36,23 +38,16 @@ function isArrowUpSkipHrScenario(view: EditorView): boolean {
   return state.doc.child(indexAtRoot - 1)?.type === state.schema.nodes.hr;
 }
 
-function skipHorizontalRuleOnArrowUp(view: EditorView): boolean {
-  if (!isArrowUpSkipHrScenario(view)) return false;
+function enterHorizontalRuleOnArrowUp(view: EditorView): boolean {
+  if (!isArrowUpEnterHrScenario(view)) return false;
 
   const { state } = view;
   const indexAtRoot = state.selection.$from.index(0);
   const hrPos = state.selection.$from.posAtIndex(indexAtRoot - 1, 0);
-  const targetSelection = Selection.findFrom(state.doc.resolve(hrPos), -1, false);
-  if (!targetSelection) return focusNoteTitleInputAtEnd();
-  if (targetSelection instanceof NodeSelection && targetSelection.node.type === state.schema.nodes.hr) {
-    return focusNoteTitleInputAtEnd();
-  }
-
-  view.dispatch(state.tr.setSelection(targetSelection).scrollIntoView());
-  return true;
+  return focusHorizontalRuleSource(view, hrPos, 'end');
 }
 
-function isArrowDownSkipHrScenario(view: EditorView): boolean {
+function isArrowDownEnterHrScenario(view: EditorView): boolean {
   const { state } = view;
   const { selection } = state;
   if (!selection.empty) return false;
@@ -69,21 +64,51 @@ function isArrowDownSkipHrScenario(view: EditorView): boolean {
   return state.doc.child(indexAtRoot + 1)?.type === state.schema.nodes.hr;
 }
 
-function skipHorizontalRuleOnArrowDown(view: EditorView): boolean {
-  if (!isArrowDownSkipHrScenario(view)) return false;
+function enterHorizontalRuleOnArrowDown(view: EditorView): boolean {
+  if (!isArrowDownEnterHrScenario(view)) return false;
 
   const { state } = view;
   const indexAtRoot = state.selection.$from.index(0);
-  const hrNode = state.doc.child(indexAtRoot + 1);
   const hrPos = state.selection.$from.posAtIndex(indexAtRoot + 1, 0);
-  const afterHrPos = hrPos + hrNode.nodeSize;
-  const targetSelection = Selection.findFrom(state.doc.resolve(afterHrPos), 1, false);
-  if (!targetSelection) return false;
-  if (targetSelection instanceof NodeSelection && targetSelection.node.type === state.schema.nodes.hr) {
-    return false;
-  }
+  return focusHorizontalRuleSource(view, hrPos, 'end');
+}
 
-  view.dispatch(state.tr.setSelection(targetSelection).scrollIntoView());
+function preventNestedForwardDeleteIntoHorizontalRule(view: EditorView, key: string): boolean {
+  const { state } = view;
+  const { selection } = state;
+  if (
+    key !== 'Delete'
+    || !selection.empty
+    || selection.$from.depth < 3
+    || selection.$from.parentOffset !== selection.$from.parent.content.size
+  ) return false;
+
+  let insideList = false;
+  for (let depth = 1; depth < selection.$from.depth; depth += 1) {
+    const ancestor = selection.$from.node(depth);
+    if (ancestor.type.name !== 'bullet_list' && ancestor.type.name !== 'ordered_list') continue;
+    insideList = true;
+    if (ancestor.lastChild !== selection.$from.node(depth + 1)) return false;
+  }
+  if (!insideList) return false;
+
+  return state.doc.child(selection.$from.index(0) + 1)?.type === state.schema.nodes.hr;
+}
+
+function insertParagraphAfterActiveHorizontalRule(view: EditorView): boolean {
+  const { state } = view;
+  const { selection } = state;
+  if (!selection.empty || selection.$from.depth !== 1) return false;
+  if (selection.$from.parent.type !== state.schema.nodes.hr) return false;
+
+  const hrPos = selection.$from.before(1);
+  const movedTr = moveSelectionAfterHorizontalRule(
+    view,
+    state.tr,
+    hrPos,
+    selection.$from.parent,
+  );
+  view.dispatch(movedTr.scrollIntoView());
   return true;
 }
 
@@ -121,7 +146,7 @@ function deleteAdjacentHorizontalRule(view: EditorView, key: string): boolean {
         const paragraphFrom = selection.$from.before();
         const paragraphTo = paragraphFrom + selection.$from.parent.nodeSize;
         let tr = state.tr.delete(paragraphFrom, paragraphTo);
-        const hrTo = from + prevNode.nodeSize;
+        const hrTo = from;
         const textSelection = findTextSelectionFromBoundary(
           tr.doc,
           hrTo,
@@ -198,25 +223,33 @@ export const hrAutoParagraphPlugin = $prose(() => {
         if (event.isComposing) return false;
 
         if (event.key === 'ArrowUp') {
-          if (!skipHorizontalRuleOnArrowUp(view)) return false;
+          if (!enterHorizontalRuleOnArrowUp(view)) return false;
           event.preventDefault();
           return true;
         }
 
         if (event.key === 'Enter') {
-          if (!handleMarkdownBlockShortcutEnter(view)) return false;
+          if (
+            !insertParagraphAfterActiveHorizontalRule(view)
+            && !handleMarkdownBlockShortcutEnter(view)
+          ) return false;
           event.preventDefault();
           return true;
         }
 
         if (event.key === 'ArrowDown') {
-          if (!skipHorizontalRuleOnArrowDown(view)) return false;
+          if (!enterHorizontalRuleOnArrowDown(view)) return false;
           event.preventDefault();
           return true;
         }
 
         if (event.key === 'Backspace' || event.key === 'Delete') {
           if (deleteSelectedHorizontalRule(view, event.key)) {
+            event.preventDefault();
+            return true;
+          }
+
+          if (preventNestedForwardDeleteIntoHorizontalRule(view, event.key)) {
             event.preventDefault();
             return true;
           }
@@ -232,10 +265,13 @@ export const hrAutoParagraphPlugin = $prose(() => {
         mousedown(view, event) {
           if (!(event instanceof MouseEvent)) return false;
           if (event.button !== 0) return false;
+          if (event.target instanceof HTMLElement && event.target.closest('[data-markdown-syntax="hr"]')) {
+            return false;
+          }
           const hrPos = resolveHorizontalRuleNodePos(view, event.target);
           if (hrPos === null) return false;
 
-          if (!selectHorizontalRuleBlock(view, hrPos)) return false;
+          if (!focusHorizontalRuleSource(view, hrPos)) return false;
           event.preventDefault();
           return true;
         },

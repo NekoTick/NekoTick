@@ -15,7 +15,6 @@ import { history } from '@milkdown/kit/plugin/history';
 import { listener } from '@milkdown/kit/plugin/listener';
 import { tableBlock } from '@milkdown/kit/component/table-block';
 import { clipboardPlugin } from './plugins/clipboard/clipboardPlugin';
-import { GapCursor } from '@milkdown/kit/prose/gapcursor';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import { redo, undo } from '@milkdown/kit/prose/history';
@@ -184,20 +183,53 @@ describe('MarkdownEditor compatibility', () => {
     await destroyEditor(editor);
   });
 
-  it('opens a horizontal-rule-only document with a gap cursor without changing Markdown', async () => {
+  it('opens a horizontal-rule-only document with editable source without changing Markdown', async () => {
     const source = '---';
     const editor = await createEditor(source);
     const view = editor.ctx.get(editorViewCtx);
     const serializer = editor.ctx.get(serializerCtx);
 
     expect(normalizeInitialEditorSelection(view)).toBe(true);
-    expect(view.state.selection).toBeInstanceOf(GapCursor);
-    expect(view.state.selection.from).toBe(view.state.doc.content.size);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parent.textContent).toBe('---');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
+    expect(view.dom.querySelector('.md-hr.markdown-source-expanded')).toBeInstanceOf(HTMLElement);
     expect(isEditorMarkdownEquivalentToNoteContent(serializer(view.state.doc), source)).toBe(true);
 
     expect(replaceEditorMarkdown(editor.ctx, source)).toBe(true);
-    expect(view.state.selection).toBeInstanceOf(GapCursor);
-    expect(view.state.selection.from).toBe(view.state.doc.content.size);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
+
+    await destroyEditor(editor);
+  });
+
+  it('reparses edited horizontal rule source as ordinary text', async () => {
+    const source = 'before\n\n---\n\nafter';
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx);
+    const serializer = editor.ctx.get(serializerCtx);
+    let hrPos = -1;
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name !== 'hr') return true;
+      hrPos = pos;
+      return false;
+    });
+
+    expect(hrPos).toBeGreaterThanOrEqual(0);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      hrPos + 1,
+      hrPos + 2,
+    )));
+    view.dispatch(view.state.tr.deleteSelection());
+
+    expect(view.state.doc.child(1).type.name).toBe('paragraph');
+    expect(view.state.doc.child(1).textContent).toBe('--');
+    expect(serializeEditorMarkdownSnapshot(serializer(view.state.doc), source)).toBe(
+      'before\n\\--\n\nafter',
+    );
 
     await destroyEditor(editor);
   });

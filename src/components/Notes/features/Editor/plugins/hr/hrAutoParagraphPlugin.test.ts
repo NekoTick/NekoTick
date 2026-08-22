@@ -10,6 +10,7 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 
 import { blankAreaDragBoxPlugin } from '../cursor/blankAreaDragBoxPlugin';
 import { getBlockSelectionPluginState } from '../cursor/blockSelectionPluginState';
+import { markdownSyntaxPlugin } from '../markdown-syntax';
 import { handleHorizontalRuleShortcutEnter, hrAutoParagraphPlugin } from './hrAutoParagraphPlugin';
 
 function createEditor(defaultValue = '') {
@@ -28,6 +29,17 @@ function createEditorWithBlockSelection(defaultValue = '') {
     })
     .use(commonmark)
     .use(blankAreaDragBoxPlugin)
+    .use(markdownSyntaxPlugin)
+    .use(hrAutoParagraphPlugin);
+}
+
+function createEditorWithMarkdownSyntax(defaultValue = '') {
+  return Editor.make()
+    .config((ctx) => {
+      ctx.set(defaultValueCtx, defaultValue);
+    })
+    .use(commonmark)
+    .use(markdownSyntaxPlugin)
     .use(hrAutoParagraphPlugin);
 }
 
@@ -248,6 +260,91 @@ describe('hrAutoParagraphPlugin', () => {
     expect(view.state.doc.childCount).toBe(3);
     expect(view.state.doc.child(1).type.name).toBe('hr');
     expect(view.state.doc.child(2).type.name).toBe('paragraph');
+
+    await editor.destroy();
+  });
+
+  it('inserts an empty paragraph after a thematic break when content already follows', async () => {
+    const editor = createEditor();
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const { schema } = view.state;
+    const before = schema.nodes.code_block.create(null, schema.text('before'));
+    const delimiter = schema.nodes.paragraph.create(null, schema.text('---'));
+    const after = schema.nodes.paragraph.create(null, schema.text('after'));
+    const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, [before, delimiter, after]);
+    view.dispatch(tr.setSelection(TextSelection.create(
+      tr.doc,
+      before.nodeSize + delimiter.nodeSize - 1,
+    )));
+
+    expect(handleHorizontalRuleShortcutEnter(view)).toBe(true);
+    expect(Array.from(
+      { length: view.state.doc.childCount },
+      (_, index) => view.state.doc.child(index).type.name,
+    )).toEqual(['code_block', 'hr', 'paragraph', 'paragraph']);
+    expect(view.state.doc.child(2).content.size).toBe(0);
+    expect(view.state.doc.child(3).textContent).toBe('after');
+    expect(view.state.selection.$from.parent).toBe(view.state.doc.child(2));
+
+    await editor.destroy();
+  });
+
+  it('inserts an empty paragraph when Enter is pressed inside a horizontal rule before content', async () => {
+    const editor = createEditor('before\n\n---\n\nafter');
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const hrPos = findHorizontalRulePos(view);
+    expect(hrPos).not.toBeNull();
+    if (hrPos === null) throw new Error('Expected horizontal rule position');
+    const hr = view.state.doc.nodeAt(hrPos)!;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      hrPos + 1 + hr.content.size,
+    )));
+
+    expect(pressKey(view, 'Enter')).toBe(true);
+    expect(Array.from(
+      { length: view.state.doc.childCount },
+      (_, index) => view.state.doc.child(index).type.name,
+    )).toEqual(['paragraph', 'hr', 'paragraph', 'paragraph']);
+    expect(view.state.doc.child(2).content.size).toBe(0);
+    expect(view.state.doc.child(3).textContent).toBe('after');
+    expect(view.state.selection.$from.parent).toBe(view.state.doc.child(2));
+
+    await editor.destroy();
+  });
+
+  it('reuses an existing editable markdown blank line after a horizontal rule', async () => {
+    const editor = createEditor('before\n\n---\n\nafter');
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const hrPos = findHorizontalRulePos(view);
+    expect(hrPos).not.toBeNull();
+    if (hrPos === null) throw new Error('Expected horizontal rule position');
+    const hr = view.state.doc.nodeAt(hrPos)!;
+    const afterHrPos = hrPos + hr.nodeSize;
+    const blank = view.state.schema.nodes.paragraph.create(
+      null,
+      view.state.schema.text('\u200B'),
+    );
+    const tr = view.state.tr.insert(afterHrPos, blank);
+    view.dispatch(tr.setSelection(TextSelection.create(
+      tr.doc,
+      hrPos + 1 + hr.content.size,
+    )));
+
+    expect(pressKey(view, 'Enter')).toBe(true);
+    expect(view.state.doc.childCount).toBe(4);
+    expect(view.state.doc.child(2).textContent).toBe('\u200B');
+    expect(view.state.selection.$from.parent).toBe(view.state.doc.child(2));
+    expect(view.state.selection.$from.parentOffset).toBe(1);
 
     await editor.destroy();
   });
@@ -511,7 +608,7 @@ describe('hrAutoParagraphPlugin', () => {
     await editor.destroy();
   });
 
-  it('selects the horizontal rule through the shared block selection when the rendered rule is clicked', async () => {
+  it('opens the horizontal rule source when the rendered rule is clicked', async () => {
     const editor = createEditorWithBlockSelection('before\n\n---\n\nafter');
 
     await editor.create();
@@ -523,15 +620,11 @@ describe('hrAutoParagraphPlugin', () => {
     const handled = dispatchPluginMouseDown(view, hr!);
 
     expect(handled).toBe(true);
-    const hrPos = findHorizontalRulePos(view);
-    expect(hrPos).not.toBeNull();
-    if (hrPos === null) {
-      throw new Error('Expected horizontal rule position');
-    }
-    expect(view.state.selection).not.toBeInstanceOf(NodeSelection);
-    expect(getBlockSelectionPluginState(view.state).selectedBlocks).toEqual([
-      { from: hrPos, to: hrPos + 1 },
-    ]);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parent.textContent).toBe('---');
+    expect(view.dom.querySelector('[data-type="hr"].markdown-source-expanded')).toBeInstanceOf(HTMLElement);
+    expect(getBlockSelectionPluginState(view.state).selectedBlocks).toEqual([]);
 
     await editor.destroy();
   });
@@ -568,8 +661,8 @@ describe('hrAutoParagraphPlugin', () => {
     await editor.destroy();
   });
 
-  it('skips a preceding horizontal rule to the previous paragraph end on ArrowUp', async () => {
-    const editor = createEditor('before\n\n---\n\nafter');
+  it('moves into a preceding horizontal rule on ArrowUp', async () => {
+    const editor = createEditorWithMarkdownSyntax('before\n\n---\n\nafter');
 
     await editor.create();
 
@@ -580,8 +673,10 @@ describe('hrAutoParagraphPlugin', () => {
 
     expect(pressKey(view, 'ArrowUp')).toBe(true);
     expect(view.state.selection).toBeInstanceOf(TextSelection);
-    expect(view.state.selection.$from.parent.textContent).toBe('before');
-    expect(view.state.selection.$from.parentOffset).toBe('before'.length);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parent.textContent).toBe('---');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
+    expect(view.dom.querySelector('.markdown-source-expanded')).toBeInstanceOf(HTMLElement);
 
     await editor.destroy();
   });
@@ -602,8 +697,8 @@ describe('hrAutoParagraphPlugin', () => {
     await editor.destroy();
   });
 
-  it('skips a following horizontal rule to the next paragraph start on ArrowDown', async () => {
-    const editor = createEditor('before\n\n---\n\nafter');
+  it('moves into a following horizontal rule on ArrowDown', async () => {
+    const editor = createEditorWithMarkdownSyntax('before\n\n---\n\nafter');
 
     await editor.create();
 
@@ -614,8 +709,10 @@ describe('hrAutoParagraphPlugin', () => {
 
     expect(pressKey(view, 'ArrowDown')).toBe(true);
     expect(view.state.selection).toBeInstanceOf(TextSelection);
-    expect(view.state.selection.$from.parent.textContent).toBe('after');
-    expect(view.state.selection.$from.parentOffset).toBe(0);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parent.textContent).toBe('---');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
+    expect(view.dom.querySelector('.markdown-source-expanded')).toBeInstanceOf(HTMLElement);
 
     await editor.destroy();
   });

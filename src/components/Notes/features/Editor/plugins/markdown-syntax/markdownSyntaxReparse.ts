@@ -48,14 +48,19 @@ function hasSyntaxMark(node: ProseNode, kind?: string, edge?: string): boolean {
 }
 
 function textblockNeedsSyntax(node: ProseNode): boolean {
-  const expectedHeadingPrefix = node.type.name === 'heading'
-    ? `${'#'.repeat(Math.max(1, Math.min(6, Number(node.attrs.level) || 1)))} `
-    : null;
+  const expectedPrefix = node.type.name === 'heading'
+    ? {
+      kind: 'heading',
+      text: `${'#'.repeat(Math.max(1, Math.min(6, Number(node.attrs.level) || 1)))} `,
+    }
+    : node.type.name === 'hr'
+      ? { kind: 'hr', text: '---' }
+      : null;
   const firstChild = node.firstChild;
-  if (expectedHeadingPrefix !== null && (
+  if (expectedPrefix !== null && (
     !firstChild?.isText
-    || firstChild.text !== expectedHeadingPrefix
-    || !hasSyntaxMark(firstChild, 'heading', 'prefix')
+    || firstChild.text !== expectedPrefix.text
+    || !hasSyntaxMark(firstChild, expectedPrefix.kind, 'prefix')
   )) return true;
 
   let previousMarks = new Map<string, Mark>();
@@ -97,7 +102,7 @@ function textblockNeedsSyntax(node: ProseNode): boolean {
       const edge = String(syntaxMark.attrs.edge ?? '');
       const kind = String(syntaxMark.attrs.kind ?? '');
       if (edge === 'prefix') {
-        if (kind !== 'heading' || expectedHeadingPrefix === null || index !== 0) return true;
+        if (kind !== expectedPrefix?.kind || index !== 0) return true;
         continue;
       }
       if (!usesMarkdownSyntaxDelimiters(node.type.schema.marks[kind])) return true;

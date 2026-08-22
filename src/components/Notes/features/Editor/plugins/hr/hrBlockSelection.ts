@@ -1,5 +1,9 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { dispatchBlockSelectionAction } from '../cursor/blockSelectionPluginState';
+import { TextSelection } from '@milkdown/kit/prose/state';
+import {
+  blankAreaDragBoxPluginKey,
+  CLEAR_BLOCKS_ACTION,
+} from '../cursor/blockSelectionPluginState';
 
 export function resolveHorizontalRuleNodePos(view: EditorView, target: EventTarget | null): number | null {
   if (!(target instanceof HTMLElement)) return null;
@@ -46,14 +50,21 @@ export function resolveHorizontalRuleNodePos(view: EditorView, target: EventTarg
   return foundPos;
 }
 
-export function selectHorizontalRuleBlock(view: EditorView, hrPos: number): boolean {
+export function focusHorizontalRuleSource(
+  view: EditorView,
+  hrPos: number,
+  edge: 'end' | 'start' = 'end',
+): boolean {
   const hrNode = view.state.doc.nodeAt(hrPos);
-  if (!hrNode || hrNode.type !== view.state.schema.nodes.hr) return false;
+  if (!hrNode || hrNode.type !== view.state.schema.nodes.hr || !hrNode.isTextblock) return false;
 
-  dispatchBlockSelectionAction(view, {
-    type: 'set-blocks',
-    blocks: [{ from: hrPos, to: hrPos + hrNode.nodeSize }],
-  });
+  const offset = edge === 'end' ? hrNode.content.size : 0;
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, hrPos + 1 + offset))
+      .setMeta(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION)
+      .scrollIntoView(),
+  );
   view.focus();
   return true;
 }

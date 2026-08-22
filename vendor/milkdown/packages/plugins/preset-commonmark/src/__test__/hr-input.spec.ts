@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { commandsCtx, Editor, editorViewCtx } from '@milkdown/core'
+import { commandsCtx, defaultValueCtx, Editor, editorViewCtx } from '@milkdown/core'
 import { TextSelection } from '@milkdown/prose/state'
 import type { EditorView } from '@milkdown/prose/view'
 import { expect, it } from 'vitest'
@@ -25,6 +25,29 @@ function typeText(view: EditorView, input: string) {
     if (!handled) view.dispatch(view.state.tr.insertText(text, from, to))
   }
 }
+
+it('parses a thematic break as editable markdown source', async () => {
+  const editor = Editor.make()
+    .config((ctx) => {
+      ctx.set(defaultValueCtx, '---')
+    })
+    .use(commonmark)
+
+  await editor.create()
+
+  const view = editor.ctx.get(editorViewCtx)
+  const hr = view.state.doc.firstChild
+  expect(hr?.type.name).toBe('hr')
+  expect(hr?.isTextblock).toBe(true)
+  expect(hr?.textContent).toBe('---')
+  expect(hr?.firstChild?.marks).toEqual([
+    expect.objectContaining({
+      attrs: expect.objectContaining({ edge: 'prefix', kind: 'hr' }),
+    }),
+  ])
+
+  await editor.destroy()
+})
 
 it('should not create a thematic break from --- followed by space', async () => {
   const editor = createEditor()
@@ -56,6 +79,7 @@ it('should not add a paragraph when inserting a thematic break between blocks', 
     { length: view.state.doc.childCount },
     (_, index) => view.state.doc.child(index).type.name
   )).toEqual(['heading', 'hr', 'code_block'])
+  expect(view.state.doc.child(1).textContent).toBe('---')
 
   await editor.destroy()
 })
@@ -70,6 +94,7 @@ it('should keep a trailing paragraph when inserting a thematic break at the docu
     { length: view.state.doc.childCount },
     (_, index) => view.state.doc.child(index).type.name
   )).toEqual(['hr', 'paragraph'])
+  expect(view.state.doc.child(0).textContent).toBe('---')
   expect(view.state.selection).toBeInstanceOf(TextSelection)
   expect(view.state.selection.$from.parent).toBe(view.state.doc.child(1))
 
