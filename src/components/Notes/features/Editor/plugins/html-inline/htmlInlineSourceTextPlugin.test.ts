@@ -84,10 +84,16 @@ describe('htmlInlineSourceTextPlugin', () => {
 
     const decorations = collectHtmlInlineSourceTextDecorations(doc as any);
 
-    expect(decorations).toHaveLength(1);
+    expect(decorations.length).toBeGreaterThan(1);
     expect(decorations[0].from).toBe(1 + text.indexOf('<video'));
     expect(decorations[0].to).toBe(1 + text.indexOf(' />') + 3);
     expect((decorations[0].type as any).attrs?.class).toBe('md-html-inline md-html-source-text');
+    const classes = decorations.map((decoration: any) => decoration.type.attrs?.class);
+    expect(classes).toContain('md-html-source-markup');
+    expect(classes).toContain('md-html-source-tag');
+    expect(classes).toContain('md-html-source-attribute');
+    expect(classes).toContain('md-html-source-string');
+    expect(classes).toContain('md-html-source-operator');
   });
 
   it('bounds decoration collection', () => {
@@ -121,8 +127,10 @@ describe('htmlInlineSourceTextPlugin', () => {
       unrelatedInsert.doc,
     );
 
-    expect(mappedDecorations.find()).toHaveLength(1);
-    expect((mappedDecorations.find()[0]?.type as any).attrs?.class).toBe('md-html-inline md-html-source-text');
+    expect(mappedDecorations.find().length).toBeGreaterThan(1);
+    expect(mappedDecorations.find().some((decoration: any) => (
+      decoration.type.attrs?.class === 'md-html-inline md-html-source-text'
+    ))).toBe(true);
 
     const htmlStart = findTextPosition(unrelatedInsert.doc, '<video', 'start');
     const deleteHtmlStart = EditorStateCtor.create({ schema, doc: unrelatedInsert.doc }).tr.delete(htmlStart, htmlStart + 1);

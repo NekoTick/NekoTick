@@ -3,6 +3,7 @@ import { TextSelection, type Selection } from '@milkdown/kit/prose/state';
 import { getBoundedTextBetween, MAX_EDITOR_SELECTION_TEXT_CHARS } from '../shared/selectionTextLimits';
 
 const TOOLBAR_EXCLUDED_TEXT_PARENT_TYPES = new Set(['frontmatter']);
+const MARKDOWN_SYNTAX_MARK_NAME = 'markdownSyntax';
 
 function isToolbarExcludedTextParent(parent: ProseNode | null | undefined): boolean {
   return Boolean(parent && TOOLBAR_EXCLUDED_TEXT_PARENT_TYPES.has(parent.type.name));
@@ -21,7 +22,12 @@ function hasUsableTextNodeInRange(doc: ProseNode, from: number, to: number): boo
       return false;
     }
 
-    if (isToolbarExcludedTextParent(parent) || !node.isText || !node.text) {
+    if (
+      isToolbarExcludedTextParent(parent)
+      || !node.isText
+      || !node.text
+      || node.marks?.some((mark) => mark.type.name === MARKDOWN_SYNTAX_MARK_NAME)
+    ) {
       return undefined;
     }
 

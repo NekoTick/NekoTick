@@ -12,6 +12,7 @@ import {
   getTransactionChangedRanges,
   transactionTouchesDecorations,
 } from '../shared/transactionStepText';
+import { collectHtmlInlineSourceTokens } from './htmlInlineSourceTokens';
 
 export const htmlInlineSourceTextPluginKey = new PluginKey<DecorationSet>('htmlInlineSourceText');
 export const MAX_HTML_INLINE_SOURCE_TEXT_DECORATIONS = 2000;
@@ -72,6 +73,12 @@ function collectHtmlInlineSourceTextDecorationsFromTextNode(
     decorations.push(Decoration.inline(pos + range.start, pos + range.end, {
       class: HTML_INLINE_SOURCE_TEXT_CLASS,
     }));
+    for (const token of collectHtmlInlineSourceTokens(text, range.start, range.end)) {
+      if (decorations.length >= maxDecorations) break;
+      decorations.push(Decoration.inline(pos + token.start, pos + token.end, {
+        class: token.className,
+      }));
+    }
     if (decorations.length >= maxDecorations) break;
   }
 }

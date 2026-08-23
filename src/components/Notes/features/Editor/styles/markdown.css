@@ -266,6 +266,37 @@
   -webkit-text-fill-color: var(--vlaina-color-editor-html-source-text);
 }
 
+.milkdown .ProseMirror :is(
+  .md-html-source-markup,
+  .md-html-source-tag,
+  .md-html-source-attribute,
+  .md-html-source-string,
+  .md-html-source-operator
+) {
+  font-size: inherit;
+  -webkit-text-fill-color: currentColor;
+}
+
+.milkdown .ProseMirror .md-html-source-markup {
+  color: var(--vlaina-markdown-color-code-markup) !important;
+}
+
+.milkdown .ProseMirror .md-html-source-tag {
+  color: var(--vlaina-markdown-color-code-tag) !important;
+}
+
+.milkdown .ProseMirror .md-html-source-attribute {
+  color: var(--vlaina-markdown-color-code-type) !important;
+}
+
+.milkdown .ProseMirror .md-html-source-string {
+  color: var(--vlaina-markdown-color-code-string) !important;
+}
+
+.milkdown .ProseMirror .md-html-source-operator {
+  color: var(--vlaina-markdown-color-code-operator) !important;
+}
+
 .milkdown li.editor-list-item-align-center {
   text-align: center;
 }

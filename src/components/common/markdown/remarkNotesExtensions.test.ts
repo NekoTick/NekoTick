@@ -33,6 +33,31 @@ function buildDeepTree(leafChildren: MdastNode[]): {
 }
 
 describe('remarkNotesInlineExtensions', () => {
+  it.each([
+    ['opening', '<emnested RGB emphasis'],
+    ['closing', 'nested RGB emphasis</em'],
+  ])('keeps malformed inline html containers with an incomplete %s tag as editable text', (_name, malformed) => {
+    const tree: MdastNode = {
+      type: 'root',
+      children: [{
+        type: 'paragraph',
+        children: [
+          { type: 'html', value: '<span style="color: rgb(15, 118, 110)">' },
+          { type: 'text', value: malformed },
+          { type: 'html', value: '</span>' },
+        ],
+      }],
+    };
+
+    remarkNotesInlineExtensions()(tree);
+
+    expect(tree.children?.[0]?.children).toEqual([
+      { type: 'text', value: '<span style="color: rgb(15, 118, 110)">' },
+      { type: 'text', value: malformed },
+      { type: 'text', value: '</span>' },
+    ]);
+  });
+
   it('treats plain unclosed html block text as paragraph text', () => {
     const tree: MdastNode = {
       type: 'root',

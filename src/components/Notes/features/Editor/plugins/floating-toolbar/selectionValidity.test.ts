@@ -52,6 +52,39 @@ describe('selectionValidity', () => {
     await editor.destroy();
   });
 
+  it('rejects selections that only contain markdown syntax', async () => {
+    const editor = await createEditor('# Heading');
+    const view = editor.ctx.get(editorViewCtx);
+    let syntaxFrom = -1;
+    let syntaxTo = -1;
+
+    view.state.doc.descendants((node, pos) => {
+      if (
+        syntaxFrom >= 0
+        || !node.isText
+        || !node.text
+        || !node.marks.some((mark) => mark.type.name === 'markdownSyntax')
+      ) {
+        return true;
+      }
+      syntaxFrom = pos;
+      syntaxTo = pos + node.nodeSize;
+      return true;
+    });
+
+    expect(syntaxFrom).toBeGreaterThanOrEqual(0);
+    expect(hasUsableTextSelection(
+      TextSelection.create(view.state.doc, syntaxFrom, syntaxFrom + 1),
+      view.state.doc,
+    )).toBe(false);
+    expect(hasUsableTextSelection(
+      TextSelection.create(view.state.doc, syntaxFrom, syntaxTo + 1),
+      view.state.doc,
+    )).toBe(true);
+
+    await editor.destroy();
+  });
+
   it('rejects text selections that only contain frontmatter text', () => {
     const frontmatterNode = { type: { name: 'frontmatter' }, nodeSize: 13 };
     const doc = createDocWithSelectedNodes([

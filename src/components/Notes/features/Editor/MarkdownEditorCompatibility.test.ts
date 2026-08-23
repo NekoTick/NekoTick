@@ -142,6 +142,25 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('keeps malformed nested inline html visible and editable', async () => {
+    const source = 'Text color: <span style="color: rgb(15, 118, 110)"><em>nested RGB emphasis</em></span>.';
+    const malformed = source.replace('<em>', '<em');
+    const editor = await createEditor(malformed);
+    const view = editor.ctx.get(editorViewCtx);
+    expect(view.dom.textContent).toContain('<emnested RGB emphasis');
+    expect(view.dom.textContent).toContain('<span style="color: rgb(15, 118, 110)">');
+    expect(view.dom.querySelector('.md-html-source-tag')?.textContent).toBe('span');
+    expect(view.dom.querySelector('.md-html-source-attribute')?.textContent).toBe('style');
+    expect(view.dom.querySelector('.md-html-source-string')?.textContent).toBe('"color: rgb(15, 118, 110)"');
+    expect(view.state.doc.textContent).toContain('<emnested RGB emphasis');
+    expect(editor.ctx.get(serializerCtx)(view.state.doc)).toContain('\\<emnested RGB emphasis');
+
+    const emOffset = view.state.doc.textContent.indexOf('<emnested');
+    view.dispatch(view.state.tr.insertText('>', 1 + emOffset + '<em'.length));
+    expect(view.state.doc.textContent).toContain('<em>nested RGB emphasis');
+    await destroyEditor(editor);
+  });
+
   it('places the cursor at the previous paragraph end after deleting a middle blank line', async () => {
     const editor = await createEditor('1.2\n\n3.4');
     const view = editor.ctx.get(editorViewCtx);

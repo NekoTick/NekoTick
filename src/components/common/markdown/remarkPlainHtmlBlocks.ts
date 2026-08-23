@@ -25,6 +25,11 @@ const INLINE_EMBEDDED_HTML_EXAMPLE_TAGS = new Set([
   'track',
   'video',
 ]);
+const INCOMPLETE_HTML_TAG_FRAGMENT_PATTERN = /<\/?[A-Za-z][^<>]*(?=<|$)/;
+
+function isIncompleteHtmlTagFragment(value: string | null | undefined): value is string {
+  return Boolean(value && !value.includes('\n') && INCOMPLETE_HTML_TAG_FRAGMENT_PATTERN.test(value));
+}
 
 function isPlainUnclosedHtmlBlockText(value: string | null | undefined): value is string {
   if (!value || value.includes('\n')) return false;
@@ -164,6 +169,12 @@ export function applyPlainHtmlBlockTextToTree(tree: MdastNode) {
     const children = node.children;
     if (!children) continue;
 
+    const hasIncompleteHtmlText = node.type === 'paragraph' && children.some((candidate) => (
+      candidate.type === 'text'
+      && typeof candidate.value === 'string'
+      && isIncompleteHtmlTagFragment(candidate.value)
+    ));
+
     for (let index = children.length - 1; index >= 0; index -= 1) {
       const child = children[index];
       if (!child) continue;
@@ -180,6 +191,11 @@ export function applyPlainHtmlBlockTextToTree(tree: MdastNode) {
       }
 
       if (child.type === 'html' && typeof child.value === 'string') {
+        if (hasIncompleteHtmlText || isIncompleteHtmlTagFragment(child.value)) {
+          children[index] = createPlainHtmlTextReplacement(node, child.value, child.position);
+          continue;
+        }
+
         const openTagName = getHtmlOpenTagName(child.value);
         const plainOpenTagName = getPlainEmptyHtmlOpenTagName(child.value);
         const closeChild = children[index + 1];
