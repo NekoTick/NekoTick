@@ -5,6 +5,7 @@ import { consumeDuplicateCloseEvent, recordSkippedCloser } from './pairDuplicate
 import { closePairSpecs, openPairSpecs } from './pairSpecs';
 import {
   createAddAutoClosersMeta,
+  createSkipAutoCloserMeta,
   hasAutoInsertedCloserAt,
   autoPairPluginKey,
 } from './pairState';
@@ -22,7 +23,9 @@ function shouldAutoPairSymmetricQuote(
 
 function moveSelectionTo(view: EditorView, position: number): void {
   view.dispatch(
-    view.state.tr.setSelection(TextSelection.create(view.state.doc, position)),
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, position))
+      .setMeta(autoPairPluginKey, createSkipAutoCloserMeta()),
   );
 }
 

@@ -10,6 +10,7 @@ import {
   findRecoverableAutoCloserFromSelection,
   getAutoInsertedClosers,
   hasAutoInsertedCloserAt,
+  transactionSkippedAutoCloser,
 } from './pairState';
 import { handleAutoPairTextInput } from './pairTextInput';
 
@@ -18,6 +19,7 @@ export const autoPairPlugin = $prose(() => new Plugin({
   state: autoPairPluginState,
   appendTransaction(transactions, oldState, newState) {
     if (!transactions.some((tr) => tr.docChanged)) return;
+    if (transactions.some(transactionSkippedAutoCloser)) return;
 
     const oldClosers = getAutoInsertedClosers(oldState);
     if (oldClosers.length === 0) return;

@@ -78,6 +78,11 @@
   font-size: inherit;
 }
 
+.milkdown .ProseMirror .markdown-source-expanded .markdown-syntax[data-markdown-syntax='link'] {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .milkdown .ProseMirror[data-editor-pointer-selecting='true']:not([data-editor-pointer-selection-started-focused='true']) .markdown-source-expanded .markdown-syntax {
   font-size: var(--vlaina-font-0);
 }

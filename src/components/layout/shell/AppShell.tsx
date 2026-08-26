@@ -237,7 +237,7 @@ export function AppShell({
         backgroundColor={backgroundColor}
       />
       
-      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+      <div className="flex-1 flex min-h-0 overflow-clip relative">
         
         {sidebarContent && sidebarCollapsed && sidebarHoverPeekEnabled ? (
           <div

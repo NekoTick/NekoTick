@@ -3,7 +3,7 @@ import type { Mark, MarkType, Node as ProseNode } from '@milkdown/kit/prose/mode
 import { AllSelection, TextSelection, type EditorState, type Transaction } from '@milkdown/kit/prose/state';
 import { transactionTouchesMarkdownSyntax } from './markdownSyntaxTransaction';
 
-const REPARSE_META = 'markdownSyntaxReparse';
+export const MARKDOWN_SYNTAX_REPARSE_META = 'markdownSyntaxReparse';
 
 function usesMarkdownSyntaxDelimiters(markType: MarkType | undefined): boolean {
   return markType?.spec.markdownSyntaxDelimited === true;
@@ -190,7 +190,7 @@ export function reparseEditedMarkdownSyntax(
   newState: EditorState,
 ): Transaction | null {
   if (
-    transactions.some((transaction) => transaction.getMeta(REPARSE_META))
+    transactions.some((transaction) => transaction.getMeta(MARKDOWN_SYNTAX_REPARSE_META))
     || !transactions.some((transaction) => transaction.docChanged)
   ) return null;
 
@@ -217,7 +217,7 @@ export function reparseEditedMarkdownSyntax(
   if (reparsed.length === 0) return null;
 
   if (!isTextSelection) {
-    const transaction = newState.tr.setMeta(REPARSE_META, true);
+    const transaction = newState.tr.setMeta(MARKDOWN_SYNTAX_REPARSE_META, true);
     for (const { from, node, parsed } of [...reparsed].sort((left, right) => right.from - left.from)) {
       transaction.replaceWith(from, from + node.nodeSize, parsed);
     }
@@ -236,7 +236,7 @@ export function reparseEditedMarkdownSyntax(
     if (endpoint === 'anchor') return selectionIsForward ? 'start' : 'end';
     return selectionIsForward ? 'end' : 'start';
   };
-  const transaction = newState.tr.setMeta(REPARSE_META, true);
+  const transaction = newState.tr.setMeta(MARKDOWN_SYNTAX_REPARSE_META, true);
   for (const { from, node, parsed } of [...reparsed].sort((left, right) => right.from - left.from)) {
     transaction.replaceWith(from, from + node.nodeSize, parsed);
   }

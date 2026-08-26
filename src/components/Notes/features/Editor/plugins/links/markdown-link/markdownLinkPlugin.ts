@@ -10,7 +10,6 @@ import {
 import { sanitizeExplicitMarkdownLinkHref } from '../utils/linkHref';
 import {
     getMarkdownLinkHref,
-    MARKDOWN_LINK_PATTERN_BEFORE,
     shouldHandleMarkdownLinkPaste,
 } from './markdownLinkParser';
 import {
@@ -45,6 +44,7 @@ import {
 import { collectMarkdownLinkAutoCollapseScanRanges } from './markdownLinkScanRanges';
 import { createMarkdownLinkPasteNodes } from './markdownLinkPaste';
 import { createRawMarkdownLinkTextDecorations } from './markdownLinkDecorations';
+import { handleMarkdownLinkTextInput } from './markdownLinkTextInput';
 
 export {
     MAX_MARKDOWN_LINK_AUTO_COLLAPSE_MATCHES,
@@ -211,45 +211,7 @@ export const markdownLinkPlugin = $prose(() => {
                     return false;
                 }
 
-                const state = view.state;
-                const doc = state.doc;
-
-                // Get text before cursor
-                const $from = doc.resolve(from);
-                const textBefore = getMarkdownLinkInputTextBeforeCursor($from.parent, $from.parentOffset);
-
-                // Check if there's a markdown link pattern ending at cursor
-                const match = textBefore.match(MARKDOWN_LINK_PATTERN_BEFORE);
-                if (!match) return false;
-
-                const fullMatch = match[0];
-                const linkText = match[1];
-                const linkUrl = match[2];
-                const linkMarkType = state.schema.marks.link;
-                if (!linkMarkType) return false;
-
-                // Calculate positions
-                const linkStart = from - fullMatch.length;
-                if (isMarkdownImagePatternBeforeCursor(textBefore, fullMatch)) {
-                    return false;
-                }
-
-                // Create transaction
-                const safeLinkUrl = sanitizeExplicitMarkdownLinkHref(getMarkdownLinkHref(linkUrl));
-                const linkedText = safeLinkUrl
-                    ? state.schema.text(linkText, [linkMarkType.create({ href: safeLinkUrl })])
-                    : state.schema.text(linkText);
-                const spaceText = state.schema.text(inputText);
-
-                const tr = state.tr
-                    .delete(linkStart, from)
-                    .insert(linkStart, linkedText)
-                    .insert(linkStart + linkText.length, spaceText);
-
-                tr.removeStoredMark(linkMarkType);
-
-                view.dispatch(tr);
-                return true;
+                return handleMarkdownLinkTextInput(view, from, _to, inputText);
             },
 
             handlePaste(view, event) {

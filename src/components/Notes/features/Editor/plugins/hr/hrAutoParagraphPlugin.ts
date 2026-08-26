@@ -12,11 +12,12 @@ import {
   resolveHorizontalRuleNodePos,
 } from './hrBlockSelection';
 import {
+  handleHorizontalRuleShortcutEnter,
   handleMarkdownBlockShortcutEnter,
   moveSelectionAfterHorizontalRule,
 } from './hrShortcutEnter';
 
-export { handleHorizontalRuleShortcutEnter } from './hrShortcutEnter';
+export { handleHorizontalRuleShortcutEnter };
 
 export const hrAutoParagraphPluginKey = new PluginKey('hrAutoParagraph');
 
@@ -219,20 +220,23 @@ export const hrAutoParagraphPlugin = $prose(() => {
     key: hrAutoParagraphPluginKey,
     props: {
       handleKeyDown(view, event) {
-        if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
+        if (event.metaKey || event.ctrlKey || event.altKey) return false;
         if (event.isComposing) return false;
 
-        if (event.key === 'ArrowUp') {
-          if (!enterHorizontalRuleOnArrowUp(view)) return false;
+        if (event.key === 'Enter') {
+          const handled = event.shiftKey
+            ? handleHorizontalRuleShortcutEnter(view)
+            : insertParagraphAfterActiveHorizontalRule(view)
+              || handleMarkdownBlockShortcutEnter(view);
+          if (!handled) return false;
           event.preventDefault();
           return true;
         }
 
-        if (event.key === 'Enter') {
-          if (
-            !insertParagraphAfterActiveHorizontalRule(view)
-            && !handleMarkdownBlockShortcutEnter(view)
-          ) return false;
+        if (event.shiftKey) return false;
+
+        if (event.key === 'ArrowUp') {
+          if (!enterHorizontalRuleOnArrowUp(view)) return false;
           event.preventDefault();
           return true;
         }

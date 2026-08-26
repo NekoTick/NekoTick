@@ -14,6 +14,17 @@ import {
 } from "./selectionStylesTestUtils";
 
 describe("editor text selection and link styles", () => {
+  it('wraps expanded markdown link destinations within the editor width', () => {
+    const markdownCss = normalizeLineEndings(readStyleFile('markdown.css'));
+
+    expect(markdownCss).toContain([
+      ".milkdown .ProseMirror .markdown-source-expanded .markdown-syntax[data-markdown-syntax='link'] {",
+      '  white-space: pre-wrap;',
+      '  overflow-wrap: anywhere;',
+      '}',
+    ].join('\n'));
+  });
+
   it('shrinks plain top-level paragraph line boxes so multiline text selections fit content width', () => {
     const css = readStyleFile('selection-width.css');
 

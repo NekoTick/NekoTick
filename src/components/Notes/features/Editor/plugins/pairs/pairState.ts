@@ -12,7 +12,8 @@ import type {
 export type { AutoInsertedCloser } from './pairTypes';
 
 type PairStateMeta =
-  | { type: 'add-auto-closers'; entries: AutoInsertedCloser[] };
+  | { type: 'add-auto-closers'; entries: AutoInsertedCloser[] }
+  | { type: 'skip-auto-closer' };
 
 export const autoPairPluginKey = new PluginKey<AutoInsertedCloser[]>('autoPair');
 
@@ -88,6 +89,17 @@ export function hasAutoInsertedCloserAt(
 
 export function createAddAutoClosersMeta(entries: AutoInsertedCloser[]): PairStateMeta {
   return { type: 'add-auto-closers', entries };
+}
+
+export function createSkipAutoCloserMeta(): PairStateMeta {
+  return { type: 'skip-auto-closer' };
+}
+
+export function transactionSkippedAutoCloser(tr: {
+  getMeta?: (key: typeof autoPairPluginKey) => unknown;
+}): boolean {
+  const meta = tr.getMeta?.(autoPairPluginKey) as Partial<PairStateMeta> | undefined;
+  return meta?.type === 'skip-auto-closer';
 }
 
 export { findRecoverableAutoCloserFromSelection } from './pairRecovery';

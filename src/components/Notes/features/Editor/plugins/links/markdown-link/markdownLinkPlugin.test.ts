@@ -141,6 +141,17 @@ function getFirstLinkHref(view: any): string | null {
   return href;
 }
 
+function getFirstLinkText(view: any): string | null {
+  let text = '';
+  view.state.doc.descendants((node: any) => {
+    if (node.isText && node.marks?.some((mark: any) => mark.type.name === 'link')) {
+      text += node.text ?? '';
+    }
+    return true;
+  });
+  return text || null;
+}
+
 describe('shouldHandleMarkdownLinkPaste', () => {
   it('stops scanning for raw markdown links after the first match', () => {
     let accessed = 0;
@@ -456,7 +467,7 @@ describe('shouldHandleMarkdownLinkPaste', () => {
     expect(pressEnter(view)).toBe(true);
 
     expect(view.state.doc.childCount).toBe(2);
-    expect(view.state.doc.child(0).textContent).toBe('wx');
+    expect(getFirstLinkText(view)).toBe('wx');
     expect(getFirstLinkHref(view)).toBe('weixin://');
 
     await editor.destroy();
@@ -472,7 +483,7 @@ describe('shouldHandleMarkdownLinkPaste', () => {
     expect(pressEnter(view)).toBe(true);
 
     expect(view.state.doc.childCount).toBe(2);
-    expect(view.state.doc.child(0).textContent).toBe('wx');
+    expect(getFirstLinkText(view)).toBe('wx');
     expect(getFirstLinkHref(view)).toBe('weixin://');
 
     await editor.destroy();
@@ -488,7 +499,7 @@ describe('shouldHandleMarkdownLinkPaste', () => {
     expect(pressEnter(view)).toBe(true);
 
     expect(view.state.doc.childCount).toBe(2);
-    expect(view.state.doc.child(0).textContent).toBe('1');
+    expect(getFirstLinkText(view)).toBe('1');
     expect(getFirstLinkHref(view)).toBe('1');
 
     await editor.destroy();
@@ -547,7 +558,7 @@ describe('shouldHandleMarkdownLinkPaste', () => {
     typeText(view, source);
     expect(markdownLinkPluginKey.getState(view.state)?.hasRawMarkdownLink).toBe(false);
     expect(view.state.doc.childCount).toBe(1);
-    expect(view.state.doc.textContent).toBe(text);
+    expect(getFirstLinkText(view)).toBe(text);
     expect(getFirstLinkHref(view)).toBe(href);
 
     await editor.destroy();
@@ -560,8 +571,10 @@ describe('shouldHandleMarkdownLinkPaste', () => {
     typeText(view, '[Docs](docs.md) after');
 
     const link = view.dom.querySelector<HTMLAnchorElement>('a[href="docs.md"]');
+    const trailingText = view.state.doc.firstChild?.lastChild;
     expect(link?.textContent).toBe('Docs');
-    expect(view.state.doc.textContent).toBe('Docs after');
+    expect(trailingText?.text).toBe(' after');
+    expect(trailingText?.marks.some((mark) => mark.type.name === 'link')).toBe(false);
 
     await editor.destroy();
   });
@@ -790,6 +803,26 @@ describe('shouldHandleMarkdownLinkPaste', () => {
 });
 
 describe('markdownLinkPlugin text input', () => {
+  it('collapses a markdown link before a trailing space and leaves the caret outside it', async () => {
+    const editor = await createFullStackEditor();
+    const view = editor.ctx.get(editorViewCtx);
+
+    typeText(view, '[xx](yy)');
+    const beforeSpaceParagraph = view.state.doc.firstChild!;
+    expect(view.state.selection.from).toBe(beforeSpaceParagraph.nodeSize - 1);
+    typeText(view, ' ');
+
+    const link = view.dom.querySelector<HTMLAnchorElement>('a[href="yy"]');
+    const paragraph = view.state.doc.firstChild!;
+    const trailingSpace = paragraph.lastChild!;
+    expect(link?.textContent).toBe('xx');
+    expect(trailingSpace.text).toBe(' ');
+    expect(trailingSpace.marks.some((mark) => mark.type.name === 'link')).toBe(false);
+    expect(view.state.selection.from).toBe(paragraph.nodeSize - 1);
+
+    await editor.destroy();
+  });
+
   it('detects markdown image syntax with paragraph-relative positions', () => {
     const textBefore = 'prefix ![Alt](image.png)';
     const fullMatch = '[Alt](image.png)';

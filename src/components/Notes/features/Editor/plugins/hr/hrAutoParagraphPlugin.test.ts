@@ -3,6 +3,7 @@ import {
   defaultValueCtx,
   Editor,
   editorViewCtx,
+  serializerCtx,
 } from '@milkdown/kit/core';
 import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
@@ -527,16 +528,21 @@ describe('hrAutoParagraphPlugin', () => {
     expect(handleHorizontalRuleShortcutEnter(view as never)).toBe(false);
   });
 
-  it('does not convert to a thematic break for modified Enter shortcuts', async () => {
-    const editor = createEditor();
+  it('converts a thematic break on Shift+Enter instead of appending a backslash hard break', async () => {
+    const editor = createEditor('before\n\nplaceholder');
 
     await editor.create();
 
     const view = editor.ctx.get(editorViewCtx);
-    typeText(view, '---');
+    replaceLastParagraphText(view, '---');
 
-    pressKey(view, 'Enter', { shiftKey: true });
-    expect(hasHorizontalRule(view)).toBe(false);
+    expect(pressKey(view, 'Enter', { shiftKey: true })).toBe(true);
+    typeText(view, 'after');
+
+    expect(hasHorizontalRule(view)).toBe(true);
+    expect(view.state.doc.child(1).textContent).toBe('---');
+    expect(view.state.doc.lastChild?.textContent).toBe('after');
+    expect(editor.ctx.get(serializerCtx)(view.state.doc)).not.toContain('\\');
 
     await editor.destroy();
   });

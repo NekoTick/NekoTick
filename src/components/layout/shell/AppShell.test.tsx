@@ -104,6 +104,26 @@ describe('AppShell', () => {
     vi.clearAllMocks();
   });
 
+  it('clips horizontal overflow without creating a scroll container', () => {
+    const { container } = render(
+      <AppShell
+        sidebarWidth={260}
+        sidebarCollapsed={false}
+        sidebarContent={<div>Sidebar</div>}
+        onSidebarWidthChange={() => {}}
+        onSidebarToggle={() => {}}
+      >
+        <div>Main</div>
+      </AppShell>
+    );
+
+    const shell = container.querySelector<HTMLElement>('[data-app-shell-root="true"]');
+    const contentLayout = shell?.lastElementChild;
+
+    expect(contentLayout).toHaveClass('overflow-clip');
+    expect(contentLayout).not.toHaveClass('overflow-hidden');
+  });
+
   it('scopes live sidebar width variables away from the main shell root', () => {
     const { container, rerender } = render(
       <AppShell
