@@ -186,4 +186,52 @@ describe('BlockDropdown', () => {
     expect(view.state.tr.setMeta).toHaveBeenCalledWith('addToHistory', false);
     expect(view.dispatch).toHaveBeenCalledWith(view.state.tr);
   });
+
+  it('collapses at the saved selection text block end after conversion moves the selection', () => {
+    const container = document.createElement('div');
+    const view = createView();
+    document.body.appendChild(container);
+    (view.state.doc.resolve as any).mockImplementation((pos: number) => {
+      if (pos === 17) {
+        return {
+          depth: 1,
+          node: vi.fn(() => ({ type: { name: 'heading' }, isTextblock: true })),
+          end: vi.fn(() => 20),
+        };
+      }
+      return { pos, parent: { inlineContent: true } };
+    });
+    previewMocks.commitBlockPreview.mockImplementation(() => {
+      (view.state as any).selection = {
+        empty: true,
+        from: 2,
+        to: 2,
+        $from: {
+          depth: 1,
+          node: vi.fn(() => ({ type: { name: 'heading' }, isTextblock: true })),
+          end: vi.fn(() => 30),
+        },
+      };
+      return true;
+    });
+
+    renderBlockDropdown(
+      container,
+      view,
+      {
+        currentBlockType: 'paragraph',
+        selectionRange: { from: 6, to: 18 },
+      } as never,
+      vi.fn()
+    );
+
+    const headingButton = container.querySelector<HTMLElement>('[data-block-type="heading2"]');
+    headingButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(previewMocks.commitBlockPreview).toHaveBeenCalledWith(view, 'heading2');
+    expect(view.state.doc.resolve).toHaveBeenCalledWith(17);
+    expect(stateMocks.textSelectionCreate).toHaveBeenCalledWith(view.state.doc, 20);
+    expect(view.state.tr.setSelection).toHaveBeenCalledWith({ type: 'text-selection' });
+    expect(view.dispatch).toHaveBeenCalledWith(view.state.tr);
+  });
 });

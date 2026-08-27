@@ -34,6 +34,9 @@ import {
 } from './milkdownEditorMarkdownReplacement';
 import { wikiLinkExpansionPluginKey } from './plugins/links/wiki-link/wikiLinkExpansionPlugin';
 import { serializeEditorMarkdownSnapshot } from './utils/pendingMarkdownUpdate';
+import { renderBlockDropdown } from './plugins/floating-toolbar/components/BlockDropdown';
+import { floatingToolbarKey } from './plugins/floating-toolbar/floatingToolbarKey';
+import { TOOLBAR_ACTIONS } from './plugins/floating-toolbar/types';
 
 function typeText(view: EditorView, input: string): void {
   for (const text of input) {
@@ -142,6 +145,36 @@ async function destroyEditor(editor: { destroy: () => Promise<unknown> | unknown
 }
 
 describe('MarkdownEditor compatibility', () => {
+  it('places the cursor at the heading end after converting selected text', async () => {
+    const editor = await createEditor('first line\n\nsecond line');
+    const view = editor.ctx.get(editorViewCtx);
+    let from = 0;
+    let to = 0;
+    view.state.doc.descendants((node, pos) => {
+      if (node.isText && node.text === 'first line') {
+        from = pos;
+        to = pos + 'first'.length;
+      }
+    });
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderBlockDropdown(container, view, {
+      currentBlockType: 'paragraph',
+      selectionRange: { from, to },
+    } as any, () => {
+      view.dispatch(view.state.tr.setMeta(floatingToolbarKey, { type: TOOLBAR_ACTIONS.HIDE }));
+    });
+    const headingButton = container.querySelector<HTMLElement>('[data-block-type="heading2"]');
+    headingButton?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    headingButton?.click();
+
+    expect(view.state.selection.$from.parent.type.name).toBe('heading');
+    expect(view.state.selection.$from.parentOffset).toBe(view.state.selection.$from.parent.content.size);
+    await destroyEditor(editor);
+    container.remove();
+  });
   it('keeps malformed nested inline html visible and editable', async () => {
     const source = 'Text color: <span style="color: rgb(15, 118, 110)"><em>nested RGB emphasis</em></span>.';
     const malformed = source.replace('<em>', '<em');

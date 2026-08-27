@@ -149,7 +149,8 @@ export function renderBlockDropdown(
         }
       }
       onClose();
-      collapseSelectionAfterToolbarApply(view);
+      const isTextBlockType = blockType === 'paragraph' || blockType.startsWith('heading');
+      collapseSelectionAfterToolbarApply(view, isTextBlockType ? state.selectionRange : null);
     });
   });
 }
