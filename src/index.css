@@ -344,7 +344,6 @@ html[data-link-tooltip-hover-active='true'] .ProseMirror {
 }
 
 html[data-link-tooltip-hover-active='true'] :is(
-  .native-caret-overlay,
   .editor-textblock-caret-overlay,
   .editor-forced-line-end-caret
 ) {

@@ -11,6 +11,7 @@ import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
 import { extractHeadings } from '../toc/tocViewUtils';
 import { highlightPlugin } from '../highlight/highlightPlugin';
+import { editExistingLink } from '../links/tooltip/linkTooltipTransactions';
 import { getSelectedMarkdownSyntaxText } from './markdownSyntaxSelection';
 import { markdownSyntaxPlugin } from './markdownSyntaxPlugin';
 
@@ -161,5 +162,57 @@ describe('markdownSyntaxPlugin', () => {
     )));
 
     expect(getSelectedMarkdownSyntaxText(linkView.state)).toBe(url);
+  });
+
+  it('updates link destination syntax after editing a link from the tooltip', async () => {
+    const editor = await createEditor('[Docs](https://example.test/old)');
+    const view = editor.ctx.get(editorViewCtx);
+    const link = view.dom.querySelector('a');
+
+    expect(link).not.toBeNull();
+    expect(editExistingLink(
+      view,
+      link!,
+      'Docs',
+      'https://example.test/new',
+    )).not.toBeNull();
+
+    expect(view.dom.querySelector('a')).toHaveAttribute('href', 'https://example.test/new');
+    expect(collectSyntaxRuns(view.state.doc).find(({ kind, edge }) => (
+      kind === 'link' && edge === 'close'
+    ))?.text).toBe('](https://example.test/new)');
+    expect(editor.ctx.get(serializerCtx)(view.state.doc).trim())
+      .toBe('[Docs](https://example.test/new)');
+  });
+
+  it('escapes the updated tooltip URL in the link destination syntax', async () => {
+    const editor = await createEditor('[Docs](https://example.test/old)');
+    const view = editor.ctx.get(editorViewCtx);
+    const link = view.dom.querySelector('a');
+
+    expect(editExistingLink(
+      view,
+      link!,
+      'Docs',
+      'https://example.test/new(path)',
+    )).not.toBeNull();
+
+    expect(collectSyntaxRuns(view.state.doc).find(({ kind, edge }) => (
+      kind === 'link' && edge === 'close'
+    ))?.text).toBe('](<https://example.test/new(path)>)');
+    expect(editor.ctx.get(serializerCtx)(view.state.doc).trim())
+      .toBe('[Docs](https://example.test/new\\(path\\))');
+  });
+
+  it('removes link syntax when the tooltip URL is cleared', async () => {
+    const editor = await createEditor('[Docs](https://example.test/old)');
+    const view = editor.ctx.get(editorViewCtx);
+    const link = view.dom.querySelector('a');
+
+    expect(editExistingLink(view, link!, 'Docs', '')).not.toBeNull();
+
+    expect(view.dom.querySelector('a')).toBeNull();
+    expect(collectSyntaxRuns(view.state.doc).filter(({ kind }) => kind === 'link')).toEqual([]);
+    expect(editor.ctx.get(serializerCtx)(view.state.doc).trim()).toBe('Docs');
   });
 });
