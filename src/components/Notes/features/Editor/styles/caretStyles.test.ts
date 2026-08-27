@@ -125,13 +125,17 @@ describe('caret styles', () => {
     expect(css).toContain('visibility: hidden !important;');
   });
 
-  it('hides native and custom editor carets during pointer link tooltips', () => {
+  it('hides editor carets without hiding the focused link tooltip input caret', () => {
     const css = readIndexStyles();
+    const selector = "html[data-link-tooltip-hover-active='true'] :is(";
+    const ruleStart = css.indexOf(selector);
+    const rule = css.slice(ruleStart, css.indexOf('}', ruleStart) + 1);
 
     expect(css).toContain("html[data-link-tooltip-hover-active='true'] .ProseMirror");
-    expect(css).toContain('.editor-textblock-caret-overlay');
-    expect(css).toContain('.editor-forced-line-end-caret');
-    expect(css).toContain('visibility: hidden !important;');
+    expect(rule).toContain('.editor-textblock-caret-overlay');
+    expect(rule).toContain('.editor-forced-line-end-caret');
+    expect(rule).not.toContain('.native-caret-overlay');
+    expect(rule).toContain('visibility: hidden !important;');
   });
 
   it('hides non-modal text overlays while the collapsed sidebar is peeking', () => {
