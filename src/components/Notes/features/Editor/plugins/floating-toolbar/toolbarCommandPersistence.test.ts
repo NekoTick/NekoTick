@@ -13,6 +13,8 @@ import type { EditorView } from '@milkdown/kit/prose/view';
 import { normalizeSerializedMarkdownDocument, stripTrailingNewlines } from '@/lib/notes/markdown/markdownSerializationUtils';
 import { notesRemarkStringifyOptions } from '../../config/stringifyOptions';
 import { configureTheme } from '../../theme';
+import { applyBlockPreview, clearFormatPreview, commitBlockPreview } from './previewStyles';
+import { renderBlockDropdown } from './components/BlockDropdown';
 import { colorMarksPlugin } from './colorMarks';
 import { blockAlignmentPlugin } from './blockAlignmentMarkdown';
 import { highlightPlugin } from '../highlight';
@@ -229,6 +231,43 @@ describe('floating toolbar command markdown persistence', () => {
     const view = blockType === 'codeBlock' ? selectText(editor, 'text') : selectBlockStart(editor);
     convertBlockType(view, blockType);
     await expect(persist(editor)).resolves.toBe(expected);
+  });
+
+  it('keeps the selected text end when committing a heading preview', async () => {
+    const editor = await createEditor('first line\n\nsecond line');
+    const view = selectText(editor, 'first');
+    document.body.appendChild(view.dom);
+
+    applyBlockPreview(view, 'heading2');
+    expect(commitBlockPreview(view, 'heading2')).toBe(true);
+    clearFormatPreview(view);
+
+    expect(view.state.selection.from).toBe(6);
+    expect(view.state.selection.to).toBe(6);
+    expect(view.state.selection.$from.parent.type.name).toBe('heading');
+    await editor.destroy();
+    view.dom.remove();
+  });
+
+  it('places the cursor at the heading end through the block dropdown', async () => {
+    const editor = await createEditor('first line\n\nsecond line');
+    const view = selectText(editor, 'first');
+    document.body.appendChild(view.dom);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+
+    renderBlockDropdown(container, view, {
+      currentBlockType: 'paragraph',
+      selectionRange: { from: view.state.selection.from, to: view.state.selection.to },
+    } as any, () => undefined);
+    container.querySelector<HTMLElement>('[data-block-type="heading2"]')?.click();
+
+    expect(view.state.selection.from).toBe(11);
+    expect(view.state.selection.to).toBe(11);
+    expect(view.state.selection.$from.parent.type.name).toBe('heading');
+    await editor.destroy();
+    container.remove();
+    view.dom.remove();
   });
 
   it.each([

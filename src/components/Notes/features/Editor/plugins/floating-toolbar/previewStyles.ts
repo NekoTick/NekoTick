@@ -1,3 +1,4 @@
+import { TextSelection } from '@milkdown/kit/prose/state';
 import type { EditorView } from '@milkdown/kit/prose/view';
 import {
   convertBlockType,
@@ -37,6 +38,20 @@ import {
   refreshMatchingSelectionBlockPreview,
   renderSelectionBlockPreview,
 } from './previewSelectionBlock';
+
+function restoreBlockPreviewSelection(previewView: EditorView, from: number, to: number): void {
+  const { doc } = previewView.state;
+  const maxPos = doc.content.size;
+  const safeFrom = Math.max(0, Math.min(from, maxPos));
+  const safeTo = Math.max(safeFrom, Math.min(to, maxPos));
+  if (safeFrom >= safeTo) return;
+
+  if (!doc.resolve(safeFrom).parent.inlineContent || !doc.resolve(safeTo).parent.inlineContent) return;
+
+  previewView.dispatch(
+    previewView.state.tr.setSelection(TextSelection.create(doc, safeFrom, safeTo)),
+  );
+}
 
 export { hasActiveAppliedPreview } from './previewAppliedRenderer';
 export { hasActiveSelectionBlockPreview } from './previewSelectionBlock';
@@ -194,7 +209,12 @@ export function applyBlockPreview(view: EditorView, blockType: BlockType): void 
 
   clearFormatPreviewState();
   const apply = (previewView: EditorView) => {
+    const originalSelection = previewView.state.selection;
     convertBlockType(previewView, blockType);
+    const preservesTextSelection = blockType === 'paragraph' || blockType.startsWith('heading');
+    if (preservesTextSelection && !originalSelection.empty) {
+      restoreBlockPreviewSelection(previewView, originalSelection.from, originalSelection.to);
+    }
   };
   if (!renderAppliedPreview(view, key, apply)) {
     renderSelectionBlockPreview(view, key, apply);
