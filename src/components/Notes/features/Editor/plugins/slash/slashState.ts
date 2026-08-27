@@ -31,7 +31,44 @@ function getCurrentToken(value: string) {
   return value.match(/(?:^|[\s([<{])(\S*)$/)?.[1] ?? '';
 }
 
+function isEscaped(value: string, index: number) {
+  let backslashCount = 0;
+  for (let current = index - 1; current >= 0 && value[current] === '\\'; current -= 1) {
+    backslashCount += 1;
+  }
+  return backslashCount % 2 === 1;
+}
+
+function isInsideMarkdownLinkDestination(value: string) {
+  let closingParenthesisDepth = 0;
+
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    if (isEscaped(value, index)) continue;
+
+    const char = value[index];
+    if (char === ')' || char === '）') {
+      closingParenthesisDepth += 1;
+      continue;
+    }
+    if (char !== '(' && char !== '（') continue;
+
+    if (closingParenthesisDepth > 0) {
+      closingParenthesisDepth -= 1;
+      continue;
+    }
+    if (value[index - 1] === ']' || value[index - 1] === '】') {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function isSuppressedSlashContext(textBeforeSlash: string) {
+  if (isInsideMarkdownLinkDestination(textBeforeSlash)) {
+    return true;
+  }
+
   const token = getCurrentToken(textBeforeSlash);
   if (!token) return false;
 

@@ -49,7 +49,7 @@ export function ChatEmbeddedSidebarOverlay(props: {
         aria-modal="true"
         aria-label={t('app.viewChat')}
         tabIndex={-1}
-        className="relative h-full transform-gpu overflow-hidden rounded-r-[var(--vlaina-chat-embedded-sidebar-radius)] shadow-[var(--vlaina-shadow-none)] outline-none will-change-transform"
+        className="relative h-full overflow-hidden rounded-r-[var(--vlaina-chat-embedded-sidebar-radius)] shadow-[var(--vlaina-shadow-none)] outline-none"
         style={{ width: themeChatLayoutTokens.embeddedSidebarWidth }}
         variants={SIDEBAR_SLIDE_VARIANTS}
         initial="hidden"

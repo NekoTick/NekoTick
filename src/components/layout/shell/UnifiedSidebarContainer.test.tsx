@@ -59,6 +59,28 @@ describe('UnifiedSidebarContainer', () => {
     expect(panel).toHaveClass('shadow-[var(--vlaina-shadow-raised-soft)]');
   });
 
+  it('only keeps the sidebar on a dedicated transform layer while collapsed', () => {
+    const renderSidebar = (collapsed: boolean) => (
+      <UnifiedSidebarContainer
+        width={260}
+        collapsed={collapsed}
+        onWidthChange={() => {}}
+      >
+        Sidebar content
+      </UnifiedSidebarContainer>
+    );
+    const { container, rerender } = render(renderSidebar(false));
+    const sidebar = container.querySelector('aside');
+
+    expect(sidebar).not.toHaveClass('transform-gpu');
+    expect(sidebar).not.toHaveClass('will-change-transform');
+
+    rerender(renderSidebar(true));
+
+    expect(sidebar).toHaveClass('transform-gpu');
+    expect(sidebar).toHaveClass('will-change-transform');
+  });
+
   it('updates the live width during drag and commits the persisted width on release', () => {
     vi.useFakeTimers();
     const onWidthChange = vi.fn();

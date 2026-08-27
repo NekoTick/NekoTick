@@ -40,7 +40,7 @@ function DockedChatMotionPanel({
       aria-hidden={isPresent ? undefined : true}
       inert={!isPresent}
       className={cn(
-        'h-full flex-shrink-0 transform-gpu will-change-transform',
+        'h-full flex-shrink-0',
         !isPresent && 'pointer-events-none',
       )}
       variants={RIGHT_SIDEBAR_SLIDE_VARIANTS}
@@ -207,9 +207,9 @@ export function NotesViewLayout({
               aria-hidden={!chatFloatingOpen}
               inert={!chatFloatingOpen}
               className={cn(
-                'absolute bottom-4 right-4 z-[var(--vlaina-z-30)] overflow-hidden !rounded-[var(--vlaina-notes-ui-radius-panel)] transform-gpu',
+                'absolute bottom-4 right-4 z-[var(--vlaina-z-30)] overflow-hidden !rounded-[var(--vlaina-notes-ui-radius-panel)]',
                 !chatFloatingOpen && 'pointer-events-none',
-                isFloatingChatPresent ? 'will-change-transform' : 'invisible',
+                !isFloatingChatPresent && 'invisible',
                 isFloatingChatResizing && 'will-change-[width,height]',
                 raisedPillSurfaceClass,
               )}

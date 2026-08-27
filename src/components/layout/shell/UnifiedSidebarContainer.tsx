@@ -244,7 +244,8 @@ export function UnifiedSidebarContainer({
           data-open={collapsed ? (peeking ? 'true' : 'false') : undefined}
           aria-hidden={collapsed ? !peeking : undefined}
           className={cn(
-            'absolute inset-y-0 left-0 flex min-h-0 flex-col overflow-hidden bg-[var(--vlaina-color-surface-sidebar-backdrop)] select-none app-scrollbar transform-gpu will-change-transform',
+            'absolute inset-y-0 left-0 flex min-h-0 flex-col overflow-hidden bg-[var(--vlaina-color-surface-sidebar-backdrop)] select-none app-scrollbar',
+            collapsed && 'transform-gpu will-change-transform',
             collapsed ? 'z-[var(--vlaina-z-40)]' : 'z-[var(--vlaina-z-20)]',
             collapsed && !peeking ? 'pointer-events-none' : 'pointer-events-auto',
           )}

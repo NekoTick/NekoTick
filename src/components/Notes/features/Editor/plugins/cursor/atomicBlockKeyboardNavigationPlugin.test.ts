@@ -2495,31 +2495,35 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
     await editor.destroy();
   });
 
-  it('deletes an empty paragraph between a horizontal rule and task list without selecting the rule', async () => {
-    const editor = createEditor();
-    await editor.create();
-    const view = editor.ctx.get(editorViewCtx);
-    const { schema } = view.state;
-    replaceDocument(view, [
-      schema.nodes.hr.create(),
-      schema.nodes.paragraph.create(),
-      createTaskListNode(view),
-    ]);
+  it.each(['Backspace', 'Delete'] as const)(
+    'places the cursor at the ordered-list item end after %s deletes an empty paragraph below a horizontal rule',
+    async (key) => {
+      const editor = createEditor();
+      await editor.create();
+      const view = editor.ctx.get(editorViewCtx);
+      const { schema } = view.state;
+      replaceDocument(view, [
+        schema.nodes.hr.create(null, schema.text('---')),
+        schema.nodes.paragraph.create(),
+        createOrderedListNode(view, '2'),
+      ]);
 
-    const emptyParagraphPos = topLevelNodePos(view, 'paragraph');
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, emptyParagraphPos + 1)));
-    const event = pressKey(view, 'Delete');
+      const emptyParagraphPos = topLevelNodePos(view, 'paragraph');
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, emptyParagraphPos + 1)));
+      const event = pressKey(view, key);
 
-    expect(event.defaultPrevented).toBe(true);
-    expect(view.state.doc.childCount).toBe(2);
-    expect(view.state.doc.child(0).type.name).toBe('hr');
-    expect(view.state.doc.child(1).type.name).toBe('bullet_list');
-    expect(view.state.selection).toBeInstanceOf(TextSelection);
-    expect(view.state.selection).not.toBeInstanceOf(NodeSelection);
-    expect(selectionAncestorNames(view)).toContain('list_item');
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.childCount).toBe(2);
+      expect(view.state.doc.child(0).type.name).toBe('hr');
+      expect(view.state.doc.child(1).type.name).toBe('ordered_list');
+      expect(view.state.selection).toBeInstanceOf(TextSelection);
+      expect(view.state.selection).not.toBeInstanceOf(NodeSelection);
+      expect(view.state.selection.$from.parent.textContent).toBe('2');
+      expect(view.state.selection.$from.parentOffset).toBe('2'.length);
 
-    await editor.destroy();
-  });
+      await editor.destroy();
+    },
+  );
 
   it('keeps a text cursor across representative structural block, list type, and delete direction pairs', async () => {
     const cases: Array<{

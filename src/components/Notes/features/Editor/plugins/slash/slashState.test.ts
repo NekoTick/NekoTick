@@ -256,6 +256,31 @@ describe('deriveSlashState', () => {
     expect(next).toEqual(createSlashState());
   });
 
+  it('does not treat a slash inside an uncollapsed markdown link target as a command', () => {
+    const next = deriveSlashState(
+      createTransaction({
+        selectionText: '[](https//xxx)1',
+        docChanged: true,
+      }),
+      createSlashState()
+    );
+
+    expect(next).toEqual(createSlashState());
+  });
+
+  it('still tracks a slash typed after an uncollapsed markdown link target', () => {
+    const next = deriveSlashState(
+      createTransaction({
+        selectionText: '[](https//xxx)/e',
+        docChanged: true,
+      }),
+      createSlashState()
+    );
+
+    expect(next.isOpen).toBe(true);
+    expect(next.query).toBe('e');
+  });
+
   it('keeps an explicitly dismissed slash query closed while the user keeps typing it', () => {
     const dismissed = createDismissedSlashState(createSelection('/h', 10));
     const next = deriveSlashState(

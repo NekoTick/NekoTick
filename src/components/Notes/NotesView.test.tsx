@@ -2144,6 +2144,8 @@ describe('NotesView', () => {
     expect(panel.style.height).toBe('720px');
     expect(panel).toHaveClass('z-[var(--vlaina-z-30)]');
     expect(panel).not.toHaveClass('z-[var(--vlaina-z-40)]');
+    expect(panel).not.toHaveClass('transform-gpu');
+    expect(panel).not.toHaveClass('will-change-transform');
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="left"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="top"]')).toBeInTheDocument();
     expect(document.querySelector('[data-notes-chat-floating-resize-handle="top-left"]')).toBeInTheDocument();
@@ -2242,6 +2244,9 @@ describe('NotesView', () => {
     expect(resizablePanel).toHaveAttribute('data-storage-key', 'vlaina_notes_chat_panel_width_v2');
     expect(resizablePanel).toHaveAttribute('data-default-width', '320');
     expect(document.querySelector('[data-notes-chat-panel="true"]')).toBeInTheDocument();
+    const motionPanel = document.querySelector('[data-notes-chat-panel-motion="true"]');
+    expect(motionPanel).not.toHaveClass('transform-gpu');
+    expect(motionPanel).not.toHaveClass('will-change-transform');
     expect(document.querySelector('[data-notes-chat-floating="true"]')).toBeNull();
     expect(uiState.setLayoutPanelTransitioning).toHaveBeenCalledWith('docked-chat', true);
 

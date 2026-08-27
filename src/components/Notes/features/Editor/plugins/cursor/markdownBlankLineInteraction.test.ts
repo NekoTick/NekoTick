@@ -1100,6 +1100,18 @@ describe('markdownBlankLineInteraction', () => {
           expectedDeleteOffset: 0,
           expectedNodeNames: ['heading', 'ordered_list'],
         },
+        {
+          label: 'horizontal rule to ordered list',
+          createNodes: () => [
+            view.state.schema.nodes.hr.create(null, view.state.schema.text('---')),
+            createOrderedList(view),
+          ],
+          expectedBackspaceText: 'Ordered item',
+          expectedBackspaceOffset: 'Ordered item'.length,
+          expectedDeleteText: 'Ordered item',
+          expectedDeleteOffset: 'Ordered item'.length,
+          expectedNodeNames: ['hr', 'ordered_list'],
+        },
       ];
 
       for (const testCase of structuralPairs) {

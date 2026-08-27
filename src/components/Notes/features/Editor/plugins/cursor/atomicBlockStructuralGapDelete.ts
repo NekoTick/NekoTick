@@ -49,13 +49,28 @@ function createSafeSelectionAfterStructuralGapDelete(
   const boundaryPos = range.searchDir < 0 ? blockTo : mappedBlockFrom;
   const intoBlockDir = range.searchDir < 0 ? -1 : 1;
   const awayFromBlockDir = range.searchDir < 0 ? 1 : -1;
+  const awayTextSelection = findTextSelectionFromBoundary(
+    tr.doc,
+    boundaryPos,
+    awayFromBlockDir,
+  );
+  const followingList = awayTextSelection
+    ? findTopLevelBlockAt(tr.doc, awayTextSelection.from)
+    : null;
 
   const textSelection = (
     isNavigableAtomicBlock(block) || block.type.name === 'hr'
       ? null
       : findTextSelectionFromBoundary(tr.doc, boundaryPos, intoBlockDir)
   )
-    ?? findTextSelectionFromBoundary(tr.doc, boundaryPos, awayFromBlockDir);
+    ?? (
+      block.type.name === 'hr'
+      && range.searchDir < 0
+      && isListContainerNode(followingList?.node)
+      && awayTextSelection
+        ? TextSelection.create(tr.doc, awayTextSelection.$from.end())
+        : awayTextSelection
+    );
   if (textSelection) {
     return tr.setSelection(textSelection);
   }

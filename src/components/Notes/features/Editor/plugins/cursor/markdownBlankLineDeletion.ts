@@ -1,7 +1,10 @@
 import { NodeSelection, Selection, TextSelection, type EditorState, type Transaction } from '@milkdown/kit/prose/state';
 import type { Node as ProseNode } from '@milkdown/kit/prose/model';
 import type { EditorView } from '@milkdown/kit/prose/view';
-import { STRUCTURAL_EMPTY_PARAGRAPH_DELETE_BLOCK_NAMES } from '../shared/blockNodeTypes';
+import {
+  LIST_CONTAINER_NODE_NAMES,
+  STRUCTURAL_EMPTY_PARAGRAPH_DELETE_BLOCK_NAMES,
+} from '../shared/blockNodeTypes';
 import { blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION } from './blockSelectionPluginState';
 import {
   createEditableMarkdownBlankLineParagraphFromState,
@@ -251,7 +254,16 @@ function handleEditableMarkdownBlankLineBesideStructuralBlockDelete(view: Editor
       .setMeta(blankAreaDragBoxPluginKey, CLEAR_BLOCKS_ACTION);
     const mappedBlockFrom = Math.max(0, Math.min(tr.mapping.map(blockFrom), tr.doc.content.size));
     const resolvedPos = tr.doc.resolve(mappedBlockFrom);
-    const nextSelection = Selection.findFrom(resolvedPos, direction, true)
+    const previous = findTopLevelBlockBefore(view.state.doc, blockFrom);
+    const next = findTopLevelBlockAfter(view.state.doc, blockTo);
+    const followingListSelection = previous?.node.type.name === 'hr'
+      && next
+      && LIST_CONTAINER_NODE_NAMES.has(next.node.type.name)
+      ? Selection.findFrom(resolvedPos, 1, true)
+      : null;
+    const nextSelection = followingListSelection instanceof TextSelection
+      ? TextSelection.create(tr.doc, followingListSelection.$from.end())
+      : Selection.findFrom(resolvedPos, direction, true)
       ?? Selection.findFrom(resolvedPos, direction < 0 ? 1 : -1, true)
       ?? Selection.near(resolvedPos, direction);
 
