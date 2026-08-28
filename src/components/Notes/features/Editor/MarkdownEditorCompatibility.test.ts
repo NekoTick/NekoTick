@@ -253,6 +253,34 @@ describe('MarkdownEditor compatibility', () => {
     expect(view.state.selection).toBeInstanceOf(TextSelection);
     expect(view.state.selection.$from.parent.type.name).toBe('hr');
     expect(view.state.selection.$from.parentOffset).toBe(3);
+    await destroyEditor(editor);
+  });
+
+  it('places the cursor at the horizontal rule source end when ArrowDown enters it', async () => {
+    const editor = await createEditor('before\n\n---\n\nafter');
+    const view = editor.ctx.get(editorViewCtx);
+    const before = view.state.doc.firstChild!;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      1 + before.content.size,
+    )));
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowDown',
+      bubbles: true,
+      cancelable: true,
+    });
+
+    let handled = false;
+    view.someProp('handleKeyDown', (handleKeyDown: any) => {
+      if (handled) return handled;
+      handled = handleKeyDown(view, event) || handled;
+      return handled;
+    });
+
+    expect(handled).toBe(true);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
 
     await destroyEditor(editor);
   });

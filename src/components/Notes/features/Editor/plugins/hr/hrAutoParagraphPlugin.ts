@@ -16,63 +16,11 @@ import {
   handleMarkdownBlockShortcutEnter,
   moveSelectionAfterHorizontalRule,
 } from './hrShortcutEnter';
+import { handleHorizontalRuleArrowNavigation } from './hrArrowNavigation';
 
 export { handleHorizontalRuleShortcutEnter };
 
 export const hrAutoParagraphPluginKey = new PluginKey('hrAutoParagraph');
-
-function isArrowUpEnterHrScenario(view: EditorView): boolean {
-  const { state } = view;
-  const { selection } = state;
-  if (!selection.empty) return false;
-  if (selection.$from.depth !== 1) return false;
-  if (selection.$from.parentOffset !== 0) return false;
-  if (!selection.$from.parent.isTextblock) return false;
-
-  if (typeof view.endOfTextblock === 'function' && !view.endOfTextblock('up')) {
-    return false;
-  }
-
-  const indexAtRoot = selection.$from.index(0);
-  if (indexAtRoot <= 0) return false;
-
-  return state.doc.child(indexAtRoot - 1)?.type === state.schema.nodes.hr;
-}
-
-function enterHorizontalRuleOnArrowUp(view: EditorView): boolean {
-  if (!isArrowUpEnterHrScenario(view)) return false;
-
-  const { state } = view;
-  const indexAtRoot = state.selection.$from.index(0);
-  const hrPos = state.selection.$from.posAtIndex(indexAtRoot - 1, 0);
-  return focusHorizontalRuleSource(view, hrPos, 'end');
-}
-
-function isArrowDownEnterHrScenario(view: EditorView): boolean {
-  const { state } = view;
-  const { selection } = state;
-  if (!selection.empty) return false;
-  if (selection.$from.depth !== 1) return false;
-  if (!selection.$from.parent.isTextblock) return false;
-
-  if (typeof view.endOfTextblock === 'function' && !view.endOfTextblock('down')) {
-    return false;
-  }
-
-  const indexAtRoot = selection.$from.index(0);
-  if (indexAtRoot >= state.doc.childCount - 1) return false;
-
-  return state.doc.child(indexAtRoot + 1)?.type === state.schema.nodes.hr;
-}
-
-function enterHorizontalRuleOnArrowDown(view: EditorView): boolean {
-  if (!isArrowDownEnterHrScenario(view)) return false;
-
-  const { state } = view;
-  const indexAtRoot = state.selection.$from.index(0);
-  const hrPos = state.selection.$from.posAtIndex(indexAtRoot + 1, 0);
-  return focusHorizontalRuleSource(view, hrPos, 'end');
-}
 
 function preventNestedForwardDeleteIntoHorizontalRule(view: EditorView, key: string): boolean {
   const { state } = view;
@@ -236,13 +184,13 @@ export const hrAutoParagraphPlugin = $prose(() => {
         if (event.shiftKey) return false;
 
         if (event.key === 'ArrowUp') {
-          if (!enterHorizontalRuleOnArrowUp(view)) return false;
+          if (!handleHorizontalRuleArrowNavigation(view, 'up')) return false;
           event.preventDefault();
           return true;
         }
 
         if (event.key === 'ArrowDown') {
-          if (!enterHorizontalRuleOnArrowDown(view)) return false;
+          if (!handleHorizontalRuleArrowNavigation(view, 'down')) return false;
           event.preventDefault();
           return true;
         }
@@ -269,9 +217,6 @@ export const hrAutoParagraphPlugin = $prose(() => {
         mousedown(view, event) {
           if (!(event instanceof MouseEvent)) return false;
           if (event.button !== 0) return false;
-          if (event.target instanceof HTMLElement && event.target.closest('[data-markdown-syntax="hr"]')) {
-            return false;
-          }
           const hrPos = resolveHorizontalRuleNodePos(view, event.target);
           if (hrPos === null) return false;
 

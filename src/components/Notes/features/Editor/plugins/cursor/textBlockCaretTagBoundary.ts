@@ -33,3 +33,16 @@ export function isTagTokenBoundary(view: EditorView): boolean {
 
   return isTagTokenBoundaryAtTextblock(selection.$from.parent, selection.$from.parentOffset);
 }
+
+export function isHorizontalRuleSourceEnd(view: EditorView): boolean {
+  const { selection } = view.state;
+  if (
+    !selection.empty
+    || selection.$from.parent.type.name !== 'hr'
+    || selection.$from.parentOffset !== selection.$from.parent.content.size
+  ) return false;
+
+  return selection.$from.nodeBefore?.marks.some((mark) => (
+    mark.type.name === 'markdownSyntax' && mark.attrs.kind === 'hr'
+  )) === true;
+}

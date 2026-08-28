@@ -1685,6 +1685,35 @@ describe('markdownBlankLineInteraction', () => {
     }
   });
 
+  it('moves from an editable markdown blank line to the horizontal rule source end on ArrowDown', async () => {
+    const editor = await createEditor('Alpha');
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const { schema } = view.state;
+      replaceDocument(view, [
+        schema.nodes.paragraph.create(null, schema.text('Alpha')),
+        createEditableBlankLineParagraph(view),
+        schema.nodes.hr.create(null, schema.text('---')),
+      ]);
+      const blankLinePos = topLevelNodePos(
+        view,
+        (node) => node.type.name === 'paragraph' && node.textContent === EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER,
+      );
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, blankLinePos + 1)));
+
+      const event = createArrowEvent('ArrowDown');
+      const handled = handleMarkdownBlankLineKeyboardNavigation(view, event);
+
+      expect(handled).toBe(true);
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.selection.$from.parent.type.name).toBe('hr');
+      expect(view.state.selection.$from.parentOffset).toBe(3);
+    } finally {
+      await editor.destroy();
+    }
+  });
+
   it('moves from an editable markdown blank line to the previous list item end on ArrowUp', async () => {
     const editor = await createEditor('Alpha');
     const view = editor.ctx.get(editorViewCtx);

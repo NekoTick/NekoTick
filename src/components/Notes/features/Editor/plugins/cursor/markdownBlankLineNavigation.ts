@@ -94,9 +94,11 @@ function resolveTextSelectionInAdjacentBlock(
   if (isMarkdownBlankLinePlaceholderNode(adjacent.node)) return null;
 
   if (adjacent.node.isTextblock) {
-    const cursorPos = isBackwardDirection(direction)
+    const cursorPos = adjacent.node.type.name === 'hr'
       ? adjacent.from + 1 + adjacent.node.content.size
-      : adjacent.from + 1;
+      : isBackwardDirection(direction)
+        ? adjacent.from + 1 + adjacent.node.content.size
+        : adjacent.from + 1;
     return TextSelection.create(view.state.doc, cursorPos);
   }
 

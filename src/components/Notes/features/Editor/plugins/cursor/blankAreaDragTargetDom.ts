@@ -20,6 +20,7 @@ export const IGNORED_BLANK_AREA_DRAG_BOX_SELECTOR = [
   COVER_REGION_SELECTOR,
   NO_EDITOR_DRAG_BOX_SELECTOR,
   '.wiki-link-expanded[data-wiki-link-expanded]',
+  '[data-hr-source="true"]',
 ].join(', ');
 export const MARKDOWN_BLANK_LINE_SELECTOR = [
   "[data-type='html-block'][data-value='<!--vlaina-markdown-blank-line-->']",

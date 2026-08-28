@@ -6,6 +6,7 @@ import {
   TEXTBLOCK_CARET_OVERLAY_REFRESH_EVENT,
   TextBlockCaretOverlayView,
 } from './textBlockCaretOverlayPlugin';
+import { isHorizontalRuleSourceEnd } from './textBlockCaretTagBoundary';
 import { setBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
 
@@ -36,10 +37,12 @@ function createTextblockSelection() {
     empty: true,
     head: 1,
     $from: {
+      nodeBefore: null,
       parent: {
         content: { size: text.length },
         textBetween: vi.fn((from: number, to: number) => text.slice(from, to)),
         isTextblock: true,
+        type: { name: 'paragraph' },
       },
       parentOffset: 1,
     },
@@ -52,10 +55,12 @@ function createTextblockSelectionAt(head: number) {
     empty: true,
     head,
     $from: {
+      nodeBefore: null,
       parent: {
         content: { size: text.length },
         textBetween: vi.fn((from: number, to: number) => text.slice(from, to)),
         isTextblock: true,
+        type: { name: 'paragraph' },
       },
       parentOffset: head,
     },
@@ -108,6 +113,78 @@ describe('textBlockCaretOverlayPlugin', () => {
 
     expect(isTagTokenBoundaryAtTextblock(parent, 517)).toBe(true);
     expect(parent.textBetween).toHaveBeenCalledWith(261, 517, '\0', '\0');
+  });
+
+  it('detects the end of an editable horizontal rule source', () => {
+    const markdownSyntax = { type: { name: 'markdownSyntax' }, attrs: { kind: 'hr' } };
+    const view = {
+      state: {
+        selection: {
+          empty: true,
+          $from: {
+            nodeBefore: { marks: [markdownSyntax] },
+            parent: { content: { size: 3 }, type: { name: 'hr' } },
+            parentOffset: 3,
+          },
+        },
+      },
+    };
+
+    expect(isHorizontalRuleSourceEnd(view as any)).toBe(true);
+  });
+
+  it('draws the horizontal rule end caret after the final source character', () => {
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback: FrameRequestCallback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(vi.fn());
+    vi.stubGlobal('ResizeObserver', TestResizeObserver);
+
+    const editorDom = document.createElement('div');
+    const sourceText = document.createTextNode('---');
+    editorDom.append(sourceText);
+    document.body.appendChild(editorDom);
+    const range = {
+      setStart: vi.fn(),
+      setEnd: vi.fn(),
+      getBoundingClientRect: vi.fn(() => ({ left: 64, right: 72, width: 8 })),
+      detach: vi.fn(),
+    };
+    vi.spyOn(document, 'createRange').mockReturnValue(range as any);
+    const markdownSyntax = { type: { name: 'markdownSyntax' }, attrs: { kind: 'hr' } };
+    const view = {
+      dom: editorDom,
+      composing: false,
+      hasFocus: () => true,
+      coordsAtPos: vi.fn(() => ({ left: 12, top: 10, bottom: 30 })),
+      domAtPos: vi.fn(() => ({ node: sourceText, offset: 2 })),
+      state: {
+        doc: { resolve: vi.fn(() => { throw new Error('Unavailable in geometry fixture'); }) },
+        selection: {
+          empty: true,
+          head: 4,
+          $from: {
+            nodeBefore: { marks: [markdownSyntax] },
+            parent: {
+              content: { size: 3 },
+              isTextblock: true,
+              type: { name: 'hr' },
+            },
+            parentOffset: 3,
+          },
+        },
+      },
+    };
+
+    const overlay = new TextBlockCaretOverlayView(view as any);
+    animationFrames.shift()?.(0);
+
+    expect(document.querySelector<HTMLElement>('.editor-textblock-caret-overlay')?.style.left)
+      .toBe('72px');
+
+    overlay.destroy();
   });
 
   it('repositions the caret overlay when editor geometry changes', () => {

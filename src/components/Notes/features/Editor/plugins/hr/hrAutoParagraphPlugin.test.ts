@@ -635,6 +635,25 @@ describe('hrAutoParagraphPlugin', () => {
     await editor.destroy();
   });
 
+  it('keeps a source click at the horizontal rule end instead of the native start', async () => {
+    const editor = createEditorWithBlockSelection('before\n\n---\n\nafter');
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const source = view.dom.querySelector('[data-markdown-syntax="hr"]');
+    expect(source).toBeInstanceOf(HTMLElement);
+
+    const handled = dispatchPluginMouseDown(view, source!);
+
+    expect(handled).toBe(true);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
+
+    await editor.destroy();
+  });
+
   it('does not skip a preceding horizontal rule when ArrowUp starts inside a list item', async () => {
     const editor = createEditor('before\n\n---\n\n1. 1\n2. 2');
 
@@ -719,6 +738,74 @@ describe('hrAutoParagraphPlugin', () => {
     expect(view.state.selection.$from.parent.textContent).toBe('---');
     expect(view.state.selection.$from.parentOffset).toBe(3);
     expect(view.dom.querySelector('.markdown-source-expanded')).toBeInstanceOf(HTMLElement);
+
+    await editor.destroy();
+  });
+
+  it('creates a paragraph when ArrowDown leaves a horizontal rule at the document end', async () => {
+    const editor = createEditorWithMarkdownSyntax('---');
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const hrPos = findHorizontalRulePos(view);
+    if (hrPos === null) throw new Error('Expected horizontal rule position');
+    const hr = view.state.doc.nodeAt(hrPos)!;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      hrPos + 1 + hr.content.size,
+    )));
+
+    expect(pressKey(view, 'ArrowDown')).toBe(true);
+    expect(Array.from(
+      { length: view.state.doc.childCount },
+      (_, index) => view.state.doc.child(index).type.name,
+    )).toEqual(['hr', 'paragraph']);
+    expect(view.state.selection).toBeInstanceOf(TextSelection);
+    expect(view.state.selection.$from.parent).toBe(view.state.doc.lastChild);
+    expect(view.state.selection.$from.parentOffset).toBe(0);
+
+    await editor.destroy();
+  });
+
+  it('moves to existing content without inserting a paragraph after a horizontal rule', async () => {
+    const editor = createEditorWithMarkdownSyntax('---\n\nafter');
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const hrPos = findHorizontalRulePos(view);
+    if (hrPos === null) throw new Error('Expected horizontal rule position');
+    const hr = view.state.doc.nodeAt(hrPos)!;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      hrPos + 1 + hr.content.size,
+    )));
+
+    expect(pressKey(view, 'ArrowDown')).toBe(true);
+    expect(view.state.doc.childCount).toBe(2);
+    expect(view.state.selection.$from.parent.textContent).toBe('after');
+    expect(view.state.selection.$from.parentOffset).toBe(0);
+
+    await editor.destroy();
+  });
+
+  it('moves from one horizontal rule source into the next on ArrowDown', async () => {
+    const editor = createEditorWithMarkdownSyntax('---\n\n---');
+
+    await editor.create();
+
+    const view = editor.ctx.get(editorViewCtx);
+    const firstHr = view.state.doc.firstChild!;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(
+      view.state.doc,
+      1 + firstHr.content.size,
+    )));
+
+    expect(pressKey(view, 'ArrowDown')).toBe(true);
+    expect(view.state.selection.$from.parent).toBe(view.state.doc.lastChild);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
 
     await editor.destroy();
   });

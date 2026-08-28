@@ -11,7 +11,7 @@ export function resolveHorizontalRuleNodePos(view: EditorView, target: EventTarg
   const hrType = view.state.schema.nodes.hr;
   if (!hrType) return null;
 
-  const wrapper = target.closest('.md-hr') as HTMLElement | null;
+  const wrapper = target.closest('.md-hr, [data-type="hr"]') as HTMLElement | null;
   const directHr = target.closest('hr') as HTMLElement | null;
   const wrappedHr = wrapper?.querySelector('hr') ?? null;
   const candidates = [directHr, wrappedHr, wrapper].filter(

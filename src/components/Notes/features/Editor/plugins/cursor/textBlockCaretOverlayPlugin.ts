@@ -9,7 +9,10 @@ import {
   isCaretNavigationKey,
   releaseCaretBlink,
 } from '@/lib/ui/caretOverlayStyles';
-import { isTagTokenBoundary } from './textBlockCaretTagBoundary';
+import {
+  isHorizontalRuleSourceEnd,
+  isTagTokenBoundary,
+} from './textBlockCaretTagBoundary';
 import { resolveTextBlockCaretLineHeight } from './textBlockCaretGeometry';
 import { isBlockSelectionInteractionPending } from './blockSelectionInteractionState';
 import { POINTER_SELECTION_ACTIVE_ATTRIBUTE } from '../selection/textSelectionOverlayState';
@@ -306,6 +309,10 @@ export class TextBlockCaretOverlayView {
       return;
     }
 
+    const selection = this.view.state.selection;
+    const hrBoundary = isHorizontalRuleSourceEnd(this.view);
+    const tagBoundary = hrBoundary ? false : isTagTokenBoundary(this.view);
+
     const doc = this.view.dom.ownerDocument;
     if (!this.caret) {
       this.caret = doc.createElement('div');
@@ -317,7 +324,9 @@ export class TextBlockCaretOverlayView {
       rect,
       resolveTextBlockCaretLineHeight(this.view, this.view.state.selection.head),
     );
-    const previousCharacterRight = isTagTokenBoundary(this.view)
+    const previousCharacterRight = (
+      hrBoundary || tagBoundary
+    )
       ? resolvePreviousCharacterRight(this.view)
       : null;
     if (previousCharacterRight !== null) {

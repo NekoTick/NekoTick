@@ -1378,6 +1378,27 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
     }
   });
 
+  it('enters a horizontal rule source at its end on ArrowDown', async () => {
+    const editor = createEditor();
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+    const { schema } = view.state;
+    const before = schema.nodes.paragraph.create(null, schema.text('before'));
+    const hrMark = schema.marks.markdownSyntax?.create({ kind: 'hr' });
+    const hrText = hrMark ? schema.text('---', [hrMark]) : schema.text('---');
+    replaceDocument(view, [before, schema.nodes.hr.create(null, hrText), schema.nodes.paragraph.create(null, schema.text('after'))]);
+    vi.spyOn(view, 'endOfTextblock').mockReturnValue(true);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1 + before.content.size)));
+    const event = pressKey(view, 'ArrowDown');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.selection.$from.parent.type.name).toBe('hr');
+    expect(view.state.selection.$from.parentOffset).toBe(3);
+
+    await editor.destroy();
+  });
+
   it('moves from a selected atomic block into the following paragraph without inserting a transient one', async () => {
     const editor = createEditor();
     await editor.create();

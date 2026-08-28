@@ -196,6 +196,21 @@ describe('blankAreaDragTargets', () => {
     }
   });
 
+  it('ignores horizontal rule source for blank-area drag handling', () => {
+    const source = document.createElement('span');
+    source.setAttribute('data-hr-source', 'true');
+    const text = document.createTextNode('---');
+    source.append(text);
+    document.body.append(source);
+
+    try {
+      expect(isIgnoredBlankAreaDragBoxTarget(source)).toBe(true);
+      expect(isIgnoredBlankAreaDragBoxTarget(text)).toBe(true);
+    } finally {
+      source.remove();
+    }
+  });
+
   it('ignores pointer-through clicks whose coordinates are inside top editor chrome', () => {
     const { view, scrollRoot, cleanup } = createView();
     const headerChrome = document.createElement('div');

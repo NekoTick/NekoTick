@@ -40,9 +40,11 @@ function setTextSelectionIntoTextblock(
     return null;
   }
 
-  const cursorPos = direction === 'up'
+  const cursorPos = block.node.type.name === 'hr'
     ? block.from + 1 + block.node.content.size
-    : block.from + 1;
+    : direction === 'up'
+      ? block.from + 1 + block.node.content.size
+      : block.from + 1;
   return tr.setSelection(TextSelection.create(tr.doc, cursorPos));
 }
 
@@ -172,6 +174,14 @@ function handleTextblockBoundaryArrow(view: EditorView, direction: Direction): b
         .setSelection(containerSelection)
         .scrollIntoView()
     );
+    view.focus();
+    return true;
+  }
+
+  if (adjacent.node.type.name === 'hr') {
+    const textSelectionTr = setTextSelectionIntoTextblock(view.state.tr, adjacent, direction);
+    if (!textSelectionTr) return false;
+    view.dispatch(textSelectionTr.scrollIntoView());
     view.focus();
     return true;
   }
