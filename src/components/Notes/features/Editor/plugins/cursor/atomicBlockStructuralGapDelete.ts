@@ -43,7 +43,8 @@ function createSafeSelectionAfterStructuralGapDelete(
   tr: Transaction,
   range: AdjacentEmptyParagraphDeleteRange,
   mappedBlockFrom: number,
-  block: ProseNode
+  block: ProseNode,
+  deleteDirection: -1 | 1,
 ): Transaction | null {
   const blockTo = mappedBlockFrom + block.nodeSize;
   const boundaryPos = range.searchDir < 0 ? blockTo : mappedBlockFrom;
@@ -66,9 +67,9 @@ function createSafeSelectionAfterStructuralGapDelete(
     ?? (
       block.type.name === 'hr'
       && range.searchDir < 0
+      && deleteDirection < 0
       && isListContainerNode(followingList?.node)
-      && awayTextSelection
-        ? TextSelection.create(tr.doc, awayTextSelection.$from.end())
+        ? TextSelection.create(tr.doc, blockTo - 1)
         : awayTextSelection
     );
   if (textSelection) {
@@ -213,6 +214,7 @@ export function dispatchDeleteEmptyParagraphNearStructuralBlock(
       range,
       mappedBlockFrom,
       nextNode,
+      deleteDirection,
     );
     if (safeSelectionTr) {
       view.dispatch(safeSelectionTr.scrollIntoView());
@@ -222,7 +224,7 @@ export function dispatchDeleteEmptyParagraphNearStructuralBlock(
   }
 
   if (range.blockName === 'code_block' && nextNode?.type.name === 'code_block') {
-    dispatchCodeBlockGapDelete(view, tr, range, mappedBlockFrom, nextNode);
+    dispatchCodeBlockGapDelete(view, tr, range, mappedBlockFrom, nextNode, deleteDirection);
     return;
   }
 
@@ -239,7 +241,8 @@ function dispatchCodeBlockGapDelete(
   tr: Transaction,
   range: AdjacentEmptyParagraphDeleteRange,
   mappedBlockFrom: number,
-  nextNode: ProseNode
+  nextNode: ProseNode,
+  deleteDirection: -1 | 1,
 ): void {
   const blockTo = mappedBlockFrom + nextNode.nodeSize;
   const siblingBeforeCode = findTopLevelBlockBefore(tr.doc, mappedBlockFrom)?.node;
@@ -255,7 +258,14 @@ function dispatchCodeBlockGapDelete(
   }
 
   if (siblingBeforeCode || siblingAfterCode) {
-    const safeSelectionTr = createSafeSelectionAfterStructuralGapDelete(view.state, tr, range, mappedBlockFrom, nextNode);
+    const safeSelectionTr = createSafeSelectionAfterStructuralGapDelete(
+      view.state,
+      tr,
+      range,
+      mappedBlockFrom,
+      nextNode,
+      deleteDirection,
+    );
     if (safeSelectionTr) {
       view.dispatch(safeSelectionTr.scrollIntoView());
       view.focus();

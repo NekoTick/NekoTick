@@ -15,6 +15,7 @@ import { codeBlockPlugins } from '../code';
 import { footnotePlugin } from '../footnote';
 import { frontmatterPlugin } from '../frontmatter';
 import { mathPlugin } from '../math';
+import { markdownSyntaxPlugin } from '../markdown-syntax';
 import { mermaidPlugin } from '../mermaid';
 import { tocPlugin } from '../toc';
 import { videoPlugin } from '../video';
@@ -2517,9 +2518,9 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
   });
 
   it.each(['Backspace', 'Delete'] as const)(
-    'places the cursor at the ordered-list item end after %s deletes an empty paragraph below a horizontal rule',
+    'keeps the directional cursor target after %s deletes an empty paragraph between a horizontal rule and list',
     async (key) => {
-      const editor = createEditor();
+      const editor = createEditor().use(markdownSyntaxPlugin);
       await editor.create();
       const view = editor.ctx.get(editorViewCtx);
       const { schema } = view.state;
@@ -2539,8 +2540,15 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
       expect(view.state.doc.child(1).type.name).toBe('ordered_list');
       expect(view.state.selection).toBeInstanceOf(TextSelection);
       expect(view.state.selection).not.toBeInstanceOf(NodeSelection);
-      expect(view.state.selection.$from.parent.textContent).toBe('2');
-      expect(view.state.selection.$from.parentOffset).toBe('2'.length);
+      if (key === 'Backspace') {
+        expect(view.state.selection.$from.parent.type.name).toBe('hr');
+        expect(view.state.selection.$from.parent.textContent).toBe('---');
+        expect(view.state.selection.$from.parentOffset).toBe(3);
+        expect(view.dom.querySelector('[data-type="hr"].markdown-source-expanded')).toBeInstanceOf(HTMLElement);
+      } else {
+        expect(view.state.selection.$from.parent.textContent).toBe('2');
+        expect(view.state.selection.$from.parentOffset).toBe(0);
+      }
 
       await editor.destroy();
     },

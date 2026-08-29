@@ -256,14 +256,23 @@ function handleEditableMarkdownBlankLineBesideStructuralBlockDelete(view: Editor
     const resolvedPos = tr.doc.resolve(mappedBlockFrom);
     const previous = findTopLevelBlockBefore(view.state.doc, blockFrom);
     const next = findTopLevelBlockAfter(view.state.doc, blockTo);
-    const followingListSelection = previous?.node.type.name === 'hr'
+    const hasHorizontalRuleBeforeList = previous?.node.type.name === 'hr'
       && next
-      && LIST_CONTAINER_NODE_NAMES.has(next.node.type.name)
+      && LIST_CONTAINER_NODE_NAMES.has(next.node.type.name);
+    const horizontalRuleSelection = hasHorizontalRuleBeforeList && direction < 0
+      ? TextSelection.create(
+        tr.doc,
+        tr.mapping.map(previous.from, -1) + 1 + previous.node.content.size,
+      )
+      : null;
+    const followingListSelection = hasHorizontalRuleBeforeList && direction > 0
       ? Selection.findFrom(resolvedPos, 1, true)
       : null;
-    const nextSelection = followingListSelection instanceof TextSelection
-      ? TextSelection.create(tr.doc, followingListSelection.$from.end())
-      : Selection.findFrom(resolvedPos, direction, true)
+    const nextSelection = horizontalRuleSelection
+      ?? (followingListSelection instanceof TextSelection
+        ? TextSelection.create(tr.doc, followingListSelection.$from.end())
+        : null)
+      ?? Selection.findFrom(resolvedPos, direction, true)
       ?? Selection.findFrom(resolvedPos, direction < 0 ? 1 : -1, true)
       ?? Selection.near(resolvedPos, direction);
 
