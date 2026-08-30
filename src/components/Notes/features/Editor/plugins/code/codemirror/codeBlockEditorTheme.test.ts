@@ -45,7 +45,7 @@ describe('codeBlockEditorTheme', () => {
     host.remove();
   });
 
-  it('marks selected CodeMirror text so syntax colors cannot override the selection foreground', () => {
+  it('marks selected CodeMirror text without replacing syntax colors', () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
 
@@ -244,6 +244,57 @@ describe('codeBlockEditorTheme', () => {
 
     expect(resolveCodeBlockBlankContentClickPosition(cm, textEvent)).toBeNull();
 
+    cm.destroy();
+    host.remove();
+  });
+
+  it('keeps drag selection working when it starts in the trailing area of a code line', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    const cm = new CodeMirror({
+      parent: host,
+      state: EditorState.create({
+        doc: 'first\nsecond',
+        extensions: [...createCodeBlockEditorTheme()],
+      }),
+    });
+    const lastLine = cm.state.doc.line(2);
+    const line = cm.contentDOM.querySelectorAll('.cm-line')[1];
+    vi.spyOn(cm, 'lineBlockAtHeight')
+      .mockReturnValue({ from: lastLine.from } as ReturnType<CodeMirror['lineBlockAtHeight']>);
+    vi.spyOn(cm, 'coordsAtPos').mockReturnValue({
+      left: 40,
+      right: 40,
+      top: 10,
+      bottom: 24,
+    } as DOMRect);
+    vi.spyOn(cm, 'documentTop', 'get').mockReturnValue(0);
+    vi.spyOn(cm, 'posAtCoords').mockReturnValue(1);
+
+    const mouseDown = new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: 96,
+      clientY: 18,
+    });
+    Object.defineProperty(mouseDown, 'target', { value: line });
+    const selectionStyle = cm.state.facet(CodeMirror.mouseSelectionStyle)
+      .map((makeStyle) => makeStyle(cm, mouseDown))
+      .find((style) => style !== null);
+    expect(selectionStyle).toBeDefined();
+
+    const selection = selectionStyle!.get(new MouseEvent('mousemove', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 24,
+      clientY: 4,
+      buttons: 1,
+    }), false, false);
+
+    expect(selection.ranges[0]?.anchor).toBe(lastLine.to);
+    expect(selection.ranges[0]?.head).toBe(1);
     cm.destroy();
     host.remove();
   });

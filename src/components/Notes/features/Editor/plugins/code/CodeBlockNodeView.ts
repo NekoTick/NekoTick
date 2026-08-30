@@ -97,6 +97,7 @@ export class CodeBlockNodeView implements NodeView {
   languageClassName: string | null = null;
   codeMirrorSelectionArrowKey: CodeMirrorSelectionArrowKey | null = null;
   codeMirrorSelectionArrowResetTimer: number | null = null;
+  disposeCrossBoundarySelection: () => void = () => { };
 
   isPasteUpdate(update: ViewUpdate) {
     return update.transactions.some((transaction) => {

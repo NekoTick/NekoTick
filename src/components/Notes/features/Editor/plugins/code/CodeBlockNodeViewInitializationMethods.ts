@@ -20,6 +20,7 @@ import {
 } from './CodeBlockNodeViewConstants';
 import { CodeBlockView } from './CodeBlockView';
 import { subscribeCodeBlockSelectionSync } from './codeBlockSelectionSync';
+import { installCodeBlockCrossBoundarySelection } from './codeBlockCrossBoundarySelection';
 import {
   bindCodeBlockFontMetricsSync,
   createCodeBlockEditorClipboardHandlers,
@@ -192,6 +193,14 @@ class CodeBlockNodeViewInitializationMethods {
           CodeMirror.updateListener.of((update) => this.forwardUpdate(update)),
         ],
       }),
+    });
+    this.disposeCrossBoundarySelection = installCodeBlockCrossBoundarySelection({
+      codeMirror: this.cm,
+      codeBlockDOM: this.dom,
+      getCodeBlockPosition: this.getPos,
+      getCodeBlockText: () => this.node.textContent ?? '',
+      syncCodeBlockSelection: this.syncProseMirrorSelection,
+      view: this.view,
     });
     this.lineNumbersStateKey = this.getLineNumbersStateKey(this.node);
     this.wrapStateKey = this.getWrapStateKey(this.node);

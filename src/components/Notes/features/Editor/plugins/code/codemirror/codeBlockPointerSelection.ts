@@ -74,7 +74,7 @@ function resolveCodeBlockTextNodeCaretPositionAtPointer(view: CodeMirror, event:
   }
 }
 
-function resolveCodeBlockCaretPositionAtPointer(view: CodeMirror, event: MouseEvent): number | null {
+export function resolveCodeBlockCaretPositionAtPointer(view: CodeMirror, event: MouseEvent): number | null {
   const coordsPosition = view.posAtCoords({ x: event.clientX, y: event.clientY });
   if (coordsPosition !== null) {
     return coordsPosition;
@@ -104,6 +104,11 @@ function resolveCodeBlockCaretPositionAtPointer(view: CodeMirror, event: MouseEv
   }
 
   return null;
+}
+
+function isCodeBlockContentTarget(view: CodeMirror, event: MouseEvent): boolean {
+  const target = event.target;
+  return target instanceof Node && view.contentDOM.contains(target);
 }
 
 function isPositionInsideCodeBlockSelection(view: CodeMirror, position: number): boolean {
@@ -168,21 +173,17 @@ export function applyResolvedCodeBlockPointerSelection(view: CodeMirror, event: 
 }
 
 export const codeBlockPointerSelectionPlugin = ViewPlugin.fromClass(class {
-  private suppressNextMouseDown = false;
-
   private readonly handlePointerDown = (event: PointerEvent) => {
-    if (applyResolvedCodeBlockPointerSelection(this.view, event)) {
-      this.suppressNextMouseDown = true;
+    if (isCodeBlockContentTarget(this.view, event)) {
+      return;
     }
-  };
 
-  private readonly handleMouseDown = (event: MouseEvent) => {
-    if (this.suppressNextMouseDown) {
-      this.suppressNextMouseDown = false;
-      if (event.button === 0) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
+    const position = resolveCodeBlockBlankContentClickPosition(this.view, event);
+    if (
+      position === null
+      || !hasCodeBlockSelection(this.view)
+      || !isPositionInsideCodeBlockSelection(this.view, position)
+    ) {
       return;
     }
 
@@ -191,11 +192,9 @@ export const codeBlockPointerSelectionPlugin = ViewPlugin.fromClass(class {
 
   constructor(private readonly view: CodeMirror) {
     view.dom.addEventListener('pointerdown', this.handlePointerDown, true);
-    view.dom.addEventListener('mousedown', this.handleMouseDown, true);
   }
 
   destroy() {
     this.view.dom.removeEventListener('pointerdown', this.handlePointerDown, true);
-    this.view.dom.removeEventListener('mousedown', this.handleMouseDown, true);
   }
 });

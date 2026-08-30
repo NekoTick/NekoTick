@@ -68,10 +68,6 @@ export function createCodeBlockEditorBaseTheme(selectionActiveClass: string) {
     '.cm-selectionBackground': {
       backgroundColor: themeStyleResetTokens.backgroundTransparent,
     },
-    '.editor-code-selection-text, .editor-code-selection-text *': {
-      color: 'var(--vlaina-color-white) !important',
-      WebkitTextFillColor: 'var(--vlaina-color-white) !important',
-    },
     '.cm-cursor, .cm-dropCursor, &.cm-focused .cm-cursor, &.cm-focused .cm-dropCursor': {
       borderLeftColor: 'var(--vlaina-caret-color) !important',
       borderLeftStyle: 'solid',

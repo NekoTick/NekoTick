@@ -194,6 +194,8 @@ describe('caret styles', () => {
     expect(source).toContain('CodeMirror.updateListener.of((update) => {');
     expect(source).toContain('update.selectionSet || update.docChanged || update.focusChanged');
     expect(source).toContain('.cm-cursorLayer');
+    expect(source).not.toContain("color: 'var(--vlaina-color-white) !important'");
+    expect(source).not.toContain("WebkitTextFillColor: 'var(--vlaina-color-white) !important'");
     expect(source).not.toContain('vlaina-editor-caret');
     expect(source).not.toContain('#41ace2');
   });

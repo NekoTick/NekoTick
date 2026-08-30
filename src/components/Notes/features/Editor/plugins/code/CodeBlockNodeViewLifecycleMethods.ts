@@ -160,6 +160,8 @@ class CodeBlockNodeViewLifecycleMethods {
       this.handleBlockSelectionInteractionChange,
     );
     this.clearCodeMirrorSelectionArrowKey();
+    this.disposeCrossBoundarySelection();
+    this.disposeCrossBoundarySelection = () => { };
     const window = this.getOwnerWindow();
     if (window && this.pendingMeasureFrame !== null) {
       window.cancelAnimationFrame(this.pendingMeasureFrame);
