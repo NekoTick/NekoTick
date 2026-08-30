@@ -266,6 +266,17 @@
   box-shadow: var(--vlaina-inline-code-selected-border-shadow);
 }
 
+/* Keep the notes scrollbar available while selecting blocks, even when the
+ * selection shield moves the pointer outside the scroll area's viewport. */
+[data-note-scroll-root='true']:has(.ProseMirror:is(
+  [data-editor-block-selection-active='true'],
+  [data-editor-block-selection-pending='true']
+))
+  + [data-overlay-scrollbar-rail='true'] {
+  opacity: var(--vlaina-opacity-100) !important;
+  pointer-events: auto !important;
+}
+
 .milkdown .ProseMirror .md-html-source-text {
   color: var(--vlaina-color-editor-html-source-text);
   -webkit-text-fill-color: var(--vlaina-color-editor-html-source-text);

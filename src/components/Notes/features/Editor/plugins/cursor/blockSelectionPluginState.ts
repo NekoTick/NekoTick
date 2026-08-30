@@ -69,6 +69,7 @@ export function setBlockSelectionVisualState(
   active: boolean,
   large = isLargeBlockSelectionDocument(view.state.doc),
 ): void {
+  view.dom.toggleAttribute('data-editor-block-selection-active', active);
   const showActiveClass = active && !large;
   if (view.dom.classList.contains(BLOCK_SELECTION_ACTIVE_CLASS) !== showActiveClass) {
     view.dom.classList.toggle(BLOCK_SELECTION_ACTIVE_CLASS, showActiveClass);
