@@ -11,6 +11,7 @@ export const MAX_LINK_TOOLTIP_URL_CHARS = 16 * 1024;
 export interface UseLinkStateProps {
     href: string;
     initialText?: string;
+    isAutolink?: boolean;
     autoFocus?: boolean;
     containerElement?: HTMLElement | null;
     onEdit: (text: string, url: string, shouldClose?: boolean) => void;
@@ -53,6 +54,7 @@ function isAutolinkTextForHref(href: string, initialText: string): boolean {
 export function useLinkState({
     href,
     initialText = '',
+    isAutolink: isAutolinkOverride,
     autoFocus = false,
     containerElement,
     onEdit,
@@ -66,8 +68,8 @@ export function useLinkState({
 
     // Detect if this is an autolink (pure URL) vs a Markdown link [text](url)
     const isAutolink = useMemo(() => {
-        return isAutolinkTextForHref(href, initialText);
-    }, [initialText, href]);
+        return isAutolinkOverride ?? isAutolinkTextForHref(href, initialText);
+    }, [initialText, href, isAutolinkOverride]);
 
     const userFacingUrl = useMemo(
         () => isAutolink

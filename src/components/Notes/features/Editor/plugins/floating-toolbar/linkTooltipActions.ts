@@ -5,7 +5,7 @@ import { linkTooltipPluginKey } from '../links';
 import { showTextSelectionOverlayForTransaction } from '../selection/textSelectionOverlayPlugin';
 import { floatingToolbarKey } from './floatingToolbarKey';
 import { TOOLBAR_ACTIONS } from './types';
-import { hasUsableTextRange } from './selectionValidity';
+import { hasUsableLinkTextRange } from './selectionValidity';
 
 function reassertSelectionOverlayForLinkTooltip(view: EditorView, from: number, to: number): void {
   if (!(view.dom instanceof HTMLElement)) {
@@ -52,7 +52,7 @@ export function openLinkTooltipFromSelection(
   if (range && range.from < range.to) {
     const nextFrom = Math.max(0, Math.min(range.from, maxPos));
     const nextTo = Math.max(nextFrom, Math.min(range.to, maxPos));
-    if (hasUsableTextRange(view.state.doc, nextFrom, nextTo)) {
+    if (hasUsableLinkTextRange(view.state.doc, nextFrom, nextTo)) {
       try {
         tr = tr
           .setSelection(TextSelection.create(view.state.doc, nextFrom, nextTo))
@@ -63,6 +63,10 @@ export function openLinkTooltipFromSelection(
         // Use the editor's current selection if the stored toolbar range is no longer valid.
       }
     }
+  }
+
+  if (!hasUsableLinkTextRange(view.state.doc, from, to)) {
+    return;
   }
 
   tr = showTextSelectionOverlayForTransaction(tr)

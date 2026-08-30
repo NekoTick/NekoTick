@@ -54,6 +54,18 @@ describe('useLinkState', () => {
         expect(result.current.editUrl).toBe('cati.me');
     });
 
+    it('does not classify a Markdown image link as an autolink', () => {
+        const { result } = renderHook(() => useLinkState({
+            href: 'https://example.test',
+            initialText: '',
+            isAutolink: false,
+            onEdit: vi.fn(),
+            onClose: vi.fn(),
+        }));
+
+        expect(result.current.isAutolink).toBe(false);
+    });
+
     it('copies autolinks using the user-facing text', async () => {
         const { result } = renderHook(() => useLinkState({
             href: 'https://cati.me',
@@ -171,5 +183,28 @@ describe('useLinkState', () => {
         expect(onEdit).not.toHaveBeenCalled();
         expect(result.current.invalidUrlAttempt).toBe(1);
         expect(result.current.mode).toBe('edit');
+    });
+
+    it('closes a canceled edit without writing the draft', () => {
+        const onEdit = vi.fn();
+        const onClose = vi.fn();
+        const { result } = renderHook(() => useLinkState({
+            href: 'https://example.test/original',
+            initialText: 'Docs',
+            onEdit,
+            onClose,
+        }));
+
+        act(() => {
+            result.current.setMode('edit');
+            result.current.setEditUrl('https://example.test/draft');
+        });
+        act(() => {
+            result.current.handleCancelEdit();
+        });
+
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(result.current.editUrl).toBe('https://example.test/original');
     });
 });

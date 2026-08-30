@@ -253,6 +253,7 @@ export const LinkEditor = ({
                             e.stopPropagation();
                         }}
                         onClick={handleSaveClick}
+                        aria-label={t('common.apply')}
                         className="toolbar-btn link-tooltip-action-btn active shrink-0"
                     >
                         <Icon size="md" name="common.check" />

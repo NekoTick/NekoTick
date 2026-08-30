@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Editor, defaultValueCtx, editorViewCtx } from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { TextSelection } from '@milkdown/kit/prose/state';
-import { hasUsableTextRange, hasUsableTextSelection } from './selectionValidity';
+import { hasUsableLinkTextRange, hasUsableTextRange, hasUsableTextSelection } from './selectionValidity';
 import { MAX_EDITOR_SELECTION_TEXT_CHARS } from '../shared/selectionTextLimits';
 
 async function createEditor(markdown: string) {
@@ -196,6 +196,24 @@ describe('selectionValidity', () => {
 
     expect(hasUsableTextSelection(selection, view.state.doc)).toBe(false);
 
+    await editor.destroy();
+  });
+
+  it('rejects link selections that include inline non-text content', async () => {
+    const editor = await createEditor('before ![alt](https://images.example.test/a.png) after');
+    const view = editor.ctx.get(editorViewCtx);
+    let from = -1;
+    let to = -1;
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image') {
+        from = pos - 1;
+        to = pos + node.nodeSize + 1;
+      }
+      return true;
+    });
+
+    expect(from).toBeGreaterThan(0);
+    expect(hasUsableLinkTextRange(view.state.doc, from, to)).toBe(false);
     await editor.destroy();
   });
 

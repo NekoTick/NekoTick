@@ -78,6 +78,65 @@ export function hasUsableTextRange(doc: ProseNode, from: number, to: number): bo
   return getBoundedTextBetween(doc, safeFrom, safeTo, '\n', '\n').trim().length > 0;
 }
 
+export function hasUsableLinkTextRange(doc: ProseNode, from: number, to: number): boolean {
+  const docSize = doc.content.size;
+  const safeFrom = Math.max(0, Math.min(from, docSize));
+  const safeTo = Math.max(safeFrom, Math.min(to, docSize));
+  // Lightweight toolbar tests and integrations may only expose document size.
+  // Keep their existing selection behavior; structural checks below require a
+  // real ProseMirror document resolver.
+  if (typeof doc.resolve !== 'function') {
+    return safeFrom < safeTo;
+  }
+  if (!hasUsableTextRange(doc, safeFrom, safeTo)) {
+    return false;
+  }
+
+  try {
+    const start = doc.resolve(safeFrom);
+    const end = doc.resolve(safeTo);
+    if (start.parent !== end.parent) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  let hasUnsupportedInlineContent = false;
+  if (typeof doc.nodesBetween !== 'function') {
+    return true;
+  }
+
+  doc.nodesBetween(safeFrom, safeTo, (node, pos) => {
+    if (node.isInline && !node.isText) {
+      const selectedStart = Math.max(safeFrom, pos);
+      const selectedEnd = Math.min(safeTo, pos + node.nodeSize);
+      if (selectedStart < selectedEnd) {
+        hasUnsupportedInlineContent = true;
+        return false;
+      }
+    }
+
+    if (!node.isText || !node.text) {
+      return undefined;
+    }
+
+    const selectedStart = Math.max(safeFrom, pos);
+    const selectedEnd = Math.min(safeTo, pos + node.nodeSize);
+    if (
+      selectedStart < selectedEnd
+      && node.marks.some((mark) => mark.type.name === MARKDOWN_SYNTAX_MARK_NAME)
+    ) {
+      hasUnsupportedInlineContent = true;
+      return false;
+    }
+
+    return undefined;
+  });
+
+  return !hasUnsupportedInlineContent;
+}
+
 export function hasUsableTextSelection(selection: Selection, doc: ProseNode): selection is TextSelection {
   return (
     selection instanceof TextSelection &&
