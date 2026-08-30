@@ -9,8 +9,8 @@ import {
 import { codeBlockHighlightStyle } from './codeBlockHighlightStyle';
 import { codeBlockCompatibilityHighlightStyle } from './codeBlockCompatibilityHighlightStyle';
 import {
-  applyResolvedCodeBlockPointerSelection,
   codeBlockPointerSelectionPlugin,
+  resolveCodeBlockCaretPositionAtPointer,
   resolveCodeBlockBlankContentClickPosition,
 } from './codeBlockPointerSelection';
 import { createCodeBlockEditorBaseTheme } from './codeBlockEditorThemeStyles';
@@ -125,15 +125,24 @@ export function createCodeBlockEditorTheme() {
         return null;
       }
 
+      const startX = event.clientX;
+      const startY = event.clientY;
+
       return {
-        get: () => EditorSelection.single(position),
+        get: (nextEvent: MouseEvent) => {
+          if (nextEvent.clientX === startX && nextEvent.clientY === startY) {
+            return EditorSelection.single(position);
+          }
+
+          const currentPosition = resolveCodeBlockCaretPositionAtPointer(view, nextEvent);
+          return currentPosition === null
+            ? EditorSelection.single(position)
+            : EditorSelection.single(position, currentPosition);
+        },
         update: () => false,
       };
     })),
     CodeMirror.domEventHandlers({
-      mousedown(event, view) {
-        return applyResolvedCodeBlockPointerSelection(view, event);
-      },
       keydown(event, view) {
         if (event.isComposing) {
           return false;
