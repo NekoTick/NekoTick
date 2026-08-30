@@ -131,6 +131,8 @@ function handleBackslashHardBreakArrowLeft(view: EditorView, event: KeyboardEven
     || event.altKey
     || event.metaKey
     || event.ctrlKey
+    || event.isComposing
+    || view.composing
     || !view.state.selection.empty
   ) {
     return false;

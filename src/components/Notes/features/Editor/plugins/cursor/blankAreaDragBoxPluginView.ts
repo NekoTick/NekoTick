@@ -65,7 +65,7 @@ export function createBlankAreaDragBoxPluginView(
   setBlockSelectionEnabled(view, true);
   syncBlockSelectionVisualState(view);
   const handleDocumentKeyDown = (event: KeyboardEvent) => {
-    if (event.isComposing) return;
+    if (event.isComposing || view.composing) return;
     if (!shouldHandleDocumentBlockSelectionEvent(view, event)) return;
     const { selectedBlocks } = getBlockSelectionPluginState(view.state);
     if (!handleBlockSelectionKeyDown(event, {

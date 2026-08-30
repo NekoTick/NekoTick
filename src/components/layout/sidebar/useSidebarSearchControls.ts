@@ -51,6 +51,33 @@ export function useSidebarSearchControls({
   const shouldResetScrollTopOnCloseRef = useRef(false);
   const returnFocusElementRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
+  const isInputComposingRef = useRef(false);
+
+  useLayoutEffect(() => {
+    if (!enabled || !isOpen) {
+      isInputComposingRef.current = false;
+      return;
+    }
+
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+
+    const handleCompositionStart = () => {
+      isInputComposingRef.current = true;
+    };
+    const handleCompositionEnd = () => {
+      isInputComposingRef.current = false;
+    };
+    input.addEventListener('compositionstart', handleCompositionStart);
+    input.addEventListener('compositionend', handleCompositionEnd);
+    return () => {
+      input.removeEventListener('compositionstart', handleCompositionStart);
+      input.removeEventListener('compositionend', handleCompositionEnd);
+      isInputComposingRef.current = false;
+    };
+  }, [enabled, isOpen]);
 
   const blurFocusedInput = useCallback(() => {
     const input = inputRef.current;
@@ -130,7 +157,7 @@ export function useSidebarSearchControls({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) {
+      if (event.isComposing || isInputComposingRef.current) {
         return;
       }
 

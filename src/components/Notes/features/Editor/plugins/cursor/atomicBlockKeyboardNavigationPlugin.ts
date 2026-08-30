@@ -156,6 +156,7 @@ export const atomicBlockKeyboardNavigationPlugin = $prose(() => {
       };
 
       const handleEditorKeyDownCapture = (event: KeyboardEvent) => {
+        if (event.isComposing || view.composing) return;
         if (handleEditableMarkdownBlankLineAfterHeadingKeyboardDelete(view, event)) {
           event.stopPropagation();
           if (typeof event.stopImmediatePropagation === 'function') {

@@ -12,6 +12,14 @@ export function useMenuDismiss({ isOpen, onClose }: UseMenuDismissOptions) {
       return;
     }
 
+    let isComposing = false;
+    const handleCompositionStart = () => {
+      isComposing = true;
+    };
+    const handleCompositionEnd = () => {
+      isComposing = false;
+    };
+
     const handlePointerDown = (event: PointerEvent) => {
       if (isInsideMenuLayer(event.target)) {
         return;
@@ -29,7 +37,7 @@ export function useMenuDismiss({ isOpen, onClose }: UseMenuDismissOptions) {
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.isComposing) {
+      if (event.isComposing || isComposing) {
         return;
       }
 
@@ -48,6 +56,8 @@ export function useMenuDismiss({ isOpen, onClose }: UseMenuDismissOptions) {
 
     document.addEventListener('pointerdown', handlePointerDown, true);
     document.addEventListener('contextmenu', handleContextMenu, true);
+    document.addEventListener('compositionstart', handleCompositionStart, true);
+    document.addEventListener('compositionend', handleCompositionEnd, true);
     document.addEventListener('keydown', handleKeyDown, true);
     scrollRoots.forEach((root) => {
       root.addEventListener('wheel', handleSidebarScroll, { passive: true });
@@ -57,6 +67,8 @@ export function useMenuDismiss({ isOpen, onClose }: UseMenuDismissOptions) {
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown, true);
       document.removeEventListener('contextmenu', handleContextMenu, true);
+      document.removeEventListener('compositionstart', handleCompositionStart, true);
+      document.removeEventListener('compositionend', handleCompositionEnd, true);
       document.removeEventListener('keydown', handleKeyDown, true);
       scrollRoots.forEach((root) => {
         root.removeEventListener('wheel', handleSidebarScroll);

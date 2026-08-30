@@ -35,6 +35,37 @@ describe('handleLeadingEmptyParagraphBackspace', () => {
     }
   });
 
+  it('leaves an unmarked Backspace to the IME while the editor composition is active', async () => {
+    const editor = Editor.make()
+      .config((ctx) => ctx.set(defaultValueCtx, 'Body'))
+      .use(commonmark);
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+
+    try {
+      const paragraph = view.state.schema.nodes.paragraph;
+      view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, [
+        paragraph.create(),
+        paragraph.create(null, view.state.schema.text('Body')),
+      ]));
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 1)));
+      view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      expect(view.composing).toBe(true);
+      const event = new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true,
+      });
+
+      expect(handleLeadingEmptyParagraphBackspace(view, event)).toBe(false);
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.state.doc.childCount).toBe(2);
+      view.dom.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    } finally {
+      await editor.destroy();
+    }
+  });
+
   it.each([
     ['ordered list', '1. First\n2. Second', 'ordered_list', 'First'],
     ['bullet list', '- First\n- Second', 'bullet_list', 'First'],

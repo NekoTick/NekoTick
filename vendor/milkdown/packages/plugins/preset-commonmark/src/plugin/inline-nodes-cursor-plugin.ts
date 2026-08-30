@@ -24,6 +24,7 @@ export const inlineNodesCursorPlugin = $prose(() => {
   let lock = false
   let compositionSession = 0
   let pendingCompositionFrame: number | null = null
+  let preserveNativeCompositionOnEnter = false
   const inlineNodesCursorPluginKey = new PluginKey(
     'MILKDOWN_INLINE_NODES_CURSOR'
   )
@@ -42,9 +43,25 @@ export const inlineNodesCursorPlugin = $prose(() => {
     },
     props: {
       handleDOMEvents: {
+        keydown: (_view, event) => {
+          if (
+            lock &&
+            event.key === 'Enter' &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey &&
+            !event.shiftKey
+          ) {
+            preserveNativeCompositionOnEnter = true
+          }
+          return false
+        },
         compositionend: (view, e) => {
           if (lock) {
             lock = false
+            const shouldPreserveNativeCommit = preserveNativeCompositionOnEnter
+            preserveNativeCompositionOnEnter = false
+            if (shouldPreserveNativeCommit) return false
             if (!e.data) return false
             const session = compositionSession
             const from = view.state.selection.from
@@ -65,6 +82,7 @@ export const inlineNodesCursorPlugin = $prose(() => {
         },
         compositionstart: (view) => {
           compositionSession += 1
+          preserveNativeCompositionOnEnter = false
           if (pendingCompositionFrame !== null) {
             cancelAnimationFrame(pendingCompositionFrame)
             pendingCompositionFrame = null
@@ -111,6 +129,7 @@ export const inlineNodesCursorPlugin = $prose(() => {
       destroy: () => {
         compositionSession += 1
         lock = false
+        preserveNativeCompositionOnEnter = false
         if (pendingCompositionFrame !== null) {
           cancelAnimationFrame(pendingCompositionFrame)
           pendingCompositionFrame = null

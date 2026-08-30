@@ -36,6 +36,14 @@ function handleDomEvent(view: EditorView, type: 'compositionstart' | 'compositio
   return handled
 }
 
+function handleKeydown(view: EditorView, event: KeyboardEvent) {
+  let handled = false
+  view.someProp('handleDOMEvents', (handlers) => {
+    handled = handlers.keydown?.(view, event) || handled
+  })
+  return handled
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
 })
@@ -111,6 +119,30 @@ it('leaves an empty composition commit to the native editor', async () => {
 
     expect(handleDomEvent(view, 'compositionend', event)).toBe(false)
     expect(event.defaultPrevented).toBe(false)
+  } finally {
+    await editor.destroy()
+  }
+})
+
+it('leaves an Enter-confirmed composition commit to the native editor', async () => {
+  const requestFrame = vi.spyOn(globalThis, 'requestAnimationFrame')
+  const editor = createEditor()
+  await editor.create()
+
+  try {
+    const view = editor.ctx.get(editorViewCtx)
+    setCursorAfterImage(view)
+
+    handleDomEvent(view, 'compositionstart', new CompositionEvent('compositionstart'))
+    expect(handleKeydown(view, new KeyboardEvent('keydown', {
+      key: 'Enter',
+      isComposing: false,
+    }))).toBe(false)
+    const event = new CompositionEvent('compositionend', { data: '饿' })
+
+    expect(handleDomEvent(view, 'compositionend', event)).toBe(false)
+    expect(event.defaultPrevented).toBe(false)
+    expect(requestFrame).not.toHaveBeenCalled()
   } finally {
     await editor.destroy()
   }

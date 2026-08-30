@@ -2156,6 +2156,36 @@ describe('atomicBlockKeyboardNavigationPlugin', () => {
     await editor.destroy();
   });
 
+  it('leaves blank-line Delete to the IME while the editor composition is active', async () => {
+    const editor = createEditor();
+    await editor.create();
+    const view = editor.ctx.get(editorViewCtx);
+    const { schema } = view.state;
+    replaceDocument(view, [
+      schema.nodes.heading.create({ level: 2 }, schema.text('Heading')),
+      schema.nodes.paragraph.create(null, schema.text(EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER)),
+      schema.nodes.paragraph.create(null, schema.text('after')),
+    ]);
+
+    const blankLinePos = topLevelNodePos(view, 'paragraph');
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, blankLinePos + 1)));
+    view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    expect(view.composing).toBe(true);
+    const event = new KeyboardEvent('keydown', {
+      key: 'Delete',
+      bubbles: true,
+      cancelable: true,
+    });
+
+    view.dom.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.child(1).textContent).toBe(EDITABLE_MARKDOWN_BLANK_LINE_PLACEHOLDER);
+    view.dom.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    await editor.destroy();
+  });
+
   it('keeps the cursor at the heading end after deleting the next line text and pressing Delete', async () => {
     const editor = createEditor(['# 1', '2', '3'].join('\n'));
     await editor.create();

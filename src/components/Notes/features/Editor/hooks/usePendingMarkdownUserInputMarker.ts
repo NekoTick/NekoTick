@@ -86,6 +86,7 @@ export function usePendingMarkdownUserInputMarker({
     view: EditorView,
     _liveSerializer: ((doc: unknown) => string) | null
   ) => {
+    let preserveNativeCompositionOnEnter = false;
     return (event: Event) => {
       if (
         event instanceof KeyboardEvent &&
@@ -108,6 +109,7 @@ export function usePendingMarkdownUserInputMarker({
         deferredCompositionUserInputVersionRef.current = 0;
         latestCompositionDataRef.current = null;
         latestCompositionResidueDataRef.current = null;
+        preserveNativeCompositionOnEnter = false;
         hasCompositionEndedRef.current = false;
         compositionStartSelectionRef.current = captureCompositionStartSelection(view);
         lastCompositionCommitAtRef.current = 0;
@@ -119,6 +121,18 @@ export function usePendingMarkdownUserInputMarker({
         return;
       }
 
+      const isEnterDuringComposition = event instanceof KeyboardEvent &&
+        event.key === 'Enter' &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !event.shiftKey &&
+        isCompositionActiveRef.current &&
+        !hasCompositionEndedRef.current;
+      if (isEnterDuringComposition) {
+        preserveNativeCompositionOnEnter = true;
+      }
+
       if (event.type === 'compositionend') {
         if (hasCompositionEndedRef.current) {
           return;
@@ -128,24 +142,42 @@ export function usePendingMarkdownUserInputMarker({
         isCompositionSelectionRepairSuppressedRef.current = false;
         allowDeferredCompositionMarkdownWithoutCommitRef.current = false;
         clearCompositionAppendGuard();
-        const compositionEndData = getEventData(event) ??
-          (hasNonAsciiText(latestCompositionDataRef.current) ? latestCompositionDataRef.current : null) ??
-          getSelectedCompositionText(view);
-        if (compositionEndData) {
-          const staleCompositionData = latestCompositionResidueDataRef.current ?? latestCompositionDataRef.current;
-          const committedCompositionData = compositionEndData;
-          const startSelection = compositionStartSelectionRef.current;
-          const compositionSession = compositionSessionRef.current;
-          latestCompositionDataRef.current = committedCompositionData;
-          lastCompositionCommitAtRef.current = getCompositionClockMs();
-          scheduleCompositionCommitFinalization(
-            view,
-            staleCompositionData,
-            committedCompositionData,
-            startSelection,
-            () => compositionSessionRef.current === compositionSession && view.dom.isConnected,
-          );
+        if (!preserveNativeCompositionOnEnter) {
+          const compositionEndData = getEventData(event) ??
+            (hasNonAsciiText(latestCompositionDataRef.current) ? latestCompositionDataRef.current : null) ??
+            getSelectedCompositionText(view);
+          if (compositionEndData) {
+            const staleCompositionData = latestCompositionResidueDataRef.current ?? latestCompositionDataRef.current;
+            const committedCompositionData = compositionEndData;
+            const startSelection = compositionStartSelectionRef.current;
+            const compositionSession = compositionSessionRef.current;
+            latestCompositionDataRef.current = committedCompositionData;
+            lastCompositionCommitAtRef.current = getCompositionClockMs();
+            scheduleCompositionCommitFinalization(
+              view,
+              staleCompositionData,
+              committedCompositionData,
+              startSelection,
+              () => compositionSessionRef.current === compositionSession && view.dom.isConnected,
+            );
+          }
+        } else {
+          // Enter confirms the native composition. Let ProseMirror's DOM observer
+          // own the committed text instead of repairing an unrelated ASCII letter.
+          isCompositionActiveRef.current = false;
+          hasCompositionEndedRef.current = false;
+          compositionStartSelectionRef.current = null;
+          deferredCompositionMarkdownRef.current = null;
+          deferredCompositionUserInputVersionRef.current = 0;
+          latestCompositionDataRef.current = null;
+          latestCompositionResidueDataRef.current = null;
+          if (compositionSettleTimeoutRef.current !== null) {
+            clearTimeout(compositionSettleTimeoutRef.current);
+            compositionSettleTimeoutRef.current = null;
+          }
+          clearCompositionAppendGuard();
         }
+        preserveNativeCompositionOnEnter = false;
       }
 
       const isCompositionEvent = isCompositionInputEvent(event);
@@ -177,6 +209,7 @@ export function usePendingMarkdownUserInputMarker({
           compositionSettleTimeoutRef.current = null;
         }
         hasCompositionEndedRef.current = false;
+        preserveNativeCompositionOnEnter = false;
         lastCompositionCommitAtRef.current = 0;
         clearCompositionAppendGuard();
       };
@@ -333,6 +366,11 @@ export function usePendingMarkdownUserInputMarker({
       }
 
       if (!isContentEditingEvent) {
+        return;
+      }
+
+      if (isEnterDuringComposition) {
+        markUserInputVersion();
         return;
       }
 

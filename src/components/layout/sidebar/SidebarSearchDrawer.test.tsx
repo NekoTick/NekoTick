@@ -175,18 +175,22 @@ describe('SidebarSearchDrawer', () => {
     );
 
     const input = screen.getByRole('textbox');
+    fireEvent.compositionStart(input);
     const enterEvent = fireEvent.keyDown(input, {
       key: 'Enter',
-      nativeEvent: { isComposing: true },
-      isComposing: true,
+      isComposing: false,
     });
-    fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: true });
-    fireEvent.keyDown(input, { key: 'Escape', isComposing: true });
+    fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: false });
+    fireEvent.keyDown(input, { key: 'Escape', isComposing: false });
 
     expect(enterEvent).toBe(true);
     expect(onSubmit).not.toHaveBeenCalled();
     expect(onSelectNext).not.toHaveBeenCalled();
     expect(hideSearch).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it('leaves arrow keys alone when there is no selectable result', () => {

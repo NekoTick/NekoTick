@@ -269,21 +269,37 @@ describe('useSidebarSearchControls', () => {
       />,
     );
 
-    const scopeButton = screen.getByTestId('scope-button');
+    const searchInput = screen.getByRole('textbox', { name: 'search-input' });
+    act(() => {
+      searchInput.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    });
     const keyEvent = new KeyboardEvent('keydown', {
       bubbles: true,
       cancelable: true,
       key: 'Escape',
     });
-    Object.defineProperty(keyEvent, 'isComposing', { value: true });
 
     act(() => {
-      scopeButton.dispatchEvent(keyEvent);
+      searchInput.dispatchEvent(keyEvent);
     });
 
     expect(keyEvent.defaultPrevented).toBe(false);
     expect(onClose).not.toHaveBeenCalled();
     expect(onOpen).not.toHaveBeenCalled();
+
+    act(() => {
+      searchInput.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    });
+    const nextEscape = new KeyboardEvent('keydown', {
+      bubbles: true,
+      cancelable: true,
+      key: 'Escape',
+    });
+    act(() => {
+      searchInput.dispatchEvent(nextEscape);
+    });
+    expect(nextEscape.defaultPrevented).toBe(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('leaves Escape inside another editable sidebar target alone', () => {

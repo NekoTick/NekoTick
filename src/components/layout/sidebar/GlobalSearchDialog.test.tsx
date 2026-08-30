@@ -367,7 +367,8 @@ describe('GlobalSearchDialog', () => {
     render(<GlobalSearchDialog open onOpenChange={() => {}} />);
     const input = screen.getByRole('textbox', { name: 'sidebar.search' });
 
-    fireEvent.keyDown(input, { key: 'Enter', keyCode: 229, isComposing: true });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 13, isComposing: false });
 
     expect(hoisted.aiActions.switchSession).not.toHaveBeenCalled();
     expect(hoisted.notesState.openNote).not.toHaveBeenCalled();

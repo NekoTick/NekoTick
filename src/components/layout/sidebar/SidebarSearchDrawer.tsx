@@ -2,6 +2,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
+  useEffect,
+  useRef,
 } from 'react';
 import { cn } from '@/lib/utils';
 import { useHeldPageScroll } from '@/hooks/useHeldPageScroll';
@@ -96,9 +98,16 @@ export function SidebarSearchDrawer({
   hasSearchResults = false,
   topActions,
 }: SidebarSearchDrawerProps) {
+  const isInputComposingRef = useRef(false);
+  useEffect(() => {
+    if (!isSearchOpen) {
+      isInputComposingRef.current = false;
+    }
+  }, [isSearchOpen]);
+
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     const native = event.nativeEvent as globalThis.KeyboardEvent & { isComposing?: boolean; keyCode?: number };
-    if (native.isComposing || native.keyCode === 229) {
+    if (isInputComposingRef.current || native.isComposing || native.keyCode === 229) {
       return;
     }
 
@@ -153,6 +162,12 @@ export function SidebarSearchDrawer({
             disabled={!isSearchOpen}
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
+            onCompositionStart={() => {
+              isInputComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isInputComposingRef.current = false;
+            }}
             onKeyDown={handleKeyDown}
             aria-label={ariaLabel}
             placeholder={placeholder}

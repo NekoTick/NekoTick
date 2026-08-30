@@ -72,6 +72,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   const resultListRef = useRef<HTMLDivElement>(null);
   const openRequestRef = useRef(0);
   const whiteboardOpenQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const isInputComposingRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
   const whiteboardRootPath = currentNotesRoot?.path ?? WHITEBOARD_SYSTEM_STORAGE_SCOPE;
 
@@ -169,6 +170,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
       openRequestRef.current += 1;
+      isInputComposingRef.current = false;
       setQuery('');
       setSelectedIndex(0);
     }
@@ -205,7 +207,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
   };
   const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     const nativeEvent = event.nativeEvent as KeyboardEvent & { isComposing?: boolean; keyCode?: number };
-    if (nativeEvent.isComposing || nativeEvent.keyCode === 229) return;
+    if (isInputComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229) return;
     if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && visibleResults.length > 0) {
       event.preventDefault();
       const offset = event.key === 'ArrowDown' ? 1 : -1;
@@ -224,7 +226,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: GlobalSearchDialogPro
         <DialogDescription className="sr-only">{t('shortcut.action.sidebarSearch')}</DialogDescription>
         <div className="flex h-[var(--vlaina-size-48px)] shrink-0 items-center border-b border-[var(--vlaina-color-border-shell)] px-4">
           <Icon name="common.search" size={themeIconTokens.sizeCompact} className="shrink-0 text-[var(--vlaina-sidebar-notes-text-soft)]" />
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={handleInputKeyDown} placeholder={t('sidebar.search')} aria-label={t('sidebar.search')} aria-controls="global-search-results" aria-activedescendant={selectedResult ? `global-search-result-${selectedIndex}` : undefined} className="h-full min-w-0 flex-1 bg-transparent px-3 text-[length:var(--vlaina-font-sm)] text-[var(--vlaina-text-primary)] outline-none placeholder:text-[var(--vlaina-text-tertiary)]" />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} onCompositionStart={() => { isInputComposingRef.current = true; }} onCompositionEnd={() => { isInputComposingRef.current = false; }} onKeyDown={handleInputKeyDown} placeholder={t('sidebar.search')} aria-label={t('sidebar.search')} aria-controls="global-search-results" aria-activedescendant={selectedResult ? `global-search-result-${selectedIndex}` : undefined} className="h-full min-w-0 flex-1 bg-transparent px-3 text-[length:var(--vlaina-font-sm)] text-[var(--vlaina-text-primary)] outline-none placeholder:text-[var(--vlaina-text-tertiary)]" />
         </div>
         <div className="grid min-h-0 flex-1 grid-cols-[var(--vlaina-width-global-search-results)_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col border-r border-[var(--vlaina-color-border-shell)]">

@@ -465,6 +465,55 @@ describe('usePendingMarkdownAutosave', () => {
     }
   });
 
+  it('keeps raw heading text when Enter commits an active IME composition', async () => {
+    const editor = createEditor('# temp');
+    await editor.create();
+    const updateContent = vi.fn();
+    const debouncedSave = vi.fn();
+    const { result, unmount } = renderHook(() => usePendingMarkdownAutosave({
+      currentNotePath: 'docs/alpha.md',
+      currentNoteDiskRevision: 0,
+      currentNoteContent: '# temp',
+      updateContent,
+      debouncedSave,
+    }));
+
+    try {
+      const view = editor.ctx.get(editorViewCtx);
+      const compositionEnd = findTextEndPos(view, 't');
+      const markUserInput = result.current.createUserInputMarker(view, null);
+
+      act(() => {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, compositionEnd)));
+        markUserInput(new Event('compositionstart'));
+        markUserInput(new InputEvent('beforeinput', {
+          inputType: 'insertCompositionText',
+          data: 'e',
+          isComposing: true,
+        }));
+        markUserInput(new InputEvent('beforeinput', {
+          inputType: 'insertCompositionText',
+          data: '饿',
+          isComposing: true,
+        }));
+        markUserInput(new KeyboardEvent('keydown', {
+          key: 'Enter',
+          bubbles: true,
+          cancelable: true,
+          isComposing: false,
+        }));
+        markUserInput(new CompositionEvent('compositionend', { data: '饿' }));
+        vi.advanceTimersByTime(100);
+      });
+
+      expect(getDocText(view)).toBe('# temp');
+      expect(getDocText(view)).not.toContain('饿');
+    } finally {
+      unmount();
+      await editor.destroy();
+    }
+  });
+
   it('collapses a selection that still covers committed composition text', async () => {
     const editor = createEditor(['# alpha', '', '你好'].join('\n'));
     await editor.create();

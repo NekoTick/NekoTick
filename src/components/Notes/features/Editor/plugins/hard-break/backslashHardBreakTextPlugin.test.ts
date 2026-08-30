@@ -258,6 +258,32 @@ describe('backslashHardBreakTextPlugin', () => {
     expect(view.state.selection.from).toBe(betweenBackslashes);
   });
 
+  it('leaves ArrowLeft to the IME while the editor composition is active', async () => {
+    const source = `。${'\\'.repeat(3)}\n下一行`;
+    const editor = await createEditor(source);
+    const view = editor.ctx.get(editorViewCtx) as EditorView;
+    const paragraph = view.state.doc.firstChild;
+    const hardBreakEnd = 1
+      + (paragraph?.child(0).nodeSize ?? 0)
+      + (paragraph?.child(1).nodeSize ?? 0)
+      + (paragraph?.child(2).nodeSize ?? 0);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, hardBreakEnd)));
+    view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    expect(view.composing).toBe(true);
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      bubbles: true,
+      cancelable: true,
+    });
+
+    view.dom.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(view.state.selection.from).toBe(hardBreakEnd);
+    view.dom.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+  });
+
   it('does not override ArrowLeft once the cursor is between visible backslashes', async () => {
     const source = `。${'\\'.repeat(3)}\n下一行`;
     const editor = await createEditor(source);

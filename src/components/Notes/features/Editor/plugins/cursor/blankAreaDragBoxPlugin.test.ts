@@ -1884,6 +1884,24 @@ describe('blankAreaDragBoxPlugin clipboard shortcuts', () => {
     }
   });
 
+  it('leaves an unmarked document Delete to the IME while the editor composition is active', async () => {
+    const { editor, view } = await createBlockSelectionEditor('Alpha\n\nBeta');
+
+    try {
+      view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      expect(view.composing).toBe(true);
+      view.dom.blur();
+      const deleteEvent = dispatchDocumentKeydown('Delete');
+
+      expect(deleteEvent.defaultPrevented).toBe(false);
+      expect(view.state.doc.textContent).toBe('AlphaBeta');
+      expect(getBlockSelectionPluginState(view.state).selectedBlocks).toHaveLength(1);
+      view.dom.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    } finally {
+      await editor.destroy();
+    }
+  });
+
   it('does not route Ctrl+C through an async writer when a block selection shadows stale text', async () => {
     const writeText = vi.fn(() => new Promise<void>(() => undefined));
     Object.defineProperty(navigator, 'clipboard', {

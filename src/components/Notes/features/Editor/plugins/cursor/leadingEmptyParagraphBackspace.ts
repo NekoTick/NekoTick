@@ -26,6 +26,7 @@ export function handleLeadingEmptyParagraphBackspace(
     || event.ctrlKey
     || event.altKey
     || event.isComposing
+    || view.composing
   ) return false;
 
   const { $cursor } = view.state.selection;
