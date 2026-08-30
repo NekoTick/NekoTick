@@ -37,4 +37,14 @@ describe('LinkViewer', () => {
 
     expect(screen.getByTestId('icon-common.copy').closest('button')).not.toHaveClass('active');
   });
+
+  it('gives link actions accessible names', () => {
+    renderViewer(false);
+
+    expect(screen.getByRole('button', { name: 'Open' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+  });
 });

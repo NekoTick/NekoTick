@@ -53,6 +53,9 @@ const LinkTooltip = (props: LinkTooltipProps) => {
             }
 
             const container = props.containerElement ?? document.querySelector('.link-tooltip-container');
+            if (container?.classList.contains('hidden')) {
+                return;
+            }
             if (container && container.contains(event.target as Node)) {
                 return;
             }

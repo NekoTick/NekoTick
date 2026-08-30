@@ -1,8 +1,17 @@
 import type { EditorView } from '@milkdown/kit/prose/view';
+import type { ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import type { Root } from 'react-dom/client';
 import LinkTooltip from './LinkTooltip';
 import { getBoundedLinkTooltipText } from './linkTooltipTransactions';
 import { openEditorLinkHref } from '../utils/openEditorLinkHref';
+
+let nextLinkTooltipRenderKey = 0;
+
+function renderLinkTooltip(root: Root | null, element: ReactNode) {
+    if (!root) return;
+    flushSync(() => root.render(element));
+}
 
 interface RenderExistingLinkTooltipArgs {
     root: Root | null;
@@ -27,11 +36,12 @@ export function renderExistingLinkTooltip({
     onRemove,
     onClose,
 }: RenderExistingLinkTooltipArgs) {
-    root?.render(
+    renderLinkTooltip(root,
         <LinkTooltip
-            key={Date.now()}
+            key={++nextLinkTooltipRenderKey}
             href={href}
             initialText={getBoundedLinkTooltipText(link)}
+            isAutolink={link.classList.contains('autolink')}
             containerElement={containerElement}
             editorElement={view.dom}
             onOpen={() => void openEditorLinkHref(href, { view })}
@@ -62,9 +72,9 @@ export function renderNewLinkTooltip({
     onRemove,
     onClose,
 }: RenderNewLinkTooltipArgs) {
-    root?.render(
+    renderLinkTooltip(root,
         <LinkTooltip
-            key={Date.now()}
+            key={++nextLinkTooltipRenderKey}
             href=""
             initialText={selectedText}
             autoFocus={autoFocus}

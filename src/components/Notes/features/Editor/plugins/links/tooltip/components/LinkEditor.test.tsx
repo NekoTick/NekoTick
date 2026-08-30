@@ -5,7 +5,7 @@ import { themeUiFeedbackTokens } from '@/styles/themeTokens';
 
 vi.mock('@/lib/i18n', () => ({
     useI18n: () => ({
-        t: () => 'URL...',
+        t: (key: string) => key === 'common.apply' ? 'Apply' : 'URL...',
     }),
 }));
 
@@ -56,7 +56,7 @@ describe('LinkEditor', () => {
             />
         );
 
-        const button = screen.getByRole('button');
+        const button = screen.getByRole('button', { name: 'Apply' });
         fireEvent.mouseDown(button);
         fireEvent.click(button);
 

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Icon } from '@/components/ui/icons';
 import { raisedPillSurfaceClass } from '@/components/ui/surfaceStyles';
 import { cn } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import { useLinkTooltipContentWidth } from '../hooks/useLinkTooltipContentWidth';
 
 interface LinkViewerProps {
@@ -25,6 +26,7 @@ export const LinkViewer = ({
     onUnlink,
     onRemove
 }: LinkViewerProps) => {
+    const { t } = useI18n();
     const containerRef = useRef<HTMLDivElement>(null);
     const { maxWidth } = useLinkTooltipContentWidth(containerRef);
 
@@ -44,6 +46,7 @@ export const LinkViewer = ({
         >
             <button
                 onClick={onOpen}
+                aria-label={t('common.open')}
                 className="toolbar-btn link-tooltip-open-btn group"
             >
                 <span className="flex size-5 shrink-0 items-center justify-center rounded transition-colors">
@@ -57,13 +60,13 @@ export const LinkViewer = ({
             <div className="toolbar-divider" />
 
             <div className="flex items-center gap-0.5">
-                <button onClick={onCopy} className={cn(actionButtonClass, showCopied && 'active')}>
+                <button aria-label={t('common.copy')} onClick={onCopy} className={cn(actionButtonClass, showCopied && 'active')}>
                     {showCopied
                         ? <Icon size="md" name="common.check" className="text-[var(--vlaina-accent)] scale-[var(--vlaina-scale-110)]" />
                         : <Icon size="md" name="common.copy" />}
                 </button>
 
-                <button onClick={onEdit} className={actionButtonClass}>
+                <button aria-label={t('shortcut.action.link')} onClick={onEdit} className={actionButtonClass}>
                     <Icon size="md" name="common.compose" />
                 </button>
             </div>
@@ -72,12 +75,12 @@ export const LinkViewer = ({
 
             <div className="flex items-center gap-0.5">
                 {!isAutolink && (
-                    <button onClick={onUnlink} className={actionButtonClass}>
+                    <button aria-label={t('common.remove')} onClick={onUnlink} className={actionButtonClass}>
                         <Icon size="md" name="common.unlink" />
                     </button>
                 )}
 
-                <button onClick={onRemove} className={actionButtonClass}>
+                <button aria-label={t('common.delete')} onClick={onRemove} className={actionButtonClass}>
                     <Icon size="md" name="common.delete" />
                 </button>
             </div>

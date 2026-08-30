@@ -6,6 +6,7 @@ import {
     findLinkRange,
     resolveLinkMarkRangeAtPos,
 } from '../utils/helpers';
+import { hasUsableLinkTextRange } from '../../floating-toolbar/selectionValidity';
 import { markEditorUserInput } from '../../shared/userInputEvents';
 
 export const MAX_TOOLTIP_FALLBACK_LINK_TEXT_CHARS = 4096;
@@ -60,6 +61,17 @@ function getLinkDestinationSource(href: string): string {
     return /[\s()<>]/.test(href) ? `<${escaped}>` : href.replace(/([()])/g, '\\$1');
 }
 
+function getLinkTitleSource(title: unknown): string {
+    return typeof title === 'string' && title.length > 0
+        ? ` "${title.replace(/(["\\])/g, '\\$1')}"`
+        : '';
+}
+
+function getExistingLinkMark(state: EditorView['state'], start: number, linkMarkType: any) {
+    const nodeAfter = state.doc.resolve(start).nodeAfter;
+    return nodeAfter?.marks.find((mark) => mark.type === linkMarkType) ?? null;
+}
+
 export function editExistingLink(
     view: EditorView,
     link: HTMLElement,
@@ -83,25 +95,38 @@ export function editExistingLink(
     const closingSyntax = range ? state.doc.resolve(end).nodeAfter : null;
     const hasOpeningSyntax = isLinkSyntaxNode(openingSyntax, 'open');
     const hasClosingSyntax = isLinkSyntaxNode(closingSyntax, 'close');
+    const existingLinkMark = range ? getExistingLinkMark(state, start, linkMarkType) : null;
+    // The current tooltip edits the destination only. Keep the existing content
+    // nodes so nested formatting, syntax marks, and inline images survive.
+    const preserveExistingContent = Boolean(range);
 
     let tr = state.tr;
     if (range) tr = tr.removeMark(start, end, linkMarkType);
 
     const safeUrl = sanitizeTooltipLinkHref(url);
-    tr = tr.insertText(text, start, end);
+    if (!preserveExistingContent) {
+        tr = tr.insertText(text, start, end);
+    }
     if (safeUrl) {
-        tr = tr.addMark(start, start + text.length, linkMarkType.create({ href: safeUrl }));
+        const markAttrs = existingLinkMark
+            ? { ...existingLinkMark.attrs, href: safeUrl }
+            : { href: safeUrl };
+        const markEnd = preserveExistingContent ? end : start + text.length;
+        tr = tr.addMark(start, markEnd, linkMarkType.create(markAttrs));
     }
 
+    let closingSyntaxEnd: number | null = null;
     if (hasClosingSyntax && closingSyntax) {
         const closeFrom = tr.mapping.map(end, 1);
         const closeTo = tr.mapping.map(end + closingSyntax.nodeSize, -1);
         if (safeUrl) {
+            const closingSource = `](${getLinkDestinationSource(safeUrl)}${getLinkTitleSource(existingLinkMark?.attrs?.title)})`;
             tr = tr.replaceWith(
                 closeFrom,
                 closeTo,
-                state.schema.text(`](${getLinkDestinationSource(safeUrl)})`, closingSyntax.marks),
+                state.schema.text(closingSource, closingSyntax.marks),
             );
+            closingSyntaxEnd = closeFrom + closingSource.length;
         } else {
             tr = tr.delete(closeFrom, closeTo);
         }
@@ -113,10 +138,16 @@ export function editExistingLink(
         tr = tr.delete(openFrom, openTo);
     }
 
-    const selectionPos = !safeUrl && hasOpeningSyntax && openingSyntax
-        ? start - openingSyntax.nodeSize + text.length
-        : start + text.length;
+    const contentEnd = preserveExistingContent ? end : start + text.length;
+    const selectionPos = closingSyntaxEnd ?? (
+        !safeUrl && preserveExistingContent
+            ? tr.mapping.map(end, -1)
+            : !safeUrl && hasOpeningSyntax && openingSyntax
+                ? start - openingSyntax.nodeSize + text.length
+                : contentEnd
+    );
     tr.setSelection(TextSelection.create(tr.doc, selectionPos));
+    tr.removeStoredMark(linkMarkType);
     markEditorUserInput(view);
     dispatch(tr);
     return tr.mapping.map(start);
@@ -126,10 +157,10 @@ export function unlinkExistingLink(view: EditorView, link: HTMLElement): boolean
     const result = findLinkRange(view, link);
     if (!result) return false;
 
-    const tr = view.state.tr.removeMark(result.start, result.end, result.linkMarkType);
-    markEditorUserInput(view);
-    view.dispatch(tr);
-    return true;
+    // Markdown links keep their `[ ]( )` delimiters as syntax text nodes. Use
+    // the same transaction path as clearing a URL so those delimiters are
+    // removed while the linked content and its other marks remain intact.
+    return editExistingLink(view, link, getBoundedLinkTooltipText(link), '') !== null;
 }
 
 export function removeExistingLink(view: EditorView, link: HTMLElement): boolean {
@@ -149,7 +180,17 @@ export function removeExistingLink(view: EditorView, link: HTMLElement): boolean
         return true;
     }
 
-    const tr = view.state.tr.delete(result.start, result.end);
+    const openingSyntax = view.state.doc.resolve(result.start).nodeBefore;
+    const closingSyntax = view.state.doc.resolve(result.end).nodeAfter;
+    const hasOpeningSyntax = isLinkSyntaxNode(openingSyntax, 'open');
+    const hasClosingSyntax = isLinkSyntaxNode(closingSyntax, 'close');
+    const deleteFrom = hasOpeningSyntax && openingSyntax
+        ? result.start - openingSyntax.nodeSize
+        : result.start;
+    const deleteTo = hasClosingSyntax && closingSyntax
+        ? result.end + closingSyntax.nodeSize
+        : result.end;
+    const tr = view.state.tr.delete(deleteFrom, deleteTo);
     markEditorUserInput(view);
     view.dispatch(tr);
     return true;
@@ -175,6 +216,9 @@ export function editLinkAtPosition(
     ) {
         return null;
     }
+    if (!hasUsableLinkTextRange(state.doc, from, to)) {
+        return null;
+    }
 
     const safeUrl = sanitizeTooltipLinkHref(url);
     if (!safeUrl) {
@@ -189,11 +233,16 @@ export function editLinkAtPosition(
     }
 
     try {
-        const tr = state.tr
-            .insertText(text, from, to)
-            .addMark(from, from + text.length, linkMarkType.create({ href: safeUrl }));
+        const selectedText = state.doc.textBetween(from, to, '', '');
+        const preserveExistingContent = selectedText === text;
+        const tr = preserveExistingContent
+            ? state.tr.addMark(from, to, linkMarkType.create({ href: safeUrl }))
+            : state.tr
+                .insertText(text, from, to)
+                .addMark(from, from + text.length, linkMarkType.create({ href: safeUrl }));
 
         tr.setSelection(TextSelection.create(tr.doc, from + text.length));
+        tr.removeStoredMark(linkMarkType);
         markEditorUserInput(view);
         dispatch(tr);
         return tr.mapping.map(from);
