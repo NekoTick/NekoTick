@@ -72,9 +72,11 @@ pnpm dev
 With special appreciation to **湾中WanZhong** for the beautiful icon design.
 
 ### Contributors
-<a href="https://github.com/vladelaina/vlaina/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=vladelaina/vlaina" />
+<a href="https://vlaina.com/co">
+    <img src="https://vlaina.com/co" alt="Vlaina contributors" />
 </a>
+
+
 
 ---
 
